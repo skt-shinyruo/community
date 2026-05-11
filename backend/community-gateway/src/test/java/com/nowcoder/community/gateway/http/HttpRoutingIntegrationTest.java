@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.http;
 
+import com.nowcoder.community.common.trace.TraceIdCodec;
 import com.nowcoder.community.gateway.CommunityGatewayApplication;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -91,11 +92,11 @@ class HttpRoutingIntegrationTest {
         webTestClient.post()
                 .uri("/api/posts?draft=true&limit=10")
                 .header("Authorization", "Bearer test-token")
-                .header("X-Trace-Id", "ABCDEFABCDEFABCDEFABCDEFABCDEFAB")
+                .header(TRACEPARENT_HEADER, traceparent("abcdefabcdefabcdefabcdefabcdefab"))
                 .bodyValue("{\"title\":\"Gateway\"}")
                 .exchange()
                 .expectStatus().isOk()
-                .expectHeader().valueEquals("X-Trace-Id", "abcdefabcdefabcdefabcdefabcdefab")
+                .expectHeader().valueEquals(TRACEPARENT_HEADER, traceparent("abcdefabcdefabcdefabcdefabcdefab"))
                 .expectBody()
                 .jsonPath("$.upstream").isEqualTo("bootstrap");
 
@@ -106,8 +107,9 @@ class HttpRoutingIntegrationTest {
         assertThat(capture.query()).isEqualTo("draft=true&limit=10");
         assertThat(capture.body()).isEqualTo("{\"title\":\"Gateway\"}");
         assertThat(capture.authorization()).isEqualTo("Bearer test-token");
-        assertThat(capture.traceId()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
-        assertThat(capture.traceparent()).startsWith("00-abcdefabcdefabcdefabcdefabcdefab-");
+        assertThat(capture.traceparent()).isEqualTo(traceparent("abcdefabcdefabcdefabcdefabcdefab"));
+        assertThat(TraceIdCodec.extractTraceIdFromTraceparent(capture.traceparent()))
+                .isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
     }
 
     @Test
@@ -149,21 +151,19 @@ class HttpRoutingIntegrationTest {
     }
 
     @Test
-    void shouldPreferTraceparentTraceIdWhenProxying() throws Exception {
+    void shouldProxyTraceparentWhenPresent() throws Exception {
         BOOTSTRAP_CAPTURES.clear();
 
         webTestClient.get()
                 .uri("/api/posts")
-                .header("X-Trace-Id", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
                 .header(TRACEPARENT_HEADER, traceparent("4bf92f3577b34da6a3ce929d0e0e4736"))
                 .exchange()
                 .expectStatus().isOk()
-                .expectHeader().valueEquals("X-Trace-Id", "4bf92f3577b34da6a3ce929d0e0e4736");
+                .expectHeader().valueEquals(TRACEPARENT_HEADER, traceparent("4bf92f3577b34da6a3ce929d0e0e4736"));
 
         RequestCapture capture = BOOTSTRAP_CAPTURES.poll(5, TimeUnit.SECONDS);
         assertThat(capture).isNotNull();
-        assertThat(capture.traceId()).isEqualTo("4bf92f3577b34da6a3ce929d0e0e4736");
-        assertThat(capture.traceparent()).startsWith("00-4bf92f3577b34da6a3ce929d0e0e4736-");
+        assertThat(capture.traceparent()).isEqualTo(traceparent("4bf92f3577b34da6a3ce929d0e0e4736"));
     }
 
     @Test
@@ -175,7 +175,7 @@ class HttpRoutingIntegrationTest {
         webTestClient.get()
                 .uri("/api/im/conversations?unreadOnly=true")
                 .header("Authorization", "Bearer im-token")
-                .header("X-Trace-Id", traceId)
+                .header(TRACEPARENT_HEADER, traceparent(traceId))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -186,7 +186,7 @@ class HttpRoutingIntegrationTest {
         assertThat(capture.path()).isEqualTo("/api/im/conversations");
         assertThat(capture.query()).isEqualTo("unreadOnly=true");
         assertThat(capture.authorization()).isEqualTo("Bearer im-token");
-        assertThat(capture.traceId()).isEqualTo(traceId);
+        assertThat(capture.traceparent()).isEqualTo(traceparent(traceId));
         assertThat(BOOTSTRAP_CAPTURES).isEmpty();
     }
 
@@ -299,7 +299,6 @@ class HttpRoutingIntegrationTest {
                                     query,
                                     body,
                                     request.requestHeaders().get("Authorization"),
-                                    request.requestHeaders().get("X-Trace-Id"),
                                     request.requestHeaders().get(TRACEPARENT_HEADER)
                             ));
                             if (query != null && query.contains("upstreamCors=true")) {
@@ -319,7 +318,6 @@ class HttpRoutingIntegrationTest {
             String query,
             String body,
             String authorization,
-            String traceId,
             String traceparent
     ) {
     }

@@ -70,7 +70,6 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
                 "application/octet-stream",
                 0,
                 "",
-                fileKey,
                 userId.toString()
         ));
         if (response == null) {
@@ -123,6 +122,9 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
         if (metadata == null) {
             throw new BusinessException(INTERNAL_ERROR, "上传头像失败");
         }
+        if (!StringUtils.hasText(metadata.publicUrl())) {
+            throw new BusinessException(INTERNAL_ERROR, "上传头像失败");
+        }
         cachePublicUrl(fileKey, metadata.publicUrl());
     }
 
@@ -152,7 +154,7 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
         if (StringUtils.hasText(cached)) {
             return cached.trim();
         }
-        return publicBaseUrl() + "/files/" + fileKey.trim();
+        throw new BusinessException(INTERNAL_ERROR, "头像公共地址不可用");
     }
 
     private void bindUploadTicket(UUID userId, String fileName) {
@@ -173,8 +175,7 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
         if (redisTemplate == null) {
             return;
         }
-        String value = StringUtils.hasText(publicUrl) ? publicUrl.trim() : publicBaseUrl() + "/files/" + fileName;
-        redisTemplate.opsForValue().set(publicUrlKey(fileName), value, UPLOAD_TICKET_TTL_SECONDS, TimeUnit.SECONDS);
+        redisTemplate.opsForValue().set(publicUrlKey(fileName), publicUrl.trim(), UPLOAD_TICKET_TTL_SECONDS, TimeUnit.SECONDS);
     }
 
     private void requireUploadOwner(UUID userId, String fileName, boolean consume) {
@@ -251,13 +252,6 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
         if (!ALLOWED_MIME_TYPES.contains(contentType)) {
             throw new BusinessException(INVALID_ARGUMENT, "不支持的图片格式（mime=" + contentType + "）");
         }
-    }
-
-    private String publicBaseUrl() {
-        if (properties == null || !StringUtils.hasText(properties.publicBaseUrl())) {
-            return "http://localhost:12880";
-        }
-        return properties.publicBaseUrl();
     }
 
     private record UploadSessionReference(UUID sessionId, UUID objectId, UUID versionId) {

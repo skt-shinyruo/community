@@ -147,7 +147,6 @@ class RegistrationVerificationApplicationServiceTest {
         assertThat(createCommand.headerUrl()).isEqualTo("h");
         verify(registrationDraftRepository).delete("token");
         verify(authService).issueLoginResult(activatedUser);
-        verify(userRegistrationActionApi, never()).activatePendingUser(any(UUID.class));
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=registration_verify")

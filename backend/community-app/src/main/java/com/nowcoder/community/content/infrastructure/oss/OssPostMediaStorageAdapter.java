@@ -55,7 +55,6 @@ public class OssPostMediaStorageAdapter implements PostMediaStoragePort {
                 draft.contentType(),
                 draft.contentLength(),
                 checksumSha256 == null ? "" : checksumSha256.trim(),
-                "",
                 draft.ownerUserId().toString()
         ));
         if (response == null || response.sessionId() == null || response.objectId() == null || response.versionId() == null) {

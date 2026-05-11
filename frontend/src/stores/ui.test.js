@@ -64,7 +64,7 @@ describe('stores/ui', () => {
     })
   })
 
-  it('should remove the legacy right-panel state contract', () => {
+  it('should keep the retired right-panel state contract absent', () => {
     installWindow()
     const store = useUiStore()
 

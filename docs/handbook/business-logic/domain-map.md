@@ -26,7 +26,7 @@ Browser / Client
 | wallet | 账户、复式账本、充值、提现、转账、奖励、市场资金动作。 | 商品、订单、纠纷事实；任务是否完成。 | [wallet.md](wallet.md) |
 | market | 商品、库存、地址快照、订单、纠纷、自动确认和资金动作 saga。 | 钱包余额事实和账本入账细节。 | [market.md](market.md) |
 | drive | 用户私有网盘空间、目录树、回收站、分享链接、提取码和访问记录。 | 文件对象、版本、签名 URL 和 blob 生命周期。 | [drive.md](drive.md) |
-| OSS | 对象、版本、alias、上传会话、reference、grant、底层 blob 位置和生命周期。 | 使用方的业务授权和展示投影。 | [oss.md](oss.md) |
+| OSS | 对象、版本、上传会话、reference、grant、底层 blob 位置和生命周期。 | 使用方的业务授权和展示投影。 | [oss.md](oss.md) |
 | notice | 站内通知读模型、未读数、通知摘要。 | 点赞、评论、关注、治理等上游主事实。 | [notice-search-analytics-ops.md](notice-search-analytics-ops.md) |
 | search | Elasticsearch 索引、查询语义和 alias 管理。 | 帖子和评论主事实。 | [notice-search-analytics-ops.md](notice-search-analytics-ops.md) |
 | analytics | UV/DAU 等访问采集和 Redis 统计读模型。 | 用户、内容、会话主事实。 | [notice-search-analytics-ops.md](notice-search-analytics-ops.md) |
@@ -45,7 +45,7 @@ Browser / Client
 
 ## message 名称说明
 
-架构守卫中仍可能看到 `message` 名称，这是历史/兼容口径。当前主站 `community.message` 表承载站内通知语义；IM 私信和群聊主事实已经迁到 `community-im`，因此业务阅读时不要再把 `message` 当成独立 IM owner。
+当前主站 `community.message` 表承载站内通知语义；IM 私信和群聊主事实属于 `community-im`，因此业务阅读时不要再把 `message` 当成独立 IM owner。
 
 ## 新需求从哪里开始看
 

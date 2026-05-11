@@ -4,14 +4,14 @@
     <sql id="fields">
         session_id, object_id, version_id, upload_mode, owner_service, owner_domain, owner_type, owner_id,
         expected_file_name, expected_content_type, expected_content_length, expected_checksum_sha256,
-        alias_key, status, expires_at, created_by, created_at, completed_at
+        status, expires_at, created_by, created_at, completed_at
     </sql>
     <insert id="upsert" parameterType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssUploadSessionDataObject">
         insert into oss_upload_session (<include refid="fields"/>)
         values (#{sessionId,jdbcType=BINARY}, #{objectId,jdbcType=BINARY}, #{versionId,jdbcType=BINARY},
         #{uploadMode}, #{ownerService}, #{ownerDomain}, #{ownerType}, #{ownerId}, #{expectedFileName},
-        #{expectedContentType}, #{expectedContentLength}, #{expectedChecksumSha256}, #{aliasKey},
-        #{status}, #{expiresAt}, #{createdBy}, #{createdAt}, #{completedAt})
+        #{expectedContentType}, #{expectedContentLength}, #{expectedChecksumSha256}, #{status}, #{expiresAt},
+        #{createdBy}, #{createdAt}, #{completedAt})
         on duplicate key update
         status = values(status),
         completed_at = values(completed_at),

@@ -26,13 +26,13 @@
 
 ## 单域详解
 
-当前 active 业务域以 `backend/community-app` 的 `auth`、`user`、`content`、`social`、`notice`、`search`、`analytics`、`growth`、`market`、`wallet`、`drive`、`ops`、`im` 包，以及 `backend/community-im/*` 的 IM 模块为准。架构守卫中仍出现的 `message` 名称是历史/兼容口径：主站 `community.message` 表现在承载站内通知语义，IM 私信/群聊主事实已经迁到 `community-im`，因此不再单独写一篇 `message` 业务域文档。
+当前 active 业务域以 `backend/community-app` 的 `auth`、`user`、`content`、`social`、`notice`、`search`、`analytics`、`growth`、`market`、`wallet`、`drive`、`ops`、`im` 包，以及 `backend/community-im/*` 的 IM 模块为准。主站 `community.message` 表现在承载站内通知语义，IM 私信和群聊主事实在 `community-im`，因此不再单独写一篇 `message` 业务域文档。
 
 | 业务域 | 文档 | 覆盖内容 |
 | --- | --- | --- |
 | 认证 | [auth.md](auth.md) | 登录、注册、验证码、密码重置、refresh token、会话清理。 |
 | 用户 | [user.md](user.md) | 用户资料、头像、凭据、角色、处罚状态、积分、refresh session。 |
-| OSS | [oss.md](oss.md) | 对象元数据、版本、alias、签名 URL、生命周期和 Garage / S3-compatible 后端。 |
+| OSS | [oss.md](oss.md) | 对象元数据、版本、签名 URL、生命周期和 Garage / S3-compatible 后端。 |
 | 网盘 | [drive.md](drive.md) | 10GiB 私有网盘、目录树、回收站、分享链接、提取码和 OSS 代理下载。 |
 | 内容 | [content.md](content.md) | 帖子、评论、分类、标签、收藏、订阅、举报、审核、内容事件。 |
 | 社交 | [social.md](social.md) | 点赞、关注、拉黑、社交事件、互动限制、IM policy 联动。 |

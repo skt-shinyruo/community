@@ -27,7 +27,6 @@ HTTP 入口位于 `AuthController`：
 后台入口：
 
 - `RefreshTokenCleanupJob` 清理过期 refresh session。
-- `PendingRegistrationUserCleanupJob` 保留兼容旧待激活用户清理面。
 
 ## 应用层入口
 
@@ -66,7 +65,7 @@ auth 不直接写 user 表或 refresh session 表；这些状态变化都通过 
 8. `verifyRegisterCode(...)` 根据 `registrationToken` 找回 draft，消费验证码。
 9. 验证通过后调用 `UserRegistrationActionApi.createVerifiedRegistrationUser(...)`，由 user owner 插入 active 用户。
 10. 注册验证成功后复用登录签发能力，直接返回 access token 和 refresh cookie。
-11. draft/code 删除属于 cleanup，失败不应让已创建用户回滚到未注册状态。
+11. 注册验证成功后会 best-effort 删除 draft/code；失败不应让已创建用户回滚到未注册状态。
 
 失败语义：
 
@@ -90,10 +89,7 @@ auth 不直接写 user 表或 refresh session 表；这些状态变化都通过 
 9. 调 `issueLoginResult(...)` 签发 access token 和 refresh token。
 10. 记录安全日志，并通过 `AnalyticsIngestActionApi.recordLoginSuccess(...)` 记录登录成功采集。
 
-user owner 的密码校验兼容两种格式：
-
-- BCrypt：当前主格式。
-- 历史 MD5 + salt：校验成功后升级为 BCrypt。
+user owner 的密码校验只接受 BCrypt。
 
 ## Refresh 和 Logout
 
@@ -129,7 +125,7 @@ logout：
 校验：
 
 1. 空 captchaId 或空 code 直接返回 `false`。
-2. `CaptchaDomainService.normalizeCode(...)` 只做 trim；大小写兼容由具体 repository 负责。
+2. `CaptchaDomainService.normalizeCode(...)` 只做 trim；大小写规则由具体 repository 负责。
 3. repository `verifyAndConsume(...)` 返回 `MATCHED` 时校验成功，并消费验证码。
 4. `NOT_FOUND` 直接失败。
 5. 其他失败会增加失败计数；失败计数 TTL 与验证码 TTL 一致。

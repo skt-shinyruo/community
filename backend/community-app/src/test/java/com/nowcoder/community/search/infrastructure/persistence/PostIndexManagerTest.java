@@ -88,22 +88,22 @@ class PostIndexManagerTest {
     }
 
     @Test
-    void ensureAliasReadyShouldIgnoreLegacyIndexAndCreateVersionedIndexForFreshAlias() {
+    void ensureAliasReadyShouldCreateVersionedIndexForFreshAlias() {
         ElasticsearchOperations operations = mock(ElasticsearchOperations.class);
         IndexOperations aliasOps = mock(IndexOperations.class);
-        IndexOperations legacyOps = mock(IndexOperations.class);
+        IndexOperations directIndexOps = mock(IndexOperations.class);
         IndexOperations wildcardOps = mock(IndexOperations.class);
         IndexOperations targetOps = mock(IndexOperations.class);
         Document expectedMapping = Document.create();
         when(operations.indexOps(EsPostDocument.class)).thenReturn(aliasOps);
         when(operations.indexOps(argThat((IndexCoordinates coordinates) -> hasIndexName(coordinates, "community_posts"))))
-                .thenReturn(legacyOps);
+                .thenReturn(directIndexOps);
         when(operations.indexOps(argThat((IndexCoordinates coordinates) -> hasIndexName(coordinates, "community_posts_v*"))))
                 .thenReturn(wildcardOps);
         when(operations.indexOps(argThat((IndexCoordinates coordinates) -> hasVersionedIndexName(coordinates))))
                 .thenReturn(targetOps);
         when(aliasOps.exists()).thenReturn(false);
-        when(legacyOps.exists()).thenReturn(true);
+        when(directIndexOps.exists()).thenReturn(true);
         when(wildcardOps.exists()).thenReturn(false);
         when(targetOps.exists()).thenReturn(false);
         when(aliasOps.createMapping()).thenReturn(expectedMapping);
@@ -111,7 +111,7 @@ class PostIndexManagerTest {
 
         new PostIndexManager(operations, "community_posts_v").ensureAliasReady();
 
-        verify(legacyOps, never()).alias(any(AliasActions.class));
+        verify(directIndexOps, never()).alias(any(AliasActions.class));
         verify(targetOps).create();
         verify(targetOps).putMapping(expectedMapping);
 

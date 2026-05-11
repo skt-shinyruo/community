@@ -127,17 +127,12 @@
 
 ## 观测层
 
-两套拓扑默认都会启用 observability：
-
-- `./deploy/deployment.sh up --topology single --observability`
-- `./deploy/deployment.sh up --topology cluster --observability`
-
-普通启动会加载 `deploy/compose.observability.yml`，并默认开启后端 OTel tracing：
+两套拓扑默认都会启用 observability。普通启动会加载 `deploy/compose.observability.yml`，并默认开启后端 OTel tracing：
 
 - `./deploy/deployment.sh up --topology single`
 - `./deploy/deployment.sh up --topology cluster`
 
-`--observability` 保留为显式启用/兼容写法。需要关闭整个观测 overlay 时使用：
+需要关闭整个观测 overlay 时使用：
 
 ```bash
 ./deploy/deployment.sh up --topology single --no-observability

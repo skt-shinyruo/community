@@ -31,11 +31,6 @@
 | `auth.infrastructure.jwt.JwtTokenService` | HS256 access token 签发和 claim 组装 | [安全模型](security.md#jwt-和-refresh-cookie) | Covered |
 | `auth.infrastructure.web.AuthOriginGuardFilter` | `community-app` unsafe HTTP method OriginGuard | [安全模型](security.md#cors-和-originguard) | Covered |
 | `auth.infrastructure.job.RefreshTokenCleanupJob` | refresh session 清理 job | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
-| `auth.infrastructure.job.PendingRegistrationUserCleanupJob` | 待激活用户清理 job | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
-
-Registration migration note：
-
-- Removed legacy registration-token-to-user-id session repository: registration tokens no longer resolve to user ids; they resolve to full registration drafts.
 
 ## User
 
@@ -53,7 +48,7 @@ Registration migration note：
 | `user.application.UserAvatarApplicationService` | 头像上传 token / confirm | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserModerationApplicationService` | 禁言 / 封禁状态和 policy event | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.AdminUserApplicationService` | 管理员用户搜索和角色修改 | [User 用户业务逻辑](business-logic/user.md) | Covered |
-| `user.application.UserPointsApplicationService` | 用户积分视图 / wallet 协作兼容面 | [User 用户业务逻辑](business-logic/user.md) | Covered |
+| `user.application.UserPointsApplicationService` | 用户积分视图 / wallet 奖励协作入口 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.domain.service.PasswordPolicyDomainService` | 密码复杂度规则 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.domain.service.UserCredentialDomainService` | 凭证校验和密码更新规则 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.domain.service.UserModerationDomainService` | 用户处罚状态规则 | [User 用户业务逻辑](business-logic/user.md) | Covered |
@@ -122,8 +117,7 @@ Registration migration note：
 | `content.application.ModerationNoticePublisher` | moderation result notice 发布端口 | [Content 内容业务逻辑](business-logic/content.md#举报和审核) | Covered |
 | `content.application.PostWriteSideEffectScheduler` | post score refresh after-commit 调度 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
 | `content.application.UserModerationGuard` | 发帖 / 评论前同步回源 user 处罚状态 | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
-| `content.application.ContentTextCodec` | 写入转义和读出历史 entity 兼容 | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
-| `content.application.HtmlEntityCodec` | HTML entity 最小化编解码工具 | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
+| `content.application.ContentTextCodec` | 内容文本边界处理 | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
 | `content.domain.service.PostPublishingDomainService` | 发帖 draft 和发布规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.domain.service.PostContentBlockPolicy` | content block type, length, metadata and media reference rules | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
 | `content.domain.service.CommentDomainService` | 评论目标解析、编辑和删除规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
@@ -283,7 +277,7 @@ Registration migration note：
 | --- | --- | --- | --- |
 | `community-gateway.edge.RateLimitWebFilter` | gateway edge rate limit by principal or IP | [安全模型](security.md) | Covered |
 | `community-gateway.edge.AccessLogWebFilter` | gateway HTTP access log after trace id resolution | [安全模型](security.md) | Covered |
-| `community-gateway.ws.ExternalImWebSocketHandler` | legacy/internal worker-specific IM WS proxy path | [架构规则](architecture.md) | Covered |
+| `community-gateway.ws.ExternalImWebSocketHandler` | IM WS proxy path to selected realtime worker | [架构规则](architecture.md) | Covered |
 | `community-gateway.shard.WorkerRegistry` | gateway worker registry for WS worker lookup | [架构规则](architecture.md) | Covered |
 | `im.gateway.session.ImSessionApiController` | `/api/im/sessions` HTTP binding | [IM 消息业务逻辑](business-logic/im.md) | IndexOnly |
 | `im.gateway.session.ImSessionService` | JWT validation, worker selection and session ticket issuance | [IM 消息业务逻辑](business-logic/im.md) | Covered |
@@ -361,9 +355,7 @@ Registration migration note：
 | `market.infrastructure.job.MarketOrderAutoConfirmHandler` | XXL `marketOrderAutoConfirm` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.infrastructure.job.MarketWalletActionProcessorHandler` | XXL `marketWalletActionProcessor` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.infrastructure.job.MarketWalletActionRecoveryHandler` | XXL `marketWalletActionRecovery` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
-| `user.infrastructure.job.PendingRegistrationUserCleanupHandler` | 待激活用户清理 handler | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `auth.infrastructure.job.RefreshTokenCleanupJob` | 本地 refresh token cleanup | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
-| `auth.infrastructure.job.PendingRegistrationUserCleanupJob` | 本地 pending registration cleanup | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `infra.scheduler.SingleFlightTaskGuard` | local single-flight scheduler guard | [可靠性机制](reliability.md#single-flight) | Covered |
 | `common-outbox.OutboxWorkerScheduler` | outbox 本地 worker scheduler | [可靠性机制](reliability.md) | Covered |
 

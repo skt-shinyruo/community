@@ -19,8 +19,7 @@ class OssSchemaResourceTest {
                 "create table if not exists oss_upload_session",
                 "create table if not exists oss_access_grant",
                 "create table if not exists oss_object_reference",
-                "create table if not exists oss_usage_policy",
-                "create table if not exists oss_object_alias"
+                "create table if not exists oss_usage_policy"
         );
     }
 
@@ -29,7 +28,6 @@ class OssSchemaResourceTest {
         assertThat(Path.of("src", "main", "resources", "mapper", "oss_object_mapper.xml")).exists();
         assertThat(Path.of("src", "main", "resources", "mapper", "oss_object_version_mapper.xml")).exists();
         assertThat(Path.of("src", "main", "resources", "mapper", "oss_upload_session_mapper.xml")).exists();
-        assertThat(Path.of("src", "main", "resources", "mapper", "oss_object_alias_mapper.xml")).exists();
         assertThat(Path.of("src", "main", "resources", "mapper", "oss_usage_policy_mapper.xml")).exists();
         assertThat(Path.of("src", "main", "resources", "mapper", "oss_access_grant_mapper.xml")).exists();
         assertThat(Path.of("src", "main", "resources", "mapper", "oss_object_reference_mapper.xml")).exists();

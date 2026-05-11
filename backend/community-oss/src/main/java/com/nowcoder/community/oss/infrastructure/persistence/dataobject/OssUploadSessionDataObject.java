@@ -20,7 +20,6 @@ public class OssUploadSessionDataObject {
     private String expectedContentType;
     private long expectedContentLength;
     private String expectedChecksumSha256;
-    private String aliasKey;
     private String status;
     private Instant expiresAt;
     private String createdBy;
@@ -41,7 +40,6 @@ public class OssUploadSessionDataObject {
         row.setExpectedContentType(session.expectedContentType());
         row.setExpectedContentLength(session.expectedContentLength());
         row.setExpectedChecksumSha256(session.expectedChecksumSha256());
-        row.setAliasKey(session.aliasKey());
         row.setStatus(session.status().name());
         row.setExpiresAt(session.expiresAt());
         row.setCreatedBy(session.createdBy());
@@ -64,7 +62,6 @@ public class OssUploadSessionDataObject {
                 expectedContentType,
                 expectedContentLength,
                 expectedChecksumSha256,
-                aliasKey,
                 OssUploadSessionStatus.valueOf(status),
                 expiresAt,
                 createdBy,
@@ -97,8 +94,6 @@ public class OssUploadSessionDataObject {
     public void setExpectedContentLength(long expectedContentLength) { this.expectedContentLength = expectedContentLength; }
     public String getExpectedChecksumSha256() { return expectedChecksumSha256; }
     public void setExpectedChecksumSha256(String expectedChecksumSha256) { this.expectedChecksumSha256 = expectedChecksumSha256; }
-    public String getAliasKey() { return aliasKey; }
-    public void setAliasKey(String aliasKey) { this.aliasKey = aliasKey; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public Instant getExpiresAt() { return expiresAt; }

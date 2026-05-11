@@ -42,68 +42,7 @@ create table if not exists auth_refresh_token_family_revocation (
   revoked_at timestamp not null default current_timestamp
 );
 
--- Compatibility upgrade: add moderation columns for existing DBs (manual re-run scenario).
-set @has_mute_until := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'user'
-    and column_name = 'mute_until'
-);
-set @sql := if(@has_mute_until = 0, 'alter table user add column mute_until timestamp null default null', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_score := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'user'
-    and column_name = 'score'
-);
-set @sql := if(@has_score = 0, 'alter table user add column score int not null default 0', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_ban_until := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'user'
-    and column_name = 'ban_until'
-);
-set @sql := if(@has_ban_until = 0, 'alter table user add column ban_until timestamp null default null', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_user_username_uk := (
-  select count(*)
-  from information_schema.statistics
-  where table_schema = database()
-    and table_name = 'user'
-    and index_name = 'uk_user_username'
-);
-set @sql := if(@has_user_username_uk = 0, 'alter table user add constraint uk_user_username unique (username)', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_user_email_uk := (
-  select count(*)
-  from information_schema.statistics
-  where table_schema = database()
-    and table_name = 'user'
-    and index_name = 'uk_user_email'
-);
-set @sql := if(@has_user_email_uk = 0, 'alter table user add constraint uk_user_email unique (email)', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
--- 用户处罚类事件幂等（历史遗留）：以 event_id 唯一约束为准（insert-first）。
+-- 用户处罚类事件幂等：以 event_id 唯一约束为准（insert-first）。
 create table if not exists user_consumed_event (
   id binary(16) primary key,
   event_id varchar(64) not null,

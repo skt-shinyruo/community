@@ -57,9 +57,6 @@ public class UserCredentialApplicationService {
         if (!passwordMatches(user, trimmedPassword)) {
             return UserAuthenticationResult.invalidCredentials();
         }
-        if (userCredentialDomainService.isLegacyPassword(user)) {
-            userRepository.updatePassword(user.id(), passwordEncoder.encode(trimmedPassword));
-        }
         return UserAuthenticationResult.authenticated(toCredentialResult(user));
     }
 
@@ -120,7 +117,7 @@ public class UserCredentialApplicationService {
                 return false;
             }
         }
-        return userCredentialDomainService.legacyPasswordMatches(user, rawPassword);
+        return false;
     }
 
     private UserCredentialResult toCredentialResult(UserAccount user) {

@@ -35,12 +35,4 @@ public interface UserRepository {
     List<UserModerationStatus> scanModerationStatesAfterId(UUID afterUserId, int limit);
 
     void insertUser(UserAccount user);
-
-    void insertPendingUser(UserAccount user);
-
-    int deletePendingUserIfExpired(UUID userId, int status, Instant cutoff);
-
-    int deletePendingUser(UUID userId, int status);
-
-    List<UUID> listExpiredPendingUserIds(int status, Instant cutoff, int limit);
 }

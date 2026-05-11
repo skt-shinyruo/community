@@ -5,16 +5,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "auth.registration")
 public class RegistrationProperties {
 
-    private PendingUser pendingUser = new PendingUser();
+    private Draft draft = new Draft();
     private Code code = new Code();
     private Mail mail = new Mail();
 
-    public PendingUser getPendingUser() {
-        return pendingUser;
+    public Draft getDraft() {
+        return draft;
     }
 
-    public void setPendingUser(PendingUser pendingUser) {
-        this.pendingUser = pendingUser;
+    public void setDraft(Draft draft) {
+        this.draft = draft == null ? new Draft() : draft;
     }
 
     public Code getCode() {
@@ -33,21 +33,12 @@ public class RegistrationProperties {
         this.mail = mail;
     }
 
-    public static class PendingUser {
+    public static class Draft {
         /**
-         * 未激活注册用户存活时间（秒）；超过后视为过期，可重新注册。
+         * 注册草稿存活时间（秒）；超过后需要重新开始注册。
          */
         private int ttlSeconds = 1800;
-
-        /**
-         * 是否启用本地 fixed-delay 清理兜底任务。
-         */
-        private boolean localSchedulerEnabled = true;
-
-        /**
-         * 过期未激活用户清理任务的 fixed-delay（毫秒）。
-         */
-        private long cleanupIntervalMs = 300000;
+        private String store = "redis";
 
         public int getTtlSeconds() {
             return ttlSeconds;
@@ -57,20 +48,12 @@ public class RegistrationProperties {
             this.ttlSeconds = ttlSeconds > 0 ? ttlSeconds : 1800;
         }
 
-        public boolean isLocalSchedulerEnabled() {
-            return localSchedulerEnabled;
+        public String getStore() {
+            return store;
         }
 
-        public void setLocalSchedulerEnabled(boolean localSchedulerEnabled) {
-            this.localSchedulerEnabled = localSchedulerEnabled;
-        }
-
-        public long getCleanupIntervalMs() {
-            return cleanupIntervalMs;
-        }
-
-        public void setCleanupIntervalMs(long cleanupIntervalMs) {
-            this.cleanupIntervalMs = cleanupIntervalMs > 0 ? cleanupIntervalMs : 300000L;
+        public void setStore(String store) {
+            this.store = store;
         }
     }
 

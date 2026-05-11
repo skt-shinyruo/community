@@ -17,16 +17,10 @@ public class UserProfileResponse {
     private Integer userLevel;
     private Integer signInDaysInWindow;
 
-    // 对齐旧单体“用户主页”展示字段：获赞/关注/粉丝/关注状态
     private long likeCount;
     private long followeeCount;
     private long followerCount;
     private Boolean hasFollowed;
-
-    /**
-     * 兼容旧响应结构保留的字段；本地聚合成功时固定为 false。
-     */
-    private boolean socialDegraded;
 
     public UUID getId() {
         return id;
@@ -148,11 +142,4 @@ public class UserProfileResponse {
         this.hasFollowed = hasFollowed;
     }
 
-    public boolean isSocialDegraded() {
-        return socialDegraded;
-    }
-
-    public void setSocialDegraded(boolean socialDegraded) {
-        this.socialDegraded = socialDegraded;
-    }
 }

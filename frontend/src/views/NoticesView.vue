@@ -16,7 +16,7 @@
         </div>
       </div>
 
-      <UiEmpty v-if="error && items.length === 0" type="error" class="notices-state">{{ error }}</UiEmpty>
+      <UiEmpty v-if="error && items.length === 0" variant="error" class="notices-state">{{ error }}</UiEmpty>
       <UiEmpty v-else-if="items.length === 0 && !loading" class="notices-state">
         暂无通知
         <template #description>当有人与你互动，或系统需要提醒你时，这里会按主题出现新的通知流。</template>

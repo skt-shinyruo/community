@@ -20,7 +20,7 @@
 4. 访问：
    - 前端：`http://localhost:12881`
    - 统一入口：`http://localhost:12880/api/...`
-   - 可观测性（可选）：`./deploy/deployment.sh up --topology single --observability`
+   - 关闭可观测性 overlay（可选）：`./deploy/deployment.sh up --topology single --no-observability`
 
 ## 本地开发 / 测试
 - 单测：`mvn test`

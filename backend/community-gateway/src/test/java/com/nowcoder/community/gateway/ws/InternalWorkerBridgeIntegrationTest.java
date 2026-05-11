@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.ws;
 
+import com.nowcoder.community.common.trace.TraceIdCodec;
 import com.nowcoder.community.gateway.CommunityGatewayApplication;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -101,7 +102,6 @@ class InternalWorkerBridgeIntegrationTest {
         String traceparent = "00-" + traceId + "-2222222222222222-01";
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set("X-Trace-Id", traceId);
         headers.set("traceparent", traceparent);
 
         List<String> received = runSession("/ws/im/workers/worker-b", List.of("hello"), 1, headers);
@@ -109,7 +109,6 @@ class InternalWorkerBridgeIntegrationTest {
         assertThat(received).containsExactly("worker-b:hello");
         assertThat(WORKER_A_HANDSHAKES.poll(200, TimeUnit.MILLISECONDS)).isNull();
         assertThat(WORKER_B_HANDSHAKES.poll(5, TimeUnit.SECONDS))
-                .containsEntry("X-Trace-Id", traceId)
                 .containsEntry("traceparent", traceparent);
     }
 
@@ -122,8 +121,8 @@ class InternalWorkerBridgeIntegrationTest {
         assertThat(received).containsExactly("worker-b:hello");
         Map<String, String> handshake = WORKER_B_HANDSHAKES.poll(5, TimeUnit.SECONDS);
         assertThat(handshake).isNotNull();
-        String traceId = handshake.get("X-Trace-Id");
         String traceparent = handshake.get("traceparent");
+        String traceId = TraceIdCodec.extractTraceIdFromTraceparent(traceparent);
         assertThat(traceId).matches("^[0-9a-f]{32}$");
         assertThat(traceparent)
                 .startsWith("00-" + traceId + "-")
@@ -207,7 +206,6 @@ class InternalWorkerBridgeIntegrationTest {
                         out.sendString(in.receive()
                                 .asString()
                                 .doOnSubscribe(ignored -> handshakeHeaders.offer(Map.of(
-                                        "X-Trace-Id", normalizeHeader(in.headers().get("X-Trace-Id")),
                                         "traceparent", normalizeHeader(in.headers().get("traceparent"))
                                 )))
                                 .doOnNext(inboundFrames::offer)

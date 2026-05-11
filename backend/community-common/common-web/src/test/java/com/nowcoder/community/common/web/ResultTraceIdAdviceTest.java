@@ -42,8 +42,8 @@ class ResultTraceIdAdviceTest {
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isSameAs(payload);
         assertThat(result.getTraceId()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
-        assertThat(response.getHeaders().getFirst(TraceHeaders.HEADER_TRACE_ID))
-                .isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
+        assertThat(response.getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT))
+                .matches("^00-abcdefabcdefabcdefabcdefabcdefab-[0-9a-f]{16}-01$");
     }
 
     private static MethodParameter returnType(String methodName) throws NoSuchMethodException {

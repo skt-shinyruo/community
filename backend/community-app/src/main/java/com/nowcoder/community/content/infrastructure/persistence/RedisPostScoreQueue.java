@@ -19,7 +19,6 @@ public class RedisPostScoreQueue implements PostScoreQueue {
 
     private static final DefaultRedisScript<Long> RETRY_ATTEMPT_SCRIPT = new DefaultRedisScript<>();
 
-    private static final String LEGACY_SET_KEY = "post:score";
     private static final String QUEUE_ZSET_KEY = "post:score:z";
     private static final String RETRY_HASH_KEY = "post:score:retry";
     private static final Duration RETRY_HASH_TTL = Duration.ofDays(3);
@@ -50,15 +49,7 @@ public class RedisPostScoreQueue implements PostScoreQueue {
 
     @Override
     public UUID pop() {
-        // 1) v2 queue (ZSET): pop due items only (avoid tight retry loops)
-        UUID v2 = popDueFromZset();
-        if (v2 != null) {
-            return v2;
-        }
-
-        // 2) best-effort legacy fallback (SET): avoid dropping old queued items after upgrade
-        String legacy = redisTemplate.opsForSet().pop(LEGACY_SET_KEY);
-        return parsePostIdOrNull(legacy);
+        return popDueFromZset();
     }
 
     @Override

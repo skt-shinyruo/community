@@ -38,6 +38,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JsonContractsTest {
@@ -401,6 +402,21 @@ class JsonContractsTest {
     }
 
     @Test
+    void shouldRejectUnknownUserMessagingPolicyFieldNames() {
+        assertThrows(Exception.class, () -> objectMapper.readValue("""
+                {
+                  "eventId": "evt-policy-unknown",
+                  "userId": "00000000-0000-7000-8000-000000000081",
+                  "userExists": true,
+                  "suspended": false,
+                  "muted": false,
+                  "unknownPolicyFlag": true,
+                  "occurredAtEpochMillis": 1712345678905
+                }
+                """, UserMessagingPolicyChanged.class));
+    }
+
+    @Test
     void shouldRoundTripUserBlockRelationChanged() throws Exception {
         UserBlockRelationChanged event = new UserBlockRelationChanged(
                 "evt-block-1",
@@ -438,7 +454,7 @@ class JsonContractsTest {
             boolean muted,
             Long muteUntil,
             Long banUntil,
-            boolean allowPrivateMessages
+            boolean canSendPrivate
     ) {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("userId", userId);
@@ -447,7 +463,7 @@ class JsonContractsTest {
         values.put("muted", muted);
         values.put("muteUntil", muteUntil);
         values.put("banUntil", banUntil);
-        values.put("allowPrivateMessages", allowPrivateMessages);
+        values.put("canSendPrivate", canSendPrivate);
         return values;
     }
 
@@ -459,7 +475,7 @@ class JsonContractsTest {
             boolean muted,
             Long muteUntil,
             Long banUntil,
-            boolean allowPrivateMessages,
+            boolean canSendPrivate,
             long occurredAtEpochMillis
     ) {
         Map<String, Object> values = new LinkedHashMap<>();
@@ -470,7 +486,7 @@ class JsonContractsTest {
         values.put("muted", muted);
         values.put("muteUntil", muteUntil);
         values.put("banUntil", banUntil);
-        values.put("allowPrivateMessages", allowPrivateMessages);
+        values.put("canSendPrivate", canSendPrivate);
         values.put("occurredAtEpochMillis", occurredAtEpochMillis);
         return values;
     }

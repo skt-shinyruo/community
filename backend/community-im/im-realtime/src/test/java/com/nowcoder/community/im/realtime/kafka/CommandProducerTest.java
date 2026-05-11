@@ -55,8 +55,6 @@ class CommandProducerTest {
         assertThat(record.topic()).isEqualTo(ImTopics.COMMAND_PRIVATE_TEXT);
         assertThat(record.key()).isEqualTo("conv-1");
         assertThat(record.value()).isEqualTo(command);
-        assertThat(new String(record.headers().lastHeader(TraceHeaders.HEADER_TRACE_ID).value(), StandardCharsets.UTF_8))
-                .isEqualTo("abababababababababababababababab");
         assertThat(new String(record.headers().lastHeader(TraceHeaders.HEADER_TRACEPARENT).value(), StandardCharsets.UTF_8))
                 .startsWith("00-abababababababababababababababab-");
     }
@@ -87,8 +85,6 @@ class CommandProducerTest {
         assertThat(record.topic()).isEqualTo(ImTopics.COMMAND_ROOM_TEXT);
         assertThat(record.key()).isEqualTo(String.valueOf(roomId));
         assertThat(record.value()).isEqualTo(command);
-        assertThat(new String(record.headers().lastHeader(TraceHeaders.HEADER_TRACE_ID).value(), StandardCharsets.UTF_8))
-                .isEqualTo("bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc");
         assertThat(new String(record.headers().lastHeader(TraceHeaders.HEADER_TRACEPARENT).value(), StandardCharsets.UTF_8))
                 .startsWith("00-bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc-");
     }

@@ -90,7 +90,7 @@ class TraceRecordInterceptorTest {
 
     private ConsumerRecord<Object, Object> recordWithTrace(String topic, long offset, String traceId) {
         RecordHeaders headers = new RecordHeaders();
-        headers.add(TraceHeaders.HEADER_TRACE_ID, traceId.getBytes(StandardCharsets.UTF_8));
+        headers.add(TraceHeaders.HEADER_TRACEPARENT, traceparent(traceId).getBytes(StandardCharsets.UTF_8));
         return new ConsumerRecord<>(
                 topic,
                 0,
@@ -104,5 +104,9 @@ class TraceRecordInterceptorTest {
                 "value",
                 headers
         );
+    }
+
+    private static String traceparent(String traceId) {
+        return "00-" + traceId + "-00f067aa0ba902b7-01";
     }
 }

@@ -13,7 +13,7 @@
 schema：
 
 - `community`：主站业务表和 shared tables。
-- `community_oss`：对象元数据、版本、上传会话、alias、授权、引用和生命周期表。
+- `community_oss`：对象元数据、版本、上传会话、授权、引用和生命周期表。
 - `im_core`：IM 权威消息、房间、会话、已读状态。
 - `xxl_job`：XXL-JOB Admin。
 
@@ -32,7 +32,7 @@ schema：
 | `auth_refresh_token` | refresh token 状态，仅存 token hash |
 | `discuss_post` | 帖子 |
 | `comment` | 评论 / 回复 |
-| `message` | 主站站内通知与 legacy/demo message 样例，不再是 IM 私信 SSOT |
+| `message` | 主站站内通知样例，不再是 IM 私信 SSOT |
 | `report` / `moderation_action` | 举报与治理动作 |
 | `social_like` / `social_follow` | 点赞与关注关系 |
 | `http_idempotency` | HTTP 写接口幂等状态 |
@@ -49,7 +49,7 @@ schema：
 | `withdraw_order` | 钱包提现订单，按 `user_id + request_id` 幂等 |
 | `transfer_order` | 钱包转账订单，按 `from_user_id + request_id` 幂等 |
 | `wallet_admin_action` | 钱包管理员冻结、冲正等操作记录 |
-| `oss_object` / `oss_object_version` / `oss_upload_session` / `oss_usage_policy` / `oss_object_alias` / `oss_object_reference` / `oss_access_grant` | OSS 对象、版本、会话、策略、别名、引用和授权事实 |
+| `oss_object` / `oss_object_version` / `oss_upload_session` / `oss_usage_policy` / `oss_object_reference` / `oss_access_grant` | OSS 对象、版本、会话、策略、引用和授权事实 |
 | `post_media_asset` | 帖子媒体资源 draft/uploaded/bound 状态和 OSS object/version/reference 投影 |
 | `post_content_block` | 帖子正文 block，承载 paragraph/code/media block 顺序 |
 | `market_listing` | 市场商品 listing |
@@ -131,13 +131,13 @@ analytics 主要用 Redis HyperLogLog / Bitmap：
 
 - UV：按日期记录 HyperLogLog。
 - DAU：把 UUID 映射为 analytics-only 整数 ordinal 后写入当日 Bitmap。
-- 采集开关和路径由 `analytics.ingest.*` 控制；默认 include 包含 `/api/posts/**`、`/api/search/**`、`/api/messages/**`、`/api/notices/**`、历史 `/api/im-governance/**`，exclude 包含 `/internal/**` 和 `/files/**`。
+- 采集开关和路径由 `analytics.ingest.*` 控制；默认 include 包含 `/api/posts/**`、`/api/search/**`、`/api/messages/**`、`/api/notices/**`，exclude 包含 `/internal/**` 和 `/files/**`。
 
 具体 key 以代码常量和配置为准。
 
 ## OSS Runtime
 
-- `community-oss` 只负责对象 metadata、版本、alias、授权和引用事实；blob 存储隐藏在 `ObjectStore` port 后面。
+- `community-oss` 只负责对象 metadata、版本、授权和引用事实；blob 存储隐藏在 `ObjectStore` port 后面。
 - dev 可以使用 local filesystem 或 Garage single-node。
 - 生产至少 3 节点 Garage，并开启副本、健康检查和监控。
 - 将来切换 Ceph RGW 时，只替换 `ObjectStore` adapter 和配置，不改业务 API。
@@ -163,7 +163,7 @@ DLQ：
 
 IM policy projection 先在主站 outbox 使用内部 topic `projection.im.policy`，再由 outbox handler 发布到 `im.event.user-messaging-policy-changed` / `im.event.user-block-relation-changed` 供 `im-realtime` 消费。
 
-`community.event.*` 是历史遗留跨服务 topic，当前默认 compose 不创建、不使用；`community-app` 的主站投影/通知不依赖 Kafka，而是使用本地事务事件、DB outbox 或同步 owner API。
+`community.event.*` 是已退休跨服务 topic，当前默认 compose 不创建、不使用；`community-app` 的主站投影/通知不依赖 Kafka，而是使用本地事务事件、DB outbox 或同步 owner API。
 
 ## 事件契约位置
 

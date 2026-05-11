@@ -10,8 +10,8 @@
       </UiPageHeader>
     </UiCard>
 
-    <UiEmpty v-if="!auth.isAdminOrModerator" type="error" class="analytics-state">无权限访问</UiEmpty>
-    <UiEmpty v-else-if="error" type="error" class="analytics-state">{{ error }}</UiEmpty>
+    <UiEmpty v-if="!auth.isAdminOrModerator" variant="error" class="analytics-state">无权限访问</UiEmpty>
+    <UiEmpty v-else-if="error" variant="error" class="analytics-state">{{ error }}</UiEmpty>
 
     <div v-else class="analytics-layout">
       <UiCard class="analytics-filter-card">

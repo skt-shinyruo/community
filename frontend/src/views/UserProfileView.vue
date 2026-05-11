@@ -3,7 +3,7 @@
     <UiBreadcrumb />
 
     <UiCard v-if="error">
-      <UiEmpty type="error">{{ error }}</UiEmpty>
+      <UiEmpty variant="error">{{ error }}</UiEmpty>
     </UiCard>
 
     <UiCard v-else-if="loading">
@@ -82,20 +82,17 @@
       <div class="profile-body">
         <div class="profile-stats-bar">
           <div class="profile-stat">
-            <span class="profile-stat-val">{{ socialDegraded ? '—' : (profile?.likeCount || 0) }}</span>
+            <span class="profile-stat-val">{{ profile?.likeCount || 0 }}</span>
             <span class="profile-stat-label">获赞</span>
           </div>
           <div class="profile-stat">
-            <span class="profile-stat-val">{{ socialDegraded ? '—' : (profile?.followeeCount || 0) }}</span>
+            <span class="profile-stat-val">{{ profile?.followeeCount || 0 }}</span>
             <span class="profile-stat-label">关注</span>
           </div>
           <div class="profile-stat">
-            <span class="profile-stat-val">{{ socialDegraded ? '—' : (profile?.followerCount || 0) }}</span>
+            <span class="profile-stat-val">{{ profile?.followerCount || 0 }}</span>
             <span class="profile-stat-label">粉丝</span>
           </div>
-        </div>
-        <div v-if="socialDegraded" class="muted profile-degraded-note">
-          统计暂不可用（下游服务降级），可稍后刷新。
         </div>
 
         <div class="profile-sections">
@@ -201,6 +198,7 @@ import { useTaxonomyStore } from '../stores/taxonomy'
 import { getUserProfile, listUserRecentComments, listUserRecentPosts } from '../api/services/userService'
 import { followUser, unfollowUser, getFollowStatus } from '../api/services/socialService'
 import { blockUser, unblockUser } from '../api/services/blockService'
+import { showToast } from '../ui/toastService'
 import { formatTime, formatTimeAgo } from '../utils/time'
 import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -232,7 +230,6 @@ const recentComments = ref([])
 const timelineUsers = ref({})
 const loading = ref(false)
 const error = ref('')
-const socialDegraded = computed(() => !!profile.value?.socialDegraded)
 
 const meUserId = computed(() => normalizeOpaqueId(auth.userId))
 const actionLoading = ref(false)
@@ -416,14 +413,10 @@ async function toggleBlock() {
   try {
     if (isBlocked.value) {
       await unblockUser(targetId)
-      if (typeof window !== 'undefined' && window.$toast) {
-        window.$toast({ type: 'success', text: '已解除屏蔽' })
-      }
+      showToast({ type: 'success', text: '已解除屏蔽' })
     } else {
       await blockUser(targetId)
-      if (typeof window !== 'undefined' && window.$toast) {
-        window.$toast({ type: 'success', text: '已屏蔽该用户' })
-      }
+      showToast({ type: 'success', text: '已屏蔽该用户' })
     }
     await prefs.ensureBlocked(true)
   } catch (e) {

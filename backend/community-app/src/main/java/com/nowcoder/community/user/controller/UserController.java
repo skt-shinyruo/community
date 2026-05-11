@@ -79,7 +79,6 @@ public class UserController {
         resp.setFolloweeCount(user.followeeCount());
         resp.setFollowerCount(user.followerCount());
         resp.setHasFollowed(user.hasFollowed());
-        resp.setSocialDegraded(user.socialDegraded());
         return Result.ok(resp);
     }
 

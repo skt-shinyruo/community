@@ -48,7 +48,7 @@ public class PolicyProjectionService {
         if (fromPolicy.suspended() || fromPolicy.muted()) {
             return PolicyDecision.deny(403, "policy_denied", "发送方无权限发送私信");
         }
-        if (!toPolicy.allowPrivateMessages()) {
+        if (!toPolicy.canSendPrivate()) {
             return PolicyDecision.deny(403, "policy_denied", "接收方不允许私信");
         }
         if (isBlocked(fromUserId, toUserId) || isBlocked(toUserId, fromUserId)) {
@@ -73,7 +73,7 @@ public class PolicyProjectionService {
                 event.muted(),
                 event.muteUntil(),
                 event.banUntil(),
-                event.allowPrivateMessages()
+                event.canSendPrivate()
         ));
         policiesByUser.set(Map.copyOf(nextPolicies));
     }

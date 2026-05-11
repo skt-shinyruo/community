@@ -50,7 +50,6 @@ class HttpCommunityOssClientTest {
                     "text/plain",
                     2,
                     "",
-                    "",
                     "7"
             ));
 
@@ -82,7 +81,6 @@ class HttpCommunityOssClientTest {
                     "text/plain",
                     2,
                     "",
-                    "",
                     "7"
             ));
 
@@ -111,7 +109,6 @@ class HttpCommunityOssClientTest {
                     "note.txt",
                     "text/plain",
                     2,
-                    "",
                     "",
                     "7"
             ));

@@ -338,7 +338,6 @@ class ImEdgeWebSocketBridgeIntegrationTest {
         String traceId = "11111111111111111111111111111111";
         String traceparent = "00-" + traceId + "-2222222222222222-01";
         HttpHeaders headers = new HttpHeaders();
-        headers.set("X-Trace-Id", traceId);
         headers.set("traceparent", traceparent);
 
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
@@ -361,7 +360,6 @@ class ImEdgeWebSocketBridgeIntegrationTest {
 
             assertThat(received.poll(5, TimeUnit.SECONDS)).isEqualTo("worker-a:" + connect);
             assertThat(WORKER_HANDSHAKES.poll(5, TimeUnit.SECONDS))
-                    .containsEntry("X-Trace-Id", traceId)
                     .containsEntry("traceparent", traceparent);
         } finally {
             handle.dispose();
@@ -430,7 +428,6 @@ class ImEdgeWebSocketBridgeIntegrationTest {
                             out.sendString(in.receive()
                                     .asString()
                                     .doOnSubscribe(ignored -> WORKER_HANDSHAKES.offer(Map.of(
-                                            "X-Trace-Id", normalizeHeader(in.headers().get("X-Trace-Id")),
                                             "traceparent", normalizeHeader(in.headers().get("traceparent"))
                                     )))
                                     .map(text -> "worker-a:" + text))

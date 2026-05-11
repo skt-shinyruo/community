@@ -26,19 +26,13 @@ class TraceKafkaHeadersTest {
 
         TraceKafkaHeaders.inject(record.headers(), TraceContextSnapshot.currentOrNew());
 
-        assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACE_ID))
-                .isEqualTo("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACEPARENT))
                 .startsWith("00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-");
     }
 
     @Test
-    void extractShouldPreferTraceparentAndFallbackToLegacyHeader() {
+    void extractShouldUseTraceparent() {
         ProducerRecord<String, Object> record = new ProducerRecord<>("topic-a", "key-1", "value-1");
-        record.headers().add(
-                TraceHeaders.HEADER_TRACE_ID,
-                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".getBytes(StandardCharsets.UTF_8)
-        );
         record.headers().add(
                 TraceHeaders.HEADER_TRACEPARENT,
                 "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".getBytes(StandardCharsets.UTF_8)
@@ -62,7 +56,6 @@ class TraceKafkaHeadersTest {
     @Test
     void extractShouldRecoverWhenHeadersAreInvalid() {
         RecordHeaders headers = new RecordHeaders();
-        headers.add(TraceHeaders.HEADER_TRACE_ID, "not-a-trace".getBytes(StandardCharsets.UTF_8));
         headers.add(TraceHeaders.HEADER_TRACEPARENT, "00-not-a-trace-00f067aa0ba902b7-01".getBytes(StandardCharsets.UTF_8));
 
         TraceContextSnapshot snapshot = TraceKafkaHeaders.extract(headers);
@@ -73,12 +66,8 @@ class TraceKafkaHeadersTest {
     }
 
     @Test
-    void extractShouldFallbackToLegacyHeaderWhenTraceparentIsInvalid() {
+    void extractShouldGenerateTraceContextWhenTraceparentIsInvalid() {
         RecordHeaders headers = new RecordHeaders();
-        headers.add(
-                TraceHeaders.HEADER_TRACE_ID,
-                "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB".getBytes(StandardCharsets.UTF_8)
-        );
         headers.add(
                 TraceHeaders.HEADER_TRACEPARENT,
                 "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01".getBytes(StandardCharsets.UTF_8)
@@ -86,8 +75,8 @@ class TraceKafkaHeadersTest {
 
         TraceContextSnapshot snapshot = TraceKafkaHeaders.extract(headers);
 
-        assertThat(snapshot.traceId()).isEqualTo("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
-        assertThat(snapshot.traceparent()).startsWith("00-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-");
-        assertThat(snapshot.recovered()).isFalse();
+        assertThat(snapshot.traceId()).matches("[0-9a-f]{32}");
+        assertThat(snapshot.traceparent()).startsWith("00-" + snapshot.traceId() + "-");
+        assertThat(snapshot.recovered()).isTrue();
     }
 }

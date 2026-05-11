@@ -355,9 +355,8 @@ public class ImWebSocketHandler implements WebSocketHandler {
         if (session == null || session.getHandshakeInfo() == null || session.getHandshakeInfo().getHeaders() == null) {
             return TraceIdCodec.generateTraceId();
         }
-        String traceIdHeader = session.getHandshakeInfo().getHeaders().getFirst(TraceHeaders.HEADER_TRACE_ID);
         String traceparentHeader = session.getHandshakeInfo().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT);
-        return TraceIdCodec.resolveTraceId(traceIdHeader, traceparentHeader);
+        return TraceIdCodec.resolveTraceId(traceparentHeader);
     }
 
     private void infoEvent(String category, String action, String outcome, String traceId, Object... keyValues) {

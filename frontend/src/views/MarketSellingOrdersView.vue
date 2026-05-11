@@ -7,7 +7,7 @@
       <template #subtitle>卖家关注的是交付和争议。卖家列表聚焦待交付和争议中的订单，不再只给静态说明。</template>
     </UiPageHeader>
 
-    <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
+    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted">正在加载出售订单…</div>
 
     <section v-else class="market-list-shell">

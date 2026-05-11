@@ -73,8 +73,6 @@ class ImKafkaOutboxHandlerTest {
         PrivateMessagePersistedEvent published = (PrivateMessagePersistedEvent) record.value();
         assertThat(published.messageId()).isEqualTo(uuid(7));
         assertThat(published.requestId()).isEqualTo("req-1");
-        assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACE_ID))
-                .isEqualTo("cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd");
         assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACEPARENT))
                 .startsWith("00-cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd-");
     }

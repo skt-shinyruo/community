@@ -12,7 +12,6 @@ import com.nowcoder.community.content.application.command.UpdateCommentCommand;
 import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.application.result.CommentCreateResult;
-import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
 import com.nowcoder.community.content.domain.event.CommentDeletedDomainEvent;
 import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
@@ -91,7 +90,7 @@ class CommentApplicationServiceTest {
         service = new CommentApplicationService(
                 sensitiveFilter,
                 idempotencyGuard,
-                new ContentTextCodec(new ContentRenderProperties()),
+                new ContentTextCodec(),
                 moderationGuard,
                 new CommentDomainService(),
                 commentRepository,
@@ -118,7 +117,7 @@ class CommentApplicationServiceTest {
                 .thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(4).get());
         when(postContentPort.getById(postId)).thenReturn(post);
         when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
-        when(sensitiveFilter.filter("hello &amp; world")).thenReturn("clean &amp; body");
+        when(sensitiveFilter.filter("hello & world")).thenReturn("clean & body");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
         CommentCreateResult result = service.create(
@@ -164,7 +163,7 @@ class CommentApplicationServiceTest {
         assertThat(draft.entityType()).isEqualTo(EntityTypes.POST);
         assertThat(draft.entityId()).isEqualTo(postId);
         assertThat(draft.targetId()).isNull();
-        assertThat(draft.content()).isEqualTo("clean &amp; body");
+        assertThat(draft.content()).isEqualTo("clean & body");
         assertThat(draft.createTime()).isNotNull();
 
         UserCommentPointsAwardRequest pointsRequest = pointsRequestCaptor.getValue();
@@ -201,13 +200,13 @@ class CommentApplicationServiceTest {
         when(sensitiveFilter.filter("hi")).thenReturn("hi");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
-        UUID returned = service.addComment(userId, "idem-legacy", postId, EntityTypes.POST, null, null, "hi");
+        UUID returned = service.addComment(userId, "idem-comment-1", postId, EntityTypes.POST, null, null, "hi");
 
         assertThat(returned).isEqualTo(commentId);
         verify(idempotencyGuard).executeRequired(
                 eq("content:create_comment"),
                 eq(userId),
-                eq("idem-legacy"),
+                eq("idem-comment-1"),
                 eq(UUID.class),
                 any()
         );
@@ -233,7 +232,7 @@ class CommentApplicationServiceTest {
         service = new CommentApplicationService(
                 sensitiveFilter,
                 realGuard,
-                new ContentTextCodec(new ContentRenderProperties()),
+                new ContentTextCodec(),
                 moderationGuard,
                 new CommentDomainService(),
                 commentRepository,
@@ -332,7 +331,7 @@ class CommentApplicationServiceTest {
 
         when(postContentPort.getById(postId)).thenReturn(post(postId, uuid(2)));
         when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
-        when(sensitiveFilter.filter("hello &amp; world")).thenReturn("clean");
+        when(sensitiveFilter.filter("hello & world")).thenReturn("clean");
 
         service.update(new UpdateCommentCommand(userId, postId, commentId, " hello & world "));
 

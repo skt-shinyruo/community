@@ -2,21 +2,16 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.wallet.domain.model.RechargeOrder;
-import com.nowcoder.community.wallet.domain.model.TransferOrder;
 import com.nowcoder.community.wallet.domain.model.WalletAdminAction;
 import com.nowcoder.community.wallet.domain.model.WalletEntry;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
-import com.nowcoder.community.wallet.domain.repository.RechargeOrderRepository;
-import com.nowcoder.community.wallet.domain.repository.TransferOrderRepository;
 import com.nowcoder.community.wallet.domain.repository.WalletAdminActionRepository;
 import com.nowcoder.community.wallet.domain.repository.WalletLedgerRepository;
 import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
 import com.nowcoder.community.wallet.domain.service.WalletAdminDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
-import org.apache.ibatis.exceptions.TooManyResultsException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -41,8 +36,6 @@ public class WalletAdminOpsApplicationService {
     private final WalletLedgerApplicationService ledgerService;
     private final WalletLedgerRepository walletLedgerRepository;
     private final WalletAdminActionRepository walletAdminActionRepository;
-    private final TransferOrderRepository transferOrderRepository;
-    private final RechargeOrderRepository rechargeOrderRepository;
     private final WalletAdminDomainService adminDomainService;
     private final UuidV7Generator idGenerator;
 
@@ -50,16 +43,12 @@ public class WalletAdminOpsApplicationService {
     public WalletAdminOpsApplicationService(WalletAccountApplicationService accountService,
                                             WalletLedgerApplicationService ledgerService,
                                             WalletLedgerRepository walletLedgerRepository,
-                                            WalletAdminActionRepository walletAdminActionRepository,
-                                            TransferOrderRepository transferOrderRepository,
-                                            RechargeOrderRepository rechargeOrderRepository) {
+                                            WalletAdminActionRepository walletAdminActionRepository) {
         this(
                 accountService,
                 ledgerService,
                 walletLedgerRepository,
                 walletAdminActionRepository,
-                transferOrderRepository,
-                rechargeOrderRepository,
                 new WalletAdminDomainService(),
                 new UuidV7Generator()
         );
@@ -69,16 +58,12 @@ public class WalletAdminOpsApplicationService {
                                      WalletLedgerApplicationService ledgerService,
                                      WalletLedgerRepository walletLedgerRepository,
                                      WalletAdminActionRepository walletAdminActionRepository,
-                                     TransferOrderRepository transferOrderRepository,
-                                     RechargeOrderRepository rechargeOrderRepository,
                                      WalletAdminDomainService adminDomainService,
                                      UuidV7Generator idGenerator) {
         this.accountService = accountService;
         this.ledgerService = ledgerService;
         this.walletLedgerRepository = walletLedgerRepository;
         this.walletAdminActionRepository = walletAdminActionRepository;
-        this.transferOrderRepository = transferOrderRepository;
-        this.rechargeOrderRepository = rechargeOrderRepository;
         this.adminDomainService = adminDomainService;
         this.idGenerator = idGenerator;
     }
@@ -129,58 +114,7 @@ public class WalletAdminOpsApplicationService {
         if (txn != null) {
             return txn;
         }
-
-        WalletTxn transferTxn = resolveTransferTxn(txnRef);
-        if (transferTxn != null) {
-            return transferTxn;
-        }
-
-        WalletTxn rechargeTxn = resolveRechargeTxn(txnRef);
-        if (rechargeTxn != null) {
-            return rechargeTxn;
-        }
-
         throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "wallet txn not found: txnRef=" + txnRef);
-    }
-
-    private WalletTxn resolveTransferTxn(String txnRef) {
-        TransferOrder order = selectTransferOrderByRequestId(txnRef);
-        if (order == null) {
-            return null;
-        }
-        return walletLedgerRepository.findTxnByRequestId("wallet:transfer:" + order.getOrderId());
-    }
-
-    private WalletTxn resolveRechargeTxn(String txnRef) {
-        RechargeOrder order = selectRechargeOrderByRequestId(txnRef);
-        if (order == null) {
-            return null;
-        }
-        return walletLedgerRepository.findTxnByRequestId("wallet:recharge:" + order.getOrderId());
-    }
-
-    private TransferOrder selectTransferOrderByRequestId(String txnRef) {
-        try {
-            return transferOrderRepository.findByRequestId(txnRef);
-        } catch (TooManyResultsException ex) {
-            throw ambiguousTxnRef(txnRef, ex);
-        }
-    }
-
-    private RechargeOrder selectRechargeOrderByRequestId(String txnRef) {
-        try {
-            return rechargeOrderRepository.findByRequestId(txnRef);
-        } catch (TooManyResultsException ex) {
-            throw ambiguousTxnRef(txnRef, ex);
-        }
-    }
-
-    private BusinessException ambiguousTxnRef(String txnRef, RuntimeException cause) {
-        return new BusinessException(
-                WalletErrorCode.INVALID_REQUEST,
-                "wallet txnRef is ambiguous; use wallet txn requestId: txnRef=" + txnRef,
-                cause
-        );
     }
 
     private WalletPosting reverseOf(WalletEntry entry) {

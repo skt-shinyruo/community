@@ -49,7 +49,7 @@ public class WalletController {
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(CreateRechargeResponse.from(walletApplicationService.recharge(
-                new CreateRechargeCommand(userId, request.getAmount(), request.getRequestId(), idempotencyKey)
+                new CreateRechargeCommand(userId, request.getAmount(), idempotencyKey)
         )));
     }
 
@@ -61,7 +61,7 @@ public class WalletController {
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(CreateWithdrawResponse.from(walletApplicationService.withdraw(
-                new CreateWithdrawCommand(userId, request.getAmount(), request.getRequestId(), idempotencyKey)
+                new CreateWithdrawCommand(userId, request.getAmount(), idempotencyKey)
         )));
     }
 
@@ -73,7 +73,7 @@ public class WalletController {
     ) {
         UUID fromUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(CreateTransferResponse.from(walletApplicationService.transfer(
-                new CreateTransferCommand(fromUserId, request.getToUserId(), request.getAmount(), request.getRequestId(), idempotencyKey)
+                new CreateTransferCommand(fromUserId, request.getToUserId(), request.getAmount(), idempotencyKey)
         )));
     }
 }

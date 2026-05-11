@@ -157,25 +157,4 @@ describe('SettingsView', () => {
     expect(http.put).toHaveBeenCalledWith('/api/users/7/avatar', { fileKey: 'avatar-upload-key' })
   })
 
-  it('ignores storage provider fields returned by old servers', async () => {
-    http.post.mockResolvedValueOnce(okResult(uploadSession({
-      provider: 'unrecognized-provider'
-    }), 'trace-session'))
-    http.post.mockResolvedValueOnce(okResult({}, 'trace-upload'))
-
-    const wrapper = mountView()
-    await findUiButton(wrapper, '获取上传参数').trigger('click')
-    await flushPromises()
-
-    const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
-    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
-    await nextTick()
-    await findUiButton(wrapper, '上传并保存').trigger('click')
-    await flushPromises()
-
-    expect(http.post).toHaveBeenCalledWith('/api/users/7/avatar/upload', expect.any(FormData), {
-      headers: {}
-    })
-    expect(wrapper.text()).not.toContain('未知存储策略')
-  })
 })

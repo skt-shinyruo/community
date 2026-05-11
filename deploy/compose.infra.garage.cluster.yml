@@ -59,3 +59,35 @@ services:
       default:
         aliases:
         - garage-3
+
+  garage-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.garage-init
+      args:
+        GARAGE_IMAGE: ${GARAGE_IMAGE:-dxflrs/garage:v2.2.0}
+    image: community-garage-init:local
+    mem_limit: ${GARAGE_INIT_MEM_LIMIT:-128m}
+    environment:
+    - GARAGE_CONFIG_FILE=/etc/garage.toml
+    - GARAGE_DEFAULT_ACCESS_KEY=${GARAGE_DEFAULT_ACCESS_KEY:-GK000000000000000000000001}
+    - GARAGE_DEFAULT_SECRET_KEY=${GARAGE_DEFAULT_SECRET_KEY:-0000000000000000000000000000000000000000000000000000000000000001}
+    - GARAGE_DEFAULT_BUCKET=${GARAGE_DEFAULT_BUCKET:-community-oss}
+    - GARAGE_REPLICATION_FACTOR=3
+    volumes:
+    - garage_node_1_data:/var/lib/garage
+    - ./garage/garage.cluster-1.toml:/etc/garage.toml:ro
+    - ./scripts/bootstrap-garage.sh:/bootstrap-garage.sh:ro
+    entrypoint:
+    - /bin/sh
+    - /bootstrap-garage.sh
+    depends_on:
+      garage-1:
+        condition: service_started
+      garage-2:
+        condition: service_started
+      garage-3:
+        condition: service_started
+    restart: "no"
+    networks:
+      default: null

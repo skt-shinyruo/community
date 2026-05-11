@@ -115,7 +115,7 @@ class AdminWalletApplicationServiceTest {
         TransferOrderResult order = transferService.create("transfer:req-1", fromUserId, toUserId, 300);
         String txnRef = "wallet:transfer:" + order.orderId();
 
-        adminWalletOpsService.reverseTxn(actorUserId, "transfer:req-1", "fraud report");
+        adminWalletOpsService.reverseTxn(actorUserId, txnRef, "fraud report");
 
         assertThat(accountService.balanceOfUser(fromUserId)).isEqualTo(900);
         assertThat(accountService.balanceOfUser(toUserId)).isEqualTo(0);
@@ -150,14 +150,15 @@ class AdminWalletApplicationServiceTest {
         UUID intermediateUserId = uuid(202);
         UUID downstreamUserId = uuid(303);
         seedUserBalance(originUserId, 900);
-        transferService.create("transfer:req-spent-origin", originUserId, intermediateUserId, 300);
+        TransferOrderResult originOrder = transferService.create("transfer:req-spent-origin", originUserId, intermediateUserId, 300);
         transferService.create("transfer:req-spent-downstream", intermediateUserId, downstreamUserId, 300);
+        String txnRef = "wallet:transfer:" + originOrder.orderId();
 
-        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(actorUserId, "transfer:req-spent-origin", "fraud report"))
+        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(actorUserId, txnRef, "fraud report"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT))
                 .hasMessageContaining("reversal")
-                .hasMessageContaining("transfer:req-spent-origin");
+                .hasMessageContaining(txnRef);
 
         assertThat(accountService.balanceOfUser(originUserId)).isEqualTo(600);
         assertThat(accountService.balanceOfUser(intermediateUserId)).isEqualTo(0);
@@ -176,8 +177,8 @@ class AdminWalletApplicationServiceTest {
         TransferOrderResult order = transferService.create("transfer:req-repeat", fromUserId, toUserId, 300);
         String txnRef = "wallet:transfer:" + order.orderId();
 
-        adminWalletOpsService.reverseTxn(actorUserId, "transfer:req-repeat", "fraud report");
-        adminWalletOpsService.reverseTxn(actorUserId, "transfer:req-repeat", "fraud report");
+        adminWalletOpsService.reverseTxn(actorUserId, txnRef, "fraud report");
+        adminWalletOpsService.reverseTxn(actorUserId, txnRef, "fraud report");
 
         WalletTxn original = walletTxnMapper.selectByRequestId(txnRef);
         assertThat(countRows("wallet_txn")).isEqualTo(2);
@@ -199,7 +200,7 @@ class AdminWalletApplicationServiceTest {
         seedSystemBalance("PLATFORM_CASH", 900);
         RechargeOrderResult order = rechargeService.complete("recharge:req-unsupported", userId, 200);
 
-        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(actorUserId, "recharge:req-unsupported", "fraud report"))
+        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(actorUserId, "wallet:recharge:" + order.orderId(), "fraud report"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_REQUEST))
                 .hasMessageContaining("not reversible");
@@ -208,6 +209,24 @@ class AdminWalletApplicationServiceTest {
         assertThat(countRows("wallet_entry")).isEqualTo(2);
         assertThat(countRows("wallet_admin_action")).isZero();
         assertThat(walletTxnMapper.selectByRequestId("wallet:recharge:" + order.orderId())).isNotNull();
+    }
+
+    @Test
+    void reverseShouldRejectBusinessOrderRequestId() {
+        UUID actorUserId = uuid(1);
+        UUID fromUserId = uuid(101);
+        UUID toUserId = uuid(202);
+        seedUserBalance(fromUserId, 900);
+        TransferOrderResult order = transferService.create("transfer:req-canonical-only", fromUserId, toUserId, 300);
+
+        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(actorUserId, "transfer:req-canonical-only", "fraud report"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_REQUEST))
+                .hasMessageContaining("wallet txn not found");
+
+        assertThat(walletTxnMapper.selectByRequestId("wallet:transfer:" + order.orderId())).isNotNull();
+        assertThat(countRows("wallet_txn")).isEqualTo(1);
+        assertThat(countRows("wallet_admin_action")).isZero();
     }
 
     private void seedUserBalance(UUID userId, long balance) {

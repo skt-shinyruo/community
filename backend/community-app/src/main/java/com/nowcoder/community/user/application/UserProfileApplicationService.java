@@ -58,8 +58,7 @@ public class UserProfileApplicationService {
                 userLikeCount(userId),
                 followeeCount(userId),
                 followerCount(userId),
-                hasFollowed(viewerId, userId),
-                false
+                hasFollowed(viewerId, userId)
         );
     }
 

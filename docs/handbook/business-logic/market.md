@@ -138,8 +138,8 @@
 
 `MarketOrderApplicationService.createOrder(...)`：
 
-1. controller 读取 `Idempotency-Key`；旧 body requestId 仅在 header 缺失时 fallback。
-2. header/body requestId 不一致返回参数错误。
+1. controller 只读取 `Idempotency-Key` 作为 HTTP 幂等键。
+2. body `requestId` 按未知字段返回参数错误。
 3. application 按 buyer + requestId 查询已有订单；存在则校验 replay 是否一致。
 4. 锁定 listing。
 5. 校验 listing active。

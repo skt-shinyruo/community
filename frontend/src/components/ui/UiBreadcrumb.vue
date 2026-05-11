@@ -15,7 +15,7 @@ import { useRoute } from 'vue-router'
 import { getBreadcrumbItems } from '../../router/navigation'
 
 const props = defineProps({
-  // 兼容手动传入（旧用法）：[{ label, to? }]
+  // 允许页面显式传入面包屑项：[{ label, to? }]
   items: { type: Array, default: () => [] },
   // 自动推导：当 items 为空时，根据 route + navigation 配置生成。
   auto: { type: Boolean, default: true }

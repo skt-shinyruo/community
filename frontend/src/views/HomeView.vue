@@ -75,6 +75,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useAppStore } from '../stores/app'
 import http from '../api/http'
+import { showToast } from '../ui/toastService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -113,9 +114,7 @@ async function loadCounts() {
     }
   } catch (e) {
     console.error('Failed to load dev stats', e)
-    if (typeof window !== 'undefined' && window.$toast) {
-      window.$toast({ type: 'error', text: '加载开发检查项失败' })
-    }
+    showToast({ type: 'error', text: '加载开发检查项失败' })
   } finally {
     loading.value = false
   }
@@ -123,9 +122,7 @@ async function loadCounts() {
 
 async function refreshAll() {
   await loadCounts()
-  if (typeof window !== 'undefined' && window.$toast) {
-    window.$toast({ type: 'success', text: '已刷新开发检查项' })
-  }
+  showToast({ type: 'success', text: '已刷新开发检查项' })
 }
 
 onMounted(loadCounts)

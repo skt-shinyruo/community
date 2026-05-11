@@ -14,7 +14,6 @@ import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.application.PostDetailAssembler;
 import com.nowcoder.community.content.application.PostSummaryAssembler;
 import com.nowcoder.community.content.application.RecentUserCommentAssembler;
-import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
@@ -80,11 +79,11 @@ class PostReadApplicationServiceTest {
 
         assertThat(views).hasSize(1);
         assertThat(views.get(0).id()).isEqualTo(postId);
-        assertThat(views.get(0).title()).isEqualTo("<title>");
-        assertThat(views.get(0).preview()).isEqualTo("<content>");
+        assertThat(views.get(0).title()).isEqualTo("&lt;title&gt;");
+        assertThat(views.get(0).preview()).isEqualTo("&lt;content&gt;");
         assertThat(views.get(0).tags()).containsExactly("java");
         assertThat(views.get(0).lastActivityTime()).isEqualTo(lastActivity.getCreateTime());
-        assertThat(views.get(0).lastReplyPreview()).isEqualTo("<latest reply>");
+        assertThat(views.get(0).lastReplyPreview()).isEqualTo("&lt;latest reply&gt;");
     }
 
     @Test
@@ -136,10 +135,10 @@ class PostReadApplicationServiceTest {
         PostDetailResult detail = service.getPostDetail(currentUserId, postId);
 
         assertThat(detail.id()).isEqualTo(postId);
-        assertThat(detail.title()).isEqualTo("<title>");
+        assertThat(detail.title()).isEqualTo("&lt;title&gt;");
         assertThat(detail.blocks()).singleElement().satisfies(block -> {
             assertThat(block.type()).isEqualTo("paragraph");
-            assertThat(block.text()).isEqualTo("<body>");
+            assertThat(block.text()).isEqualTo("&lt;body&gt;");
         });
         assertThat(detail.tags()).containsExactly("java", "spring");
         assertThat(detail.likeCount()).isEqualTo(9L);
@@ -198,10 +197,10 @@ class PostReadApplicationServiceTest {
 
         assertThat(items).hasSize(2);
         assertThat(items.get(0).userId()).isEqualTo(userId);
-        assertThat(items.get(0).title()).isEqualTo("<first>");
+        assertThat(items.get(0).title()).isEqualTo("&lt;first&gt;");
         assertThat(items.get(0).tags()).containsExactly("java");
         assertThat(items.get(0).lastReplyUserId()).isEqualTo(lastReplyUserId);
-        assertThat(items.get(0).lastReplyPreview()).isEqualTo("<newest>");
+        assertThat(items.get(0).lastReplyPreview()).isEqualTo("&lt;newest&gt;");
         assertThat(items.get(1).tags()).containsExactly("spring");
     }
 
@@ -271,10 +270,10 @@ class PostReadApplicationServiceTest {
 
         assertThat(items).hasSize(2);
         assertThat(items.get(0).postId()).isEqualTo(secondPostId);
-        assertThat(items.get(0).postTitle()).isEqualTo("<second>");
-        assertThat(items.get(0).content()).isEqualTo("<reply>");
+        assertThat(items.get(0).postTitle()).isEqualTo("&lt;second&gt;");
+        assertThat(items.get(0).content()).isEqualTo("&lt;reply&gt;");
         assertThat(items.get(1).postId()).isEqualTo(firstPostId);
-        assertThat(items.get(1).postTitle()).isEqualTo("<first>");
+        assertThat(items.get(1).postTitle()).isEqualTo("&lt;first&gt;");
     }
 
     @Test
@@ -394,7 +393,7 @@ class PostReadApplicationServiceTest {
     }
 
     private static ContentTextCodec textCodec() {
-        return new ContentTextCodec(new ContentRenderProperties());
+        return new ContentTextCodec();
     }
 
     private static PostReadApplicationService service(

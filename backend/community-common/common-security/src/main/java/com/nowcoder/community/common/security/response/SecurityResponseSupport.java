@@ -20,20 +20,19 @@ public final class SecurityResponseSupport {
         return build(Result.error(CommonErrorCode.FORBIDDEN), traceId, headerWriter);
     }
 
-    public static String resolveTraceId(String currentTraceId, String headerTraceId, String traceparent) {
+    public static String resolveTraceId(String currentTraceId, String traceparent) {
         String normalizedCurrent = TraceIdCodec.normalizeTraceId(currentTraceId);
         if (normalizedCurrent != null) {
             return normalizedCurrent;
         }
-        return TraceIdCodec.resolveTraceId(headerTraceId, traceparent);
+        return TraceIdCodec.resolveTraceId(traceparent);
     }
 
     private static Result<Void> build(Result<Void> body, String traceId, BiConsumer<String, String> headerWriter) {
-        String resolvedTraceId = resolveTraceId(traceId, null, null);
+        String resolvedTraceId = resolveTraceId(traceId, null);
         if (resolvedTraceId != null && !resolvedTraceId.isBlank()) {
             body.setTraceId(resolvedTraceId);
             if (headerWriter != null) {
-                headerWriter.accept(TraceHeaders.HEADER_TRACE_ID, resolvedTraceId);
                 headerWriter.accept(TraceHeaders.HEADER_TRACEPARENT, TraceIdCodec.buildTraceparent(resolvedTraceId));
             }
         }

@@ -2,6 +2,7 @@ import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import http from './http'
 import { resolveImHttpBaseUrl } from '../config/endpointResolution'
+import { showToast } from '../ui/toastService'
 
 const imCoreHttp = axios.create({
   baseURL: resolveImHttpBaseUrl(),
@@ -45,9 +46,9 @@ imCoreHttp.interceptors.response.use(
       }
     }
 
-    if (status >= 400 && typeof window !== 'undefined' && window.$toast) {
+    if (status >= 400) {
       const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
-      window.$toast({
+      showToast({
         type: 'error',
         title: status === 401 ? '未登录或登录失效' : '请求失败',
         text: `${msg}${traceSuffix}`

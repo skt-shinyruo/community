@@ -78,7 +78,7 @@ owner API：
 
 HTTP `WalletApplicationService.recharge(...)`：
 
-1. 从 `Idempotency-Key` 或 body `requestId` 解析 effective key。
+1. 从 `Idempotency-Key` 解析 HTTP 幂等键；body `requestId` 按未知字段返回参数错误。
 2. 用 `wallet:recharge + userId + key + amount fingerprint` 做 HTTP 幂等。
 3. `WalletRechargeApplicationService.complete(...)` 创建或复用充值订单。
 4. 确保用户钱包和系统账户。

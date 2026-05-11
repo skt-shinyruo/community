@@ -21,9 +21,9 @@ describe('UiEmpty', () => {
     expect(wrapper.find('button').text()).toBe('刷新')
   })
 
-  it('maps legacy error type to error state variant', () => {
+  it('passes explicit error variant to UiState', () => {
     const wrapper = mount(UiEmpty, {
-      props: { type: 'error' },
+      props: { variant: 'error' },
       slots: { default: '加载失败' }
     })
 

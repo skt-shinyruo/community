@@ -38,7 +38,7 @@ if ! rg -n '^  kibana:' "${cluster_config}" >/dev/null; then
   exit 1
 fi
 
-OTEL_ENABLED=false ./deploy/deployment.sh config --topology single --observability --env-file deploy/.env.single.example >"${override_config}"
+OTEL_ENABLED=false ./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example >"${override_config}"
 
 if ! rg -n 'OTEL_ENABLED[=: ]+"?false"?|OTEL_ENABLED=false' "${override_config}" >/dev/null; then
   echo "expected explicit OTEL_ENABLED=false override to be preserved" >&2

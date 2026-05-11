@@ -15,7 +15,7 @@
 - `backend/community-common/*`：共享 Web、安全、幂等、outbox、错误协议、trace 等横切能力。
 - `deploy/`：本地 single / cluster 拓扑和默认启用的 observability overlay。
 
-默认对外业务入口为 `community-gateway`，本地通过 NGINX / gateway 暴露在 `12880`。对外 API 前缀稳定为 `/api/**`，静态文件前缀稳定为 `/files/**`，其中 `/files/**` 由 `community-oss` 承担对象读取与 alias 解析；IM WebSocket 前缀稳定为 `/ws/im`；session bootstrap 由 `community-im-gateway` 负责，返回稳定的 `/ws/im`，worker 选择和内部桥接对客户端不可见。
+默认对外业务入口为 `community-gateway`，本地通过 NGINX / gateway 暴露在 `12880`。对外 API 前缀稳定为 `/api/**`，静态文件前缀稳定为 `/files/**`，其中 `/files/**` 由 `community-oss` 承担 canonical 对象读取；IM WebSocket 前缀稳定为 `/ws/im`；session bootstrap 由 `community-im-gateway` 负责，返回稳定的 `/ws/im`，worker 选择和内部桥接对客户端不可见。
 
 ```mermaid
 flowchart TD
@@ -96,7 +96,7 @@ com.nowcoder.community.<domain>
 
 - `frontend/` 不承载后端 owner 规则。前端可以做交互校验、表单规范化、pending 状态展示和 refresh retry，但不能把浏览器字段当作 owner 事实来源。
 - `community-gateway` 是入口和路由层，不承载主业务用例。新增浏览器入口、CORS、WebSocket proxy 或 trace 规则时，应保持 gateway-first，但业务授权和 owner 规则仍回到下游服务。
-- `community-im` 独立承担 IM 消息权威状态和 realtime 连接态，不把私信/群消息重新塞回 `community-app` 的 legacy `message` 表。
+- `community-im` 独立承担 IM 消息权威状态和 realtime 连接态，不把私信/群消息塞回 `community-app` 的 `message` 表。
 - `community-common/*` 只能提供横切基础设施，不定义具体业务域 owner 语义。
 - `deploy/` 和本地控制面只能描述运行拓扑和 dev-only 能力，不能成为业务规则来源。
 
@@ -213,7 +213,6 @@ owner domain event
 - `single`：单机开发拓扑。
 - `cluster`：本地多副本 / 集群演练拓扑。
 - `--scope infra`：只启动基础设施，便于 IDE 启动业务服务。
-- `--observability`：显式启用 Elasticsearch localhost 入口、Kibana、EDOT collector（默认已启用）。
 - `--no-observability`：关闭 observability overlay。
 
 运行命令和端口见 [local-development.md](local-development.md)，观测和排障见 [operations.md](operations.md)。

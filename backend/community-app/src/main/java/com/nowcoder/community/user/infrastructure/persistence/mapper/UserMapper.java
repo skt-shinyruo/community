@@ -20,14 +20,6 @@ public interface UserMapper {
 
     int insertUser(UserDataObject user);
 
-    int deletePendingUserIfExpired(@Param("id") UUID id, @Param("status") int status, @Param("cutoff") java.util.Date cutoff);
-
-    int deletePendingUser(@Param("id") UUID id, @Param("status") int status);
-
-    List<UUID> selectExpiredPendingUserIds(@Param("status") int status, @Param("cutoff") java.util.Date cutoff, @Param("limit") int limit);
-
-    int deleteExpiredPendingUsers(@Param("status") int status, @Param("cutoff") java.util.Date cutoff);
-
     int updateStatus(UUID id, int status);
 
     int updateHeader(UUID id, String headerUrl);

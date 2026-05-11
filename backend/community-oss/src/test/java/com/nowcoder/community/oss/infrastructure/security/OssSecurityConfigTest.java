@@ -159,7 +159,6 @@ class OssSecurityConfigTest {
                   "contentType": "application/pdf",
                   "contentLength": 6,
                   "checksumSha256": "",
-                  "aliasKey": "",
                   "actorId": "7"
                 }
                 """;

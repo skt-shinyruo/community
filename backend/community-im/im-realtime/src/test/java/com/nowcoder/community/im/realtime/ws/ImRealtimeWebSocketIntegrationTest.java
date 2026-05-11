@@ -442,8 +442,8 @@ class ImRealtimeWebSocketIntegrationTest {
         }
     }
 
-    private static UserMessagingPolicyEntry policy(UUID userId, boolean allowPrivateMessages) {
-        return new UserMessagingPolicyEntry(userId, true, false, false, null, null, allowPrivateMessages);
+    private static UserMessagingPolicyEntry policy(UUID userId, boolean canSendPrivate) {
+        return new UserMessagingPolicyEntry(userId, true, false, false, null, null, canSendPrivate);
     }
 
     private OpenSessionData newSession(UUID userId, String workerId) {

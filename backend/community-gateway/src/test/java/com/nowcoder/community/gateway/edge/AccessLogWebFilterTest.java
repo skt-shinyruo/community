@@ -43,10 +43,8 @@ class AccessLogWebFilterTest {
 
         String staleTraceId = "stale-mdc-trace";
         String resolvedTraceId = "4bf92f3577b34da6a3ce929d0e0e4736";
-        String legacyTraceId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         MDC.put("traceId", staleTraceId);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/posts")
-                .header(TraceHeaders.HEADER_TRACE_ID, legacyTraceId)
                 .header(TraceHeaders.HEADER_TRACEPARENT, traceparent(resolvedTraceId))
                 .build());
 

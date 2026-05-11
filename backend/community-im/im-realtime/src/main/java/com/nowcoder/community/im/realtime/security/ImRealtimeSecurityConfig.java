@@ -52,8 +52,8 @@ public class ImRealtimeSecurityConfig {
     private static String normalizeEdgeMode(String edgeMode) {
         String candidate = edgeMode == null ? "" : edgeMode.trim().toLowerCase(Locale.ROOT);
         return switch (candidate) {
-            case "", "direct-public-edge", "direct-public", "public-edge", "public" -> "direct-public-edge";
-            case "internal-worker", "worker" -> "internal-worker";
+            case "direct-public-edge" -> "direct-public-edge";
+            case "internal-worker" -> "internal-worker";
             default -> throw new IllegalArgumentException("Unsupported im.edge.mode: " + edgeMode);
         };
     }

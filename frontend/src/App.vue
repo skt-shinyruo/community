@@ -26,6 +26,7 @@ import { ensureSessionReady, shouldBootstrapSession } from './auth/session'
 import { useAuthStore } from './stores/auth'
 import { useAppStore } from './stores/app'
 import { imRealtimeClient } from './im/imRealtimeClient'
+import { setToastHandler } from './ui/toastService'
 import AppShell from './components/layout/AppShell.vue'
 import AuthShell from './components/layout/AuthShell.vue'
 import UiToast from './components/ui/UiToast.vue'
@@ -42,11 +43,7 @@ const showToast = (payload) => {
 }
 
 provide('showToast', showToast)
-
-// 兼容历史调用：Axios 拦截器会尝试使用 window.$toast。
-if (typeof window !== 'undefined') {
-  window.$toast = showToast
-}
+setToastHandler(showToast)
 
 const isAuthRoute = computed(() => {
   const name = String(route.name || '')
@@ -103,6 +100,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  setToastHandler(null)
   try { offRoomUpdates?.() } catch {}
 })
 </script>

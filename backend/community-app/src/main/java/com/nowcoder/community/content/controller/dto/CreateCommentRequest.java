@@ -14,7 +14,7 @@ public class CreateCommentRequest {
     private String content;
 
     /**
-     * 兼容旧单体：entityType=1 表示评论帖子；entityType=2 表示回复评论。
+     * entityType=1 表示评论帖子；entityType=2 表示回复评论。
      * 默认 1。
      */
     @Min(1)

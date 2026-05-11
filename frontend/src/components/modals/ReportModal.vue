@@ -55,6 +55,7 @@ import UiSelect from '../ui/UiSelect.vue'
 import UiTextarea from '../ui/UiTextarea.vue'
 import { createReport } from '../../api/services/reportService'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
+import { showToast } from '../../ui/toastService'
 
 const props = defineProps({
   targetType: { type: String, required: true }, // post | comment | user
@@ -95,9 +96,7 @@ async function submit() {
       reason: reason.value,
       detail: detail.value
     })
-    if (typeof window !== 'undefined' && window.$toast) {
-      window.$toast({ type: 'success', title: '已提交', text: '感谢反馈，我们会尽快处理。' })
-    }
+    showToast({ type: 'success', title: '已提交', text: '感谢反馈，我们会尽快处理。' })
     detail.value = ''
   } catch (e) {
     error.value = e?.message || '提交失败'

@@ -11,7 +11,7 @@ public class CaptchaProperties {
     private String store = "redis";
 
     /**
-     * 验证码有效期（秒），默认 60 秒，与旧单体一致。
+     * 验证码有效期（秒），默认 60 秒。
      */
     private int ttlSeconds = 60;
 

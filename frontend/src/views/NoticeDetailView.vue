@@ -44,7 +44,7 @@
         <UiPagination :page="page" :has-next="hasNext" @prev="prevPage" @next="nextPage" />
       </div>
 
-      <UiEmpty v-if="error && items.length === 0" type="error" class="notice-detail-state">{{ error }}</UiEmpty>
+      <UiEmpty v-if="error && items.length === 0" variant="error" class="notice-detail-state">{{ error }}</UiEmpty>
       <div v-else-if="loading && items.length === 0" class="muted notice-detail-state">正在加载通知…</div>
       <UiEmpty v-else-if="items.length === 0" class="notice-detail-state">
         暂无通知

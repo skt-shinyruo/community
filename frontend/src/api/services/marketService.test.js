@@ -53,7 +53,6 @@ describe('api/services/marketService', () => {
     mock = new MockAdapter(http)
     mock.onPost('/api/market/orders').reply((config) => {
       expect(JSON.parse(config.data)).toEqual({
-        requestId: 'market:req-1',
         listingId: '22222222-2222-7222-8222-222222222222',
         quantity: 1,
         addressId: '33333333-3333-7333-8333-333333333333'
@@ -73,7 +72,6 @@ describe('api/services/marketService', () => {
     })
 
     const resp = await marketService.createMarketOrder({
-      requestId: 'market:req-1',
       listingId: '22222222-2222-7222-8222-222222222222',
       quantity: 1,
       addressId: '33333333-3333-7333-8333-333333333333'
@@ -109,7 +107,7 @@ describe('api/services/marketService', () => {
     expect(resp.data[0].receiverName).toBe('张三')
   })
 
-  it('createMarketAddress should send defaultAddress without legacy aliases', async () => {
+  it('createMarketAddress should send defaultAddress only', async () => {
     mock = new MockAdapter(http)
     mock.onPost('/api/market/addresses').reply((config) => {
       expect(JSON.parse(config.data)).toEqual({

@@ -112,14 +112,12 @@ public class ResultTraceIdAdvice implements ResponseBodyAdvice<Object> {
         }
         String traceId = SecurityResponseSupport.resolveTraceId(
                 TraceId.get(),
-                request == null ? null : request.getHeaders().getFirst(TraceHeaders.HEADER_TRACE_ID),
                 request == null ? null : request.getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT)
         );
         traceId = traceId == null ? "" : traceId.trim();
         if (!traceId.isEmpty()) {
             result.setTraceId(traceId);
             if (response != null) {
-                response.getHeaders().set(TraceHeaders.HEADER_TRACE_ID, traceId);
                 response.getHeaders().set(TraceHeaders.HEADER_TRACEPARENT, TraceIdCodec.buildTraceparent(traceId));
             }
         }

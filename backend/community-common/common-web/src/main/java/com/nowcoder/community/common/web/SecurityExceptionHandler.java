@@ -39,7 +39,6 @@ public class SecurityExceptionHandler implements AuthenticationEntryPoint, Acces
     private String resolveTraceId(HttpServletRequest request) {
         return SecurityResponseSupport.resolveTraceId(
                 TraceId.get(),
-                request == null ? null : request.getHeader(TraceHeaders.HEADER_TRACE_ID),
                 request == null ? null : request.getHeader(TraceHeaders.HEADER_TRACEPARENT)
         );
     }

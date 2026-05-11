@@ -17,7 +17,6 @@ public final class TraceKafkaHeaders {
         if (headers == null || snapshot == null) {
             return;
         }
-        put(headers, TraceHeaders.HEADER_TRACE_ID, snapshot.traceId());
         put(headers, TraceHeaders.HEADER_TRACEPARENT, snapshot.traceparent());
     }
 
@@ -27,9 +26,7 @@ public final class TraceKafkaHeaders {
         if (traceId != null) {
             return TraceContextSnapshot.fromStored(traceId, traceparent);
         }
-
-        traceId = TraceIdCodec.normalizeTraceId(headerValue(headers, TraceHeaders.HEADER_TRACE_ID));
-        return TraceContextSnapshot.fromStored(traceId, null);
+        return TraceContextSnapshot.fromStored(null, null);
     }
 
     public static String headerValue(Headers headers, String name) {

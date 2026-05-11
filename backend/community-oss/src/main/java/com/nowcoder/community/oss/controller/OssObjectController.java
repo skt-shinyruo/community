@@ -69,7 +69,6 @@ public class OssObjectController {
                 request.contentType(),
                 request.contentLength(),
                 request.checksumSha256(),
-                request.aliasKey(),
                 request.actorId()
         ));
     }

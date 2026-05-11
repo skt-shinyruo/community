@@ -96,8 +96,6 @@ class RegistrationApplicationServiceTest {
         assertThat(response.maskedEmail()).isNotBlank().contains("@").isNotEqualTo("alice@example.com");
         assertThat(response.debugEmailCode()).matches("\\d{6}");
         verify(userRegistrationActionApi).prepareRegistrationUser("alice", "secret", "alice@example.com");
-        verify(userRegistrationActionApi, never()).registerPendingUser(any(), any(), any(), any());
-        verify(userRegistrationActionApi, never()).deletePendingUser(any());
         ArgumentCaptor<PreparedRegistrationDraft> draftCaptor = ArgumentCaptor.forClass(PreparedRegistrationDraft.class);
         verify(registrationDraftRepository).issue(draftCaptor.capture(), eq(Duration.ofMinutes(30)));
         PreparedRegistrationDraft draft = draftCaptor.getValue();
@@ -147,7 +145,6 @@ class RegistrationApplicationServiceTest {
         verify(registrationCodeStore).issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
         verify(registrationDraftRepository).delete("0123456789abcdef0123456789abcdef");
         verify(registrationCodeStore).delete(userId);
-        verify(userRegistrationActionApi, never()).deletePendingUser(any());
     }
 
     @Test
@@ -171,7 +168,6 @@ class RegistrationApplicationServiceTest {
         verify(mailService, never()).sendRegistrationCodeMail(any(), any());
         verify(registrationCodeStore).delete(userId);
         verify(registrationDraftRepository, never()).delete(any());
-        verify(userRegistrationActionApi, never()).deletePendingUser(any());
     }
 
     @Test
@@ -196,7 +192,6 @@ class RegistrationApplicationServiceTest {
         verify(registrationDraftRepository).delete("0123456789abcdef0123456789abcdef");
         verify(registrationCodeStore).delete(userId);
         verify(mailService, never()).sendRegistrationCodeMail(any(), any());
-        verify(userRegistrationActionApi, never()).deletePendingUser(any());
     }
 
     @Test
@@ -220,7 +215,6 @@ class RegistrationApplicationServiceTest {
         verify(registrationDraftRepository).delete("0123456789abcdef0123456789abcdef");
         verify(registrationCodeStore).delete(userId);
         verify(mailService, never()).sendRegistrationCodeMail(any(), any());
-        verify(userRegistrationActionApi, never()).deletePendingUser(any());
     }
 
     @Test
@@ -243,7 +237,6 @@ class RegistrationApplicationServiceTest {
         verify(mailService, never()).sendRegistrationCodeMail(any(), any());
         verify(registrationCodeStore).delete(userId);
         verify(registrationDraftRepository, never()).delete(any());
-        verify(userRegistrationActionApi, never()).deletePendingUser(any());
     }
 
     @Test
@@ -264,7 +257,6 @@ class RegistrationApplicationServiceTest {
         verify(registrationDraftRepository, never()).issue(any(), any());
         verify(registrationCodeStore, never()).issue(any(), any(), any(), any());
         verify(mailService, never()).sendRegistrationCodeMail(any(), any());
-        verify(userRegistrationActionApi, never()).deletePendingUser(any());
     }
 
     private static UUID uuid(long suffix) {

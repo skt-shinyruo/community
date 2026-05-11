@@ -16,7 +16,6 @@ Commands:
 Options:
   --topology <single|cluster>  Choose topology (default: cluster)
   --scope <full|infra>         Choose compose scope (default: full)
-  --observability     Enable deploy/compose.observability.yml (default)
   --no-observability  Disable deploy/compose.observability.yml
   --env-file <path>   Override env file path (default: deploy/.env.single or deploy/.env.cluster)
   -p, --project-name  Override compose project name (default: community-single or community-cluster)
@@ -159,17 +158,6 @@ EXTRA_ARGS=()
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --obs)
-      echo "[deployment.sh] --obs has been removed; use --observability for the supported observability path" >&2
-      exit 1
-      ;;
-    --debug)
-      echo "[deployment.sh] --debug has been removed; use logs/exec or the default ingress path for troubleshooting" >&2
-      exit 1
-      ;;
-    --observability)
-      OBSERVABILITY=1
-      ;;
     --no-observability)
       OBSERVABILITY=0
       ;;

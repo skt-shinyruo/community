@@ -66,6 +66,6 @@ refresh token 明文只出现在浏览器 HttpOnly cookie 和当前请求/响应
 | 现象 | 先查哪里 |
 | --- | --- |
 | 注册验证码通过但没用户 | auth draft/code 消费和 user create action。 |
-| 登录密码正确但失败 | user 状态、密码 hash 兼容、auth 风控/captcha。 |
+| 登录密码正确但失败 | user 状态、密码 hash、auth 风控/captcha。 |
 | refresh 失败 | refresh cookie、token hash、session 状态和 family 是否撤销。 |
 | 登录成功但统计没变化 | analytics 采集，不要先怀疑登录主事务。 |

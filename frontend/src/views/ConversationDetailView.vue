@@ -32,7 +32,7 @@
       <div class="chat-area" ref="chatArea">
         <div class="chat-timeline-label">消息时间线</div>
 
-        <UiEmpty v-if="error && items.length === 0" type="error" class="chat-state">{{ error }}</UiEmpty>
+        <UiEmpty v-if="error && items.length === 0" variant="error" class="chat-state">{{ error }}</UiEmpty>
         <div v-else-if="loading && items.length === 0" class="muted chat-state">正在同步会话…</div>
         <UiEmpty v-else-if="items.length === 0" class="chat-state">
           暂无消息
@@ -71,6 +71,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { listImConversationMessages, markImConversationRead } from '../api/services/imCoreChatService'
 import { imRealtimeClient } from '../im/imRealtimeClient'
+import { showToast } from '../ui/toastService'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 import { createLatestRequestTracker } from '../utils/latestRequest'
 import ConversationComposer from '../components/scene/ConversationComposer.vue'
@@ -226,11 +227,9 @@ onMounted(() => {
     const message = String(msg?.message || '发送失败')
     error.value = message
     try {
-      if (typeof window !== 'undefined' && window.$toast) {
-        const traceId = String(msg?.traceId || '')
-        const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
-        window.$toast({ type: 'error', title: '发送失败', text: `${message}${traceSuffix}` })
-      }
+      const traceId = String(msg?.traceId || '')
+      const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
+      showToast({ type: 'error', title: '发送失败', text: `${message}${traceSuffix}` })
     } catch {}
   })
 
@@ -243,11 +242,9 @@ onMounted(() => {
     const message = String(msg?.message || '发送失败')
     error.value = message
     try {
-      if (typeof window !== 'undefined' && window.$toast) {
-        const traceId = String(msg?.traceId || '')
-        const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
-        window.$toast({ type: 'error', title: '发送失败', text: `${message}${traceSuffix}` })
-      }
+      const traceId = String(msg?.traceId || '')
+      const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
+      showToast({ type: 'error', title: '发送失败', text: `${message}${traceSuffix}` })
     } catch {}
   })
 })

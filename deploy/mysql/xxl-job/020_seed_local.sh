@@ -14,7 +14,6 @@ XXL_JOB_EXECUTOR_APPNAME="${XXL_JOB_EXECUTOR_APPNAME:-community-app}"
 XXL_JOB_EXECUTOR_TITLE="${XXL_JOB_EXECUTOR_TITLE:-CommunityApp}"
 XXL_JOB_AUTHOR="${XXL_JOB_AUTHOR:-community}"
 XXL_JOB_ALARM_EMAIL="${XXL_JOB_ALARM_EMAIL:-}"
-XXL_JOB_PENDING_REGISTRATION_CLEANUP_CRON="${XXL_JOB_PENDING_REGISTRATION_CLEANUP_CRON:-0 0/5 * * * ?}"
 
 if [[ -z "${MYSQL_ROOT_PASSWORD}" ]]; then
   echo "[xxl-job-seed] missing env: MYSQL_ROOT_PASSWORD" >&2
@@ -43,7 +42,6 @@ XXL_JOB_EXECUTOR_APPNAME_ESCAPED="$(sql_escape "${XXL_JOB_EXECUTOR_APPNAME}")"
 XXL_JOB_EXECUTOR_TITLE_ESCAPED="$(sql_escape "${XXL_JOB_EXECUTOR_TITLE}")"
 XXL_JOB_AUTHOR_ESCAPED="$(sql_escape "${XXL_JOB_AUTHOR}")"
 XXL_JOB_ALARM_EMAIL_ESCAPED="$(sql_escape "${XXL_JOB_ALARM_EMAIL}")"
-XXL_JOB_PENDING_REGISTRATION_CLEANUP_CRON_ESCAPED="$(sql_escape "${XXL_JOB_PENDING_REGISTRATION_CLEANUP_CRON}")"
 
 echo "[xxl-job-seed] seeding xxl_job metadata..."
 
@@ -65,7 +63,6 @@ set @executor_app_name := '${XXL_JOB_EXECUTOR_APPNAME_ESCAPED}';
 set @executor_title := '${XXL_JOB_EXECUTOR_TITLE_ESCAPED}';
 set @job_author := '${XXL_JOB_AUTHOR_ESCAPED}';
 set @alarm_email := '${XXL_JOB_ALARM_EMAIL_ESCAPED}';
-set @cleanup_cron := '${XXL_JOB_PENDING_REGISTRATION_CLEANUP_CRON_ESCAPED}';
 
 insert into xxl_job_group(app_name, title, address_type, address_list, update_time)
 select @executor_app_name, @executor_title, 0, null, now()
@@ -88,87 +85,6 @@ set @job_group_id := (
   order by id asc
   limit 1
 );
-
-update xxl_job_info
-set job_desc = 'Pending Registration Cleanup',
-    update_time = now(),
-    author = @job_author,
-    alarm_email = @alarm_email,
-    schedule_type = 'CRON',
-    schedule_conf = @cleanup_cron,
-    misfire_strategy = 'DO_NOTHING',
-    executor_route_strategy = 'FIRST',
-    executor_handler = 'pendingRegistrationUserCleanup',
-    executor_param = '',
-    executor_block_strategy = 'SERIAL_EXECUTION',
-    executor_timeout = 0,
-    executor_fail_retry_count = 0,
-    glue_type = 'BEAN',
-    glue_source = '',
-    glue_remark = 'seeded by deploy',
-    glue_updatetime = now(),
-    child_jobid = '',
-    trigger_status = 1
-where job_group = @job_group_id
-  and executor_handler = 'pendingRegistrationUserCleanup';
-
-insert into xxl_job_info(
-  job_group,
-  job_desc,
-  add_time,
-  update_time,
-  author,
-  alarm_email,
-  schedule_type,
-  schedule_conf,
-  misfire_strategy,
-  executor_route_strategy,
-  executor_handler,
-  executor_param,
-  executor_block_strategy,
-  executor_timeout,
-  executor_fail_retry_count,
-  glue_type,
-  glue_source,
-  glue_remark,
-  glue_updatetime,
-  child_jobid,
-  trigger_status,
-  trigger_last_time,
-  trigger_next_time
-)
-select
-  @job_group_id,
-  'Pending Registration Cleanup',
-  now(),
-  now(),
-  @job_author,
-  @alarm_email,
-  'CRON',
-  @cleanup_cron,
-  'DO_NOTHING',
-  'FIRST',
-  'pendingRegistrationUserCleanup',
-  '',
-  'SERIAL_EXECUTION',
-  0,
-  0,
-  'BEAN',
-  '',
-  'seeded by deploy',
-  now(),
-  '',
-  1,
-  0,
-  0
-from dual
-where @job_group_id is not null
-  and not exists (
-    select 1
-    from xxl_job_info
-    where job_group = @job_group_id
-      and executor_handler = 'pendingRegistrationUserCleanup'
-  );
 
 update xxl_job_info
 set job_desc = 'Search Reindex',

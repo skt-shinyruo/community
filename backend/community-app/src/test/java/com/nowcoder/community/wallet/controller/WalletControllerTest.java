@@ -92,7 +92,6 @@ class WalletControllerTest {
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "requestId": "recharge:req-api-1",
                                   "amount": 1200
                                 }
                                 """))
@@ -103,7 +102,6 @@ class WalletControllerTest {
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "requestId": "withdraw:req-api-1",
                                   "amount": 500
                                 }
                                 """))
@@ -114,7 +112,6 @@ class WalletControllerTest {
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "requestId": "transfer:req-api-1",
                                   "toUserId": "%s",
                                   "amount": 300
                                 }
@@ -147,10 +144,10 @@ class WalletControllerTest {
 
         mockMvc.perform(post("/api/wallet/recharges")
                         .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "recharge:req-api-1")
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "requestId": "recharge:req-api-1",
                                   "amount": 1200
                                 }
                                 """))
@@ -192,10 +189,10 @@ class WalletControllerTest {
 
         mockMvc.perform(post("/api/wallet/withdrawals")
                         .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "withdraw:req-api-1")
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "requestId": "withdraw:req-api-1",
                                   "amount": 500
                                 }
                                 """))
@@ -238,10 +235,10 @@ class WalletControllerTest {
 
         mockMvc.perform(post("/api/wallet/transfers")
                         .with(jwt().jwt(jwt -> jwt.subject(fromUserId.toString()).claim("username", "u1")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "transfer:req-api-1")
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "requestId": "transfer:req-api-1",
                                   "toUserId": "%s",
                                   "amount": 300
                                 }
@@ -279,16 +276,16 @@ class WalletControllerTest {
     }
 
     @Test
-    void rechargeEndpointShouldRejectDifferentHeaderAndBodyRequestId() throws Exception {
+    void rechargeEndpointShouldRejectBodyRequestId() throws Exception {
         UUID userId = uuid(1);
 
         mockMvc.perform(post("/api/wallet/recharges")
                         .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
-                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "recharge:header")
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "recharge:req-api-1")
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "requestId": "recharge:body",
+                                  "requestId": "recharge:req-api-1",
                                   "amount": 1200
                                 }
                                 """))
@@ -304,10 +301,10 @@ class WalletControllerTest {
 
         mockMvc.perform(post("/api/wallet/recharges")
                         .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "recharge:req-conflict")
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "requestId": "recharge:req-conflict",
                                   "amount": 1200
                                 }
                                 """))
@@ -323,10 +320,10 @@ class WalletControllerTest {
 
         mockMvc.perform(post("/api/wallet/withdrawals")
                         .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "withdraw:req-conflict")
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "requestId": "withdraw:req-conflict",
                                   "amount": 500
                                 }
                                 """))
@@ -343,10 +340,10 @@ class WalletControllerTest {
 
         mockMvc.perform(post("/api/wallet/transfers")
                         .with(jwt().jwt(jwt -> jwt.subject(fromUserId.toString()).claim("username", "u1")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "transfer:req-conflict")
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "requestId": "transfer:req-conflict",
                                   "toUserId": "%s",
                                   "amount": 300
                                 }

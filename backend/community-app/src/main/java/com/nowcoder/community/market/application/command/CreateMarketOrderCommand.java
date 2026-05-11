@@ -4,7 +4,6 @@ import java.util.UUID;
 
 public record CreateMarketOrderCommand(
         UUID buyerUserId,
-        String requestId,
         UUID listingId,
         int quantity,
         UUID addressId,

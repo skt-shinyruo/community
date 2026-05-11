@@ -31,15 +31,16 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
                     local raw = redis.call('GET', KEYS[1])
                     if raw and raw ~= '' then
                       local storedCode, expiresAtMs, failures, issuedAtMs = string.match(raw, '([^|]*)|([^|]*)|([^|]*)|([^|]*)')
-                      if not storedCode or not expiresAtMs or not failures then
-                        storedCode, expiresAtMs, failures = string.match(raw, '([^|]*)|([^|]*)|([^|]*)')
+                      if not storedCode or not expiresAtMs or not failures or not issuedAtMs then
+                        redis.call('DEL', KEYS[1])
+                        storedCode = nil
+                        expiresAtMs = nil
+                        failures = nil
+                        issuedAtMs = nil
                       end
                       local expires = tonumber(expiresAtMs)
                       local issued = tonumber(issuedAtMs)
-                      if expires and expires >= nowMs then
-                        if not issued then
-                          issued = 0
-                        end
+                      if expires and issued and expires >= nowMs then
                         if cooldownMs > 0 and (nowMs - issued) < cooldownMs then
                           return 'COOLDOWN_ACTIVE'
                         end
@@ -60,19 +61,17 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
                     end
 
                     local storedCode, expiresAtMs, failures, issuedAtMs = string.match(raw, '([^|]*)|([^|]*)|([^|]*)|([^|]*)')
-                    if not storedCode or not expiresAtMs or not failures then
-                      storedCode, expiresAtMs, failures = string.match(raw, '([^|]*)|([^|]*)|([^|]*)')
-                    end
-                    if not storedCode or not expiresAtMs or not failures then
+                    if not storedCode or not expiresAtMs or not failures or not issuedAtMs then
                       redis.call('DEL', KEYS[1])
                       return 'NOT_FOUND'
                     end
 
                     local expires = tonumber(expiresAtMs)
                     local failureCount = tonumber(failures)
+                    local issued = tonumber(issuedAtMs)
                     local nowMs = tonumber(ARGV[2])
                     local maxFailures = tonumber(ARGV[3])
-                    if not expires or not failureCount or not nowMs or not maxFailures then
+                    if not expires or not failureCount or not issued or not nowMs or not maxFailures then
                       redis.call('DEL', KEYS[1])
                       return 'NOT_FOUND'
                     end
@@ -219,14 +218,14 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         }
 
         String[] parts = raw.split("\\|", -1);
-        if (parts.length < 3) {
+        if (parts.length != 4) {
             return null;
         }
 
         try {
             long expiresAtMs = Long.parseLong(parts[1]);
             int failures = Integer.parseInt(parts[2]);
-            long issuedAtMs = parts.length >= 4 ? Long.parseLong(parts[3]) : expiresAtMs;
+            long issuedAtMs = Long.parseLong(parts[3]);
             return new ParsedEntry(parts[0], expiresAtMs, failures, issuedAtMs);
         } catch (NumberFormatException ex) {
             return null;

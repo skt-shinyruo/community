@@ -12,11 +12,11 @@
 
 ## 创建订单流程
 
-1. 买家提交下单请求，携带 idempotency key 或 requestId。
+1. 买家提交下单请求，携带 `Idempotency-Key`。
 2. `MarketApplicationService.createOrder(...)` 计算 request fingerprint。
 3. `IdempotencyGuard.executeRequired(...)` 包住下单动作。
 4. `MarketOrderApplicationService.createOrder(...)` 校验买家、商品、数量和地址。
-5. 如果同一买家和 requestId 已有订单，校验 replay 参数一致后返回已有结果。
+5. 如果同一买家和幂等键已有关联订单，校验 replay 参数一致后返回已有结果。
 6. market 锁定商品并校验库存、状态和购买约束。
 7. 如果商品需要地址，market 保存地址快照。
 8. market 写订单。
@@ -64,7 +64,7 @@ wallet 的核心事实是账户和 ledger。充值、提现、转账、奖励、
 
 | 现象 | 先查哪里 |
 | --- | --- |
-| 下单重复返回旧订单 | market idempotency key、request fingerprint、requestId。 |
+| 下单重复返回已有订单 | market idempotency key、request fingerprint。 |
 | 订单成功但余额没变 | market wallet action 状态和 wallet ledger。 |
 | 确认收货后卖家未到账 | release action 是否 pending / succeeded / dead。 |
 | 退款状态和余额不一致 | market 纠纷/退款状态、wallet refund posting、补偿任务。 |

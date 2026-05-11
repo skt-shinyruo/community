@@ -33,7 +33,7 @@ public class ImGatewayCorsConfig {
         }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("X-Trace-Id"));
+        config.setExposedHeaders(List.of("traceparent"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
         return config;

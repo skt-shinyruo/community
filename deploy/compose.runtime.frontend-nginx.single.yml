@@ -15,13 +15,15 @@ services:
   nginx:
     image: nginx:1.27-alpine
     mem_limit: ${NGINX_MEM_LIMIT:-128m}
+    environment:
+    - NGINX_CLIENT_MAX_BODY_SIZE=${NGINX_CLIENT_MAX_BODY_SIZE:-10g}
     depends_on:
       community-gateway:
         condition: service_healthy
       xxl-job-admin:
         condition: service_started
     volumes:
-    - ./nginx/nginx.single.conf:/etc/nginx/nginx.conf:ro
+    - ./nginx/nginx.single.conf:/etc/nginx/templates/default.conf.template:ro
     ports:
     - ${NGINX_API_PORT:-12880}:8080
     - 127.0.0.1:${NGINX_XXL_JOB_PORT:-12887}:8081

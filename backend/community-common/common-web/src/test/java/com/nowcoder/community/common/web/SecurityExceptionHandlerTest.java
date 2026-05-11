@@ -39,8 +39,10 @@ class SecurityExceptionHandlerTest {
         assertThat(response.getStatus()).isEqualTo(401);
         assertThat(response.getCharacterEncoding()).isEqualTo(StandardCharsets.UTF_8.name());
         assertThat(response.getContentType()).startsWith(MediaType.APPLICATION_JSON_VALUE);
-        assertThat(response.getHeader(TraceHeaders.HEADER_TRACE_ID)).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
+        assertThat(response.getHeader(TraceHeaders.HEADER_TRACEPARENT))
+                .matches("^00-abcdefabcdefabcdefabcdefabcdefab-[0-9a-f]{16}-01$");
         assertThat(body.path("code").asInt()).isEqualTo(CommonErrorCode.UNAUTHORIZED.getCode());
+        assertThat(body.path("traceId").asText()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
     }
 
     @Test
@@ -57,7 +59,9 @@ class SecurityExceptionHandlerTest {
         assertThat(response.getStatus()).isEqualTo(403);
         assertThat(response.getCharacterEncoding()).isEqualTo(StandardCharsets.UTF_8.name());
         assertThat(response.getContentType()).startsWith(MediaType.APPLICATION_JSON_VALUE);
-        assertThat(response.getHeader(TraceHeaders.HEADER_TRACE_ID)).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
+        assertThat(response.getHeader(TraceHeaders.HEADER_TRACEPARENT))
+                .matches("^00-abcdefabcdefabcdefabcdefabcdefab-[0-9a-f]{16}-01$");
         assertThat(body.path("code").asInt()).isEqualTo(CommonErrorCode.FORBIDDEN.getCode());
+        assertThat(body.path("traceId").asText()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
     }
 }

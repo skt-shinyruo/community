@@ -46,7 +46,6 @@ const router = createRouter({
       path: '/auth/login',
       name: 'login',
       component: LoginView,
-      alias: ['/login'],
       meta: { title: '登录', subtitle: '回到讨论广场前，先确认你的身份。', navGroup: 'auth' }
     },
     {

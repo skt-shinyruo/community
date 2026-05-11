@@ -117,7 +117,7 @@ public class MarketApplicationService {
     }
 
     public MarketOrderResult createOrder(CreateMarketOrderCommand command) {
-        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey(), command.requestId());
+        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         String requestHash = RequestFingerprint.sha256(
                 "market:create_order|listingId=" + command.listingId()
                         + "|quantity=" + command.quantity()

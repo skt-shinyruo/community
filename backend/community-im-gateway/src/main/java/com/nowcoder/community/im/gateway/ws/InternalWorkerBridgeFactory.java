@@ -14,7 +14,6 @@ import java.net.URI;
 @Component
 public class InternalWorkerBridgeFactory {
 
-    private static final String HEADER_TRACE_ID = "X-Trace-Id";
     private static final String HEADER_TRACEPARENT = "traceparent";
 
     private final ReactorNettyWebSocketClient client;
@@ -60,10 +59,6 @@ public class InternalWorkerBridgeFactory {
         private HttpHeaders buildTraceHeaders(WebSocketSession externalSession) {
             HttpHeaders handshakeHeaders = externalSession.getHandshakeInfo().getHeaders();
             HttpHeaders headers = new HttpHeaders();
-            String traceId = handshakeHeaders.getFirst(HEADER_TRACE_ID);
-            if (traceId != null && !traceId.isBlank()) {
-                headers.set(HEADER_TRACE_ID, traceId.trim());
-            }
             String traceparent = handshakeHeaders.getFirst(HEADER_TRACEPARENT);
             if (traceparent != null && !traceparent.isBlank()) {
                 headers.set(HEADER_TRACEPARENT, traceparent.trim());

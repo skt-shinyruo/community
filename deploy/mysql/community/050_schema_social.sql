@@ -26,7 +26,7 @@ prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
 
--- social_like 扫描索引（idempotent）：用于按 (entity_type, entity_id, user_id) keyset 分页（运维排查/历史遗留 scan 接口）
+-- social_like 扫描索引（idempotent）：用于按 (entity_type, entity_id, user_id) keyset 分页（运维排查 / scan 接口）
 set @idx_like_entity_user := (
   select count(*)
   from information_schema.statistics

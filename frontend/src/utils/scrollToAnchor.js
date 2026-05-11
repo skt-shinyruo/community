@@ -19,7 +19,7 @@ export function scrollToAnchor(anchorId, options = {}) {
   try {
     el.scrollIntoView({ behavior, block })
   } catch {
-    // 兼容旧浏览器/异常场景：回退为直接跳转。
+    // 滚动 API 抛错时回退为坐标滚动。
     try {
       const top = el.getBoundingClientRect().top + window.scrollY - 80
       window.scrollTo({ top: Math.max(0, top), behavior })
@@ -35,4 +35,3 @@ export function scrollToAnchor(anchorId, options = {}) {
 
   return true
 }
-

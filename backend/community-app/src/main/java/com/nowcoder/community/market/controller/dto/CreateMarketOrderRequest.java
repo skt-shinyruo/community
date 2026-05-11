@@ -1,13 +1,12 @@
 package com.nowcoder.community.market.controller.dto;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.UUID;
 
 public class CreateMarketOrderRequest {
-
-    private String requestId;
 
     @NotNull
     private UUID listingId;
@@ -17,14 +16,6 @@ public class CreateMarketOrderRequest {
     private Integer quantity;
 
     private UUID addressId;
-
-    public String getRequestId() {
-        return requestId;
-    }
-
-    public void setRequestId(String requestId) {
-        this.requestId = requestId;
-    }
 
     public UUID getListingId() {
         return listingId;
@@ -48,5 +39,10 @@ public class CreateMarketOrderRequest {
 
     public void setAddressId(UUID addressId) {
         this.addressId = addressId;
+    }
+
+    @JsonAnySetter
+    public void rejectUnknown(String name, Object value) {
+        throw new IllegalArgumentException("Unknown market order request field: " + name);
     }
 }

@@ -7,7 +7,7 @@
       <template #subtitle>管理员只处理最终裁定，不处理普通卖家动作。这里专门承接卖家拒绝后的争议收口，不再混进钱包后台或旧奖励后台。</template>
     </UiPageHeader>
 
-    <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
+    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted">正在加载争议…</div>
 
     <div v-else class="market-admin-list">

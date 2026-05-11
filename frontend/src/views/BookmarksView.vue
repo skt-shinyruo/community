@@ -2,7 +2,7 @@
   <div class="page bookmarks-page">
     <UiBreadcrumb />
 
-    <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
+    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted bookmarks-state">正在加载收藏内容…</div>
 
     <UiCard class="bookmarks-shell" v-else>

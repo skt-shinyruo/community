@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: community-oss
+  servlet:
+    multipart:
+      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:10GB}
+      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:10GB}
   datasource:
     url: ${OSS_DB_URL:jdbc:mysql://mysql:3306/community_oss?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${OSS_DB_USERNAME:community_oss}

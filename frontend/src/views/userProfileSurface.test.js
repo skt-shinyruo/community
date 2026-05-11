@@ -11,7 +11,6 @@ describe('userProfileSurface', () => {
     const signals = buildCommunitySignals({
       profile: { username: 'Mara', likeCount: 12, followerCount: 8, followeeCount: 5, score: 320 },
       joinedYear: '2024',
-      socialDegraded: false,
       followStatus: null,
       authed: true,
       isSelf: true
@@ -25,18 +24,17 @@ describe('userProfileSurface', () => {
       label: '钱包资产',
       value: '钱包页为准'
     })
-    expect(signals[1].text).not.toContain('兼容切换中')
+    expect(signals[1].text).toContain('钱包页')
     expect(signals[2].value).toContain('8')
 
     const nextSteps = buildCommunityNextSteps({ authed: true, isSelf: true })
     expect(nextSteps.map((item) => item.label)).toEqual(['编辑资料', '回到讨论区', '查看钱包'])
   })
 
-  it('avoids fake zero wallet copy when no compatible asset snapshot exists', () => {
+  it('avoids fake zero wallet copy when no asset snapshot exists', () => {
     const signals = buildCommunitySignals({
       profile: { username: 'Lin', likeCount: 0, followerCount: 0, followeeCount: 0, score: 0 },
       joinedYear: '2023',
-      socialDegraded: true,
       followStatus: true,
       authed: true,
       isSelf: false
@@ -51,7 +49,7 @@ describe('userProfileSurface', () => {
       value: '暂未公开'
     })
     expect(signals[1].text).toContain('暂未在主页公开')
-    expect(signals[2].text).toContain('稍后刷新')
+    expect(signals[2].value).toBe('0 关注 · 0 粉丝')
 
     const nextSteps = buildCommunityNextSteps({ authed: true, isSelf: false })
     expect(nextSteps.map((item) => item.label)).toEqual(['去讨论区看看', '查看关注', '查看粉丝'])

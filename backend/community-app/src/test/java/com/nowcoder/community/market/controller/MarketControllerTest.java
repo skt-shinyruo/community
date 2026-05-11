@@ -403,17 +403,17 @@ class MarketControllerTest {
     }
 
     @Test
-    void createOrderApiShouldRejectDifferentHeaderAndBodyRequestId() throws Exception {
+    void createOrderApiShouldRejectBodyRequestId() throws Exception {
         UUID buyerUserId = uuid(9);
         UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000011");
 
         mockMvc.perform(post("/api/market/orders")
                         .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9")))
-                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "market:header")
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "market:req-body")
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "requestId": "market:body",
+                                  "requestId": "market:req-body",
                                   "listingId": "%s",
                                   "quantity": 1
                                 }
@@ -435,10 +435,10 @@ class MarketControllerTest {
 
         mockMvc.perform(post("/api/market/orders")
                         .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "market:req-replay-conflict")
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "requestId": "market:req-replay-conflict",
                                   "listingId": "%s",
                                   "quantity": 1,
                                   "addressId": "%s"

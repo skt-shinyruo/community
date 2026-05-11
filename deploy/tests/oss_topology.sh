@@ -15,6 +15,11 @@ trap 'rm -f "${single_infra}" "${single_full}" "${cluster_infra}" "${cluster_ful
 ./deploy/deployment.sh config --topology cluster --scope infra --env-file deploy/.env.cluster.example --no-observability >"${cluster_infra}"
 ./deploy/deployment.sh config --topology cluster --scope full --env-file deploy/.env.cluster.example --no-observability >"${cluster_full}"
 
+grep -F 'client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};' deploy/nginx/nginx.single.conf
+grep -F 'client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};' deploy/nginx/nginx.cluster.conf
+grep -F 'NGINX_CLIENT_MAX_BODY_SIZE=10g' deploy/.env.single.example
+grep -F 'NGINX_CLIENT_MAX_BODY_SIZE=10g' deploy/.env.cluster.example
+
 grep -E '^  garage:$' "${single_infra}"
 grep -F 'dxflrs/garage:v2.2.0' "${single_infra}"
 if grep -F -- '--single-node' "${single_infra}"; then
@@ -22,9 +27,11 @@ if grep -F -- '--single-node' "${single_infra}"; then
   exit 1
 fi
 grep -F 'garage-init:' "${single_infra}"
-grep -F '/garage layout assign' "${single_infra}"
-grep -F '/garage layout apply' "${single_infra}"
-grep -F '/garage bucket create' "${single_infra}"
+grep -F 'layout assign' deploy/scripts/bootstrap-garage.sh
+grep -F 'layout apply' deploy/scripts/bootstrap-garage.sh
+grep -F 'bucket create' deploy/scripts/bootstrap-garage.sh
+grep -F 'key import' deploy/scripts/bootstrap-garage.sh
+grep -F 'bucket allow' deploy/scripts/bootstrap-garage.sh
 if grep -F 'CMD-SHELL' "${single_infra}" | grep -F 'garage' >/dev/null 2>&1; then
   echo "single garage healthcheck must not require a shell inside the distroless image" >&2
   exit 1
@@ -37,16 +44,26 @@ grep -E '^  community-oss:$' "${single_full}"
 grep -A4 -E '^      garage-init:$' "${single_full}" | grep -F 'condition: service_completed_successfully'
 grep -F 'OSS_OBJECT_STORE_ENDPOINT: http://garage:3900' "${single_full}"
 grep -F 'OSS_DB_URL: jdbc:mysql://mysql:3306/community_oss' "${single_full}"
+grep -F 'default.conf.template' "${single_full}"
+grep -E 'NGINX_CLIENT_MAX_BODY_SIZE: "?10g"?' "${single_full}"
+grep -F 'SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 10GB' "${single_full}"
+grep -F 'SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 10GB' "${single_full}"
 
 grep -E '^  garage-1:$' "${cluster_infra}"
 grep -E '^  garage-2:$' "${cluster_infra}"
 grep -E '^  garage-3:$' "${cluster_infra}"
+grep -F 'garage-init:' "${cluster_infra}"
 grep -F 'GARAGE_DEFAULT_ACCESS_KEY: GK000000000000000000000001' "${cluster_infra}"
 grep -F 'OSS_OBJECT_STORE_ACCESS_KEY: GK000000000000000000000001' "${cluster_full}"
 grep -F 'OSS_OBJECT_STORE_REGION: garage' "${cluster_full}"
 grep -E 'GARAGE_REPLICATION_FACTOR: "?3"?' "${cluster_infra}"
 grep -E '^  community-oss-1:$' "${cluster_full}"
+grep -A4 -E '^      garage-init:$' "${cluster_full}" | grep -F 'condition: service_completed_successfully'
 grep -E '^  community-oss-2:$' "${cluster_full}"
 grep -E '^  community-oss-3:$' "${cluster_full}"
 grep -F 'OSS_OBJECT_STORE_ENDPOINT: http://garage:3900' "${cluster_full}"
 grep -F 'OSS_DB_URL: jdbc:mysql://mysql-primary:3306/community_oss' "${cluster_full}"
+grep -F 'default.conf.template' "${cluster_full}"
+grep -E 'NGINX_CLIENT_MAX_BODY_SIZE: "?10g"?' "${cluster_full}"
+grep -F 'SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 10GB' "${cluster_full}"
+grep -F 'SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 10GB' "${cluster_full}"

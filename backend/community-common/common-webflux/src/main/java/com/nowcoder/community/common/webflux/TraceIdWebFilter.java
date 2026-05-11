@@ -24,9 +24,8 @@ public class TraceIdWebFilter implements WebFilter, Ordered {
             return Mono.empty();
         }
 
-        String existingTraceId = exchange.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACE_ID);
         String existingTraceparent = exchange.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT);
-        String traceId = TraceIdCodec.resolveTraceId(existingTraceId, existingTraceparent);
+        String traceId = TraceIdCodec.resolveTraceId(existingTraceparent);
         String traceparent = TraceIdCodec.extractTraceIdFromTraceparent(existingTraceparent) == null
                 ? TraceIdCodec.buildTraceparent(traceId)
                 : existingTraceparent.trim();
@@ -34,12 +33,10 @@ public class TraceIdWebFilter implements WebFilter, Ordered {
         ServerHttpRequest mutatedRequest = exchange.getRequest()
                 .mutate()
                 .headers(headers -> {
-                    headers.set(TraceHeaders.HEADER_TRACE_ID, traceId);
                     headers.set(TraceHeaders.HEADER_TRACEPARENT, traceparent);
                 })
                 .build();
         ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
-        mutatedExchange.getResponse().getHeaders().set(TraceHeaders.HEADER_TRACE_ID, traceId);
         mutatedExchange.getResponse().getHeaders().set(TraceHeaders.HEADER_TRACEPARENT, traceparent);
         return chain.filter(mutatedExchange);
     }

@@ -35,7 +35,6 @@ class CommunityOssClientContractTest {
                 "image/png",
                 6,
                 "sha256-avatar",
-                "avatar/7/0123456789abcdef0123456789abcdef",
                 "7"
         );
         OssUploadSessionResponse upload = new OssUploadSessionResponse(

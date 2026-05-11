@@ -72,7 +72,7 @@ public class RegistrationApplicationService {
 
         registrationDomainService.requireRegisterFields(username, password, email);
 
-        Duration registrationDraftTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
+        Duration registrationDraftTtl = Duration.ofSeconds(Math.max(60, properties.getDraft().getTtlSeconds()));
         PreparedRegistrationUserView prepared = userRegistrationActionApi.prepareRegistrationUser(username, password, email);
         if (prepared == null
                 || prepared.userId() == null
@@ -127,17 +127,6 @@ public class RegistrationApplicationService {
                 registrationDomainService.maskEmail(targetEmail),
                 properties.getCode().isExposeCode() ? code : null
         );
-    }
-
-    public int cleanupExpiredPendingUsers() {
-        Duration ttl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
-        int deleted;
-        int totalDeleted = 0;
-        do {
-            deleted = userRegistrationActionApi.cleanupExpiredPendingUsers(ttl);
-            totalDeleted += deleted;
-        } while (deleted > 0);
-        return totalDeleted;
     }
 
     private String generateCode() {

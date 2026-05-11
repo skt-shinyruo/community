@@ -19,11 +19,11 @@ public record TraceContextSnapshot(String traceId, String traceparent, boolean r
         }
     }
 
-    public static TraceContextSnapshot fromInbound(String traceIdHeader, String traceparentHeader) {
-        String resolved = TraceIdCodec.resolveTraceId(traceIdHeader, traceparentHeader);
+    public static TraceContextSnapshot fromInbound(String traceparentHeader) {
+        String resolved = TraceIdCodec.resolveTraceId(traceparentHeader);
         String extracted = TraceIdCodec.extractTraceIdFromTraceparent(traceparentHeader);
         String parent = resolved.equals(extracted) ? traceparentHeader : TraceIdCodec.buildTraceparent(resolved);
-        return new TraceContextSnapshot(resolved, parent, false);
+        return new TraceContextSnapshot(resolved, parent, extracted == null);
     }
 
     public static TraceContextSnapshot fromStored(String traceId, String traceparent) {

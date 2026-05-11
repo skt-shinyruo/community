@@ -17,7 +17,6 @@ public record OssUploadSession(
         String expectedContentType,
         long expectedContentLength,
         String expectedChecksumSha256,
-        String aliasKey,
         OssUploadSessionStatus status,
         Instant expiresAt,
         String createdBy,
@@ -38,7 +37,6 @@ public record OssUploadSession(
         expectedContentType = normalizeContentType(expectedContentType);
         expectedContentLength = Math.max(0, expectedContentLength);
         expectedChecksumSha256 = normalize(expectedChecksumSha256);
-        aliasKey = normalize(aliasKey);
         status = status == null ? OssUploadSessionStatus.READY : status;
         Objects.requireNonNull(expiresAt, "expiresAt");
         createdBy = normalize(createdBy);
@@ -58,7 +56,6 @@ public record OssUploadSession(
             String expectedContentType,
             long expectedContentLength,
             String expectedChecksumSha256,
-            String aliasKey,
             String createdBy,
             Instant now,
             Instant expiresAt
@@ -76,7 +73,6 @@ public record OssUploadSession(
                 expectedContentType,
                 expectedContentLength,
                 expectedChecksumSha256,
-                aliasKey,
                 OssUploadSessionStatus.READY,
                 expiresAt,
                 createdBy,
@@ -102,7 +98,6 @@ public record OssUploadSession(
                 expectedContentType,
                 expectedContentLength,
                 expectedChecksumSha256,
-                aliasKey,
                 OssUploadSessionStatus.COMPLETED,
                 expiresAt,
                 createdBy,

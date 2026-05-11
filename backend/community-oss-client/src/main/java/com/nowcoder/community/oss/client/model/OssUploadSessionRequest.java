@@ -11,7 +11,6 @@ public record OssUploadSessionRequest(
         String contentType,
         long contentLength,
         String checksumSha256,
-        String aliasKey,
         String actorId
 ) {
 }

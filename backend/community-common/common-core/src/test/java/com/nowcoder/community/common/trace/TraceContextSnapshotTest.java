@@ -16,9 +16,8 @@ class TraceContextSnapshotTest {
     }
 
     @Test
-    void fromInboundShouldPreferTraceparentAndNormalizeLegacyFallback() {
+    void fromInboundShouldUseTraceparentAndGenerateWhenMissing() {
         TraceContextSnapshot fromTraceparent = TraceContextSnapshot.fromInbound(
-                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
         );
 
@@ -26,14 +25,11 @@ class TraceContextSnapshotTest {
         assertThat(fromTraceparent.traceparent()).startsWith("00-4bf92f3577b34da6a3ce929d0e0e4736-");
         assertThat(fromTraceparent.recovered()).isFalse();
 
-        TraceContextSnapshot fromLegacy = TraceContextSnapshot.fromInbound(
-                "ABCDEFABCDEFABCDEFABCDEFABCDEFAB",
-                null
-        );
+        TraceContextSnapshot generated = TraceContextSnapshot.fromInbound(null);
 
-        assertThat(fromLegacy.traceId()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
-        assertThat(fromLegacy.traceparent()).startsWith("00-abcdefabcdefabcdefabcdefabcdefab-");
-        assertThat(fromLegacy.recovered()).isFalse();
+        assertThat(generated.traceId()).matches("[0-9a-f]{32}");
+        assertThat(generated.traceparent()).startsWith("00-" + generated.traceId() + "-");
+        assertThat(generated.recovered()).isTrue();
     }
 
     @Test
@@ -98,8 +94,8 @@ class TraceContextSnapshotTest {
 
     @Test
     void openShouldRestoreDivergedPreviousTraceAndMdcExactly() {
-        TraceId.set("legacy-thread-trace");
-        MDC.put(TraceContext.MDC_KEY_TRACE_ID, "legacy-mdc-trace");
+        TraceId.set("previous-thread-trace");
+        MDC.put(TraceContext.MDC_KEY_TRACE_ID, "previous-mdc-trace");
         TraceContextSnapshot snapshot = TraceContextSnapshot.fromStored(
                 "22222222222222222222222222222222",
                 "00-22222222222222222222222222222222-00f067aa0ba902b7-01"
@@ -110,8 +106,8 @@ class TraceContextSnapshotTest {
             assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("22222222222222222222222222222222");
         }
 
-        assertThat(TraceId.get()).isEqualTo("legacy-thread-trace");
-        assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("legacy-mdc-trace");
+        assertThat(TraceId.get()).isEqualTo("previous-thread-trace");
+        assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("previous-mdc-trace");
     }
 
     @Test

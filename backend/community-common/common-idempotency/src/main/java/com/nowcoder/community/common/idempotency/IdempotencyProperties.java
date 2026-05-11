@@ -17,9 +17,9 @@ public class IdempotencyProperties {
      */
     private boolean enabled = false;
 
-    /**
+     /**
      * 幂等存储后端：
-     * - REDIS：默认（兼容旧实现）
+     * - REDIS：默认轻量实现
      * - DB：MySQL（用于消除 Redis 抖动放大，作为更强的 SSOT）
      */
     private Store store = Store.REDIS;

@@ -69,7 +69,7 @@ class RedisRegistrationCodeRepositoryTest {
     }
 
     @Test
-    void issueScriptShouldTreatLegacyPayloadsWithoutIssuedTimestampAsNoCooldown() {
+    void issueScriptShouldRequireIssuedTimestampInStoredPayload() {
         UUID userId = uuid(7);
         RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
 
@@ -96,7 +96,21 @@ class RedisRegistrationCodeRepositoryTest {
         );
         assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);
         DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
-        assertThat(script.getScriptAsString()).contains("issued = 0");
+        assertThat(script.getScriptAsString())
+                .contains("([^|]*)|([^|]*)|([^|]*)|([^|]*)")
+                .doesNotContain("storedCode, expiresAtMs, failures = string.match")
+                .doesNotContain("issued = 0");
+    }
+
+    @Test
+    void lastSentAtMillisShouldRejectPayloadWithoutIssuedTimestamp() {
+        UUID userId = uuid(7);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("auth:regcode:" + userId)).thenReturn("222222|4102444800000|0");
+
+        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
+
+        assertThat(store.lastSentAtMillis(userId)).isNull();
     }
 
     @Test

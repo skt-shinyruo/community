@@ -9,6 +9,7 @@ import { createLatestRequestTracker } from '../../utils/latestRequest'
 import { markPostRead } from '../../utils/readTracker'
 import { scrollToAnchor } from '../../utils/scrollToAnchor'
 import { normalizeOpaqueId, sameOpaqueId } from '../../utils/opaqueId'
+import { showToast } from '../../ui/toastService'
 import { getUserProfile } from '../../api/services/userService'
 import { setLike, followUser, unfollowUser, getFollowStatus } from '../../api/services/socialService'
 import { bookmarkPost, unbookmarkPost } from '../../api/services/bookmarkService'
@@ -327,10 +328,10 @@ export function usePostDetailLoader(emit) {
     try {
       if (isBlockedAuthor.value) {
         await unblockUser(uid)
-        if (typeof window !== 'undefined' && window.$toast) window.$toast({ type: 'success', text: '已解除屏蔽' })
+        showToast({ type: 'success', text: '已解除屏蔽' })
       } else {
         await blockUser(uid)
-        if (typeof window !== 'undefined' && window.$toast) window.$toast({ type: 'success', text: '已屏蔽该用户' })
+        showToast({ type: 'success', text: '已屏蔽该用户' })
       }
       await prefs.ensureBlocked(true)
     } catch (e) {
@@ -399,7 +400,7 @@ export function usePostDetailLoader(emit) {
         })
         emit('trace', r?.traceId || '')
         const q = String(payload?.title || '').trim()
-        if (typeof window !== 'undefined' && window.$toast) window.$toast({
+        showToast({
           type: 'success',
           title: '已保存',
           text: '帖子已更新。搜索结果更新为最终一致，可能延迟数秒到数十秒。',
@@ -413,12 +414,12 @@ export function usePostDetailLoader(emit) {
         const cid = editCommentId.value
         const r = await apiUpdateComment(post.value.id, cid, { content: String(payload?.content || '').trim() })
         emit('trace', r?.traceId || '')
-        if (typeof window !== 'undefined' && window.$toast) window.$toast({ type: 'success', text: '已保存' })
+        showToast({ type: 'success', text: '已保存' })
         closeEdit()
         await loadComments()
       }
     } catch (e) {
-      if (typeof window !== 'undefined' && window.$toast) window.$toast({ type: 'error', text: e?.message || '保存失败' })
+      showToast({ type: 'error', text: e?.message || '保存失败' })
     } finally {
       actionLoading.value = false
     }

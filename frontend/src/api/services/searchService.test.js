@@ -74,10 +74,10 @@ describe('api/services/searchService', () => {
       code: 0,
       message: '',
       data: {
-        jobId: 'legacy-job',
+        jobId: 'retired-route-job',
         indexedCount: 1
       },
-      traceId: 'trace-legacy'
+      traceId: 'trace-retired-route'
     })
 
     await expect(reindex()).rejects.toMatchObject({

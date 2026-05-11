@@ -40,37 +40,6 @@
         #{createTime})
     </insert>
 
-    <delete id="deletePendingUserIfExpired">
-        delete from user
-        where id = #{id, jdbcType=BINARY}
-          and status = #{status}
-          and create_time is not null
-          and create_time &lt;= #{cutoff}
-    </delete>
-
-    <delete id="deletePendingUser">
-        delete from user
-        where id = #{id, jdbcType=BINARY}
-          and status = #{status}
-    </delete>
-
-    <select id="selectExpiredPendingUserIds" resultType="java.util.UUID">
-        select id
-        from user
-        where status = #{status}
-          and create_time is not null
-          and create_time &lt;= #{cutoff}
-        order by create_time asc, id asc
-        limit #{limit}
-    </select>
-
-    <delete id="deleteExpiredPendingUsers">
-        delete from user
-        where status = #{status}
-          and create_time is not null
-          and create_time &lt;= #{cutoff}
-    </delete>
-
     <update id="updateStatus">
         update user set status = #{status} where id = #{id, jdbcType=BINARY}
     </update>

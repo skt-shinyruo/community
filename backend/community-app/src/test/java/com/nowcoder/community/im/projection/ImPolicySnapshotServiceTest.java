@@ -52,13 +52,13 @@ class ImPolicySnapshotServiceTest {
         assertThat(snapshot.entries().get(0).muted()).isTrue();
         assertThat(recordComponentValue(snapshot.entries().get(0), "muteUntil")).isEqualTo(activeMuteUntil.toEpochMilli());
         assertThat(recordComponentValue(snapshot.entries().get(0), "banUntil")).isNull();
-        assertThat(snapshot.entries().get(0).allowPrivateMessages()).isFalse();
+        assertThat(snapshot.entries().get(0).canSendPrivate()).isFalse();
         assertThat(snapshot.entries().get(1).userId()).isEqualTo(uuid(8));
         assertThat(snapshot.entries().get(1).suspended()).isTrue();
         assertThat(snapshot.entries().get(1).muted()).isFalse();
         assertThat(recordComponentValue(snapshot.entries().get(1), "muteUntil")).isEqualTo(expiredMuteUntil.toEpochMilli());
         assertThat(recordComponentValue(snapshot.entries().get(1), "banUntil")).isEqualTo(activeBanUntil.toEpochMilli());
-        assertThat(snapshot.entries().get(1).allowPrivateMessages()).isFalse();
+        assertThat(snapshot.entries().get(1).canSendPrivate()).isFalse();
         assertThat(snapshot.hasMore()).isFalse();
     }
 

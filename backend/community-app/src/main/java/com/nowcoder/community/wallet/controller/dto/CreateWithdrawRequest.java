@@ -1,23 +1,14 @@
 package com.nowcoder.community.wallet.controller.dto;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 public class CreateWithdrawRequest {
 
-    private String requestId;
-
     @NotNull
     @Min(1)
     private Long amount;
-
-    public String getRequestId() {
-        return requestId;
-    }
-
-    public void setRequestId(String requestId) {
-        this.requestId = requestId;
-    }
 
     public Long getAmount() {
         return amount;
@@ -25,5 +16,10 @@ public class CreateWithdrawRequest {
 
     public void setAmount(Long amount) {
         this.amount = amount;
+    }
+
+    @JsonAnySetter
+    public void rejectUnknown(String name, Object value) {
+        throw new IllegalArgumentException("Unknown withdraw request field: " + name);
     }
 }

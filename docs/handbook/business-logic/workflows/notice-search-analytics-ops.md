@@ -42,8 +42,8 @@
 1. ops 或 XXL job 触发 reindex。
 2. search 使用 single-flight 避免多个 reindex 并发。
 3. 新索引构建完成后，通过 alias 原子切换。
-4. 旧 alias 在切换前始终可读。
-5. 失败时保留旧索引服务。
+4. alias 切换前原索引始终可读。
+5. 失败时保留原索引服务。
 
 ES 是读模型，不是帖子事实。
 

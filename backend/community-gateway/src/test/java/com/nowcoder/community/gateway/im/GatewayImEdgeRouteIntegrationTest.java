@@ -40,6 +40,7 @@ class GatewayImEdgeRouteIntegrationTest {
 
     private static final LinkedBlockingQueue<RequestCapture> IM_EDGE_CAPTURES = new LinkedBlockingQueue<>();
     private static final LinkedBlockingQueue<RequestCapture> IM_CORE_CAPTURES = new LinkedBlockingQueue<>();
+    private static final String TRACEPARENT_HEADER = "traceparent";
 
     private static volatile DisposableServer imEdgeServer;
     private static volatile DisposableServer imCoreServer;
@@ -92,7 +93,7 @@ class GatewayImEdgeRouteIntegrationTest {
         webTestClient.post()
                 .uri("/api/im/sessions")
                 .header("Authorization", "Bearer edge-token")
-                .header("X-Trace-Id", "cccccccccccccccccccccccccccccccc")
+                .header(TRACEPARENT_HEADER, traceparent("cccccccccccccccccccccccccccccccc"))
                 .bodyValue("{\"conversationId\":\"c1\"}")
                 .exchange()
                 .expectStatus().isOk()
@@ -105,7 +106,7 @@ class GatewayImEdgeRouteIntegrationTest {
         assertThat(capture.path()).isEqualTo("/api/im/sessions");
         assertThat(capture.body()).isEqualTo("{\"conversationId\":\"c1\"}");
         assertThat(capture.authorization()).isEqualTo("Bearer edge-token");
-        assertThat(capture.traceId()).isEqualTo("cccccccccccccccccccccccccccccccc");
+        assertThat(capture.traceparent()).isEqualTo(traceparent("cccccccccccccccccccccccccccccccc"));
         assertThat(IM_CORE_CAPTURES).isEmpty();
     }
 
@@ -117,7 +118,7 @@ class GatewayImEdgeRouteIntegrationTest {
         webTestClient.get()
                 .uri("/api/im/conversations?unreadOnly=true")
                 .header("Authorization", "Bearer core-token")
-                .header("X-Trace-Id", "dddddddddddddddddddddddddddddddd")
+                .header(TRACEPARENT_HEADER, traceparent("dddddddddddddddddddddddddddddddd"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -129,7 +130,7 @@ class GatewayImEdgeRouteIntegrationTest {
         assertThat(capture.path()).isEqualTo("/api/im/conversations");
         assertThat(capture.query()).isEqualTo("unreadOnly=true");
         assertThat(capture.authorization()).isEqualTo("Bearer core-token");
-        assertThat(capture.traceId()).isEqualTo("dddddddddddddddddddddddddddddddd");
+        assertThat(capture.traceparent()).isEqualTo(traceparent("dddddddddddddddddddddddddddddddd"));
         assertThat(IM_EDGE_CAPTURES).isEmpty();
     }
 
@@ -181,7 +182,7 @@ class GatewayImEdgeRouteIntegrationTest {
                                                 uri.getRawQuery(),
                                                 body,
                                                 request.requestHeaders().get("Authorization"),
-                                                request.requestHeaders().get("X-Trace-Id")
+                                                request.requestHeaders().get(TRACEPARENT_HEADER)
                                         ));
                                         return response.header("Content-Type", "application/json")
                                                 .sendString(Mono.just("{\"upstream\":\"im-edge\"}"))
@@ -212,7 +213,7 @@ class GatewayImEdgeRouteIntegrationTest {
                                         uri.getRawQuery(),
                                         body,
                                         request.requestHeaders().get("Authorization"),
-                                        request.requestHeaders().get("X-Trace-Id")
+                                        request.requestHeaders().get(TRACEPARENT_HEADER)
                                 ));
                                 return response.header("Content-Type", "application/json")
                                         .sendString(Mono.just("{\"upstream\":\"im-core\"}"))
@@ -229,8 +230,12 @@ class GatewayImEdgeRouteIntegrationTest {
             String query,
             String body,
             String authorization,
-            String traceId
+            String traceparent
     ) {
+    }
+
+    private static String traceparent(String traceId) {
+        return "00-" + traceId + "-00f067aa0ba902b7-01";
     }
 
     @TestConfiguration(proxyBeanMethods = false)

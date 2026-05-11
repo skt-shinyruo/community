@@ -2,7 +2,6 @@ package com.nowcoder.community.oss.infrastructure.persistence;
 
 import com.nowcoder.community.oss.domain.model.OssAccessGrant;
 import com.nowcoder.community.oss.domain.model.OssObject;
-import com.nowcoder.community.oss.domain.model.OssObjectAlias;
 import com.nowcoder.community.oss.domain.model.OssObjectReference;
 import com.nowcoder.community.oss.domain.model.OssObjectReferenceStatus;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
@@ -10,14 +9,12 @@ import com.nowcoder.community.oss.domain.model.OssUploadSession;
 import com.nowcoder.community.oss.domain.model.OssUsagePolicy;
 import com.nowcoder.community.oss.domain.model.OssVisibility;
 import com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssAccessGrantDataObject;
-import com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectAliasDataObject;
 import com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectDataObject;
 import com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectReferenceDataObject;
 import com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectVersionDataObject;
 import com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssUploadSessionDataObject;
 import com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssUsagePolicyDataObject;
 import com.nowcoder.community.oss.infrastructure.persistence.mapper.OssAccessGrantMapper;
-import com.nowcoder.community.oss.infrastructure.persistence.mapper.OssObjectAliasMapper;
 import com.nowcoder.community.oss.infrastructure.persistence.mapper.OssObjectMapper;
 import com.nowcoder.community.oss.infrastructure.persistence.mapper.OssObjectReferenceMapper;
 import com.nowcoder.community.oss.infrastructure.persistence.mapper.OssObjectVersionMapper;
@@ -44,14 +41,12 @@ class OssPersistenceMappingTest {
         FakeObjectMapper objectMapper = new FakeObjectMapper();
         FakeVersionMapper versionMapper = new FakeVersionMapper();
         FakeSessionMapper sessionMapper = new FakeSessionMapper();
-        FakeAliasMapper aliasMapper = new FakeAliasMapper();
         FakePolicyMapper policyMapper = new FakePolicyMapper();
         FakeGrantMapper grantMapper = new FakeGrantMapper();
         FakeReferenceMapper referenceMapper = new FakeReferenceMapper();
         MyBatisOssObjectRepository objectRepository = new MyBatisOssObjectRepository(objectMapper);
         MyBatisOssObjectVersionRepository versionRepository = new MyBatisOssObjectVersionRepository(versionMapper);
         MyBatisOssUploadSessionRepository sessionRepository = new MyBatisOssUploadSessionRepository(sessionMapper);
-        MyBatisOssObjectAliasRepository aliasRepository = new MyBatisOssObjectAliasRepository(aliasMapper);
         MyBatisOssUsagePolicyRepository policyRepository = new MyBatisOssUsagePolicyRepository(policyMapper);
         MyBatisOssAccessGrantRepository grantRepository = new MyBatisOssAccessGrantRepository(grantMapper);
         MyBatisOssObjectReferenceRepository referenceRepository = new MyBatisOssObjectReferenceRepository(referenceMapper);
@@ -94,12 +89,10 @@ class OssPersistenceMappingTest {
                 "image/png",
                 6,
                 "sha256-avatar",
-                "avatar/7/0123456789abcdef0123456789abcdef",
                 "7",
                 NOW,
                 NOW.plusSeconds(900)
         );
-        OssObjectAlias alias = OssObjectAlias.active(session.aliasKey(), objectId, versionId, NOW);
         OssUsagePolicy policy = new OssUsagePolicy(
                 "USER_AVATAR",
                 OssVisibility.PUBLIC,
@@ -141,15 +134,13 @@ class OssPersistenceMappingTest {
         objectRepository.save(object.activate(version.activate("etag-1", NOW), NOW));
         versionRepository.save(version);
         sessionRepository.save(session);
-        aliasRepository.save(alias);
         policyRepository.save(policy);
         grantRepository.save(grant);
         referenceRepository.save(reference);
 
         assertThat(objectRepository.findById(objectId)).get().extracting(OssObject::currentVersionId).isEqualTo(versionId);
         assertThat(versionRepository.findById(versionId)).get().extracting(OssObjectVersion::storageKey).isEqualTo(version.storageKey());
-        assertThat(sessionRepository.findById(session.sessionId())).get().extracting(OssUploadSession::aliasKey).isEqualTo(session.aliasKey());
-        assertThat(aliasRepository.findByAliasKey(alias.aliasKey())).get().extracting(OssObjectAlias::objectId).isEqualTo(objectId);
+        assertThat(sessionRepository.findById(session.sessionId())).get().extracting(OssUploadSession::expectedFileName).isEqualTo(session.expectedFileName());
         assertThat(policyRepository.findByUsage("USER_AVATAR")).get().extracting(OssUsagePolicy::maxBytes).isEqualTo(2_097_152L);
         assertThat(grantRepository.findById(grant.grantId())).get().extracting(OssAccessGrant::principalValue).isEqualTo("7");
         assertThat(grantRepository.findByObjectId(objectId)).hasSize(1);
@@ -204,21 +195,6 @@ class OssPersistenceMappingTest {
         @Override
         public OssUploadSessionDataObject selectById(UUID sessionId) {
             return rows.get(sessionId);
-        }
-    }
-
-    private static final class FakeAliasMapper implements OssObjectAliasMapper {
-        private final Map<String, OssObjectAliasDataObject> rows = new HashMap<>();
-
-        @Override
-        public int upsert(OssObjectAliasDataObject row) {
-            rows.put(row.getAliasKey(), row);
-            return 1;
-        }
-
-        @Override
-        public OssObjectAliasDataObject selectByAliasKey(String aliasKey) {
-            return rows.get(aliasKey);
         }
     }
 

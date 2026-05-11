@@ -1,7 +1,7 @@
 <!-- 空状态提示组件。 -->
 <template>
-  <div class="empty-state empty-state--compat">
-    <UiState class="empty-card" :variant="stateVariant" :title="title">
+  <div class="empty-state">
+    <UiState class="empty-card" :variant="props.variant" :title="title">
       <template v-if="$slots.description" #description>
         <slot name="description" />
       </template>
@@ -20,7 +20,7 @@ import UiState from './UiState.vue'
 defineOptions({ name: 'UiEmpty' })
 
 const props = defineProps({
-  type: { type: String, default: 'data' }
+  variant: { type: String, default: 'empty' }
 })
 
 const slots = useSlots()
@@ -36,11 +36,6 @@ function collectText(nodes) {
     .join('')
     .trim()
 }
-
-const stateVariant = computed(() => {
-  if (props.type === 'error') return 'error'
-  return 'empty'
-})
 
 const title = computed(() => {
   const text = collectText(slots.default?.() || [])

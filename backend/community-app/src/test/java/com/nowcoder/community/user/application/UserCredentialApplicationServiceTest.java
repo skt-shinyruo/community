@@ -15,9 +15,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.util.DigestUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
@@ -27,7 +25,9 @@ import java.util.UUID;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -65,25 +65,18 @@ class UserCredentialApplicationServiceTest {
     }
 
     @Test
-    void authenticateShouldUpgradeLegacyPasswordHashOnSuccessfulMatch() {
+    void authenticateShouldRejectNonBcryptPasswordHash() {
         UserCredentialApplicationService service = service();
         UUID userId = uuid(7);
-        UserAccount user = activeUser(userId, "alice", md5("secretabc"), "abc");
+        UserAccount user = activeUser(userId, "alice", "plain-hash", "abc");
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 
         UserAuthenticationResult authenticationResult = service.authenticate("alice", "secret");
-        UserCredentialResult authenticated = authenticationResult.user();
 
-        ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
-        verify(userRepository).updatePassword(eq(userId), passwordCaptor.capture());
-        assertThat(authenticationResult.authenticated()).isTrue();
-        assertThat(authenticated).extracting(
-                UserCredentialResult::userId,
-                UserCredentialResult::username,
-                UserCredentialResult::status,
-                UserCredentialResult::type
-        ).containsExactly(userId, "alice", 1, 0);
-        assertThat(new BCryptPasswordEncoder().matches("secret", passwordCaptor.getValue())).isTrue();
+        assertThat(authenticationResult.failure()).isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+        assertThat(authenticationResult.user()).isNull();
+        verifyNoInteractions(refreshTokenSessionRepository);
+        verify(userRepository, never()).updatePassword(any(), any());
     }
 
     @Test
@@ -243,10 +236,6 @@ class UserCredentialApplicationServiceTest {
                 user.muteUntil(),
                 user.banUntil()
         );
-    }
-
-    private String md5(String input) {
-        return DigestUtils.md5DigestAsHex(input.getBytes(StandardCharsets.UTF_8));
     }
 
     private static UUID uuid(long suffix) {

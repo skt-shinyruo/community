@@ -6,12 +6,10 @@ import com.nowcoder.community.oss.application.command.PrepareObjectUploadCommand
 import com.nowcoder.community.oss.application.result.ObjectMetadataResult;
 import com.nowcoder.community.oss.application.result.ObjectUploadSessionResult;
 import com.nowcoder.community.oss.domain.model.OssObject;
-import com.nowcoder.community.oss.domain.model.OssObjectAlias;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssUploadSession;
 import com.nowcoder.community.oss.domain.model.OssUsagePolicy;
 import com.nowcoder.community.oss.domain.model.OssVisibility;
-import com.nowcoder.community.oss.domain.repository.OssObjectAliasRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.domain.repository.OssUploadSessionRepository;
@@ -39,7 +37,6 @@ public class ObjectUploadApplicationService {
     private final OssObjectRepository objectRepository;
     private final OssObjectVersionRepository versionRepository;
     private final OssUploadSessionRepository uploadSessionRepository;
-    private final OssObjectAliasRepository aliasRepository;
     private final OssUsagePolicyRepository policyRepository;
     private final ObjectStore objectStore;
     private final String storageBucket;
@@ -51,7 +48,6 @@ public class ObjectUploadApplicationService {
             OssObjectRepository objectRepository,
             OssObjectVersionRepository versionRepository,
             OssUploadSessionRepository uploadSessionRepository,
-            OssObjectAliasRepository aliasRepository,
             OssUsagePolicyRepository policyRepository,
             ObjectStore objectStore,
             OssProperties properties,
@@ -61,7 +57,6 @@ public class ObjectUploadApplicationService {
                 objectRepository,
                 versionRepository,
                 uploadSessionRepository,
-                aliasRepository,
                 policyRepository,
                 objectStore,
                 properties.objectStore().bucket(),
@@ -74,7 +69,6 @@ public class ObjectUploadApplicationService {
             OssObjectRepository objectRepository,
             OssObjectVersionRepository versionRepository,
             OssUploadSessionRepository uploadSessionRepository,
-            OssObjectAliasRepository aliasRepository,
             ObjectStore objectStore,
             String storageBucket,
             String publicBaseUrl,
@@ -84,7 +78,6 @@ public class ObjectUploadApplicationService {
                 objectRepository,
                 versionRepository,
                 uploadSessionRepository,
-                aliasRepository,
                 null,
                 objectStore,
                 storageBucket,
@@ -97,7 +90,6 @@ public class ObjectUploadApplicationService {
             OssObjectRepository objectRepository,
             OssObjectVersionRepository versionRepository,
             OssUploadSessionRepository uploadSessionRepository,
-            OssObjectAliasRepository aliasRepository,
             OssUsagePolicyRepository policyRepository,
             ObjectStore objectStore,
             String storageBucket,
@@ -107,7 +99,6 @@ public class ObjectUploadApplicationService {
         this.objectRepository = objectRepository;
         this.versionRepository = versionRepository;
         this.uploadSessionRepository = uploadSessionRepository;
-        this.aliasRepository = aliasRepository;
         this.policyRepository = policyRepository;
         this.objectStore = objectStore;
         this.storageBucket = requireText(storageBucket, "storageBucket");
@@ -167,7 +158,6 @@ public class ObjectUploadApplicationService {
                 command.contentType(),
                 command.contentLength(),
                 command.checksumSha256(),
-                command.aliasKey(),
                 command.actorId(),
                 now,
                 now.plus(uploadTtl(policy))
@@ -235,9 +225,6 @@ public class ObjectUploadApplicationService {
         versionRepository.save(activatedVersion);
         objectRepository.save(activatedObject);
         uploadSessionRepository.save(completedSession);
-        if (!session.aliasKey().isBlank()) {
-            aliasRepository.save(OssObjectAlias.active(session.aliasKey(), object.objectId(), version.versionId(), now));
-        }
 
         return toMetadataResult(activatedObject, activatedVersion);
     }

@@ -38,7 +38,6 @@ traces / metrics：
 
 - 继续通过 OTLP -> EDOT collector -> Elastic。
 - 普通启动默认加载 observability overlay，并由 `deployment.sh` 设置 `OTEL_ENABLED=true`，后端服务会加载 OTel Java agent。
-- `--observability` 保留为显式启用/兼容写法。
 - 如需关闭整个 overlay，使用 `./deploy/deployment.sh up --topology single --no-observability`。
 - 如需保留 observability overlay 但临时关闭 tracing，使用 `OTEL_ENABLED=false ./deploy/deployment.sh up --topology single`。
 
@@ -67,7 +66,7 @@ deploy/observability/kibana/README.md
 - `requestId`、事件 id、幂等 key 用于业务重放和消息确认，不作为 trace parent。
 - 对 outbox 或 job 发起的链路，如果没有上游请求，系统会生成 job/outbox 处理 trace。
 
-对外 HTTP 响应会回写 `X-Trace-Id` / `traceparent`，前端或 curl 拿到 trace 后优先在 Kibana 里按 trace 查。
+对外 HTTP 响应会回写 `traceparent`，前端或 curl 拿到 trace 后优先在 Kibana 里按 trace 查。
 
 ## IM 压测
 
@@ -95,7 +94,7 @@ tools/im-load/
 3. 慢连接 / 回压：验证慢消费者不会拖垮整体，使用 `--slowConsumerPct`。
 4. 断线补拉：验证断线后通过 `im-core` history API 补齐，使用 `--reconnectEverySec`。
 
-注意：`tools/im-load` 当前仍是旧 `auth` 首帧协议的压测 harness，直接连接传入的 `--wsUrl`，不能代表当前浏览器客户端的 `/api/im/sessions` ticket bootstrap 行为。使用前先看 `tools/im-load/README.md` 的兼容性说明；如需压测当前生产语义，应先升级工具或另写 session-bootstrap 压测脚本。
+注意：`tools/im-load` 不代表当前浏览器客户端的 `/api/im/sessions` ticket bootstrap 行为。如需压测当前语义，应使用 session-bootstrap 压测脚本。
 
 ## Outbox Worker
 
@@ -133,7 +132,7 @@ Outbox worker 是共享可靠投递底座，当前主要承担：
 后台任务分两类：
 
 - 本地 `@Scheduled`：应用内持续型任务，例如 outbox worker、帖子热度刷新。
-- XXL-Job：控制面触发的离散任务，例如 `pendingRegistrationUserCleanup`、`marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery`。
+- XXL-Job：控制面触发的离散任务，例如 `marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery`。
 
 约束：
 

@@ -1,10 +1,10 @@
 # OSS 对象存储业务逻辑
 
-`community-oss` 是独立 deployable，拥有所有文件类对象的技术事实：对象元数据、版本、alias、访问授权、引用关系、生命周期和底层 blob 位置。业务域只保存自己的业务事实或展示投影，不直接访问 OSS 表、Garage、Ceph RGW、local filesystem 或任何对象存储凭证。
+`community-oss` 是独立 deployable，拥有所有文件类对象的技术事实：对象元数据、版本、访问授权、引用关系、生命周期和底层 blob 位置。业务域只保存自己的业务事实或展示投影，不直接访问 OSS 表、Garage、Ceph RGW、local filesystem 或任何对象存储凭证。
 
 ## Owner / SSOT
 
-- `community-oss` owns `community_oss` schema 中的对象、版本、上传会话、alias、usage policy、grant 和 reference。
+- `community-oss` owns `community_oss` schema 中的对象、版本、上传会话、usage policy、grant 和 reference。
 - Garage / Ceph RGW / local filesystem 只保存 blob；它们不是权限、版本、生命周期或引用关系的 owner。
 - 消费方 owner 仍决定业务动作是否允许发生，例如 user 域决定用户是否可以换头像，OSS 决定对象上传、读取和签名 URL 是否符合技术策略。
 
@@ -26,15 +26,15 @@ HTTP：
 Gateway：
 
 - `/api/oss/**` 路由到 `community-oss`。
-- `/files/**` 路由到 `community-oss`，旧头像路径通过 `oss_object_alias` 兼容。
+- `/files/**` 路由到 `community-oss`，只解析 canonical 对象 URL。
 
 ## 数据流
 
 OSS 的数据流只负责对象技术事实，业务授权仍由消费方 owner 决定：
 
 1. 上传：消费方先完成自己的业务授权，再通过 `community-oss-client` 请求 prepare upload。OSS 保存对象、版本、上传会话和 owner context，返回通用上传能力而不是存储凭证。
-2. 完成上传：消费方把浏览器上传结果回传给 OSS complete。OSS 检查 blob 是否存在，激活 version，更新 object current version，并在需要时写 alias。
-3. 下载：`PUBLIC` 对象可匿名走 `/files/**`。canonical URL 以 objectId + versionId 为 authority，旧路径通过 alias 解析到 canonical version。
+2. 完成上传：消费方把浏览器上传结果回传给 OSS complete。OSS 检查 blob 是否存在，激活 version，并更新 object current version。
+3. 下载：`PUBLIC` 对象可匿名走 `/files/**`。canonical URL 以 objectId + versionId 为 authority。
 4. 引用和授权：业务 owner 在自己的主事实写入路径内先判断是否允许，再通过 OSS reference / grant API 绑定引用或发放临时访问权。OSS 只记录技术授权事实。
 5. 删除：对象删除先看 active reference 和 grant；如果还存在 active 依赖，只能进入 delete pending。没有 active 依赖时才删除 blob、purge version，并把对象标记为 purged。
 
@@ -44,7 +44,7 @@ OSS 的数据流只负责对象技术事实，业务授权仍由消费方 owner 
 
 1. 消费方先完成自己的业务授权。
 2. 消费方通过 `community-oss-client` 请求 OSS prepare upload。
-3. OSS 记录对象、版本和上传会话，声明 owner context、visibility、alias 和期望 content metadata。
+3. OSS 记录对象、版本和上传会话，声明 owner context、visibility 和期望 content metadata。
 4. OSS 返回上传会话能力；面向浏览器时，owner domain 只暴露通用上传指令，不暴露 storage provider、bucket 或对象存储凭证。
 
 代理上传：
@@ -52,14 +52,12 @@ OSS 的数据流只负责对象技术事实，业务授权仍由消费方 owner 
 1. 消费方接收浏览器 multipart 后，通过 client 调 OSS complete。
 2. OSS 写入 `ObjectStore`，再读取 head 确认 blob 存在。
 3. OSS 激活 version，更新 object current version。
-4. 如果有 alias，写入 active alias。
-5. 返回 canonical public URL，例如 `/files/{objectId}/{versionId}/{fileName}`。
+4. 返回 canonical public URL，例如 `/files/{objectId}/{versionId}/{fileName}`。
 
 下载：
 
 - `PUBLIC` 对象可匿名走 `/files/**`。
-- UUID 形式的 `/files/{objectId}/{versionId}/{fileName}` 以 `objectId + versionId` 为 authority。
-- 旧路径如 `/files/avatar/{userId}/{uuid}` 通过 alias 解析到 canonical version。
+- `/files/{objectId}/{versionId}/{fileName}` 以 `objectId + versionId` 为 authority。
 
 引用关系：
 
@@ -100,7 +98,7 @@ OSS 的数据流只负责对象技术事实，业务授权仍由消费方 owner 
 
 当前 live consumers 包括：
 
-1. `user` avatar：`UserAvatarApplicationService` 做本人权限检查，`OssAvatarStorageAdapter` 通过 `community-oss-client` prepare / complete，user 仍保存 `headerUrl` 展示投影，canonical 对象事实在 OSS，旧 `avatar/{userId}/{uuid}` 作为 alias 保持可读。
+1. `user` avatar：`UserAvatarApplicationService` 做本人权限检查，`OssAvatarStorageAdapter` 通过 `community-oss-client` prepare / complete，user 仍保存 `headerUrl` 展示投影，canonical 对象事实在 OSS。
 2. `content` post media：帖子媒体业务引用由 content 负责，文件对象、版本和 public file URL 由 OSS 负责。
 3. `drive` cloud drive：目录、配额、回收站和分享由 drive 负责，文件对象、版本、签名下载和生命周期由 OSS 负责。
 

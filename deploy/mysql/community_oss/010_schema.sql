@@ -64,7 +64,6 @@ create table if not exists oss_upload_session (
   expected_content_type varchar(128) not null default 'application/octet-stream',
   expected_content_length bigint not null default 0,
   expected_checksum_sha256 varchar(128) not null default '',
-  alias_key varchar(512) not null default '',
   status varchar(32) not null,
   expires_at timestamp not null,
   created_by varchar(128) not null default '',
@@ -120,17 +119,6 @@ create table if not exists oss_usage_policy (
   private_cache_control varchar(255) not null default 'no-store',
   retention_days int not null default 0,
   delete_grace_days int not null default 7
-);
-
-create table if not exists oss_object_alias (
-  alias_key varchar(512) primary key,
-  object_id binary(16) not null,
-  version_id binary(16) not null,
-  status varchar(32) not null,
-  expires_at timestamp null default null,
-  created_at timestamp not null default current_timestamp,
-  key idx_oss_alias_object (object_id, version_id),
-  key idx_oss_alias_status_expiry (status, expires_at)
 );
 
 insert into oss_usage_policy (

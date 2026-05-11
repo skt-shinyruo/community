@@ -4,11 +4,9 @@ import com.nowcoder.community.oss.application.result.ObjectDownloadResult;
 import com.nowcoder.community.oss.application.result.ObjectMetadataResult;
 import com.nowcoder.community.oss.domain.model.OssObject;
 import com.nowcoder.community.oss.domain.model.OssObjectStatus;
-import com.nowcoder.community.oss.domain.model.OssObjectAlias;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssObjectVersionStatus;
 import com.nowcoder.community.oss.domain.model.OssVisibility;
-import com.nowcoder.community.oss.domain.repository.OssObjectAliasRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.infrastructure.config.OssProperties;
@@ -29,7 +27,6 @@ public class ObjectQueryApplicationService {
 
     private final OssObjectRepository objectRepository;
     private final OssObjectVersionRepository versionRepository;
-    private final OssObjectAliasRepository aliasRepository;
     private final ObjectStore objectStore;
     private final String publicBaseUrl;
     private final Clock clock;
@@ -38,14 +35,12 @@ public class ObjectQueryApplicationService {
     public ObjectQueryApplicationService(
             OssObjectRepository objectRepository,
             OssObjectVersionRepository versionRepository,
-            OssObjectAliasRepository aliasRepository,
             ObjectStore objectStore,
             OssProperties properties,
             Clock clock
     ) {
         this.objectRepository = objectRepository;
         this.versionRepository = versionRepository;
-        this.aliasRepository = aliasRepository;
         this.objectStore = objectStore;
         this.publicBaseUrl = normalizeBaseUrl(properties.publicBaseUrl());
         this.clock = clock == null ? Clock.systemUTC() : clock;
@@ -54,11 +49,10 @@ public class ObjectQueryApplicationService {
     public ObjectQueryApplicationService(
             OssObjectRepository objectRepository,
             OssObjectVersionRepository versionRepository,
-            OssObjectAliasRepository aliasRepository,
             ObjectStore objectStore,
             OssProperties properties
     ) {
-        this(objectRepository, versionRepository, aliasRepository, objectStore, properties, Clock.systemUTC());
+        this(objectRepository, versionRepository, objectStore, properties, Clock.systemUTC());
     }
 
     public ObjectMetadataResult getMetadata(UUID objectId) {
@@ -102,23 +96,10 @@ public class ObjectQueryApplicationService {
                 OssObjectVersion version = versionRepository.findById(versionId).orElse(null);
                 return availablePublicVersion(object, version) ? new ResolvedVersion(object, version) : null;
             } catch (IllegalArgumentException ignored) {
-                // Legacy aliases are not UUID-addressed.
+                return null;
             }
         }
-        Optional<OssObjectAlias> alias = aliasRepository.findByAliasKey(normalized);
-        if (alias.isEmpty()) {
-            return null;
-        }
-        Instant now = clock.instant();
-        if (!alias.get().activeAt(now)) {
-            return null;
-        }
-        OssObject object = objectRepository.findById(alias.get().objectId()).orElse(null);
-        OssObjectVersion version = versionRepository.findById(alias.get().versionId()).orElse(null);
-        if (!availablePublicVersion(object, version)) {
-            return null;
-        }
-        return new ResolvedVersion(object, version);
+        return null;
     }
 
     private boolean availablePublicVersion(OssObject object, OssObjectVersion version) {

@@ -1,5 +1,6 @@
 package com.nowcoder.community.wallet.controller.dto;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
@@ -7,22 +8,12 @@ import java.util.UUID;
 
 public class CreateTransferRequest {
 
-    private String requestId;
-
     @NotNull
     private UUID toUserId;
 
     @NotNull
     @Min(1)
     private Long amount;
-
-    public String getRequestId() {
-        return requestId;
-    }
-
-    public void setRequestId(String requestId) {
-        this.requestId = requestId;
-    }
 
     public UUID getToUserId() {
         return toUserId;
@@ -38,5 +29,10 @@ public class CreateTransferRequest {
 
     public void setAmount(Long amount) {
         this.amount = amount;
+    }
+
+    @JsonAnySetter
+    public void rejectUnknown(String name, Object value) {
+        throw new IllegalArgumentException("Unknown transfer request field: " + name);
     }
 }

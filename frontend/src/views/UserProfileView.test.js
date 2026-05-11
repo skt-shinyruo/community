@@ -95,8 +95,7 @@ describe('UserProfileView route contract', () => {
             id: userId,
             username: 'alice',
             level: 3,
-            score: 250,
-            socialDegraded: false
+            score: 250
           })
         )
       }
@@ -154,8 +153,7 @@ describe('UserProfileView route contract', () => {
             username: longUsername,
             showUserLevel: true,
             userLevel: 1,
-            signInDaysInWindow: 0,
-            socialDegraded: false
+            signInDaysInWindow: 0
           })
         )
       }

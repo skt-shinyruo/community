@@ -4,13 +4,18 @@ import MockAdapter from 'axios-mock-adapter'
 
 import http from './http'
 import { useAuthStore } from '../stores/auth'
+import { setToastHandler } from '../ui/toastService'
 
 describe('http', () => {
+  let toast
+
   beforeEach(() => {
     setActivePinia(createPinia())
     useAuthStore().clear()
     vi.stubGlobal('location', { href: '' })
-    vi.stubGlobal('window', { $toast: vi.fn() })
+    vi.stubGlobal('window', {})
+    toast = vi.fn()
+    setToastHandler(toast)
   })
 
   it('should attach Authorization header when accessToken exists', async () => {
@@ -62,11 +67,11 @@ describe('http', () => {
     mock.onPost('/api/auth/refresh').replyOnce(401, { code: 10004, message: '刷新令牌无效', traceId: 'trace-1' })
 
     await expect(http.post('/api/auth/refresh', null, { skipGlobalErrorToast: true })).rejects.toBeTruthy()
-    expect(globalThis.window.$toast).not.toHaveBeenCalled()
+    expect(toast).not.toHaveBeenCalled()
     mock.restore()
   })
 
-  it('should not attach Idempotency-Key to removed legacy private message endpoint', async () => {
+  it('should only attach Idempotency-Key to configured write endpoints', async () => {
     const mock = new MockAdapter(http)
     mock.onPost('/api/messages').reply((config) => {
       return [200, { idem: config.headers?.['Idempotency-Key'] || '' }]
@@ -75,6 +80,25 @@ describe('http', () => {
     const resp = await http.post('/api/messages', { toId: 9, content: 'hello' })
 
     expect(resp.data.idem).toBe('')
+    mock.restore()
+  })
+
+  it('should not derive Idempotency-Key from requestId fields for wallet and market writes', async () => {
+    const mock = new MockAdapter(http)
+    mock.onPost('/api/wallet/recharges').reply((config) => {
+      return [200, { idem: config.headers?.['Idempotency-Key'] || '' }]
+    })
+    mock.onPost('/api/market/orders').reply((config) => {
+      return [200, { idem: config.headers?.['Idempotency-Key'] || '' }]
+    })
+
+    const recharge = await http.post('/api/wallet/recharges', { requestId: 'wallet:req-1', amount: 10 })
+    const order = await http.post('/api/market/orders', { requestId: 'market:req-2', listingId: 1, quantity: 1 })
+
+    expect(recharge.data.idem).toBeTruthy()
+    expect(order.data.idem).toBeTruthy()
+    expect(recharge.data.idem).not.toBe('wallet:req-1')
+    expect(order.data.idem).not.toBe('market:req-2')
     mock.restore()
   })
 })

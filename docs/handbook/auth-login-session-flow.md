@@ -13,7 +13,7 @@
 
 全局 API 安全配置在 `CommunitySecurityConfig`：`/api/**` 使用 stateless session，禁用 CSRF，并通过 Spring Security resource server 验证 Bearer JWT。除 `AuthSecurityRules` 显式放行的入口外，其余接口默认要求已认证。
 
-`AuthOriginGuardFilter` 只覆盖 login / refresh / logout 这类 cookie 会话敏感入口。浏览器请求带 `Origin` 时，必须满足同源或 allowlist；无 `Origin` 的非浏览器客户端兼容放行。
+`AuthOriginGuardFilter` 只覆盖 login / refresh / logout 这类 cookie 会话敏感入口。浏览器请求带 `Origin` 时，必须满足同源或 allowlist；无 `Origin` 的非浏览器客户端按服务端调用处理。
 
 ## 登录入口
 
@@ -60,7 +60,7 @@ AuthController.login(...)
 | 数据 | Owner / 存储 | 写入方 | 读取方 | 清理 / 失效 |
 | --- | --- | --- | --- | --- |
 | `password` 明文 | 不持久化 | 浏览器提交当前请求 | `UserCredentialApplicationService.authenticate(...)` 当前调用内使用 | 请求结束即丢弃；日志不记录 |
-| `user.password`, `user.salt` | MySQL `user` | 注册、密码重置、历史密码升级 | user owner 认证流程 | 历史 MD5 校验成功后升级为 BCrypt |
+| `user.password`, `user.salt` | MySQL `user` | 注册、密码重置 | user owner 认证流程 | `user.password` 保存 BCrypt；`salt` 不参与当前校验 |
 | `user.status`, `user.type` | MySQL `user` | user owner | 登录、refresh、`authoritiesOf(...)` | 状态变更后需等下次 token 签发体现 |
 | access token | 客户端 | `JwtTokenService.createAccessToken(...)` | Spring Security resource server、`/api/auth/me` | 服务端不保存，依赖短 TTL 过期 |
 | refresh token 明文 | 浏览器 HttpOnly cookie | `RefreshTokenApplicationService.issue(...)` | refresh / logout 请求读取 cookie | refresh rotation、logout 或失败清 cookie |
@@ -184,14 +184,12 @@ user owner 认证流程：
 3. 通过 `UserRepository.findByUsername(...)` 查询用户。
 4. 用户不存在时返回 `invalidCredentials()`，不暴露账号是否存在。
 5. `user.status() == 0` 时返回 `UserAuthenticationResult.userDisabled(...)`。
-6. `passwordMatches(...)` 校验密码。
-7. 如果历史密码格式校验成功，调用 `userRepository.updatePassword(...)` 将密码升级为 BCrypt。
-8. 校验通过后返回 `UserAuthenticationResult.authenticated(...)`，再由 `UserCredentialApiAdapter` 转为 `UserAuthenticationResultView` 给 auth 域。
+6. `BCryptPasswordEncoder.matches(rawPassword, encodedPassword)` 校验密码。
+7. 校验通过后返回 `UserAuthenticationResult.authenticated(...)`，再由 `UserCredentialApiAdapter` 转为 `UserAuthenticationResultView` 给 auth 域。
 
 密码格式：
 
 - BCrypt：`BCryptPasswordEncoder.matches(rawPassword, encodedPassword)`。
-- 历史格式：`MD5(rawPassword + salt)`，规则在 `UserCredentialDomainService.legacyPasswordMatches(...)`。
 
 authorities 也由 user owner 计算：`UserCredentialApplicationService.authoritiesOf(...)` 根据 `user.type` 返回 `ROLE_ADMIN`、`ROLE_MODERATOR` 或 `ROLE_USER`。
 
@@ -199,10 +197,10 @@ authorities 也由 user owner 计算：`UserCredentialApplicationService.authori
 
 | 表 | 核心字段 | 用途 |
 | --- | --- | --- |
-| `user` | `id`, `username`, `password`, `salt`, `email` | 登录名、密码 hash 和历史 salt；`id` 是 JWT `sub` 与 refresh session `user_id` 来源 |
+| `user` | `id`, `username`, `password`, `salt`, `email` | 登录名、密码 hash 和保留字段；`id` 是 JWT `sub` 与 refresh session `user_id` 来源 |
 | `user` | `type`, `status`, `header_url` | `type` 决定角色；`status == 0` 视为禁用；`header_url` 暴露到 `UserCredentialView` |
 
-`UserMapper.selectByName(...)` 从 `user` 表读取 `id, username, password, salt, email, type, status, header_url, create_time, score, mute_until, ban_until`。历史密码登录成功后，`UserMapper.updatePassword(...)` 只更新 `user.password` 为 BCrypt hash，`salt` 字段不再参与新密码校验。
+`UserMapper.selectByName(...)` 从 `user` 表读取 `id, username, password, salt, email, type, status, header_url, create_time, score, mute_until, ban_until`。`UserMapper.updatePassword(...)` 只更新 `user.password` 为 BCrypt hash，`salt` 字段不参与当前密码校验。
 
 ## Token 签发
 

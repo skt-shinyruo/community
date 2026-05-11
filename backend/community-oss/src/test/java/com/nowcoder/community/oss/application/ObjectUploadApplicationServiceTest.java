@@ -6,14 +6,12 @@ import com.nowcoder.community.oss.application.command.PrepareObjectUploadCommand
 import com.nowcoder.community.oss.application.result.ObjectMetadataResult;
 import com.nowcoder.community.oss.application.result.ObjectUploadSessionResult;
 import com.nowcoder.community.oss.domain.model.OssObject;
-import com.nowcoder.community.oss.domain.model.OssObjectAlias;
 import com.nowcoder.community.oss.domain.model.OssObjectStatus;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssUploadSession;
 import com.nowcoder.community.oss.domain.model.OssUploadSessionStatus;
 import com.nowcoder.community.oss.domain.model.OssUsagePolicy;
 import com.nowcoder.community.oss.domain.model.OssVisibility;
-import com.nowcoder.community.oss.domain.repository.OssObjectAliasRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.domain.repository.OssUploadSessionRepository;
@@ -45,24 +43,21 @@ class ObjectUploadApplicationServiceTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-05-07T00:00:00Z"), ZoneOffset.UTC);
 
     @Test
-    void prepareAndCompleteProxyUploadShouldActivateVersionAndCreateLegacyAlias() {
+    void prepareAndCompleteProxyUploadShouldActivateVersionAndReturnCanonicalPublicUrl() {
         FakeObjectRepository objectRepository = new FakeObjectRepository();
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository uploadSessionRepository = new FakeUploadSessionRepository();
-        FakeAliasRepository aliasRepository = new FakeAliasRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
         ObjectUploadApplicationService service = new ObjectUploadApplicationService(
                 objectRepository,
                 versionRepository,
                 uploadSessionRepository,
-                aliasRepository,
                 objectStore,
                 "community-oss",
                 "http://localhost:12880",
                 CLOCK
         );
         UUID ownerId = uuid(7);
-        String legacyAlias = "avatar/" + ownerId + "/0123456789abcdef0123456789abcdef";
 
         ObjectUploadSessionResult prepared = service.prepareUpload(new PrepareObjectUploadCommand(
                 "USER_AVATAR",
@@ -75,7 +70,6 @@ class ObjectUploadApplicationServiceTest {
                 "image/png",
                 6,
                 "sha256-avatar",
-                legacyAlias,
                 ownerId.toString()
         ));
 
@@ -104,8 +98,6 @@ class ObjectUploadApplicationServiceTest {
         );
         assertThat(uploadSessionRepository.findById(prepared.sessionId()).orElseThrow().status())
                 .isEqualTo(OssUploadSessionStatus.COMPLETED);
-        assertThat(aliasRepository.findByAliasKey(legacyAlias).orElseThrow().objectId())
-                .isEqualTo(prepared.objectId());
     }
 
     @Test
@@ -133,7 +125,6 @@ class ObjectUploadApplicationServiceTest {
                 objectRepository,
                 versionRepository,
                 uploadSessionRepository,
-                new FakeAliasRepository(),
                 policyRepository,
                 new CapturingObjectStore(),
                 "community-oss",
@@ -152,7 +143,6 @@ class ObjectUploadApplicationServiceTest {
                 "image/png",
                 5,
                 "sha256-avatar",
-                "",
                 "7"
         ));
 
@@ -184,7 +174,6 @@ class ObjectUploadApplicationServiceTest {
                 new FakeObjectRepository(),
                 new FakeObjectVersionRepository(),
                 new FakeUploadSessionRepository(),
-                new FakeAliasRepository(),
                 policyRepository,
                 new CapturingObjectStore(),
                 "community-oss",
@@ -202,7 +191,6 @@ class ObjectUploadApplicationServiceTest {
                 "avatar.png",
                 "image/png",
                 6,
-                "",
                 "",
                 "7"
         ))).isInstanceOf(IllegalArgumentException.class)
@@ -235,7 +223,6 @@ class ObjectUploadApplicationServiceTest {
                 objectRepository,
                 versionRepository,
                 uploadSessionRepository,
-                new FakeAliasRepository(),
                 policyRepository,
                 objectStore,
                 "community-oss",
@@ -252,7 +239,6 @@ class ObjectUploadApplicationServiceTest {
                 "avatar.png",
                 "image/png",
                 0,
-                "",
                 "",
                 "7"
         ));
@@ -315,20 +301,6 @@ class ObjectUploadApplicationServiceTest {
         @Override
         public Optional<OssUploadSession> findById(UUID sessionId) {
             return Optional.ofNullable(rows.get(sessionId));
-        }
-    }
-
-    private static final class FakeAliasRepository implements OssObjectAliasRepository {
-        private final Map<String, OssObjectAlias> rows = new HashMap<>();
-
-        @Override
-        public void save(OssObjectAlias alias) {
-            rows.put(alias.aliasKey(), alias);
-        }
-
-        @Override
-        public Optional<OssObjectAlias> findByAliasKey(String aliasKey) {
-            return Optional.ofNullable(rows.get(aliasKey));
         }
     }
 

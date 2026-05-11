@@ -169,19 +169,11 @@ public class StartupValidation {
             return items;
         }
 
-        // 2) 兼容：单行逗号分隔（便于 Nacos/Env 临时覆盖）
         String configured = getTrimmed(environment, key);
         if (!StringUtils.hasText(configured)) {
             return items;
         }
-        String normalized = configured.replace("[", "").replace("]", "");
-        for (String raw : normalized.split(",")) {
-            String it = raw == null ? "" : raw.trim();
-            if (!StringUtils.hasText(it)) {
-                continue;
-            }
-            items.add(it);
-        }
+        items.add(configured);
         return items;
     }
 

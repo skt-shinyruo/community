@@ -63,16 +63,10 @@ public final class TraceIdCodec {
     }
 
     /**
-     * 解析请求侧 traceId：
-     * - 优先使用 traceparent（若合法）
-     * - 否则尝试使用 X-Trace-Id（若合法）
-     * - 都缺失/非法则生成新的 traceId
+     * 解析请求侧 traceId：使用合法 traceparent，缺失/非法则生成新的 traceId。
      */
-    public static String resolveTraceId(String traceIdHeader, String traceparentHeader) {
+    public static String resolveTraceId(String traceparentHeader) {
         String traceId = extractTraceIdFromTraceparent(traceparentHeader);
-        if (traceId == null) {
-            traceId = normalizeTraceId(traceIdHeader);
-        }
         return traceId == null ? generateTraceId() : traceId;
     }
 

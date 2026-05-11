@@ -1,5 +1,7 @@
 package com.nowcoder.community.im.gateway.ws;
 
+import com.nowcoder.community.common.trace.TraceHeaders;
+import com.nowcoder.community.common.trace.TraceIdCodec;
 import com.nowcoder.community.im.common.ws.RejectFrame;
 import com.nowcoder.community.im.gateway.observability.ImGatewayMetrics;
 import com.nowcoder.community.im.gateway.session.ImGatewaySessionProperties;
@@ -22,7 +24,6 @@ import java.util.concurrent.TimeoutException;
 public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ExternalImEdgeWebSocketHandler.class);
-    private static final String HEADER_TRACE_ID = "X-Trace-Id";
     private static final String REASON_CONNECT_TIMEOUT = "connect_timeout";
     private static final String REASON_UNSUPPORTED_FRAME_TYPE = "unsupported_frame_type";
     private static final String REASON_INTERNAL_BRIDGE_ERROR = "internal_bridge_error";
@@ -148,8 +149,9 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
             return "";
         }
         HttpHeaders headers = session.getHandshakeInfo().getHeaders();
-        String traceId = headers.getFirst(HEADER_TRACE_ID);
-        return traceId == null ? "" : traceId.trim();
+        String traceparent = headers.getFirst(TraceHeaders.HEADER_TRACEPARENT);
+        String traceId = TraceIdCodec.extractTraceIdFromTraceparent(traceparent);
+        return traceId == null ? "" : traceId;
     }
 
     private static String safeReason(Throwable ex) {

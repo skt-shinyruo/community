@@ -44,7 +44,7 @@ public class WalletApplicationService {
     }
 
     public RechargeOrderResult recharge(CreateRechargeCommand command) {
-        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey(), command.requestId());
+        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         return idempotencyGuard.executeRequired(
                 "wallet:recharge",
                 command.userId(),
@@ -57,7 +57,7 @@ public class WalletApplicationService {
     }
 
     public WithdrawOrderResult withdraw(CreateWithdrawCommand command) {
-        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey(), command.requestId());
+        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         return idempotencyGuard.executeRequired(
                 "wallet:withdraw",
                 command.userId(),
@@ -70,7 +70,7 @@ public class WalletApplicationService {
     }
 
     public TransferOrderResult transfer(CreateTransferCommand command) {
-        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey(), command.requestId());
+        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         String requestHash = RequestFingerprint.sha256(
                 "wallet:transfer|toUserId=" + command.toUserId() + "|amount=" + command.amount()
         );

@@ -67,7 +67,7 @@ public class AuthOriginGuardFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String origin = request.getHeader("Origin");
         if (!StringUtils.hasText(origin)) {
-            // 与 gateway 行为一致：无 Origin 头直接放行（兼容非浏览器客户端）
+            // 与 gateway 行为一致：无 Origin 头的非浏览器客户端直接放行。
             filterChain.doFilter(request, response);
             return;
         }

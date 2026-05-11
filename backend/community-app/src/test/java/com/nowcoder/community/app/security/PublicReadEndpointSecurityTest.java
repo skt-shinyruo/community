@@ -121,7 +121,6 @@ class PublicReadEndpointSecurityTest {
                         0L,
                         0L,
                         0L,
-                        false,
                         false
                 ));
 
@@ -158,7 +157,6 @@ class PublicReadEndpointSecurityTest {
                         0L,
                         0L,
                         0L,
-                        false,
                         false
                 ));
 

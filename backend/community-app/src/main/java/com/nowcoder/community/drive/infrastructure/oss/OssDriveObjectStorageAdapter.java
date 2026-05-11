@@ -34,7 +34,6 @@ public class OssDriveObjectStorageAdapter implements DriveObjectStoragePort {
                 command.contentType(),
                 command.contentLength(),
                 command.checksumSha256(),
-                "",
                 command.actorId()
         ));
         if (response == null || response.sessionId() == null || response.objectId() == null || response.versionId() == null) {

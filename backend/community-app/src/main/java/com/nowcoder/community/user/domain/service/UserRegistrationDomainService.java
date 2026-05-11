@@ -4,7 +4,6 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.domain.model.UserAccount;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Locale;
@@ -52,23 +51,6 @@ public class UserRegistrationDomainService {
         return trimmedEncodedPassword;
     }
 
-    public Instant pendingUserCutoff(Duration pendingTtl) {
-        Duration ttl = pendingTtl == null || pendingTtl.isZero() || pendingTtl.isNegative()
-                ? Duration.ofMinutes(30)
-                : pendingTtl;
-        return Instant.now(clock).minus(ttl);
-    }
-
-    public boolean isExpiredPendingUser(UserAccount user, Instant cutoff) {
-        if (user == null || cutoff == null || user.createTime() == null) {
-            return false;
-        }
-        if (user.status() != 0) {
-            return false;
-        }
-        return !user.createTime().toInstant().isAfter(cutoff);
-    }
-
     public boolean causedByConstraint(Throwable error, String constraintName) {
         String expected = constraintName.toLowerCase(Locale.ROOT);
         for (Throwable current = error; current != null; current = current.getCause()) {
@@ -80,7 +62,7 @@ public class UserRegistrationDomainService {
         return false;
     }
 
-    public UserAccount pendingUser(
+    public UserAccount preparedRegistrationUser(
             java.util.UUID userId,
             RegistrationInput input,
             String encodedPassword,

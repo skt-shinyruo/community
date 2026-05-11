@@ -79,7 +79,7 @@
       </div>
     </section>
 
-    <UiEmpty v-if="error && items.length === 0" type="error" class="search-state">{{ error }}</UiEmpty>
+    <UiEmpty v-if="error && items.length === 0" variant="error" class="search-state">{{ error }}</UiEmpty>
     <div v-else-if="error" class="error search-state">{{ error }}</div>
 
     <!-- Results Feed -->
@@ -93,7 +93,7 @@
         </div>
       </div>
 
-      <UiEmpty v-if="!loading && items.length === 0 && !error" type="search">
+      <UiEmpty v-if="!loading && items.length === 0 && !error">
         暂无结果
         <template #description>换个关键词试试，或回到帖子列表浏览。</template>
         <template #actions>

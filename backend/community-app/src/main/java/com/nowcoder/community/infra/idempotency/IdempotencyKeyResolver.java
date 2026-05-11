@@ -8,25 +8,12 @@ public final class IdempotencyKeyResolver {
     private IdempotencyKeyResolver() {
     }
 
-    public static EffectiveIdempotencyKey resolve(String headerKey, String bodyRequestId) {
+    public static EffectiveIdempotencyKey resolve(String headerKey) {
         String header = normalize(headerKey);
-        String body = normalize(bodyRequestId);
-        boolean hasHeader = header != null;
-        boolean hasBody = body != null;
-
-        if (hasHeader && hasBody) {
-            if (!header.equals(body)) {
-                throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "Idempotency-Key and requestId must match");
-            }
-            return new EffectiveIdempotencyKey(header, EffectiveIdempotencyKey.Source.HEADER_BODY_EQUAL);
+        if (header == null) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "Idempotency-Key is required");
         }
-        if (hasHeader) {
-            return new EffectiveIdempotencyKey(header, EffectiveIdempotencyKey.Source.HEADER);
-        }
-        if (hasBody) {
-            return new EffectiveIdempotencyKey(body, EffectiveIdempotencyKey.Source.BODY_FALLBACK);
-        }
-        throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "Idempotency-Key is required");
+        return new EffectiveIdempotencyKey(header);
     }
 
     private static String normalize(String value) {

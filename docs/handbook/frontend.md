@@ -98,7 +98,7 @@ shouldBootstrapSession(...)
 - 请求 interceptor 注入 `Authorization: Bearer <accessToken>`。
 - 响应 `401` 时单飞行调用 `/api/auth/refresh`，成功后重试原请求。
 - 全局错误 toast 优先展示后端 `Result.message` 和 `traceId`。
-- 对发帖和评论自动附加 `Idempotency-Key`。
+- 对发帖、评论、钱包写接口和市场下单自动附加 `Idempotency-Key`。
 
 IM HTTP 客户端是 `frontend/src/api/imCoreHttp.js`：
 
@@ -114,10 +114,10 @@ IM HTTP 客户端是 `frontend/src/api/imCoreHttp.js`：
 | --- | --- |
 | 发帖 | `http.js` 根据 `POST /api/posts` 自动生成并短期复用 `Idempotency-Key`。 |
 | 评论 | `http.js` 根据 `POST /api/posts/{postId}/comments` 自动生成并短期复用 `Idempotency-Key`。 |
-| 钱包充值 / 提现 / 转账 | 页面仍生成 body `requestId`，依赖服务端兼容路径。 |
-| 市场下单 | 页面仍生成 body `requestId`，依赖服务端兼容路径。 |
+| 钱包充值 / 提现 / 转账 | `http.js` 根据钱包写接口自动生成并短期复用 `Idempotency-Key`。 |
+| 市场下单 | `http.js` 根据 `POST /api/market/orders` 自动生成并短期复用 `Idempotency-Key`。 |
 
-`frontend/src/api/idempotencyKeyCache.js` 按请求指纹短期复用 key，默认窗口是 10 秒。修改重试、按钮防重复或自动保存逻辑时，必须保证同一次业务尝试复用同一个 key / requestId；新业务尝试才生成新值。
+`frontend/src/api/idempotencyKeyCache.js` 按请求指纹短期复用 key，默认窗口是 10 秒。修改重试、按钮防重复或自动保存逻辑时，必须保证同一次业务尝试复用同一个 key；新业务尝试才生成新值。
 
 ## IM 实时客户端
 
@@ -157,7 +157,7 @@ connect(accessToken)
 | `postsFeedState.js` | 最新流默认视图判断、上次阅读分隔线、新内容跳转提示、分页推进。 |
 | `postsViewState.js` | 发帖标签规范化、标签限制、帖子列表 hydration id 收集。 |
 | `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合、评论回复状态初始化。 |
-| `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序兼容、消息映射、去重和排序。 |
+| `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、消息映射、去重和排序。 |
 | `marketState.js` | 商品、订单、争议、地址的状态标签和展示文本。 |
 | `walletState.js` | 钱包状态文案、交易类型标签、金额展示和 feed key 生成。 |
 | `driveState.js` | 网盘 quota 展示、breadcrumb、entry capability、分享表单校验和选择收敛。 |
@@ -188,7 +188,7 @@ connect(accessToken)
 
 `frontend/src/styles/variables.css`、`components.css` 和 `layout.css` 提供克制的产品默认样式。通用 `.card` 默认不带装饰性 hover lift 或大阴影；需要对象卡片强调时显式使用 `.object-card`。
 
-`frontend/src/components/ui/UiState.vue` 是 empty / loading / error / forbidden / unavailable / pending / development-only 的共享状态块，`UiEmpty.vue` 只是兼容包装层。`UiToolbar.vue` 是页面工具栏基础件，使用 leading / filters / actions 三个 slot 表达常见工作区操作结构。
+`frontend/src/components/ui/UiState.vue` 是 empty / loading / error / forbidden / unavailable / pending / development-only 的共享状态块，`UiEmpty.vue` 通过 `variant` 直接复用这些状态语义。`UiToolbar.vue` 是页面工具栏基础件，使用 leading / filters / actions 三个 slot 表达常见工作区操作结构。
 
 `/dev` 只保留给本地联调和 trace 检查，不应进入正常导航；如果页面需要展示调试辅助信息，应使用 `UiState` 的 `development` variant 显式标记，而不是把它伪装成普通业务内容。
 

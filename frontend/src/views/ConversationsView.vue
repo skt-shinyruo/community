@@ -16,7 +16,7 @@
         </div>
       </div>
 
-      <UiEmpty v-if="error && items.length === 0" type="error" class="conversations-empty">{{ error }}</UiEmpty>
+      <UiEmpty v-if="error && items.length === 0" variant="error" class="conversations-empty">{{ error }}</UiEmpty>
       <div v-else-if="loading && items.length === 0" class="muted conversations-state">正在整理你的收件箱…</div>
       <UiEmpty v-else-if="items.length === 0" class="conversations-empty">
         暂无会话

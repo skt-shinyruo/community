@@ -69,4 +69,4 @@
 | 发帖重复或返回 replay conflict | `Idempotency-Key` 和 request fingerprint。 |
 | 发帖成功但搜索不到 | search outbox、ES projection、reindex，不要先改 content。 |
 | 评论成功但没有通知 | notice after-commit projection 日志和投影规则。 |
-| 媒体链接不可访问 | content asset 绑定、OSS object/version、alias 或 grant。 |
+| 媒体链接不可访问 | content asset 绑定、OSS object/version 或 grant。 |

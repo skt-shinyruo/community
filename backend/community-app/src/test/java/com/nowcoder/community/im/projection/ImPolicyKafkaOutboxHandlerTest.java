@@ -85,8 +85,6 @@ class ImPolicyKafkaOutboxHandlerTest {
         assertThat(published.suspended()).isFalse();
         assertThat(recordComponentValue(published, "muteUntil")).isEqualTo(muteUntil.toEpochMilli());
         assertThat(recordComponentValue(published, "banUntil")).isEqualTo(expiredBanUntil.toEpochMilli());
-        assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACE_ID))
-                .isEqualTo("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
         assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACEPARENT))
                 .startsWith("00-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-");
     }

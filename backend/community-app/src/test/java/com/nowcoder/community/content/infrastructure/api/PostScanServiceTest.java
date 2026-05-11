@@ -6,7 +6,6 @@ import com.nowcoder.community.content.application.PostContentBlockTextProjector;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
-import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
 import com.nowcoder.community.content.application.ContentTextCodec;
@@ -28,7 +27,7 @@ class PostScanServiceTest {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
         PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
-        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
+        ContentTextCodec textCodec = new ContentTextCodec();
         UUID postId = uuid(10);
         UUID userId = uuid(2);
         UUID categoryId = uuid(3);
@@ -61,8 +60,8 @@ class PostScanServiceTest {
 
         assertThat(response.items()).hasSize(1);
         assertThat(response.items().get(0).postId()).isEqualTo(postId);
-        assertThat(response.items().get(0).title()).isEqualTo("<title>");
-        assertThat(response.items().get(0).content()).isEqualTo("<content>");
+        assertThat(response.items().get(0).title()).isEqualTo("&lt;title&gt;");
+        assertThat(response.items().get(0).content()).isEqualTo("&lt;content&gt;");
         assertThat(response.items().get(0).tags()).containsExactly("java");
         assertThat(response.nextAfterId()).isEqualTo(postId);
         assertThat(response.hasMore()).isFalse();
@@ -73,7 +72,7 @@ class PostScanServiceTest {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
         PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
-        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
+        ContentTextCodec textCodec = new ContentTextCodec();
         UUID postId = uuid(11);
         UUID userId = uuid(3);
         UUID categoryId = uuid(4);
@@ -105,8 +104,8 @@ class PostScanServiceTest {
 
         assertThat(projection).isNotNull();
         assertThat(projection.postId()).isEqualTo(postId);
-        assertThat(projection.title()).isEqualTo("<arch>");
-        assertThat(projection.content()).isEqualTo("<boundary>");
+        assertThat(projection.title()).isEqualTo("&lt;arch&gt;");
+        assertThat(projection.content()).isEqualTo("&lt;boundary&gt;");
         assertThat(projection.tags()).containsExactly("search");
         assertThat(projection.status()).isEqualTo(2);
     }

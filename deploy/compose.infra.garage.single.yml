@@ -30,7 +30,12 @@ services:
         - garage
 
   garage-init:
-    image: ${GARAGE_IMAGE:-dxflrs/garage:v2.2.0}
+    build:
+      context: .
+      dockerfile: Dockerfile.garage-init
+      args:
+        GARAGE_IMAGE: ${GARAGE_IMAGE:-dxflrs/garage:v2.2.0}
+    image: community-garage-init:local
     mem_limit: ${GARAGE_INIT_MEM_LIMIT:-128m}
     environment:
     - GARAGE_CONFIG_FILE=/etc/garage.toml
@@ -41,15 +46,10 @@ services:
     volumes:
     - garage_node_1_data:/var/lib/garage
     - ./garage/garage.single.toml:/etc/garage.toml:ro
+    - ./scripts/bootstrap-garage.sh:/bootstrap-garage.sh:ro
     entrypoint:
-    - /garage
-    - layout
-    - assign
-    - -z
-    - local
-    - -c
-    - 1G
-    - 45e94ba55580a96c
+    - /bin/sh
+    - /bootstrap-garage.sh
     depends_on:
       garage:
         condition: service_started

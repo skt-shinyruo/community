@@ -101,7 +101,7 @@ Outbox topic 是内部可靠投递键，不是对外业务 API。
 约束：
 
 - topic handler 必须幂等。
-- payload schema 变化要兼容旧事件或显式进入失败路径。
+- payload schema 变化要显式进入失败路径，避免静默丢弃坏 payload。
 - handler 遇到未知/坏 payload 不应 silent drop，应失败、重试或进入 `DEAD`。
 - `DEAD` 需要人工排查口径。
 
@@ -178,7 +178,7 @@ Idempotency-Key: <unique-key>
 - 新业务尝试生成新 key。
 - 不把每次 HTTP retry 当作新业务尝试。
 
-钱包和市场兼容旧 body `requestId`，但 header 优先；header/body 不一致返回 `400`。
+钱包和市场只接受 header `Idempotency-Key`；body `requestId` 会按未知字段返回 `400`。
 
 资金相关写接口补充：
 
@@ -197,14 +197,14 @@ Idempotency-Key: <unique-key>
 - API base 优先读 runtime config，其次读 Vite env，最后在本地 `5173` / `12881` / `12890` / `12888` 场景推断 `localhost:12880`。
 - access token 只保存在内存；refresh token 由 HttpOnly cookie 承载。业务请求 `401` 后前端会调用 `/api/auth/refresh`，成功后重试原请求。
 - 全局错误展示优先使用后端 `Result.message` 和 `traceId`。
-- 当前前端通用 axios interceptor 只为发帖和评论自动附加 `Idempotency-Key`；钱包和市场页面仍通过 body `requestId` 走兼容路径。新客户端和后续前端改造应优先使用 header。
+- 当前前端通用 axios interceptor 为发帖、评论、钱包写接口和市场下单自动附加 `Idempotency-Key`。
 
 字段约定：
 
 - notice 批量已读：`PUT /api/notices/read` 的 `ids` 是 UUID 字符串数组。
-- market 地址：创建/更新使用 `defaultAddress`，不使用 legacy alias。
+- market 地址：创建/更新只使用 `defaultAddress`。
 - market 订单：物理商品下单需要 active `addressId`，服务端保存地址快照；订单成功后可能处于资金 pending 状态。
-- wallet 转账：`toUserId` 是用户 UUID 字符串，不是 legacy 数字 id 或用户名。
+- wallet 转账：`toUserId` 是用户 UUID 字符串，不是数字 id 或用户名。
 - IM WebSocket：客户端按 `/api/im/sessions` 返回的 `wsUrl` 建连，并为每条发送消息提供 `clientMsgId`。
 
 ## 对外 HTTP 错误契约

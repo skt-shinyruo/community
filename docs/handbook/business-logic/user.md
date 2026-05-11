@@ -35,7 +35,7 @@ HTTP：
 用户域的数据流围绕“用户事实被谁读写”展开：
 
 1. 资料读取：HTTP 或跨域 query 进入 `UserReadApplicationService` / `UserProfileApplicationService`，先读取 `user` 主事实，再按页面需要回源 content 获取最近帖子/评论，或组合 social、growth 等读模型。最近内容不是 user 表冗余字段。
-2. 头像更新：`UserAvatarApplicationService` 校验 actor 只能改本人头像，先通过 OSS prepare upload 获得 opaque `fileKey`，上传完成后消费 ticket，把 canonical OSS public URL 写回 `user.header_url`。blob、version 和 alias 仍由 `community-oss` owning。
+2. 头像更新：`UserAvatarApplicationService` 校验 actor 只能改本人头像，先通过 OSS prepare upload 获得 opaque `fileKey`，上传完成后消费 ticket，把 canonical OSS public URL 写回 `user.header_url`。blob 和 version 由 `community-oss` owning。
 3. 凭据协作：auth 登录通过 `UserCredentialQueryApi.authenticate(...)` 查询并校验密码；密码重置通过 `UserCredentialActionApi` 更新 BCrypt hash，并通过 refresh session application 撤销该用户会话。
 4. 注册用户创建：auth 只保存 draft；验证码通过后调用 user owner 创建 active 用户。user 写入 `user` 行后发布 user policy changed，驱动 IM policy projection 识别用户存在性。
 5. 处罚和角色：管理员或治理动作进入 user application，更新 `muteUntil`、`banUntil` 或 `type`。处罚变化发布 policy event，IM outbox/Kafka 最终刷新 realtime 本地 projection；角色变化要等 access token 重新签发后才体现在前端权限里。
@@ -86,7 +86,7 @@ HTTP：
 - 前端只执行 upload session 返回的 URL、method、fields、headers 和约束，不读取 storage provider、bucket 或物理路径。
 - 旧 `UserFileApplicationService` 和本地/R2 avatar storage provider 已退休，community-app 不再拥有公开文件读取入口。
 
-文件读取不再由 `community-app` user 域承接；gateway 将 `/files/**` 路由到 `community-oss`，由 OSS owner 完成 alias 解析和 blob 读取。
+文件读取不再由 `community-app` user 域承接；gateway 将 `/files/**` 路由到 `community-oss`，由 OSS owner 完成 canonical URL 解析和 blob 读取。
 
 ## 凭据与密码
 
@@ -100,7 +100,7 @@ HTTP：
 - `resetPasswordAndRevokeRefreshSessions(...)`：更新密码后撤销该用户 refresh sessions。
 - `authoritiesOf(...)`：根据 `user.type` 生成角色。
 
-密码策略由 `PasswordPolicyDomainService` 控制。历史 MD5 + salt 登录成功后会升级为 BCrypt。
+密码策略由 `PasswordPolicyDomainService` 控制。用户密码持久化格式为 BCrypt。
 
 ## 注册用户创建
 
@@ -108,7 +108,6 @@ HTTP：
 
 - `prepareRegistrationUser(...)`：验证注册输入，准备用户名/邮箱/密码 hash/默认头像，不写库。
 - `createVerifiedRegistrationUser(...)`：验证码通过后插入 active 用户。
-- `registerPendingUser(...)`、`activatePendingUser(...)`、`deletePendingUser(...)`、`cleanupExpiredPendingUsers(...)` 是兼容旧 pending-user 流程的能力。
 
 创建 active 用户后，user owner 发布 user policy changed，通知 IM 用户存在性/策略投影发生变化。
 

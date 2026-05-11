@@ -26,13 +26,9 @@ public class TraceIdFilter implements Filter {
         HttpServletRequest req = (HttpServletRequest) request;
         HttpServletResponse resp = (HttpServletResponse) response;
 
-        String traceId = TraceIdCodec.resolveTraceId(
-                req.getHeader(TraceHeaders.HEADER_TRACE_ID),
-                req.getHeader(TraceHeaders.HEADER_TRACEPARENT)
-        );
+        String traceId = TraceIdCodec.resolveTraceId(req.getHeader(TraceHeaders.HEADER_TRACEPARENT));
 
         TraceContext.set(traceId);
-        resp.setHeader(TraceHeaders.HEADER_TRACE_ID, traceId);
         resp.setHeader(TraceHeaders.HEADER_TRACEPARENT, TraceIdCodec.buildTraceparent(traceId));
 
         try {

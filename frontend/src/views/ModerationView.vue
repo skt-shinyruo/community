@@ -16,7 +16,7 @@
         <UiButton :variant="tab === 'actions' ? 'primary' : 'secondary'" @click="tab = 'actions'">处置审计</UiButton>
       </div>
 
-      <UiEmpty v-if="error" type="error" class="moderation-state">{{ error }}</UiEmpty>
+      <UiEmpty v-if="error" variant="error" class="moderation-state">{{ error }}</UiEmpty>
       <div v-else-if="loading" class="muted moderation-loading">加载中…</div>
 
       <div v-else class="moderation-body">
@@ -174,6 +174,7 @@ import UiSelect from '../components/ui/UiSelect.vue'
 import UiTextarea from '../components/ui/UiTextarea.vue'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { formatTime } from '../utils/time'
+import { showToast } from '../ui/toastService'
 import { listActions, listReports, takeAction } from '../api/services/moderationService'
 
 const tab = ref('reports')
@@ -350,9 +351,7 @@ async function submitAction() {
       reason,
       durationSeconds: resolveDurationSeconds()
     })
-    if (typeof window !== 'undefined' && window.$toast) {
-      window.$toast({ type: 'success', title: '处置成功', text: '已记录审计并通知相关用户。' })
-    }
+    showToast({ type: 'success', title: '处置成功', text: '已记录审计并通知相关用户。' })
     closeActionModal()
     await reload()
   } catch (e) {

@@ -14,7 +14,6 @@ SCHEMA_FILES=(
   032_schema_growth_market.sql
   033_schema_growth_task.sql
   040_schema_content_core.sql
-  041_schema_content_compat.sql
   050_schema_social.sql
   060_schema_message.sql
   070_schema_im_core.sql

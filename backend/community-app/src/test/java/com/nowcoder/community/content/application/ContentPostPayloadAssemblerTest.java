@@ -1,6 +1,5 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
@@ -22,18 +21,17 @@ import static org.mockito.Mockito.when;
 class ContentPostPayloadAssemblerTest {
 
     @Test
-    void assembleShouldLoadPostTagsAndDecodeText() {
+    void assembleShouldLoadPostTagsAndKeepStoredTextUntouched() {
         PostContentRepository postRepository = mock(PostContentRepository.class);
         PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         TagContentRepository tagRepository = mock(TagContentRepository.class);
-        ContentRenderProperties renderProperties = new ContentRenderProperties();
         ContentPostPayloadAssembler assembler =
                 new ContentPostPayloadAssembler(
                         postRepository,
                         blockRepository,
                         tagRepository,
                         new PostContentBlockTextProjector(),
-                        new ContentTextCodec(renderProperties)
+                        new ContentTextCodec()
                 );
 
         DiscussPost post = new DiscussPost();
@@ -58,8 +56,8 @@ class ContentPostPayloadAssemblerTest {
         assertThat(payload.getUserId()).isEqualTo(uuid(7));
         assertThat(payload.getCategoryId()).isEqualTo(uuid(3));
         assertThat(payload.getTags()).containsExactly("java", "ddd");
-        assertThat(payload.getTitle()).isEqualTo("<title>");
-        assertThat(payload.getContent()).isEqualTo("<p>body</p>");
+        assertThat(payload.getTitle()).isEqualTo("&lt;title&gt;");
+        assertThat(payload.getContent()).isEqualTo("&lt;p&gt;body&lt;/p&gt;");
         assertThat(payload.getType()).isEqualTo(0);
         assertThat(payload.getStatus()).isEqualTo(0);
         assertThat(payload.getCreateTime()).isEqualTo(Instant.parse("2026-04-29T09:30:00Z"));

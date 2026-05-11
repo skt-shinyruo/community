@@ -243,7 +243,6 @@ public class MarketController {
         UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(MarketOrderResponse.from(marketApplicationService.createOrder(new CreateMarketOrderCommand(
                 buyerUserId,
-                request.getRequestId(),
                 request.getListingId(),
                 request.getQuantity(),
                 request.getAddressId(),

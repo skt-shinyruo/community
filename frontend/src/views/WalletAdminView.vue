@@ -8,7 +8,7 @@
         <template #subtitle>冻结钱包、回滚交易，并为后续审计收口保留统一操作面。</template>
       </UiPageHeader>
 
-      <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
+      <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
 
       <div class="wallet-admin-grid">
         <section class="wallet-admin-card">

@@ -11,7 +11,7 @@
       </template>
     </UiPageHeader>
 
-    <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
+    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted">正在加载我的出售商品…</div>
 
     <section v-else class="market-list-shell">

@@ -22,7 +22,6 @@ class SecurityResponseSupportTest {
 
         assertThat(body.getCode()).isEqualTo(CommonErrorCode.UNAUTHORIZED.getCode());
         assertThat(body.getTraceId()).isEqualTo(normalized);
-        assertThat(headers.get(TraceHeaders.HEADER_TRACE_ID)).isEqualTo(normalized);
         assertThat(headers.get(TraceHeaders.HEADER_TRACEPARENT))
                 .matches("^00-" + normalized + "-[0-9a-f]{16}-01$");
     }
@@ -37,27 +36,24 @@ class SecurityResponseSupportTest {
 
         assertThat(body.getCode()).isEqualTo(CommonErrorCode.FORBIDDEN.getCode());
         assertThat(body.getTraceId()).isEqualTo(normalized);
-        assertThat(headers.get(TraceHeaders.HEADER_TRACE_ID)).isEqualTo(normalized);
         assertThat(headers.get(TraceHeaders.HEADER_TRACEPARENT))
                 .matches("^00-" + normalized + "-[0-9a-f]{16}-01$");
     }
 
     @Test
-    void resolveTraceId_shouldFallbackToHeaderTraceIdWhenCurrentMissing() {
+    void resolveTraceId_shouldGenerateWhenCurrentAndTraceparentAreMissing() {
         String resolved = SecurityResponseSupport.resolveTraceId(
                 null,
-                "ABCDEFABCDEFABCDEFABCDEFABCDEFAB",
                 null
         );
 
-        assertThat(resolved).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
+        assertThat(resolved).matches("[0-9a-f]{32}");
     }
 
     @Test
-    void resolveTraceId_shouldPreferTraceparentOverHeaderTraceId() {
+    void resolveTraceId_shouldUseTraceparentWhenCurrentMissing() {
         String resolved = SecurityResponseSupport.resolveTraceId(
                 null,
-                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
         );
 

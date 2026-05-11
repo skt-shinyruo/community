@@ -55,7 +55,7 @@ im:
     # this service as an internal worker with IM_EDGE_MODE=internal-worker.
     mode: ${IM_EDGE_MODE:direct-public-edge}
     direct-public:
-      ws-path: ${IM_DIRECT_PUBLIC_WS_PATH:/ws/im}
+      ws-path: /ws/im
     internal-worker:
       ws-path: ${IM_INTERNAL_WORKER_WS_PATH:/internal/ws/im}
   clients:
@@ -74,7 +74,7 @@ im:
     # Public session bootstrap routing moved to community-im-gateway.
     worker-service-id: ${IM_REALTIME_WORKER_SERVICE_ID:im-realtime-worker}
     worker-id: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
-    ws-base-url: "${IM_SESSION_WS_BASE_URL:ws://127.0.0.1:${SERVER_PORT:18081}${IM_WS_PATH:${IM_DIRECT_PUBLIC_WS_PATH:/ws/im}}}"
+    ws-base-url: "${IM_SESSION_WS_BASE_URL:ws://127.0.0.1:${SERVER_PORT:18081}${IM_WS_PATH:/ws/im}}"
     ticket-ttl: ${IM_SESSION_TICKET_TTL:PT2M}
     worker-id-metadata-key: ${IM_SESSION_WORKER_ID_METADATA_KEY:workerId}
     ws-path-metadata-key: ${IM_SESSION_WS_PATH_METADATA_KEY:wsPath}
@@ -83,9 +83,7 @@ im:
     event:
       concurrency: ${IM_REALTIME_KAFKA_EVENT_CONCURRENCY:3}
   ws:
-    # Runtime compose should set IM_WS_PATH=/internal/ws/im with IM_EDGE_MODE=internal-worker.
-    # Direct public mode keeps /ws/im only for local compatibility.
-    path: ${IM_WS_PATH:${IM_DIRECT_PUBLIC_WS_PATH:/ws/im}}
+    path: ${IM_WS_PATH:/ws/im}
     outbound-buffer-size: ${IM_WS_OUTBOUND_BUFFER_SIZE:256}
     kafka-send-timeout-ms: ${IM_WS_KAFKA_SEND_TIMEOUT_MS:5000}
     room-flush-interval-ms: ${IM_ROOM_FLUSH_INTERVAL_MS:100}

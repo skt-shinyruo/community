@@ -3,10 +3,8 @@ package com.nowcoder.community.oss.application;
 import com.nowcoder.community.oss.application.result.ObjectDownloadResult;
 import com.nowcoder.community.oss.application.result.ObjectMetadataResult;
 import com.nowcoder.community.oss.domain.model.OssObject;
-import com.nowcoder.community.oss.domain.model.OssObjectAlias;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssVisibility;
-import com.nowcoder.community.oss.domain.repository.OssObjectAliasRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.infrastructure.config.OssProperties;
@@ -33,13 +31,11 @@ class ObjectQueryApplicationServiceTest {
     private static final Instant NOW = Instant.parse("2026-05-07T00:00:00Z");
 
     @Test
-    void resolvePublicFileShouldSupportCanonicalAndLegacyAliasPaths() throws Exception {
+    void resolvePublicFileShouldUseCanonicalPathOnly() throws Exception {
         UUID objectId = uuid(1);
         UUID versionId = uuid(2);
-        String aliasKey = "avatar/7/0123456789abcdef0123456789abcdef";
         FakeObjectRepository objectRepository = new FakeObjectRepository();
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
-        FakeAliasRepository aliasRepository = new FakeAliasRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
         OssObjectVersion version = activeVersion(objectId, versionId);
         OssObject object = OssObject.stage(
@@ -55,17 +51,15 @@ class ObjectQueryApplicationServiceTest {
         ).activate(version, NOW.plusSeconds(1));
         objectRepository.save(object);
         versionRepository.save(version);
-        aliasRepository.save(OssObjectAlias.active(aliasKey, objectId, versionId, NOW));
         ObjectQueryApplicationService service = new ObjectQueryApplicationService(
                 objectRepository,
                 versionRepository,
-                aliasRepository,
                 objectStore,
                 properties("http://localhost:12880/")
         );
 
         ObjectMetadataResult metadata = service.getMetadata(objectId);
-        ObjectDownloadResult download = service.resolvePublicFile(aliasKey);
+        ObjectDownloadResult download = service.resolvePublicFile(objectId + "/" + versionId + "/avatar.png");
 
         assertThat(metadata.publicUrl()).isEqualTo(
                 "http://localhost:12880/files/" + objectId + "/" + versionId + "/avatar.png"
@@ -103,7 +97,6 @@ class ObjectQueryApplicationServiceTest {
         ObjectQueryApplicationService service = new ObjectQueryApplicationService(
                 objectRepository,
                 versionRepository,
-                new FakeAliasRepository(),
                 objectStore,
                 properties("http://localhost:12880/")
         );
@@ -138,7 +131,6 @@ class ObjectQueryApplicationServiceTest {
         ObjectQueryApplicationService service = new ObjectQueryApplicationService(
                 objectRepository,
                 versionRepository,
-                new FakeAliasRepository(),
                 objectStore,
                 properties("http://localhost:12880/")
         );
@@ -150,12 +142,11 @@ class ObjectQueryApplicationServiceTest {
     }
 
     @Test
-    void resolvePublicFileShouldRejectExpiredAlias() {
+    void resolvePublicFileShouldRejectNonCanonicalAliasPath() {
         UUID objectId = uuid(1);
         UUID versionId = uuid(2);
         FakeObjectRepository objectRepository = new FakeObjectRepository();
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
-        FakeAliasRepository aliasRepository = new FakeAliasRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
         OssObjectVersion version = activeVersion(objectId, versionId);
         objectRepository.save(OssObject.stage(
@@ -170,18 +161,9 @@ class ObjectQueryApplicationServiceTest {
                 NOW
         ).activate(version, NOW.plusSeconds(1)));
         versionRepository.save(version);
-        aliasRepository.save(new OssObjectAlias(
-                "avatar/7/0123456789abcdef0123456789abcdef",
-                objectId,
-                versionId,
-                "ACTIVE",
-                NOW.minusSeconds(1),
-                NOW
-        ));
         ObjectQueryApplicationService service = new ObjectQueryApplicationService(
                 objectRepository,
                 versionRepository,
-                aliasRepository,
                 objectStore,
                 properties("http://localhost:12880/")
         );
@@ -242,20 +224,6 @@ class ObjectQueryApplicationServiceTest {
         @Override
         public Optional<OssObjectVersion> findById(UUID versionId) {
             return Optional.ofNullable(rows.get(versionId));
-        }
-    }
-
-    private static final class FakeAliasRepository implements OssObjectAliasRepository {
-        private final Map<String, OssObjectAlias> rows = new HashMap<>();
-
-        @Override
-        public void save(OssObjectAlias alias) {
-            rows.put(alias.aliasKey(), alias);
-        }
-
-        @Override
-        public Optional<OssObjectAlias> findByAliasKey(String aliasKey) {
-            return Optional.ofNullable(rows.get(aliasKey));
         }
     }
 

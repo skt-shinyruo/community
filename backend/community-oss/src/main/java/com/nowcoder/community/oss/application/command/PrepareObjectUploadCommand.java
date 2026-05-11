@@ -11,7 +11,6 @@ public record PrepareObjectUploadCommand(
         String contentType,
         long contentLength,
         String checksumSha256,
-        String aliasKey,
         String actorId
 ) {
 }

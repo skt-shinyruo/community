@@ -62,7 +62,7 @@ gateway-first 模式下，浏览器入口配置来自：
 
 - `FRONTEND_PUBLIC_ORIGIN`
 - `GATEWAY_PUBLIC_BASE_URL`
-- `IM_WS_PUBLIC_URL`
+- `IM_GATEWAY_PUBLIC_WS_URL`
 - `BROWSER_ALLOWED_ORIGINS`
 
 `community-gateway` 是浏览器流量 CORS 唯一出口：

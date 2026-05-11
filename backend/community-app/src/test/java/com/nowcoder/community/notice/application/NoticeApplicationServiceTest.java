@@ -75,7 +75,7 @@ class NoticeApplicationServiceTest {
     void listNoticesShouldReturnNoticeOwnedRecords() {
         UUID recipientUserId = uuid(2);
         insertMessage(NOTICE_ID_1, ZERO_UUID, recipientUserId, "comment", "{\"eventId\":\"evt-sentinel\"}", NoticeApplicationService.STATUS_UNREAD);
-        insertMessage(NOTICE_ID_2, uuid(1), recipientUserId, "comment", "{\"eventId\":\"evt-legacy\"}", NoticeApplicationService.STATUS_UNREAD);
+        insertMessage(NOTICE_ID_2, uuid(1), recipientUserId, "comment", "{\"eventId\":\"evt-comment\"}", NoticeApplicationService.STATUS_UNREAD);
         insertMessage(NOTICE_ID_3, uuid(1), recipientUserId, "1_2", "hello from real user one", NoticeApplicationService.STATUS_UNREAD);
 
         List<NoticeRecord> notices = noticeService.listNotices(recipientUserId, "comment", 0, 10);

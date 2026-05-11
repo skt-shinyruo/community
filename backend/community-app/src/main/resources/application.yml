@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: community-app
+  servlet:
+    multipart:
+      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:10GB}
+      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:10GB}
   cloud:
     nacos:
       discovery:
@@ -82,9 +86,6 @@ auth:
     ttl-seconds: 60
     max-failures: 3
   registration:
-    pending-user:
-      ttl-seconds: ${AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS:1800}
-      cleanup-interval-ms: ${AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS:300000}
     code:
       store: redis
       ttl-seconds: ${AUTH_REGISTRATION_CODE_TTL_SECONDS:600}
@@ -93,6 +94,7 @@ auth:
       expose-code: ${AUTH_REGISTRATION_EXPOSE_CODE:false}
     draft:
       store: ${AUTH_REGISTRATION_DRAFT_STORE:redis}
+      ttl-seconds: ${AUTH_REGISTRATION_DRAFT_TTL_SECONDS:1800}
     mail:
       enabled: ${AUTH_MAIL_ENABLED:false}
       from: ${AUTH_MAIL_FROM:no-reply@community.local}
@@ -118,8 +120,7 @@ xxl:
   job:
     enabled: false
     admin:
-      # Prefer explicit admin addresses; keep XXL_JOB_ADMIN_INGRESS_URL as a compatibility fallback.
-      addresses: ${XXL_JOB_ADMIN_ADDRESSES:${XXL_JOB_ADMIN_INGRESS_URL:}}
+      addresses: ${XXL_JOB_ADMIN_ADDRESSES:}
       accessToken: ${XXL_JOB_ACCESS_TOKEN:}
     executor:
       appname: ${XXL_JOB_EXECUTOR_APPNAME:}
@@ -185,7 +186,6 @@ analytics:
       - /api/search/**
       - /api/messages/**
       - /api/notices/**
-      - /api/im-governance/**
     exclude-paths:
       - /api/analytics/**
       - /api/auth/**

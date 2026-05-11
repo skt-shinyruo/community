@@ -53,22 +53,12 @@ operation + userId + Idempotency-Key
 - 不要每次 HTTP 发送都生成新 key。
 - 建议使用 UUID、ULID、雪花 ID 等高碰撞安全随机 key。
 - 服务端 trim key，长度不能超过 128。
-
-钱包充值、提现、转账和市场下单兼容旧 body `requestId`：
-
-- header 存在、body 不存在：使用 header。
-- header 不存在、body 存在：使用 body fallback。
-- header 和 body 都存在且 trim 后相同：使用该值。
-- header 和 body 都存在但不同：`400`。
-- 两者都不存在：`400`。
-
-新客户端应优先使用 header，body `requestId` 只是兼容路径。
+- 钱包充值、提现、转账和市场下单不接收 body `requestId`，幂等键只来自 header。
 
 当前仓库前端状态：
 
-- `frontend/src/api/http.js` 只自动为发帖和评论注入 header。
-- 钱包和市场页面仍生成 body `requestId`，依赖服务端兼容路径。
-- 修改前端重试策略时，必须保证同一次业务尝试复用同一个 key / requestId，不能在 axios retry 或按钮重复点击时生成新值。
+- `frontend/src/api/http.js` 自动为发帖、评论、钱包写接口和市场下单注入 `Idempotency-Key`。
+- 修改前端重试策略时，必须保证同一次业务尝试复用同一个 key，不能在 axios retry 或按钮重复点击时生成新值。
 
 ## 请求指纹
 

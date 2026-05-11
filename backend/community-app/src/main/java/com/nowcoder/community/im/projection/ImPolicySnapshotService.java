@@ -62,7 +62,7 @@ public class ImPolicySnapshotService {
     private UserMessagingPolicyEntry toUserPolicyEntry(UserModerationStateView state, Instant now) {
         boolean suspended = state != null && state.banUntil() != null && state.banUntil().isAfter(now);
         boolean muted = state != null && state.muteUntil() != null && state.muteUntil().isAfter(now);
-        boolean allowPrivateMessages = state != null && state.userId() != null && !suspended && !muted;
+        boolean canSendPrivate = state != null && state.userId() != null && !suspended && !muted;
         return new UserMessagingPolicyEntry(
                 state == null ? null : state.userId(),
                 state != null && state.userId() != null,
@@ -70,7 +70,7 @@ public class ImPolicySnapshotService {
                 muted,
                 toEpochMillis(state == null ? null : state.muteUntil()),
                 toEpochMillis(state == null ? null : state.banUntil()),
-                allowPrivateMessages
+                canSendPrivate
         );
     }
 

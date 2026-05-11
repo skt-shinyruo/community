@@ -73,9 +73,8 @@ class UserProfileApplicationServiceTest {
                 UserProfilePageResult::likeCount,
                 UserProfilePageResult::followeeCount,
                 UserProfilePageResult::followerCount,
-                UserProfilePageResult::hasFollowed,
-                UserProfilePageResult::socialDegraded
-        ).containsExactly(userId, "alice", true, 4, 13, 12L, 5L, 8L, true, false);
+                UserProfilePageResult::hasFollowed
+        ).containsExactly(userId, "alice", true, 4, 13, 12L, 5L, 8L, true);
     }
 
     @Test

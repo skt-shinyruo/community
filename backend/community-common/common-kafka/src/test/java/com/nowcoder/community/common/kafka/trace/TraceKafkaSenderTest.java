@@ -8,8 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.core.KafkaTemplate;
 
-import java.nio.charset.StandardCharsets;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -35,8 +33,6 @@ class TraceKafkaSenderTest {
         assertThat(record.topic()).isEqualTo("topic-a");
         assertThat(record.key()).isEqualTo("key-1");
         assertThat(record.value()).isEqualTo("value-1");
-        assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACE_ID))
-                .isEqualTo("abababababababababababababababab");
         assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACEPARENT))
                 .startsWith("00-abababababababababababababababab-");
     }

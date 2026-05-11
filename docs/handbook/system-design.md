@@ -58,7 +58,7 @@ Client + Authorization + Idempotency-Key
 - 依赖不可用或关键基础设施故障：`503`
 - 未预期服务端错误：`500`
 
-`Result.code` 表达业务细分错误码。Servlet / WebFlux 服务统一回写 `X-Trace-Id` / `traceparent`，便于 Kibana 按 trace 关联。
+`Result.code` 表达业务细分错误码。Servlet / WebFlux 服务统一回写 `traceparent`，便于 Kibana 按 trace 关联。
 
 客户端侧不能只依赖 HTTP 200 判断完整业务终态。资金、IM 和投影类链路还要看业务状态字段、IM event/history 或后台 action/outbox 状态。
 
@@ -211,7 +211,7 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 当前后台任务分为：
 
 - 本地 `@Scheduled`：例如 outbox worker、帖子热度刷新等需要应用内持续执行的任务。
-- XXL-Job：例如 `pendingRegistrationUserCleanup`、`marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery` 这类可由控制面触发的离散任务。
+- XXL-Job：例如 `marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery` 这类可由控制面触发的离散任务。
 
 调度入口不直接拼业务规则，仍然回到 owner `ApplicationService` 或 owner action API。
 

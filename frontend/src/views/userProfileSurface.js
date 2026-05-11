@@ -33,7 +33,6 @@ export function describeFollowStatusText({ followStatus, followStatusState = 'id
 export function buildCommunitySignals({
   profile,
   joinedYear,
-  socialDegraded,
   followStatus,
   followStatusState,
   authed,
@@ -58,13 +57,13 @@ export function buildCommunitySignals({
       key: 'wallet',
       label: '钱包资产',
       value: walletAsset.valueText,
-      text: compatibleWalletText(walletAsset.description, username)
+      text: formatWalletText(walletAsset.description, username)
     },
     {
       key: 'network',
       label: '关系网络',
-      value: socialDegraded ? '稍后刷新' : `${followeeCount} 关注 · ${followerCount} 粉丝`,
-      text: socialDegraded ? '关注和粉丝数据暂不可用，稍后刷新可恢复关系网络视图。' : '通过关注与粉丝可以快速判断这个成员在社区中的连接范围。'
+      value: `${followeeCount} 关注 · ${followerCount} 粉丝`,
+      text: '通过关注与粉丝可以快速判断这个成员在社区中的连接范围。'
     }
   ]
 }
@@ -85,6 +84,6 @@ export function buildCommunityNextSteps({ authed, isSelf, userId } = {}) {
   ]
 }
 
-function compatibleWalletText(text, username) {
+function formatWalletText(text, username) {
   return text.replace(/^主页资产展示/, `${username} 的主页资产展示`)
 }

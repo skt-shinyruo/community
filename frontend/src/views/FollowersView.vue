@@ -1,4 +1,3 @@
-<!-- 粉丝列表页：对齐 legacy /followers/{userId} 页面能力（分页 + 用户摘要）。 -->
 <template>
   <div class="page relations-page">
     <UiBreadcrumb />
@@ -20,7 +19,7 @@
         <UiPagination :page="page" :has-next="hasNext" @prev="prevPage" @next="nextPage" />
       </div>
 
-      <UiEmpty v-if="error && items.length === 0" type="error" class="relations-state">{{ error }}</UiEmpty>
+      <UiEmpty v-if="error && items.length === 0" variant="error" class="relations-state">{{ error }}</UiEmpty>
       <div v-else-if="loading && items.length === 0" class="muted relations-state">正在加载粉丝关系…</div>
       <UiEmpty v-else-if="items.length === 0" class="relations-state">
         暂无数据

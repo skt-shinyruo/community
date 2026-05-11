@@ -18,7 +18,9 @@ create table if not exists discuss_post (
   deleted_reason varchar(255) default '',
   deleted_time timestamp null default null,
   comment_count int default 0,
-  score double default 0
+  score double default 0,
+  key idx_discuss_post_user_id (user_id),
+  key idx_discuss_post_category_id (category_id)
 );
 
 create table if not exists post_media_asset (
@@ -75,7 +77,8 @@ create table if not exists comment (
   edit_count int default 0,
   deleted_by binary(16) default null,
   deleted_reason varchar(255) default '',
-  deleted_time timestamp null default null
+  deleted_time timestamp null default null,
+  key idx_comment_entity (entity_type, entity_id)
 );
 
 -- taxonomy: categories + tags (Discourse-like)
@@ -99,7 +102,9 @@ create table if not exists post_tag (
   post_id binary(16) not null,
   tag_id binary(16) not null,
   create_time timestamp null default current_timestamp,
-  primary key (post_id, tag_id)
+  primary key (post_id, tag_id),
+  key idx_post_tag_post_id (post_id),
+  key idx_post_tag_tag_id (tag_id)
 );
 
 -- moderation: reports + actions (MVP)
@@ -112,7 +117,9 @@ create table if not exists report (
   detail varchar(512) default '',
   status int default 0,
   create_time timestamp null default current_timestamp,
-  unique key uk_report_dedupe (reporter_id, target_type, target_id)
+  unique key uk_report_dedupe (reporter_id, target_type, target_id),
+  key idx_report_status (status, create_time),
+  key idx_report_target (target_type, target_id, create_time)
 );
 
 create table if not exists moderation_action (
@@ -122,7 +129,9 @@ create table if not exists moderation_action (
   action varchar(32) not null,
   reason varchar(255) default '',
   duration_seconds int default 0,
-  create_time timestamp null default current_timestamp
+  create_time timestamp null default current_timestamp,
+  key idx_moderation_action_report (report_id, create_time),
+  key idx_moderation_action_actor (actor_id, create_time)
 );
 
 -- bookmarks/subscriptions (MVP)
@@ -130,146 +139,19 @@ create table if not exists post_bookmark (
   user_id binary(16) not null,
   post_id binary(16) not null,
   create_time timestamp null default current_timestamp,
-  primary key (user_id, post_id)
+  primary key (user_id, post_id),
+  key idx_post_bookmark_post (post_id, create_time)
 );
 
 create table if not exists user_subscription_category (
   user_id binary(16) not null,
   category_id binary(16) not null,
   create_time timestamp null default current_timestamp,
-  primary key (user_id, category_id)
+  primary key (user_id, category_id),
+  key idx_user_sub_category_user (user_id, create_time)
 );
 
--- Compatibility upgrade: add missing column for existing DBs (manual re-run scenario).
-set @has_category_id := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'discuss_post'
-    and column_name = 'category_id'
-);
-set @sql := if(@has_category_id = 0, 'alter table discuss_post add column category_id binary(16) default null', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
--- Compatibility upgrade: add edit/update/delete meta columns for existing DBs.
-set @has_update_time := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'discuss_post'
-    and column_name = 'update_time'
-);
-set @sql := if(@has_update_time = 0, 'alter table discuss_post add column update_time timestamp null default null', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_edit_count := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'discuss_post'
-    and column_name = 'edit_count'
-);
-set @sql := if(@has_edit_count = 0, 'alter table discuss_post add column edit_count int default 0', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_deleted_by := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'discuss_post'
-    and column_name = 'deleted_by'
-);
-set @sql := if(@has_deleted_by = 0, 'alter table discuss_post add column deleted_by binary(16) default null', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_deleted_reason := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'discuss_post'
-    and column_name = 'deleted_reason'
-);
-set @sql := if(@has_deleted_reason = 0, 'alter table discuss_post add column deleted_reason varchar(255) default ''''', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_deleted_time := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'discuss_post'
-    and column_name = 'deleted_time'
-);
-set @sql := if(@has_deleted_time = 0, 'alter table discuss_post add column deleted_time timestamp null default null', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_comment_update_time := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'comment'
-    and column_name = 'update_time'
-);
-set @sql := if(@has_comment_update_time = 0, 'alter table comment add column update_time timestamp null default null', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_comment_edit_count := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'comment'
-    and column_name = 'edit_count'
-);
-set @sql := if(@has_comment_edit_count = 0, 'alter table comment add column edit_count int default 0', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_comment_deleted_by := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'comment'
-    and column_name = 'deleted_by'
-);
-set @sql := if(@has_comment_deleted_by = 0, 'alter table comment add column deleted_by binary(16) default null', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_comment_deleted_reason := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'comment'
-    and column_name = 'deleted_reason'
-);
-set @sql := if(@has_comment_deleted_reason = 0, 'alter table comment add column deleted_reason varchar(255) default ''''', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @has_comment_deleted_time := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'comment'
-    and column_name = 'deleted_time'
-);
-set @sql := if(@has_comment_deleted_time = 0, 'alter table comment add column deleted_time timestamp null default null', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
+insert ignore into category(name, description, position) values
+  ('公告', '官方公告/规则', 0),
+  ('技术', '技术讨论/问题求助', 10),
+  ('兴趣', '兴趣分享/作品展示', 20);

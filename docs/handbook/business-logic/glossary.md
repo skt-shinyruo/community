@@ -50,7 +50,7 @@
 | 任务进度 | 用户因内容或社交事件推进的成长任务状态。 | `growth` |
 | 奖励 / 余额 / 账本 | 用户资金或积分的最终事实，采用复式账本入账。 | `wallet` |
 | 商品 / 库存 / 订单 / 纠纷 | 交易市场主事实和交易状态。 | `market` |
-| 对象 / 版本 / alias / grant | 文件对象的技术事实和访问授权。 | `community-oss` |
+| 对象 / 版本 / grant | 文件对象的技术事实和访问授权。 | `community-oss` |
 | 网盘条目 / 分享 | 用户私有文件树、回收站、分享 token 和提取码。 | `drive` |
 | IM session | 客户端连接 IM 的短期 ticket 和 worker 路由结果。 | `community-im-gateway` |
 | IM message | 私信、群聊消息、会话状态、未读水位。 | `im-core` |

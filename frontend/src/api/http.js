@@ -2,6 +2,7 @@ import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import { createIdempotencyKeyCache } from './idempotencyKeyCache'
 import { resolveApiBaseUrl } from '../config/endpointResolution'
+import { showToast } from '../ui/toastService'
 
 const http = axios.create({
   baseURL: resolveApiBaseUrl(),
@@ -22,8 +23,19 @@ function shouldAttachIdempotencyKey(config) {
 
   if (url === '/api/posts') return true
   if (/^\/api\/posts\/[^/]+\/comments$/.test(url)) return true
+  if (url === '/api/wallet/recharges') return true
+  if (url === '/api/wallet/withdrawals') return true
+  if (url === '/api/wallet/transfers') return true
+  if (url === '/api/market/orders') return true
 
   return false
+}
+
+function resolveIdempotencyKey(config) {
+  const url = String(config?.url || '')
+  const body = safeStringify(config?.data)
+  const fingerprint = `post:${url}:${hashString(body)}`
+  return idempotencyKeyCache.getOrReuse(fingerprint)
 }
 
 function generateIdempotencyKey() {
@@ -72,10 +84,7 @@ http.interceptors.request.use((config) => {
   if (shouldAttachIdempotencyKey(config)) {
     config.headers = config.headers || {}
     if (!config.headers[IDEMPOTENCY_HEADER]) {
-      const url = String(config?.url || '')
-      const body = safeStringify(config?.data)
-      const fingerprint = `post:${url}:${hashString(body)}`
-      config.headers[IDEMPOTENCY_HEADER] = idempotencyKeyCache.getOrReuse(fingerprint)
+      config.headers[IDEMPOTENCY_HEADER] = resolveIdempotencyKey(config)
     }
   }
   return config
@@ -96,15 +105,13 @@ http.interceptors.response.use(
 
     // Global Error Toast for non-2xx / network errors (prefer backend Result.message + traceId)
     if (!skipGlobalErrorToast && (status >= 500 || error.code === 'ERR_NETWORK')) {
-      if (typeof window !== 'undefined' && window.$toast) {
-        const text = resultMessage || error.message || '服务异常，请稍后重试。'
-        const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
-        window.$toast({
-          type: 'error',
-          title: '系统错误',
-          text: `${text}${traceSuffix}`
-        })
-      }
+      const text = resultMessage || error.message || '服务异常，请稍后重试。'
+      const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
+      showToast({
+        type: 'error',
+        title: '系统错误',
+        text: `${text}${traceSuffix}`
+      })
     }
 
     if (status === 401 && !original._retry && !isAuthEndpoint) {
@@ -136,11 +143,11 @@ http.interceptors.response.use(
     }
 
     // 对 4xx 也尽量展示后端 message/traceId，便于定位（但避免影响 refresh 重试逻辑）
-    if (!skipGlobalErrorToast && status >= 400 && status < 500 && typeof window !== 'undefined' && window.$toast) {
+    if (!skipGlobalErrorToast && status >= 400 && status < 500) {
       const title = status === 401 ? '未登录或登录失效' : '请求失败'
       const text = resultMessage || error.message || '请求失败'
       const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
-      window.$toast({
+      showToast({
         type: 'error',
         title,
         text: `${text}${traceSuffix}`

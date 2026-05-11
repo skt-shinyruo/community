@@ -11,7 +11,7 @@
 - `frontend/`：Vue3 SPA。
 - `backend/community-gateway`：统一 HTTP / WebSocket 入口，浏览器默认先到这里。
 - `backend/community-app`：主业务 owner，形态是按包治理边界的 package-scoped monolith。
-- `backend/community-oss`：对象存储服务，拥有 OSS metadata、版本、alias、签名 URL 和 `/files/**` 下载。
+- `backend/community-oss`：对象存储服务，拥有 OSS metadata、版本、签名 URL 和 `/files/**` 下载。
 - `backend/community-oss-client`：业务服务调用 OSS 的 typed client。
 - `backend/community-im`：独立 IM 子系统，包含：
   - `im-realtime`：WebSocket 接入、在线连接、Kafka command 生产、在线推送。
@@ -191,7 +191,7 @@ POST /api/im/sessions -> WS /ws/im
 - Vue3 SPA 默认通过 gateway 访问 `/api/**`、`/files/**` 和 IM `wsUrl`；本地 Vite / Nginx 场景会推断 `localhost:12880` 作为 API base。
 - access token 存在前端内存；refresh token 由 HttpOnly cookie 自动携带。普通业务请求 `401` 后，前端会调用 `/api/auth/refresh`，成功后重试原请求。
 - HTTP 返回统一 `Result<T>`；客户端要同时看 HTTP status 和 `Result.code` / `message`，排障时保留 `traceId`。
-- 高风险写接口应使用稳定的 `Idempotency-Key` 或兼容 body `requestId`，同一次业务尝试重试时复用同一个值。
+- 高风险写接口应使用稳定的 `Idempotency-Key`，同一次业务尝试重试时复用同一个值。
 - IM 发送侧使用 `clientMsgId` 做消息级幂等；`ack` / `sendAccepted` 是接单语义，最终消息状态仍以 `im-core` history 为准。
 
 ## 推荐源码阅读顺序

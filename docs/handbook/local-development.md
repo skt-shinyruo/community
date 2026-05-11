@@ -122,7 +122,7 @@ single / cluster 默认都会启用 observability：
 ./deploy/deployment.sh up --topology cluster
 ```
 
-`--observability` 保留为显式启用/兼容写法。需要关闭整个观测 overlay 时使用：
+需要关闭整个 observability overlay 时使用：
 
 ```bash
 ./deploy/deployment.sh up --topology single --no-observability

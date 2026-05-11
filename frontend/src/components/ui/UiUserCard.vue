@@ -72,6 +72,7 @@ import { useAuthStore } from '../../stores/auth'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { blockUser, unblockUser } from '../../api/services/blockService'
 import { getUserProfile } from '../../api/services/userService'
+import { showToast } from '../../ui/toastService'
 import UiAvatar from './UiAvatar.vue'
 import UiButton from './UiButton.vue'
 import UiRoleBadge from './UiRoleBadge.vue'
@@ -157,9 +158,7 @@ watch(resolvedUserId, () => {
 
 function openReport() {
   if (!auth.authed) {
-    if (typeof window !== 'undefined' && window.$toast) {
-      window.$toast({ type: 'warning', text: '请先登录' })
-    }
+    showToast({ type: 'warning', text: '请先登录' })
     return
   }
   reportOpen.value = true
@@ -171,20 +170,14 @@ async function toggleBlock() {
   try {
     if (isBlocked.value) {
       await unblockUser(resolvedUserId.value)
-      if (typeof window !== 'undefined' && window.$toast) {
-        window.$toast({ type: 'success', text: '已解除屏蔽' })
-      }
+      showToast({ type: 'success', text: '已解除屏蔽' })
     } else {
       await blockUser(resolvedUserId.value)
-      if (typeof window !== 'undefined' && window.$toast) {
-        window.$toast({ type: 'success', text: '已屏蔽该用户' })
-      }
+      showToast({ type: 'success', text: '已屏蔽该用户' })
     }
     await prefs.ensureBlocked(true)
   } catch (e) {
-    if (typeof window !== 'undefined' && window.$toast) {
-      window.$toast({ type: 'error', title: '操作失败', text: e?.message || '请稍后重试' })
-    }
+    showToast({ type: 'error', title: '操作失败', text: e?.message || '请稍后重试' })
   } finally {
     actionLoading.value = false
   }

@@ -144,7 +144,7 @@
          </div>
       </div>
 
-      <UiEmpty v-if="error && items.length === 0" type="error">{{ error }}</UiEmpty>
+      <UiEmpty v-if="error && items.length === 0" variant="error">{{ error }}</UiEmpty>
       <div v-else-if="error" class="error">{{ error }}</div>
 
       <div v-if="blockedHiddenCount > 0" class="muted posts-muted-note">

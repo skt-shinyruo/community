@@ -41,7 +41,7 @@ describe('api/services/postService', () => {
     expect(resp.data).toEqual([])
   })
 
-  it('createPost and updatePost should normalize block payloads without legacy content', async () => {
+  it('createPost and updatePost should normalize block payloads without content shortcuts', async () => {
     const postId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
     const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     const assetId = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'

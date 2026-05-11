@@ -160,35 +160,6 @@ public class MyBatisUserRepository implements UserRepository {
         }
     }
 
-    @Override
-    public void insertPendingUser(UserAccount user) {
-        insertUser(user);
-    }
-
-    @Override
-    public int deletePendingUserIfExpired(UUID userId, int status, Instant cutoff) {
-        return userMapper.deletePendingUserIfExpired(
-                userId,
-                status,
-                cutoff == null ? null : Date.from(cutoff)
-        );
-    }
-
-    @Override
-    public int deletePendingUser(UUID userId, int status) {
-        return userMapper.deletePendingUser(userId, status);
-    }
-
-    @Override
-    public List<UUID> listExpiredPendingUserIds(int status, Instant cutoff, int limit) {
-        List<UUID> ids = userMapper.selectExpiredPendingUserIds(
-                status,
-                cutoff == null ? null : Date.from(cutoff),
-                limit
-        );
-        return ids == null ? List.of() : ids;
-    }
-
     private UserAccount toAccount(UserDataObject row) {
         if (row == null || row.getId() == null) {
             return null;

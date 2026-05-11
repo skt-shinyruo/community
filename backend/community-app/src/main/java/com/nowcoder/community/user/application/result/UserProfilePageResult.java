@@ -19,8 +19,7 @@ public record UserProfilePageResult(
         long likeCount,
         long followeeCount,
         long followerCount,
-        boolean hasFollowed,
-        boolean socialDegraded
+        boolean hasFollowed
 ) {
 
     public record RecentPostSummaryResult(

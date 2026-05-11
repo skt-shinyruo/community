@@ -64,7 +64,7 @@ class UserControllerUnitTest {
         Authentication authentication = authentication(actorUserId);
         Date createTime = new Date();
         when(userProfileApplicationService.get(actorUserId, userId))
-                .thenReturn(new UserProfilePageResult(userId, "alice", "h7", 2, 0, createTime, 250, 3, true, 2, 13, 12, 5, 8, true, false));
+                .thenReturn(new UserProfilePageResult(userId, "alice", "h7", 2, 0, createTime, 250, 3, true, 2, 13, 12, 5, 8, true));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, userId);
 
@@ -88,7 +88,6 @@ class UserControllerUnitTest {
         assertThat(result.getData().getFolloweeCount()).isEqualTo(5);
         assertThat(result.getData().getFollowerCount()).isEqualTo(8);
         assertThat(result.getData().getHasFollowed()).isTrue();
-        assertThat(result.getData().isSocialDegraded()).isFalse();
         verify(userProfileApplicationService).get(actorUserId, userId);
     }
 
@@ -99,7 +98,7 @@ class UserControllerUnitTest {
         Authentication authentication = authentication(actorUserId);
         Date createTime = new Date();
         when(userProfileApplicationService.get(actorUserId, userId))
-                .thenReturn(new UserProfilePageResult(userId, "bob", "h8", 1, 0, createTime, 99, 2, false, null, null, 3, 4, 5, false, false));
+                .thenReturn(new UserProfilePageResult(userId, "bob", "h8", 1, 0, createTime, 99, 2, false, null, null, 3, 4, 5, false));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, userId);
 

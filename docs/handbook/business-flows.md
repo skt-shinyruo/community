@@ -41,11 +41,11 @@ Main path：
 4. 验证码通过邮件发送；本地默认用 MailHog。
 5. 验证注册验证码后创建 active 用户，并可自动登录。
 6. 登录先经过登录风控、验证码要求和密码校验。
-7. 密码格式兼容历史 hash。
+7. 密码只接受 BCrypt hash。
 8. 登录成功后签发 access token，并通过 HttpOnly cookie 下发 refresh token。
 9. refresh token 旋转刷新，旧 token 失效；family reuse 可触发族撤销。
 10. logout 撤销 refresh token / family 并清 cookie。
-11. cleanup job 清理过期 refresh session；pending-user cleanup 仅保留兼容旧流程。
+11. cleanup job 清理过期 refresh session；registration draft 和验证码依赖各自 store TTL 自然过期。
 
 登录、刷新、退出和 JWT 鉴权的详细代码链路见 [auth-login-session-flow.md](auth-login-session-flow.md)。
 
@@ -162,7 +162,7 @@ Main path：
    - 客户端按上传会话提交文件，经 `community-app` 代理到 OSS。
    - 前端使用 `{ "fileKey": "..." }` 确认头像，user 写回 canonical OSS public URL。
 6. 文件访问通过 `/files/**` 暴露，但实际 blob 读取由 `community-oss` 完成。
-7. OSS 首版以 Garage 为主后端，dev 可用 `community-oss` 的 local filesystem backend 或 Garage single-node；legacy 本地/R2 provider 已从 `community-app` 退休。
+7. OSS 首版以 Garage 为主后端，dev 可用 `community-oss` 的 local filesystem backend 或 Garage single-node；`community-app` 不再保留本地/R2 文件 provider。
 
 Failure / security：
 
@@ -171,7 +171,7 @@ Failure / security：
 - `fileKey` 对前端是不透明标识，后端当前要求其内部形态为 `avatar/{userId}/...`。
 - MIME 白名单和 2 MiB 大小限制。
 - 上传失败不能兜底更新头像。
-- 旧 `/files/avatar/{userId}/{uuid}` 通过 OSS alias 兼容。
+- 文件公开地址只使用 OSS canonical URL：`/files/{objectId}/{versionId}/{fileName}`。
 
 Key code：
 
@@ -607,7 +607,7 @@ Search query：
 4. repository 查询 ES 或 memory implementation。
 5. 支持标题/内容全文检索、分类过滤、标签过滤、score + createTime 排序、关键词高亮。
 6. 单页最大 50，避免深分页风险。
-7. 无关键词时退化为 match-all，兼容纯分类/标签过滤。
+7. 无关键词时退化为 match-all，支持纯分类/标签过滤。
 
 Projection：
 
@@ -650,8 +650,7 @@ Current state：
 
 - 当前 analytics 对外 HTTP 面主要是查询，不是任意客户端埋点写入。
 - `analytics.ingest.enabled` 默认为 `false`；未开启时 filter 直接跳过采集。
-- 默认采集路径包括 `/api/posts/**`、`/api/search/**`、`/api/messages/**`、`/api/notices/**`、历史 `/api/im-governance/**`。
-- `/api/im-governance/**` 是遗留采集配置；当前 IM governance 已迁到 realtime 本地 projection 和 `/internal/im/realtime/projections/**` snapshot。
+- 默认采集路径包括 `/api/posts/**`、`/api/search/**`、`/api/messages/**`、`/api/notices/**`。
 - 默认排除 `/api/analytics/**`、`/api/auth/**`、`/api/ops/**`、`/actuator/**`、`/internal/**`、`/files/**`。
 - `OPTIONS` 和 HTTP `5xx` 响应不采集。
 
@@ -790,8 +789,8 @@ Market query：
 
 Order path：
 
-1. controller 读取 `Idempotency-Key`；旧 body `requestId` 仅 header 缺失时 fallback。
-2. header/body 不一致返回 `400`。
+1. controller 读取 `Idempotency-Key`；body `requestId` 按未知字段返回 `400`。
+2. 缺少 `Idempotency-Key` 返回 `400`。
 3. request fingerprint 包含 `listingId`、`quantity`、`addressId`。
 4. application 校验 listing、库存、买家、价格和订单总额上限。
 5. 物理商品必须提供 active 收货地址，订单保存地址快照。
@@ -903,8 +902,7 @@ Core concepts：
 HTTP writes：
 
 - 充值、提现、转账使用 `Idempotency-Key`。
-- 旧 body `requestId` 仅 header 缺失时 fallback。
-- header/body 不一致返回 `400`。
+- body `requestId` 按未知字段返回 `400`。
 - HTTP 幂等 key 与总账 requestId 解耦。
 - 充值请求指纹只包含 `amount`。
 - 提现请求指纹只包含 `amount`。
@@ -958,7 +956,7 @@ Admin operations：
 
 - `POST /api/wallet/admin/freeze` 校验管理员动作 actor 和 reason 后，把目标用户钱包状态置为 `FROZEN`，并写 `wallet_admin_action` 审计。
 - freeze 当前是单向治理动作；恢复 active 状态没有独立 HTTP 管理入口。
-- `POST /api/wallet/admin/reverse` 可按 wallet txn requestId 查交易，也兼容 transfer / recharge 公开 requestId；公开 requestId 不唯一时要求使用 wallet txn requestId。
+- `POST /api/wallet/admin/reverse` 只按 wallet txn requestId 查找原交易。
 - 只有 `TRANSFER`、`ORDER_RELEASE`、`REWARD_ISSUE` 可冲正。
 - 冲正通过 `reversal:<originalRequestId>` 写一笔 `REVERSAL` 总账，不直接改旧交易或旧分录。
 - 冲正前会检查反向分录导致的扣款账户余额是否足够；余额不足时拒绝。
@@ -1001,7 +999,6 @@ Entry：
 
 Current tasks：
 
-- `pendingRegistrationUserCleanup`
 - `OutboxWorkerScheduler`
 - 帖子热度刷新 / score refresh
 - `marketOrderAutoConfirm`
@@ -1010,8 +1007,6 @@ Current tasks：
 
 Task details：
 
-- `PendingRegistrationUserCleanupJob` 是本地 `@Scheduled` 清理，受 `auth.registration.pending-user.cleanup-interval-ms` 和 local scheduler 开关控制，调用 auth registration application 清理过期待激活用户。
-- `PendingRegistrationUserCleanupHandler` 是 XXL `pendingRegistrationUserCleanup`，按 `auth.registration.pending-user.ttl-seconds` 计算最小 60 秒 TTL，循环清理直到本轮没有更多过期用户。
 - `RefreshTokenCleanupJob` 是本地 `@Scheduled` 清理，受 `auth.refresh.cleanup.interval-ms` 和 `auth.refresh.cleanup.enabled` 控制，调用 refresh token application 删除过期 session。
 - `PostScoreRefresher` 是本地 `@Scheduled`，受 `content.score.refresh.enabled`、`content.score.refresh.delay-ms` 和 `content.score.refresh.batch-size` 控制，batch size 被限制在 1 到 2000。
 - `MarketOrderAutoConfirmHandler` 是 XXL `marketOrderAutoConfirm`，进入 market owner 自动确认 due orders，只写 release command。
@@ -1053,8 +1048,6 @@ Failure：
 Key code：
 
 - `auth.infrastructure.job.RefreshTokenCleanupJob`
-- `auth.infrastructure.job.PendingRegistrationUserCleanupJob`
-- `user.infrastructure.job.PendingRegistrationUserCleanupHandler`
 - `content.infrastructure.job.PostScoreRefresher`
 - `market.infrastructure.job.MarketOrderAutoConfirmHandler`
 - `market.infrastructure.job.MarketWalletActionProcessorHandler`

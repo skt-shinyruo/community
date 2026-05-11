@@ -42,7 +42,7 @@ npm run build
 - 主站 HTTP 请求使用 `src/api/http.js`，IM HTTP 使用 `src/api/imCoreHttp.js`。
 - IM WebSocket 不硬编码固定地址，必须先 `POST /api/im/sessions` 获取 `wsUrl` 和 ticket。
 - 复杂页面状态优先放进 `src/views/*State.js` 并配同名测试。
-- 高风险写操作必须保持同一次业务尝试复用同一个 `Idempotency-Key` 或兼容 `requestId`。
+- 高风险写操作必须保持同一次业务尝试复用同一个 `Idempotency-Key`。
 
 ## 定向测试
 

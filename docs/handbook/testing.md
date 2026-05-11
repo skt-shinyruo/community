@@ -24,7 +24,7 @@
 | 前端路由 / session / HTTP / store / 页面状态 | 定向 Vitest 文件 | `cd frontend && npm test` |
 | 前端构建相关 | `cd frontend && npm run build` | `cd frontend && npm test && npm run build` |
 | tools/mock-data-studio | 定向 `npm --prefix tools/mock-data-studio test -- <files>` | 全量 mock-data-studio 测试 |
-| tools/im-load | 参数 / README 校验，必要时小流量压测 | single / cluster 拓扑下 legacy 协议压测；当前 IM session 语义需先升级工具 |
+| tools/im-load | 参数 / README 校验 | 当前不作为 IM 业务压测工具；真实 session bootstrap 压测需另行实现 |
 
 ## 后端测试
 
@@ -163,19 +163,19 @@ npm --prefix tools/mock-data-studio test -- \
 
 ## IM 压测工具验证
 
-`tools/im-load` 主要是旧协议压测工具，不是业务测试套件。修改参数解析、JWT 生成或连接行为后，只在旧协议兼容环境做小流量冒烟：
+`tools/im-load` 不是当前业务测试套件。修改参数解析、JWT 生成或连接行为后，只验证工具自身参数和连接处理：
 
 ```bash
 cd tools/im-load
 npm install
 node src/index.mjs connect-only \
-  --wsUrl ws://legacy-im-edge.example/ws/im \
+  --wsUrl ws://im-edge.example/ws/im \
   --connections 2 \
   --startUserId 1 \
   --durationSec 10
 ```
 
-注意：`tools/im-load` 当前仍使用旧 `auth` 首帧协议，直接连接传入的 `--wsUrl`，不覆盖当前浏览器客户端的 `/api/im/sessions` ticket bootstrap。真实容量压测当前 IM 语义前，应先升级工具或使用支持 session-bootstrap 的脚本。
+注意：`tools/im-load` 不覆盖当前浏览器客户端的 `/api/im/sessions` ticket bootstrap。真实容量压测当前 IM 语义前，应使用支持 session-bootstrap 的脚本。
 
 ## 文档验证
 

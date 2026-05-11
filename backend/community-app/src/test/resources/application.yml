@@ -43,9 +43,6 @@ auth:
     store: redis
     ttl-seconds: 600
   registration:
-    pending-user:
-      ttl-seconds: 1800
-      cleanup-interval-ms: 300000
     code:
       store: redis
       ttl-seconds: 600
@@ -54,6 +51,7 @@ auth:
       expose-code: true
     draft:
       store: redis
+      ttl-seconds: 1800
     mail:
       enabled: false
   login-rate-limit:
@@ -96,7 +94,6 @@ analytics:
       - /api/search/**
       - /api/messages/**
       - /api/notices/**
-      - /api/im-governance/**
     exclude-paths:
       - /api/analytics/**
       - /api/auth/**

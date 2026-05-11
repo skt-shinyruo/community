@@ -44,7 +44,6 @@ public class SecurityExceptionHandler implements ServerAuthenticationEntryPoint,
     private String resolveTraceId(ServerWebExchange exchange) {
         return SecurityResponseSupport.resolveTraceId(
                 null,
-                exchange == null ? null : exchange.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACE_ID),
                 exchange == null ? null : exchange.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT)
         );
     }

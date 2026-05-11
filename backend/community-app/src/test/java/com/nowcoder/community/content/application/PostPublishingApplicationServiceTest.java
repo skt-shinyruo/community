@@ -6,7 +6,6 @@ import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.PostMediaStoragePort;
 import com.nowcoder.community.content.application.result.PostCreateResult;
-import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
@@ -92,7 +91,7 @@ class PostPublishingApplicationServiceTest {
         service = new PostPublishingApplicationService(
                 sensitiveFilter,
                 idempotencyGuard,
-                new ContentTextCodec(new ContentRenderProperties()),
+                new ContentTextCodec(),
                 new PostBusinessEventLogger(),
                 moderationGuard,
                 domainService,

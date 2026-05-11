@@ -27,7 +27,7 @@
       </div>
     </div>
 
-    <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
+    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
     <div v-else-if="loading && !ready" class="muted wallet-state">正在加载钱包…</div>
 
     <div v-else class="wallet-layout">
@@ -130,13 +130,6 @@ const state = computed(() =>
   })
 )
 
-function buildRequestId(prefix) {
-  if (globalThis.crypto?.randomUUID) {
-    return `wallet:${prefix}:${globalThis.crypto.randomUUID()}`
-  }
-  return `wallet:${prefix}:${Date.now()}`
-}
-
 function normalizeSummary(data) {
   const safe = data && typeof data === 'object' ? data : {}
   return {
@@ -179,16 +172,15 @@ async function submitRecharge() {
     return
   }
 
-  const requestId = buildRequestId('recharge')
   submittingKey.value = 'recharge'
   error.value = ''
   try {
-    const { data } = await createRecharge({ requestId, amount })
+    const { data } = await createRecharge({ amount })
     prependTxn({
       txnType: 'RECHARGE',
       amount,
       counterpartLabel: '平台入账',
-      requestId: data?.requestId || requestId,
+      requestId: data?.requestId || '',
       status: data?.status || 'SUCCEEDED'
     })
     rechargeForm.value.amount = ''
@@ -209,16 +201,15 @@ async function submitWithdrawal() {
     return
   }
 
-  const requestId = buildRequestId('withdraw')
   submittingKey.value = 'withdraw'
   error.value = ''
   try {
-    const { data } = await createWithdrawal({ requestId, amount })
+    const { data } = await createWithdrawal({ amount })
     prependTxn({
       txnType: 'WITHDRAW',
       amount: -amount,
       counterpartLabel: '提现申请',
-      requestId: data?.requestId || requestId,
+      requestId: data?.requestId || '',
       status: data?.status || 'PENDING'
     })
     withdrawForm.value.amount = ''
@@ -243,16 +234,15 @@ async function submitTransfer() {
     return
   }
 
-  const requestId = buildRequestId('transfer')
   submittingKey.value = 'transfer'
   error.value = ''
   try {
-    const { data } = await createTransfer({ requestId, toUserId, amount })
+    const { data } = await createTransfer({ toUserId, amount })
     prependTxn({
       txnType: 'TRANSFER',
       amount: -amount,
       counterpartLabel: `用户 ${toUserId}`,
-      requestId: data?.requestId || requestId,
+      requestId: data?.requestId || '',
       status: data?.status || 'SUCCEEDED'
     })
     transferForm.value.toUserId = ''

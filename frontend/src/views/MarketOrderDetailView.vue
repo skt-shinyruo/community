@@ -2,7 +2,7 @@
   <div class="page market-page">
     <UiBreadcrumb />
 
-    <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
+    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted">正在加载订单详情…</div>
 
     <UiCard v-else class="market-panel">

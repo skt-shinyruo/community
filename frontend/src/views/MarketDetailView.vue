@@ -2,7 +2,7 @@
   <div class="page market-page">
     <UiBreadcrumb />
 
-    <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
+    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted">正在加载商品详情…</div>
 
     <div v-else class="market-detail-shell">
@@ -91,11 +91,6 @@ const selectedAddressId = ref('')
 const detail = computed(() => buildMarketState({ listings: [listing.value] }).listings[0] || {})
 const addressOptions = computed(() => (Array.isArray(addresses.value) ? addresses.value : []))
 
-function buildRequestId() {
-  if (globalThis.crypto?.randomUUID) return `market:order:${globalThis.crypto.randomUUID()}`
-  return `market:order:${Date.now()}`
-}
-
 async function loadDetail() {
   loading.value = true
   error.value = ''
@@ -133,7 +128,6 @@ async function submitOrder() {
   error.value = ''
   try {
     await createMarketOrder({
-      requestId: buildRequestId(),
       listingId,
       quantity: Math.max(1, Number(quantity.value || 1)),
       addressId

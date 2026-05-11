@@ -69,7 +69,6 @@ class OssObjectControllerTest {
                                   "contentType": "image/png",
                                   "contentLength": 6,
                                   "checksumSha256": "sha256-avatar",
-                                  "aliasKey": "avatar/7/0123456789abcdef0123456789abcdef",
                                   "actorId": "7"
                                 }
                                 """))
@@ -217,7 +216,9 @@ class OssObjectControllerTest {
     @Test
     void publicFileDownloadShouldPreserveContentHeaders() throws Exception {
         ObjectQueryApplicationService queryService = mock(ObjectQueryApplicationService.class);
-        when(queryService.resolvePublicFile("avatar/7/0123456789abcdef0123456789abcdef")).thenReturn(new ObjectDownloadResult(
+        UUID objectId = uuid(1);
+        UUID versionId = uuid(2);
+        when(queryService.resolvePublicFile(objectId + "/" + versionId + "/avatar.png")).thenReturn(new ObjectDownloadResult(
                 new ByteArrayInputStream("avatar".getBytes()),
                 "image/png",
                 6,
@@ -233,7 +234,7 @@ class OssObjectControllerTest {
                 mock(ObjectLifecycleApplicationService.class)
         );
 
-        mvc.perform(get("/files/avatar/7/0123456789abcdef0123456789abcdef"))
+        mvc.perform(get("/files/" + objectId + "/" + versionId + "/avatar.png"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "image/png"))
                 .andExpect(header().string("ETag", "\"etag-1\""))

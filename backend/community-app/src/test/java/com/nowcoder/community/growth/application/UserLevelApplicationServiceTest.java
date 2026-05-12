@@ -87,16 +87,16 @@ class UserLevelApplicationServiceTest {
     }
 
     @Test
-    void evaluateLevelShouldFallbackToDefaultWhenPersistedConfigIsInvalid() {
+    void evaluateLevelShouldRejectInvalidPersistedConfig() {
         LocalDate bizDate = LocalDate.of(2026, 4, 2);
         UUID userId = uuid(10);
         UUID updatedBy = uuid(1002);
         insertCheckIns(userId, bizDate, 12);
-        assertFallbackToDefaultForInvalidConfig(0, 12, 88, true, updatedBy, userId, bizDate);
-        assertFallbackToDefaultForInvalidConfig(100, 0, 88, true, updatedBy, userId, bizDate);
-        assertFallbackToDefaultForInvalidConfig(100, 12, 0, true, updatedBy, userId, bizDate);
-        assertFallbackToDefaultForInvalidConfig(100, 88, 88, true, updatedBy, userId, bizDate);
-        assertFallbackToDefaultForInvalidConfig(50, 12, 88, true, updatedBy, userId, bizDate);
+        assertInvalidConfigRejected(0, 12, 88, true, updatedBy, userId, bizDate);
+        assertInvalidConfigRejected(100, 0, 88, true, updatedBy, userId, bizDate);
+        assertInvalidConfigRejected(100, 12, 0, true, updatedBy, userId, bizDate);
+        assertInvalidConfigRejected(100, 88, 88, true, updatedBy, userId, bizDate);
+        assertInvalidConfigRejected(50, 12, 88, true, updatedBy, userId, bizDate);
     }
 
     @Test
@@ -199,7 +199,7 @@ class UserLevelApplicationServiceTest {
         return UUID.fromString("01965429-b34a-7000-8000-" + String.format("%012x", sequence));
     }
 
-    private void assertFallbackToDefaultForInvalidConfig(
+    private void assertInvalidConfigRejected(
             int windowDays,
             int lv2SignInDays,
             int lv3SignInDays,
@@ -215,13 +215,9 @@ class UserLevelApplicationServiceTest {
                 BinaryUuidCodec.toBytes(configId(9)), "DEFAULT", windowDays, lv2SignInDays, lv3SignInDays, enabled, BinaryUuidCodec.toBytes(updatedBy)
         );
 
-        UserLevelSummaryResult summary = service.evaluateLevelSummary(userId, bizDate);
-        assertThat(summary.enabled()).isTrue();
-        assertThat(summary.windowDays()).isEqualTo(100);
-        assertThat(summary.lv2Threshold()).isEqualTo(12);
-        assertThat(summary.lv3Threshold()).isEqualTo(88);
-        assertThat(summary.signInDaysInWindow()).isEqualTo(12);
-        assertThat(summary.userLevel()).isEqualTo(2);
+        assertThatThrownBy(() -> service.evaluateLevelSummary(userId, bizDate))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("invalid user level rule config");
     }
 
     private UpdateUserLevelConfigCommand configRequest(int windowDays, int lv2SignInDays, int lv3SignInDays, boolean enabled) {

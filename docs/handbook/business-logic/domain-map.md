@@ -45,7 +45,7 @@ Browser / Client
 
 ## message 名称说明
 
-当前主站 `community.message` 表承载站内通知语义；IM 私信和群聊主事实属于 `community-im`，因此业务阅读时不要再把 `message` 当成独立 IM owner。
+主站不再保留 `community.message` 业务表。站内通知读模型属于 notice 的 `notice_record`，IM 私信和群聊主事实属于 `community-im` / `im_core`。
 
 ## 新需求从哪里开始看
 

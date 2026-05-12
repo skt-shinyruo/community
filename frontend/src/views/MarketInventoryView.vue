@@ -2,7 +2,7 @@
   <div class="page market-page">
     <UiBreadcrumb />
 
-    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
+    <UiState v-if="error" variant="error">{{ error }}</UiState>
     <div v-else-if="loading" class="muted">正在加载库存…</div>
 
     <template v-else>
@@ -38,10 +38,10 @@
           <span class="muted">{{ message }}</span>
         </div>
 
-        <UiEmpty v-if="inventoryItems.length === 0">
+        <UiState v-if="inventoryItems.length === 0">
           暂无库存
           <template #description>提交新的卡密或兑换码后，这里会显示库存状态和失效动作。</template>
-        </UiEmpty>
+        </UiState>
 
         <div v-else class="market-order-list">
           <article v-for="item in inventoryItems" :key="item.inventoryUnitId" class="market-order-row">
@@ -70,7 +70,7 @@ import { useRoute } from 'vue-router'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {
   addMarketInventory,

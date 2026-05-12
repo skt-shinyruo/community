@@ -512,13 +512,13 @@ create table if not exists social_block (
   primary key (user_id, target_user_id)
 );
 
-create table if not exists message (
+create table if not exists notice_record (
   id binary(16) primary key,
-  from_id binary(16),
-  to_id binary(16),
-  conversation_id varchar(255),
+  sender_user_id binary(16),
+  recipient_user_id binary(16) not null,
+  topic varchar(64) not null,
   content varchar(4000),
-  status int,
+  status int not null default 0,
   create_time timestamp
 );
 
@@ -651,7 +651,7 @@ delete from social_like;
 delete from social_user_like_count;
 delete from social_follow;
 delete from social_block;
-delete from message;
+delete from notice_record;
 delete from http_idempotency;
 delete from outbox_event;
 delete from post_content_block;

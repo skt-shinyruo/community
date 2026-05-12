@@ -60,7 +60,7 @@ function mountOptions() {
         UiPageHeader: {
           template: '<header><slot name="title" /><slot name="subtitle" /><slot /></header>'
         },
-        UiEmpty: {
+        UiState: {
           props: ['type'],
           template: '<div><slot /><slot name="description" /></div>'
         },

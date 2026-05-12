@@ -8,7 +8,7 @@
         <template #subtitle>冻结钱包、回滚交易，并为后续审计收口保留统一操作面。</template>
       </UiPageHeader>
 
-      <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
+      <UiState v-if="error" variant="error">{{ error }}</UiState>
 
       <div class="wallet-admin-grid">
         <section class="wallet-admin-card">
@@ -38,10 +38,10 @@
           <span>第一版先展示本地操作摘要，完整审计查询后续接入。</span>
         </div>
 
-        <UiEmpty v-if="actions.length === 0">
+        <UiState v-if="actions.length === 0">
           暂无操作记录
           <template #description>成功提交冻结或回滚后，这里会追加一条当前会话内的摘要。</template>
-        </UiEmpty>
+        </UiState>
 
         <div v-else class="wallet-admin-log-list">
           <article v-for="item in actions" :key="item.key" class="wallet-admin-log-item">
@@ -60,7 +60,7 @@ import { freezeWallet, reverseWalletTxn } from '../api/services/walletService'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { normalizeOpaqueId } from '../utils/opaqueId'

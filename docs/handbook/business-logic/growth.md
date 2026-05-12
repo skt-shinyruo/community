@@ -96,11 +96,12 @@
 `UserLevelApplicationService.evaluateLevel(...)`：
 
 1. 读取 active 等级规则配置。
-2. 配置无效时使用默认配置：
+2. 当前配置不存在时使用开发期默认配置：
    - windowDays = 100
    - lv2SignInDays = 12
    - lv3SignInDays = 88
-3. 如果配置 disabled，返回 level 1，并标记规则未启用。
+3. 当前配置存在但无效时直接失败，不静默回退默认配置。
+4. 如果配置 disabled，返回 level 1，并标记规则未启用。
 4. 计算窗口起止日期。
 5. 统计用户在窗口内 `DAILY_CHECK_IN` 任务完成天数。
 6. `UserLevelDomainService.levelForSignInDays(...)` 计算等级。

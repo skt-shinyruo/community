@@ -16,11 +16,11 @@
         </div>
       </div>
 
-      <UiEmpty v-if="error && items.length === 0" variant="error" class="notices-state">{{ error }}</UiEmpty>
-      <UiEmpty v-else-if="items.length === 0 && !loading" class="notices-state">
+      <UiState v-if="error && items.length === 0" variant="error" class="notices-state">{{ error }}</UiState>
+      <UiState v-else-if="items.length === 0 && !loading" class="notices-state">
         暂无通知
         <template #description>当有人与你互动，或系统需要提醒你时，这里会按主题出现新的通知流。</template>
-      </UiEmpty>
+      </UiState>
       <div v-else-if="loading && items.length === 0" class="muted notices-state">正在同步通知…</div>
 
       <div v-else class="inbox-list">
@@ -92,7 +92,7 @@ import { topicSummary } from '../api/services/noticeService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 
 const emit = defineEmits(['trace'])
 const loading = ref(false)

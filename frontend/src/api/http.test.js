@@ -73,11 +73,11 @@ describe('http', () => {
 
   it('should only attach Idempotency-Key to configured write endpoints', async () => {
     const mock = new MockAdapter(http)
-    mock.onPost('/api/messages').reply((config) => {
+    mock.onPost('/api/users/batch-summary').reply((config) => {
       return [200, { idem: config.headers?.['Idempotency-Key'] || '' }]
     })
 
-    const resp = await http.post('/api/messages', { toId: 9, content: 'hello' })
+    const resp = await http.post('/api/users/batch-summary', { userIds: ['u1'] })
 
     expect(resp.data.idem).toBe('')
     mock.restore()

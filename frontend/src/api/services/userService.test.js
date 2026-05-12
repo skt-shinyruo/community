@@ -40,6 +40,53 @@ describe('api/services/userService', () => {
       username: 'alice',
       _traceId: 'trace-user'
     })
+    expect(profile.showUserLevel).toBe(false)
+    expect(profile.userLevelEnabled).toBe(false)
+  })
+
+  it('getUserProfile should show user level only when backend explicitly enables it', async () => {
+    const userId = '11111111-1111-7111-8111-111111111112'
+    mock = new MockAdapter(http)
+    mock.onGet(`/api/users/${userId}`).reply(200, {
+      code: 0,
+      message: '',
+      data: {
+        id: userId,
+        username: 'level-user',
+        userLevel: 2,
+        signInDaysInWindow: 12
+      },
+      traceId: 'trace-user-level'
+    })
+
+    const profile = await getUserProfile(userId)
+
+    expect(profile.userLevel).toBe(2)
+    expect(profile.signInDaysInWindow).toBe(12)
+    expect(profile.userLevelEnabled).toBe(false)
+    expect(profile.showUserLevel).toBe(false)
+  })
+
+  it('getUserProfile should show complete user level data when explicit flag is enabled', async () => {
+    const userId = '11111111-1111-7111-8111-111111111113'
+    mock = new MockAdapter(http)
+    mock.onGet(`/api/users/${userId}`).reply(200, {
+      code: 0,
+      message: '',
+      data: {
+        id: userId,
+        username: 'level-user',
+        userLevelEnabled: true,
+        userLevel: 3,
+        signInDaysInWindow: 88
+      },
+      traceId: 'trace-user-level'
+    })
+
+    const profile = await getUserProfile(userId)
+
+    expect(profile.userLevelEnabled).toBe(true)
+    expect(profile.showUserLevel).toBe(true)
   })
 
   it('batchUserSummary should preserve UUID ids and dedupe by original string value', async () => {

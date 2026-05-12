@@ -79,7 +79,7 @@
       </div>
     </section>
 
-    <UiEmpty v-if="error && items.length === 0" variant="error" class="search-state">{{ error }}</UiEmpty>
+    <UiState v-if="error && items.length === 0" variant="error" class="search-state">{{ error }}</UiState>
     <div v-else-if="error" class="error search-state">{{ error }}</div>
 
     <!-- Results Feed -->
@@ -93,14 +93,14 @@
         </div>
       </div>
 
-      <UiEmpty v-if="!loading && items.length === 0 && !error">
+      <UiState v-if="!loading && items.length === 0 && !error">
         暂无结果
         <template #description>换个关键词试试，或回到帖子列表浏览。</template>
         <template #actions>
           <UiButton variant="secondary" @click="router.push({ name: 'posts' })">回到帖子</UiButton>
           <UiButton variant="ghost" @click="clearSearch" :disabled="loading">清空</UiButton>
         </template>
-      </UiEmpty>
+      </UiState>
       <div v-else-if="loading && items.length === 0" class="muted">加载中…</div>
 
       <div v-else class="search-result-list">
@@ -221,7 +221,7 @@ import { createLatestRequestTracker } from '../utils/latestRequest'
 import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiSelect from '../components/ui/UiSelect.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiToolbar from '../components/ui/UiToolbar.vue'

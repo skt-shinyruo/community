@@ -16,7 +16,7 @@
 
       <div v-if="error" class="error post-detail-state">{{ error }}</div>
       <div v-else-if="loading" class="muted post-detail-state">加载中…</div>
-      <UiEmpty v-else-if="!post" class="post-detail-state">暂无数据</UiEmpty>
+      <UiState v-else-if="!post" class="post-detail-state">暂无数据</UiState>
 
       <div v-else class="post-detail-layout">
         <article class="post-article-card">
@@ -144,7 +144,7 @@
           <div v-if="commentsError" class="error post-comments-error">{{ commentsError }}</div>
 
           <div class="post-comments-body">
-            <UiEmpty v-if="!commentsLoading && comments.length === 0 && !commentsError">暂无评论</UiEmpty>
+            <UiState v-if="!commentsLoading && comments.length === 0 && !commentsError">暂无评论</UiState>
             <div v-else-if="commentsLoading && comments.length === 0" class="muted">加载中…</div>
             <div v-else class="post-comment-thread-list">
               <div
@@ -326,7 +326,7 @@
     </UiCard>
 
     <UiCard v-else>
-      <UiEmpty>登录后可点赞、评论、回复与关注。</UiEmpty>
+      <UiState>登录后可点赞、评论、回复与关注。</UiState>
     </UiCard>
 
     <UiModalConfirm
@@ -367,7 +367,7 @@ import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiUserCard from '../components/ui/UiUserCard.vue'
 import UiMarkdown from '../components/ui/UiMarkdown.vue'
 import UiPagination from '../components/ui/UiPagination.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiIconButton from '../components/ui/UiIconButton.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'

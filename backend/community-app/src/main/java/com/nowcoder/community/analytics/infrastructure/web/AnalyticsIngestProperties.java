@@ -13,7 +13,7 @@ public class AnalyticsIngestProperties {
     private boolean enabled = false;
     private boolean recordUv = true;
     private boolean recordDau = true;
-    private List<String> includePaths = new ArrayList<>(List.of("/api/posts/**", "/api/search/**", "/api/messages/**", "/api/notices/**"));
+    private List<String> includePaths = new ArrayList<>(List.of("/api/posts/**", "/api/search/**", "/api/notices/**"));
     private List<String> excludePaths = new ArrayList<>(List.of("/api/analytics/**", "/api/auth/**", "/api/ops/**", "/actuator/**", "/internal/**", "/files/**"));
 
     public boolean isEnabled() {

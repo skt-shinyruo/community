@@ -2,7 +2,7 @@
   <div class="page bookmarks-page">
     <UiBreadcrumb />
 
-    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
+    <UiState v-if="error" variant="error">{{ error }}</UiState>
     <div v-else-if="loading" class="muted bookmarks-state">正在加载收藏内容…</div>
 
     <UiCard class="bookmarks-shell" v-else>
@@ -17,10 +17,10 @@
       </div>
 
       <div class="bookmarks-list">
-        <UiEmpty v-if="items.length === 0" class="bookmarks-empty">
+        <UiState v-if="items.length === 0" class="bookmarks-empty">
           暂无收藏
           <template #description>你收藏过的帖子会出现在这里，适合作为稍后继续阅读的个人清单。</template>
-        </UiEmpty>
+        </UiState>
 
         <article v-for="p in items" :key="p.id" class="bookmark-item" @click="openPost(p)">
           <div class="bookmark-head">
@@ -83,7 +83,7 @@ import UiBadge from '../components/ui/UiBadge.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { listBookmarks } from '../api/services/bookmarkService'
 import { useTaxonomyStore } from '../stores/taxonomy'

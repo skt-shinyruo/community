@@ -7,7 +7,7 @@
       <template #subtitle>卖家关注的是交付和争议。卖家列表聚焦待交付和争议中的订单，不再只给静态说明。</template>
     </UiPageHeader>
 
-    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
+    <UiState v-if="error" variant="error">{{ error }}</UiState>
     <div v-else-if="loading" class="muted">正在加载出售订单…</div>
 
     <section v-else class="market-list-shell">
@@ -19,10 +19,10 @@
         <span class="market-summary">{{ state.orders.length }} 笔订单</span>
       </header>
 
-      <UiEmpty v-if="state.orders.length === 0">
+      <UiState v-if="state.orders.length === 0">
         暂无出售订单
         <template #description>有买家下单后，这里会显示卖家要处理的订单状态和金额。</template>
-      </UiEmpty>
+      </UiState>
 
       <div v-else class="market-order-list">
         <RouterLink
@@ -46,7 +46,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { listSellingMarketOrders } from '../api/services/marketService'
 import { buildMarketState } from './marketState'

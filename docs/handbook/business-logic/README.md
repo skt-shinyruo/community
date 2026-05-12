@@ -26,7 +26,7 @@
 
 ## 单域详解
 
-当前 active 业务域以 `backend/community-app` 的 `auth`、`user`、`content`、`social`、`notice`、`search`、`analytics`、`growth`、`market`、`wallet`、`drive`、`ops`、`im` 包，以及 `backend/community-im/*` 的 IM 模块为准。主站 `community.message` 表现在承载站内通知语义，IM 私信和群聊主事实在 `community-im`，因此不再单独写一篇 `message` 业务域文档。
+当前 active 业务域以 `backend/community-app` 的 `auth`、`user`、`content`、`social`、`notice`、`search`、`analytics`、`growth`、`market`、`wallet`、`drive`、`ops`、`im` 包，以及 `backend/community-im/*` 的 IM 模块为准。站内通知读模型在 notice 的 `notice_record`，IM 私信和群聊主事实在 `community-im`，因此不再单独写一篇 `message` 业务域文档。
 
 | 业务域 | 文档 | 覆盖内容 |
 | --- | --- | --- |

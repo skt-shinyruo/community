@@ -32,7 +32,7 @@ services:
     - ./mysql/community/033_schema_growth_task.sql:/docker-entrypoint-initdb.d/033_schema_growth_task.sql:ro
     - ./mysql/community/040_schema_content_core.sql:/docker-entrypoint-initdb.d/040_schema_content_core.sql:ro
     - ./mysql/community/050_schema_social.sql:/docker-entrypoint-initdb.d/050_schema_social.sql:ro
-    - ./mysql/community/060_schema_message.sql:/docker-entrypoint-initdb.d/060_schema_message.sql:ro
+    - ./mysql/community/060_schema_notice.sql:/docker-entrypoint-initdb.d/060_schema_notice.sql:ro
     - ./mysql/community/070_schema_im_core.sql:/docker-entrypoint-initdb.d/070_schema_im_core.sql:ro
     - ./mysql/community/080_schema_search.sql:/docker-entrypoint-initdb.d/080_schema_search.sql:ro
     - ./mysql/community/090_schema_drive.sql:/docker-entrypoint-initdb.d/090_schema_drive.sql:ro

@@ -10,8 +10,8 @@
       </UiPageHeader>
     </UiCard>
 
-    <UiEmpty v-if="!auth.isAdminOrModerator" variant="error" class="analytics-state">无权限访问</UiEmpty>
-    <UiEmpty v-else-if="error" variant="error" class="analytics-state">{{ error }}</UiEmpty>
+    <UiState v-if="!auth.isAdminOrModerator" variant="error" class="analytics-state">无权限访问</UiState>
+    <UiState v-else-if="error" variant="error" class="analytics-state">{{ error }}</UiState>
 
     <div v-else class="analytics-layout">
       <UiCard class="analytics-filter-card">
@@ -75,7 +75,7 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiInput from '../components/ui/UiInput.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 
 const emit = defineEmits(['trace'])
 const auth = useAuthStore()

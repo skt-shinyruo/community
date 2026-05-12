@@ -27,7 +27,7 @@
       </div>
     </div>
 
-    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
+    <UiState v-if="error" variant="error">{{ error }}</UiState>
     <div v-else-if="loading && !ready" class="muted wallet-state">正在加载钱包…</div>
 
     <div v-else class="wallet-layout">
@@ -74,10 +74,10 @@
           <template #subtitle>第一版先保留本次会话里成功提交的钱包动作，后续再接入完整流水查询。</template>
         </UiPageHeader>
 
-        <UiEmpty v-if="state.feed.length === 0">
+        <UiState v-if="state.feed.length === 0">
           暂无交易记录
           <template #description>成功提交充值、提现或转账后，这里会立刻追加一条钱包交易摘要。</template>
-        </UiEmpty>
+        </UiState>
 
         <div v-else class="wallet-feed">
           <article v-for="item in state.feed" :key="item.key" class="wallet-feed-item">
@@ -106,7 +106,7 @@ import {
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { isUuid, normalizeOpaqueId } from '../utils/opaqueId'

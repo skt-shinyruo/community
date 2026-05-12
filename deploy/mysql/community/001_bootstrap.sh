@@ -14,7 +14,7 @@ SCHEMA_FILES=(
   033_schema_growth_task.sql
   040_schema_content_core.sql
   050_schema_social.sql
-  060_schema_message.sql
+  060_schema_notice.sql
   070_schema_im_core.sql
   080_schema_search.sql
   090_seed_identity.sql

@@ -38,6 +38,18 @@ describe('UiState', () => {
     expect(wrapper.find('button').text()).toBe('重试')
   })
 
+  it('uses default slot text as title when title prop is omitted', () => {
+    const wrapper = mount(UiState, {
+      slots: {
+        default: '暂无通知',
+        description: '当前没有新的通知。'
+      }
+    })
+
+    expect(wrapper.text()).toContain('暂无通知')
+    expect(wrapper.text()).toContain('当前没有新的通知。')
+  })
+
   it('marks development-only state explicitly', () => {
     const wrapper = mount(UiState, {
       props: {

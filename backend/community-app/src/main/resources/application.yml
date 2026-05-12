@@ -154,16 +154,6 @@ oss:
   client:
     base-url: ${OSS_CLIENT_BASE_URL:http://community-oss:18090}
 
-message:
-  idempotency:
-    cleanup-enabled: true
-    retention-days: 7
-    cleanup-interval-ms: 21600000
-  user-lookup:
-    resolve-cache:
-      ttl: 60s
-      max-size: 5000
-
 search:
   storage: es
   idempotency:
@@ -182,7 +172,6 @@ analytics:
     include-paths:
       - /api/posts/**
       - /api/search/**
-      - /api/messages/**
       - /api/notices/**
     exclude-paths:
       - /api/analytics/**

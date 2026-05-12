@@ -25,7 +25,7 @@ function mountView() {
           emits: ['click'],
           template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
         },
-        UiEmpty: { template: '<div><slot /><slot name="description" /></div>' },
+        UiState: { template: '<div><slot /><slot name="description" /></div>' },
         UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot /></header>' }
       }
     }

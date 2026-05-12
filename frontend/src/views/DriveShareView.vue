@@ -9,7 +9,7 @@
       </template>
     </UiPageHeader>
 
-    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
+    <UiState v-if="error" variant="error">{{ error }}</UiState>
     <div v-else-if="loading" class="muted">正在加载分享…</div>
 
     <UiCard v-else class="drive-share-card">
@@ -51,7 +51,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {

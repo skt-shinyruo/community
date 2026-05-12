@@ -444,7 +444,7 @@ Owner / SSOT：
 
 - notice 是从内容、社交、治理事件派生出的站内通知读模型。
 - notice 不是内容、社交或治理主事实。
-- 存储复用 `community.message` 表承载站内通知语义，不再承载 IM 私信 SSOT。
+- 存储使用 `community.notice_record`，不复用 IM 或旧 message 表语义。
 
 Entry：
 
@@ -647,7 +647,7 @@ Current state：
 
 - 当前 analytics 对外 HTTP 面主要是查询，不是任意客户端埋点写入。
 - `analytics.ingest.enabled` 默认为 `false`；未开启时 filter 直接跳过采集。
-- 默认采集路径包括 `/api/posts/**`、`/api/search/**`、`/api/messages/**`、`/api/notices/**`。
+- 默认采集路径包括 `/api/posts/**`、`/api/search/**`、`/api/notices/**`。
 - 默认排除 `/api/analytics/**`、`/api/auth/**`、`/api/ops/**`、`/actuator/**`、`/internal/**`、`/files/**`。
 - `OPTIONS` 和 HTTP `5xx` 响应不采集。
 
@@ -1020,6 +1020,7 @@ Search reindex：
 - HTTP 和 XXL 走同一个 search action / application service。
 - Redis-backed single-flight 防并发。
 - alias 原子切换保证搜索服务不中断。
+- 已存在 alias 的 mapping 必须满足当前必需字段；不满足时启动失败，不做静默兼容迁移。
 
 Failure：
 

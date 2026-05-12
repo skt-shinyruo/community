@@ -78,7 +78,7 @@ describe('SearchView', () => {
       global: {
         plugins: [pinia],
         stubs: {
-          UiEmpty: true
+          UiState: true
         }
       }
     })

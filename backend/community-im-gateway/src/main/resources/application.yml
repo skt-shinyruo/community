@@ -28,7 +28,6 @@ im:
   gateway:
     cors:
       allowed-origins: ${IM_GATEWAY_CORS_ALLOWED_ORIGINS:}
-    public-ws-path: ${IM_GATEWAY_PUBLIC_WS_PATH:}
     public-ws-url: ${IM_GATEWAY_PUBLIC_WS_URL:}
     session:
       ticket-ttl: ${IM_SESSION_TICKET_TTL:PT2M}

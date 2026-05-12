@@ -32,7 +32,7 @@ schema：
 | `auth_refresh_token` | refresh token 状态，仅存 token hash |
 | `discuss_post` | 帖子 |
 | `comment` | 评论 / 回复 |
-| `message` | 主站站内通知样例，不再是 IM 私信 SSOT |
+| `notice_record` | 站内通知读模型、topic、未读状态和内容快照 |
 | `report` / `moderation_action` | 举报与治理动作 |
 | `social_like` / `social_follow` | 点赞与关注关系 |
 | `http_idempotency` | HTTP 写接口幂等状态 |
@@ -83,7 +83,7 @@ schema：
 | `im_private_message` | 私信消息，按 conversation seq 排序 |
 | `im_conversation_read_state` | 私信已读水位 |
 
-IM 消息权威状态在 `im_core`，不是 `community.message`。
+IM 消息权威状态在 `im_core`，主站通知读模型在 `community.notice_record`。
 
 ## 本地种子数据
 
@@ -126,7 +126,7 @@ analytics 主要用 Redis HyperLogLog / Bitmap：
 
 - UV：按日期记录 HyperLogLog。
 - DAU：把 UUID 映射为 analytics-only 整数 ordinal 后写入当日 Bitmap。
-- 采集开关和路径由 `analytics.ingest.*` 控制；默认 include 包含 `/api/posts/**`、`/api/search/**`、`/api/messages/**`、`/api/notices/**`，exclude 包含 `/internal/**` 和 `/files/**`。
+- 采集开关和路径由 `analytics.ingest.*` 控制；默认 include 包含 `/api/posts/**`、`/api/search/**`、`/api/notices/**`，exclude 包含 `/internal/**` 和 `/files/**`。
 
 具体 key 以代码常量和配置为准。
 
@@ -191,7 +191,7 @@ owner-domain async contracts：
 | managed index prefix | `community_posts_v` |
 | versioned index | `community_posts_vYYYYMMDDHHmmss[_n]` |
 
-本地 compose 的 `es-init` 只等待 ES ready，不创建业务索引。运行时 `PostIndexManager` 负责创建带 mapping 的版本化索引，并将 `community_posts_alias` 指向该索引。搜索读写只通过 alias 访问。
+本地 compose 的 `es-init` 只等待 ES ready，不创建业务索引。运行时 `PostIndexManager` 会在 alias 不存在时创建带 mapping 的版本化索引，并将 `community_posts_alias` 指向该索引；如果已有 alias 的 mapping 缺少当前必需字段，启动直接失败。搜索读写只通过 alias 访问。
 
 ES 文档 `EsPostDocument` 字段：
 

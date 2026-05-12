@@ -16,12 +16,12 @@
         </div>
       </div>
 
-      <UiEmpty v-if="error && items.length === 0" variant="error" class="conversations-empty">{{ error }}</UiEmpty>
+      <UiState v-if="error && items.length === 0" variant="error" class="conversations-empty">{{ error }}</UiState>
       <div v-else-if="loading && items.length === 0" class="muted conversations-state">正在整理你的收件箱…</div>
-      <UiEmpty v-else-if="items.length === 0" class="conversations-empty">
+      <UiState v-else-if="items.length === 0" class="conversations-empty">
         暂无会话
         <template #description>当有人与你发起私信后，这里会显示最新线程和未读状态。</template>
-      </UiEmpty>
+      </UiState>
 
       <div v-else class="conv-list">
         <RouterLink
@@ -66,7 +66,7 @@ import { listImConversations } from '../api/services/imCoreChatService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 
 const emit = defineEmits(['trace'])

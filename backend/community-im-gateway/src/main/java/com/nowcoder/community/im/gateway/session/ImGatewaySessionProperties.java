@@ -9,23 +9,10 @@ public class ImGatewaySessionProperties {
 
     private static final String DEFAULT_WS_PATH = "/ws/im";
 
-    private String publicWsPath = "";
     private String publicWsUrl = "";
     private final Session session = new Session();
     private final Worker worker = new Worker();
     private final Ws ws = new Ws();
-
-    public String getPublicWsPath() {
-        return publicWsPath;
-    }
-
-    public void setPublicWsPath(String publicWsPath) {
-        this.publicWsPath = publicWsPath;
-    }
-
-    public boolean hasExplicitPublicWsPath() {
-        return publicWsPath != null && !publicWsPath.trim().isEmpty();
-    }
 
     public String getPublicWsUrl() {
         return publicWsUrl;

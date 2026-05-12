@@ -44,7 +44,7 @@ function mountView() {
           emits: ['update:modelValue'],
           template: '<input v-bind="$attrs" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
         },
-        UiEmpty: { template: '<div><slot /><slot name="description" /></div>' }
+        UiState: { template: '<div><slot /><slot name="description" /></div>' }
       }
     }
   })

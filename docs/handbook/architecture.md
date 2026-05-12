@@ -51,7 +51,7 @@ flowchart TD
 | 内容 | `/api/posts/**`, `/api/bookmarks`, `/api/categories/**`, `/api/tags/**` | `content` | `community-app` |
 | 举报与治理 | `/api/reports/**`, `/api/moderation/**` | `content` + `user` | `community-app` |
 | 社交 | `/api/likes/**`, `/api/follows/**`, `/api/blocks/**` | `social` | `community-app` |
-| 通知 | `/api/notices/**` | `notice`，复用 `community.message` 承载站内通知 | `community-app` |
+| 通知 | `/api/notices/**` | `notice` + `notice_record` 读模型 | `community-app` |
 | 搜索 | `/api/search/**` | `search` + ES alias/index | `community-app` |
 | analytics | `/api/analytics/**` | `analytics` + Redis | `community-app` |
 | growth | 当前无独立前台 HTTP 面 | `growth` 任务/等级底座 | owner API / event |
@@ -96,7 +96,7 @@ com.nowcoder.community.<domain>
 
 - `frontend/` 不承载后端 owner 规则。前端可以做交互校验、表单规范化、pending 状态展示和 refresh retry，但不能把浏览器字段当作 owner 事实来源。
 - `community-gateway` 是入口和路由层，不承载主业务用例。新增浏览器入口、CORS、WebSocket proxy 或 trace 规则时，应保持 gateway-first，但业务授权和 owner 规则仍回到下游服务。
-- `community-im` 独立承担 IM 消息权威状态和 realtime 连接态，不把私信/群消息塞回 `community-app` 的 `message` 表。
+- `community-im` 独立承担 IM 消息权威状态和 realtime 连接态；主站通知读模型单独使用 `notice_record`。
 - `community-common/*` 只能提供横切基础设施，不定义具体业务域 owner 语义。
 - `deploy/` 和本地控制面只能描述运行拓扑和 dev-only 能力，不能成为业务规则来源。
 

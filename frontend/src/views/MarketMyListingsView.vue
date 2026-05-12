@@ -11,7 +11,7 @@
       </template>
     </UiPageHeader>
 
-    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
+    <UiState v-if="error" variant="error">{{ error }}</UiState>
     <div v-else-if="loading" class="muted">正在加载我的出售商品…</div>
 
     <section v-else class="market-list-shell">
@@ -23,10 +23,10 @@
         <span class="market-summary">{{ state.listings.length }} 个商品</span>
       </header>
 
-      <UiEmpty v-if="state.listings.length === 0">
+      <UiState v-if="state.listings.length === 0">
         暂无出售商品
         <template #description>创建商品后，这里会显示交付方式、库存状态和管理入口。</template>
-      </UiEmpty>
+      </UiState>
 
       <div v-else class="market-list">
         <article v-for="item in state.listings" :key="item.listingId" class="market-row">
@@ -60,7 +60,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { listMyMarketListings } from '../api/services/marketService'
 import { buildMarketState } from './marketState'

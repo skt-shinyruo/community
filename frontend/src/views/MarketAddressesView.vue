@@ -2,7 +2,7 @@
   <div class="page market-page">
     <UiBreadcrumb />
 
-    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
+    <UiState v-if="error" variant="error">{{ error }}</UiState>
     <div v-else-if="loading" class="muted">正在加载地址簿…</div>
 
     <template v-else>
@@ -55,10 +55,10 @@
           <span class="muted">{{ message }}</span>
         </div>
 
-        <UiEmpty v-if="state.addresses.length === 0">
+        <UiState v-if="state.addresses.length === 0">
           暂无收货地址
           <template #description>创建第一条地址后，实物商品详情页就可以直接选择它下单。</template>
-        </UiEmpty>
+        </UiState>
 
         <div v-else class="market-admin-list">
           <article v-for="item in state.addresses" :key="item.addressId" class="market-admin-row">
@@ -83,7 +83,7 @@ import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {

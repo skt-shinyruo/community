@@ -92,7 +92,6 @@ analytics:
     include-paths:
       - /api/posts/**
       - /api/search/**
-      - /api/messages/**
       - /api/notices/**
     exclude-paths:
       - /api/analytics/**
@@ -100,11 +99,6 @@ analytics:
       - /actuator/**
       - /internal/**
       - /files/**
-
-message:
-  idempotency:
-    cleanup-enabled: false
-    retention-days: 1
 
 clients:
   user:

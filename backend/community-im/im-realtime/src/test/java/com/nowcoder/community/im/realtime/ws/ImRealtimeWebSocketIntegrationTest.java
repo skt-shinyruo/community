@@ -78,7 +78,6 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.cloud.nacos.discovery.enabled=false",
         "im.projection.bootstrap-on-startup=false",
         "im.session.worker-id=worker-a",
-        "im.edge.mode=internal-worker",
         "im.ws.path=/internal/ws/im",
         "im.ws.kafka-send-timeout-ms=1000"
 })

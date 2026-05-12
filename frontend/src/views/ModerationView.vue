@@ -16,7 +16,7 @@
         <UiButton :variant="tab === 'actions' ? 'primary' : 'secondary'" @click="tab = 'actions'">处置审计</UiButton>
       </div>
 
-      <UiEmpty v-if="error" variant="error" class="moderation-state">{{ error }}</UiEmpty>
+      <UiState v-if="error" variant="error" class="moderation-state">{{ error }}</UiState>
       <div v-else-if="loading" class="muted moderation-loading">加载中…</div>
 
       <div v-else class="moderation-body">
@@ -32,7 +32,7 @@
             />
           </div>
 
-          <UiEmpty v-if="reports.length === 0">暂无举报</UiEmpty>
+          <UiState v-if="reports.length === 0">暂无举报</UiState>
 
           <div v-else class="moderation-list">
             <div v-for="r in reports" :key="r.id" class="card flat report-row moderation-report-card">
@@ -69,7 +69,7 @@
         </template>
 
         <template v-else>
-          <UiEmpty v-if="actions.length === 0">暂无处置记录</UiEmpty>
+          <UiState v-if="actions.length === 0">暂无处置记录</UiState>
 
           <div v-else class="moderation-list">
             <div v-for="a in actions" :key="a.id" class="card flat moderation-action-card">
@@ -166,7 +166,7 @@ import UiBadge from '../components/ui/UiBadge.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiIconButton from '../components/ui/UiIconButton.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'

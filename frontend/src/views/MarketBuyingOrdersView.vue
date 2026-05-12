@@ -7,7 +7,7 @@
       <template #subtitle>托管、交付、确认、申诉一屏看清。这里只展示当前账号的买单，优先把请求号、状态和金额看清。</template>
     </UiPageHeader>
 
-    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
+    <UiState v-if="error" variant="error">{{ error }}</UiState>
     <div v-else-if="loading" class="muted">正在加载购买订单…</div>
 
     <section v-else class="market-list-shell">
@@ -19,10 +19,10 @@
         <span class="market-summary">{{ state.orders.length }} 笔订单</span>
       </header>
 
-      <UiEmpty v-if="state.orders.length === 0">
+      <UiState v-if="state.orders.length === 0">
         暂无购买订单
         <template #description>完成下单后，这里会显示请求号、状态和自动确认信息。</template>
-      </UiEmpty>
+      </UiState>
 
       <div v-else class="market-order-list">
         <RouterLink
@@ -46,7 +46,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { listBuyingMarketOrders } from '../api/services/marketService'
 import { buildMarketState } from './marketState'

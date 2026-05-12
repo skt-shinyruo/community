@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
@@ -61,30 +62,23 @@ class PostIndexManagerTest {
     }
 
     @Test
-    void ensureAliasReadyShouldCreateVersionedIndexWhenAliasMappingIsMissingSortField() {
+    void ensureAliasReadyShouldRejectExistingAliasWhenMappingIsMissingRequiredField() {
         ElasticsearchOperations operations = mock(ElasticsearchOperations.class);
         IndexOperations aliasOps = mock(IndexOperations.class);
-        IndexOperations wildcardOps = mock(IndexOperations.class);
-        IndexOperations targetOps = mock(IndexOperations.class);
-        Document expectedMapping = Document.create();
         when(operations.indexOps(EsPostDocument.class)).thenReturn(aliasOps);
-        when(operations.indexOps(argThat((IndexCoordinates coordinates) -> hasIndexName(coordinates, "community_posts_v*"))))
-                .thenReturn(wildcardOps);
-        when(operations.indexOps(argThat((IndexCoordinates coordinates) -> hasVersionedIndexName(coordinates))))
-                .thenReturn(targetOps);
         when(aliasOps.exists()).thenReturn(true);
         when(aliasOps.getMapping()).thenReturn(mappingWithFields(
                 "postId", "title", "content", "categoryId", "tags", "createTime"
         ));
-        when(wildcardOps.exists()).thenReturn(false);
-        when(targetOps.exists()).thenReturn(false);
-        when(aliasOps.createMapping()).thenReturn(expectedMapping);
 
-        new PostIndexManager(operations, "community_posts_v").ensureAliasReady();
+        assertThatThrownBy(() -> new PostIndexManager(operations, "community_posts_v").ensureAliasReady())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("community_posts_alias")
+                .hasMessageContaining("score");
 
-        verify(targetOps).create();
-        verify(targetOps).putMapping(expectedMapping);
-        verify(targetOps).alias(any(AliasActions.class));
+        verify(aliasOps).exists();
+        verify(aliasOps).getMapping();
+        verify(operations, never()).indexOps(argThat((IndexCoordinates coordinates) -> hasVersionedIndexName(coordinates)));
     }
 
     @Test

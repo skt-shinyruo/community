@@ -20,17 +20,16 @@ class PublicWsUrlFactoryTest {
     }
 
     @Test
-    void shouldDeriveWsUrlFromForwardedHeaders() {
+    void shouldRejectMissingConfiguredPublicWsUrl() {
         ImGatewaySessionProperties properties = new ImGatewaySessionProperties();
-        properties.setPublicWsPath("/ws/im");
         PublicWsUrlFactory factory = new PublicWsUrlFactory(properties);
 
-        String url = factory.build(MockServerHttpRequest.post("http://community-im-gateway:18083/api/im/sessions")
+        assertThatThrownBy(() -> factory.build(MockServerHttpRequest.post("http://community-im-gateway:18083/api/im/sessions")
                 .header("X-Forwarded-Proto", "https")
                 .header("X-Forwarded-Host", "community.example")
-                .build());
-
-        assertThat(url).isEqualTo("wss://community.example/ws/im");
+                .build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("publicWsUrl");
     }
 
     @Test
@@ -45,9 +44,9 @@ class PublicWsUrlFactoryTest {
     }
 
     @Test
-    void shouldFallbackToRequestAuthorityWhenForwardedHostIsInvalid() {
+    void shouldIgnoreRequestAuthorityWhenConfiguredPublicWsUrlIsPresent() {
         ImGatewaySessionProperties properties = new ImGatewaySessionProperties();
-        properties.setPublicWsPath("/ws/im");
+        properties.setPublicWsUrl("ws://localhost:12880/ws/im");
         PublicWsUrlFactory factory = new PublicWsUrlFactory(properties);
 
         String url = factory.build(MockServerHttpRequest.post("http://community-im-gateway:18083/api/im/sessions")
@@ -55,36 +54,7 @@ class PublicWsUrlFactoryTest {
                 .header("X-Forwarded-Host", "attacker.example/path?ticket=leak")
                 .build());
 
-        assertThat(url).isEqualTo("wss://community-im-gateway:18083/ws/im");
+        assertThat(url).isEqualTo("ws://localhost:12880/ws/im");
         assertThat(url).doesNotContain("attacker.example");
-    }
-
-    @Test
-    void shouldUseMappedWsPathWhenPublicWsPathIsNotExplicit() {
-        ImGatewaySessionProperties properties = new ImGatewaySessionProperties();
-        properties.getWs().setPath("/custom/ws");
-        PublicWsUrlFactory factory = new PublicWsUrlFactory(properties);
-
-        String url = factory.build(MockServerHttpRequest.post("http://community-im-gateway:18083/api/im/sessions")
-                .header("X-Forwarded-Proto", "https")
-                .header("X-Forwarded-Host", "community.example")
-                .build());
-
-        assertThat(url).isEqualTo("wss://community.example/custom/ws");
-    }
-
-    @Test
-    void shouldPreferExplicitPublicWsPathOverMappedWsPath() {
-        ImGatewaySessionProperties properties = new ImGatewaySessionProperties();
-        properties.getWs().setPath("/custom/ws");
-        properties.setPublicWsPath("/public/ws");
-        PublicWsUrlFactory factory = new PublicWsUrlFactory(properties);
-
-        String url = factory.build(MockServerHttpRequest.post("http://community-im-gateway:18083/api/im/sessions")
-                .header("X-Forwarded-Proto", "https")
-                .header("X-Forwarded-Host", "community.example")
-                .build());
-
-        assertThat(url).isEqualTo("wss://community.example/public/ws");
     }
 }

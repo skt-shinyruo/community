@@ -45,6 +45,7 @@ class ImSessionApiIntegrationTest {
         registry.add("security.jwt.issuer", () -> "community-auth");
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("im.gateway.ws.path", () -> "/custom/ws/im");
+        registry.add("im.gateway.public-ws-url", () -> "ws://localhost:12880/custom/ws/im");
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].uri",
                 () -> "http://127.0.0.1:18081");
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.workerId",
@@ -56,7 +57,7 @@ class ImSessionApiIntegrationTest {
     }
 
     @Test
-    void shouldReturnMappedWsUrlAndTicketWhenPublicWsPathIsNotConfigured() {
+    void shouldReturnConfiguredWsUrlAndTicket() {
         double openedBefore = counterValue("community.im.gateway.session.opened");
 
         webTestClient.post()
@@ -66,7 +67,7 @@ class ImSessionApiIntegrationTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.data.workerId").doesNotExist()
-                .jsonPath("$.data.wsUrl").isEqualTo("ws://localhost:" + localPort + "/custom/ws/im")
+                .jsonPath("$.data.wsUrl").isEqualTo("ws://localhost:12880/custom/ws/im")
                 .jsonPath("$.data.ticket").isNotEmpty();
 
         assertThat(counterValue("community.im.gateway.session.opened")).isEqualTo(openedBefore + 1.0);

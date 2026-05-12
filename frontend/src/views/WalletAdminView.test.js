@@ -29,7 +29,7 @@ describe('WalletAdminView', () => {
         stubs: {
           UiBreadcrumb: true,
           UiCard: { template: '<div><slot /></div>' },
-          UiEmpty: { template: '<div><slot /><slot name="description" /></div>' },
+          UiState: { template: '<div><slot /><slot name="description" /></div>' },
           UiPageHeader: { template: '<div><slot /><slot name="title" /><slot name="subtitle" /></div>' },
           UiButton: {
             props: ['disabled'],

@@ -45,7 +45,7 @@ class NoticeApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.update("delete from message");
+        jdbcTemplate.update("delete from notice_record");
         noticeService = new NoticeApplicationService(new MyBatisNoticeRepository(noticeMapper));
     }
 
@@ -55,7 +55,7 @@ class NoticeApplicationServiceTest {
         noticeService.createNotice(new CreateNoticeCommand(recipientUserId, "comment", "{\"eventId\":\"evt-1\"}"));
 
         byte[] fromId = jdbcTemplate.queryForObject(
-                "select from_id from message where to_id = ? and conversation_id = ?",
+                "select sender_user_id from notice_record where recipient_user_id = ? and topic = ?",
                 (rs, rowNum) -> rs.getBytes(1),
                 BinaryUuidCodec.toBytes(recipientUserId),
                 "comment"
@@ -63,7 +63,7 @@ class NoticeApplicationServiceTest {
 
         assertThat(BinaryUuidCodec.fromBytes(fromId)).isEqualTo(ZERO_UUID);
         byte[] noticeId = jdbcTemplate.queryForObject(
-                "select id from message where to_id = ? and conversation_id = ?",
+                "select id from notice_record where recipient_user_id = ? and topic = ?",
                 (rs, rowNum) -> rs.getBytes(1),
                 BinaryUuidCodec.toBytes(recipientUserId),
                 "comment"
@@ -74,9 +74,9 @@ class NoticeApplicationServiceTest {
     @Test
     void listNoticesShouldReturnNoticeOwnedRecords() {
         UUID recipientUserId = uuid(2);
-        insertMessage(NOTICE_ID_1, ZERO_UUID, recipientUserId, "comment", "{\"eventId\":\"evt-sentinel\"}", NoticeApplicationService.STATUS_UNREAD);
-        insertMessage(NOTICE_ID_2, uuid(1), recipientUserId, "comment", "{\"eventId\":\"evt-comment\"}", NoticeApplicationService.STATUS_UNREAD);
-        insertMessage(NOTICE_ID_3, uuid(1), recipientUserId, "1_2", "hello from real user one", NoticeApplicationService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_1, ZERO_UUID, recipientUserId, "comment", "{\"eventId\":\"evt-sentinel\"}", NoticeApplicationService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_2, uuid(1), recipientUserId, "comment", "{\"eventId\":\"evt-comment\"}", NoticeApplicationService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_3, uuid(1), recipientUserId, "mention", "{\"eventId\":\"evt-mention\"}", NoticeApplicationService.STATUS_UNREAD);
 
         List<NoticeRecord> notices = noticeService.listNotices(recipientUserId, "comment", 0, 10);
 
@@ -92,7 +92,7 @@ class NoticeApplicationServiceTest {
     @Test
     void listNoticeItemsShouldReturnNoticeOwnedResults() {
         UUID recipientUserId = uuid(9);
-        insertMessage(NOTICE_ID_4, ZERO_UUID, recipientUserId, "comment", "{\"eventId\":\"evt-1\"}", NoticeApplicationService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_4, ZERO_UUID, recipientUserId, "comment", "{\"eventId\":\"evt-1\"}", NoticeApplicationService.STATUS_UNREAD);
 
         List<NoticeItemResult> items = noticeService.listNoticeItems(recipientUserId, "comment", 0, 10);
 
@@ -105,13 +105,13 @@ class NoticeApplicationServiceTest {
         });
     }
 
-    private void insertMessage(UUID id, UUID fromId, UUID toId, String conversationId, String content, int status) {
+    private void insertNotice(UUID id, UUID fromId, UUID toId, String topic, String content, int status) {
         jdbcTemplate.update(
-                "insert into message (id, from_id, to_id, conversation_id, content, status, create_time) values (?, ?, ?, ?, ?, ?, current_timestamp)",
+                "insert into notice_record (id, sender_user_id, recipient_user_id, topic, content, status, create_time) values (?, ?, ?, ?, ?, ?, current_timestamp)",
                 BinaryUuidCodec.toBytes(id),
                 BinaryUuidCodec.toBytes(fromId),
                 BinaryUuidCodec.toBytes(toId),
-                conversationId,
+                topic,
                 content,
                 status
         );

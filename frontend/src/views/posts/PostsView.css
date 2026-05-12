@@ -315,11 +315,11 @@
   color: var(--text-2);
 }
 
-.posts-empty-inline .empty-state {
+.posts-empty-inline.ui-state {
   padding: 8px 0 2px;
 }
 
-.posts-empty-inline .empty-card {
+.posts-empty-inline.ui-state {
   width: 100%;
   border-style: solid;
   border-color: color-mix(in srgb, var(--border) 74%, transparent 26%);

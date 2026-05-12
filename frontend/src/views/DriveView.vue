@@ -99,15 +99,15 @@
           </button>
         </div>
 
-        <UiEmpty v-if="loading && visibleEntries.length === 0">
+        <UiState v-if="loading && visibleEntries.length === 0">
           正在加载网盘…
-        </UiEmpty>
-        <UiEmpty v-else-if="!loading && visibleEntries.length === 0">
+        </UiState>
+        <UiState v-else-if="!loading && visibleEntries.length === 0">
           暂无文件
           <template #description>
             {{ mode === 'trash' ? '回收站目前是空的。' : '可以先创建文件夹，或者上传一个文件。' }}
           </template>
-        </UiEmpty>
+        </UiState>
 
         <div v-else class="drive-entry-list">
           <div
@@ -210,9 +210,9 @@
           </div>
         </template>
 
-        <UiEmpty v-else>
+        <UiState v-else>
           选择一个文件或文件夹查看详情
-        </UiEmpty>
+        </UiState>
 
         <section v-if="mode === 'shares'" class="drive-share-panel">
           <UiPageHeader>
@@ -264,7 +264,7 @@ import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {

@@ -15,7 +15,7 @@ public class WebSocketConfig {
     @Bean
     public HandlerMapping imWebSocketMapping(
             ImWebSocketHandler handler,
-            @Value("${im.ws.path:/ws/im}") String path
+            @Value("${im.ws.path:/internal/ws/im}") String path
     ) {
         SimpleUrlHandlerMapping mapping = new SimpleUrlHandlerMapping();
         mapping.setOrder(-1);
@@ -28,4 +28,3 @@ public class WebSocketConfig {
         return new WebSocketHandlerAdapter();
     }
 }
-

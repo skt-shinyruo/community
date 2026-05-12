@@ -29,6 +29,8 @@ const retiredMarketRejectWrapper = ['seller', 'Reject', 'Market', 'Dispute'].joi
 const retiredSubscriptionSubscribeWrapper = ['subscribe', 'Category'].join('')
 const retiredSubscriptionUnsubscribeWrapper = ['unsubscribe', 'Category'].join('')
 const retiredUiTagView = ['components/ui/', 'UiTag.vue'].join('')
+const retiredUiEmptyView = ['components/ui/', 'UiEmpty.vue'].join('')
+const retiredUiEmptyImport = ['components/ui/', 'UiEmpty.vue'].join('')
 const retiredSearchReindexRoute = ['/api/search/internal', '/reindex'].join('')
 
 function source(relativePath) {
@@ -95,5 +97,10 @@ describe('unused surface retirement', () => {
 
   it('keeps retired UiTag component removed', () => {
     expect(exists(retiredUiTagView)).toBe(false)
+  })
+
+  it('keeps retired UiEmpty wrapper removed', () => {
+    expect(exists(retiredUiEmptyView)).toBe(false)
+    expect(source('views/PostsView.vue')).not.toContain(retiredUiEmptyImport)
   })
 })

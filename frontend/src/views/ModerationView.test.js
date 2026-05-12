@@ -24,7 +24,7 @@ function mountModerationView() {
         UiBadge: { template: '<span><slot /></span>' },
         UiBreadcrumb: true,
         UiCard: { template: '<section><slot /></section>' },
-        UiEmpty: { template: '<div><slot /><slot name="description" /></div>' },
+        UiState: { template: '<div><slot /><slot name="description" /></div>' },
         UiIconButton: {
           emits: ['click'],
           template: '<button @click="$emit(\'click\')"><slot /></button>'

@@ -2,7 +2,7 @@
   <div class="page market-page">
     <UiBreadcrumb />
 
-    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
+    <UiState v-if="error" variant="error">{{ error }}</UiState>
     <div v-else-if="loading" class="muted">正在加载订单详情…</div>
 
     <UiCard v-else class="market-panel">
@@ -11,10 +11,10 @@
         <template #subtitle>订单 ID：{{ route.params.orderId }}。这里继续承接交付、确认与申诉动作。</template>
       </UiPageHeader>
 
-      <UiEmpty v-if="!detail.orderId">
+      <UiState v-if="!detail.orderId">
         暂无订单详情
         <template #description>刷新后仍为空时，请检查订单是否存在或当前账号是否有权限查看。</template>
-      </UiEmpty>
+      </UiState>
 
       <template v-else>
         <div class="market-order-list">
@@ -34,10 +34,10 @@
             <template #subtitle>自动交付和卖家手工交付的内容都在这里回看。</template>
           </UiPageHeader>
 
-          <UiEmpty v-if="deliveryContents.length === 0">
+          <UiState v-if="deliveryContents.length === 0">
             暂无交付内容
             <template #description>订单进入交付阶段后，这里会展示卡密、邀请码或其他发货内容。</template>
-          </UiEmpty>
+          </UiState>
 
           <ul v-else class="market-bullets">
             <li v-for="(item, index) in deliveryContents" :key="`${detail.orderId}-${index}`">{{ item }}</li>
@@ -50,10 +50,10 @@
             <template #subtitle>实物商品订单在这里查看发货和地址快照。</template>
           </UiPageHeader>
 
-          <UiEmpty v-if="!shipment">
+          <UiState v-if="!shipment">
             暂无发货信息
             <template #description>卖家录入发货信息后，这里会显示承运商、运单号和备注。</template>
-          </UiEmpty>
+          </UiState>
 
           <ul v-else class="market-bullets">
             <li>承运商：{{ shipment.carrierName }}</li>
@@ -72,7 +72,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { getMarketOrderDetail } from '../api/services/marketService'
 import { buildMarketState } from './marketState'

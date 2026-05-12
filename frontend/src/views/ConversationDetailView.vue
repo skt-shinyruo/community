@@ -32,12 +32,12 @@
       <div class="chat-area" ref="chatArea">
         <div class="chat-timeline-label">消息时间线</div>
 
-        <UiEmpty v-if="error && items.length === 0" variant="error" class="chat-state">{{ error }}</UiEmpty>
+        <UiState v-if="error && items.length === 0" variant="error" class="chat-state">{{ error }}</UiState>
         <div v-else-if="loading && items.length === 0" class="muted chat-state">正在同步会话…</div>
-        <UiEmpty v-else-if="items.length === 0" class="chat-state">
+        <UiState v-else-if="items.length === 0" class="chat-state">
           暂无消息
           <template #description>你可以直接发出第一条消息，让这段对话开始流动起来。</template>
-        </UiEmpty>
+        </UiState>
 
         <div v-else class="message-list">
           <div v-for="m in items" :key="m.id" class="message-row" :class="{ mine: m.fromId === meId }">
@@ -78,7 +78,7 @@ import ConversationComposer from '../components/scene/ConversationComposer.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiDivider from '../components/ui/UiDivider.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {
   findLatestConversationSeq,

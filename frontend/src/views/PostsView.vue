@@ -144,14 +144,14 @@
          </div>
       </div>
 
-      <UiEmpty v-if="error && items.length === 0" variant="error">{{ error }}</UiEmpty>
+      <UiState v-if="error && items.length === 0" variant="error">{{ error }}</UiState>
       <div v-else-if="error" class="error">{{ error }}</div>
 
       <div v-if="blockedHiddenCount > 0" class="muted posts-muted-note">
         已隐藏 {{ blockedHiddenCount }} 条来自已屏蔽用户的帖子
       </div>
 
-      <UiEmpty v-if="!loading && items.length === 0 && !error" class="posts-empty-inline">
+      <UiState v-if="!loading && items.length === 0 && !error" class="posts-empty-inline">
         暂时还没有新的讨论进入这条时间线
         <template #description>
           试试切换到「热门」，或者直接发起一个问题。
@@ -162,7 +162,7 @@
           <UiButton v-if="!authed" variant="ghost" @click="goLogin">登录</UiButton>
           <UiButton v-else variant="ghost" @click="isPublishFocused = true">发起讨论</UiButton>
         </template>
-      </UiEmpty>
+      </UiState>
 
       <div v-if="shouldShowNewHint" class="topic-new-hint">
         <div class="topic-new-hint-left">
@@ -281,7 +281,7 @@
 
 <script setup>
 import UiCard from '../components/ui/UiCard.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiIconButton from '../components/ui/UiIconButton.vue'

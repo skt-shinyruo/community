@@ -25,7 +25,7 @@ function txnLabel(txnType, amount) {
   if (type === 'RECHARGE') return '充值到账'
   if (type === 'WITHDRAW') return '提现申请'
   if (type === 'REWARD_ISSUE') return '活动补贴'
-  if (type === 'OPENING_BALANCE') return '开账迁移'
+  if (type === 'OPENING_BALANCE') return '初始入账'
   if (type === 'REVERSAL') return '交易回滚'
   return '钱包交易'
 }

@@ -3,7 +3,7 @@
     <UiBreadcrumb />
 
     <UiCard v-if="error">
-      <UiEmpty variant="error">{{ error }}</UiEmpty>
+      <UiState variant="error">{{ error }}</UiState>
     </UiCard>
 
     <UiCard v-else-if="loading">
@@ -204,7 +204,7 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'

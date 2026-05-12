@@ -22,7 +22,7 @@ function mountNoticeDetailView() {
       stubs: {
         RouterLink: { template: '<a><slot /></a>' },
         UiCard: { template: '<section><slot /></section>' },
-        UiEmpty: { template: '<div><slot /><slot name="description" /></div>' },
+        UiState: { template: '<div><slot /><slot name="description" /></div>' },
         UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /><slot /></header>' },
         UiPagination: true,
         UiButton: {

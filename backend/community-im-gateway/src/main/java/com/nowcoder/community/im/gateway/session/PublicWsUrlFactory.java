@@ -1,18 +1,13 @@
 package com.nowcoder.community.im.gateway.session;
 
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 
 @Component
 public class PublicWsUrlFactory {
-
-    private static final String HEADER_FORWARDED_PROTO = "X-Forwarded-Proto";
-    private static final String HEADER_FORWARDED_HOST = "X-Forwarded-Host";
 
     private final ImGatewaySessionProperties properties;
 
@@ -25,44 +20,7 @@ public class PublicWsUrlFactory {
         if (StringUtils.hasText(configuredUrl)) {
             return validatedConfiguredPublicWsUrl(configuredUrl);
         }
-
-        URI requestUri = request == null ? URI.create("http://localhost") : request.getURI();
-        HttpHeaders headers = request == null ? HttpHeaders.EMPTY : request.getHeaders();
-        String scheme = toWebSocketScheme(firstForwardedValue(headers.getFirst(HEADER_FORWARDED_PROTO)));
-        if (!StringUtils.hasText(scheme)) {
-            scheme = toWebSocketScheme(requestUri.getScheme());
-        }
-        if (!StringUtils.hasText(scheme)) {
-            scheme = "ws";
-        }
-        String authority = validatedAuthority(firstForwardedValue(headers.getFirst(HEADER_FORWARDED_HOST)));
-        if (!StringUtils.hasText(authority)) {
-            authority = validatedAuthority(requestUri.getRawAuthority());
-        }
-        if (!StringUtils.hasText(authority)) {
-            authority = "localhost";
-        }
-
-        return scheme + "://" + authority + normalizedPublicWsPath();
-    }
-
-    private String normalizedPublicWsPath() {
-        String path = properties.hasExplicitPublicWsPath()
-                ? properties.getPublicWsPath()
-                : properties.getWs().getPath();
-        if (!StringUtils.hasText(path)) {
-            return "/ws/im";
-        }
-        String trimmed = path.trim();
-        return trimmed.startsWith("/") ? trimmed : "/" + trimmed;
-    }
-
-    private static String firstForwardedValue(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        int comma = value.indexOf(',');
-        return comma >= 0 ? value.substring(0, comma).trim() : value.trim();
+        throw invalidPublicWsUrl();
     }
 
     private static String validatedConfiguredPublicWsUrl(String value) {
@@ -83,20 +41,6 @@ public class PublicWsUrlFactory {
 
     private static IllegalArgumentException invalidPublicWsUrl() {
         return new IllegalArgumentException("im.gateway.publicWsUrl must be an absolute ws/wss URI with authority");
-    }
-
-    private static String toWebSocketScheme(String scheme) {
-        if (!StringUtils.hasText(scheme)) {
-            return "";
-        }
-        String normalized = scheme.trim().toLowerCase();
-        if ("https".equals(normalized) || "wss".equals(normalized)) {
-            return "wss";
-        }
-        if ("http".equals(normalized) || "ws".equals(normalized)) {
-            return "ws";
-        }
-        return "";
     }
 
     private static String validatedAuthority(String value) {
@@ -173,11 +117,7 @@ public class PublicWsUrlFactory {
     }
 
     private static boolean isParsableAuthority(String authority) {
-        try {
-            URI uri = new URI("ws://" + authority);
-            return StringUtils.hasText(uri.getRawAuthority()) && uri.getHost() != null;
-        } catch (IllegalArgumentException | URISyntaxException ex) {
-            return false;
-        }
+        URI uri = URI.create("ws://" + authority);
+        return StringUtils.hasText(uri.getRawAuthority()) && uri.getHost() != null;
     }
 }

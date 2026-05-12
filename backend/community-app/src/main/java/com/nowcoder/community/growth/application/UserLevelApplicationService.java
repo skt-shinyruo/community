@@ -135,8 +135,11 @@ public class UserLevelApplicationService {
 
     public UserLevelRuleConfig activeConfigOrDefault() {
         UserLevelRuleConfig config = userLevelRuleConfigRepository.selectCurrent();
-        if (!userLevelDomainService.isValidConfig(config)) {
+        if (config == null) {
             return defaultConfig();
+        }
+        if (!userLevelDomainService.isValidConfig(config)) {
+            throw new IllegalStateException("invalid user level rule config");
         }
         return config;
     }

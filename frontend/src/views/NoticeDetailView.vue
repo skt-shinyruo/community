@@ -44,12 +44,12 @@
         <UiPagination :page="page" :has-next="hasNext" @prev="prevPage" @next="nextPage" />
       </div>
 
-      <UiEmpty v-if="error && items.length === 0" variant="error" class="notice-detail-state">{{ error }}</UiEmpty>
+      <UiState v-if="error && items.length === 0" variant="error" class="notice-detail-state">{{ error }}</UiState>
       <div v-else-if="loading && items.length === 0" class="muted notice-detail-state">正在加载通知…</div>
-      <UiEmpty v-else-if="items.length === 0" class="notice-detail-state">
+      <UiState v-else-if="items.length === 0" class="notice-detail-state">
         暂无通知
         <template #description>这一类通知当前没有更多记录，稍后可以刷新再看。</template>
-      </UiEmpty>
+      </UiState>
 
       <div v-else class="notice-feed">
         <article v-for="n in items" :key="n.id" class="notice-card" :class="{ unread: Number(n?.status || 0) !== 1 }">
@@ -126,7 +126,7 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiPagination from '../components/ui/UiPagination.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 
 const emit = defineEmits(['trace'])
 const props = defineProps({ topic: String })

@@ -11,7 +11,7 @@
       </template>
     </UiPageHeader>
 
-    <UiEmpty v-if="error" variant="error">{{ error }}</UiEmpty>
+    <UiState v-if="error" variant="error">{{ error }}</UiState>
     <div v-else-if="loading" class="muted">正在加载市场…</div>
 
     <section v-else class="market-list-shell">
@@ -23,10 +23,10 @@
         <span class="market-summary">{{ state.listings.length }} 个商品</span>
       </header>
 
-      <UiEmpty v-if="state.listings.length === 0">
+      <UiState v-if="state.listings.length === 0">
         暂无在售商品
         <template #description>第一个卖家可以直接从“发布商品”开始创建虚拟商品或实物商品。</template>
-      </UiEmpty>
+      </UiState>
 
       <div v-else class="market-list">
         <RouterLink
@@ -55,7 +55,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { listMarketListings } from '../api/services/marketService'
 import { buildMarketState } from './marketState'

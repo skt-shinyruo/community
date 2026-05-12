@@ -43,11 +43,11 @@ class NoticeMapperPersistenceTest {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.update("delete from message");
+        jdbcTemplate.update("delete from notice_record");
     }
 
     @Test
-    void insertNoticeShouldPersistApplicationAssignedUuidMessageId() {
+    void insertNoticeShouldPersistApplicationAssignedUuidNoticeId() {
         NoticeRecordDataObject notice = new NoticeRecordDataObject();
         notice.setId(NOTICE_ID);
         notice.setSenderUserId(NoticeRecord.SYSTEM_NOTICE_SENDER_ID);
@@ -63,7 +63,7 @@ class NoticeMapperPersistenceTest {
         assertThat(notice.getId()).isEqualTo(NOTICE_ID);
 
         byte[] storedId = jdbcTemplate.queryForObject(
-                "select id from message where to_id = ? and conversation_id = ?",
+                "select id from notice_record where recipient_user_id = ? and topic = ?",
                 (rs, rowNum) -> rs.getBytes(1),
                 BinaryUuidCodec.toBytes(RECIPIENT_USER_ID),
                 "comment"
@@ -80,8 +80,8 @@ class NoticeMapperPersistenceTest {
 
     @Test
     void updateNoticesStatusForRecipientShouldTargetUuidIds() {
-        insertMessage(NOTICE_ID, RECIPIENT_USER_ID, "comment", 0);
-        insertMessage(OTHER_NOTICE_ID, RECIPIENT_USER_ID, "comment", 0);
+        insertNotice(NOTICE_ID, RECIPIENT_USER_ID, "comment", 0);
+        insertNotice(OTHER_NOTICE_ID, RECIPIENT_USER_ID, "comment", 0);
 
         int updated = noticeMapper.updateNoticesStatusForRecipient(List.of(NOTICE_ID), 1, RECIPIENT_USER_ID);
 
@@ -90,23 +90,23 @@ class NoticeMapperPersistenceTest {
         assertThat(statusOf(OTHER_NOTICE_ID)).isEqualTo(0);
     }
 
-    private void insertMessage(UUID messageId, UUID toUserId, String topic, int status) {
+    private void insertNotice(UUID noticeId, UUID toUserId, String topic, int status) {
         jdbcTemplate.update(
-                "insert into message (id, from_id, to_id, conversation_id, content, status, create_time) values (?, ?, ?, ?, ?, ?, current_timestamp)",
-                BinaryUuidCodec.toBytes(messageId),
+                "insert into notice_record (id, sender_user_id, recipient_user_id, topic, content, status, create_time) values (?, ?, ?, ?, ?, ?, current_timestamp)",
+                BinaryUuidCodec.toBytes(noticeId),
                 BinaryUuidCodec.toBytes(NoticeRecord.SYSTEM_NOTICE_SENDER_ID),
                 BinaryUuidCodec.toBytes(toUserId),
                 topic,
-                "{\"eventId\":\"" + messageId + "\"}",
+                "{\"eventId\":\"" + noticeId + "\"}",
                 status
         );
     }
 
-    private Integer statusOf(UUID messageId) {
+    private Integer statusOf(UUID noticeId) {
         return jdbcTemplate.queryForObject(
-                "select status from message where id = ?",
+                "select status from notice_record where id = ?",
                 Integer.class,
-                BinaryUuidCodec.toBytes(messageId)
+                BinaryUuidCodec.toBytes(noticeId)
         );
     }
 }

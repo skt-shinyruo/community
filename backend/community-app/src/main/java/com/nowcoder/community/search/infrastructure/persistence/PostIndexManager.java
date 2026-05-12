@@ -47,8 +47,14 @@ public class PostIndexManager {
 
     public void ensureAliasReady() {
         var aliasOps = operations.indexOps(EsPostDocument.class);
-        if (aliasOps.exists() && hasRequiredSearchMapping(aliasOps.getMapping())) {
-            return;
+        if (aliasOps.exists()) {
+            Set<String> missingFields = missingRequiredSearchFields(aliasOps.getMapping());
+            if (missingFields.isEmpty()) {
+                return;
+            }
+            throw new IllegalStateException(
+                    "search alias " + EsPostDocument.INDEX_ALIAS + " mapping is incompatible, missing fields: " + missingFields
+            );
         }
         String indexName = createNewIndex();
         switchAliasTo(indexName);
@@ -112,20 +118,16 @@ public class PostIndexManager {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private boolean hasRequiredSearchMapping(Map<String, Object> mapping) {
+    private Set<String> missingRequiredSearchFields(Map<String, Object> mapping) {
         if (mapping == null || mapping.isEmpty()) {
-            return false;
+            return REQUIRED_SEARCH_FIELDS;
         }
         Object properties = mapping.get("properties");
         if (!(properties instanceof Map<?, ?> propertiesMap)) {
-            return false;
+            return REQUIRED_SEARCH_FIELDS;
         }
-        for (String field : REQUIRED_SEARCH_FIELDS) {
-            if (!propertiesMap.containsKey(field)) {
-                return false;
-            }
-        }
-        return true;
+        return REQUIRED_SEARCH_FIELDS.stream()
+                .filter(field -> !propertiesMap.containsKey(field))
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 }

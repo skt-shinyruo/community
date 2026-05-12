@@ -66,7 +66,7 @@ function mountView(conversationId) {
           template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
         },
         UiDivider: { template: '<hr />' },
-        UiEmpty: { template: '<div><slot /><slot name="description" /></div>' },
+        UiState: { template: '<div><slot /><slot name="description" /></div>' },
         UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
         UiIconButton: {
           inheritAttrs: false,

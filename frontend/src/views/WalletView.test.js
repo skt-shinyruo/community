@@ -30,7 +30,7 @@ function mountWalletView() {
       stubs: {
         UiBreadcrumb: true,
         UiCard: { template: '<section><slot /></section>' },
-        UiEmpty: { template: '<div><slot /><slot name="description" /></div>' },
+        UiState: { template: '<div><slot /><slot name="description" /></div>' },
         UiPageHeader: { template: '<header><slot /><slot name="title" /><slot name="subtitle" /></header>' },
         UiButton: {
           props: ['disabled', 'variant'],

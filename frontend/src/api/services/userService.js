@@ -17,13 +17,13 @@ function normalizeUserLevelProfileFields(raw) {
   const signInDaysInWindow = optionalNumber(raw?.signInDaysInWindow)
   const hasCompleteUserLevelData = userLevel !== null && signInDaysInWindow !== null
 
-  const explicitEnabled = raw?.userLevelEnabled === true ? true : (raw?.userLevelEnabled === false ? false : null)
-  const showUserLevel = explicitEnabled === false ? false : hasCompleteUserLevelData
+  const userLevelEnabled = raw?.userLevelEnabled === true
+  const showUserLevel = userLevelEnabled && hasCompleteUserLevelData
 
   return {
     userLevel,
     signInDaysInWindow,
-    userLevelEnabled: explicitEnabled === null ? showUserLevel : explicitEnabled,
+    userLevelEnabled,
     showUserLevel
   }
 }

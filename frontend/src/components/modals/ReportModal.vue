@@ -1,14 +1,22 @@
 <!-- 举报弹窗：用于帖子/评论/用户的举报提交。 -->
 <template>
-  <div class="modal-mask" @click.self="$emit('close')">
-    <div class="modal-card card" style="max-width: 560px">
+  <div class="modal-mask" @click.self="$emit('close')" @keydown.esc.stop.prevent="$emit('close')">
+    <div
+      class="modal-card card"
+      style="max-width: 560px"
+      role="dialog"
+      aria-modal="true"
+      :aria-labelledby="titleId"
+      :aria-describedby="descriptionId"
+      tabindex="-1"
+    >
       <div class="stack" style="padding: 16px">
         <div class="row" style="justify-content: space-between; gap: 12px; align-items: center">
-          <div style="font-weight: 800">举报</div>
+          <div :id="titleId" style="font-weight: 800">举报</div>
           <UiIconButton aria-label="关闭" title="关闭" size="sm" @click="$emit('close')">×</UiIconButton>
         </div>
 
-        <div class="muted" style="font-size: 12px">
+        <div :id="descriptionId" class="muted" style="font-size: 12px">
           目标：{{ targetTypeLabel }} #{{ normalizeOpaqueId(targetId) || '-' }}
         </div>
 
@@ -48,7 +56,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, useId } from 'vue'
 import UiButton from '../ui/UiButton.vue'
 import UiIconButton from '../ui/UiIconButton.vue'
 import UiSelect from '../ui/UiSelect.vue'
@@ -63,6 +71,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'submitted'])
+const uid = useId()
+const titleId = `report-modal-title-${uid}`
+const descriptionId = `report-modal-description-${uid}`
 
 const reasonOptions = [
   { label: '垃圾广告', value: '垃圾广告' },

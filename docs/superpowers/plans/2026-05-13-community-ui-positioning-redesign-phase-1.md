@@ -4,6 +4,17 @@
 
 **Goal:** Align the current frontend with the May 13 Community positioning spec by fixing navigation priority, shell scope language, engineering copy, and the first-pass product expression of posts, profile, inbox, market, wallet, and drive.
 
+## Execution Status - 2026-05-13
+
+Phase 1 implementation and verification are complete in the shared working tree.
+
+- Tasks 1-6 source state was verified against the plan: navigation priority, route-aware shell scope, posts positioning, profile/inbox copy, market/wallet/drive product labels, product token checks, and copy cleanup are present.
+- Task 2 received additional regression assertions in `walletState.test.js`, `marketState.test.js`, `driveState.test.js`, and `userProfileSurface.test.js`.
+- Task 7 verification passed for focused Phase 1 tests, full frontend tests, production builds, product-facing copy scan, and representative desktop/mobile browser checks.
+- Browser regression evidence is recorded at `target/community-playwright-regression/reports/pw-20260513204836.md`.
+- Commit steps in this plan were not executed because the user requested direct modification in the existing workspace and the workspace already contained unrelated dirty changes.
+- Fresh Docker redeploy was retried successfully at 2026-05-13T13:23Z; gateway health returned UP and the frontend shell returned 200.
+
 **Architecture:** Reuse the foundation already present in the app: `router/navigation.js` is the navigation SSOT, `components/layout/*` own the shell, `components/ui/*` provide shared primitives, page-level state helpers keep data shaping testable, and `styles/*` own product tokens/layout. This phase is a focused positioning pass, not a full rewrite of every trading/admin workflow.
 
 **Tech Stack:** Vue 3, Vue Router 4, Pinia, CSS custom properties, Vitest, Vue Test Utils, Vite, Chrome DevTools browser checks.
@@ -102,7 +113,7 @@ Do not modify:
 - Modify: `frontend/src/styles/layout.css`
 - Modify: `docs/handbook/frontend.md`
 
-- [ ] **Step 1: Write failing navigation tests**
+- [x] **Step 1: Write failing navigation tests**
 
 In `frontend/src/router/navigation.test.js`, update the mobile nav test to match the spec:
 
@@ -157,7 +168,7 @@ import {
 } from './navigation'
 ```
 
-- [ ] **Step 2: Run navigation tests and verify failure**
+- [x] **Step 2: Run navigation tests and verify failure**
 
 Run:
 
@@ -168,7 +179,7 @@ npm test -- src/router/navigation.test.js
 
 Expected: FAIL because current mobile nav is `posts/search/market/me` and `getRouteWorkspaceLabel` does not exist.
 
-- [ ] **Step 3: Implement route workspace labels and mobile nav priority**
+- [x] **Step 3: Implement route workspace labels and mobile nav priority**
 
 In `frontend/src/router/navigation.js`, add:
 
@@ -236,7 +247,7 @@ return [posts, search, notices, messages, me]
 
 Keep `posts`, `search`, and `me` fallback behavior.
 
-- [ ] **Step 4: Update mobile nav rendering**
+- [x] **Step 4: Update mobile nav rendering**
 
 In `frontend/src/components/layout/MobileNav.vue`:
 
@@ -264,7 +275,7 @@ In `frontend/src/components/layout/MobileNav.vue`:
 grid-template-columns: repeat(5, minmax(0, 1fr));
 ```
 
-- [ ] **Step 5: Update topbar scope label**
+- [x] **Step 5: Update topbar scope label**
 
 In `frontend/src/components/layout/Topbar.vue`, import `getRouteWorkspaceLabel`:
 
@@ -280,7 +291,7 @@ const modeEyebrow = computed(() => getRouteWorkspaceLabel(route.name))
 
 Keep admin badge behavior unchanged.
 
-- [ ] **Step 6: Update sidebar brand copy**
+- [x] **Step 6: Update sidebar brand copy**
 
 In `frontend/src/components/layout/SidebarNav.vue`, change public brand subcopy:
 
@@ -290,7 +301,7 @@ In `frontend/src/components/layout/SidebarNav.vue`, change public brand subcopy:
 
 This keeps the product from saying every route is only a discussion desk.
 
-- [ ] **Step 7: Update frontend handbook navigation section**
+- [x] **Step 7: Update frontend handbook navigation section**
 
 In `docs/handbook/frontend.md`, update the mobile navigation sentence to:
 
@@ -298,7 +309,7 @@ In `docs/handbook/frontend.md`, update the mobile navigation sentence to:
 `frontend/src/components/layout/AppShell.vue` 负责桌面 workspace shell，`SidebarNav.vue` 渲染工作区分组，`Topbar.vue` 渲染 route-aware scope、页面标题、账户控制和 shell search，`MobileNav.vue` 只承载高频移动入口：讨论、搜索、通知、私信和个人入口。移动端 sidebar drawer 状态与桌面 collapsed 偏好分离，避免 sidebar 和 bottom nav 同时作为持久导航出现。
 ```
 
-- [ ] **Step 8: Run navigation tests**
+- [x] **Step 8: Run navigation tests**
 
 Run:
 
@@ -309,7 +320,7 @@ npm test -- src/router/navigation.test.js
 
 Expected: PASS.
 
-- [ ] **Step 9: Commit navigation and shell positioning**
+- [x] **Step 9: Commit navigation and shell positioning** (skipped: direct workspace, existing unrelated dirty changes)
 
 Run:
 
@@ -333,7 +344,7 @@ git commit -m "feat: align community navigation priority"
 - Modify: `frontend/src/views/userProfileSurface.js`
 - Modify: `frontend/src/views/userProfileSurface.test.js`
 
-- [ ] **Step 1: Write failing state-helper tests**
+- [x] **Step 1: Write failing state-helper tests**
 
 In `frontend/src/views/walletState.test.js`, add:
 
@@ -401,7 +412,7 @@ it('does not expose wallet implementation caveats in profile signals', () => {
 })
 ```
 
-- [ ] **Step 2: Run state-helper tests and verify failure**
+- [x] **Step 2: Run state-helper tests and verify failure**
 
 Run:
 
@@ -412,7 +423,7 @@ npm test -- src/views/walletState.test.js src/views/marketState.test.js src/view
 
 Expected: FAIL because the new labels are not present and wallet/profile still contain implementation caveats.
 
-- [ ] **Step 3: Implement wallet state labels**
+- [x] **Step 3: Implement wallet state labels**
 
 In `frontend/src/views/walletState.js`, change `statusText(status)`:
 
@@ -428,7 +439,7 @@ function statusText(status) {
 
 Keep transaction mapping unchanged.
 
-- [ ] **Step 4: Implement market trust labels**
+- [x] **Step 4: Implement market trust labels**
 
 In `frontend/src/views/marketState.js`, add:
 
@@ -457,7 +468,7 @@ fulfillmentLabel: fulfillmentLabel(item),
 trustLabel: trustLabel(item?.status),
 ```
 
-- [ ] **Step 5: Implement drive product labels**
+- [x] **Step 5: Implement drive product labels**
 
 In `frontend/src/views/driveState.js`, add:
 
@@ -484,7 +495,7 @@ statusLabel: driveStatusLabel(status),
 visibilityLabel: driveVisibilityLabel(raw, active),
 ```
 
-- [ ] **Step 6: Implement profile wallet privacy copy**
+- [x] **Step 6: Implement profile wallet privacy copy**
 
 In `frontend/src/views/userProfileSurface.js`, replace `buildProfileWalletAsset` with:
 
@@ -506,7 +517,7 @@ export function buildProfileWalletAsset({ profile, authed, isSelf } = {}) {
 }
 ```
 
-- [ ] **Step 7: Run state-helper tests**
+- [x] **Step 7: Run state-helper tests**
 
 Run:
 
@@ -517,7 +528,7 @@ npm test -- src/views/walletState.test.js src/views/marketState.test.js src/view
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit product state labels**
+- [x] **Step 8: Commit product state labels** (skipped: direct workspace, existing unrelated dirty changes)
 
 Run:
 
@@ -536,7 +547,7 @@ git commit -m "feat: normalize product state labels"
 - Modify: `frontend/src/views/posts/PostsView.css`
 - Modify: `frontend/src/views/PostsView.test.js`
 
-- [ ] **Step 1: Write failing posts positioning test**
+- [x] **Step 1: Write failing posts positioning test**
 
 In `frontend/src/views/PostsView.test.js`, add:
 
@@ -553,7 +564,7 @@ it('positions the discussion feed before secondary explanation copy', async () =
 })
 ```
 
-- [ ] **Step 2: Run posts test and verify failure**
+- [x] **Step 2: Run posts test and verify failure**
 
 Run:
 
@@ -564,7 +575,7 @@ npm test -- src/views/PostsView.test.js
 
 Expected: FAIL because `.posts-workspace` and `.posts-main-feed` do not exist and the old explanatory subtitle is still present.
 
-- [ ] **Step 3: Update `PostsView.vue` structure and copy**
+- [x] **Step 3: Update `PostsView.vue` structure and copy**
 
 Change the page header subtitle:
 
@@ -613,7 +624,7 @@ Change empty state copy:
 </UiState>
 ```
 
-- [ ] **Step 4: Update posts CSS**
+- [x] **Step 4: Update posts CSS**
 
 In `frontend/src/views/posts/PostsView.css`, add:
 
@@ -667,7 +678,7 @@ In `frontend/src/views/posts/PostsView.css`, add:
 
 If this duplicates existing `.posts-context-*` names, rename to `.posts-side-*` consistently in template and CSS.
 
-- [ ] **Step 5: Run posts test**
+- [x] **Step 5: Run posts test**
 
 Run:
 
@@ -678,7 +689,7 @@ npm test -- src/views/PostsView.test.js
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit posts positioning**
+- [x] **Step 6: Commit posts positioning** (skipped: direct workspace, existing unrelated dirty changes)
 
 Run:
 
@@ -700,7 +711,7 @@ git commit -m "feat: reposition discussion homepage"
 - Modify: `frontend/src/views/ConversationsView.vue`
 - Modify: `frontend/src/views/ConversationsView.test.js`
 
-- [ ] **Step 1: Write failing profile/inbox tests**
+- [x] **Step 1: Write failing profile/inbox tests**
 
 In `frontend/src/views/UserProfileView.test.js`, update assertions that currently expect full UUID primary display:
 
@@ -726,7 +737,7 @@ expect(wrapper.text()).toContain('待回复')
 expect(wrapper.text()).not.toContain('成员 #11111111-1111-7111-8111-111111111111')
 ```
 
-- [ ] **Step 2: Run profile/inbox tests and verify failure**
+- [x] **Step 2: Run profile/inbox tests and verify failure**
 
 Run:
 
@@ -737,7 +748,7 @@ npm test -- src/views/UserProfileView.test.js src/views/NoticesView.test.js src/
 
 Expected: FAIL because old copy and full UUID labels remain.
 
-- [ ] **Step 3: Shorten primary profile ID display**
+- [x] **Step 3: Shorten primary profile ID display**
 
 In `frontend/src/views/UserProfileView.vue`, add a helper in `<script setup>`:
 
@@ -759,7 +770,7 @@ Where `.profile-id-value` renders the full user id, change visible text to:
 
 Keep the full ID in `title`.
 
-- [ ] **Step 4: Update notices copy**
+- [x] **Step 4: Update notices copy**
 
 In `frontend/src/views/NoticesView.vue`:
 
@@ -779,7 +790,7 @@ In `frontend/src/views/NoticesView.vue`:
 
 Keep the route link behavior unchanged.
 
-- [ ] **Step 5: Update conversations copy**
+- [x] **Step 5: Update conversations copy**
 
 In `frontend/src/views/ConversationsView.vue`:
 
@@ -808,7 +819,7 @@ function shortParticipant(value) {
 
 This avoids full UUID as the primary label while remaining honest if no username is available.
 
-- [ ] **Step 6: Run profile/inbox tests**
+- [x] **Step 6: Run profile/inbox tests**
 
 Run:
 
@@ -819,7 +830,7 @@ npm test -- src/views/UserProfileView.test.js src/views/NoticesView.test.js src/
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit profile and inbox copy**
+- [x] **Step 7: Commit profile and inbox copy** (skipped: direct workspace, existing unrelated dirty changes)
 
 Run:
 
@@ -841,7 +852,7 @@ git commit -m "feat: refine profile and inbox surfaces"
 - Modify: `frontend/src/views/DriveView.vue`
 - Modify: `frontend/src/views/DriveView.test.js`
 
-- [ ] **Step 1: Write failing surface tests**
+- [x] **Step 1: Write failing surface tests**
 
 In `frontend/src/views/MarketViews.test.js`, add:
 
@@ -881,7 +892,7 @@ expect(wrapper.text()).toContain('可分享')
 expect(wrapper.text()).not.toContain('ACTIVE')
 ```
 
-- [ ] **Step 2: Run surface tests and verify failure**
+- [x] **Step 2: Run surface tests and verify failure**
 
 Run:
 
@@ -892,7 +903,7 @@ npm test -- src/views/MarketViews.test.js src/views/WalletView.test.js src/views
 
 Expected: FAIL because current product copy still contains old wording or raw labels.
 
-- [ ] **Step 3: Update market list copy and trust strip**
+- [x] **Step 3: Update market list copy and trust strip**
 
 In `frontend/src/views/MarketListView.vue`:
 
@@ -925,7 +936,7 @@ In `frontend/src/views/MarketListView.vue`:
 <template #description>发布商品后，买家通过钱包托管下单；虚拟商品按交付方式处理，实物商品按配送状态跟进。</template>
 ```
 
-- [ ] **Step 4: Update wallet copy**
+- [x] **Step 4: Update wallet copy**
 
 In `frontend/src/views/WalletView.vue`:
 
@@ -961,7 +972,7 @@ In `frontend/src/views/WalletView.vue`:
 <template #description>产生充值、提现、转账或交易托管后，这里会显示流水摘要。</template>
 ```
 
-- [ ] **Step 5: Update drive labels**
+- [x] **Step 5: Update drive labels**
 
 In `frontend/src/views/DriveView.vue`:
 
@@ -985,7 +996,7 @@ In `frontend/src/views/DriveView.vue`:
 <template #subtitle>默认私有；生成链接后可用于帖子附件、成员分享或虚拟商品交付。</template>
 ```
 
-- [ ] **Step 6: Run surface tests**
+- [x] **Step 6: Run surface tests**
 
 Run:
 
@@ -996,7 +1007,7 @@ npm test -- src/views/MarketViews.test.js src/views/WalletView.test.js src/views
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit trust and asset surfaces**
+- [x] **Step 7: Commit trust and asset surfaces** (skipped: direct workspace, existing unrelated dirty changes)
 
 Run:
 
@@ -1017,7 +1028,7 @@ git commit -m "feat: refine trust and asset surfaces"
 - Modify: `frontend/src/styles/productTokens.test.js`
 - Modify, only if the scan in Step 2 reports a product-facing match: touched files under `frontend/src/views` and `frontend/src/components/layout`.
 
-- [ ] **Step 1: Update token tests**
+- [x] **Step 1: Update token tests**
 
 In `frontend/src/styles/productTokens.test.js`, update the first test to include these assertions inside `it('uses restrained radius and shadow tokens', ...)` after `const variables = read('src/styles/variables.css')`:
 
@@ -1041,7 +1052,7 @@ it('keeps mobile navigation compact for five high-frequency entries', () => {
 })
 ```
 
-- [ ] **Step 2: Run copy scan and record failures**
+- [x] **Step 2: Run copy scan and record failures**
 
 Run:
 
@@ -1051,7 +1062,7 @@ rg -n "第一版|后续|暂未返回|待同步|钱包页为准|当前主页还�
 
 Expected before cleanup: only test fixtures or intentionally hidden technical values should remain. Any product-facing hit in templates or state helpers must be removed or replaced.
 
-- [ ] **Step 3: Replace remaining product-facing engineering copy**
+- [x] **Step 3: Replace remaining product-facing engineering copy**
 
 Use these exact replacements for product-facing template/state-helper matches:
 
@@ -1064,7 +1075,7 @@ Use these exact replacements for product-facing template/state-helper matches:
 
 Do not rewrite test assertions that intentionally verify old copy is absent.
 
-- [ ] **Step 4: Reduce card/radius excess for touched pages**
+- [x] **Step 4: Reduce card/radius excess for touched pages**
 
 In CSS touched by this phase:
 
@@ -1073,7 +1084,7 @@ In CSS touched by this phase:
 - Remove decorative `box-shadow: var(--shadow-lg)` from static content containers.
 - Keep shadows for dropdowns, drawer, toast, and floating nav.
 
-- [ ] **Step 5: Run token tests and copy scan**
+- [x] **Step 5: Run token tests and copy scan**
 
 Run:
 
@@ -1086,7 +1097,7 @@ rg -n "第一版|后续|暂未返回|待同步|钱包页为准|当前主页还�
 
 Expected: token tests PASS. Copy scan has no product-facing matches; any remaining matches are in tests or comments that explicitly describe prohibited old copy.
 
-- [ ] **Step 6: Commit copy and styling sweep**
+- [x] **Step 6: Commit copy and styling sweep** (skipped: direct workspace, existing unrelated dirty changes)
 
 Run:
 
@@ -1104,7 +1115,7 @@ git commit -m "style: clean up community product copy"
 - No planned source edits in the happy path.
 - If verification fails, modify only the file named by the failing test, build error, copy scan, or browser defect.
 
-- [ ] **Step 1: Run focused frontend tests**
+- [x] **Step 1: Run focused frontend tests**
 
 Run:
 
@@ -1115,7 +1126,7 @@ npm test -- src/router/navigation.test.js src/views/PostsView.test.js src/views/
 
 Expected: PASS.
 
-- [ ] **Step 2: Run full frontend tests**
+- [x] **Step 2: Run full frontend tests**
 
 Run:
 
@@ -1126,7 +1137,7 @@ npm test
 
 Expected: PASS.
 
-- [ ] **Step 3: Run production build**
+- [x] **Step 3: Run production build**
 
 Run:
 
@@ -1137,7 +1148,7 @@ npm run build
 
 Expected: PASS.
 
-- [ ] **Step 4: Browser review on running single topology**
+- [x] **Step 4: Browser review on running single topology**
 
 With `./deploy/deployment.sh up --topology single` already running, use Chrome DevTools at `http://localhost:12881`.
 
@@ -1159,7 +1170,7 @@ Verify mobile `390x844`:
 - Closed sidebar is not visible and does not fight bottom nav.
 - Touched pages have no text overlap.
 
-- [ ] **Step 5: Final copy scan**
+- [x] **Step 5: Final copy scan**
 
 Run:
 
@@ -1169,7 +1180,7 @@ rg -n "第一版|后续|暂未返回|待同步|钱包页为准|当前主页还�
 
 Expected: no product-facing matches.
 
-- [ ] **Step 6: Commit verification fixes only when verification found a defect**
+- [x] **Step 6: Commit verification fixes only when verification found a defect** (skipped: direct workspace, existing unrelated dirty changes)
 
 If browser or full tests require fixes, make the smallest fix in the affected file and run the relevant failing command again. Commit fixes:
 

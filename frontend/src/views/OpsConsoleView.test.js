@@ -51,6 +51,9 @@ describe('OpsConsoleView', () => {
   it('confirms and submits the reindex action', async () => {
     const wrapper = mountView()
 
+    expect(wrapper.text()).toContain('高风险操作')
+    expect(wrapper.text()).toContain('执行前确认')
+
     await wrapper.findAll('button').find((button) => button.text() === '重建索引').trigger('click')
     await flushPromises()
 

@@ -31,11 +31,12 @@
           class="market-order-row"
           :to="{ name: 'marketOrderDetail', params: { orderId: item.orderId } }"
         >
-          <div>
-            <strong>{{ item.listingTitleSnapshot || `订单 #${item.orderId}` }}</strong>
-            <p>请求号 {{ item.requestId || '-' }}</p>
-            <p>{{ item.goodsTypeLabel }} · {{ item.statusLabel }} · {{ item.autoConfirmText }}</p>
-          </div>
+            <div>
+              <strong>{{ item.listingTitleSnapshot || `订单 #${item.orderId}` }}</strong>
+              <p>请求号 {{ item.requestId || '-' }}</p>
+              <p>{{ item.goodsTypeLabel }} · {{ item.statusLabel }} · {{ item.fundsLabel }}</p>
+              <p>{{ item.fulfillmentLabel }} · {{ item.nextActionLabel }}</p>
+            </div>
           <strong>{{ item.totalAmountText }}</strong>
         </RouterLink>
       </div>

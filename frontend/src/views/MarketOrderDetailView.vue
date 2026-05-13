@@ -17,16 +17,42 @@
       </UiState>
 
       <template v-else>
+        <section class="market-lifecycle" aria-label="订单生命周期">
+          <div
+            v-for="step in detail.lifecycleSteps"
+            :key="step.key"
+            class="market-lifecycle-step"
+            :data-state="step.state"
+          >
+            <span>{{ step.label }}</span>
+          </div>
+        </section>
+
         <div class="market-order-list">
           <article class="market-order-row">
             <div>
               <strong>{{ detail.listingTitleSnapshot || `订单 #${detail.orderId}` }}</strong>
               <p>请求号 {{ detail.requestId || '-' }}</p>
-              <p>{{ detail.goodsTypeLabel }} · {{ detail.statusLabel }} · {{ detail.autoConfirmText }}</p>
+              <p>{{ detail.goodsTypeLabel }} · {{ detail.statusLabel }} · {{ detail.fundsLabel }}</p>
+              <p>履约：{{ detail.fulfillmentLabel }} · 下一步：{{ detail.nextActionLabel }}</p>
             </div>
             <strong>{{ detail.totalAmountText }}</strong>
           </article>
         </div>
+
+        <section class="market-panel">
+          <UiPageHeader>
+            <template #title>审计上下文</template>
+            <template #subtitle>请求号、资金状态、履约状态和下一步动作都用于判断订单是否需要继续处理。</template>
+          </UiPageHeader>
+          <ul class="market-bullets">
+            <li>资金状态：{{ detail.fundsLabel }}</li>
+            <li>履约状态：{{ detail.fulfillmentLabel }}</li>
+            <li>确认状态：{{ detail.statusLabel }}</li>
+            <li>争议状态：{{ detail.lifecycleSteps?.[4]?.label || '无争议' }}</li>
+            <li>下一步：{{ detail.nextActionLabel }}</li>
+          </ul>
+        </section>
 
         <section v-if="detail.goodsType === 'VIRTUAL'" class="market-panel">
           <UiPageHeader>

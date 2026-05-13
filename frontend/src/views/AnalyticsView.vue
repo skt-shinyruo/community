@@ -17,8 +17,8 @@
       <UiCard class="analytics-filter-card">
         <div class="analytics-filter-head">
           <div>
-            <div class="analytics-eyebrow">Time Range</div>
-            <div class="analytics-title">统计范围</div>
+            <div class="analytics-eyebrow">Scope</div>
+            <div class="analytics-title">数据范围</div>
           </div>
         </div>
         <div class="analytics-filter-grid">
@@ -55,12 +55,12 @@
       <UiCard class="analytics-insight-card">
         <div class="analytics-insight-head">
           <div>
-            <div class="analytics-eyebrow">Readout</div>
-            <div class="analytics-title">当前读数说明</div>
+            <div class="analytics-eyebrow">Freshness</div>
+            <div class="analytics-title">数据新鲜度</div>
           </div>
         </div>
         <div class="analytics-insight-copy muted">
-          当前读数按所选区间刷新；暂不可用的趋势和对比能力不会以占位图表展示。
+          当前读数按所选区间刷新；暂不可用的趋势和对比能力不会展示。
         </div>
       </UiCard>
     </div>

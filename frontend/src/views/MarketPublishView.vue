@@ -4,55 +4,70 @@
 
     <UiPageHeader>
       <template #title>发布商品</template>
-      <template #subtitle>先决定商品类型，再填履约字段。虚拟商品继续区分自动交付和手工交付；实物商品只保留最小必填的库存与描述。</template>
+      <template #subtitle>按发布流程填写交易信息、履约信息和库存预存，提交后从“我的出售”继续管理。</template>
     </UiPageHeader>
 
     <UiCard class="market-panel">
       <UiPageHeader>
-        <template #title>发布商品</template>
-        <template #subtitle>统一市场入口按 goodsType 区分商品，不再拆成独立虚拟市场页面。</template>
+        <template #title>发布流程</template>
+        <template #subtitle>先确认商品类型，再填写价格、履约和库存；自动交付商品必须预存内容。</template>
       </UiPageHeader>
 
-      <div class="market-form-grid market-form-grid--wide">
-        <label class="market-field">
-          <span>商品类型</span>
-          <select v-model="form.goodsType" class="market-select">
-            <option value="VIRTUAL">虚拟商品</option>
-            <option value="PHYSICAL">实物商品</option>
-          </select>
-        </label>
-        <label class="market-field">
-          <span>标题</span>
-          <UiInput v-model="form.title" placeholder="例如：Steam 兑换码" />
-        </label>
-        <label class="market-field">
-          <span>描述</span>
-          <textarea v-model="form.description" class="market-textarea" placeholder="说明交付内容与适用范围" />
-        </label>
-        <label class="market-field">
-          <span>价格</span>
-          <UiInput v-model.number="form.unitPrice" type="number" min="1" placeholder="输入积分价格" />
-        </label>
-        <label v-if="isVirtual" class="market-field">
-          <span>交付方式</span>
-          <select v-model="form.deliveryMode" class="market-select">
-            <option value="PRELOADED">自动交付</option>
-            <option value="MANUAL">卖家手工交付</option>
-          </select>
-        </label>
-        <label class="market-field">
-          <span>库存数量</span>
-          <UiInput v-model.number="form.stockTotal" type="number" min="1" placeholder="输入库存数量" />
-        </label>
-        <label v-if="isVirtual && form.deliveryMode === 'PRELOADED'" class="market-field">
-          <span>预存内容</span>
-          <textarea
-            v-model="inventoryText"
-            class="market-textarea"
-            placeholder="每行一条卡密或兑换码；手工交付商品可留空"
-          />
-        </label>
-      </div>
+      <section class="market-workflow-section" aria-label="交易信息">
+        <h2>交易信息</h2>
+        <div class="market-form-grid market-form-grid--wide">
+          <label class="market-field">
+            <span>商品类型</span>
+            <select v-model="form.goodsType" class="market-select">
+              <option value="VIRTUAL">虚拟商品</option>
+              <option value="PHYSICAL">实物商品</option>
+            </select>
+          </label>
+          <label class="market-field">
+            <span>标题</span>
+            <UiInput v-model="form.title" placeholder="例如：Steam 兑换码" />
+          </label>
+          <label class="market-field">
+            <span>描述</span>
+            <textarea v-model="form.description" class="market-textarea" placeholder="说明交付内容与适用范围" />
+          </label>
+          <label class="market-field">
+            <span>价格</span>
+            <UiInput v-model.number="form.unitPrice" type="number" min="1" placeholder="输入积分价格" />
+          </label>
+        </div>
+      </section>
+
+      <section class="market-workflow-section" aria-label="履约信息">
+        <h2>履约信息</h2>
+        <div class="market-form-grid market-form-grid--wide">
+          <label v-if="isVirtual" class="market-field">
+            <span>交付方式</span>
+            <select v-model="form.deliveryMode" class="market-select">
+              <option value="PRELOADED">自动交付</option>
+              <option value="MANUAL">卖家手工交付</option>
+            </select>
+          </label>
+          <label class="market-field">
+            <span>库存数量</span>
+            <UiInput v-model.number="form.stockTotal" type="number" min="1" placeholder="输入库存数量" />
+          </label>
+        </div>
+      </section>
+
+      <section v-if="isVirtual && form.deliveryMode === 'PRELOADED'" class="market-workflow-section" aria-label="库存预存">
+        <h2>库存预存</h2>
+        <div class="market-form-grid">
+          <label class="market-field">
+            <span>预存内容</span>
+            <textarea
+              v-model="inventoryText"
+              class="market-textarea"
+              placeholder="每行一条卡密或兑换码；手工交付商品可留空"
+            />
+          </label>
+        </div>
+      </section>
 
       <div class="market-inline-actions">
         <UiButton :disabled="submitting" @click="submit">

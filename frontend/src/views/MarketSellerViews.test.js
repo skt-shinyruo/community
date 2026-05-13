@@ -116,6 +116,8 @@ describe('Unified market seller views', () => {
     expect(wrapper.findAll('.market-row')).toHaveLength(2)
     expect(wrapper.text()).toContain('虚拟商品')
     expect(wrapper.text()).toContain('实物商品')
+    expect(wrapper.text()).toContain('钱包托管')
+    expect(wrapper.text()).toContain('自动交付')
     expect(wrapper.findAll('a').some((link) => link.text().includes('库存管理'))).toBe(true)
   })
 
@@ -139,6 +141,8 @@ describe('Unified market seller views', () => {
     expect(listMarketInventory).toHaveBeenCalledWith('21')
     expect(wrapper.findAll('.market-order-row')).toHaveLength(1)
     expect(wrapper.text()).toContain('CODE-001')
+    expect(wrapper.text()).toContain('可售')
+    expect(wrapper.text()).not.toContain('AVAILABLE')
   })
 
   it('submits new inventory batches and invalidates available units', async () => {

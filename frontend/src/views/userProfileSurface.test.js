@@ -66,6 +66,16 @@ describe('userProfileSurface', () => {
     })
   })
 
+  it('does not expose wallet implementation caveats in profile signals', () => {
+    const asset = buildProfileWalletAsset({ authed: true, isSelf: true })
+
+    expect(asset.valueText).toBe('仅自己可见')
+    expect(asset.chipText).toBe('仅自己可见')
+    expect(asset.description).toBe('资产明细只在钱包页向本人展示。')
+    expect(asset.description).not.toContain('未接入')
+    expect(asset.description).not.toContain('钱包页为准')
+  })
+
   it('describes follow status for self, followed, available, and anonymous states', () => {
     expect(describeFollowStatusText({ authed: true, isSelf: true, followStatus: null })).toBe('这是你的主页')
     expect(describeFollowStatusText({ authed: true, isSelf: false, followStatus: true })).toBe('你已关注')

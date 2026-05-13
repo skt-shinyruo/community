@@ -5,7 +5,7 @@
     <UiCard class="wallet-admin-shell">
       <UiPageHeader>
         <template #title>钱包后台</template>
-        <template #subtitle>冻结钱包、回滚交易，并记录可追踪的高风险资金操作。</template>
+        <template #subtitle>高风险资金操作：冻结钱包、回滚交易，并记录可追踪的审计信息。</template>
       </UiPageHeader>
 
       <UiState v-if="error" variant="error">{{ error }}</UiState>
@@ -34,7 +34,7 @@
 
       <section class="wallet-admin-log">
         <div class="wallet-admin-log-head">
-          <h3>本次会话操作</h3>
+          <h3>审计追踪</h3>
           <span>当前页面展示本次提交的操作摘要，审计查询以后台记录为准。</span>
         </div>
 

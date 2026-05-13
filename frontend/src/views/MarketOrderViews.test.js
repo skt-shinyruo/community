@@ -100,6 +100,9 @@ describe('Unified market order views', () => {
     expect(wrapper.findAll('.market-order-row')).toHaveLength(1)
     expect(wrapper.text()).toContain('虚拟商品')
     expect(wrapper.text()).toContain('待确认')
+    expect(wrapper.text()).toContain('资金状态待确认')
+    expect(wrapper.text()).toContain('已交付')
+    expect(wrapper.text()).toContain('等待买家确认完成')
   })
 
   it('loads selling orders on mount and renders physical order rows', async () => {
@@ -124,6 +127,8 @@ describe('Unified market order views', () => {
     expect(wrapper.findAll('.market-order-row')).toHaveLength(1)
     expect(wrapper.text()).toContain('实物商品')
     expect(wrapper.text()).toContain('已发货')
+    expect(wrapper.text()).toContain('已发货')
+    expect(wrapper.text()).toContain('等待买家确认收货')
   })
 
   it('loads physical order detail and renders shipment information', async () => {
@@ -151,6 +156,12 @@ describe('Unified market order views', () => {
     expect(wrapper.text()).toContain('实物商品')
     expect(wrapper.text()).toContain('顺丰')
     expect(wrapper.text()).toContain('SF1234567890')
+    expect(wrapper.find('.market-lifecycle').exists()).toBe(true)
+    expect(wrapper.text()).toContain('已创建')
+    expect(wrapper.text()).toContain('资金托管')
+    expect(wrapper.text()).toContain('履约')
+    expect(wrapper.text()).toContain('确认')
+    expect(wrapper.text()).toContain('争议')
   })
 
   it('shows the empty detail state when the order detail payload is empty', async () => {

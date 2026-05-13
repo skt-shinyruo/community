@@ -53,6 +53,17 @@ describe('driveState', () => {
     expect(trashed.visibilityLabel).toBe('私有')
   })
 
+  it('normalizes drive entry status and visibility labels for product UI', () => {
+    expect(normalizeDriveEntry({ status: 'ACTIVE', type: 'FILE', canShare: true })).toMatchObject({
+      statusLabel: '可用',
+      visibilityLabel: '可分享'
+    })
+    expect(normalizeDriveEntry({ status: 'TRASHED', type: 'FILE', canShare: false })).toMatchObject({
+      statusLabel: '回收站',
+      visibilityLabel: '私有'
+    })
+  })
+
   it('validateShareForm should require password and future expiry', () => {
     expect(validateShareForm({ password: '', expiresAt: '2026-05-10T00:00:00Z' }, new Date('2026-05-09T00:00:00Z'))).toEqual({
       valid: false,

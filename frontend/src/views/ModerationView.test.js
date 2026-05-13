@@ -82,6 +82,8 @@ describe('ModerationView', () => {
     await flushPromises()
 
     await wrapper.findAll('button').find((button) => button.text() === '处置').trigger('click')
+    expect(wrapper.text()).toContain('风险动作')
+    expect(wrapper.get('[role="dialog"]').attributes('aria-modal')).toBe('true')
     await wrapper.find('textarea').setValue('confirmed spam')
     await wrapper.findAll('button').find((button) => button.text() === '确认处置').trigger('click')
     await flushPromises()

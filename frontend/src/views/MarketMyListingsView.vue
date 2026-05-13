@@ -36,7 +36,8 @@
           </div>
           <div class="market-row-meta">
             <span class="market-pill">{{ item.goodsTypeLabel }}</span>
-            <span>{{ item.goodsType === 'VIRTUAL' ? item.deliveryLabel : item.shipmentLabel }}</span>
+            <span>{{ item.fulfillmentLabel }}</span>
+            <span>{{ item.trustLabel }}</span>
             <span>{{ item.statusLabel }}</span>
             <span>{{ item.stockText }}</span>
             <strong>{{ item.unitPriceText }}</strong>

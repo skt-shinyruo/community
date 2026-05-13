@@ -12,6 +12,22 @@ const PostBlockEditorStub = {
 }
 
 describe('EditContentModal', () => {
+  it('exposes dialog semantics and closes with Escape', async () => {
+    const wrapper = mount(EditContentModal, {
+      props: {
+        mode: 'comment',
+        initialContent: 'comment'
+      }
+    })
+
+    const dialog = wrapper.get('[role="dialog"]')
+    expect(dialog.attributes('aria-modal')).toBe('true')
+    expect(dialog.attributes('aria-labelledby')).toBeTruthy()
+
+    await wrapper.get('.modal-mask').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
   it('blocks post save while media upload is still pending', async () => {
     const wrapper = mount(EditContentModal, {
       props: {

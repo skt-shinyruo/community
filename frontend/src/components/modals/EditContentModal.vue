@@ -1,10 +1,17 @@
 <!-- 编辑弹窗：用于帖子/评论的窗口内编辑。 -->
 <template>
-  <div class="modal-mask" @click.self="$emit('close')">
-    <div class="modal-card card" style="max-width: 720px">
+  <div class="modal-mask" @click.self="$emit('close')" @keydown.esc.stop.prevent="$emit('close')">
+    <div
+      class="modal-card card"
+      style="max-width: 720px"
+      role="dialog"
+      aria-modal="true"
+      :aria-labelledby="titleId"
+      tabindex="-1"
+    >
       <div class="stack" style="padding: 16px; gap: 12px">
         <div class="row" style="justify-content: space-between; gap: 12px; align-items: center">
-          <div style="font-weight: 800">{{ headerTitle }}</div>
+          <div :id="titleId" style="font-weight: 800">{{ headerTitle }}</div>
           <UiIconButton aria-label="关闭" title="关闭" size="sm" @click="$emit('close')">×</UiIconButton>
         </div>
 
@@ -41,7 +48,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useId, watch } from 'vue'
 import UiButton from '../ui/UiButton.vue'
 import UiIconButton from '../ui/UiIconButton.vue'
 import UiInput from '../ui/UiInput.vue'
@@ -57,6 +64,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'submit'])
+const titleId = `edit-content-modal-title-${useId()}`
 
 const title = ref(String(props.initialTitle || ''))
 const content = ref(String(props.initialContent || ''))

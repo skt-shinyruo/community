@@ -569,6 +569,19 @@ html[data-density='compact'] .topic-list {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.market-workflow-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+
+.market-workflow-section h2 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-1);
+}
+
 .market-field {
   display: grid;
   gap: 8px;
@@ -608,9 +621,59 @@ html[data-density='compact'] .topic-list {
   margin-top: 8px;
 }
 
+.market-risk-note {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--warning) 24%, var(--border) 76%);
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface) 92%);
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.market-risk-note strong {
+  color: var(--text-1);
+}
+
+.market-lifecycle {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.market-lifecycle-step {
+  min-width: 0;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.market-lifecycle-step[data-state='complete'] {
+  border-color: color-mix(in srgb, var(--success) 28%, var(--border) 72%);
+  background: color-mix(in srgb, var(--success) 8%, var(--surface) 92%);
+  color: var(--text-1);
+}
+
+.market-lifecycle-step[data-state='active'] {
+  border-color: color-mix(in srgb, var(--warning) 36%, var(--border) 64%);
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface) 90%);
+  color: var(--text-1);
+}
+
 @media (max-width: 900px) {
   .market-split,
   .market-form-grid--wide {
+    grid-template-columns: 1fr;
+  }
+
+  .market-lifecycle {
     grid-template-columns: 1fr;
   }
 

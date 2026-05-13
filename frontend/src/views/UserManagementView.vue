@@ -60,7 +60,7 @@
         </div>
 
         <div class="user-field">
-          <div class="user-field-label">原因（必填）</div>
+          <div class="user-field-label">审计原因（必填）</div>
           <UiInput v-model.trim="reason" name="user-role-reason" placeholder="例如：自托管初始管理员 / 运营团队授予版主权限" autocomplete="off" />
         </div>
       </div>

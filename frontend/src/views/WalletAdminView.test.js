@@ -43,6 +43,9 @@ describe('WalletAdminView', () => {
       }
     })
 
+    expect(wrapper.text()).toContain('高风险资金操作')
+    expect(wrapper.text()).toContain('审计追踪')
+
     const inputs = wrapper.findAll('input')
     await inputs[0].setValue('11111111-1111-7111-8111-111111111111')
     await inputs[1].setValue('risk-control')

@@ -81,6 +81,8 @@ describe('UserManagementView', () => {
     })
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('USER')
+    expect(wrapper.text()).toContain('审计原因')
+    expect(wrapper.text()).toContain('提升为 ADMIN 风险较高')
 
     await wrapper.get('select[name="user-next-role"]').setValue('1')
     await wrapper.get('input[name="user-role-reason"]').setValue('权限升级')

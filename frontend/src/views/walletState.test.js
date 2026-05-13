@@ -23,4 +23,13 @@ describe('walletState', () => {
     expect(state.hero.status).toBe('UNKNOWN')
     expect(state.hero.statusText).toBe('钱包状态暂不可用，余额以当前可见数据为准。')
   })
+
+  it('describes unknown wallet summary as unavailable without future-work copy', () => {
+    const state = buildWalletState({ summary: { balance: 0 }, txns: [] })
+
+    expect(state.hero.status).toBe('UNKNOWN')
+    expect(state.hero.statusText).toBe('钱包状态暂不可用，余额以当前可见数据为准。')
+    expect(state.hero.statusText).not.toContain('后续')
+    expect(state.hero.statusText).not.toContain('待同步')
+  })
 })

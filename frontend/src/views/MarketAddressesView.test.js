@@ -81,6 +81,9 @@ describe('MarketAddressesView', () => {
     expect(listMarketAddresses).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('张三')
     expect(wrapper.text()).toContain('默认地址')
+    expect(wrapper.text()).toContain('订单使用地址快照')
+    expect(wrapper.text()).toContain('编辑')
+    expect(wrapper.text()).toContain('删除')
   })
 
   it('creates, updates, and deletes addresses through the unified service', async () => {

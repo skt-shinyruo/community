@@ -10,7 +10,7 @@
     <UiCard class="ops-card">
       <div class="ops-head">
         <div>
-          <div class="ops-eyebrow">High Risk Action</div>
+          <div class="ops-eyebrow">高风险操作</div>
           <div class="ops-title">Search · 重建索引</div>
         </div>
       </div>

@@ -183,11 +183,18 @@
        <UiButton variant="secondary" @click="nextPage" :disabled="!hasNext || loading">下一页</UiButton>
     </div>
 
-    <div v-if="reindexConfirmOpen" class="modal-mask" @click.self="reindexConfirmOpen = false">
-      <div class="modal-card card">
+    <div v-if="reindexConfirmOpen" class="modal-mask" @click.self="reindexConfirmOpen = false" @keydown.esc.stop.prevent="reindexConfirmOpen = false">
+      <div
+        class="modal-card card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="search-reindex-title"
+        aria-describedby="search-reindex-description"
+        tabindex="-1"
+      >
         <div class="stack">
-          <div class="search-modal-title">重建索引</div>
-          <div class="muted">此操作可能耗时较长，会对搜索/下游产生负载，是否继续？</div>
+          <div id="search-reindex-title" class="search-modal-title">重建索引</div>
+          <div id="search-reindex-description" class="muted">此操作可能耗时较长，会对搜索/下游产生负载，是否继续？</div>
 
           <div class="search-modal-actions">
             <UiButton variant="secondary" @click="reindexConfirmOpen = false">取消</UiButton>

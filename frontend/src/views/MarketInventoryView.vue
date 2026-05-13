@@ -44,10 +44,10 @@
         </UiState>
 
         <div v-else class="market-order-list">
-          <article v-for="item in inventoryItems" :key="item.inventoryUnitId" class="market-order-row">
+          <article v-for="item in state.inventory" :key="item.inventoryUnitId" class="market-order-row">
             <div>
               <strong>{{ item.payloadContent }}</strong>
-              <p>{{ item.payloadType }} · {{ item.status }}</p>
+              <p>{{ item.payloadType }} · {{ item.statusLabel }}</p>
             </div>
             <UiButton
               v-if="item.status === 'AVAILABLE'"
@@ -77,6 +77,7 @@ import {
   invalidateMarketInventory,
   listMarketInventory
 } from '../api/services/marketService'
+import { buildMarketState } from './marketState'
 
 const route = useRoute()
 const loading = ref(false)
@@ -88,6 +89,7 @@ const inventoryText = ref('')
 const inventory = ref([])
 
 const inventoryItems = computed(() => (Array.isArray(inventory.value) ? inventory.value : []))
+const state = computed(() => buildMarketState({ inventory: inventoryItems.value }))
 
 async function reload() {
   loading.value = true

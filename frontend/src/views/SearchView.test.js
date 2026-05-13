@@ -57,12 +57,19 @@ describe('SearchView', () => {
     return { promise, resolve, reject }
   }
 
-  function mountView() {
+  function mountView({ admin = false } = {}) {
     const pinia = createPinia()
     setActivePinia(pinia)
 
     const auth = useAuthStore()
     auth.clear()
+    if (admin) {
+      auth.setMe({
+        userId: 1,
+        username: 'admin',
+        authorities: ['ROLE_ADMIN']
+      })
+    }
 
     const taxonomy = useTaxonomyStore()
     taxonomy.categories = [{ id: categoryId, name: '公告' }]
@@ -206,5 +213,16 @@ describe('SearchView', () => {
     expect(wrapper.text()).not.toContain('First Result')
 
     await Promise.allSettled([firstRun, secondRun])
+  })
+
+  it('renders admin reindex confirmation as an accessible dialog', async () => {
+    const wrapper = mountView({ admin: true })
+
+    await wrapper.find('.search-reindex-btn').trigger('click')
+
+    const dialog = wrapper.get('[role="dialog"]')
+    expect(dialog.attributes('aria-modal')).toBe('true')
+    expect(wrapper.get(`#${dialog.attributes('aria-labelledby')}`).text()).toBe('重建索引')
+    expect(dialog.text()).toContain('此操作可能耗时较长')
   })
 })

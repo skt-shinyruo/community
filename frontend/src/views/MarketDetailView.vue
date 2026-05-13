@@ -15,12 +15,13 @@
         <strong>{{ detail.unitPriceText }}</strong>
         <span>{{ detail.statusLabel }}</span>
         <span>{{ detail.stockText }}</span>
+        <span>{{ detail.trustLabel }}</span>
       </div>
 
       <section class="market-split">
         <UiCard class="market-panel">
           <UiPageHeader>
-            <template #title>交易动作</template>
+            <template #title>安全下单</template>
             <template #subtitle>下单后资金进入钱包托管，按履约方式跟进交付、收货或争议处理。</template>
           </UiPageHeader>
 
@@ -38,8 +39,12 @@
                 </option>
               </select>
             </label>
+            <div class="market-risk-note">
+              <strong>钱包托管</strong>
+              <span>确认商品、库存和履约方式后再提交；未完成前请优先在订单详情里处理争议。</span>
+            </div>
             <UiButton :disabled="submitting" @click="submitOrder">
-              {{ submitting ? '下单中…' : '立即托管下单' }}
+              {{ submitting ? '下单中…' : '安全下单' }}
             </UiButton>
           </div>
         </UiCard>

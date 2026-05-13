@@ -97,15 +97,24 @@
   </div>
 
   <!-- Action Modal -->
-  <div v-if="actionModalOpen" class="modal-mask" @click.self="closeActionModal">
-    <div class="modal-card card moderation-modal">
+  <div v-if="actionModalOpen" class="modal-mask" @click.self="closeActionModal" @keydown.esc.stop.prevent="closeActionModal">
+    <div
+      class="modal-card card moderation-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="moderation-action-title"
+      aria-describedby="moderation-action-description"
+      tabindex="-1"
+    >
       <div class="moderation-modal-body">
         <div class="moderation-modal-head">
-          <div class="moderation-modal-title">处置举报 #{{ selectedReport?.id }}</div>
+          <div id="moderation-action-title" class="moderation-modal-title">处置举报 #{{ selectedReport?.id }}</div>
           <UiIconButton aria-label="关闭" title="关闭" size="sm" @click="closeActionModal">×</UiIconButton>
         </div>
 
-        <div class="muted moderation-modal-meta">
+        <div id="moderation-action-description" class="muted moderation-modal-meta">
+          风险动作：处置会写入治理审计，并可能影响帖子、评论或成员状态。
+          <br />
           目标：{{ targetTypeLabel(selectedReport?.targetType) }} #{{ selectedReport?.targetId }}
         </div>
 

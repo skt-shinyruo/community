@@ -177,6 +177,10 @@ describe('Unified market views', () => {
     expect(getMarketListingDetail).toHaveBeenCalledWith('22222222-2222-7222-8222-222222222222')
     expect(listMarketAddresses).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('实物商品')
+    expect(wrapper.text()).toContain('钱包托管')
+    expect(wrapper.text()).toContain('安全下单')
+    expect(wrapper.text()).toContain('库存')
+    expect(wrapper.text()).toContain('履约')
 
     await wrapper.find('select').setValue('33333333-3333-7333-8333-333333333333')
     await wrapper.find('button').trigger('click')
@@ -192,6 +196,11 @@ describe('Unified market views', () => {
 
   it('publishes a physical listing with goodsType-aware payload', async () => {
     const wrapper = mount(MarketPublishView, mountOptions())
+
+    expect(wrapper.text()).toContain('发布流程')
+    expect(wrapper.text()).toContain('交易信息')
+    expect(wrapper.text()).toContain('履约信息')
+    expect(wrapper.text()).not.toContain('不再拆成独立虚拟市场页面')
 
     await wrapper.find('select').setValue('PHYSICAL')
     await wrapper.findAll('input')[0].setValue('二手键盘')
@@ -227,6 +236,8 @@ describe('Unified market views', () => {
 
     expect(wrapper.text()).toContain('货不对板')
     expect(wrapper.text()).toContain('实物商品')
+    expect(wrapper.text()).toContain('资金状态')
+    expect(wrapper.text()).toContain('需要管理员裁定')
 
     await wrapper.find('button').trigger('click')
     await flushPromises()

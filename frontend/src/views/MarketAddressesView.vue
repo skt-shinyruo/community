@@ -8,7 +8,7 @@
     <template v-else>
       <UiPageHeader>
         <template #title>收货地址</template>
-        <template #subtitle>实物订单下单前，先把地址簿整理好。地址簿是可变资料，订单使用的是地址快照，所以这里管理的是未来下单的默认收货信息。</template>
+        <template #subtitle>实物订单下单前，先把地址簿整理好。订单使用地址快照；这里管理未来下单的默认收货信息。</template>
       </UiPageHeader>
 
       <UiCard class="market-panel">
@@ -68,7 +68,7 @@
               <p v-if="item.defaultLabel">{{ item.defaultLabel }}</p>
             </div>
             <div class="market-inline-actions">
-              <UiButton variant="secondary" :disabled="submitting" @click="submitUpdate(item)">更新</UiButton>
+              <UiButton variant="secondary" :disabled="submitting" @click="submitUpdate(item)">编辑</UiButton>
               <UiButton :disabled="submitting" @click="submitDelete(item.addressId)">删除</UiButton>
             </div>
           </article>

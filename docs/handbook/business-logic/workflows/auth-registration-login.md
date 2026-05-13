@@ -10,6 +10,8 @@
 | user | 用户账号、密码 hash、用户状态、角色、refresh session 存储事实。 |
 | analytics | 登录成功和访问行为采集。 |
 
+![Auth registration login workflow](../../assets/workflow-auth-registration-login.svg)
+
 ## 注册主流程
 
 当前注册是 Verify-First：验证码通过前不插入正式 `user` row。

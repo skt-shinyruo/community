@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 1040 390">
+  <title>Market order wallet saga workflow</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker><style>text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:22px;font-weight:700}.t{font-size:14px;font-weight:700}.s{font-size:12px;fill:#475569}.box{fill:#f8fafc;stroke:#94a3b8;rx:10;stroke-width:1.5}.own{fill:#ecfeff;stroke:#0891b2}.wallet{fill:#f0fdf4;stroke:#16a34a}.pending{fill:#fff7ed;stroke:#f97316}.edge{stroke:#334155;stroke-width:1.8;fill:none;marker-end:url(#a)}</style></defs>
+  <rect width="1040" height="390" fill="#fff"/><text x="36" y="40" class="h">Market Order and Wallet Funds</text>
+  <rect x="54" y="108" width="135" height="56" class="box"/><text x="83" y="142" class="t">Buyer order</text>
+  <rect x="240" y="108" width="160" height="56" class="box own"/><text x="278" y="135" class="t">market app</text><text x="265" y="156" class="s">idempotency + stock</text>
+  <rect x="450" y="108" width="160" height="56" class="box own"/><text x="481" y="142" class="t">order facts</text>
+  <rect x="450" y="218" width="160" height="56" class="box pending"/><text x="470" y="252" class="t">market_wallet_action</text>
+  <rect x="690" y="218" width="150" height="56" class="box wallet"/><text x="720" y="245" class="t">wallet ledger</text><text x="716" y="266" class="s">escrow / release / refund</text>
+  <rect x="690" y="108" width="150" height="56" class="box own"/><text x="713" y="142" class="t">order transition</text>
+  <path class="edge" d="M189 136 H240"/><path class="edge" d="M400 136 H450"/><path class="edge" d="M530 164 V218"/><path class="edge" d="M610 246 H690"/><path class="edge" d="M765 218 V164"/><path class="edge" d="M690 136 H610"/>
+  <text x="54" y="328" class="s">HTTP success can mean the order and durable funds command were accepted. Real money state is confirmed by wallet ledger and saga action status.</text>
+</svg>

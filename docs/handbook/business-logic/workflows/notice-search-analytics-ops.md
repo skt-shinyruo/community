@@ -12,6 +12,8 @@
 | ops | 管理型重建、清理和补偿入口的分发。 |
 | content / social / moderation | 通知和搜索的上游事实来源。 |
 
+![Notice search analytics ops workflow](../../assets/workflow-notice-search-analytics-ops.svg)
+
 ## 通知投影
 
 1. content、social 或 moderation 发生业务事件。

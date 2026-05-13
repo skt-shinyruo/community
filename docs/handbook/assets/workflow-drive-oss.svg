@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 1040 380">
+  <title>Drive and OSS file workflow</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker><style>text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:22px;font-weight:700}.t{font-size:14px;font-weight:700}.s{font-size:12px;fill:#475569}.box{fill:#f8fafc;stroke:#94a3b8;rx:10;stroke-width:1.5}.drive{fill:#ecfeff;stroke:#0891b2}.oss{fill:#fff7ed;stroke:#f97316}.edge{stroke:#334155;stroke-width:1.8;fill:none;marker-end:url(#a)}.dash{stroke-dasharray:7 5}</style></defs>
+  <rect width="1040" height="380" fill="#fff"/><text x="36" y="40" class="h">Drive, Share, OSS Files</text>
+  <rect x="54" y="112" width="135" height="56" class="box"/><text x="83" y="146" class="t">Browser</text>
+  <rect x="238" y="112" width="160" height="56" class="box drive"/><text x="270" y="139" class="t">drive app</text><text x="260" y="160" class="s">quota and entries</text>
+  <rect x="448" y="62" width="160" height="56" class="box oss"/><text x="482" y="96" class="t">OSS upload</text>
+  <rect x="448" y="162" width="160" height="56" class="box drive"/><text x="472" y="196" class="t">file entry / share</text>
+  <rect x="690" y="62" width="150" height="56" class="box oss"/><text x="716" y="96" class="t">object version</text>
+  <rect x="690" y="162" width="150" height="56" class="box oss"/><text x="716" y="196" class="t">grant / signed URL</text>
+  <path class="edge" d="M189 140 H238"/><path class="edge" d="M398 126 C424 112 422 90 448 90"/><path class="edge" d="M608 90 H690"/><path class="edge" d="M398 154 C424 168 422 190 448 190"/><path class="edge dash" d="M608 190 H690"/>
+  <text x="54" y="302" class="s">Drive owns the user's tree, quota, trash, share token, and access log. OSS owns object versions, grants, signed URLs, and blob lifecycle.</text>
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 980 500">
+  <title>Login success sequence</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker><style>text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:23px;font-weight:700}.p{font-size:13px;font-weight:700}.s{font-size:12px;fill:#475569}.life{stroke:#cbd5e1;stroke-width:1.4;stroke-dasharray:5 5}.msg{stroke:#334155;stroke-width:1.8;fill:none;marker-end:url(#a)}.ret{stroke:#64748b;stroke-dasharray:5 4}.box{fill:#f8fafc;stroke:#94a3b8;rx:8}</style></defs>
+  <rect width="980" height="500" fill="#fff"/><text x="36" y="38" class="h">Login Main Path</text>
+  <g><rect x="30" y="70" width="110" height="42" class="box"/><text x="56" y="96" class="p">Client</text><line x1="85" y1="112" x2="85" y2="455" class="life"/></g>
+  <g><rect x="170" y="70" width="130" height="42" class="box"/><text x="192" y="96" class="p">Controller</text><line x1="235" y1="112" x2="235" y2="455" class="life"/></g>
+  <g><rect x="330" y="70" width="145" height="42" class="box"/><text x="346" y="96" class="p">Login app svc</text><line x1="402" y1="112" x2="402" y2="455" class="life"/></g>
+  <g><rect x="505" y="70" width="110" height="42" class="box"/><text x="535" y="96" class="p">Risk</text><line x1="560" y1="112" x2="560" y2="455" class="life"/></g>
+  <g><rect x="650" y="70" width="110" height="42" class="box"/><text x="680" y="96" class="p">User API</text><line x1="705" y1="112" x2="705" y2="455" class="life"/></g>
+  <g><rect x="790" y="70" width="150" height="42" class="box"/><text x="816" y="96" class="p">Token store</text><line x1="865" y1="112" x2="865" y2="455" class="life"/></g>
+  <path class="msg" d="M85 145 H235"/><text x="104" y="137" class="s">POST /api/auth/login</text>
+  <path class="msg" d="M235 185 H402"/><text x="270" y="177" class="s">LoginCommand</text>
+  <path class="msg" d="M402 225 H560"/><text x="432" y="217" class="s">rate limit + captcha</text>
+  <path class="msg ret" d="M560 258 H402"/><text x="456" y="250" class="s">pass</text>
+  <path class="msg" d="M402 298 H705"/><text x="455" y="290" class="s">authenticate username/password</text>
+  <path class="msg ret" d="M705 331 H402"/><text x="497" y="323" class="s">user view + authorities</text>
+  <path class="msg" d="M402 371 H865"/><text x="512" y="363" class="s">create access token + store refresh token hash</text>
+  <path class="msg ret" d="M402 411 H235"/><text x="280" y="403" class="s">LoginResult</text>
+  <path class="msg ret" d="M235 445 H85"/><text x="98" y="437" class="s">access token + refresh cookie</text>
+</svg>

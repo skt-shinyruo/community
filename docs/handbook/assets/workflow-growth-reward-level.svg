@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 1040 340">
+  <title>Growth task reward level workflow</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker><style>text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:22px;font-weight:700}.t{font-size:14px;font-weight:700}.s{font-size:12px;fill:#475569}.box{fill:#f8fafc;stroke:#94a3b8;rx:10;stroke-width:1.5}.own{fill:#ecfeff;stroke:#0891b2}.wallet{fill:#f0fdf4;stroke:#16a34a}.edge{stroke:#334155;stroke-width:1.8;fill:none;marker-end:url(#a)}</style></defs>
+  <rect width="1040" height="340" fill="#fff"/><text x="36" y="40" class="h">Growth Tasks, Rewards, Levels</text>
+  <rect x="60" y="122" width="150" height="56" class="box"/><text x="82" y="156" class="t">content / social event</text>
+  <rect x="270" y="122" width="150" height="56" class="box own"/><text x="300" y="149" class="t">growth app</text><text x="292" y="170" class="s">event dedupe</text>
+  <rect x="480" y="72" width="150" height="56" class="box own"/><text x="508" y="105" class="t">task progress</text>
+  <rect x="480" y="172" width="150" height="56" class="box own"/><text x="510" y="205" class="t">level rules</text>
+  <rect x="690" y="72" width="150" height="56" class="box wallet"/><text x="718" y="105" class="t">wallet reward</text>
+  <rect x="690" y="172" width="150" height="56" class="box"/><text x="719" y="205" class="t">user display</text>
+  <path class="edge" d="M210 150 H270"/><path class="edge" d="M420 144 C452 124 446 100 480 100"/><path class="edge" d="M630 100 H690"/><path class="edge" d="M420 158 C452 176 446 200 480 200"/><path class="edge" d="M630 200 H690"/>
+  <text x="60" y="294" class="s">Growth decides progress and reward eligibility. Wallet decides whether money or points are actually recorded.</text>
+</svg>

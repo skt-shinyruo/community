@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 1040 620">
+  <title>Business domain ownership map</title>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker>
+    <style>text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:24px;font-weight:700}.t{font-size:14px;font-weight:700}.s{font-size:12px;fill:#475569}.box{fill:#f8fafc;stroke:#94a3b8;stroke-width:1.5;rx:10}.app{fill:#ecfeff;stroke:#0891b2}.oss{fill:#fff7ed;stroke:#f97316}.im{fill:#eef2ff;stroke:#6366f1}.read{fill:#f0fdf4;stroke:#16a34a}.edge{stroke:#334155;stroke-width:1.7;fill:none;marker-end:url(#a)}.dash{stroke-dasharray:7 5}</style>
+  </defs>
+  <rect width="1040" height="620" fill="#fff"/><text x="36" y="42" class="h">Business Domain Ownership Map</text>
+  <rect x="58" y="86" width="168" height="54" class="box"/><text x="88" y="118" class="t">Browser / Client</text>
+  <rect x="286" y="86" width="168" height="54" class="box"/><text x="314" y="118" class="t">community-gateway</text>
+  <rect x="88" y="198" width="520" height="296" class="box app"/><text x="274" y="227" class="t">community-app package owners</text>
+  <rect x="118" y="260" width="92" height="42" class="box"/><text x="146" y="286" class="t">auth</text>
+  <rect x="230" y="260" width="92" height="42" class="box"/><text x="260" y="286" class="t">user</text>
+  <rect x="342" y="260" width="92" height="42" class="box"/><text x="364" y="286" class="t">content</text>
+  <rect x="454" y="260" width="92" height="42" class="box"/><text x="478" y="286" class="t">social</text>
+  <rect x="118" y="332" width="92" height="42" class="box read"/><text x="142" y="358" class="t">notice</text>
+  <rect x="230" y="332" width="92" height="42" class="box read"/><text x="253" y="358" class="t">search</text>
+  <rect x="342" y="332" width="92" height="42" class="box"/><text x="363" y="358" class="t">growth</text>
+  <rect x="454" y="332" width="92" height="42" class="box"/><text x="475" y="358" class="t">wallet</text>
+  <rect x="118" y="404" width="92" height="42" class="box"/><text x="143" y="430" class="t">market</text>
+  <rect x="230" y="404" width="92" height="42" class="box"/><text x="259" y="430" class="t">drive</text>
+  <rect x="342" y="404" width="92" height="42" class="box read"/><text x="358" y="430" class="t">analytics</text>
+  <rect x="454" y="404" width="92" height="42" class="box read"/><text x="485" y="430" class="t">ops</text>
+  <rect x="700" y="190" width="210" height="92" class="box oss"/><text x="756" y="224" class="t">community-oss</text><text x="736" y="250" class="s">object/version/blob owner</text>
+  <rect x="700" y="342" width="210" height="120" class="box im"/><text x="762" y="376" class="t">community-im</text><text x="738" y="402" class="s">session, websocket, message</text><text x="754" y="424" class="s">membership and unread owner</text>
+  <path class="edge" d="M226 113 H286"/><path class="edge" d="M454 113 C528 113 550 236 608 236"/><path class="edge" d="M454 113 C536 113 610 236 700 236"/><path class="edge" d="M454 113 C540 113 610 402 700 402"/>
+  <path class="edge dash" d="M322 425 C462 520 606 242 700 236"/><text x="493" y="500" class="s">drive/content/user consume OSS contracts</text>
+  <path class="edge dash" d="M546 281 C604 292 646 352 700 402"/><text x="556" y="323" class="s">user/social policy projection</text>
+  <path class="edge dash" d="M434 353 H454"/><path class="edge dash" d="M322 353 H342"/><text x="112" y="544" class="s">Owner facts stay in their domain. Notice/search/analytics are read models, not upstream fact sources.</text>
+</svg>

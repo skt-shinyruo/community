@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 1040 380">
+  <title>Content publishing comments media workflow</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker><style>text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:22px;font-weight:700}.t{font-size:14px;font-weight:700}.s{font-size:12px;fill:#475569}.box{fill:#f8fafc;stroke:#94a3b8;rx:10;stroke-width:1.5}.own{fill:#ecfeff;stroke:#0891b2}.read{fill:#f0fdf4;stroke:#16a34a}.edge{stroke:#334155;stroke-width:1.8;fill:none;marker-end:url(#a)}.dash{stroke-dasharray:7 5}</style></defs>
+  <rect width="1040" height="380" fill="#fff"/><text x="36" y="40" class="h">Post, Media, Tags, Comments</text>
+  <rect x="54" y="104" width="145" height="58" class="box"/><text x="78" y="139" class="t">PostController</text>
+  <rect x="260" y="104" width="170" height="58" class="box own"/><text x="292" y="130" class="t">content app</text><text x="284" y="151" class="s">idempotency + rules</text>
+  <rect x="494" y="104" width="170" height="58" class="box own"/><text x="522" y="130" class="t">content domain</text><text x="515" y="151" class="s">post/comment facts</text>
+  <rect x="732" y="58" width="130" height="52" class="box"/><text x="758" y="90" class="t">user API</text>
+  <rect x="732" y="132" width="130" height="52" class="box"/><text x="759" y="164" class="t">OSS API</text>
+  <rect x="732" y="206" width="130" height="52" class="box read"/><text x="755" y="238" class="t">search outbox</text>
+  <rect x="732" y="280" width="130" height="52" class="box read"/><text x="763" y="312" class="t">notice</text>
+  <rect x="884" y="206" width="118" height="52" class="box"/><text x="906" y="238" class="t">growth</text>
+  <rect x="884" y="280" width="118" height="52" class="box"/><text x="912" y="312" class="t">wallet</text>
+  <path class="edge" d="M199 133 H260"/><path class="edge" d="M430 133 H494"/><path class="edge" d="M664 116 C700 100 706 84 732 84"/><path class="edge dash" d="M664 141 H732"/><path class="edge" d="M664 162 C698 190 704 223 732 232"/><path class="edge" d="M664 162 C704 218 700 302 732 306"/><path class="edge" d="M664 133 C730 148 817 232 884 232"/><path class="edge" d="M664 133 C735 165 818 306 884 306"/>
+  <text x="54" y="352" class="s">Content owns post/comment references. OSS owns object versions. Search and notice catch up after the main fact is committed.</text>
+</svg>

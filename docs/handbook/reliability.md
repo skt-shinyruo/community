@@ -2,6 +2,8 @@
 
 本文档是幂等、outbox、重试、补偿、single-flight 和失败语义的 SSOT。业务链路只引用这些机制，不在各自章节重复展开。
 
+![Reliability mechanisms for idempotency and outbox](assets/reliability-idempotency-outbox.svg)
+
 ## 可靠性地图
 
 | 场景 | 机制 | 目标 |

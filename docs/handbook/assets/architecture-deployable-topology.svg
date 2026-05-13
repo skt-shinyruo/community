@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 960 520">
+  <title>Community deployable topology</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#334155"/></marker>
+    <style>
+      text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:24px;font-weight:700}.t{font-size:15px}.s{font-size:13px;fill:#475569}.box{fill:#f8fafc;stroke:#94a3b8;stroke-width:1.6;rx:10}.edge{stroke:#334155;stroke-width:2;fill:none;marker-end:url(#arrow)}.dash{stroke-dasharray:7 5}.store{fill:#eef2ff;stroke:#818cf8}.svc{fill:#ecfeff;stroke:#06b6d4}.gw{fill:#fff7ed;stroke:#f97316}.infra{fill:#f1f5f9;stroke:#64748b}
+    </style>
+  </defs>
+  <rect width="960" height="520" fill="#ffffff"/>
+  <text x="40" y="42" class="h">Deployable Topology</text>
+  <rect x="42" y="86" width="150" height="64" class="box"/><text x="72" y="112" class="t">Browser</text><text x="72" y="134" class="s">Client</text>
+  <rect x="42" y="190" width="150" height="64" class="box"/><text x="72" y="217" class="t">Vue3 SPA</text><text x="72" y="239" class="s">frontend</text>
+  <rect x="282" y="132" width="185" height="82" class="box gw"/><text x="317" y="164" class="t">community-gateway</text><text x="315" y="188" class="s">/api, /files, /ws/im</text>
+  <rect x="580" y="70" width="185" height="64" class="box svc"/><text x="616" y="98" class="t">community-app</text><text x="610" y="120" class="s">main business owners</text>
+  <rect x="580" y="162" width="185" height="64" class="box svc"/><text x="616" y="190" class="t">community-oss</text><text x="618" y="212" class="s">object owner</text>
+  <rect x="580" y="254" width="185" height="64" class="box svc"/><text x="628" y="282" class="t">im-core</text><text x="610" y="304" class="s">message authority</text>
+  <rect x="580" y="346" width="185" height="64" class="box svc"/><text x="618" y="374" class="t">im-realtime</text><text x="606" y="396" class="s">websocket workers</text>
+  <rect x="812" y="72" width="112" height="50" class="box infra"/><text x="842" y="103" class="t">Nacos</text>
+  <rect x="812" y="150" width="112" height="50" class="box store"/><text x="826" y="181" class="t">MySQL</text>
+  <rect x="812" y="220" width="112" height="50" class="box store"/><text x="832" y="251" class="t">Redis</text>
+  <rect x="812" y="290" width="112" height="50" class="box store"/><text x="848" y="321" class="t">ES</text>
+  <rect x="812" y="360" width="112" height="50" class="box store"/><text x="835" y="391" class="t">Kafka</text>
+  <path class="edge" d="M192 118 H282"/><path class="edge" d="M192 222 C230 222 238 174 282 174"/><path class="edge" d="M467 173 H580"/>
+  <path class="edge" d="M467 173 C514 173 526 102 580 102"/><path class="edge" d="M467 173 C514 173 526 194 580 194"/><path class="edge" d="M467 173 C516 173 526 286 580 286"/><path class="edge" d="M467 173 C516 173 526 378 580 378"/>
+  <path class="edge dash" d="M580 132 C520 132 520 162 580 176"/><text x="488" y="143" class="s">oss client</text>
+  <path class="edge" d="M765 102 H812"/><path class="edge" d="M765 286 C790 286 790 384 812 384"/><path class="edge" d="M765 378 H812"/>
+  <path class="edge" d="M672 134 C672 154 784 175 812 175"/><path class="edge" d="M672 226 C690 246 784 244 812 244"/><path class="edge" d="M672 134 C710 134 774 315 812 315"/>
+  <path class="edge" d="M672 318 C710 330 780 384 812 384"/>
+  <text x="580" y="458" class="s">Gateway is the stable external entry. Owner facts stay in the deployable that owns them.</text>
+</svg>

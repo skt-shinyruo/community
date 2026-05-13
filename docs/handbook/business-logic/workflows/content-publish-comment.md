@@ -14,6 +14,8 @@
 | search | 帖子搜索索引。 |
 | notice | 评论、治理等事件产生通知。 |
 
+![Content publishing comments media workflow](../../assets/workflow-content-publish-comment.svg)
+
 ## 发帖主流程
 
 1. `PostController` 接收请求，读取登录用户和 `Idempotency-Key`。

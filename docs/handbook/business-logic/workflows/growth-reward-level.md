@@ -11,6 +11,8 @@
 | wallet | 奖励入账和撤销的最终账本事实。 |
 | user | 用户资料展示时可能组合等级或积分投影。 |
 
+![Growth task reward level workflow](../../assets/workflow-growth-reward-level.svg)
+
 ## 任务进度流程
 
 1. content 或 social 发生业务事件。

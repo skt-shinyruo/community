@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 1040 410">
+  <title>IM session websocket messaging workflow</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker><style>text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:22px;font-weight:700}.t{font-size:14px;font-weight:700}.s{font-size:12px;fill:#475569}.box{fill:#f8fafc;stroke:#94a3b8;rx:10;stroke-width:1.5}.gw{fill:#fff7ed;stroke:#f97316}.rt{fill:#eef2ff;stroke:#6366f1}.core{fill:#ecfeff;stroke:#0891b2}.read{fill:#f0fdf4;stroke:#16a34a}.edge{stroke:#334155;stroke-width:1.8;fill:none;marker-end:url(#a)}.dash{stroke-dasharray:7 5}</style></defs>
+  <rect width="1040" height="410" fill="#fff"/><text x="36" y="40" class="h">IM Session, WebSocket, Messaging</text>
+  <rect x="50" y="96" width="140" height="56" class="box"/><text x="80" y="130" class="t">Client</text>
+  <rect x="238" y="70" width="160" height="56" class="box gw"/><text x="262" y="104" class="t">IM gateway</text>
+  <rect x="238" y="164" width="160" height="56" class="box gw"/><text x="258" y="198" class="t">WS bridge</text>
+  <rect x="460" y="164" width="160" height="56" class="box rt"/><text x="490" y="191" class="t">im-realtime</text><text x="484" y="212" class="s">policy projection</text>
+  <rect x="682" y="164" width="160" height="56" class="box"/><text x="717" y="198" class="t">Kafka command</text>
+  <rect x="682" y="270" width="160" height="56" class="box core"/><text x="722" y="304" class="t">im-core</text>
+  <rect x="460" y="270" width="160" height="56" class="box read"/><text x="492" y="304" class="t">online push</text>
+  <path class="edge" d="M190 104 H238"/><text x="196" y="92" class="s">session bootstrap</text>
+  <path class="edge" d="M318 126 V164"/><path class="edge" d="M398 192 H460"/><path class="edge" d="M620 192 H682"/><path class="edge" d="M762 220 V270"/><path class="edge" d="M682 298 H620"/><path class="edge" d="M460 298 C326 298 268 220 190 192"/>
+  <path class="edge dash" d="M620 188 C652 142 696 120 750 120"/><text x="650" y="116" class="s">snapshot + events keep projection ready</text>
+  <text x="50" y="366" class="s">sendAccepted means realtime accepted the command. Message truth is persisted by im-core; clients repair state through HTTP history.</text>
+</svg>

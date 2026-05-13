@@ -10,6 +10,8 @@
 | OSS | 对象、版本、上传会话、reference、grant、签名 URL 和 blob 生命周期。 |
 | user | 用户身份和业务授权。 |
 
+![Drive and OSS file workflow](../../assets/workflow-drive-oss.svg)
+
 ## 上传流程
 
 1. 用户进入网盘时，drive 读取 `drive_space`，不存在则创建默认配额。

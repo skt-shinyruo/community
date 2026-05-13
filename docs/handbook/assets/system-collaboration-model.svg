@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 960 430">
+  <title>Synchronous and asynchronous collaboration model</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker>
+    <style>
+      text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:24px;font-weight:700}.t{font-size:15px;font-weight:700}.s{font-size:13px;fill:#475569}.lane{fill:#f8fafc;stroke:#cbd5e1;stroke-width:1.5;rx:14}.box{fill:white;stroke:#94a3b8;stroke-width:1.5;rx:9}.sync{stroke:#0891b2}.async{stroke:#7c3aed}.edge{stroke:#334155;stroke-width:2;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="960" height="430" fill="#fff"/>
+  <text x="38" y="42" class="h">System Collaboration Model</text>
+  <rect x="42" y="76" width="876" height="132" class="lane"/><text x="64" y="105" class="t">Synchronous owner API: current use case needs an answer now</text>
+  <rect x="78" y="132" width="150" height="46" class="box sync"/><text x="104" y="161" class="t">Caller app</text>
+  <rect x="288" y="132" width="150" height="46" class="box sync"/><text x="315" y="161" class="t">Owner API</text>
+  <rect x="498" y="132" width="150" height="46" class="box sync"/><text x="514" y="161" class="t">Owner app</text>
+  <rect x="708" y="132" width="150" height="46" class="box sync"/><text x="733" y="161" class="t">Owner domain</text>
+  <path class="edge" d="M228 155 H288"/><path class="edge" d="M438 155 H498"/><path class="edge" d="M648 155 H708"/>
+  <rect x="42" y="238" width="876" height="132" class="lane"/><text x="64" y="267" class="t">Asynchronous contract event: owner fact is committed; projection can catch up</text>
+  <rect x="78" y="294" width="150" height="46" class="box async"/><text x="105" y="323" class="t">Domain event</text>
+  <rect x="288" y="294" width="150" height="46" class="box async"/><text x="321" y="323" class="t">Adapter</text>
+  <rect x="498" y="294" width="150" height="46" class="box async"/><text x="518" y="323" class="t">contracts.event</text>
+  <rect x="708" y="294" width="150" height="46" class="box async"/><text x="728" y="323" class="t">Consumer app</text>
+  <path class="edge" d="M228 317 H288"/><path class="edge" d="M438 317 H498"/><path class="edge" d="M648 317 H708"/>
+  <text x="64" y="402" class="s">HTTP 200, command accepted, outbox delivered, and projection complete are different success levels.</text>
+</svg>

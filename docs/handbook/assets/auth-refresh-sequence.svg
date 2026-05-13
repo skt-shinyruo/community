@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 980 450">
+  <title>Refresh token rotation sequence</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker><style>text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:23px;font-weight:700}.p{font-size:13px;font-weight:700}.s{font-size:12px;fill:#475569}.life{stroke:#cbd5e1;stroke-width:1.4;stroke-dasharray:5 5}.msg{stroke:#334155;stroke-width:1.8;fill:none;marker-end:url(#a)}.ret{stroke:#64748b;stroke-dasharray:5 4}.box{fill:#f8fafc;stroke:#94a3b8;rx:8}</style></defs>
+  <rect width="980" height="450" fill="#fff"/><text x="36" y="38" class="h">Refresh Main Path</text>
+  <g><rect x="35" y="70" width="110" height="42" class="box"/><text x="61" y="96" class="p">Client</text><line x1="90" y1="112" x2="90" y2="410" class="life"/></g>
+  <g><rect x="180" y="70" width="130" height="42" class="box"/><text x="202" y="96" class="p">Controller</text><line x1="245" y1="112" x2="245" y2="410" class="life"/></g>
+  <g><rect x="345" y="70" width="130" height="42" class="box"/><text x="368" y="96" class="p">Login app</text><line x1="410" y1="112" x2="410" y2="410" class="life"/></g>
+  <g><rect x="510" y="70" width="130" height="42" class="box"/><text x="532" y="96" class="p">Refresh svc</text><line x1="575" y1="112" x2="575" y2="410" class="life"/></g>
+  <g><rect x="675" y="70" width="110" height="42" class="box"/><text x="705" y="96" class="p">User API</text><line x1="730" y1="112" x2="730" y2="410" class="life"/></g>
+  <g><rect x="820" y="70" width="120" height="42" class="box"/><text x="850" y="96" class="p">Storage</text><line x1="880" y1="112" x2="880" y2="410" class="life"/></g>
+  <path class="msg" d="M90 145 H245"/><text x="105" y="137" class="s">POST /refresh + cookie</text>
+  <path class="msg" d="M245 185 H410"/><text x="286" y="177" class="s">RefreshCommand</text>
+  <path class="msg" d="M410 225 H575"/><text x="445" y="217" class="s">rotate token</text>
+  <path class="msg" d="M575 265 H880"/><text x="628" y="257" class="s">consume old hash + store new hash</text>
+  <path class="msg ret" d="M880 298 H575"/><text x="682" y="290" class="s">new session</text>
+  <path class="msg" d="M410 330 H730"/><text x="487" y="322" class="s">load user + authorities</text>
+  <path class="msg ret" d="M410 368 H245"/><text x="296" y="360" class="s">RefreshResult</text>
+  <path class="msg ret" d="M245 400 H90"/><text x="104" y="392" class="s">new access + refresh cookie</text>
+</svg>

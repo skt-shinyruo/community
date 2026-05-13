@@ -1,145 +1,264 @@
-# 登录、刷新和会话流程
+# Auth 登录、会话和续期流程
 
-本文档描述 `community-app` 当前登录、refresh token 续期、logout 和后续 JWT 鉴权的代码链路。安全模型总览见 [security.md](security.md)，业务链路总览见 [business-flows.md](business-flows.md)。
+本文档描述 `community-app` 当前 auth 登录、注册验证后自动登录、refresh token 续期、logout、`/me` 和后续 JWT 鉴权链路。安全模型总览见 [security.md](security.md)，业务流程总览见 [business-flows.md](business-flows.md)。
 
-## 入口和边界
+## 核心模型
 
-认证相关入口由 `AuthSecurityRules` 放行：
+`community-app` 的浏览器会话由两类 token 组成：
 
-- `POST /api/auth/login`
-- `POST /api/auth/refresh`
-- `POST /api/auth/logout`
-- `GET /api/auth/captcha`
+| 凭证 | 载体 | 服务端状态 | 用途 |
+| --- | --- | --- | --- |
+| access token | `LoginResponse.accessToken`，由前端放入 `Authorization: Bearer ...` | 不保存在线 session，只验证 JWT 签名、issuer 和过期时间 | 访问 `/api/**` 受保护接口 |
+| refresh token | `refresh_token` HttpOnly cookie | 默认 DB store 保存 SHA-256 hash 和 family 状态 | access token 过期后续期，logout / 密码重置后撤销 |
 
-全局 API 安全配置在 `CommunitySecurityConfig`：`/api/**` 使用 stateless session，禁用 CSRF，并通过 Spring Security resource server 验证 Bearer JWT。除 `AuthSecurityRules` 显式放行的入口外，其余接口默认要求已认证。
-
-`AuthOriginGuardFilter` 只覆盖 login / refresh / logout 这类 cookie 会话敏感入口。浏览器请求带 `Origin` 时，必须满足同源或 allowlist；无 `Origin` 的非浏览器客户端按服务端调用处理。
-
-## 登录入口
-
-登录入口是 `AuthController.login(...)`，路径为 `POST /api/auth/login`。
-
-controller 的职责只限 HTTP 适配：
-
-1. 解析 `LoginRequest` 中的 `username`、`password`、`captchaId` 和 `captchaCode`。
-2. 通过 `ClientIpResolver` 解析客户端 IP 和 IP 来源。
-3. 组装 `LoginCommand`，调用 `AuthApplicationService.login(...)`。
-4. 成功后将 `LoginResult.refreshCookie()` 写入 `Set-Cookie`。
-5. 响应体只返回 `LoginResponse.accessToken`。
-
-核心调用链：
+默认运行路径是：
 
 ```text
-AuthController.login(...)
-  -> AuthApplicationService.login(LoginCommand)
-  -> LoginApplicationService.login(LoginCommand)
+AuthController
+  -> AuthApplicationService
+      -> LoginApplicationService / RegistrationVerificationApplicationService
+          -> auth domain service / auth repository interface
+          -> user api.query / api.action
+          -> analytics api.action
+              -> auth infrastructure / user infrastructure
 ```
 
-## 数据流总览
+边界原则：
 
-登录链路里的数据分成四类：HTTP 输入输出、应用层命令 / 结果、跨域 owner API 数据、存储数据。
+- controller 只做 HTTP binding、cookie 读写、认证对象提取和 DTO 转换。
+- auth application 负责登录、续期、退出、验证码、风控、token 签发和跨域同步 API 编排。
+- user owner 负责用户凭证、角色、账号状态和默认 DB refresh session 持久化。
+- auth domain 不直接依赖 user owner、Spring Web、MyBatis、Redis 或 HTTP DTO。
+- access token 不落库；refresh token 明文不落库。
 
-三条接口的时序图分别放在对应流程章节：登录见“登录核心编排”，refresh 见“Refresh 续期”，logout 见“Logout”。本节只保留跨流程都成立的数据原则：access token 不写服务端存储；服务端只通过 JWT 签名和过期时间验证它。refresh token 明文只在浏览器 cookie 和请求 / 响应过程中出现，默认 DB store 只保存 SHA-256 hash。
+## HTTP 入口
 
-## 运行时数据对象
+`CommunitySecurityConfig` 对 `/api/**` 和 `/internal/**` 使用 stateless session，禁用 CSRF，并通过 Spring Security resource server 验证 JWT。`AuthSecurityRules` 放行 auth 公开入口，其余接口默认要求认证。
 
-| 层次 | 数据对象 | 关键字段 | 去向 / 存储 |
+| Endpoint | 认证要求 | 主要效果 |
+| --- | --- | --- |
+| `POST /api/auth/login` | public | 校验用户名密码，签发 access token，写 refresh cookie |
+| `POST /api/auth/refresh` | public，依赖 refresh cookie | rotate refresh token，签发新 access token，写新 refresh cookie |
+| `POST /api/auth/logout` | public，依赖 refresh cookie | 撤销 refresh token family，清 refresh cookie |
+| `GET /api/auth/me` | Bearer JWT | 从已验证 JWT claim 返回当前用户 |
+| `GET /api/auth/captcha` | public | 签发登录 / 注册 / 密码重置可复用的验证码 |
+| `POST /api/auth/register/code/verify` | public | 注册验证码通过后创建用户并自动登录，写 refresh cookie |
+| `POST /api/auth/password/reset/confirm` | public | 重置密码，并撤销该用户所有 refresh sessions |
+
+`AuthOriginGuardFilter` 当前只覆盖 `POST /api/auth/login`、`POST /api/auth/refresh` 和 `POST /api/auth/logout`。浏览器请求带 `Origin` 时必须同源或命中 allowlist；没有 `Origin` 的非浏览器客户端按服务端调用放行。注意：`POST /api/auth/register/code/verify` 也会下发 refresh cookie，但当前不在该 filter 的匹配范围内。
+
+## 运行时数据
+
+| 层次 | 类型 / 对象 | 关键字段 | 去向 |
 | --- | --- | --- | --- |
-| HTTP | `LoginRequest` | `username`, `password`, `captchaId`, `captchaCode` | 浏览器 JSON -> `AuthController.login(...)` |
-| HTTP | `LoginResponse`, `MeResponse` | `accessToken`；`userId`, `username`, `authorities` | controller -> 浏览器 JSON；`me` 来自已验证 JWT claim |
-| application | `LoginCommand` | 登录凭证、验证码、`clientIp`, `clientIpSource` | controller 组装后进入 `LoginApplicationService` |
-| application | `RefreshCommand`, `LogoutCommand` | `refreshToken` | 从 `refresh_token` cookie 读取 |
-| application | `LoginResult`, `RefreshResult` | `accessToken`, `refreshCookie` | application 返回 controller |
-| application | `RefreshCookieSpec` | cookie 名称、值、`HttpOnly`、`Secure`、`SameSite`、`Max-Age` | controller 转为 Spring `ResponseCookie` |
-| owner API | `UserAuthenticationResultView` | `user`, `failure` | user owner -> auth application |
-| owner API | `UserCredentialView` | `userId`, `username`, `status`, `type`, `headerUrl` | user owner 暴露账号状态和角色来源 |
-| owner API | `RefreshTokenSessionView` | `tokenHash`, `userId`, `familyId`, `expiresAt`, `revokedAt` | user owner 暴露 refresh session 状态 |
-
-## 数据归属矩阵
-
-| 数据 | Owner / 存储 | 写入方 | 读取方 | 清理 / 失效 |
-| --- | --- | --- | --- | --- |
-| `password` 明文 | 不持久化 | 浏览器提交当前请求 | `UserCredentialApplicationService.authenticate(...)` 当前调用内使用 | 请求结束即丢弃；日志不记录 |
-| `user.password`, `user.salt` | MySQL `user` | 注册、密码重置 | user owner 认证流程 | `user.password` 保存 BCrypt；`salt` 不参与当前校验 |
-| `user.status`, `user.type` | MySQL `user` | user owner | 登录、refresh、`authoritiesOf(...)` | 状态变更后需等下次 token 签发体现 |
-| access token | 客户端 | `JwtTokenService.createAccessToken(...)` | Spring Security resource server、`/api/auth/me` | 服务端不保存，依赖短 TTL 过期 |
-| refresh token 明文 | 浏览器 HttpOnly cookie | `RefreshTokenApplicationService.issue(...)` | refresh / logout 请求读取 cookie | refresh rotation、logout 或失败清 cookie |
-| refresh token hash | MySQL `auth_refresh_token.token_hash` | `DbRefreshTokenRepository.store(...)` | `consume(...)`, `find(...)`, `revoke(...)` | `revoked_at` 非空、过期或 cleanup 删除 |
-| token family marker | MySQL `auth_refresh_token_family_revocation` | `revokeFamily(...)` | `store(...)` 防止已撤销 family 回写 active token | 按 family 撤销语义长期保留或随清理策略处理 |
-| 登录失败计数 | Redis `auth:login:fail:*` | `LoginRateLimitApplicationService.recordFailure(...)` | `assertNotBlocked(...)`, `isCaptchaRequired(...)` | 登录成功 `reset(...)` 删除，或 TTL 到期 |
-| 验证码 | Redis `captcha:*`, `captcha:fail:*` | `CaptchaApplicationService.issue(...)` / mismatch 自增 | `CaptchaApplicationService.verify(...)` | 验证成功、失败过多、显式删除或 TTL 到期 |
+| HTTP request | `LoginRequest` | `username`, `password`, `captchaId`, `captchaCode` | `AuthController.login(...)` |
+| HTTP request | cookie `refresh_token` | refresh token 明文 | `refresh(...)` / `logout(...)` 读取 |
+| HTTP response | `LoginResponse` | `accessToken` | 登录、注册验证、refresh 返回给客户端 |
+| HTTP response | `Set-Cookie` | `refresh_token` | 登录、注册验证、refresh 写入；logout / refresh 失败清理 |
+| application command | `LoginCommand` | 登录凭证、验证码、`clientIp`, `clientIpSource` | controller 组装后进入 auth application |
+| application command | `RefreshCommand`, `LogoutCommand` | `refreshToken` | 从 cookie 读取后传入 application |
+| application result | `LoginResult`, `RefreshResult` | `accessToken`, `RefreshCookieSpec` | application 返回 controller |
+| owner API | `UserAuthenticationResultView` | `authenticated`, `failure`, `user` | user owner 认证结果 |
+| owner API | `UserCredentialView` | `userId`, `username`, `status`, `type`, `headerUrl` | 角色计算、refresh 后回源校验 |
+| owner API | `RefreshTokenSessionView` | `tokenHash`, `userId`, `familyId`, `expiresAt`, `revokedAt` | 默认 DB refresh store 状态 |
 
 敏感数据处理：
 
-- `password` 只用于当前认证调用，不进入 auth 域持久化。
-- `refreshToken` 明文只用于 cookie、请求读取和 hash 计算；默认 DB store 不落明文。
-- `accessToken` 只返回给客户端，服务端不保存在线 session。
-- 安全日志记录用户名、用户 ID、IP 和失败原因，不记录密码或 refresh token 明文。
+- `password` 只在当前认证调用内使用，不进入 auth 持久化，也不写日志。
+- refresh token 明文只存在于 cookie、当前请求 / 响应和 hash 计算过程。
+- 默认 DB store 只保存 refresh token 的 SHA-256 hex hash。
+- 安全日志记录用户名、用户 ID、IP、IP 来源和失败原因，不记录密码或 refresh token 明文。
 
-## 登录核心编排
+## 登录流程
 
-`LoginApplicationService.login(...)` 是登录状态机。它不直接查用户表，而是编排 auth 域能力，并通过 user owner 的同步 API 校验账号。
+入口是 `AuthController.login(...)`，路径为 `POST /api/auth/login`。
 
-下图只表达登录成功主路径上的跨组件调用顺序。验证码缺失、验证码错误、账号禁用、密码错误和风控阻断会在 `LoginApplicationService.login(...)` 内提前抛错，不会进入 token 签发。
+![Login success sequence](assets/auth-login-sequence.svg)
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant C as Browser / Client
-    participant AC as AuthController
-    participant LA as LoginApplicationService
-    participant Risk as RateLimit / Captcha
-    participant User as UserCredentialQueryApi
-    participant Token as JwtTokenService
-    participant RT as RefreshTokenApplicationService
-    participant Store as User owner storage
+controller 职责：
 
-    C->>AC: POST /api/auth/login
-    AC->>LA: LoginCommand
-    LA->>Risk: assertNotBlocked + verify captcha
-    Risk-->>LA: pass or auth error
-    LA->>User: authenticate(username, password)
-    User->>Store: read user credentials
-    Store-->>User: user status + password hash
-    User-->>LA: UserAuthenticationResultView
-    LA->>Token: createAccessToken(user, authorities)
-    LA->>RT: issue(userId)
-    RT->>Store: store refresh token hash
-    LA-->>AC: LoginResult
-    AC-->>C: accessToken + Set-Cookie refresh_token
+1. 校验并解析 `LoginRequest`。
+2. 用 `ClientIpResolver` 解析客户端 IP 和来源。
+3. 创建 `LoginCommand`，调用 `AuthApplicationService.login(...)`。
+4. 将 `LoginResult.refreshCookie()` 转为 `Set-Cookie`。
+5. 响应体只返回 `LoginResponse.accessToken`。
+
+application 主流程：
+
+1. `LoginRateLimitApplicationService.assertNotBlocked(...)` 检查 IP / 用户名失败计数。
+2. `isCaptchaRequired(...)` 判断是否必须提交验证码。
+3. 需要验证码但缺少 `captchaId` / `captchaCode` 时，记录失败并抛 `CAPTCHA_REQUIRED`。
+4. 提交验证码时由 `CaptchaApplicationService.verify(...)` 校验；失败记录风控并抛 `CAPTCHA_INVALID`。
+5. `AuthDomainService.requireCredentials(...)` 校验用户名和密码非空。
+6. `UserCredentialQueryApi.authenticate(...)` 进入 user owner 校验账号状态和 BCrypt 密码。
+7. 认证失败转换为 `INVALID_CREDENTIALS` 或 `USER_DISABLED`，并计入风控失败次数。
+8. 认证成功后 `LoginRateLimitApplicationService.reset(...)` 清除当前用户名 / IP 失败计数。
+9. `issueLoginResult(...)` 签发 access token 和 refresh token。
+10. 写安全日志，并通过 `AnalyticsIngestActionApi.recordLoginSuccess(...)` 记录登录成功。
+
+登录失败语义：
+
+| 场景 | 错误 |
+| --- | --- |
+| 用户名 / 密码为空、用户不存在、密码错误 | `AuthErrorCode.INVALID_CREDENTIALS` |
+| `user.status == 0` | `AuthErrorCode.USER_DISABLED` |
+| 已达到验证码门槛但未提交验证码 | `AuthErrorCode.CAPTCHA_REQUIRED` |
+| 验证码错误、过期或失败过多后被删除 | `AuthErrorCode.CAPTCHA_INVALID` |
+| IP / 用户名达到失败阈值 | `CommonErrorCode.TOO_MANY_REQUESTS` |
+| 登录风控或验证码依赖不可用 | `CommonErrorCode.SERVICE_UNAVAILABLE` |
+
+## 注册验证后自动登录
+
+`POST /api/auth/register/code/verify` 不是密码登录，但成功后同样返回登录态。
+
+```text
+AuthController.verifyRegisterCode(...)
+  -> AuthApplicationService.verifyRegisterCode(...)
+  -> RegistrationVerificationApplicationService.verifyAndLogin(...)
+      -> RegistrationCodeRepository.verifyAndConsume(...)
+      -> UserRegistrationActionApi.createVerifiedRegistrationUser(...)
+      -> LoginApplicationService.issueLoginResult(...)
 ```
 
-图中的 `Risk` 合并表示登录风控和验证码校验；`Store` 表示 user owner 管理的数据存储，包括用户凭证表和 refresh session 表。具体 Redis key、MySQL 字段和清理语义见“数据归属矩阵”“登录风控和验证码”和“Refresh Session DB 状态”。
+关键语义：
+
+- registration draft 和邮箱验证码校验通过后才创建 active 用户。
+- 创建用户成功后不再走用户名密码认证，而是对刚创建的 `UserCredentialView` 调 `issueLoginResult(...)`。
+- 响应体仍是 `LoginResponse(accessToken)`，并写入 refresh cookie。
+- `finally` 中 best-effort 删除 registration draft，避免重复使用。
+
+## JWT 和 `/me`
+
+access token 由 `JwtTokenService.createAccessToken(...)` 签发：
+
+| Claim / 属性 | 来源 |
+| --- | --- |
+| `alg` | HS256 |
+| `iss` | `security.jwt.issuer` |
+| `sub` | `UserCredentialView.userId()` |
+| `username` | `UserCredentialView.username()` |
+| `authorities` | `UserCredentialQueryApi.authoritiesOf(user)` |
+| `iat`, `exp` | 当前时间和 `security.jwt.access-token-ttl-seconds` |
+
+JWT 编解码由 `JwtCodecs` 创建，要求 `security.jwt.hmac-secret` 满足 HS256 secret 要求，并使用 configured issuer 做默认校验。`CommunitySecurityConfig` 的 resource server 验证 Bearer JWT 后，`AuthoritiesConverterFactory` 将 `authorities` claim 转为 Spring Security authority。
+
+`GET /api/auth/me` 不回源查库，只读取已验证 JWT：
+
+```text
+CurrentUser.requireJwt(authentication)
+  -> sub -> userId
+  -> username claim
+  -> authorities claim
+```
+
+因此用户角色或账号状态变化不会立刻反映到已签出的 access token；通常要等下一次 refresh 或重新登录后重新签发。
+
+## Refresh 续期
+
+入口是 `AuthController.refresh(...)`，路径为 `POST /api/auth/refresh`。refresh token 从 `refresh_token` cookie 读取，不从请求体读取。
+
+![Refresh token rotation sequence](assets/auth-refresh-sequence.svg)
 
 主流程：
 
-1. 从 `LoginCommand` 取 `username`、`password`、`captchaId`、`captchaCode`、`clientIp` 和 `clientIpSource`。
-2. 调用 `LoginRateLimitApplicationService.assertNotBlocked(...)`，检查当前 IP / 用户名是否已经超过失败阈值。
-3. 调用 `LoginRateLimitApplicationService.isCaptchaRequired(...)`，判断当前请求是否必须带验证码。
-4. 如果需要验证码但请求没有 `captchaId` / `captchaCode`，记录一次失败，写安全日志，抛出 `AuthErrorCode.CAPTCHA_REQUIRED`。
-5. 如果请求带验证码，调用 `CaptchaApplicationService.verify(...)`。验证失败时记录失败，写安全日志，抛出 `AuthErrorCode.CAPTCHA_INVALID`。
-6. 调用 `AuthDomainService.requireCredentials(...)` 校验用户名和密码非空。空值按 `AuthErrorCode.INVALID_CREDENTIALS` 处理。
-7. 调用 `UserCredentialQueryApi.authenticate(...)` 进入 user owner 域校验用户名、密码和账号状态。
-8. user 域返回未认证时，`authenticationFailure(...)` 将结果转换为 `INVALID_CREDENTIALS` 或 `USER_DISABLED`。
-9. 认证失败、账号禁用、验证码缺失和验证码错误都会调用 `LoginRateLimitApplicationService.recordFailure(...)`，并写结构化安全日志。
-10. 认证成功后调用 `LoginRateLimitApplicationService.reset(...)` 清理该用户名 / IP 的失败计数。
-11. 调用 `issueLoginResult(...)` 签发 access token 和 refresh token。
-12. 写登录成功安全日志，并通过 `AnalyticsIngestActionApi.recordLoginSuccess(...)` 记录登录成功埋点。
+1. cookie 缺失或空值时抛 `REFRESH_TOKEN_INVALID`。
+2. `RefreshTokenApplicationService.rotate(...)` 消费旧 token。
+3. 旧 token 找不到、已撤销、已过期或新 token 写入失败时返回 invalid。
+4. rotation 成功后，用新 refresh token `find(...)` 读出 userId。
+5. 回源 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在且未禁用。
+6. 重新计算 authorities。
+7. 签发新的 access token，并返回新的 refresh cookie。
 
-失败语义：
+rotation 语义：
 
-- 用户名为空、密码为空、用户不存在、密码错误：`AuthErrorCode.INVALID_CREDENTIALS`。
-- 用户 `status == 0`：`AuthErrorCode.USER_DISABLED`。
-- 需要验证码但未提交：`AuthErrorCode.CAPTCHA_REQUIRED`。
-- 验证码错误或过期：`AuthErrorCode.CAPTCHA_INVALID`。
-- 达到登录失败阈值：`CommonErrorCode.TOO_MANY_REQUESTS`。
-- 登录风控依赖异常：`CommonErrorCode.SERVICE_UNAVAILABLE`。
+- 每次 refresh 都消费旧 refresh token。
+- 新 refresh token 复用同一个 `familyId`。
+- 旧 token 不再 active。
+- 如果旧 token 已被撤销但又被复用，`maybeRevokeFamilyForReusedToken(...)` 会检查 `security.jwt.refresh-reuse-grace-seconds`；超过 grace window 且未过期时撤销整个 family。
+- refresh 失败且错误是 `REFRESH_TOKEN_INVALID` 或 `USER_DISABLED` 时，controller 会额外写入 `Max-Age=0` 的 clear cookie。
+
+## Logout
+
+入口是 `AuthController.logout(...)`，路径为 `POST /api/auth/logout`。
+
+![Logout refresh family revocation sequence](assets/auth-logout-sequence.svg)
+
+logout 是 best-effort：
+
+- 请求没有 refresh token 时，不做 repository 操作，但仍清浏览器 cookie。
+- 请求带 refresh token 时，先查 token，撤销当前 token；如果能识别 family，再撤销整个 family。
+- logout 不撤销已经签出的 access token；access token 继续依赖短 TTL 自然过期。
+
+## 密码重置后的会话失效
+
+`POST /api/auth/password/reset/confirm` 成功后会撤销该用户所有 refresh sessions：
+
+```text
+PasswordResetApplicationService.confirmReset(...)
+  -> UserCredentialActionApi.resetPasswordAndRevokeRefreshSessions(...)
+  -> UserCredentialApplicationService.resetPasswordAndRevokeRefreshSessions(...)
+      -> updatePasswordOnly(...)
+      -> RefreshTokenSessionRepository.revokeByUserId(userId)
+```
+
+这只影响 refresh token。已签出的 access token 不会被服务端集中撤销，仍等待短 TTL 过期。
+
+## Refresh Session 存储
+
+默认配置是 `auth.refresh.store: db`。auth 域使用 `RefreshTokenRepository` 接口，DB-backed 实现是 `DbRefreshTokenRepository`，但 refresh session 数据由 user owner 持久化：
+
+```text
+RefreshTokenApplicationService
+  -> RefreshTokenRepository
+  -> DbRefreshTokenRepository
+  -> UserRefreshTokenSessionActionApi / UserRefreshTokenSessionQueryApi
+  -> RefreshTokenSessionApplicationService
+  -> MyBatisRefreshTokenSessionRepository
+  -> auth_refresh_token / auth_refresh_token_family_revocation
+```
+
+DB schema 精简视图：
+
+| 表 | 关键字段 | 说明 |
+| --- | --- | --- |
+| `auth_refresh_token` | `token_hash`, `user_id`, `family_id`, `expires_at`, `revoked_at`, `created_at` | refresh session 主表；`token_hash` 是 SHA-256 hex |
+| `auth_refresh_token_family_revocation` | `family_id`, `revoked_at` | family 撤销标记；防止已撤销 family 写回 active token |
+
+DB store 行为：
+
+- `store(...)` 插入 active row；如果 family 已撤销，写入失败。
+- `consume(...)` 只消费 `revoked_at is null` 且未过期的 active token，并设置 `revoked_at`。
+- `find(...)` 返回 active 且未过期的 token；过期时会撤销并返回 null。
+- `revoke(...)` 撤销单个 token。
+- `revokeFamily(...)` 写 family marker，并撤销该 family 下所有 active token。
+- `revokeByUserId(...)` 用于密码重置，撤销该用户所有 refresh sessions，并标记相关 family。
+- `deleteExpiredBefore(...)` 由 cleanup job 删除过期 rows。
+
+状态机：
+
+![Refresh session database state machine](assets/auth-refresh-session-state.svg)
+
+`RefreshTokenCleanupJob` 每 `auth.refresh.cleanup.interval-ms` 执行一次；`auth.refresh.cleanup.enabled=false` 时跳过。该 job 只清理过期 refresh session，不影响 access token。
+
+可选 Redis store 由 `RedisRefreshTokenRepository` 提供，只有 `auth.refresh.store=redis` 时启用。核心 key：
+
+| Key | 内容 |
+| --- | --- |
+| `auth:refresh:<refreshToken>` | active refresh token record |
+| `auth:refresh:revoked:<refreshToken>` | 被消费或撤销 token 的 tombstone，用于复用检测 |
+| `auth:refresh:family:<familyId>` | family 下 active token set |
+| `auth:refresh:family:revoked:<familyId>` | family 撤销 marker，阻止新 token 写入 |
 
 ## 登录风控和验证码
 
-登录风控由 `LoginRateLimitApplicationService` 编排，底层通过 `LoginRateLimitRepository` 计数。
+登录风控由 `LoginRateLimitApplicationService` 编排，底层通过 `LoginRateLimitRepository` 计数。默认 Redis key：
 
-默认配置：
+| Key | 生命周期 |
+| --- | --- |
+| `auth:login:fail:ip:<ip>` | 登录失败自增；TTL 为 `auth.login-rate-limit.window-seconds`；登录成功删除 |
+| `auth:login:fail:user:<username>` | 用户名 trim 后转小写；登录失败自增；登录成功删除 |
+
+默认阈值：
 
 ```yaml
 auth:
@@ -152,297 +271,82 @@ auth:
     captcha-required-failures-per-user: 2
 ```
 
-关键行为：
+验证码由 `CaptchaApplicationService` 签发和校验：
 
-- 失败计数按 IP 和用户名分别维护。
-- 用户名失败 2 次或 IP 失败 5 次后要求验证码。
-- 用户名失败 5 次或 IP 失败 20 次后直接拒绝登录。
-- 登录成功后，当前用户名 / IP 的失败计数会被清理。
-- 风控依赖异常时，阻断登录并返回服务不可用，避免 fail-open。
+| Key | 内容 / 生命周期 |
+| --- | --- |
+| `captcha:<captchaId>` | 验证码值；TTL 为 `auth.captcha.ttl-seconds` |
+| `captcha:fail:<captchaId>` | 验证失败次数；TTL 与验证码对齐 |
 
-验证码由 `CaptchaApplicationService` 负责。默认 Redis store，TTL 60 秒，最多失败 3 次。`verify(...)` 使用 `CaptchaRepository.verifyAndConsume(...)`，匹配成功后验证码被消费；失败次数达到上限后删除验证码，要求重新获取。
+默认验证码 TTL 60 秒，最多失败 3 次。验证码匹配成功后会消费；失败次数达到上限后删除，要求重新获取。验证码依赖异常时返回 `SERVICE_UNAVAILABLE`。
 
-Redis 运行态数据：
+## 配置摘要
 
-| 能力 | Key | Value / TTL | 生命周期 |
-| --- | --- | --- | --- |
-| 登录风控 | `auth:login:fail:ip:<ip>` | 失败次数；TTL 为 `auth.login-rate-limit.window-seconds` | `recordFailure(...)` 自增；登录成功 `reset(...)` 删除 |
-| 登录风控 | `auth:login:fail:user:<username>` | 失败次数；TTL 为 `auth.login-rate-limit.window-seconds` | 用户名 trim 后转小写；登录成功删除 |
-| 验证码 | `captcha:<captchaId>` | 验证码明文；TTL 为 `auth.captcha.ttl-seconds` | `issue(...)` 写入；匹配成功、失败过多或显式删除时删除 |
-| 验证码 | `captcha:fail:<captchaId>` | 验证失败次数；TTL 与验证码对齐 | mismatch 后自增；验证码删除时同步删除 |
-
-`LoginRateLimitDomainService.keyOf(...)` 规范化 Redis key。风控自增使用 Lua 脚本保证首次写入时设置 TTL。验证码比对大小写不敏感，`verifyAndConsume(...)` 成功后会同时删除验证码和失败次数，避免重复使用。
-
-## 账号密码校验
-
-auth 域通过 `UserCredentialQueryApi.authenticate(...)` 调 user owner。适配器是 `UserCredentialApiAdapter`，实际进入 `UserCredentialApplicationService.authenticate(...)`。
-
-user owner 认证流程：
-
-1. 通过 `UserCredentialDomainService.trim(...)` 规范化用户名和密码。
-2. 用户名或密码为空时返回 `UserAuthenticationResult.invalidCredentials()`。
-3. 通过 `UserRepository.findByUsername(...)` 查询用户。
-4. 用户不存在时返回 `invalidCredentials()`，不暴露账号是否存在。
-5. `user.status() == 0` 时返回 `UserAuthenticationResult.userDisabled(...)`。
-6. `BCryptPasswordEncoder.matches(rawPassword, encodedPassword)` 校验密码。
-7. 校验通过后返回 `UserAuthenticationResult.authenticated(...)`，再由 `UserCredentialApiAdapter` 转为 `UserAuthenticationResultView` 给 auth 域。
-
-密码格式：
-
-- BCrypt：`BCryptPasswordEncoder.matches(rawPassword, encodedPassword)`。
-
-authorities 也由 user owner 计算：`UserCredentialApplicationService.authoritiesOf(...)` 根据 `user.type` 返回 `ROLE_ADMIN`、`ROLE_MODERATOR` 或 `ROLE_USER`。
-
-用户凭证存储：
-
-| 表 | 核心字段 | 用途 |
-| --- | --- | --- |
-| `user` | `id`, `username`, `password`, `salt`, `email` | 登录名、密码 hash 和保留字段；`id` 是 JWT `sub` 与 refresh session `user_id` 来源 |
-| `user` | `type`, `status`, `header_url` | `type` 决定角色；`status == 0` 视为禁用；`header_url` 暴露到 `UserCredentialView` |
-
-`UserMapper.selectByName(...)` 从 `user` 表读取 `id, username, password, salt, email, type, status, header_url, create_time, score, mute_until, ban_until`。`UserMapper.updatePassword(...)` 只更新 `user.password` 为 BCrypt hash，`salt` 字段不参与当前密码校验。
-
-## Token 签发
-
-登录成功后，`LoginApplicationService.issueLoginResult(...)` 负责签发凭证：
-
-```text
-UserCredentialQueryApi.authoritiesOf(user)
-  -> AuthTokenPort.createAccessToken(...)
-  -> RefreshTokenApplicationService.issue(userId)
-  -> LoginResult(accessToken, refreshCookie)
-```
-
-access token 由 `JwtTokenService.createAccessToken(...)` 签发：
-
-- 签名算法：HS256。
-- `sub`：用户 UUID。
-- `username`：用户名。
-- `authorities`：角色列表。
-- `issuer`：`security.jwt.issuer`。
-- `issuedAt` / `expiresAt`：签发和过期时间。
-
-refresh token 由 `RefreshTokenApplicationService.issue(...)` 签发：
-
-- 生成新的 token family。
-- 生成随机 refresh token。
-- 根据 `security.jwt.refresh-token-ttl-seconds` 计算过期时间。
-- 通过 `RefreshTokenRepository.store(...)` 保存。
-- 构造 HttpOnly refresh cookie。
-
-默认 JWT / cookie 配置：
+主要配置来自 `application.yml` 和 `JwtProperties`：
 
 ```yaml
 security:
   jwt:
-    issuer: community-auth
+    hmac-secret: ${JWT_HMAC_SECRET:}
+    issuer: ${JWT_ISSUER:community-auth}
     access-token-ttl-seconds: 900
     refresh-token-ttl-seconds: 604800
+    refresh-reuse-grace-seconds: 10
     refresh-cookie-name: refresh_token
     refresh-cookie-path: /api/auth
-    refresh-cookie-same-site: Lax
-    refresh-cookie-secure: false
+    refresh-cookie-same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
+    refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:false}
+
+gateway:
+  origin-guard:
+    enabled: true
+    allowed-origins: ${AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS:}
+    fail-open-when-allowlist-empty: false
+
+auth:
+  refresh:
+    store: db
+    cleanup:
+      enabled: ${AUTH_REFRESH_CLEANUP_ENABLED:true}
+      interval-ms: ${AUTH_REFRESH_CLEANUP_INTERVAL_MS:3600000}
+  captcha:
+    store: redis
+    ttl-seconds: 60
+    max-failures: 3
 ```
 
-当前默认 `auth.refresh.store=db`。DB-backed 实现是 `DbRefreshTokenRepository`：auth application 先对 refresh token 做 SHA-256，再通过 user owner 的 `UserRefreshTokenSessionActionApi` / `UserRefreshTokenSessionQueryApi` 读写 `auth_refresh_token`，不会明文落库。
-
-token / cookie 数据：
-
-| 数据 | 内容 | 存储位置 |
-| --- | --- | --- |
-| access token | HS256 JWT；`sub`, `username`, `authorities`, `issuer`, `issuedAt`, `expiresAt` | 客户端持有；服务端不保存 |
-| refresh token 明文 | 随机 UUID 去连字符字符串 | 浏览器 HttpOnly cookie；请求 / 响应过程中短暂使用 |
-| refresh token hash | SHA-256 hex，64 字符 | 默认写入 `auth_refresh_token.token_hash` |
-| token family | UUID 去连字符字符串 | `auth_refresh_token.family_id` 或 Redis family set |
-| refresh cookie | `RefreshCookieSpec` 转成 `Set-Cookie` | 浏览器 cookie jar |
-
-cookie 属性来自 `RefreshCookieSpec`：
+`RefreshCookieSpec` 转为 Spring `ResponseCookie` 时使用：
 
 - `name`：默认 `refresh_token`。
-- `value`：refresh token 明文；清理 cookie 时是空字符串。
+- `value`：签发时是 refresh token 明文；清理时为空字符串。
 - `httpOnly`：固定 `true`。
 - `secure`：来自 `security.jwt.refresh-cookie-secure`。
-- `path`：默认 `/api/auth`，只覆盖 login / refresh / logout 等认证路径。
+- `path`：默认 `/api/auth`。
 - `sameSite`：默认 `Lax`。
 - `maxAgeSeconds`：签发时等于 refresh token TTL；清理时为 `0`。
-
-## 后续鉴权
-
-登录响应体返回的 access token 由前端放入后续业务请求：
-
-```text
-Authorization: Bearer <accessToken>
-```
-
-`CommunitySecurityConfig` 的 resource server 会验证 JWT 并构造 `Authentication`。业务 controller 从 Spring Security 当前认证对象读取登录用户。
-
-`GET /api/auth/me` 直接读取已验证 JWT claim：
-
-- `sub` 转为 `userId`。
-- `username` 从 claim 读取。
-- `authorities` 从 claim 读取。
-
-`/api/auth/me` 不实时回源查库；角色变化通常要等下一次 access token 重新签发后体现。
-
-## Refresh 续期
-
-`POST /api/auth/refresh` 从 `refresh_token` cookie 读取 refresh token，进入 `LoginApplicationService.refresh(...)`。
-
-下图只表达 refresh 成功主路径。旧 token 找不到、已过期、已撤销、新 token 写入失败、用户不存在或用户被禁用时，流程会提前失败；其中 `REFRESH_TOKEN_INVALID` 和 `USER_DISABLED` 会触发浏览器 refresh cookie 清理。
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant C as Browser / Client
-    participant AC as AuthController
-    participant LA as LoginApplicationService
-    participant RT as RefreshTokenApplicationService
-    participant User as UserCredentialQueryApi
-    participant Token as JwtTokenService
-    participant Store as User owner storage
-
-    C->>AC: POST /api/auth/refresh with cookie
-    AC->>LA: RefreshCommand
-    LA->>RT: rotate(refreshToken)
-    RT->>Store: consume old hash + store new hash
-    Store-->>RT: new token session
-    LA->>User: getByUserId + authoritiesOf
-    User->>Store: read user status + role
-    Store-->>User: UserCredentialView + authorities
-    LA->>Token: createAccessToken(user, authorities)
-    LA-->>AC: RefreshResult
-    AC-->>C: new accessToken + Set-Cookie refresh_token
-```
-
-图中的 rotation 包含两个状态变化：旧 refresh token hash 被消费并写入 `revoked_at`，同一 family 下的新 refresh token hash 被保存为 active。更细的 token 状态变化见“Refresh Session DB 状态”。
-
-主流程：
-
-1. refresh token 为空时抛出 `AuthErrorCode.REFRESH_TOKEN_INVALID`。
-2. `RefreshTokenApplicationService.rotate(...)` 消费旧 token。
-3. 旧 token 找不到、已过期、已撤销或新 token 写入失败时，返回无效 refresh token。
-4. 旋转成功后，通过新 refresh token 查出用户 ID。
-5. 回源 user owner 查询用户凭证。
-6. 用户不存在或 `status == 0` 时抛出 `AuthErrorCode.USER_DISABLED`。
-7. 重新获取 authorities。
-8. 签发新的 access token。
-9. 返回新的 refresh cookie。
-
-refresh token rotation 语义：
-
-- 每次 refresh 都消费旧 refresh token。
-- 成功后签发同一 family 下的新 refresh token。
-- 旧 token 不再保持 active。
-- 如果检测到已撤销 refresh token 被复用，`maybeRevokeFamilyForReusedToken(...)` 会按 grace window 判断是否撤销整个 family。
-
-如果 refresh 失败且错误码是 `USER_DISABLED` 或 `REFRESH_TOKEN_INVALID`，`AuthController.refresh(...)` 会通过 `AuthApplicationService.clearRefreshCookie()` 写入 `maxAge=0` 的 refresh cookie。
-
-## Logout
-
-`POST /api/auth/logout` 从 cookie 读取 refresh token，进入 `LoginApplicationService.logout(...)`。
-
-下图表达 logout 的服务端效果。logout 不需要重新校验用户密码，也不回源签发新 token；它只尽力撤销 refresh token family，并让浏览器删除 cookie。
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant C as Browser / Client
-    participant AC as AuthController
-    participant LA as LoginApplicationService
-    participant RT as RefreshTokenApplicationService
-    participant Store as User owner storage
-
-    C->>AC: POST /api/auth/logout with cookie
-    AC->>LA: LogoutCommand
-    LA->>RT: revokeFamilyByToken(refreshToken)
-    RT->>Store: revoke current token hash
-    RT->>Store: mark token family revoked
-    AC-->>C: Set-Cookie refresh_token Max-Age=0
-```
-
-如果请求里没有 refresh token，`LoginApplicationService.logout(...)` 不做 repository 操作，但 `AuthController.logout(...)` 仍会写 `Max-Age=0` 的 cookie 清理响应。
-
-行为：
-
-1. refresh token 为空时，只清浏览器 cookie，不做 repository 操作。
-2. refresh token 存在时，调用 `RefreshTokenApplicationService.revokeFamilyByToken(...)`。
-3. repository 先撤销当前 token。
-4. 如果能找到该 token 所属 family，则撤销整个 family。
-5. controller 写入 `maxAge=0` 的 refresh cookie，让浏览器清掉 `refresh_token`。
-
-logout 不撤销已经签出的 access token；access token 继续依赖短 TTL 自然过期。退出登录的主要服务端效果是阻止 refresh token 继续续期。
-
-## Refresh Session DB 状态
-
-`auth_refresh_token` 是 DB refresh session 主状态：
-
-- 保存 refresh token hash，不保存 refresh token 明文。
-- 保存用户、family、过期时间和撤销时间。
-- `store(...)` 在签发 refresh token 时写入 active session。
-- `consume(...)` 在 refresh 时消费当前 active token。
-- `revoke(...)` 用于单 token 撤销。
-- `revokeFamily(...)` 用于 token family 族撤销。
-- `revokeByUserId(...)` 用于密码重置后撤销该用户全部 refresh sessions。
-- `deleteExpiredBefore(...)` 由 cleanup job 调用，只清理已过期 refresh session，不影响已经签出的 access token。
-
-DB schema 精简视图：
-
-| 表 | 字段 |
-| --- | --- |
-| `auth_refresh_token` | `token_hash char(64)` 主键、`user_id`, `family_id`, `expires_at`, `revoked_at`, `created_at` |
-| `auth_refresh_token_family_revocation` | `family_id` 主键、`revoked_at` |
-
-DB store 状态机：
-
-```mermaid
-stateDiagram-v2
-    [*] --> Active: issue userId
-    Active --> Consumed: rotate consume
-    Consumed --> Active: issue new token in same family
-    Active --> Revoked: logout or revoke
-    Active --> FamilyRevoked: revokeFamily
-    Consumed --> FamilyRevoked: reused revoked token
-    FamilyRevoked --> [*]: family marker blocks new active rows
-    Active --> Expired: expires_at passed
-    Consumed --> Expired: expires_at passed
-    Revoked --> Expired: expires_at passed
-    Expired --> [*]: cleanup job deletes old rows
-
-    note right of Active
-        auth_refresh_token row
-        revoked_at is null
-    end note
-
-    note right of FamilyRevoked
-        auth_refresh_token_family_revocation
-        stores family_id marker
-    end note
-```
-
-默认 DB store 的代码路径仍遵守 DDD 边界：`RefreshTokenApplicationService` 通过 `DbRefreshTokenRepository` 计算 SHA-256，再调用 user owner 的 `UserRefreshTokenSessionActionApi` / `UserRefreshTokenSessionQueryApi`，最终由 `RefreshTokenSessionApplicationService` 和 `MyBatisRefreshTokenSessionRepository` 落到 `auth_refresh_token`。`auth_refresh_token_family_revocation` 还有防回写作用：`store(...)` 写新 token 时会检查 family 是否已经撤销；已撤销 family 不会重新写成 active。
-
-可选 Redis refresh token store 不是默认路径。切换到 Redis store 时，核心 key 是 `auth:refresh:<refreshToken>`、`auth:refresh:revoked:<refreshToken>`、`auth:refresh:family:<familyId>` 和 `auth:refresh:family:revoked:<familyId>`，分别保存 active token、撤销 tombstone、family active set 和 family revocation marker。
-
-当前 `application.yml` 默认 `auth.refresh.store: db`，所以上述 Redis key 是切换到 Redis store 时的实现语义，不是默认运行路径。
 
 ## 关键代码
 
 | 类 | 职责 | 源码 |
 | --- | --- | --- |
 | `AuthController` | HTTP 入口、cookie 读写、DTO 转换 | [AuthController.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/controller/AuthController.java) |
-| `AuthSecurityRules` | 放行 auth 公开入口 | [AuthSecurityRules.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/security/AuthSecurityRules.java) |
+| `CommunitySecurityConfig` | `/api/**` stateless JWT 安全配置 | [CommunitySecurityConfig.java](../../backend/community-app/src/main/java/com/nowcoder/community/app/security/CommunitySecurityConfig.java) |
+| `AuthSecurityRules` | 放行 auth public endpoint | [AuthSecurityRules.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/security/AuthSecurityRules.java) |
 | `AuthOriginGuardFilter` | login / refresh / logout Origin 防护 | [AuthOriginGuardFilter.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/web/AuthOriginGuardFilter.java) |
-| `AuthApplicationService` | auth 应用门面 | [AuthApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/AuthApplicationService.java) |
-| `LoginApplicationService` | login / refresh / logout 用例编排 | [LoginApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/LoginApplicationService.java) |
-| `LoginRateLimitApplicationService` | 登录失败计数和验证码门槛 | [LoginRateLimitApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/LoginRateLimitApplicationService.java) |
+| `AuthApplicationService` | auth 应用入口门面 | [AuthApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/AuthApplicationService.java) |
+| `LoginApplicationService` | login / refresh / logout 编排 | [LoginApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/LoginApplicationService.java) |
+| `RegistrationVerificationApplicationService` | 注册邮箱验证码验证和自动登录 | [RegistrationVerificationApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/RegistrationVerificationApplicationService.java) |
+| `PasswordResetApplicationService` | 密码重置和 refresh sessions 撤销入口 | [PasswordResetApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/PasswordResetApplicationService.java) |
+| `LoginRateLimitApplicationService` | 登录失败计数、验证码门槛和阻断 | [LoginRateLimitApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/LoginRateLimitApplicationService.java) |
 | `CaptchaApplicationService` | 验证码签发和校验 | [CaptchaApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/CaptchaApplicationService.java) |
-| `RefreshTokenApplicationService` | refresh token 签发、旋转、撤销 | [RefreshTokenApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/RefreshTokenApplicationService.java) |
-| `DbRefreshTokenRepository` | refresh token hash 的 DB-backed adapter | [DbRefreshTokenRepository.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/DbRefreshTokenRepository.java) |
-| `JwtTokenService` | access token 签发和验证 | [JwtTokenService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/jwt/JwtTokenService.java) |
-| `AuthDomainService` | auth 域基础凭证规则 | [AuthDomainService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/domain/service/AuthDomainService.java) |
-| `CaptchaDomainService` | 验证码域规则 | [CaptchaDomainService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/domain/service/CaptchaDomainService.java) |
-| `LoginRateLimitDomainService` | 风控 key 和阈值规则 | [LoginRateLimitDomainService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/domain/service/LoginRateLimitDomainService.java) |
-| `RefreshTokenDomainService` | refresh token 过期、复用判断规则 | [RefreshTokenDomainService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/domain/service/RefreshTokenDomainService.java) |
-| `UserCredentialApiAdapter` | user owner 同步 API adapter | [UserCredentialApiAdapter.java](../../backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/api/UserCredentialApiAdapter.java) |
-| `UserCredentialApplicationService` | user owner 账号密码校验和角色计算 | [UserCredentialApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/user/application/UserCredentialApplicationService.java) |
-| `RefreshTokenSessionApplicationService` | user owner refresh session 状态写入 / 查询 | [RefreshTokenSessionApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/user/application/RefreshTokenSessionApplicationService.java) |
+| `RefreshTokenApplicationService` | refresh token 签发、旋转、撤销和 cleanup 编排 | [RefreshTokenApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/RefreshTokenApplicationService.java) |
+| `DbRefreshTokenRepository` | DB-backed refresh token hash adapter | [DbRefreshTokenRepository.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/DbRefreshTokenRepository.java) |
+| `RedisRefreshTokenRepository` | 可选 Redis-backed refresh token store | [RedisRefreshTokenRepository.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/persistence/RedisRefreshTokenRepository.java) |
+| `JwtTokenService` | access token 签发 | [JwtTokenService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/jwt/JwtTokenService.java) |
+| `JwtCodecs` | JWT encoder / decoder 和 issuer 校验 | [JwtCodecs.java](../../backend/community-common/common-security/src/main/java/com/nowcoder/community/common/security/jwt/JwtCodecs.java) |
+| `RefreshTokenDomainService` | refresh token 过期和复用撤销规则 | [RefreshTokenDomainService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/domain/service/RefreshTokenDomainService.java) |
+| `UserCredentialApiAdapter` | user owner credential API adapter | [UserCredentialApiAdapter.java](../../backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/api/UserCredentialApiAdapter.java) |
+| `UserCredentialApplicationService` | user owner 账号密码校验、角色计算、密码重置 | [UserCredentialApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/user/application/UserCredentialApplicationService.java) |
+| `RefreshTokenSessionApplicationService` | user owner refresh session 应用服务 | [RefreshTokenSessionApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/user/application/RefreshTokenSessionApplicationService.java) |
+| `MyBatisRefreshTokenSessionRepository` | refresh session DB 持久化 | [MyBatisRefreshTokenSessionRepository.java](../../backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/persistence/MyBatisRefreshTokenSessionRepository.java) |
+| `RefreshTokenCleanupJob` | 过期 refresh session 清理 job | [RefreshTokenCleanupJob.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/job/RefreshTokenCleanupJob.java) |

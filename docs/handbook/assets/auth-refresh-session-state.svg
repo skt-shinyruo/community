@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 900 440">
+  <title>Refresh session database state machine</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker><style>text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:23px;font-weight:700}.t{font-size:14px;font-weight:700}.s{font-size:12px;fill:#475569}.box{fill:#f8fafc;stroke:#94a3b8;stroke-width:1.5;rx:10}.ok{fill:#f0fdf4;stroke:#22c55e}.warn{fill:#fff7ed;stroke:#f97316}.dead{fill:#fef2f2;stroke:#ef4444}.edge{stroke:#334155;stroke-width:1.8;fill:none;marker-end:url(#a)}</style></defs>
+  <rect width="900" height="440" fill="#fff"/><text x="36" y="38" class="h">Refresh Session DB State</text>
+  <rect x="78" y="82" width="120" height="50" class="box"/><text x="115" y="112" class="t">Issue</text>
+  <rect x="282" y="82" width="130" height="50" class="box ok"/><text x="323" y="112" class="t">Active</text>
+  <rect x="505" y="82" width="130" height="50" class="box warn"/><text x="532" y="112" class="t">Consumed</text>
+  <rect x="282" y="220" width="130" height="50" class="box dead"/><text x="319" y="250" class="t">Revoked</text>
+  <rect x="505" y="220" width="150" height="50" class="box dead"/><text x="530" y="250" class="t">FamilyRevoked</text>
+  <rect x="724" y="220" width="120" height="50" class="box"/><text x="757" y="250" class="t">Expired</text>
+  <rect x="724" y="82" width="120" height="50" class="box"/><text x="760" y="112" class="t">Cleanup</text>
+  <path class="edge" d="M198 107 H282"/><path class="edge" d="M412 107 H505"/><text x="428" y="96" class="s">rotate consume</text>
+  <path class="edge" d="M505 132 C456 166 426 104 412 104"/><text x="425" y="156" class="s">new token same family</text>
+  <path class="edge" d="M347 132 V220"/><text x="356" y="180" class="s">logout / revoke</text>
+  <path class="edge" d="M412 116 C470 132 505 178 544 220"/><text x="480" y="159" class="s">family revoke</text>
+  <path class="edge" d="M570 132 V220"/><text x="584" y="178" class="s">reuse detected</text>
+  <path class="edge" d="M412 245 H505"/><path class="edge" d="M655 245 H724"/><path class="edge" d="M635 107 H724"/><path class="edge" d="M784 220 V132"/><text x="690" y="304" class="s">expires_at passed, then cleanup removes old rows</text>
+  <text x="70" y="376" class="s">Active rows live in auth_refresh_token. FamilyRevoked is recorded by auth_refresh_token_family_revocation.</text>
+</svg>

@@ -6,13 +6,7 @@
 
 `community` 不是一个所有包互相调用的普通单体。主站业务集中在 `community-app`，但按 owner domain 治理；文件对象由 `community-oss` 拥有；IM 消息权威状态由 `community-im` 拥有。
 
-```text
-Browser / Client
-  -> community-gateway
-      -> community-app      # 主站业务 owner 集合
-      -> community-oss      # 文件对象和 /files/**
-      -> community-im-*     # IM session、WebSocket、消息事实
-```
+![Business domain ownership map](../assets/business-domain-map.svg)
 
 ## 领域职责一览
 

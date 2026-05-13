@@ -11,6 +11,8 @@
 | im-core | 私聊会话、私聊消息、房间、房间成员、群消息、顺序号、已读水位和未读查询。 |
 | community-app user/social | 用户处罚、用户存在性和拉黑关系主事实。 |
 
+![IM session websocket messaging workflow](../../assets/workflow-im-session-messaging.svg)
+
 ## Session bootstrap
 
 1. 浏览器带 Bearer access token 调 `POST /api/im/sessions`。
@@ -20,18 +22,18 @@
 5. gateway 生成短期 session ticket，包含 userId、workerId、过期时间等。
 6. gateway 返回稳定外部 `wsUrl` 和 ticket。
 
-`wsUrl` 是客户端访问 gateway 的地址，不是直接访问 worker 的内部地址。
+`wsUrl` 是客户端访问 gateway 的地址，不是直接访问 worker 的内部地址。`PublicWsUrlFactory` 只使用显式配置的绝对 `ws` / `wss` 地址，不从请求 Host 或 forwarded header 派生，避免把 ticket 泄到非预期域名。
 
 ## WebSocket 连接
 
 1. 客户端连接 `/ws/im`。
-2. gateway 接收首帧 connect 和 ticket。
+2. gateway 接收首帧 connect 和 ticket；首帧缺失、超时、非文本或 ticket 无效会直接 reject 并关闭。
 3. `ConnectTicketRouter` 根据 ticket 找到 worker。
-4. gateway 建立到 worker 的内部 WebSocket bridge。
-5. `im-realtime` 校验 ticket。
+4. gateway 建立到 worker 的内部 WebSocket bridge，并透传 `traceparent`。
+5. `im-realtime` 先确认 projection ready，再校验 ticket。
 6. realtime 创建 `WsConnection` 并注册到 `ConnectionRegistry`。
 7. 连接绑定 userId、sessionId、traceId、workerId。
-8. realtime 从 projection 中绑定该用户已加入的房间到本地 room index。
+8. realtime 从 membership projection 中绑定该用户已加入的房间到本进程 `RoomLocalIndex`。
 
 连接成功只表示 realtime 接入完成，不代表任何消息已发送或持久化。
 
@@ -63,7 +65,7 @@
 
 ## Policy projection
 
-user 处罚和 social 拉黑变化通过 community-app snapshot + outbox + Kafka 增量事件同步到 realtime。本地 projection 只用于快速判定，不是权威事实。
+user 处罚、social 拉黑和 im-core 房间成员变化通过 snapshot + outbox/Kafka 增量事件同步到 realtime。`ProjectionSyncCoordinator` 启动时先拉 policy/membership snapshot；snapshot 未就绪时，connect 和 send frame 会被 `projection_not_ready` 拒绝。本地 projection 只用于快速判定，不是权威事实。
 
 常见滞后语义：
 

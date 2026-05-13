@@ -17,29 +17,7 @@
 
 默认对外业务入口为 `community-gateway`，本地通过 NGINX / gateway 暴露在 `12880`。对外 API 前缀稳定为 `/api/**`，静态文件前缀稳定为 `/files/**`，其中 `/files/**` 由 `community-oss` 承担 canonical 对象读取；IM WebSocket 前缀稳定为 `/ws/im`；session bootstrap 由 `community-im-gateway` 负责，返回稳定的 `/ws/im`，worker 选择和内部桥接对客户端不可见。
 
-```mermaid
-flowchart TD
-    Browser[Browser / Client] --> FE[Vue3 SPA]
-    FE --> GW[community-gateway]
-    Browser --> GW
-    GW --> APP[community-app]
-    GW --> OSS[community-oss]
-    GW --> IMCORE[im-core]
-    GW --> IMRT[im-realtime]
-    GW --> NACOS[Nacos]
-    APP --> NACOS
-    APP -. community-oss-client .-> OSS
-    IMCORE --> NACOS
-    IMRT --> NACOS
-
-    APP --> MySQL[(MySQL community)]
-    OSS --> OSSDB[(MySQL community_oss)]
-    IMCORE --> IMMySQL[(MySQL im_core)]
-    APP --> Redis[(Redis)]
-    APP --> ES[(Elasticsearch)]
-    IMCORE --> Kafka[(Kafka)]
-    IMRT --> Kafka
-```
+![Community deployable topology](assets/architecture-deployable-topology.svg)
 
 ## 能力边界速查
 
@@ -87,6 +65,8 @@ com.nowcoder.community.<domain>
   contracts
     event
 ```
+
+![Strict DDD tactical layering](assets/architecture-ddd-layering.svg)
 
 允许有少量域特定 adapter 包，但职责必须能映射回上面的层次。例如 owner API adapter 可以位于 `infrastructure.api`，Spring event / outbox adapter 可以位于 `infrastructure.event`。
 

@@ -10,6 +10,8 @@
 | wallet | 用户账户、平台账户、复式账本、充值、提现、转账、奖励和市场资金入账。 |
 | user | 买家、卖家、管理员身份和状态。 |
 
+![Market order wallet saga workflow](../../assets/workflow-market-wallet.svg)
+
 ## 创建订单流程
 
 1. 买家提交下单请求，携带 `Idempotency-Key`。

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 1040 360">
+  <title>Auth registration login refresh workflow</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker><style>text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:22px;font-weight:700}.t{font-size:14px;font-weight:700}.s{font-size:12px;fill:#475569}.box{fill:#f8fafc;stroke:#94a3b8;rx:10;stroke-width:1.5}.auth{fill:#ecfeff;stroke:#0891b2}.user{fill:#f0fdf4;stroke:#16a34a}.edge{stroke:#334155;stroke-width:1.8;fill:none;marker-end:url(#a)}</style></defs>
+  <rect width="1040" height="360" fill="#fff"/><text x="36" y="40" class="h">Registration, Login, Refresh, Logout</text>
+  <rect x="52" y="92" width="130" height="54" class="box"/><text x="82" y="124" class="t">Browser</text>
+  <rect x="232" y="72" width="170" height="78" class="box auth"/><text x="266" y="104" class="t">auth application</text><text x="262" y="128" class="s">captcha, risk, JWT</text>
+  <rect x="232" y="204" width="170" height="78" class="box auth"/><text x="255" y="236" class="t">refresh token</text><text x="270" y="260" class="s">issue / rotate / revoke</text>
+  <rect x="460" y="72" width="180" height="78" class="box user"/><text x="492" y="104" class="t">user owner API</text><text x="480" y="128" class="s">account, hash, status</text>
+  <rect x="460" y="204" width="180" height="78" class="box user"/><text x="486" y="236" class="t">refresh session</text><text x="496" y="260" class="s">hash and family state</text>
+  <rect x="718" y="102" width="150" height="54" class="box"/><text x="740" y="134" class="t">Access token</text>
+  <rect x="718" y="214" width="150" height="54" class="box"/><text x="744" y="246" class="t">HttpOnly cookie</text>
+  <path class="edge" d="M182 119 H232"/><text x="188" y="107" class="s">register / login</text>
+  <path class="edge" d="M402 111 H460"/><text x="410" y="99" class="s">create or authenticate</text>
+  <path class="edge" d="M640 111 C666 111 684 121 718 129"/><path class="edge" d="M402 243 H460"/><path class="edge" d="M640 243 H718"/>
+  <path class="edge" d="M182 248 H232"/><text x="190" y="236" class="s">refresh / logout</text>
+  <text x="52" y="322" class="s">Verify-first registration creates no active user row until email code succeeds. Refresh token plaintext stays in the cookie path; stores keep only hashes and family markers.</text>
+</svg>

@@ -14,6 +14,8 @@
 - 下游投影按语义选择：可靠 outbox、best-effort listener、同步 owner API 或实时回源，不强行统一。
 - 失败可观察：重复提交、投影失败、scheduler、DLQ / DEAD 状态都要有日志或指标入口。
 
+![Synchronous and asynchronous collaboration model](assets/system-collaboration-model.svg)
+
 ## 同步请求模型
 
 典型读路径：

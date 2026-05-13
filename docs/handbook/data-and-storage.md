@@ -24,6 +24,12 @@ schema：
 - `${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}` -> `${IM_MYSQL_DATABASE:-im_core}`：`select/insert/update/delete`。
 - `${IM_MYSQL_USER:-im_core}` -> `${IM_MYSQL_DATABASE:-im_core}`：`select/insert/update/delete`。
 
+UUID 持久化：
+
+- Java 层统一使用 `UUID`，MySQL 侧核心表优先用 16-byte `BINARY` / `VARBINARY` 保存。
+- `common-core.id.BinaryUuidCodec` 负责 UUID 与 16-byte 大端序二进制互转，非法长度会 fail fast。
+- `community-app` 的 `infra.persistence.mybatis.UuidBinaryTypeHandler` 和 `community-oss` 的 `oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` 把 MyBatis 参数 / 结果集接到同一个 codec，避免各业务仓储手写 UUID byte 转换。
+
 ## community 主要表
 
 | 表 | 说明 |

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 860 360">
+  <title>Logout refresh family revocation sequence</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker><style>text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:23px;font-weight:700}.p{font-size:13px;font-weight:700}.s{font-size:12px;fill:#475569}.life{stroke:#cbd5e1;stroke-width:1.4;stroke-dasharray:5 5}.msg{stroke:#334155;stroke-width:1.8;fill:none;marker-end:url(#a)}.ret{stroke:#64748b;stroke-dasharray:5 4}.box{fill:#f8fafc;stroke:#94a3b8;rx:8}</style></defs>
+  <rect width="860" height="360" fill="#fff"/><text x="36" y="38" class="h">Logout Server Effect</text>
+  <g><rect x="40" y="70" width="110" height="42" class="box"/><text x="66" y="96" class="p">Client</text><line x1="95" y1="112" x2="95" y2="322" class="life"/></g>
+  <g><rect x="205" y="70" width="130" height="42" class="box"/><text x="227" y="96" class="p">Controller</text><line x1="270" y1="112" x2="270" y2="322" class="life"/></g>
+  <g><rect x="390" y="70" width="130" height="42" class="box"/><text x="413" y="96" class="p">Login app</text><line x1="455" y1="112" x2="455" y2="322" class="life"/></g>
+  <g><rect x="575" y="70" width="130" height="42" class="box"/><text x="597" y="96" class="p">Refresh svc</text><line x1="640" y1="112" x2="640" y2="322" class="life"/></g>
+  <g><rect x="740" y="70" width="90" height="42" class="box"/><text x="765" y="96" class="p">Store</text><line x1="785" y1="112" x2="785" y2="322" class="life"/></g>
+  <path class="msg" d="M95 145 H270"/><text x="110" y="137" class="s">POST /logout + cookie</text>
+  <path class="msg" d="M270 185 H455"/><text x="315" y="177" class="s">LogoutCommand</text>
+  <path class="msg" d="M455 225 H640"/><text x="490" y="217" class="s">revoke family</text>
+  <path class="msg" d="M640 260 H785"/><text x="662" y="252" class="s">revoke token hash</text>
+  <path class="msg" d="M640 292 H785"/><text x="654" y="284" class="s">mark family revoked</text>
+  <path class="msg ret" d="M270 322 H95"/><text x="105" y="314" class="s">Set-Cookie Max-Age=0</text>
+</svg>

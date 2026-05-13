@@ -1,6 +1,6 @@
 # 核心逻辑覆盖索引
 
-本文档是代码到 handbook 文档的索引。它不替代业务说明，只回答“某个核心类的当前行为应到哪里读”。业务域详解见 [business-logic/README.md](business-logic/README.md)，业务链路总览见 [business-flows.md](business-flows.md)，架构规则见 [architecture.md](architecture.md)，可靠性机制见 [reliability.md](reliability.md)。
+本文档是代码到 handbook 文档的索引。它不替代业务说明，只回答“某个核心类的当前行为应到哪里读”。业务域详解见 [business-logic/README.md](business-logic/README.md)，类级补充见 [business-logic/core-classes/README.md](business-logic/core-classes/README.md)，业务链路总览见 [business-flows.md](business-flows.md)，架构规则见 [architecture.md](architecture.md)，可靠性机制见 [reliability.md](reliability.md)。
 
 覆盖状态：
 
@@ -278,14 +278,20 @@
 | `community-gateway.edge.RateLimitWebFilter` | gateway edge rate limit by principal or IP | [安全模型](security.md) | Covered |
 | `community-gateway.edge.AccessLogWebFilter` | gateway HTTP access log after trace id resolution | [安全模型](security.md) | Covered |
 | `community-gateway.ws.ExternalImWebSocketHandler` | IM WS proxy path to selected realtime worker | [架构规则](architecture.md) | Covered |
+| `community-gateway.ws.WorkerPathResolver` | resolve workerId from gateway WS proxy path | [IM 消息业务逻辑](business-logic/im.md#网关和边缘) | Covered |
+| `community-gateway.ws.InternalWorkerBridge` | gateway WS bridge port from external client to worker | [IM 消息业务逻辑](business-logic/im.md#网关和边缘) | IndexOnly |
+| `community-gateway.ws.InternalWorkerBridgeFactory` | Reactor Netty bridge creation and traceparent propagation | [IM 消息业务逻辑](business-logic/im.md#网关和边缘) | Covered |
 | `community-gateway.shard.WorkerRegistry` | gateway worker registry for WS worker lookup | [架构规则](architecture.md) | Covered |
 | `im.gateway.session.ImSessionApiController` | `/api/im/sessions` HTTP binding | [IM 消息业务逻辑](business-logic/im.md) | IndexOnly |
 | `im.gateway.session.ImSessionService` | JWT validation, worker selection and session ticket issuance | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.gateway.session.PublicWsUrlFactory` | configured absolute public `wsUrl` validation | [IM 消息业务逻辑](business-logic/im.md#session-bootstrap) | Covered |
 | `im.gateway.session.SessionTicketCodec` | IM gateway ticket encode / decode | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.gateway.shard.RendezvousWorkerSelector` | stable worker selection by user/session key | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.gateway.shard.WorkerRegistry` | configured healthy realtime worker registry | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.gateway.ws.ConnectTicketRouter` | route first connect ticket to realtime worker | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.gateway.ws.ExternalImEdgeWebSocketHandler` | stable external `/ws/im` bridge to selected realtime worker | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.gateway.ws.InternalWorkerBridge` | IM gateway bridge port from external session to selected realtime worker | [IM 消息业务逻辑](business-logic/im.md#websocket-连接) | IndexOnly |
+| `im.gateway.ws.InternalWorkerBridgeFactory` | text-frame-only worker bridge and traceparent propagation | [IM 消息业务逻辑](business-logic/im.md#websocket-连接) | Covered |
 | `im.gateway.ws.ImGatewayFrameCodec` | gateway connect frame parsing / encoding | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 
 ## IM Realtime
@@ -298,10 +304,12 @@
 | `im.realtime.service.MessageCommandIngressService` | validate inbound send commands and publish Kafka command | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.kafka.CommandProducer` | Kafka producer for IM command topics | [集成契约](integration-contracts.md#im-kafka-contract) | Covered |
 | `im.realtime.kafka.EventConsumers` | consume persisted/rejected/member/policy IM events and update push/projection state | [集成契约](integration-contracts.md#im-kafka-contract) | Covered |
+| `im.realtime.projection.ProjectionSyncCoordinator` | bootstrap membership/policy snapshots and gate connect/send readiness | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
 | `im.realtime.projection.PolicyProjectionService` | local user policy / block projection for private-message decisions | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.projection.MembershipProjectionService` | local room membership projection | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.projection.PolicySnapshotClient` | internal community-app policy snapshot client | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.projection.MembershipSnapshotClient` | internal im-core membership snapshot client | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.realtime.presence.RoomLocalIndex` | in-process room-to-connection index for room fanout | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
 | `im.realtime.session.SessionTicketCodec` | realtime ticket validation | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.push.PrivatePushService` | online private message fanout | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.push.SendResultPushService` | accepted / committed / rejected send result push | [IM 消息业务逻辑](business-logic/im.md) | Covered |
@@ -338,6 +346,8 @@
 | `common-outbox.OutboxHandler` | outbox topic handler contract | [可靠性机制](reliability.md#db-outbox) | Covered |
 | `common-core.event.BestEffortLocalEventListener` | best-effort local event listener marker | [可靠性机制](reliability.md#失败处理原则) | Covered |
 | `common-core.id.BinaryUuidCodec` | binary UUID conversion helper for persistence | [数据与存储](data-and-storage.md) | IndexOnly |
+| `community-app.infra.persistence.mybatis.UuidBinaryTypeHandler` | MyBatis UUID binary adapter for `community` schema | [数据与存储](data-and-storage.md#mysql) | IndexOnly |
+| `community-oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | MyBatis UUID binary adapter for `community_oss` schema | [数据与存储](data-and-storage.md#mysql) | IndexOnly |
 | `common-core.trace.TraceIdCodec` | trace id normalization helper | [安全模型](security.md) | Covered |
 | `common-web.TraceIdFilter` | servlet trace id filter | [安全模型](security.md) | Covered |
 | `common-web.AuditLogFilter` | servlet audit logging filter | [安全模型](security.md) | Covered |

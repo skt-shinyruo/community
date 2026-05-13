@@ -13,6 +13,8 @@
 | growth / wallet | 社交事件推进任务和奖励入账。 |
 | IM realtime | 使用 user/social projection 做发送前快速判定。 |
 
+![Social notice and IM policy workflow](../../assets/workflow-social-notice-policy.svg)
+
 ## 点赞流程
 
 1. `LikeController` 进入 `LikeApplicationService`。

@@ -13,6 +13,7 @@
 5. 需要深入某个领域时，再打开下面的单域详解文档。
 6. 从页面反查业务时，读 [frontend-surfaces.md](frontend-surfaces.md)。
 7. 遇到疑惑时，先看 [faq.md](faq.md)。
+8. 如果你已经理解域级流程，想按类读源码，再看 [core-classes/README.md](core-classes/README.md)。
 
 ## 新人入口文档
 
@@ -42,6 +43,24 @@
 | 通知/搜索/分析/运维 | [notice-search-analytics-ops.md](notice-search-analytics-ops.md) | 通知读模型、搜索投影与重建、UV/DAU、ops 入口。 |
 | IM | [im.md](im.md) | IM session、WebSocket、私信、群聊、成员、未读、policy projection。 |
 | 前端业务面 | [frontend-surfaces.md](frontend-surfaces.md) | Vue 路由、页面和 API service 到后端业务能力的映射。 |
+
+## 核心类细分
+
+| 文档 | 适合回答的问题 |
+| --- | --- |
+| [core-classes/README.md](core-classes/README.md) | 某个域的核心 ApplicationService / DomainService / adapter 应该先看哪些类？ |
+| [core-classes/auth.md](core-classes/auth.md) | 认证域的登录、注册、验证码、密码重置、refresh token 具体先读哪些类？ |
+| [core-classes/user.md](core-classes/user.md) | 用户域的资料、头像、处罚、积分、refresh session 具体先读哪些类？ |
+| [core-classes/oss.md](core-classes/oss.md) | OSS 对象、版本、授权、引用和生命周期的类级职责是什么？ |
+| [core-classes/drive.md](core-classes/drive.md) | 网盘空间、条目树、回收站、分享和 OSS 代理下载分别由哪些类承载？ |
+| [core-classes/content.md](core-classes/content.md) | 帖子、评论、媒体、治理、事件和投影类分别怎么分工？ |
+| [core-classes/social.md](core-classes/social.md) | 点赞、关注、拉黑以及 IM policy 联动的关键类是什么？ |
+| [core-classes/growth.md](core-classes/growth.md) | 任务、奖励、等级和事件去重的关键类是什么？ |
+| [core-classes/wallet.md](core-classes/wallet.md) | 账户、总账、订单、奖励和管理员操作的关键类是什么？ |
+| [core-classes/market.md](core-classes/market.md) | 商品、库存、订单、纠纷和 wallet saga 的关键类是什么？ |
+| [core-classes/notice-search-analytics-ops.md](core-classes/notice-search-analytics-ops.md) | 通知、搜索、分析这组支撑域的关键类是什么？ |
+| [core-classes/im.md](core-classes/im.md) | IM gateway、realtime、core、policy projection 的关键类是什么？ |
+| [core-classes/shared-infrastructure.md](core-classes/shared-infrastructure.md) | 共享基础设施、UUID 适配、outbox、idempotency 和 trace 的关键类是什么？ |
 
 ## 统一阅读口径
 

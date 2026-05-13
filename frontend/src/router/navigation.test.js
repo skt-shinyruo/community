@@ -4,6 +4,7 @@ import {
   POSTS_FILTER,
   POSTS_ORDER,
   canAccessNavItem,
+  getRouteWorkspaceLabel,
   getShellSearchRouteNames,
   getMobileNavigation,
   getSidebarNavigation,
@@ -138,17 +139,34 @@ describe('router/navigation', () => {
     expect(isNavItemActive({ name: 'followers' }, profile)).toBe(true)
   })
 
-  it('getMobileNavigation should return the high-frequency bottom entries', () => {
+  it('getRouteWorkspaceLabel should describe route scope for the topbar', () => {
+    expect(getRouteWorkspaceLabel('posts')).toBe('Community')
+    expect(getRouteWorkspaceLabel('search')).toBe('Community')
+    expect(getRouteWorkspaceLabel('userProfile')).toBe('Community')
+    expect(getRouteWorkspaceLabel('notices')).toBe('Inbox')
+    expect(getRouteWorkspaceLabel('messageDetail')).toBe('Inbox')
+    expect(getRouteWorkspaceLabel('market')).toBe('Trade & Assets')
+    expect(getRouteWorkspaceLabel('wallet')).toBe('Trade & Assets')
+    expect(getRouteWorkspaceLabel('drive')).toBe('Files')
+    expect(getRouteWorkspaceLabel('settings')).toBe('Account')
+    expect(getRouteWorkspaceLabel('moderation')).toBe('Operations')
+  })
+
+  it('getMobileNavigation should prioritize community attention loops', () => {
     const anon = getMobileNavigation({ authed: false })
-    expect(anon.map((it) => it.key)).toEqual(['posts', 'search', 'market', 'me'])
+    expect(anon.map((it) => it.key)).toEqual(['posts', 'search', 'notices', 'messages', 'me'])
     expect(anon.find((it) => it.key === 'me')?.to).toEqual({ name: 'login' })
+    expect(anon.find((it) => it.key === 'notices')?.to).toEqual({ name: 'login' })
+    expect(anon.find((it) => it.key === 'messages')?.to).toEqual({ name: 'login' })
 
     const authed = getMobileNavigation({ authed: true, userId: 8, roles: ['ROLE_USER'] })
-    expect(authed.map((it) => it.key)).toEqual(['posts', 'search', 'market', 'me'])
+    expect(authed.map((it) => it.key)).toEqual(['posts', 'search', 'notices', 'messages', 'me'])
+    expect(authed.find((it) => it.key === 'notices')?.to).toEqual({ name: 'notices' })
+    expect(authed.find((it) => it.key === 'messages')?.to).toEqual({ name: 'messages' })
     expect(authed.find((it) => it.key === 'me')?.to).toEqual({ name: 'userProfile', params: { userId: '8' } })
 
     const authedWithoutUserId = getMobileNavigation({ authed: true, userId: 0, roles: ['ROLE_USER'] })
-    expect(authedWithoutUserId.map((it) => it.key)).toEqual(['posts', 'search', 'market', 'me'])
+    expect(authedWithoutUserId.map((it) => it.key)).toEqual(['posts', 'search', 'notices', 'messages', 'me'])
     expect(authedWithoutUserId.find((it) => it.key === 'me')?.to).toEqual({ name: 'wallet' })
   })
 })

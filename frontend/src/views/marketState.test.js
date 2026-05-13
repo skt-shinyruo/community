@@ -28,7 +28,10 @@ describe('views/marketState', () => {
 
     expect(state.listings[0].goodsTypeLabel).toBe('虚拟商品')
     expect(state.listings[0].deliveryLabel).toBe('自动交付')
+    expect(state.listings[0].fulfillmentLabel).toBe('自动交付')
+    expect(state.listings[0].trustLabel).toBe('钱包托管')
     expect(state.listings[1].goodsTypeLabel).toBe('实物商品')
+    expect(state.listings[1].fulfillmentLabel).toBe('实物配送')
     expect(state.listings[1].shipmentLabel).toBe('等待卖家发货')
   })
 })

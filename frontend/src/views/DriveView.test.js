@@ -3,9 +3,13 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { listDriveEntries } = vi.hoisted(() => ({
+  listDriveEntries: vi.fn()
+}))
+
 vi.mock('../api/services/driveService', () => ({
   getDriveSpace: vi.fn().mockResolvedValue({ data: { quotaBytes: 10737418240, usedBytes: 0, remainingBytes: 10737418240 }, traceId: '' }),
-  listDriveEntries: vi.fn().mockResolvedValue({ data: [], traceId: '' }),
+  listDriveEntries,
   listDriveTrash: vi.fn().mockResolvedValue({ data: [], traceId: '' }),
   searchDriveEntries: vi.fn().mockResolvedValue({ data: [], traceId: '' }),
   createDriveFolder: vi.fn().mockResolvedValue({ data: {}, traceId: '' }),
@@ -26,6 +30,7 @@ import DriveView from './DriveView.vue'
 describe('DriveView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    listDriveEntries.mockResolvedValue({ data: [], traceId: '' })
   })
 
   it('renders drive workspace actions', async () => {
@@ -48,5 +53,40 @@ describe('DriveView', () => {
     expect(wrapper.text()).toContain('新建文件夹')
     expect(wrapper.text()).toContain('上传')
     expect(wrapper.text()).toContain('回收站')
+  })
+
+  it('renders product drive labels instead of raw entry status', async () => {
+    listDriveEntries.mockResolvedValue({
+      data: [
+        {
+          entryId: 'file-1',
+          name: 'guide.pdf',
+          type: 'FILE',
+          status: 'ACTIVE',
+          sizeBytes: 1024,
+          canShare: true
+        }
+      ],
+      traceId: ''
+    })
+
+    const wrapper = mount(DriveView, {
+      global: {
+        stubs: {
+          UiBreadcrumb: true,
+          UiCard: { template: '<section><slot /></section>' },
+          UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
+          UiButton: { props: ['disabled', 'variant'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' },
+          UiState: { template: '<div><slot /><slot name="description" /></div>' },
+          UiInput: { props: ['modelValue'], emits: ['update:modelValue'], template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' },
+          UiIconButton: { props: ['ariaLabel'], emits: ['click'], template: '<button @click="$emit(\'click\')"><slot /></button>' }
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('可用')
+    expect(wrapper.text()).toContain('可分享')
+    expect(wrapper.text()).not.toContain('ACTIVE')
   })
 })

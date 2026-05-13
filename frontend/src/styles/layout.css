@@ -566,6 +566,10 @@
     grid-template-columns: 1fr;
   }
 
+  .app-sidebar.is-mobile-hidden {
+    pointer-events: none;
+  }
+
   .app-sidebar {
     position: fixed;
     inset: 0 auto 0 0;

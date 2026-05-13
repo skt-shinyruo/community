@@ -12,7 +12,7 @@ function statusText(status) {
   if (status === 'FROZEN') return '钱包已冻结，当前仅保留查询能力。'
   if (status === 'CLOSED') return '钱包已关闭，如需恢复请联系管理员。'
   if (status === 'ACTIVE') return '钱包状态正常，可继续消费、转账与提现。'
-  if (status === 'UNKNOWN') return '钱包状态暂未返回，当前仅展示余额与近期动作，后续待同步。'
+  if (status === 'UNKNOWN') return '钱包状态暂不可用，余额以当前可见数据为准。'
   return '钱包状态正常，可继续消费、转账与提现。'
 }
 

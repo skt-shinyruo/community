@@ -14,15 +14,15 @@
 
     <div class="wallet-summary-strip">
       <div class="wallet-summary-main">
-        <span class="wallet-label">积分余额</span>
+        <span class="wallet-label">可用余额</span>
         <strong>{{ state.hero.balance }}</strong>
-        <p>当前余额是可立即使用的站内积分。</p>
+        <p>当前可用于消费、转账和提现的站内积分。</p>
       </div>
       <div class="wallet-summary-side">
         <div class="wallet-summary-metric">
-          <span class="wallet-label">最近动作</span>
+          <span class="wallet-label">最近流水</span>
           <strong>{{ state.feed.length }}</strong>
-          <p>当前会话发起的充值、提现与转账会先显示在这里。</p>
+          <p>充值、提现、转账和交易相关流水会显示在这里。</p>
         </div>
       </div>
     </div>
@@ -34,7 +34,7 @@
       <UiCard class="wallet-panel">
         <UiPageHeader>
           <template #title>钱包动作</template>
-          <template #subtitle>把充值、提现和转账收拢到同一入口，不再拆成多套奖励语义。</template>
+          <template #subtitle>充值、提现和转账会进入钱包账务流程，请确认金额和对象后提交。</template>
         </UiPageHeader>
 
         <div class="wallet-action-grid">
@@ -70,13 +70,13 @@
 
       <UiCard class="wallet-panel">
         <UiPageHeader>
-          <template #title>最近交易</template>
-          <template #subtitle>第一版先保留本次会话里成功提交的钱包动作，后续再接入完整流水查询。</template>
+          <template #title>最近流水</template>
+          <template #subtitle>按时间查看钱包流水、状态和对方信息。</template>
         </UiPageHeader>
 
         <UiState v-if="state.feed.length === 0">
           暂无交易记录
-          <template #description>成功提交充值、提现或转账后，这里会立刻追加一条钱包交易摘要。</template>
+          <template #description>产生充值、提现、转账或交易托管后，这里会显示流水摘要。</template>
         </UiState>
 
         <div v-else class="wallet-feed">
@@ -283,7 +283,7 @@ onMounted(reload)
 .wallet-summary-main,
 .wallet-summary-side {
   padding: 22px 24px;
-  border-radius: 24px;
+  border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--border) 82%, var(--accent) 18%);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, white 6%), var(--surface));
@@ -331,7 +331,7 @@ onMounted(reload)
 
 .wallet-action-card {
   padding: 18px;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 90%, var(--bg) 10%);
 }

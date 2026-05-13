@@ -127,7 +127,22 @@ describe('Unified market views', () => {
     expect(listMarketListings).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('虚拟商品')
     expect(wrapper.text()).toContain('实物商品')
+    expect(wrapper.text()).toContain('钱包托管')
+    expect(wrapper.text()).toContain('自动交付')
+    expect(wrapper.text()).toContain('实物配送')
     expect(wrapper.findAll('.market-row')).toHaveLength(2)
+  })
+
+  it('renders trust-oriented empty market copy', async () => {
+    listMarketListings.mockResolvedValue({ data: [], traceId: 'trace-market-list' })
+
+    const wrapper = mount(MarketListView, mountOptions())
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('钱包托管')
+    expect(wrapper.text()).toContain('履约方式')
+    expect(wrapper.text()).toContain('争议可裁定')
+    expect(wrapper.text()).not.toContain('前台只按商品类型展示不同的履约语义')
   })
 
   it('loads a physical listing detail and requires an address for order creation', async () => {

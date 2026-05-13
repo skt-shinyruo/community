@@ -4,12 +4,19 @@
 
     <UiPageHeader>
       <template #title>统一市场</template>
-      <template #subtitle>同一个入口，同时浏览虚拟商品和实物商品。钱包托管仍然是统一结算底座，前台只按商品类型展示不同的履约语义。</template>
+      <template #subtitle>通过钱包托管购买虚拟商品和实物商品，按履约方式跟进订单。</template>
       <template #actions>
-        <RouterLink class="btn" :to="{ name: 'marketPublish' }">发布商品</RouterLink>
         <RouterLink class="btn secondary" :to="{ name: 'marketBuyingOrders' }">我的购买</RouterLink>
+        <RouterLink class="btn secondary" :to="{ name: 'marketSellingOrders' }">我的出售</RouterLink>
+        <RouterLink class="btn" :to="{ name: 'marketPublish' }">发布商品</RouterLink>
       </template>
     </UiPageHeader>
+
+    <section class="market-trust-strip" aria-label="交易保障">
+      <span>钱包托管</span>
+      <span>履约方式清晰</span>
+      <span>争议可裁定</span>
+    </section>
 
     <UiState v-if="error" variant="error">{{ error }}</UiState>
     <div v-else-if="loading" class="muted">正在加载市场…</div>
@@ -25,7 +32,7 @@
 
       <UiState v-if="state.listings.length === 0">
         暂无在售商品
-        <template #description>第一个卖家可以直接从“发布商品”开始创建虚拟商品或实物商品。</template>
+        <template #description>发布商品后，买家通过钱包托管下单；虚拟商品按交付方式处理，实物商品按配送状态跟进。</template>
       </UiState>
 
       <div v-else class="market-list">
@@ -37,11 +44,13 @@
         >
           <div class="market-row-main">
             <strong>{{ item.title }}</strong>
+            <div class="market-row-seller">卖家：{{ item.sellerLabel }}</div>
             <p>{{ item.description }}</p>
           </div>
           <div class="market-row-meta">
             <span class="market-pill">{{ item.goodsTypeLabel }}</span>
-            <span>{{ item.goodsType === 'VIRTUAL' ? item.deliveryLabel : item.shipmentLabel }}</span>
+            <span>{{ item.fulfillmentLabel }}</span>
+            <span>{{ item.trustLabel }}</span>
             <span>{{ item.statusLabel }}</span>
             <span>{{ item.stockText }}</span>
             <strong>{{ item.unitPriceText }}</strong>

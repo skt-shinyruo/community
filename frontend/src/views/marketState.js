@@ -38,6 +38,22 @@ function listingStatusLabel(status) {
   return '待处理'
 }
 
+function fulfillmentLabel(item) {
+  const goodsType = String(item?.goodsType || '').trim().toUpperCase()
+  if (goodsType === 'VIRTUAL') return deliveryLabel(item?.deliveryMode)
+  if (goodsType === 'PHYSICAL') return '实物配送'
+  return '履约待确认'
+}
+
+function trustLabel(status) {
+  const normalized = normalizeStatus(status)
+  if (normalized === 'ACTIVE') return '钱包托管'
+  if (normalized === 'SOLD_OUT') return '交易已结束'
+  if (normalized === 'PAUSED') return '暂不可购买'
+  if (normalized === 'CLOSED') return '已关闭'
+  return '状态待确认'
+}
+
 function orderStatusLabel(status) {
   const normalized = normalizeStatus(status)
   if (normalized === 'ESCROWED') return '已托管'
@@ -98,11 +114,14 @@ export function buildMarketState({ listings, orders, disputes, addresses } = {})
     listings: safeListings.map((item, index) => {
       const listingId = item?.listingId ?? item?.id ?? index + 1
       const unitPrice = asNumber(item?.unitPrice)
-      return {
+    return {
         ...item,
         listingId,
+        sellerLabel: String(item?.sellerName || item?.sellerLabel || item?.seller?.username || item?.author?.username || item?.displayName || '卖家信息待确认'),
         goodsTypeLabel: goodsTypeLabel(item?.goodsType),
         deliveryLabel: deliveryLabel(item?.deliveryMode),
+        fulfillmentLabel: fulfillmentLabel(item),
+        trustLabel: trustLabel(item?.status),
         shipmentLabel: shipmentLabel(item?.status),
         statusLabel: listingStatusLabel(item?.status),
         unitPriceText: amountText(unitPrice),

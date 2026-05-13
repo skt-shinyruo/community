@@ -29,13 +29,14 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 const props = defineProps({
   modelValue: { type: String, default: '' },
   modelModifiers: { type: Object, default: () => ({}) },
-  isMac: { type: Boolean, default: false }
+  isMac: { type: Boolean, default: false },
+  placeholder: { type: String, default: '' }
 })
 
 const emit = defineEmits(['update:modelValue', 'submit'])
 const inputRef = ref(null)
 
-const placeholder = computed(() => `搜索… (${props.isMac ? '⌘' : 'Ctrl'} K)`)
+const placeholder = computed(() => props.placeholder || `搜索… (${props.isMac ? '⌘' : 'Ctrl'} K)`)
 
 function normalizeValue(value) {
   let next = String(value ?? '')

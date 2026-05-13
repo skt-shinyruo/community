@@ -21,7 +21,7 @@
         <UiCard class="market-panel">
           <UiPageHeader>
             <template #title>交易动作</template>
-            <template #subtitle>仍然使用固定价托管下单；实物商品会在这里选择收货地址。</template>
+            <template #subtitle>下单后资金进入钱包托管，按履约方式跟进交付、收货或争议处理。</template>
           </UiPageHeader>
 
           <div class="market-form-grid">
@@ -47,12 +47,14 @@
         <UiCard class="market-panel">
           <UiPageHeader>
             <template #title>交易说明</template>
-            <template #subtitle>同一个市场入口里，虚拟商品看交付方式，实物商品看发货与收货。</template>
+            <template #subtitle>价格、卖家、履约和托管状态会决定下一步是否安全。</template>
           </UiPageHeader>
 
           <ul class="market-bullets">
+            <li>卖家：{{ detail.sellerLabel }}</li>
             <li>商品类型：{{ detail.goodsTypeLabel }}</li>
-            <li>履约方式：{{ detail.goodsType === 'VIRTUAL' ? detail.deliveryLabel : detail.shipmentLabel }}</li>
+            <li>履约方式：{{ detail.fulfillmentLabel }}</li>
+            <li>托管状态：{{ detail.trustLabel }}</li>
             <li>商品状态：{{ detail.statusLabel }}</li>
             <li>库存状态：{{ detail.stockText }}</li>
           </ul>

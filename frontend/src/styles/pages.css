@@ -424,6 +424,30 @@ html[data-density='compact'] .topic-list {
   align-items: center;
 }
 
+.market-trust-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.market-trust-strip span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success) 10%, var(--surface) 90%);
+  border: 1px solid color-mix(in srgb, var(--success) 20%, var(--border) 80%);
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .market-price-box,
 .market-summary {
   display: flex;
@@ -494,6 +518,13 @@ html[data-density='compact'] .topic-list {
 .market-admin-row strong {
   display: block;
   margin-bottom: 4px;
+}
+
+.market-row-seller {
+  margin-bottom: 4px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .market-row-main p,

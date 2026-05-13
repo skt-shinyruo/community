@@ -9,7 +9,7 @@
         <span class="drive-header-dot" aria-hidden="true">·</span>
         <span>{{ quota.usedPercent }}% 已用</span>
         <span class="drive-header-dot" aria-hidden="true">·</span>
-        <span>{{ currentFolderLabel }}</span>
+        <span>私有文件、分享链接和社区附件</span>
       </template>
       <template #actions>
         <UiButton variant="secondary" :disabled="isBusy" @click="reload">
@@ -127,8 +127,8 @@
               </span>
             </div>
             <div class="drive-entry-meta">
-              <span>{{ entry.status }}</span>
-              <span>{{ entry.canShare ? '可分享' : '仅内部' }}</span>
+              <span>{{ entry.statusLabel }}</span>
+              <span>{{ entry.visibilityLabel }}</span>
             </div>
             <div class="drive-entry-actions">
               <UiButton
@@ -157,7 +157,7 @@
             <template #subtitle>
               <span>{{ selectedEntry.isFolder ? '文件夹' : formatDriveBytes(selectedEntry.sizeBytes) }}</span>
               <span class="drive-header-dot" aria-hidden="true">·</span>
-              <span>{{ selectedEntry.status }}</span>
+              <span>{{ selectedEntry.statusLabel }}</span>
             </template>
           </UiPageHeader>
 
@@ -172,11 +172,11 @@
             </div>
             <div>
               <dt>状态</dt>
-              <dd>{{ selectedEntry.status }}</dd>
+              <dd>{{ selectedEntry.statusLabel }}</dd>
             </div>
             <div>
               <dt>可见性</dt>
-              <dd>{{ selectedEntry.canShare ? '可分享' : '仅内部' }}</dd>
+              <dd>{{ selectedEntry.visibilityLabel }}</dd>
             </div>
           </dl>
 
@@ -217,7 +217,7 @@
         <section v-if="mode === 'shares'" class="drive-share-panel">
           <UiPageHeader>
             <template #title>分享管理</template>
-            <template #subtitle>默认私有，只有生成链接后才对外可访问。</template>
+            <template #subtitle>默认私有；生成链接后可用于帖子附件、成员分享或虚拟商品交付。</template>
           </UiPageHeader>
 
           <div class="drive-share-note">

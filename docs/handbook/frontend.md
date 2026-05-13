@@ -56,7 +56,7 @@ protected route
 
 ## 产品壳层和移动导航
 
-`frontend/src/components/layout/AppShell.vue` 负责桌面 workspace shell，`SidebarNav.vue` 渲染工作区分组，`Topbar.vue` 渲染页面标题、账户控制和 route-aware shell search，`MobileNav.vue` 只承载高频移动入口。移动端 sidebar drawer 状态与桌面 collapsed 偏好分离，避免 sidebar 和 bottom nav 同时作为持久导航出现。
+`frontend/src/components/layout/AppShell.vue` 负责桌面 workspace shell，`SidebarNav.vue` 渲染工作区分组，`Topbar.vue` 渲染 route-aware scope、页面标题、账户控制和 shell search，`MobileNav.vue` 只承载高频移动入口：讨论、搜索、通知、私信和个人入口。移动端 sidebar drawer 状态与桌面 collapsed 偏好分离，避免 sidebar 和 bottom nav 同时作为持久导航出现。
 
 ## 会话恢复
 

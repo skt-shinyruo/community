@@ -66,9 +66,10 @@ describe('ConversationsView', () => {
 
     expect(listImConversations).toHaveBeenCalledWith({ page: 0, size: 20 })
     expect(wrapper.text()).toContain('1 个对话待处理')
-    expect(wrapper.text()).toContain('有新消息待查看')
+    expect(wrapper.text()).toContain('待回复')
     expect(wrapper.text()).toContain('最后一条消息')
     expect(wrapper.text()).toContain('线程已同步')
+    expect(wrapper.text()).not.toContain('成员 #11111111-1111-7111-8111-111111111111')
     expect(wrapper.findAll('a')[0].attributes('href')).toBe('/messages/conv-a')
     expect(wrapper.findAll('a')[1].attributes('href')).toBe('/messages/conv-b')
   })

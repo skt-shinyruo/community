@@ -35,6 +35,45 @@ export function normalizePostsSubscribed(value) {
   return s === '1' || s === 'true' || s === 'yes'
 }
 
+const ROUTE_WORKSPACE_LABELS = Object.freeze({
+  posts: 'Community',
+  postDetail: 'Community',
+  search: 'Community',
+  bookmarks: 'Community',
+  userProfile: 'Community',
+  followees: 'Community',
+  followers: 'Community',
+  notices: 'Inbox',
+  noticeDetail: 'Inbox',
+  messages: 'Inbox',
+  messageDetail: 'Inbox',
+  market: 'Trade & Assets',
+  marketDetail: 'Trade & Assets',
+  marketPublish: 'Trade & Assets',
+  marketMyListings: 'Trade & Assets',
+  marketInventory: 'Trade & Assets',
+  marketBuyingOrders: 'Trade & Assets',
+  marketSellingOrders: 'Trade & Assets',
+  marketOrderDetail: 'Trade & Assets',
+  marketAddresses: 'Trade & Assets',
+  wallet: 'Trade & Assets',
+  drive: 'Files',
+  driveShare: 'Files',
+  settings: 'Account',
+  analytics: 'Operations',
+  moderation: 'Operations',
+  userManagement: 'Operations',
+  walletAdmin: 'Operations',
+  adminMarketDisputes: 'Operations',
+  opsConsole: 'Operations',
+  forbidden: 'System',
+  notFound: 'System'
+})
+
+export function getRouteWorkspaceLabel(routeName) {
+  return ROUTE_WORKSPACE_LABELS[String(routeName || '')] || 'Community'
+}
+
 function normalizeRoles(roles) {
   return Array.isArray(roles) ? roles.filter(Boolean).map(String) : []
 }
@@ -372,7 +411,6 @@ function collectActiveNames(items) {
 
 export function getMobileNavigation(ctx = {}) {
   const groups = getSidebarNavigation(ctx)
-  const communityGroupDef = findNavGroupDef('community')
   const personalGroupDef = findNavGroupDef('personal')
   const adminGroupDef = findNavGroupDef('admin')
   const accountGroupDef = findNavGroupDef('account')
@@ -390,21 +428,28 @@ export function getMobileNavigation(ctx = {}) {
     to: { name: 'search' },
     activeNames: ['search']
   }
-  const market = findNavItem(groups, 'market') || {
-    key: 'market',
-    label: '市场',
-    icon: 'sparkle',
-    to: { name: 'market' },
-    activeNames: ['market', 'marketDetail']
+  const login = findNavItem(groups, 'login')
+  const notices = findNavItem(groups, 'notices') || {
+    key: 'notices',
+    label: '通知',
+    icon: 'bell',
+    to: login?.to || { name: 'login' },
+    activeNames: ['notices', 'noticeDetail']
+  }
+  const messages = findNavItem(groups, 'messages') || {
+    key: 'messages',
+    label: '私信',
+    icon: 'messages',
+    to: login?.to || { name: 'login' },
+    activeNames: ['messages', 'messageDetail']
   }
   const profile = findNavItem(groups, 'profile')
-  const login = findNavItem(groups, 'login')
   const personalGroup = groups.find((group) => group?.key === 'personal') || null
   const firstPersonalItem = Array.isArray(personalGroup?.items) ? personalGroup.items[0] || null : null
   const meActiveNames = collectActiveNames([
-    ...(((communityGroupDef && communityGroupDef.items) || []).filter((item) => item?.key === 'profile')),
-    ...((personalGroupDef && personalGroupDef.items) || []),
-    ...((accountGroupDef && accountGroupDef.items) || []),
+    ...(profile ? [profile] : []),
+    ...(((personalGroupDef && personalGroupDef.items) || []).filter((item) => item?.key === 'wallet' || item?.key === 'drive' || item?.key === 'settings')),
+    ...(((accountGroupDef && accountGroupDef.items) || []).filter((item) => item?.key === 'login')),
     ...(((adminGroupDef && adminGroupDef.items) || []).filter((item) => item?.key === 'userManagement'))
   ])
 
@@ -416,7 +461,7 @@ export function getMobileNavigation(ctx = {}) {
     activeNames: meActiveNames
   }
 
-  return [posts, search, market, me]
+  return [posts, search, notices, messages, me]
 }
 
 export function getBreadcrumbItems(route) {

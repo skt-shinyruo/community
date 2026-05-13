@@ -99,6 +99,18 @@ describe('PostsView', () => {
     window.localStorage.clear()
   })
 
+  it('positions the discussion feed before secondary explanation copy', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.posts-workspace').exists()).toBe(true)
+    expect(wrapper.find('.posts-main-feed').exists()).toBe(true)
+    expect(wrapper.find('.posts-context-panel').exists()).toBe(true)
+    expect(wrapper.text()).toContain('社区讨论')
+    expect(wrapper.text()).toContain('开始一个讨论')
+    expect(wrapper.text()).not.toContain('发帖入口保留在顶部，不把整个首屏变成编辑器')
+  })
+
   it('uses the shared autosuggest input in the composer tag field', async () => {
     const wrapper = mountView()
     const tagInput = await openComposer(wrapper)

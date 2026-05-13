@@ -6,7 +6,7 @@
         <div class="sidebar-brand-mark" aria-hidden="true">{{ props.mode === 'admin' ? 'M' : 'C' }}</div>
         <span v-if="!ui.sidebarCollapsed" class="sidebar-brand-copy">
           <span class="sidebar-brand-text">{{ props.mode === 'admin' ? 'Moderation Desk' : 'Community' }}</span>
-          <span class="sidebar-brand-sub">{{ props.mode === 'admin' ? '运营工作台' : '讨论区工作台' }}</span>
+          <span class="sidebar-brand-sub">{{ props.mode === 'admin' ? '运营工作台' : '社区工作台' }}</span>
         </span>
       </RouterLink>
 

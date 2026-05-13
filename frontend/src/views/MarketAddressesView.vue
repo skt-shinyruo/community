@@ -14,7 +14,7 @@
       <UiCard class="market-panel">
         <UiPageHeader>
           <template #title>新增地址</template>
-          <template #subtitle>第一版只保留最小地址字段，满足实物市场下单闭环。</template>
+          <template #subtitle>保存常用收货信息，实物商品下单时会使用地址快照。</template>
         </UiPageHeader>
 
         <div class="market-form-grid market-form-grid--wide">

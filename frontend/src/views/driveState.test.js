@@ -37,13 +37,20 @@ describe('driveState', () => {
   })
 
   it('normalizeDriveEntry should expose booleans for UI actions', () => {
-    const file = normalizeDriveEntry({ entryId: '1', type: 'FILE', status: 'ACTIVE', sizeBytes: 8, name: 'a.txt' })
+    const file = normalizeDriveEntry({ entryId: '1', type: 'FILE', status: 'ACTIVE', sizeBytes: 8, name: 'a.txt', canShare: true })
+    const privateFile = normalizeDriveEntry({ entryId: '3', type: 'FILE', status: 'ACTIVE', sizeBytes: 8, name: 'b.txt', canShare: false })
     const trashed = normalizeDriveEntry({ entryId: '2', type: 'FOLDER', status: 'TRASHED', name: 'Old' })
 
     expect(file.canDownload).toBe(true)
     expect(file.canShare).toBe(true)
+    expect(file.statusLabel).toBe('可用')
+    expect(file.visibilityLabel).toBe('可分享')
+    expect(privateFile.canShare).toBe(false)
+    expect(privateFile.visibilityLabel).toBe('私有')
     expect(trashed.canShare).toBe(false)
     expect(trashed.canRestore).toBe(true)
+    expect(trashed.statusLabel).toBe('回收站')
+    expect(trashed.visibilityLabel).toBe('私有')
   })
 
   it('validateShareForm should require password and future expiry', () => {

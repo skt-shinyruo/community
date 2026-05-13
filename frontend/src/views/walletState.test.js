@@ -21,6 +21,6 @@ describe('walletState', () => {
 
     expect(state.hero.balance).toBe(900)
     expect(state.hero.status).toBe('UNKNOWN')
-    expect(state.hero.statusText).toMatch(/待同步|暂未返回/)
+    expect(state.hero.statusText).toBe('钱包状态暂不可用，余额以当前可见数据为准。')
   })
 })

@@ -6,7 +6,7 @@
       <div class="conversations-shell-head">
         <UiPageHeader>
           <template #title>私信</template>
-          <template #subtitle>把仍在推进的讨论、协作和跟进放回同一个收件箱里。</template>
+          <template #subtitle>查看私信、未读消息和需要跟进的成员对话。</template>
           <template #actions>
             <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
           </template>
@@ -32,15 +32,15 @@
           :class="{ unread: c.unreadCount > 0 }"
         >
           <div class="conv-avatar-wrap">
-            <UiAvatar :src="''" :name="`社区成员 ${c?.otherUserId || ''}`" :size="52" />
+            <UiAvatar :src="''" :name="shortParticipant(c?.otherUserId)" :size="52" />
             <span v-if="c.unreadCount > 0" class="conv-dot" aria-hidden="true"></span>
           </div>
 
           <div class="conv-content">
             <div class="conv-top">
               <div class="conv-heading">
-                <span class="conv-name">{{ c.unreadCount > 0 ? '有新消息待查看' : '继续这段对话' }}</span>
-                <span class="conv-context">成员 #{{ c?.otherUserId || '?' }}</span>
+                <span class="conv-name">{{ c.unreadCount > 0 ? '待回复' : '继续对话' }}</span>
+                <span class="conv-context">{{ shortParticipant(c?.otherUserId) }}</span>
               </div>
               <span class="conv-time" v-if="c.lastMessage">{{ formatTimeShort(c.lastMessage.createdAtEpochMs) }}</span>
             </div>
@@ -85,6 +85,12 @@ function formatTimeShort(ts) {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
   return d.toLocaleDateString()
+}
+
+function shortParticipant(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return '社区成员'
+  return `社区成员 ${raw.slice(0, 8)}`
 }
 
 async function load() {

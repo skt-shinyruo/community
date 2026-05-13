@@ -6,13 +6,13 @@
       <div class="notices-shell-head">
         <UiPageHeader>
           <template #title>通知</template>
-          <template #subtitle>把互动、关注和治理提醒整理成可快速处理的收件箱。</template>
+          <template #subtitle>查看评论、点赞、关注和治理提醒。</template>
           <template #actions>
             <UiButton variant="secondary" @click="load" :disabled="loading">{{ loading ? '刷新中…' : '刷新' }}</UiButton>
           </template>
         </UiPageHeader>
         <div class="muted notices-head-meta">
-          {{ items.filter((it) => Number(it?.unreadCount || 0) > 0).length }} 个主题有新动态
+          {{ items.filter((it) => Number(it?.unreadCount || 0) > 0).length }} 个主题需要处理
         </div>
       </div>
 
@@ -52,7 +52,7 @@
               <div class="inbox-top">
                 <div class="inbox-title-row">
                   <div class="inbox-title">{{ getTopicTitle(it.topic) }}</div>
-                  <span v-if="it.unreadCount > 0" class="inbox-badge">有新内容</span>
+                  <span v-if="it.unreadCount > 0" class="inbox-badge">需要处理</span>
                 </div>
                 <div class="inbox-sub">
                   {{
@@ -76,9 +76,7 @@
 
             <div class="inbox-tail" aria-hidden="true">
               <span v-if="it.unreadCount > 0">{{ it.unreadCount }}</span>
-              <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
+              <span class="inbox-open-copy">打开通知</span>
             </div>
           </RouterLink>
       </div>
@@ -274,16 +272,23 @@ onMounted(load)
 }
 
 .inbox-tail {
-  min-width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-width: 72px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  display: grid;
+  gap: 2px;
+  justify-items: center;
   color: var(--text-2);
   background: color-mix(in srgb, var(--surface) 70%, var(--bg) 30%);
   font-size: 12px;
   font-weight: 700;
+}
+
+.inbox-open-copy {
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
 }
 
 @media (max-width: 768px) {

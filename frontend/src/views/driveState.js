@@ -25,6 +25,20 @@ export function normalizeDriveQuota(raw = {}) {
   }
 }
 
+function driveStatusLabel(status) {
+  const normalized = String(status || '').trim().toUpperCase()
+  if (normalized === 'ACTIVE') return '可用'
+  if (normalized === 'TRASHED') return '回收站'
+  if (normalized === 'DELETED') return '已删除'
+  return '状态待确认'
+}
+
+function driveVisibilityLabel(raw, active) {
+  if (!active) return '私有'
+  if (raw?.canShare === false) return '私有'
+  return '可分享'
+}
+
 export function buildDriveBreadcrumb(ancestors = []) {
   return [
     { entryId: '', name: '我的文件' },
@@ -47,12 +61,14 @@ export function normalizeDriveEntry(raw = {}) {
     isFolder: type === 'FOLDER',
     isFile: type === 'FILE',
     canDownload: active && type === 'FILE',
-    canShare: active,
+    canShare: active && raw.canShare !== false,
     canRename: active,
     canMove: active,
     canTrash: active,
     canRestore: status === 'TRASHED',
-    canDeletePermanently: status === 'TRASHED'
+    canDeletePermanently: status === 'TRASHED',
+    statusLabel: driveStatusLabel(status),
+    visibilityLabel: driveVisibilityLabel(raw, active)
   }
 }
 

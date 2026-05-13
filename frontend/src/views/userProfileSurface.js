@@ -6,16 +6,16 @@ function toCount(value) {
 export function buildProfileWalletAsset({ profile, authed, isSelf } = {}) {
   if (authed && isSelf) {
     return {
-      valueText: '钱包页为准',
-      chipText: '钱包页为准',
-      description: '当前主页还未接入真实钱包余额，请以钱包页里的最新余额为准。'
+      valueText: '仅自己可见',
+      chipText: '仅自己可见',
+      description: '资产明细只在钱包页向本人展示。'
     }
   }
 
   return {
-    valueText: '暂未公开',
-    chipText: '暂未公开',
-    description: '该成员的钱包资产暂未在主页公开展示，请以后续资产页或钱包页为准。'
+    valueText: '未公开',
+    chipText: '未公开',
+    description: '该成员未公开资产信息。'
   }
 }
 

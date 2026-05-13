@@ -135,7 +135,9 @@ describe('UserProfileView route contract', () => {
       `/api/users/${userId}/recent-comments`
     ])
     expect(wrapper.text()).toContain('钱包资产')
-    expect(wrapper.text()).toContain('暂未公开')
+    expect(wrapper.text()).toContain('未公开')
+    expect(wrapper.text()).not.toContain('钱包页为准')
+    expect(wrapper.text()).not.toContain('当前主页还未接入真实钱包余额')
     expect(wrapper.text()).not.toContain('用户等级 LV')
     expect(wrapper.text()).not.toContain('签到用户等级')
     expect(wrapper.text()).not.toContain('250 分')
@@ -189,7 +191,8 @@ describe('UserProfileView route contract', () => {
     expect(name.classes()).toContain('profile-text-wrap')
 
     const meta = wrapper.find('.profile-id-value')
-    expect(meta.text()).toContain(userId)
+    expect(meta.text()).toBe('11111111...1111')
+    expect(meta.text()).not.toBe(userId)
     expect(meta.attributes('title')).toBe(userId)
     expect(meta.classes()).toContain('profile-text-wrap')
 

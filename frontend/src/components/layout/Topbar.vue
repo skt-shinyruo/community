@@ -21,7 +21,13 @@
     </div>
 
     <div class="topbar-trailing">
-      <TopbarSearchBox v-if="showShellSearch" v-model.trim="searchKeyword" :is-mac="isMac" @submit="submitSearch" />
+      <TopbarSearchBox
+        v-if="showShellSearch"
+        v-model.trim="searchKeyword"
+        :is-mac="isMac"
+        :placeholder="searchPlaceholder"
+        @submit="submitSearch"
+      />
 
       <div class="topbar-actions">
         <div ref="overflowRef" class="topbar-overflow">
@@ -81,7 +87,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
 import http from '../../api/http'
-import { routeSupportsShellSearch } from '../../router/navigation'
+import { getRouteWorkspaceLabel, routeSupportsShellSearch } from '../../router/navigation'
 import TopbarSearchBox from '../scene/TopbarSearchBox.vue'
 import UiAvatar from '../ui/UiAvatar.vue'
 import UiButton from '../ui/UiButton.vue'
@@ -117,7 +123,11 @@ const title = computed(() => {
 
 const subtitle = computed(() => resolveMetaText(route.meta?.subtitle))
 
-const modeEyebrow = computed(() => (props.mode === 'admin' ? 'Operations Desk' : 'Discussion Workspace'))
+const modeEyebrow = computed(() => getRouteWorkspaceLabel(route.name))
+const searchPlaceholder = computed(() => {
+  if (String(route.name || '') === 'market') return '搜索商品、订单或地址'
+  return '搜索讨论、标签或成员'
+})
 const showShellSearch = computed(
   () => props.mode !== 'admin' && desktopSearchVisible.value && routeSupportsShellSearch(route.name)
 )

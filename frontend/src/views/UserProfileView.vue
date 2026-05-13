@@ -21,7 +21,9 @@
             <span class="profile-info-kicker-label">公开身份</span>
             <span class="profile-info-kicker-meta">
               用户 ID
-              <span class="profile-id-value profile-text-wrap" :title="userId">{{ userId }}</span>
+              <span class="profile-id-value profile-text-wrap" :title="String(profile?.id || userId)">
+                {{ shortUserId(profile?.id || userId) }}
+              </span>
             </span>
           </div>
           <div class="profile-name-row">
@@ -161,7 +163,7 @@
             </div>
             <div v-else class="profile-empty-activity">
               <div class="profile-empty-title">暂无公开动态</div>
-              <div class="profile-empty-text">这个成员近期没有公开帖子或评论，先显示当前可用的关系与钱包状态。</div>
+              <div class="profile-empty-text">这个成员近期没有公开帖子或评论，先显示当前可用的身份与关系状态。</div>
             </div>
             <div class="profile-next-steps">
               <RouterLink
@@ -277,6 +279,12 @@ const communityNextSteps = computed(() =>
     userId: userId.value
   })
 )
+
+function shortUserId(value) {
+  const raw = String(value || '')
+  if (raw.length <= 12) return raw || '—'
+  return `${raw.slice(0, 8)}...${raw.slice(-4)}`
+}
 
 const profileTimeline = computed(() =>
   buildProfileTimeline({

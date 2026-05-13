@@ -22,9 +22,9 @@ describe('userProfileSurface', () => {
     })
     expect(signals[1]).toMatchObject({
       label: '钱包资产',
-      value: '钱包页为准'
+      value: '仅自己可见'
     })
-    expect(signals[1].text).toContain('钱包页')
+    expect(signals[1].text).toBe('资产明细只在钱包页向本人展示。')
     expect(signals[2].value).toContain('8')
 
     const nextSteps = buildCommunityNextSteps({ authed: true, isSelf: true })
@@ -46,9 +46,9 @@ describe('userProfileSurface', () => {
     })
     expect(signals[1]).toMatchObject({
       label: '钱包资产',
-      value: '暂未公开'
+      value: '未公开'
     })
-    expect(signals[1].text).toContain('暂未在主页公开')
+    expect(signals[1].text).toBe('该成员未公开资产信息。')
     expect(signals[2].value).toBe('0 关注 · 0 粉丝')
 
     const nextSteps = buildCommunityNextSteps({ authed: true, isSelf: false })
@@ -57,12 +57,12 @@ describe('userProfileSurface', () => {
 
   it('does not derive self-view wallet copy from profile snapshots', () => {
     expect(buildProfileWalletAsset({ profile: { score: 999 }, authed: true, isSelf: true })).toMatchObject({
-      valueText: '钱包页为准',
-      chipText: '钱包页为准'
+      valueText: '仅自己可见',
+      chipText: '仅自己可见'
     })
 
     expect(buildProfileWalletAsset({ profile: { score: 28 }, authed: false, isSelf: false })).toMatchObject({
-      valueText: '暂未公开'
+      valueText: '未公开'
     })
   })
 

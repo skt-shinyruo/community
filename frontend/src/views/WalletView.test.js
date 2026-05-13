@@ -86,4 +86,14 @@ describe('WalletView', () => {
     expect(createTransfer).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('请输入有效的目标用户 ID')
   })
+
+  it('renders wallet as an asset and ledger surface without demo copy', async () => {
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('可用余额')
+    expect(wrapper.text()).toContain('最近流水')
+    expect(wrapper.text()).not.toContain('当前会话')
+    expect(wrapper.text()).not.toContain('后续')
+  })
 })

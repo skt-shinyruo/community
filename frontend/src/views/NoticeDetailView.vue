@@ -103,7 +103,9 @@
             <span class="notice-state-pill" :class="{ unread: Number(n?.status || 0) !== 1 }">
               {{ Number(n?.status || 0) === 1 ? '已读' : '未读' }}
             </span>
-            <span v-if="safeJsonParse(n?.content, null)?.payload?.actorUserId">成员 #{{ safeJsonParse(n?.content, null)?.payload?.actorUserId }}</span>
+            <span v-if="safeJsonParse(n?.content, null)?.payload?.actorUserId">
+              {{ shortMemberLabel(safeJsonParse(n?.content, null)?.payload?.actorUserId) }}
+            </span>
             <span v-if="noticePostId(n)">可返回帖子查看上下文</span>
           </div>
 
@@ -176,6 +178,12 @@ function noticePostId(msg) {
     return normalizeOpaqueId(payload?.targetId)
   }
   return ''
+}
+
+function shortMemberLabel(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return '社区成员'
+  return `社区成员 ${raw.slice(0, 8)}`
 }
 
 async function load() {

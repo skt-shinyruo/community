@@ -41,7 +41,11 @@ public class HttpCommunityOssClient implements CommunityOssClient {
     private final RestClient restClient;
 
     public HttpCommunityOssClient(String baseUrl) {
-        this(RestClient.builder()
+        this(baseUrl, RestClient.builder());
+    }
+
+    public HttpCommunityOssClient(String baseUrl, RestClient.Builder restClientBuilder) {
+        RestClient.Builder builder = (restClientBuilder == null ? RestClient.builder() : restClientBuilder.clone())
                 .baseUrl(baseUrl == null || baseUrl.isBlank() ? "http://community-oss:18090" : baseUrl.trim())
                 .requestInterceptor((request, body, execution) -> {
                     String authorization = currentBearerAuthorization();
@@ -49,8 +53,8 @@ public class HttpCommunityOssClient implements CommunityOssClient {
                         request.getHeaders().set(HttpHeaders.AUTHORIZATION, authorization);
                     }
                     return execution.execute(request, body);
-                })
-                .build());
+                });
+        this.restClient = builder.build();
     }
 
     public HttpCommunityOssClient(RestClient restClient) {

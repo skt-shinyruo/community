@@ -1,0 +1,5 @@
+com.nowcoder.community.common.observability.autoconfig.RuntimeObservabilityAutoConfiguration
+com.nowcoder.community.common.observability.autoconfig.RuntimeMyBatisObservabilityAutoConfiguration
+com.nowcoder.community.common.observability.autoconfig.RuntimeKafkaObservabilityAutoConfiguration
+com.nowcoder.community.common.observability.autoconfig.RuntimeWebClientObservabilityAutoConfiguration
+com.nowcoder.community.common.observability.autoconfig.RuntimeServletObservabilityAutoConfiguration

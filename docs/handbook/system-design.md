@@ -224,6 +224,16 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - 自动动作型任务只写 owner command，例如市场自动确认只写 release command，不在 job 中直接记账。
 - 长任务或集群互斥任务需要 single-flight、lease 或条件更新保护。
 
+## Runtime Observability 设计
+
+业务无关运行态日志由共享 `community-common-observability` 提供，属于基础设施能力，不进入任何业务 domain 或 application 编排。后端服务通过 Spring Boot auto-configuration 接入，日志通过 SLF4J/MDC 写入现有 Logback JSON pipeline，再由 observability volume、EDOT collector、Elasticsearch 和 Kibana 查询。
+
+主要后端 deployable 覆盖 JVM 启动摘要、应用生命周期、JVM 内存/GC/direct memory/class loading、executor 压力、Hikari 连接池等待、MyBatis 慢 SQL、Redis/Kafka/OSS/HTTP client 技术事件、日志系统压力、调度任务、缓存命中率、安全/限流技术事件和进程资源阈值。`community-app` 负责单体内的 Servlet、MyBatis、Kafka、RestClient 和 OSS client 观测；`community-oss` 在 `ObjectStore` 边界记录 OSS bucket、大小区间、慢操作和错误；`im-core` / `im-realtime` 接入 Kafka lag/rebalance/producer 技术日志；WebFlux deployable 通过 `WebClient.Builder` customizer 记录出站 HTTP client 慢调用和错误。字段同时写入 `event.category/action/outcome` 和兼容的 `community.category/action/outcome`，便于新旧查询口径共存。
+
+运行态日志只记录稳定、低基数、已清洗字段，例如 `jvm.gc.pause.ms`、`executor.queue.size`、`db.pool.pending`、`url.path`、`duration.ms` 和阈值字段。它不记录请求 body、cookie、Authorization、SQL bind、Redis key、Kafka payload 或对象存储密钥。连续数值和告警仍主要由 metrics/OTel 承担，日志用于启动摘要、阈值跨越、慢操作和失败上下文。
+
+自动化挂钩集中在共享基础设施层：Spring lifecycle listener、GC notification listener、周期性快照 scheduler、Servlet filter、MyBatis interceptor、`RestClient.Builder` / `WebClient.Builder` customizer、Kafka producer/rebalance/record interceptors、OSS client wrapper 和 `ObjectStore` wrapper。无法安全全局拦截的入口暴露专用 logger API，由对应 infrastructure adapter 在不泄漏业务载荷的前提下调用。
+
 ## Fail-closed 策略
 
 关键安全与一致性能力默认 fail-closed：

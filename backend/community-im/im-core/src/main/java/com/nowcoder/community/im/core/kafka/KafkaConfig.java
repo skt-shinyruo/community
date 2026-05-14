@@ -6,6 +6,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,10 +14,14 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.CompositeRecordInterceptor;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.listener.RecordInterceptor;
 import org.springframework.util.backoff.FixedBackOff;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 @Configuration
@@ -33,12 +38,13 @@ public class KafkaConfig {
     public ConcurrentKafkaListenerContainerFactory<Object, Object> kafkaListenerContainerFactory(
             ConcurrentKafkaListenerContainerFactoryConfigurer configurer,
             ConsumerFactory<Object, Object> consumerFactory,
-            DefaultErrorHandler errorHandler
+            DefaultErrorHandler errorHandler,
+            ObjectProvider<RecordInterceptor<Object, Object>> recordInterceptors
     ) {
         ConcurrentKafkaListenerContainerFactory<Object, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         configurer.configure(factory, consumerFactory);
         factory.setCommonErrorHandler(errorHandler);
-        factory.setRecordInterceptor(new TraceRecordInterceptor());
+        factory.setRecordInterceptor(recordInterceptor(recordInterceptors));
         return factory;
     }
 
@@ -177,6 +183,22 @@ public class KafkaConfig {
 
     private String errorMessage(Throwable throwable) {
         return throwable == null ? null : throwable.getMessage();
+    }
+
+    private RecordInterceptor<Object, Object> recordInterceptor(
+            ObjectProvider<RecordInterceptor<Object, Object>> recordInterceptors
+    ) {
+        List<RecordInterceptor<Object, Object>> delegates = new ArrayList<>();
+        delegates.add(new TraceRecordInterceptor());
+        recordInterceptors.orderedStream()
+                .filter(interceptor -> !(interceptor instanceof TraceRecordInterceptor))
+                .forEach(delegates::add);
+        if (delegates.size() == 1) {
+            return delegates.get(0);
+        }
+        @SuppressWarnings("unchecked")
+        RecordInterceptor<Object, Object>[] delegateArray = delegates.toArray(RecordInterceptor[]::new);
+        return new CompositeRecordInterceptor<>(delegateArray);
     }
 
     private void restore(String key, String previousValue) {

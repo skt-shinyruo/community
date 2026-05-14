@@ -25,11 +25,7 @@
                 <pattern>
                     <pattern>{"service.name":"${serviceName}","service.version":"${serviceVersion}","trace.id":"%mdc{traceId}","trace_id":"%mdc{trace_id}","span_id":"%mdc{span_id}"}</pattern>
                 </pattern>
-                <mdc>
-                    <includeMdcKeyName>community.category</includeMdcKeyName>
-                    <includeMdcKeyName>community.action</includeMdcKeyName>
-                    <includeMdcKeyName>community.outcome</includeMdcKeyName>
-                </mdc>
+                <mdc/>
                 <logLevel>
                     <fieldName>level</fieldName>
                 </logLevel>
@@ -63,11 +59,7 @@
                     <pattern>
                         <pattern>{"service.name":"${serviceName}","service.version":"${serviceVersion}","trace.id":"%mdc{traceId}","trace_id":"%mdc{trace_id}","span_id":"%mdc{span_id}"}</pattern>
                     </pattern>
-                    <mdc>
-                        <includeMdcKeyName>community.category</includeMdcKeyName>
-                        <includeMdcKeyName>community.action</includeMdcKeyName>
-                        <includeMdcKeyName>community.outcome</includeMdcKeyName>
-                    </mdc>
+                    <mdc/>
                     <logLevel>
                         <fieldName>level</fieldName>
                     </logLevel>
@@ -107,11 +99,7 @@
                     <pattern>
                         <pattern>{"service.name":"${serviceName}","service.version":"${serviceVersion}","trace.id":"%mdc{traceId}","trace_id":"%mdc{trace_id}","span_id":"%mdc{span_id}"}</pattern>
                     </pattern>
-                    <mdc>
-                        <includeMdcKeyName>community.category</includeMdcKeyName>
-                        <includeMdcKeyName>community.action</includeMdcKeyName>
-                        <includeMdcKeyName>community.outcome</includeMdcKeyName>
-                    </mdc>
+                    <mdc/>
                     <logLevel>
                         <fieldName>level</fieldName>
                     </logLevel>

@@ -22,6 +22,7 @@
         <module>common-security</module>
         <module>common-web</module>
         <module>common-webflux</module>
+        <module>common-observability</module>
         <module>common-outbox</module>
         <module>common-idempotency</module>
     </modules>

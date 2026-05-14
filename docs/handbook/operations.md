@@ -55,10 +55,11 @@ deploy/observability/kibana/README.md
 排障优先使用结构化字段，而不是纯文本 grep：
 
 - `trace.id` / `traceparent`：串联一次请求或异步链路。
-- `service.name`：定位 `community-app`、`community-gateway`、`im-core`、`im-realtime`。
-- `community.category`：区分 auth、content、search、outbox、scheduler、im 等类别。
+- `service.name`：定位 `community-app`、`community-gateway`、`community-im-gateway`、`community-oss`、`im-core`、`im-realtime`。
+- `community.category`：区分 auth、content、search、outbox、scheduler、im、runtime、database、access 等类别。
 - `community.action`：定位具体动作，例如 pollOnce、persistPrivateMessage。
 - `community.outcome`：区分 success、failed、skipped、retry、dead。
+- `event.category` / `event.action` / `event.outcome`：运行态日志的稳定查询字段，和 `community.*` 兼容字段同时写入。
 
 链路排障时：
 
@@ -67,6 +68,69 @@ deploy/observability/kibana/README.md
 - 对 outbox 或 job 发起的链路，如果没有上游请求，系统会生成 job/outbox 处理 trace。
 
 对外 HTTP 响应会回写 `traceparent`，前端或 curl 拿到 trace 后优先在 Kibana 里按 trace 查。
+
+### 运行态日志
+
+主要后端 deployable 默认启用业务无关运行态日志，包括 `community-app`、`community-oss`、`im-core`、`im-realtime`、`community-gateway` 和 `community-im-gateway`。日志仍走现有 JSON appender 和 observability volume。运行态日志只记录启动摘要、阈值事件和慢请求事件，不记录请求 body、cookie、Authorization、SQL bind、Redis key、Kafka payload 或完整 object key。
+
+当前覆盖：
+
+- JVM 启动摘要：`community.category: runtime AND community.action: jvm_startup`
+- 应用生命周期：`app_startup`、`app_ready`、`app_shutdown`、`graceful_shutdown_timeout`
+- JVM 内存压力：`community.category: runtime AND community.action: jvm_memory_pressure`
+- GC pause 阈值：`community.category: runtime AND community.action: jvm_gc_pause_threshold`
+- JVM 扩展摘要：`jvm_direct_memory_pressure`、`jvm_class_loading_summary`
+- executor 压力：`community.category: runtime AND community.action: executor_pressure`
+- Hikari 连接池等待：`community.category: database AND community.action: hikari_pool_pressure`
+- MyBatis 慢 SQL：`community.category: database AND community.action: sql_slow_query`
+- Redis 技术事件：`redis_connection_pressure`、`redis_command_slow`
+- Kafka 技术事件：`kafka_producer_error`、`kafka_consumer_lag_threshold`、`kafka_rebalance`
+- 慢 HTTP 请求：`community.category: access AND community.action: http_slow_request`
+- 出站 HTTP 客户端：`http_client_slow`、`http_client_error`
+- OSS 客户端：`oss_upload_slow`、`oss_download_slow`、`oss_client_error`
+- 日志系统：`logging_appender_error`、`logging_queue_pressure`
+- 调度任务：`scheduled_job_slow`、`scheduled_job_skipped`、`scheduled_job_error`
+- 缓存/安全/限流：`cache_hit_ratio_low`、`rate_limit_triggered`、`auth_filter_error`
+- 进程/系统资源：`process_fd_pressure`、`disk_space_pressure`、`cpu_load_threshold`
+
+常用字段：
+
+- lifecycle：`spring.profiles.active`、`server.port`、`duration.ms`
+- JVM：`jvm.version`、`jvm.heap.max.bytes`、`jvm.memory.area`、`jvm.memory.used.percent`、`jvm.gc.pause.ms`、`jvm.classes.loaded.delta`
+- executor：`executor.name`、`executor.active`、`executor.pool.size`、`executor.queue.size`
+- database：`db.pool.name`、`db.pool.active`、`db.pool.idle`、`db.pool.pending`、`db.mybatis.statement`、`db.operation`、`db.rows.bucket`
+- Redis/cache：`cache.system`、`cache.operation`、`cache.pool.active`、`cache.pool.idle`、`cache.pool.pending`、`cache.hit.ratio.percent`
+- Kafka：`messaging.destination.name`、`messaging.kafka.consumer.group`、`messaging.kafka.partition`、`messaging.kafka.consumer.lag`
+- HTTP：`peer.service`、`http.request.method`、`url.path`、`http.response.status_code`、`duration.ms`、`threshold.ms`
+- OSS：`oss.bucket`、`oss.operation`、`object.size.bucket`、`error.code`
+- process：`process.fd.used.percent`、`disk.used.percent`、`process.cpu.load.percent`
+
+自动触发入口包括 Spring lifecycle events、周期性 JVM/进程快照、GC notification、Servlet access filter、MyBatis interceptor、Spring `RestClient.Builder` / `WebClient.Builder` customizer、Kafka producer listener / rebalance listener / record interceptor、`community-app` 的 OSS client wrapper，以及 `community-oss` 的 `ObjectStore` wrapper。Redis、缓存命中率、任务调度、限流和 auth filter 也有专用 logger API；接入具体业务入口时必须继续保持字段克制，不记录 key、token、请求体或业务结果。
+
+可通过环境变量调整：
+
+```text
+COMMUNITY_OBSERVABILITY_RUNTIME_LOGGING_ENABLED=false
+COMMUNITY_OBSERVABILITY_RUNTIME_PERIODIC_SUMMARY_INTERVAL=60s
+COMMUNITY_OBSERVABILITY_RUNTIME_JVM_MEMORY_THRESHOLD_PERCENT=85
+COMMUNITY_OBSERVABILITY_RUNTIME_JVM_GC_PAUSE_THRESHOLD_MS=200
+COMMUNITY_OBSERVABILITY_RUNTIME_JVM_DIRECT_MEMORY_THRESHOLD_PERCENT=85
+COMMUNITY_OBSERVABILITY_RUNTIME_EXECUTORS_SATURATION_THRESHOLD_PERCENT=85
+COMMUNITY_OBSERVABILITY_RUNTIME_DATASOURCE_POOL_PENDING_THRESHOLD=1
+COMMUNITY_OBSERVABILITY_RUNTIME_SQL_SLOW_QUERY_THRESHOLD_MS=500
+COMMUNITY_OBSERVABILITY_RUNTIME_REDIS_POOL_PENDING_THRESHOLD=1
+COMMUNITY_OBSERVABILITY_RUNTIME_REDIS_SLOW_COMMAND_THRESHOLD_MS=100
+COMMUNITY_OBSERVABILITY_RUNTIME_KAFKA_CONSUMER_LAG_THRESHOLD=1000
+COMMUNITY_OBSERVABILITY_RUNTIME_OSS_SLOW_OPERATION_THRESHOLD_MS=1000
+COMMUNITY_OBSERVABILITY_RUNTIME_HTTP_CLIENT_SLOW_REQUEST_THRESHOLD_MS=1000
+COMMUNITY_OBSERVABILITY_RUNTIME_JOBS_SLOW_JOB_THRESHOLD_MS=30000
+COMMUNITY_OBSERVABILITY_RUNTIME_CACHE_HIT_RATIO_THRESHOLD_PERCENT=80
+COMMUNITY_OBSERVABILITY_RUNTIME_LOGGING_SYSTEM_QUEUE_PRESSURE_THRESHOLD_PERCENT=80
+COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_FD_USAGE_THRESHOLD_PERCENT=80
+COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_DISK_USAGE_THRESHOLD_PERCENT=90
+COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_CPU_LOAD_THRESHOLD_PERCENT=85
+COMMUNITY_OBSERVABILITY_RUNTIME_HTTP_SLOW_REQUEST_THRESHOLD_MS=1000
+```
 
 ## IM 压测
 

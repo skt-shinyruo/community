@@ -32,6 +32,46 @@ mybatis:
 community:
   logging:
     service-version: ${SERVICE_VERSION:@project.version@}
+  observability:
+    runtime-logging:
+      enabled: ${COMMUNITY_OBSERVABILITY_RUNTIME_LOGGING_ENABLED:true}
+      startup-summary-enabled: ${COMMUNITY_OBSERVABILITY_RUNTIME_STARTUP_SUMMARY_ENABLED:true}
+      periodic-summary-enabled: ${COMMUNITY_OBSERVABILITY_RUNTIME_PERIODIC_SUMMARY_ENABLED:true}
+      periodic-summary-interval: ${COMMUNITY_OBSERVABILITY_RUNTIME_PERIODIC_SUMMARY_INTERVAL:60s}
+      jvm:
+        enabled: ${COMMUNITY_OBSERVABILITY_RUNTIME_JVM_ENABLED:true}
+        memory-threshold-percent: ${COMMUNITY_OBSERVABILITY_RUNTIME_JVM_MEMORY_THRESHOLD_PERCENT:85}
+        gc-pause-threshold-ms: ${COMMUNITY_OBSERVABILITY_RUNTIME_JVM_GC_PAUSE_THRESHOLD_MS:200}
+        direct-memory-threshold-percent: ${COMMUNITY_OBSERVABILITY_RUNTIME_JVM_DIRECT_MEMORY_THRESHOLD_PERCENT:85}
+      executors:
+        enabled: ${COMMUNITY_OBSERVABILITY_RUNTIME_EXECUTORS_ENABLED:true}
+        saturation-threshold-percent: ${COMMUNITY_OBSERVABILITY_RUNTIME_EXECUTORS_SATURATION_THRESHOLD_PERCENT:85}
+      datasource:
+        enabled: ${COMMUNITY_OBSERVABILITY_RUNTIME_DATASOURCE_ENABLED:true}
+        pool-pending-threshold: ${COMMUNITY_OBSERVABILITY_RUNTIME_DATASOURCE_POOL_PENDING_THRESHOLD:1}
+      sql:
+        enabled: ${COMMUNITY_OBSERVABILITY_RUNTIME_SQL_ENABLED:true}
+        slow-query-threshold-ms: ${COMMUNITY_OBSERVABILITY_RUNTIME_SQL_SLOW_QUERY_THRESHOLD_MS:500}
+      oss:
+        enabled: ${COMMUNITY_OBSERVABILITY_RUNTIME_OSS_ENABLED:true}
+        slow-operation-threshold-ms: ${COMMUNITY_OBSERVABILITY_RUNTIME_OSS_SLOW_OPERATION_THRESHOLD_MS:1000}
+      http-client:
+        enabled: ${COMMUNITY_OBSERVABILITY_RUNTIME_HTTP_CLIENT_ENABLED:true}
+        slow-request-threshold-ms: ${COMMUNITY_OBSERVABILITY_RUNTIME_HTTP_CLIENT_SLOW_REQUEST_THRESHOLD_MS:1000}
+      logging-system:
+        enabled: ${COMMUNITY_OBSERVABILITY_RUNTIME_LOGGING_SYSTEM_ENABLED:true}
+        queue-pressure-threshold-percent: ${COMMUNITY_OBSERVABILITY_RUNTIME_LOGGING_SYSTEM_QUEUE_PRESSURE_THRESHOLD_PERCENT:80}
+      system:
+        enabled: ${COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_ENABLED:true}
+        fd-usage-threshold-percent: ${COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_FD_USAGE_THRESHOLD_PERCENT:80}
+        disk-usage-threshold-percent: ${COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_DISK_USAGE_THRESHOLD_PERCENT:90}
+        cpu-load-threshold-percent: ${COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_CPU_LOAD_THRESHOLD_PERCENT:85}
+      http:
+        access-log-enabled: ${COMMUNITY_OBSERVABILITY_RUNTIME_HTTP_ACCESS_LOG_ENABLED:true}
+        slow-request-threshold-ms: ${COMMUNITY_OBSERVABILITY_RUNTIME_HTTP_SLOW_REQUEST_THRESHOLD_MS:1000}
+        exclude-paths:
+          - /actuator/health
+          - /actuator/info
 
 security:
   jwt:

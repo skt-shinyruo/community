@@ -23,16 +23,16 @@ class ScheduledJobRuntimeLoggerTest {
 
             assertThat(capture.appender().list).hasSize(3);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "job")
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "scheduled_job_slow")
+                    .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "job")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "scheduled_job_slow")
                     .containsEntry("job.system", "spring-scheduled")
                     .containsEntry("job.name", "refresh-token-cleanup")
                     .containsEntry("duration.ms", "1001");
             assertThat(capture.appender().list.get(1).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "scheduled_job_skipped")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "scheduled_job_skipped")
                     .containsEntry("job.skip.reason", "disabled");
             assertThat(capture.appender().list.get(2).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "scheduled_job_error")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "scheduled_job_error")
                     .containsEntry("error.type", IllegalStateException.class.getName());
         }
     }

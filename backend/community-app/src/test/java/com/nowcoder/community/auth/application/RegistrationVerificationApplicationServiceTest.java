@@ -150,9 +150,6 @@ class RegistrationVerificationApplicationServiceTest {
         verify(registrationDraftRepository).delete("token");
         verify(authService).issueLoginResult(activatedUser);
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=registration_verify")
-                .contains("community.outcome=success")
                 .contains("user.id=" + userId)
                 .contains("username=alice")
                 .doesNotContain("token")

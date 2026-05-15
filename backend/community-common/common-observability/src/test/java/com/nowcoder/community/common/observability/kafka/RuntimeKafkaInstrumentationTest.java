@@ -31,7 +31,7 @@ class RuntimeKafkaInstrumentationTest {
 
             assertThat(capture.appender().list).hasSize(1);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "kafka_producer_error")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "kafka_producer_error")
                     .containsEntry("messaging.destination.name", "topic-a")
                     .containsEntry("messaging.kafka.partition", "1")
                     .doesNotContainValue("secret-body");
@@ -51,7 +51,7 @@ class RuntimeKafkaInstrumentationTest {
 
             assertThat(capture.appender().list).hasSize(1);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "kafka_rebalance")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "kafka_rebalance")
                     .containsEntry("messaging.kafka.consumer.group", "group-a")
                     .containsEntry("messaging.kafka.rebalance.reason", "assigned")
                     .containsEntry("messaging.destination.name", "topic-a")
@@ -77,7 +77,7 @@ class RuntimeKafkaInstrumentationTest {
 
             assertThat(capture.appender().list).hasSize(1);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "kafka_consumer_lag_threshold")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "kafka_consumer_lag_threshold")
                     .containsEntry("messaging.kafka.consumer.group", "group-a")
                     .containsEntry("messaging.kafka.consumer.lag", "4")
                     .doesNotContainValue("secret-body");

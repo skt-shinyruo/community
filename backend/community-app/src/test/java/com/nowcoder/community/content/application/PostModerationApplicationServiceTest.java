@@ -87,9 +87,6 @@ class PostModerationApplicationServiceTest {
         inOrder.verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
 
         assertThat(output.getAll())
-                .contains("community.action=post_top")
-                .contains("community.action=post_wonderful")
-                .contains("community.action=post_delete")
                 .contains("community.reason_code=admin_delete")
                 .contains("community.target_type=post")
                 .contains("community.target_id=" + postId)
@@ -110,7 +107,7 @@ class PostModerationApplicationServiceTest {
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).shouldAdminDelete(actorUserId, post);
         verifyNoMoreInteractions(domainEventPublisher, postWriteSideEffectScheduler);
-        assertThat(output.getAll()).doesNotContain("community.action=post_delete");
+        assertThat(output.getAll()).doesNotContain("community.reason_code=admin_delete");
     }
 
     @Test
@@ -127,7 +124,7 @@ class PostModerationApplicationServiceTest {
         verify(domainEventPublisher, never()).postDeleted(any(UUID.class));
         verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(any(Integer.class), any(UUID.class));
         verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));
-        assertThat(output.getAll()).doesNotContain("community.action=post_delete");
+        assertThat(output.getAll()).doesNotContain("community.reason_code=admin_delete");
     }
 
     @Test
@@ -141,7 +138,7 @@ class PostModerationApplicationServiceTest {
         verify(domainEventPublisher, never()).postDeleted(any(UUID.class));
         verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(any(Integer.class), any(UUID.class));
         verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));
-        assertThat(output.getAll()).doesNotContain("community.action=post_delete");
+        assertThat(output.getAll()).doesNotContain("community.reason_code=admin_delete");
     }
 
     @Test

@@ -19,15 +19,15 @@ class SecurityRuntimeLoggerTest {
 
             assertThat(capture.appender().list).hasSize(2);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "security")
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "rate_limit_triggered")
+                    .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "security")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "rate_limit_triggered")
                     .containsEntry("security.control", "login")
                     .containsEntry("security.subject.type", "ip")
                     .containsEntry("url.path", "/api/auth/login")
                     .containsEntry("rate.limit.current", "20")
                     .containsEntry("rate.limit.threshold", "20");
             assertThat(capture.appender().list.get(1).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "auth_filter_error")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "auth_filter_error")
                     .containsEntry("security.control", "origin_guard")
                     .containsEntry("error.type", IllegalStateException.class.getName());
             assertThat(capture.appender().list.get(1).getFormattedMessage()).doesNotContain("secret.example");

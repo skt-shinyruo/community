@@ -24,8 +24,8 @@ class RedisRuntimeLoggerTest {
 
             assertThat(capture.appender().list).hasSize(2);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "cache")
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "redis_connection_pressure")
+                    .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "cache")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "redis_connection_pressure")
                     .containsEntry("cache.system", "redis")
                     .containsEntry("cache.mode", "standalone")
                     .containsEntry("net.peer.name", "redis.local")
@@ -33,7 +33,7 @@ class RedisRuntimeLoggerTest {
                     .containsEntry("cache.pool.idle", "1")
                     .containsEntry("cache.pool.pending", "2");
             assertThat(capture.appender().list.get(1).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "redis_command_slow")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "redis_command_slow")
                     .containsEntry("cache.operation", "GET")
                     .containsEntry("duration.ms", "101")
                     .containsEntry("threshold.ms", "100")

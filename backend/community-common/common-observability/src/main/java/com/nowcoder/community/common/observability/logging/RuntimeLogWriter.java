@@ -39,9 +39,6 @@ public class RuntimeLogWriter {
 
     private Map<String, String> fieldsFor(RuntimeLogEvent event) {
         Map<String, String> fields = new LinkedHashMap<>();
-        fields.put(RuntimeLogFields.COMMUNITY_CATEGORY, event.category());
-        fields.put(RuntimeLogFields.COMMUNITY_ACTION, event.action());
-        fields.put(RuntimeLogFields.COMMUNITY_OUTCOME, event.outcome());
         fields.put(RuntimeLogFields.EVENT_CATEGORY, event.category());
         fields.put(RuntimeLogFields.EVENT_ACTION, event.action());
         fields.put(RuntimeLogFields.EVENT_OUTCOME, event.outcome());
@@ -60,10 +57,7 @@ public class RuntimeLogWriter {
     }
 
     private boolean isMessageField(String key) {
-        return !RuntimeLogFields.COMMUNITY_CATEGORY.equals(key)
-                && !RuntimeLogFields.COMMUNITY_ACTION.equals(key)
-                && !RuntimeLogFields.COMMUNITY_OUTCOME.equals(key)
-                && !RuntimeLogFields.EVENT_CATEGORY.equals(key)
+        return !RuntimeLogFields.EVENT_CATEGORY.equals(key)
                 && !RuntimeLogFields.EVENT_ACTION.equals(key)
                 && !RuntimeLogFields.EVENT_OUTCOME.equals(key);
     }

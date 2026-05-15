@@ -22,14 +22,14 @@ class JvmExtendedRuntimeLoggerTest {
 
             assertThat(capture.appender().list).hasSize(2);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "jvm_direct_memory_pressure")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "jvm_direct_memory_pressure")
                     .containsEntry("jvm.memory.area", "direct")
                     .containsEntry("jvm.memory.used.bytes", "81")
                     .containsEntry("jvm.memory.max.bytes", "100")
                     .containsEntry("jvm.memory.used.percent", "81")
                     .containsEntry("threshold.percent", "80");
             assertThat(capture.appender().list.get(1).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "jvm_class_loading_summary")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "jvm_class_loading_summary")
                     .containsEntry("jvm.classes.loaded", "1000")
                     .containsEntry("jvm.classes.unloaded", "80")
                     .containsEntry("jvm.classes.loaded.delta", "200");

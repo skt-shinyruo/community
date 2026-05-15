@@ -65,9 +65,9 @@ class AccessLogWebFilterTest {
         assertThat(event.path("trace.id").asText()).isEqualTo(resolvedTraceId);
         assertThat(event.path("level").asText()).isEqualTo("INFO");
         assertThat(event.path("logger").asText()).isEqualTo(AccessLogWebFilter.class.getName());
-        assertThat(event.path("community.category").asText()).isEqualTo("access");
-        assertThat(event.path("community.action").asText()).isEqualTo("gateway_http_access");
-        assertThat(event.path("community.outcome").asText()).isEqualTo("success");
+        assertThat(event.path("event.category").asText()).isEqualTo("access");
+        assertThat(event.path("event.action").asText()).isEqualTo("gateway_http_access");
+        assertThat(event.path("event.outcome").asText()).isEqualTo("success");
         assertThat(event.path("message").asText())
                 .contains("method=GET")
                 .contains("path=/api/posts")

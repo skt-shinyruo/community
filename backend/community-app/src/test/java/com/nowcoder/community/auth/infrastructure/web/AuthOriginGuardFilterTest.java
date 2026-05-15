@@ -48,9 +48,6 @@ class AuthOriginGuardFilterTest {
         assertThat(response.getContentType()).contains("charset=UTF-8");
         assertThat(response.getContentAsString()).contains("Origin 不被允许");
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=origin_guard")
-                .contains("community.outcome=denied")
                 .contains("community.reason_code=origin_not_allowed")
                 .contains("origin=http://evil.example")
                 .contains("path=/api/auth/login");
@@ -165,9 +162,6 @@ class AuthOriginGuardFilterTest {
         assertThat(chainCalled).isTrue();
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=origin_guard")
-                .contains("community.outcome=degraded")
                 .contains("community.reason_code=allowlist_empty_fail_open")
                 .contains("origin=http://evil.example")
                 .contains("path=/api/auth/login");

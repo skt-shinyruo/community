@@ -44,9 +44,9 @@ class GcPauseThresholdLoggerTest {
         ILoggingEvent event = appender.list.get(0);
         assertThat(event.getLevel()).isEqualTo(Level.WARN);
         assertThat(event.getMDCPropertyMap())
-                .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "runtime")
-                .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "jvm_gc_pause_threshold")
-                .containsEntry(RuntimeLogFields.COMMUNITY_OUTCOME, "threshold")
+                .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "runtime")
+                .containsEntry(RuntimeLogFields.EVENT_ACTION, "jvm_gc_pause_threshold")
+                .containsEntry(RuntimeLogFields.EVENT_OUTCOME, "threshold")
                 .containsEntry("jvm.gc.name", "G1 Young Generation")
                 .containsEntry("jvm.gc.pause.ms", "201")
                 .containsEntry(RuntimeLogFields.THRESHOLD_MS, "200");

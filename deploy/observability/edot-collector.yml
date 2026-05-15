@@ -23,10 +23,6 @@ processors:
       - context: log
         statements:
           - set(body, ParseJSON(body)) where IsString(body) and IsMatch(body, "^\\s*\\{")
-          - set(body["trace.id"], body["trace_id"]) where IsMap(body) and body["trace_id"] != nil and (body["trace.id"] == nil or body["trace.id"] == "")
-          - set(body["span.id"], body["span_id"]) where IsMap(body) and body["span_id"] != nil and (body["span.id"] == nil or body["span.id"] == "")
-          - delete_key(body, "trace_id") where IsMap(body) and body["trace_id"] != nil
-          - delete_key(body, "span_id") where IsMap(body) and body["span_id"] != nil
       - context: scope
         statements:
           - set(attributes["elastic.mapping.mode"], "bodymap")

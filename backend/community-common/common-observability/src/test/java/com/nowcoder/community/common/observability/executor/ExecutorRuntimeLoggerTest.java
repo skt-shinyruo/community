@@ -50,9 +50,9 @@ class ExecutorRuntimeLoggerTest {
         ILoggingEvent event = appender.list.get(0);
         assertThat(event.getLevel()).isEqualTo(Level.WARN);
         assertThat(event.getMDCPropertyMap())
-                .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "runtime")
-                .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "executor_pressure")
-                .containsEntry(RuntimeLogFields.COMMUNITY_OUTCOME, "threshold")
+                .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "runtime")
+                .containsEntry(RuntimeLogFields.EVENT_ACTION, "executor_pressure")
+                .containsEntry(RuntimeLogFields.EVENT_OUTCOME, "threshold")
                 .containsEntry("executor.name", "applicationTaskExecutor")
                 .containsEntry("executor.active", "8")
                 .containsEntry("executor.pool.size", "10")

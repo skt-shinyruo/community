@@ -4,6 +4,7 @@ import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.ErrorCode;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.logging.EventLogFields;
 import com.nowcoder.community.common.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,9 +32,9 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final String CATEGORY = "exception";
-    private static final String MDC_CATEGORY = "community.category";
-    private static final String MDC_ACTION = "community.action";
-    private static final String MDC_OUTCOME = "community.outcome";
+    private static final String MDC_CATEGORY = EventLogFields.EVENT_CATEGORY;
+    private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
+    private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Result<Void>> handleAccessDenied(AccessDeniedException e) {

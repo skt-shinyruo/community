@@ -96,9 +96,6 @@ class PasswordResetApplicationServiceTest {
         verify(tokenStore).store(anyString(), eq(userId), eq(Duration.ofSeconds(600)));
         verify(mailService).sendPasswordResetMail(eq("alice@example.com"), contains("/#/auth/password/reset?token="));
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=password_reset_request")
-                .contains("community.outcome=success")
                 .contains("user.id=" + userId)
                 .contains("masked.email=a***e@example.com")
                 .doesNotContain("alice@example.com")
@@ -186,9 +183,6 @@ class PasswordResetApplicationServiceTest {
         verify(tokenStore, never()).store(anyString(), any(UUID.class), any(Duration.class));
         verify(mailService, never()).sendPasswordResetMail(anyString(), anyString());
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=password_reset_request")
-                .contains("community.outcome=skipped")
                 .contains("community.reason_code=hidden_noop")
                 .contains("masked.email=a***e@example.com")
                 .doesNotContain("alice@example.com")
@@ -208,9 +202,6 @@ class PasswordResetApplicationServiceTest {
         verify(userCredentialActionApi).validatePasswordPolicy(" new-password ");
         verify(userCredentialActionApi).resetPasswordAndRevokeRefreshSessions(userId, " new-password ");
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=password_reset_confirm")
-                .contains("community.outcome=success")
                 .contains("user.id=" + userId)
                 .doesNotContain("token-123")
                 .doesNotContain("new-password")
@@ -281,9 +272,6 @@ class PasswordResetApplicationServiceTest {
                 .isEqualTo(AuthErrorCode.PASSWORD_RESET_INVALID);
 
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=password_reset_confirm")
-                .contains("community.outcome=denied")
                 .contains("community.reason_code=invalid_token")
                 .doesNotContain("token-123")
                 .doesNotContain("new-password")

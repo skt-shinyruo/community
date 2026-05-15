@@ -52,8 +52,8 @@ class ApplicationLifecycleRuntimeLoggerTest {
     private void assertEvent(ILoggingEvent event, String action, String outcome) {
         Map<String, String> mdc = event.getMDCPropertyMap();
         assertThat(mdc)
-                .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "runtime")
-                .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, action)
-                .containsEntry(RuntimeLogFields.COMMUNITY_OUTCOME, outcome);
+                .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "runtime")
+                .containsEntry(RuntimeLogFields.EVENT_ACTION, action)
+                .containsEntry(RuntimeLogFields.EVENT_OUTCOME, outcome);
     }
 }

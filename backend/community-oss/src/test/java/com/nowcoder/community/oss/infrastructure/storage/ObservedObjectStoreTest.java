@@ -37,15 +37,15 @@ class ObservedObjectStoreTest {
 
             assertThat(capture.appender().list)
                     .anySatisfy(event -> assertThat(event.getMDCPropertyMap())
-                            .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "oss_upload_slow")
+                            .containsEntry(RuntimeLogFields.EVENT_ACTION, "oss_upload_slow")
                             .containsEntry("oss.bucket", "avatar-bucket")
                             .containsEntry("object.size.bucket", "1KB-1MB"))
                     .anySatisfy(event -> assertThat(event.getMDCPropertyMap())
-                            .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "oss_download_slow")
+                            .containsEntry(RuntimeLogFields.EVENT_ACTION, "oss_download_slow")
                             .containsEntry("oss.bucket", "avatar-bucket")
                             .containsEntry("object.size.bucket", "1MB-10MB"))
                     .anySatisfy(event -> assertThat(event.getMDCPropertyMap())
-                            .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "oss_client_error")
+                            .containsEntry(RuntimeLogFields.EVENT_ACTION, "oss_client_error")
                             .containsEntry("oss.operation", "delete")
                             .containsEntry("error.code", "OBJECT_STORE_ERROR"));
             capture.appender().list.forEach(event -> {

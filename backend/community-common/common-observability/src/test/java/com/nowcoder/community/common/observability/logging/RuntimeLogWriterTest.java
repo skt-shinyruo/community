@@ -28,9 +28,9 @@ class RuntimeLogWriterTest {
         appender.start();
         logger.addAppender(appender);
         RuntimeLogWriter writer = new RuntimeLogWriter(logger);
-        MDC.put(RuntimeLogFields.COMMUNITY_CATEGORY, "previous-category");
-        MDC.put(RuntimeLogFields.COMMUNITY_ACTION, "previous-action");
-        MDC.put(RuntimeLogFields.COMMUNITY_OUTCOME, "previous-outcome");
+        MDC.put(RuntimeLogFields.EVENT_CATEGORY, "previous-category");
+        MDC.put(RuntimeLogFields.EVENT_ACTION, "previous-action");
+        MDC.put(RuntimeLogFields.EVENT_OUTCOME, "previous-outcome");
         MDC.put(RuntimeLogFields.DURATION_MS, "previous-duration");
 
         writer.info(RuntimeLogEvent.builder("runtime", "jvm_startup", "success", "jvm startup summary")
@@ -42,27 +42,27 @@ class RuntimeLogWriterTest {
         ILoggingEvent event = appender.list.get(0);
         assertThat(event.getLevel()).isEqualTo(Level.INFO);
         assertThat(event.getMDCPropertyMap())
-                .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "runtime")
-                .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "jvm_startup")
-                .containsEntry(RuntimeLogFields.COMMUNITY_OUTCOME, "success")
                 .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "runtime")
                 .containsEntry(RuntimeLogFields.EVENT_ACTION, "jvm_startup")
                 .containsEntry(RuntimeLogFields.EVENT_OUTCOME, "success")
                 .containsEntry(RuntimeLogFields.DURATION_MS, "42")
-                .containsEntry("jvm.version", "17.0.12");
+                .containsEntry("jvm.version", "17.0.12")
+                .doesNotContainKeys("community.category", "community.action", "community.outcome");
         assertThat(event.getFormattedMessage())
                 .contains("jvm startup summary")
                 .contains("duration.ms=42")
                 .contains("jvm.version=17.0.12")
+                .doesNotContain("event.category=")
+                .doesNotContain("event.action=")
+                .doesNotContain("event.outcome=")
                 .doesNotContain("community.category=")
                 .doesNotContain("community.action=")
                 .doesNotContain("community.outcome=");
 
-        assertThat(MDC.get(RuntimeLogFields.COMMUNITY_CATEGORY)).isEqualTo("previous-category");
-        assertThat(MDC.get(RuntimeLogFields.COMMUNITY_ACTION)).isEqualTo("previous-action");
-        assertThat(MDC.get(RuntimeLogFields.COMMUNITY_OUTCOME)).isEqualTo("previous-outcome");
+        assertThat(MDC.get(RuntimeLogFields.EVENT_CATEGORY)).isEqualTo("previous-category");
+        assertThat(MDC.get(RuntimeLogFields.EVENT_ACTION)).isEqualTo("previous-action");
+        assertThat(MDC.get(RuntimeLogFields.EVENT_OUTCOME)).isEqualTo("previous-outcome");
         assertThat(MDC.get(RuntimeLogFields.DURATION_MS)).isEqualTo("previous-duration");
-        assertThat(MDC.get(RuntimeLogFields.EVENT_CATEGORY)).isNull();
         assertThat(MDC.get("jvm.version")).isNull();
     }
 
@@ -81,9 +81,10 @@ class RuntimeLogWriterTest {
         ILoggingEvent event = appender.list.get(0);
         assertThat(event.getLevel()).isEqualTo(Level.WARN);
         assertThat(event.getMDCPropertyMap())
-                .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "database")
+                .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "database")
                 .containsEntry(RuntimeLogFields.EVENT_ACTION, "hikari_pool_pressure")
                 .containsEntry("db.pool.name", "HikariPool-1")
+                .doesNotContainKeys("community.category", "community.action", "community.outcome")
                 .doesNotContainKey("db.pool.pending");
         assertThat(event.getFormattedMessage())
                 .contains("hikari pool pressure")

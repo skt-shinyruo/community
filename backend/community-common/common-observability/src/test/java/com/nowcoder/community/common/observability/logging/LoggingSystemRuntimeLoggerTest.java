@@ -19,12 +19,12 @@ class LoggingSystemRuntimeLoggerTest {
 
             assertThat(capture.appender().list).hasSize(2);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "logging")
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "logging_appender_error")
+                    .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "logging")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "logging_appender_error")
                     .containsEntry("logging.appender.name", "FILE_JSON")
                     .containsEntry("error.type", IllegalStateException.class.getName());
             assertThat(capture.appender().list.get(1).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "logging_queue_pressure")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "logging_queue_pressure")
                     .containsEntry("logging.queue.name", "ASYNC_JSON")
                     .containsEntry("logging.queue.used.percent", "81")
                     .containsEntry("threshold.percent", "80");

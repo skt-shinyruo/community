@@ -53,9 +53,9 @@ class DataSourceRuntimeLoggerTest {
         ILoggingEvent event = appender.list.get(0);
         assertThat(event.getLevel()).isEqualTo(Level.WARN);
         assertThat(event.getMDCPropertyMap())
-                .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "database")
-                .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "hikari_pool_pressure")
-                .containsEntry(RuntimeLogFields.COMMUNITY_OUTCOME, "threshold")
+                .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "database")
+                .containsEntry(RuntimeLogFields.EVENT_ACTION, "hikari_pool_pressure")
+                .containsEntry(RuntimeLogFields.EVENT_OUTCOME, "threshold")
                 .containsEntry("db.system", "mysql")
                 .containsEntry("db.pool.name", "HikariPool-1")
                 .containsEntry("db.pool.active", "9")
@@ -101,7 +101,7 @@ class DataSourceRuntimeLoggerTest {
 
         assertThat(appender.list).hasSize(1);
         assertThat(appender.list.get(0).getMDCPropertyMap())
-                .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "runtime_instrumentation_skipped")
+                .containsEntry(RuntimeLogFields.EVENT_ACTION, "runtime_instrumentation_skipped")
                 .containsEntry("instrumentation.action", "hikari_pool_pressure");
     }
 

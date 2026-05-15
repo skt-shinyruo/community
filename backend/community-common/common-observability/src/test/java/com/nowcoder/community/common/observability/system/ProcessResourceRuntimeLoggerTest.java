@@ -25,16 +25,16 @@ class ProcessResourceRuntimeLoggerTest {
 
             assertThat(capture.appender().list).hasSize(3);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "runtime")
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "process_fd_pressure")
+                    .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "runtime")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "process_fd_pressure")
                     .containsEntry("process.fd.used.percent", "81")
                     .containsEntry("threshold.percent", "80");
             assertThat(capture.appender().list.get(1).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "disk_space_pressure")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "disk_space_pressure")
                     .containsEntry("filesystem.mount", "/")
                     .containsEntry("disk.used.percent", "91");
             assertThat(capture.appender().list.get(2).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "cpu_load_threshold")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "cpu_load_threshold")
                     .containsEntry("process.cpu.load.percent", "86");
         }
     }

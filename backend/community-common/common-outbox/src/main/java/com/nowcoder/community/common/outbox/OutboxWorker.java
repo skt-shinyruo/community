@@ -1,7 +1,7 @@
 package com.nowcoder.community.common.outbox;
 
+import com.nowcoder.community.common.logging.EventLogFields;
 import com.nowcoder.community.common.trace.TraceContextSnapshot;
-import com.nowcoder.community.common.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -22,9 +22,9 @@ public class OutboxWorker {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxWorker.class);
     private static final String CATEGORY_ASYNC = "async";
-    private static final String MDC_CATEGORY = "community.category";
-    private static final String MDC_ACTION = "community.action";
-    private static final String MDC_OUTCOME = "community.outcome";
+    private static final String MDC_CATEGORY = EventLogFields.EVENT_CATEGORY;
+    private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
+    private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
 
     private final JdbcOutboxEventStore store;
     private final Map<String, OutboxHandler> handlers;
@@ -198,10 +198,6 @@ public class OutboxWorker {
 
     private String buildMessage(String action, String outcome, Object... keyValues) {
         StringBuilder message = new StringBuilder(192);
-        appendToken(message, MDC_CATEGORY, CATEGORY_ASYNC);
-        appendToken(message, MDC_ACTION, action);
-        appendToken(message, MDC_OUTCOME, outcome);
-        appendToken(message, "trace_id", TraceId.get());
         for (int i = 0; i < keyValues.length; i += 2) {
             appendToken(message, String.valueOf(keyValues[i]), keyValues[i + 1]);
         }

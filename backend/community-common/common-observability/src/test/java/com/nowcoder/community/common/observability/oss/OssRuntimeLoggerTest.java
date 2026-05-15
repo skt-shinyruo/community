@@ -23,16 +23,16 @@ class OssRuntimeLoggerTest {
 
             assertThat(capture.appender().list).hasSize(3);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "object_storage")
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "oss_upload_slow")
+                    .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "object_storage")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "oss_upload_slow")
                     .containsEntry("oss.bucket", "avatar-bucket")
                     .containsEntry("object.size.bucket", "1KB-1MB")
                     .containsEntry("duration.ms", "501");
             assertThat(capture.appender().list.get(1).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "oss_download_slow")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "oss_download_slow")
                     .containsEntry("object.size.bucket", "1MB-10MB");
             assertThat(capture.appender().list.get(2).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "oss_client_error")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "oss_client_error")
                     .containsEntry("error.code", "503");
             capture.appender().list.forEach(event -> {
                 assertThat(event.getMDCPropertyMap()).doesNotContainKey("oss.object.key");

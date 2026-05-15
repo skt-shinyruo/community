@@ -194,9 +194,6 @@ Required common fields:
 | `event.category` | `runtime`, `database`, `cache`, `messaging`, `access`, `job`, `infra`. |
 | `event.action` | Stable operation name, for example `jvm_gc_pause_threshold`. |
 | `event.outcome` | `success`, `failure`, `degraded`, `threshold`, `skipped`. |
-| `community.category` | Backward-compatible category. Runtime logs should set this to `runtime`, `database`, `cache`, `messaging`, `access`, `job`, or `infra`. |
-| `community.action` | Backward-compatible stable action. |
-| `community.outcome` | Backward-compatible outcome. |
 | `trace.id` | Present when the event belongs to a request or async trace. Runtime background events may omit it. |
 | `error.type` | Exception class or normalized error type when applicable. |
 | `error.message` | Sanitized error message. |
@@ -408,12 +405,12 @@ curl -fsS http://localhost:12888/logs-community-default/_search
 Kibana should be able to find:
 
 ```text
-community.category : runtime
-community.category : database
-community.category : cache
-community.category : messaging
-community.category : access
-community.category : job
+event.category : runtime
+event.category : database
+event.category : cache
+event.category : messaging
+event.category : access
+event.category : job
 ```
 
 ## Documentation Updates
@@ -441,7 +438,7 @@ Implementation should update:
 ## Acceptance Criteria
 
 - Every backend service that participates in local compose writes structured JSON logs to `/var/log/community`.
-- A fresh local single topology produces at least one `community.category=runtime` startup event per backend service in Elasticsearch.
+- A fresh local single topology produces at least one `event.category=runtime` startup event per backend service in Elasticsearch.
 - GC threshold events are queryable when a pause exceeds the configured threshold.
 - Slow HTTP requests, Hikari pressure, Redis timeouts, Kafka DLQ/rebalance, scheduler lag, and job failures have stable KQL-searchable fields.
 - XXL-Job executor logs or equivalent lifecycle events are available through the observability path.

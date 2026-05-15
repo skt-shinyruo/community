@@ -23,20 +23,20 @@ class KafkaRuntimeLoggerTest {
 
             assertThat(capture.appender().list).hasSize(3);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "messaging")
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "kafka_producer_error")
+                    .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "messaging")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "kafka_producer_error")
                     .containsEntry("messaging.system", "kafka")
                     .containsEntry("messaging.destination.name", "im.policy.snapshot")
                     .containsEntry("messaging.kafka.partition", "1")
                     .containsEntry("error.type", IllegalStateException.class.getName())
                     .doesNotContainKey("messaging.message.payload");
             assertThat(capture.appender().list.get(1).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "kafka_consumer_lag_threshold")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "kafka_consumer_lag_threshold")
                     .containsEntry("messaging.kafka.consumer.group", "group-a")
                     .containsEntry("messaging.kafka.consumer.lag", "100")
                     .containsEntry("threshold.count", "100");
             assertThat(capture.appender().list.get(2).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "kafka_rebalance")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "kafka_rebalance")
                     .containsEntry("messaging.kafka.rebalance.reason", "assigned");
         }
     }

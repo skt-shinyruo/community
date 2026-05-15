@@ -52,9 +52,9 @@ class RuntimeObservabilityIntegrationTest {
         JsonNode event = findJsonEvent(output, "com.nowcoder.community.runtime");
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
-        assertThat(event.path(RuntimeLogFields.COMMUNITY_CATEGORY).asText()).isEqualTo("runtime");
-        assertThat(event.path(RuntimeLogFields.COMMUNITY_ACTION).asText()).isEqualTo("jvm_gc_pause_threshold");
-        assertThat(event.path(RuntimeLogFields.COMMUNITY_OUTCOME).asText()).isEqualTo("threshold");
+        assertThat(event.path(RuntimeLogFields.EVENT_CATEGORY).asText()).isEqualTo("runtime");
+        assertThat(event.path(RuntimeLogFields.EVENT_ACTION).asText()).isEqualTo("jvm_gc_pause_threshold");
+        assertThat(event.path(RuntimeLogFields.EVENT_OUTCOME).asText()).isEqualTo("threshold");
         assertThat(event.path(RuntimeLogFields.EVENT_CATEGORY).asText()).isEqualTo("runtime");
         assertThat(event.path(RuntimeLogFields.EVENT_ACTION).asText()).isEqualTo("jvm_gc_pause_threshold");
         assertThat(event.path(RuntimeLogFields.EVENT_OUTCOME).asText()).isEqualTo("threshold");

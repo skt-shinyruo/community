@@ -65,9 +65,9 @@ class AuditLogFilterTest {
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
         assertThat(event.path("trace.id").asText()).isEqualTo("audit-trace-id");
-        assertThat(event.path("community.category").asText()).isEqualTo("audit");
-        assertThat(event.path("community.action").asText()).isEqualTo("http_write_request");
-        assertThat(event.path("community.outcome").asText()).isEqualTo(outcome);
+        assertThat(event.path("event.category").asText()).isEqualTo("audit");
+        assertThat(event.path("event.action").asText()).isEqualTo("http_write_request");
+        assertThat(event.path("event.outcome").asText()).isEqualTo(outcome);
         assertThat(event.path("level").asText()).isEqualTo("INFO");
         assertThat(event.path("message").asText())
                 .contains("[audit][app=community-app]")

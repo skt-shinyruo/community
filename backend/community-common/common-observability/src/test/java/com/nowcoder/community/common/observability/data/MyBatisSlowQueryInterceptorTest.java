@@ -48,7 +48,7 @@ class MyBatisSlowQueryInterceptorTest {
 
             assertThat(capture.appender().list).hasSize(1);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "sql_slow_query")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "sql_slow_query")
                     .containsEntry("db.operation", "select")
                     .containsEntry("db.mybatis.statement", "com.example.SecretMapper.select")
                     .containsEntry("db.rows.bucket", "2-10")

@@ -56,14 +56,13 @@ deploy/observability/kibana/README.md
 
 - `trace.id` / `traceparent`：串联一次请求或异步链路。
 - `service.name`：定位 `community-app`、`community-gateway`、`community-im-gateway`、`community-oss`、`im-core`、`im-realtime`。
-- `community.category`：区分 auth、content、search、outbox、scheduler、im、runtime、database、access 等类别。
-- `community.action`：定位具体动作，例如 pollOnce、persistPrivateMessage。
-- `community.outcome`：区分 success、failed、skipped、retry、dead。
-- `event.category` / `event.action` / `event.outcome`：运行态日志的稳定查询字段，和 `community.*` 兼容字段同时写入。
+- `event.category`：区分 auth、content、search、outbox、scheduler、im、runtime、database、access 等类别。
+- `event.action`：定位具体动作，例如 pollOnce、persistPrivateMessage。
+- `event.outcome`：区分 success、failed、skipped、retry、dead。
 
 链路排障时：
 
-- `trace.id` / `trace_id` 用于技术链路串联。
+- `trace.id` 用于技术链路串联。
 - `requestId`、事件 id、幂等 key 用于业务重放和消息确认，不作为 trace parent。
 - 对 outbox 或 job 发起的链路，如果没有上游请求，系统会生成 job/outbox 处理 trace。
 
@@ -75,17 +74,17 @@ deploy/observability/kibana/README.md
 
 当前覆盖：
 
-- JVM 启动摘要：`community.category: runtime AND community.action: jvm_startup`
+- JVM 启动摘要：`event.category: runtime AND event.action: jvm_startup`
 - 应用生命周期：`app_startup`、`app_ready`、`app_shutdown`、`graceful_shutdown_timeout`
-- JVM 内存压力：`community.category: runtime AND community.action: jvm_memory_pressure`
-- GC pause 阈值：`community.category: runtime AND community.action: jvm_gc_pause_threshold`
+- JVM 内存压力：`event.category: runtime AND event.action: jvm_memory_pressure`
+- GC pause 阈值：`event.category: runtime AND event.action: jvm_gc_pause_threshold`
 - JVM 扩展摘要：`jvm_direct_memory_pressure`、`jvm_class_loading_summary`
-- executor 压力：`community.category: runtime AND community.action: executor_pressure`
-- Hikari 连接池等待：`community.category: database AND community.action: hikari_pool_pressure`
-- MyBatis 慢 SQL：`community.category: database AND community.action: sql_slow_query`
+- executor 压力：`event.category: runtime AND event.action: executor_pressure`
+- Hikari 连接池等待：`event.category: database AND event.action: hikari_pool_pressure`
+- MyBatis 慢 SQL：`event.category: database AND event.action: sql_slow_query`
 - Redis 技术事件：`redis_connection_pressure`、`redis_command_slow`
 - Kafka 技术事件：`kafka_producer_error`、`kafka_consumer_lag_threshold`、`kafka_rebalance`
-- 慢 HTTP 请求：`community.category: access AND community.action: http_slow_request`
+- 慢 HTTP 请求：`event.category: access AND event.action: http_slow_request`
 - 出站 HTTP 客户端：`http_client_slow`、`http_client_error`
 - OSS 客户端：`oss_upload_slow`、`oss_download_slow`、`oss_client_error`
 - 日志系统：`logging_appender_error`、`logging_queue_pressure`

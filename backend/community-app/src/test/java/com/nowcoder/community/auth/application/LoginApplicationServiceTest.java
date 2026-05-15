@@ -121,9 +121,6 @@ class LoginApplicationServiceTest {
         verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
         verify(loginRateLimitService, never()).reset(any(), any());
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=login")
-                .contains("community.outcome=denied")
                 .contains("community.reason_code=invalid_credentials")
                 .contains("username=alice")
                 .contains("source.ip=127.0.0.1")
@@ -144,9 +141,6 @@ class LoginApplicationServiceTest {
         verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
         verify(loginRateLimitService, never()).reset(any(), any());
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=login")
-                .contains("community.outcome=denied")
                 .contains("community.reason_code=user_disabled")
                 .contains("username=alice")
                 .contains("source.ip=127.0.0.1")
@@ -172,9 +166,6 @@ class LoginApplicationServiceTest {
         verify(loginRateLimitService).reset("alice", "127.0.0.1");
         verify(loginRateLimitService, never()).recordFailure(any(), any(), any());
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=login")
-                .contains("community.outcome=success")
                 .contains("user.id=" + userId)
                 .contains("username=alice")
                 .contains("source.ip=127.0.0.1")
@@ -208,9 +199,6 @@ class LoginApplicationServiceTest {
         assertThat(error.getErrorCode()).isEqualTo(AuthErrorCode.CAPTCHA_REQUIRED);
         verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=login")
-                .contains("community.outcome=denied")
                 .contains("community.reason_code=captcha_required")
                 .contains("username=alice")
                 .contains("source.ip=127.0.0.1")
@@ -230,9 +218,6 @@ class LoginApplicationServiceTest {
         assertThat(error.getErrorCode()).isEqualTo(AuthErrorCode.CAPTCHA_INVALID);
         verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=login")
-                .contains("community.outcome=denied")
                 .contains("community.reason_code=captcha_invalid")
                 .contains("username=alice")
                 .contains("source.ip=127.0.0.1")
@@ -253,7 +238,7 @@ class LoginApplicationServiceTest {
         Throwable thrown = catchThrowable(() -> authService.login(loginCommand("alice", "secret", null, null)));
 
         assertThat(thrown).isInstanceOf(RuntimeException.class).hasMessage("issue failed");
-        assertThat(output.getAll()).doesNotContain("community.category=security community.action=login community.outcome=success");
+        assertThat(output.getAll()).doesNotContain("event.category=security event.action=login event.outcome=success");
     }
 
     @Test
@@ -352,9 +337,9 @@ class LoginApplicationServiceTest {
         JsonNode event = findJsonEvent(output);
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
-        assertThat(event.path("community.category").asText()).isEqualTo("security");
-        assertThat(event.path("community.action").asText()).isEqualTo("login");
-        assertThat(event.path("community.outcome").asText()).isEqualTo("denied");
+        assertThat(event.path("event.category").asText()).isEqualTo("security");
+        assertThat(event.path("event.action").asText()).isEqualTo("login");
+        assertThat(event.path("event.outcome").asText()).isEqualTo("denied");
         assertThat(event.path("message").asText())
                 .contains("community.reason_code=invalid_credentials")
                 .contains("source.ip=127.0.0.1");

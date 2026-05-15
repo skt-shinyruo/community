@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.edge;
 
+import com.nowcoder.community.common.logging.EventLogFields;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
 import com.nowcoder.community.common.webflux.TraceIdWebFilter;
@@ -17,9 +18,9 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
 
     private static final Logger log = LoggerFactory.getLogger(AccessLogWebFilter.class);
     private static final String MDC_KEY_TRACE_ID = "traceId";
-    private static final String MDC_KEY_CATEGORY = "community.category";
-    private static final String MDC_KEY_ACTION = "community.action";
-    private static final String MDC_KEY_OUTCOME = "community.outcome";
+    private static final String MDC_KEY_CATEGORY = EventLogFields.EVENT_CATEGORY;
+    private static final String MDC_KEY_ACTION = EventLogFields.EVENT_ACTION;
+    private static final String MDC_KEY_OUTCOME = EventLogFields.EVENT_OUTCOME;
     private static final String CATEGORY_ACCESS = "access";
     private static final String ACTION_HTTP_ACCESS = "gateway_http_access";
     static final int ORDER = TraceIdWebFilter.ORDER + 1;

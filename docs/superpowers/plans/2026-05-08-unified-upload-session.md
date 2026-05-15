@@ -237,9 +237,9 @@ assertThat(result.getData().getFileKey()).isEqualTo(fileName);
 assertThat(result.getData().getUpload()).isNotNull();
 assertThat(result.getData().getUpload().getUrl()).isEqualTo("/api/users/" + userId + "/avatar/upload");
 assertThat(output.getAll())
-        .contains("community.category=security")
-        .contains("community.action=avatar_upload_session")
-        .contains("community.outcome=success")
+        .contains("\"event.category\":\"security\"")
+        .contains("\"event.action\":\"avatar_upload_session\"")
+        .contains("\"event.outcome\":\"success\"")
         .contains("user.id=" + userId)
         .contains("community.target_type=user")
         .contains("community.target_id=" + userId)

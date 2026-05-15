@@ -2,10 +2,6 @@ package com.nowcoder.community.common.observability.logging;
 
 public final class RuntimeLogFields {
 
-    public static final String COMMUNITY_CATEGORY = "community.category";
-    public static final String COMMUNITY_ACTION = "community.action";
-    public static final String COMMUNITY_OUTCOME = "community.outcome";
-
     public static final String EVENT_CATEGORY = "event.category";
     public static final String EVENT_ACTION = "event.action";
     public static final String EVENT_OUTCOME = "event.outcome";

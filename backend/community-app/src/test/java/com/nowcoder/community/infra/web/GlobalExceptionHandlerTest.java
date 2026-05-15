@@ -71,9 +71,9 @@ class GlobalExceptionHandlerTest {
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
         assertThat(event.path("trace.id").asText()).isEqualTo("mdc-err-business");
-        assertThat(event.path("community.category").asText()).isEqualTo("exception");
-        assertThat(event.path("community.action").asText()).isEqualTo("business_exception");
-        assertThat(event.path("community.outcome").asText()).isEqualTo("failure");
+        assertThat(event.path("event.category").asText()).isEqualTo("exception");
+        assertThat(event.path("event.action").asText()).isEqualTo("business_exception");
+        assertThat(event.path("event.outcome").asText()).isEqualTo("failure");
         assertThat(event.path("level").asText()).isEqualTo("ERROR");
         assertThat(event.path("message").asText())
                 .contains("[exception][business]")
@@ -139,9 +139,9 @@ class GlobalExceptionHandlerTest {
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
         assertThat(event.path("trace.id").asText()).isEqualTo("mdc-err-5");
-        assertThat(event.path("community.category").asText()).isEqualTo("exception");
-        assertThat(event.path("community.action").asText()).isEqualTo("data_access_exception");
-        assertThat(event.path("community.outcome").asText()).isEqualTo("failure");
+        assertThat(event.path("event.category").asText()).isEqualTo("exception");
+        assertThat(event.path("event.action").asText()).isEqualTo("data_access_exception");
+        assertThat(event.path("event.outcome").asText()).isEqualTo("failure");
         assertThat(event.path("level").asText()).isEqualTo("ERROR");
         assertThat(event.path("message").asText())
                 .contains("[exception][data-access] traceId=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
@@ -168,9 +168,9 @@ class GlobalExceptionHandlerTest {
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
         assertThat(event.path("trace.id").asText()).isEqualTo("mdc-err-6");
-        assertThat(event.path("community.category").asText()).isEqualTo("exception");
-        assertThat(event.path("community.action").asText()).isEqualTo("unhandled_exception");
-        assertThat(event.path("community.outcome").asText()).isEqualTo("failure");
+        assertThat(event.path("event.category").asText()).isEqualTo("exception");
+        assertThat(event.path("event.action").asText()).isEqualTo("unhandled_exception");
+        assertThat(event.path("event.outcome").asText()).isEqualTo("failure");
         assertThat(event.path("level").asText()).isEqualTo("ERROR");
         assertThat(event.path("logger").asText()).isEqualTo(GlobalExceptionHandler.class.getName());
         assertThat(event.path("message").asText())

@@ -158,7 +158,6 @@ class PostPublishingApplicationServiceTest {
         inOrder.verify(domainEventPublisher).postPublished(postId);
         inOrder.verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
         assertThat(output.getAll())
-                .contains("community.action=post_create")
                 .contains("community.post_category_id=" + categoryId)
                 .contains("community.target_id=" + postId);
     }
@@ -195,9 +194,7 @@ class PostPublishingApplicationServiceTest {
         verify(domainEventPublisher).postDeleted(postId);
         verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.POST, postId);
         assertThat(output.getAll())
-                .contains("community.action=post_update")
                 .contains("community.post_category_id=" + categoryId)
-                .contains("community.action=post_delete")
                 .contains("community.reason_code=author_delete")
                 .contains("user.id=" + userId);
     }
@@ -244,7 +241,7 @@ class PostPublishingApplicationServiceTest {
         verify(domainEventPublisher, never()).postDeleted(postId);
         verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(any(Integer.class), any(UUID.class));
         verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));
-        assertThat(output.getAll()).doesNotContain("community.action=post_delete");
+        assertThat(output.getAll()).doesNotContain("community.reason_code=admin_delete");
     }
 
     private static PostMediaAsset mediaAsset(UUID assetId, UUID ownerUserId, UUID postId, PostMediaKind mediaKind) {

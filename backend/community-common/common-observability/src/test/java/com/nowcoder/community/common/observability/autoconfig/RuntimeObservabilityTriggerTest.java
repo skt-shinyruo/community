@@ -40,8 +40,8 @@ class RuntimeObservabilityTriggerTest {
 
         assertThat(appender.list)
                 .anySatisfy(event -> assertThat(event.getMDCPropertyMap())
-                        .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "runtime")
-                        .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "jvm_startup")
+                        .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "runtime")
+                        .containsEntry(RuntimeLogFields.EVENT_ACTION, "jvm_startup")
                         .containsEntry(RuntimeLogFields.EVENT_ACTION, "jvm_startup"));
     }
 

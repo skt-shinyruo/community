@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.realtime.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nowcoder.community.common.logging.EventLogFields;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
 import com.nowcoder.community.im.common.ws.ConnectFrame;
@@ -44,9 +45,9 @@ public class ImWebSocketHandler implements WebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(ImWebSocketHandler.class);
     private static final String CATEGORY_ACCESS = "access";
     private static final String CATEGORY_SECURITY = "security";
-    private static final String MDC_CATEGORY = "community.category";
-    private static final String MDC_ACTION = "community.action";
-    private static final String MDC_OUTCOME = "community.outcome";
+    private static final String MDC_CATEGORY = EventLogFields.EVENT_CATEGORY;
+    private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
+    private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
     private static final String MDC_TRACE_ID = "traceId";
 
     private final ImFrameCodec frameCodec;
@@ -397,9 +398,6 @@ public class ImWebSocketHandler implements WebSocketHandler {
 
     private String buildMessage(String category, String action, String outcome, Object... keyValues) {
         StringBuilder message = new StringBuilder(192);
-        appendToken(message, MDC_CATEGORY, category);
-        appendToken(message, MDC_ACTION, action);
-        appendToken(message, MDC_OUTCOME, outcome);
         for (int i = 0; i < keyValues.length; i += 2) {
             appendToken(message, String.valueOf(keyValues[i]), keyValues[i + 1]);
         }

@@ -1,5 +1,6 @@
 package com.nowcoder.community.common.web;
 
+import com.nowcoder.community.common.logging.EventLogFields;
 import com.nowcoder.community.common.trace.TraceId;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -26,9 +27,9 @@ public class AuditLogFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(AuditLogFilter.class);
     private static final String CATEGORY = "audit";
     private static final String ACTION = "http_write_request";
-    private static final String MDC_CATEGORY = "community.category";
-    private static final String MDC_ACTION = "community.action";
-    private static final String MDC_OUTCOME = "community.outcome";
+    private static final String MDC_CATEGORY = EventLogFields.EVENT_CATEGORY;
+    private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
+    private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
 
     private final String appName;
 

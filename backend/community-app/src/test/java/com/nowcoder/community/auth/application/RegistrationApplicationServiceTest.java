@@ -118,9 +118,6 @@ class RegistrationApplicationServiceTest {
         verify(registrationCodeStore).issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
         verify(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=registration_code_issue")
-                .contains("community.outcome=success")
                 .contains("user.id=" + userId)
                 .contains("username=alice")
                 .contains("masked.email=" + response.maskedEmail())

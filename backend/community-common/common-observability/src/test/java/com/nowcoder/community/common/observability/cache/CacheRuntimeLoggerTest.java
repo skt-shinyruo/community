@@ -21,8 +21,8 @@ class CacheRuntimeLoggerTest {
 
             assertThat(capture.appender().list).hasSize(1);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "cache")
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "cache_hit_ratio_low")
+                    .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "cache")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "cache_hit_ratio_low")
                     .containsEntry("cache.name", "local-user-cache")
                     .containsEntry("cache.hit.ratio.percent", "69")
                     .containsEntry("threshold.percent", "70")

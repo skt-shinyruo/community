@@ -44,12 +44,12 @@ class RuntimeRestClientCustomizerTest {
 
             assertThat(capture.appender().list)
                     .anySatisfy(event -> assertThat(event.getMDCPropertyMap())
-                            .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "http_client_slow")
+                            .containsEntry(RuntimeLogFields.EVENT_ACTION, "http_client_slow")
                             .containsEntry("peer.service", "profiles.example")
                             .containsEntry("url.path", "/api/users/{id}")
                             .doesNotContainValue("secret"))
                     .anySatisfy(event -> assertThat(event.getMDCPropertyMap())
-                            .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "http_client_error")
+                            .containsEntry(RuntimeLogFields.EVENT_ACTION, "http_client_error")
                             .containsEntry("http.response.status_code", "502")
                             .containsEntry("url.path", "/api/users/{id}")
                             .doesNotContainValue("secret"));

@@ -3,14 +3,16 @@ package com.nowcoder.community.auth.logging;
 import org.slf4j.Logger;
 import org.slf4j.MDC;
 
+import com.nowcoder.community.common.logging.EventLogFields;
+
 import java.util.Locale;
 
 public final class SecurityEventLogger {
 
     private static final String CATEGORY = "security";
-    private static final String MDC_CATEGORY = "community.category";
-    private static final String MDC_ACTION = "community.action";
-    private static final String MDC_OUTCOME = "community.outcome";
+    private static final String MDC_CATEGORY = EventLogFields.EVENT_CATEGORY;
+    private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
+    private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
 
     private SecurityEventLogger() {
     }
@@ -50,9 +52,6 @@ public final class SecurityEventLogger {
 
     private static String buildMessage(String action, String outcome, Object... keyValues) {
         StringBuilder message = new StringBuilder(128);
-        appendToken(message, MDC_CATEGORY, CATEGORY);
-        appendToken(message, MDC_ACTION, action);
-        appendToken(message, MDC_OUTCOME, outcome);
         for (int i = 0; i < keyValues.length; i += 2) {
             String key = String.valueOf(keyValues[i]);
             appendToken(message, key, keyValues[i + 1]);

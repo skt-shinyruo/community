@@ -44,11 +44,11 @@ class RuntimeApplicationLifecycleListenerTest {
             now.set(Duration.ofMillis(15).toNanos());
             listener.destroy();
 
-            assertThat(capture.appender().list).extracting(event -> event.getMDCPropertyMap().get(RuntimeLogFields.COMMUNITY_ACTION))
+            assertThat(capture.appender().list).extracting(event -> event.getMDCPropertyMap().get(RuntimeLogFields.EVENT_ACTION))
                     .containsExactly("app_startup", "app_ready", "app_shutdown", "graceful_shutdown_timeout");
             ILoggingEvent shutdown = capture.appender().list.get(2);
             assertThat(shutdown.getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_OUTCOME, "success")
+                    .containsEntry(RuntimeLogFields.EVENT_OUTCOME, "success")
                     .containsEntry(RuntimeLogFields.DURATION_MS, "15");
         }
     }

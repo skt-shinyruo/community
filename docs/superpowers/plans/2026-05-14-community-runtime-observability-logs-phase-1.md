@@ -25,7 +25,7 @@
 Add tests that create a `RuntimeLogWriter`, emit an event, and assert:
 - MDC fields are present while logging.
 - Existing MDC values are restored afterward.
-- Message text includes stable key-value pairs but does not duplicate `community.category`, `community.action`, or `community.outcome`.
+- Message text includes stable key-value pairs but does not duplicate `event.category`, `event.action`, or `event.outcome`.
 
 - [ ] **Step 2: Run the test and verify it fails**
 

@@ -22,8 +22,8 @@ class HttpClientRuntimeLoggerTest {
 
             assertThat(capture.appender().list).hasSize(2);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "external_http")
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "http_client_slow")
+                    .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "external_http")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "http_client_slow")
                     .containsEntry("peer.service", "oss")
                     .containsEntry("http.request.method", "GET")
                     .containsEntry("url.path", "/api/oss/objects/{id}")
@@ -31,7 +31,7 @@ class HttpClientRuntimeLoggerTest {
                     .containsEntry("duration.ms", "301")
                     .containsEntry("threshold.ms", "300");
             assertThat(capture.appender().list.get(1).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "http_client_error")
+                    .containsEntry(RuntimeLogFields.EVENT_ACTION, "http_client_error")
                     .containsEntry("http.response.status_code", "503")
                     .containsEntry("error.type", IllegalStateException.class.getName());
             assertThat(capture.appender().list.get(0).getFormattedMessage())

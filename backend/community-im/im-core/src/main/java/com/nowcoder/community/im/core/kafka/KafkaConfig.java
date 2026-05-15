@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.core.kafka;
 
+import com.nowcoder.community.common.logging.EventLogFields;
 import com.nowcoder.community.common.kafka.trace.TraceRecordInterceptor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
@@ -30,9 +31,9 @@ public class KafkaConfig {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaConfig.class);
     private static final String CATEGORY_ASYNC = "async";
-    private static final String MDC_CATEGORY = "community.category";
-    private static final String MDC_ACTION = "community.action";
-    private static final String MDC_OUTCOME = "community.outcome";
+    private static final String MDC_CATEGORY = EventLogFields.EVENT_CATEGORY;
+    private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
+    private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
 
     @Bean
     public ConcurrentKafkaListenerContainerFactory<Object, Object> kafkaListenerContainerFactory(
@@ -112,9 +113,6 @@ public class KafkaConfig {
 
     private String buildMessage(String action, String outcome, Object... keyValues) {
         StringBuilder message = new StringBuilder(160);
-        appendToken(message, MDC_CATEGORY, CATEGORY_ASYNC);
-        appendToken(message, MDC_ACTION, action);
-        appendToken(message, MDC_OUTCOME, outcome);
         for (int i = 0; i < keyValues.length; i += 2) {
             appendToken(message, String.valueOf(keyValues[i]), keyValues[i + 1]);
         }

@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.nowcoder.community.common.logging.EventLogFields;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
@@ -87,12 +88,13 @@ class CommandConsumersLoggingTest {
 
             verify(privateMessageService).persist(cmd);
             verify(outboxEnqueuer, never()).enqueuePrivatePersisted(any(PrivateMessagePersistedEvent.class));
-            ILoggingEvent persistedEvent = findSingleEvent(capture.appender(), "community.action=im_private_command_persist");
+            ILoggingEvent persistedEvent = findSingleEventByAction(capture.appender(), "im_private_command_persist");
             assertThat(persistedEvent.getLevel()).isEqualTo(Level.DEBUG);
+            assertThat(persistedEvent.getMDCPropertyMap())
+                    .containsEntry(EventLogFields.EVENT_CATEGORY, "async")
+                    .containsEntry(EventLogFields.EVENT_ACTION, "im_private_command_persist")
+                    .containsEntry(EventLogFields.EVENT_OUTCOME, "success");
             assertThat(persistedEvent.getFormattedMessage())
-                    .contains("community.category=async")
-                    .contains("community.action=im_private_command_persist")
-                    .contains("community.outcome=success")
                     .contains("user.id=" + fromUserId)
                     .contains("community.target_type=conversation")
                     .contains("community.target_id=" + conversationId)
@@ -135,12 +137,13 @@ class CommandConsumersLoggingTest {
 
             verify(roomMessageService).persist(cmd);
             verify(outboxEnqueuer, never()).enqueueRoomPersisted(any(RoomMessagePersistedEvent.class));
-            ILoggingEvent persistedEvent = findSingleEvent(capture.appender(), "community.action=im_room_command_persist");
+            ILoggingEvent persistedEvent = findSingleEventByAction(capture.appender(), "im_room_command_persist");
             assertThat(persistedEvent.getLevel()).isEqualTo(Level.DEBUG);
+            assertThat(persistedEvent.getMDCPropertyMap())
+                    .containsEntry(EventLogFields.EVENT_CATEGORY, "async")
+                    .containsEntry(EventLogFields.EVENT_ACTION, "im_room_command_persist")
+                    .containsEntry(EventLogFields.EVENT_OUTCOME, "success");
             assertThat(persistedEvent.getFormattedMessage())
-                    .contains("community.category=async")
-                    .contains("community.action=im_room_command_persist")
-                    .contains("community.outcome=success")
                     .contains("user.id=" + fromUserId)
                     .contains("community.target_type=room")
                     .contains("community.target_id=" + uuid(9001))
@@ -177,12 +180,13 @@ class CommandConsumersLoggingTest {
 
             verify(outboxEnqueuer, never()).enqueueRoomPersisted(any(RoomMessagePersistedEvent.class));
             verify(outboxEnqueuer).enqueueRoomRejected(any(RoomMessageRejectedEvent.class));
-            ILoggingEvent rejectedEvent = findSingleEvent(capture.appender(), "community.action=im_room_command_reject");
+            ILoggingEvent rejectedEvent = findSingleEventByAction(capture.appender(), "im_room_command_reject");
             assertThat(rejectedEvent.getLevel()).isEqualTo(Level.WARN);
+            assertThat(rejectedEvent.getMDCPropertyMap())
+                    .containsEntry(EventLogFields.EVENT_CATEGORY, "async")
+                    .containsEntry(EventLogFields.EVENT_ACTION, "im_room_command_reject")
+                    .containsEntry(EventLogFields.EVENT_OUTCOME, "failure");
             assertThat(rejectedEvent.getFormattedMessage())
-                    .contains("community.category=async")
-                    .contains("community.action=im_room_command_reject")
-                    .contains("community.outcome=failure")
                     .contains("user.id=" + fromUserId)
                     .contains("community.target_type=room")
                     .contains("community.target_id=" + roomId)
@@ -243,16 +247,17 @@ class CommandConsumersLoggingTest {
                 mock(MessageListenerContainer.class)
         );
 
-        ILoggingEvent recoveryEvent = findSingleEvent(logs, "community.action=kafka_dlq_recover");
+        ILoggingEvent recoveryEvent = findSingleEventByAction(logs, "kafka_dlq_recover");
         assertThat(recoveryEvent.getThrowableProxy()).isNull();
+        assertThat(recoveryEvent.getMDCPropertyMap())
+                .containsEntry(EventLogFields.EVENT_CATEGORY, "async")
+                .containsEntry(EventLogFields.EVENT_ACTION, "kafka_dlq_recover")
+                .containsEntry(EventLogFields.EVENT_OUTCOME, "degraded");
         assertThat(recoveryEvent.getFormattedMessage())
                 .doesNotContain("\n")
                 .contains("community.error_class=java.lang.IllegalArgumentException")
                 .contains("community.error_message=content%20required");
         assertThat(output.getAll())
-                .contains("community.category=async")
-                .contains("community.action=kafka_dlq_recover")
-                .contains("community.outcome=degraded")
                 .contains("community.source_topic=" + ImTopics.COMMAND_ROOM_TEXT)
                 .contains("community.dlq_topic=" + ImTopics.COMMAND_ROOM_TEXT + ".dlq")
                 .contains("community.kafka_partition=0")
@@ -299,11 +304,11 @@ class CommandConsumersLoggingTest {
         capture.logger().setLevel(capture.previousLevel());
     }
 
-    private ILoggingEvent findSingleEvent(ListAppender<ILoggingEvent> appender, String token) {
+    private ILoggingEvent findSingleEventByAction(ListAppender<ILoggingEvent> appender, String action) {
         return appender.list.stream()
-                .filter(event -> event != null && event.getFormattedMessage() != null && event.getFormattedMessage().contains(token))
+                .filter(event -> event != null && action.equals(event.getMDCPropertyMap().get(EventLogFields.EVENT_ACTION)))
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("No log event found containing token=" + token));
+                .orElseThrow(() -> new AssertionError("No log event found with action=" + action));
     }
 
     private record CommandConsumersLogCapture(

@@ -40,9 +40,9 @@ class JvmRuntimeLoggerTest {
         ILoggingEvent event = appender.list.get(0);
         assertThat(event.getLevel()).isEqualTo(Level.INFO);
         assertThat(event.getMDCPropertyMap())
-                .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "runtime")
-                .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "jvm_startup")
-                .containsEntry(RuntimeLogFields.COMMUNITY_OUTCOME, "success")
+                .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "runtime")
+                .containsEntry(RuntimeLogFields.EVENT_ACTION, "jvm_startup")
+                .containsEntry(RuntimeLogFields.EVENT_OUTCOME, "success")
                 .containsKey("jvm.version")
                 .containsKey("jvm.available.processors")
                 .containsKey("jvm.heap.max.bytes")
@@ -70,9 +70,9 @@ class JvmRuntimeLoggerTest {
         ILoggingEvent event = appender.list.get(0);
         assertThat(event.getLevel()).isEqualTo(Level.WARN);
         assertThat(event.getMDCPropertyMap())
-                .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "runtime")
-                .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "jvm_memory_pressure")
-                .containsEntry(RuntimeLogFields.COMMUNITY_OUTCOME, "threshold")
+                .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "runtime")
+                .containsEntry(RuntimeLogFields.EVENT_ACTION, "jvm_memory_pressure")
+                .containsEntry(RuntimeLogFields.EVENT_OUTCOME, "threshold")
                 .containsEntry("jvm.memory.area", "heap")
                 .containsEntry("jvm.memory.used.bytes", "86")
                 .containsEntry("jvm.memory.max.bytes", "100")

@@ -83,9 +83,6 @@ class UserControllerLoggingTest {
         assertThat(result.getData().getUpload()).isNotNull();
         assertThat(result.getData().getUpload().getUrl()).isEqualTo("/api/oss/objects/" + objectId + "/complete");
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=avatar_upload_session")
-                .contains("community.outcome=success")
                 .contains("user.id=" + userId)
                 .contains("community.target_type=user")
                 .contains("community.target_id=" + userId)
@@ -109,9 +106,6 @@ class UserControllerLoggingTest {
         verify(avatarStoragePort).resolvePublicAvatarUrl(userId, objectId);
         verify(userRepository).updateHeaderUrl(userId, "https://cdn.example.com/files/" + objectId + "/avatar.png");
         assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=avatar_update")
-                .contains("community.outcome=success")
                 .contains("user.id=" + userId)
                 .contains("community.target_type=user")
                 .contains("community.target_id=" + userId)

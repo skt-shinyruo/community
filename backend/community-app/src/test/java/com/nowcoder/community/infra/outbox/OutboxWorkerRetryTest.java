@@ -1,5 +1,10 @@
 package com.nowcoder.community.common.outbox;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.nowcoder.community.common.logging.EventLogFields;
+import com.nowcoder.community.common.trace.TraceContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -10,7 +15,6 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 
 import java.sql.Timestamp;
-import java.util.Arrays;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -76,18 +80,25 @@ class OutboxWorkerRetryTest {
             };
 
             OutboxWorker worker = new OutboxWorker(store, Map.of(handler.topic(), handler), properties, clock);
-
-            worker.pollOnce();
-            assertThat(attempts.get()).isEqualTo(1);
-            String retryLine = findLogLine(output, "community.action=outbox_dispatch community.outcome=retry");
-            assertThat(retryLine)
-                    .contains("community.category=async")
-                    .contains("community.event_id=e-2:points")
-                    .contains("community.topic=projection.points")
-                    .contains("community.retry_count=1")
-                    .contains("community.error_class=java.lang.RuntimeException")
-                    .contains("community.error_message=boom");
-            assertThat(output.getAll()).doesNotContain("\tat ");
+            ListAppender<ILoggingEvent> logs = startOutboxWorkerLogCapture();
+            try {
+                worker.pollOnce();
+                assertThat(attempts.get()).isEqualTo(1);
+                ILoggingEvent retryEvent = findSingleEventByActionAndOutcome(logs, "outbox_dispatch", "retry");
+                assertThat(retryEvent.getMDCPropertyMap())
+                        .containsEntry(EventLogFields.EVENT_CATEGORY, "async")
+                        .containsEntry(EventLogFields.EVENT_ACTION, "outbox_dispatch")
+                        .containsEntry(EventLogFields.EVENT_OUTCOME, "retry");
+                assertThat(retryEvent.getFormattedMessage())
+                        .contains("community.event_id=e-2:points")
+                        .contains("community.topic=projection.points")
+                        .contains("community.retry_count=1")
+                        .contains("community.error_class=java.lang.RuntimeException")
+                        .contains("community.error_message=boom");
+                assertThat(output.getAll()).doesNotContain("\tat ");
+            } finally {
+                stopOutboxWorkerLogCapture(logs);
+            }
 
             String statusAfterFail = jdbcTemplate.queryForObject(
                     "select status from outbox_event where event_id = ?",
@@ -168,22 +179,30 @@ class OutboxWorkerRetryTest {
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
         when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(true);
 
-        OutboxWorker worker = new OutboxWorker(store, Map.of(handler.topic(), handler), properties, Clock.fixed(now, ZoneOffset.UTC));
+        ListAppender<ILoggingEvent> logs = startOutboxWorkerLogCapture();
+        try {
+            OutboxWorker worker = new OutboxWorker(store, Map.of(handler.topic(), handler), properties, Clock.fixed(now, ZoneOffset.UTC));
 
-        int processed = worker.pollOnce();
+            int processed = worker.pollOnce();
 
-        assertThat(processed).isEqualTo(1);
-        verify(store).markDead(outboxId, now, "java.lang.RuntimeException: boom");
-        String deadLine = findLogLine(output, "community.action=outbox_dispatch community.outcome=dead");
-        assertThat(deadLine)
-                .contains("community.category=async")
-                .contains("community.event_id=e-dead:points")
-                .contains("community.topic=projection.points")
-                .contains("community.retry_count=1")
-                .contains("community.error_class=java.lang.RuntimeException")
-                .contains("community.error_message=boom")
-                .contains("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-        assertThat(output.getAll()).doesNotContain("\tat ");
+            assertThat(processed).isEqualTo(1);
+            verify(store).markDead(outboxId, now, "java.lang.RuntimeException: boom");
+            ILoggingEvent deadEvent = findSingleEventByActionAndOutcome(logs, "outbox_dispatch", "dead");
+            assertThat(deadEvent.getMDCPropertyMap())
+                    .containsEntry(EventLogFields.EVENT_CATEGORY, "async")
+                    .containsEntry(EventLogFields.EVENT_ACTION, "outbox_dispatch")
+                    .containsEntry(EventLogFields.EVENT_OUTCOME, "dead")
+                    .containsEntry(TraceContext.MDC_KEY_TRACE_ID, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+            assertThat(deadEvent.getFormattedMessage())
+                    .contains("community.event_id=e-dead:points")
+                    .contains("community.topic=projection.points")
+                    .contains("community.retry_count=1")
+                    .contains("community.error_class=java.lang.RuntimeException")
+                    .contains("community.error_message=boom");
+            assertThat(output.getAll()).doesNotContain("\tat ");
+        } finally {
+            stopOutboxWorkerLogCapture(logs);
+        }
     }
 
     @Test
@@ -212,18 +231,25 @@ class OutboxWorkerRetryTest {
 
         OutboxWorker worker = new OutboxWorker(store, Map.of(), properties, Clock.fixed(now, ZoneOffset.UTC));
 
-        int processed = worker.pollOnce();
+        ListAppender<ILoggingEvent> logs = startOutboxWorkerLogCapture();
+        try {
+            int processed = worker.pollOnce();
 
-        assertThat(processed).isEqualTo(1);
-        verify(store).markFailedAndScheduleRetry(outboxId, now, now.plus(Duration.ofSeconds(10)), "no handler for topic=projection.points");
-        assertThat(output.getAll())
-                .contains("community.category=async")
-                .contains("community.action=outbox_dispatch")
-                .contains("community.outcome=degraded")
-                .contains("community.reason_code=no_handler")
-                .contains("community.event_id=e-missing:points")
-                .contains("community.topic=projection.points")
-                .contains("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+            assertThat(processed).isEqualTo(1);
+            verify(store).markFailedAndScheduleRetry(outboxId, now, now.plus(Duration.ofSeconds(10)), "no handler for topic=projection.points");
+            ILoggingEvent missingHandlerEvent = findSingleEventByActionAndOutcome(logs, "outbox_dispatch", "degraded");
+            assertThat(missingHandlerEvent.getMDCPropertyMap())
+                    .containsEntry(EventLogFields.EVENT_CATEGORY, "async")
+                    .containsEntry(EventLogFields.EVENT_ACTION, "outbox_dispatch")
+                    .containsEntry(EventLogFields.EVENT_OUTCOME, "degraded")
+                    .containsEntry(TraceContext.MDC_KEY_TRACE_ID, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+            assertThat(missingHandlerEvent.getFormattedMessage())
+                    .contains("community.reason_code=no_handler")
+                    .contains("community.event_id=e-missing:points")
+                    .contains("community.topic=projection.points");
+        } finally {
+            stopOutboxWorkerLogCapture(logs);
+        }
     }
 
     @Test
@@ -283,12 +309,30 @@ class OutboxWorkerRetryTest {
         return properties;
     }
 
-    private String findLogLine(CapturedOutput output, String pattern) {
-        return Arrays.stream(output.getAll().split("\\R"))
-                .map(String::trim)
-                .filter(line -> line.contains(pattern))
+    private ListAppender<ILoggingEvent> startOutboxWorkerLogCapture() {
+        Logger logger = (Logger) org.slf4j.LoggerFactory.getLogger(OutboxWorker.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        return appender;
+    }
+
+    private void stopOutboxWorkerLogCapture(ListAppender<ILoggingEvent> appender) {
+        if (appender == null) {
+            return;
+        }
+        Logger logger = (Logger) org.slf4j.LoggerFactory.getLogger(OutboxWorker.class);
+        logger.detachAppender(appender);
+        appender.stop();
+    }
+
+    private ILoggingEvent findSingleEventByActionAndOutcome(ListAppender<ILoggingEvent> appender, String action, String outcome) {
+        return appender.list.stream()
+                .filter(event -> event != null
+                        && action.equals(event.getMDCPropertyMap().get(EventLogFields.EVENT_ACTION))
+                        && outcome.equals(event.getMDCPropertyMap().get(EventLogFields.EVENT_OUTCOME)))
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("No log line matched pattern: " + pattern + "\nOutput was:\n" + output.getAll()));
+                .orElseThrow(() -> new AssertionError("No log event found with action=" + action + " outcome=" + outcome));
     }
 
     private static void createOutboxSchema(JdbcTemplate jdbcTemplate) {

@@ -61,9 +61,9 @@ class ServletAccessRuntimeLogFilterTest {
         ILoggingEvent event = appender.list.get(0);
         assertThat(event.getLevel()).isEqualTo(Level.WARN);
         assertThat(event.getMDCPropertyMap())
-                .containsEntry(RuntimeLogFields.COMMUNITY_CATEGORY, "access")
-                .containsEntry(RuntimeLogFields.COMMUNITY_ACTION, "http_slow_request")
-                .containsEntry(RuntimeLogFields.COMMUNITY_OUTCOME, "failure")
+                .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "access")
+                .containsEntry(RuntimeLogFields.EVENT_ACTION, "http_slow_request")
+                .containsEntry(RuntimeLogFields.EVENT_OUTCOME, "failure")
                 .containsEntry("http.request.method", "GET")
                 .containsEntry("url.path", "/api/posts")
                 .containsEntry("http.response.status_code", "503")
@@ -88,7 +88,7 @@ class ServletAccessRuntimeLogFilterTest {
 
         assertThat(appender.list).hasSize(1);
         assertThat(appender.list.get(0).getMDCPropertyMap())
-                .containsEntry(RuntimeLogFields.COMMUNITY_OUTCOME, "denied")
+                .containsEntry(RuntimeLogFields.EVENT_OUTCOME, "denied")
                 .containsEntry("http.response.status_code", "403");
     }
 }

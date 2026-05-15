@@ -38,7 +38,7 @@ describe('imCoreHttp base URL resolution', () => {
     expect(imCoreHttp.defaults.baseURL).toBe('https://im.example.com')
   })
 
-  it('should infer the local gateway IM HTTP base URL from localhost preview ports', async () => {
+  it('should fall back to same-origin relative IM HTTP base URL on localhost ports', async () => {
     vi.stubGlobal('location', {
       protocol: 'http:',
       hostname: '127.0.0.1',
@@ -49,6 +49,6 @@ describe('imCoreHttp base URL resolution', () => {
 
     const { default: imCoreHttp } = await import('./imCoreHttp')
 
-    expect(imCoreHttp.defaults.baseURL).toBe('http://127.0.0.1:12880')
+    expect(imCoreHttp.defaults.baseURL).toBe('')
   })
 })

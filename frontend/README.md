@@ -17,7 +17,7 @@ npm run build
 - compose frontend-nginx：`http://localhost:12881`
 - API / files / WS gateway：`http://localhost:12880`
 
-本地页面来自 `5173` 或 `12881` 时，`src/config/endpointResolution.js` 会默认推断 gateway 为 `http://localhost:12880`。部署环境应通过 runtime config 或 Vite env 显式提供 API base URL。
+未显式配置 API base URL 时，前端使用同源相对路径；本地 Vite dev / preview 通过 proxy 将 `/api`、`/files` 和 `/ws/im` 转发到 gateway。部署环境应由同源入口转发，或通过 runtime config / Vite env 显式提供 API base URL。
 
 ## 目录结构
 

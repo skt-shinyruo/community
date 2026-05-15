@@ -168,7 +168,7 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
 
 - runtime config 优先。
 - 其次使用 Vite env，例如 `VITE_API_BASE_URL` / `VITE_IM_CORE_BASE_URL`。
-- 当页面来自 `localhost:5173`、`12881`、`12890` 或 `12888` 时，默认推断 gateway 为 `http://localhost:12880`。
+- 未显式配置时使用同源相对路径；本地 Vite dev / preview 通过 proxy 将 `/api`、`/files` 和 `/ws/im` 转发到 `http://localhost:12880`。
 
 因此本地 Vite dev server、frontend-nginx、Mock Data Studio 和 observability 页面都应继续通过 gateway 访问业务 API，而不是直接连 `community-app` 或 IM 内部实例。
 

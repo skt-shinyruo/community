@@ -85,7 +85,7 @@ shouldBootstrapSession(...)
 
 1. runtime config：`globalThis.__COMMUNITY_RUNTIME_CONFIG__`，由 `frontend/public/app-config.js` 或部署注入。
 2. Vite env：`VITE_API_BASE_URL` / `VITE_IM_CORE_BASE_URL`。
-3. 本地推断：页面来自 `localhost:5173`、`12881`、`12890` 或 `12888` 时，推断 gateway 为 `http://localhost:12880`。
+3. 未显式配置时返回空字符串，浏览器使用同源相对路径，由 Vite proxy 或部署入口转发。
 
 浏览器默认通过 gateway 访问业务 API、IM HTTP 和 IM WebSocket bootstrap。不要在页面代码里直接硬编码 `community-app`、`im-core` 或内部容器名。
 

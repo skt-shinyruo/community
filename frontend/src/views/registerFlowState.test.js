@@ -84,10 +84,18 @@ describe('registerFlowState', () => {
     })
   })
 
-  it('marks already-activated and missing-user errors as terminal register flow failures', () => {
+  it('marks terminal register flow errors as reset-flow failures', () => {
     expect(resolveRegisterFlowError({ code: 10002, message: '账号已激活，请直接登录' })).toEqual({
       resetFlow: true,
       message: '账号已完成验证，请直接登录'
+    })
+    expect(resolveRegisterFlowError({ code: 10013, message: '注册上下文已失效，请重新注册' })).toEqual({
+      resetFlow: true,
+      message: '注册上下文已失效，请重新注册'
+    })
+    expect(resolveRegisterFlowError({ code: 10014, message: '注册已完成，请直接登录' })).toEqual({
+      resetFlow: true,
+      message: '注册已完成，请直接登录'
     })
     expect(resolveRegisterFlowError({ code: 11001, message: '用户不存在' })).toEqual({
       resetFlow: true,

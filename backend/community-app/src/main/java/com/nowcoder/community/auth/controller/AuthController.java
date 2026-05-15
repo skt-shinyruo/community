@@ -148,11 +148,16 @@ public class AuthController {
     }
 
     @PostMapping("/password/reset/request")
-    public Result<PasswordResetRequestResponse> requestPasswordReset(@Valid @RequestBody PasswordResetRequestRequest request) {
+    public Result<PasswordResetRequestResponse> requestPasswordReset(
+            @Valid @RequestBody PasswordResetRequestRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(httpRequest);
         PasswordResetRequestResult result = authApplicationService.requestPasswordReset(new RequestPasswordResetCommand(
                 request.getEmail(),
                 request.getCaptchaId(),
-                request.getCaptchaCode()
+                request.getCaptchaCode(),
+                resolvedIp == null ? null : resolvedIp.ip()
         ));
         return Result.ok(new PasswordResetRequestResponse(result.issued(), result.resetLink()));
     }

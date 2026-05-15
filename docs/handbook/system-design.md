@@ -241,7 +241,7 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - prod 下 JWT HMAC secret 缺失、过短或为占位值会阻断启动。
 - prod 下 trusted proxy 开启但 CIDR 为空或全信任会阻断启动。
 - prod 下固定验证码、注册验证码/重置链接回传、SMTP 缺失等认证误配会阻断启动。
-- OriginGuard allowlist 缺失时拒绝敏感 cookie 会话入口。
+- OriginGuard 启用且 fail-closed 时，allowlist 缺失会阻断启动并拒绝 `/api/auth/**` 敏感写入口。
 - 必须幂等的写入口在幂等存储不可用时返回 `503`。
 - outbox handler 遇到未知/坏 payload 不 silent drop，应失败、重试或进入 DEAD。
 - 市场资金 action 不能因为钱包失败就把订单静默推进完成态；应保留 pending / retry / failed 状态，让 processor、recovery 或人工排查继续处理。

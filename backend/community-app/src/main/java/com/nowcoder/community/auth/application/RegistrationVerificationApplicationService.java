@@ -9,6 +9,7 @@ import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
 import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
+import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
@@ -24,7 +25,6 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class RegistrationVerificationApplicationService {
@@ -38,6 +38,7 @@ public class RegistrationVerificationApplicationService {
     private final CaptchaApplicationService captchaService;
     private final RegistrationDraftRepository registrationDraftRepository;
     private final LoginApplicationService authService;
+    private final AuthSecretGenerator authSecretGenerator;
     private final RegistrationDomainService registrationDomainService;
 
     public RegistrationVerificationApplicationService(
@@ -48,6 +49,7 @@ public class RegistrationVerificationApplicationService {
             CaptchaApplicationService captchaService,
             RegistrationDraftRepository registrationDraftRepository,
             LoginApplicationService authService,
+            AuthSecretGenerator authSecretGenerator,
             RegistrationDomainService registrationDomainService
     ) {
         this.userRegistrationActionApi = userRegistrationActionApi;
@@ -57,6 +59,7 @@ public class RegistrationVerificationApplicationService {
         this.captchaService = captchaService;
         this.registrationDraftRepository = registrationDraftRepository;
         this.authService = authService;
+        this.authSecretGenerator = authSecretGenerator;
         this.registrationDomainService = registrationDomainService;
     }
 
@@ -118,6 +121,8 @@ public class RegistrationVerificationApplicationService {
                         "user.id", activatedUser.userId(),
                         "username", activatedUser.username());
                 return loginResult;
+            } catch (RuntimeException ex) {
+                throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED, ex);
             } finally {
                 deleteDraftQuietly(registrationToken);
             }
@@ -170,7 +175,7 @@ public class RegistrationVerificationApplicationService {
     }
 
     private String generateCode() {
-        return Integer.toString(ThreadLocalRandom.current().nextInt(100000, 1000000));
+        return authSecretGenerator.numericCode(6);
     }
 
 }

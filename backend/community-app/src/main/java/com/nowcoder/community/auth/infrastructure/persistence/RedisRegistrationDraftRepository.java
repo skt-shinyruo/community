@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -11,7 +12,6 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.Optional;
-import java.util.UUID;
 
 @Component
 @ConditionalOnProperty(name = "auth.registration.draft.store", havingValue = "redis", matchIfMissing = true)
@@ -22,15 +22,19 @@ public class RedisRegistrationDraftRepository implements RegistrationDraftReposi
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
-    public RedisRegistrationDraftRepository(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
+    @Autowired
+    public RedisRegistrationDraftRepository(
+            StringRedisTemplate redisTemplate,
+            ObjectMapper objectMapper
+    ) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
     }
 
     @Override
-    public String issue(PreparedRegistrationDraft draft, Duration ttl) {
-        if (draft == null || ttl == null || ttl.isNegative() || ttl.isZero()) {
-            return null;
+    public boolean store(String registrationToken, PreparedRegistrationDraft draft, Duration ttl) {
+        if (!StringUtils.hasText(registrationToken) || draft == null || ttl == null || ttl.isNegative() || ttl.isZero()) {
+            return false;
         }
         String json;
         try {
@@ -39,13 +43,7 @@ public class RedisRegistrationDraftRepository implements RegistrationDraftReposi
             throw new IllegalStateException("registration draft serialization failed", ex);
         }
 
-        for (int i = 0; i < 5; i++) {
-            String token = UUID.randomUUID().toString().replace("-", "");
-            if (Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key(token), json, ttl))) {
-                return token;
-            }
-        }
-        return null;
+        return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key(registrationToken.trim()), json, ttl));
     }
 
     @Override

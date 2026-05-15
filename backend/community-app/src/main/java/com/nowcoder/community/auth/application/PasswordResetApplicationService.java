@@ -5,7 +5,9 @@ import com.nowcoder.community.auth.application.command.RequestPasswordResetComma
 import com.nowcoder.community.auth.application.port.MailPort;
 import com.nowcoder.community.auth.application.result.PasswordResetRequestResult;
 import com.nowcoder.community.auth.config.PasswordResetProperties;
+import com.nowcoder.community.auth.domain.repository.LoginRateLimitRepository;
 import com.nowcoder.community.auth.domain.repository.PasswordResetTokenRepository;
+import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.PasswordResetDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
@@ -20,36 +22,45 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
 public class PasswordResetApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(PasswordResetApplicationService.class);
+    private static final String RATE_LIMIT_EMAIL_KEY_PREFIX = "auth:pwdreset:req:email:";
+    private static final String RATE_LIMIT_IP_KEY_PREFIX = "auth:pwdreset:req:ip:";
 
     private final PasswordResetProperties properties;
     private final PasswordResetTokenRepository tokenStore;
+    private final LoginRateLimitRepository resetRequestRateLimitRepository;
     private final UserCredentialQueryApi userCredentialQueryApi;
     private final UserCredentialActionApi userCredentialActionApi;
     private final MailPort mailService;
     private final CaptchaApplicationService captchaService;
+    private final AuthSecretGenerator authSecretGenerator;
     private final PasswordResetDomainService passwordResetDomainService;
 
     public PasswordResetApplicationService(
             PasswordResetProperties properties,
             PasswordResetTokenRepository tokenStore,
+            LoginRateLimitRepository resetRequestRateLimitRepository,
             UserCredentialQueryApi userCredentialQueryApi,
             UserCredentialActionApi userCredentialActionApi,
             MailPort mailService,
             CaptchaApplicationService captchaService,
+            AuthSecretGenerator authSecretGenerator,
             PasswordResetDomainService passwordResetDomainService
     ) {
         this.properties = properties;
         this.tokenStore = tokenStore;
+        this.resetRequestRateLimitRepository = resetRequestRateLimitRepository;
         this.userCredentialQueryApi = userCredentialQueryApi;
         this.userCredentialActionApi = userCredentialActionApi;
         this.mailService = mailService;
         this.captchaService = captchaService;
+        this.authSecretGenerator = authSecretGenerator;
         this.passwordResetDomainService = passwordResetDomainService;
     }
 
@@ -57,6 +68,7 @@ public class PasswordResetApplicationService {
         String email = command == null ? null : command.email();
         String captchaId = command == null ? null : command.captchaId();
         String captchaCode = command == null ? null : command.captchaCode();
+        String clientIp = command == null ? null : command.clientIp();
         passwordResetDomainService.requireResetRequestEmail(email);
         if (!StringUtils.hasText(captchaId) || !StringUtils.hasText(captchaCode)) {
             throw new BusinessException(AuthErrorCode.CAPTCHA_REQUIRED);
@@ -69,6 +81,7 @@ public class PasswordResetApplicationService {
         String resetBaseUrl = normalizeResetBaseUrlOrThrow();
 
         String normalizedEmail = email.trim();
+        enforceRequestRateLimit(normalizedEmail, clientIp);
         UserCredentialView user = userCredentialQueryApi.findByEmailOrNull(normalizedEmail);
         if (user == null || user.userId() == null || user.status() == 0) {
             // 防用户枚举：邮箱不存在/未激活等情况也返回“已发送”（但不实际下发 token/邮件）
@@ -78,12 +91,20 @@ public class PasswordResetApplicationService {
             return new PasswordResetRequestResult(true, "");
         }
 
-        String token = uuid();
+        String token = newResetToken();
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getTtlSeconds()));
-        tokenStore.store(token, user.userId(), ttl);
-
-        String resetLink = buildResetLink(resetBaseUrl, token);
-        mailService.sendPasswordResetMail(normalizedEmail, resetLink);
+        boolean tokenStored = false;
+        try {
+            tokenStore.store(token, user.userId(), ttl);
+            tokenStored = true;
+            String resetLink = buildResetLink(resetBaseUrl, token);
+            mailService.sendPasswordResetMail(normalizedEmail, resetLink);
+        } catch (RuntimeException ex) {
+            if (tokenStored) {
+                cleanupIssuedResetToken(token);
+            }
+            throw ex;
+        }
         SecurityEventLogger.info(log, "password_reset_request", "success",
                 "user.id", user.userId(),
                 "masked.email", maskEmail(normalizedEmail));
@@ -104,20 +125,20 @@ public class PasswordResetApplicationService {
             throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
         }
 
-        String trimmedPassword = newPassword.trim();
-        userCredentialActionApi.validatePasswordPolicy(trimmedPassword);
-        UUID userId = tokenStore.consume(resetToken.trim());
-        if (userId == null) {
+        userCredentialActionApi.validatePasswordPolicy(newPassword);
+        String normalizedToken = resetToken.trim();
+        PasswordResetTokenRepository.ConsumedPasswordResetToken consumed = tokenStore.consumeWithTtl(normalizedToken);
+        if (consumed == null || consumed.userId() == null) {
             SecurityEventLogger.info(log, "password_reset_confirm", "denied",
                     "community.reason_code", "invalid_token");
             throw new BusinessException(AuthErrorCode.PASSWORD_RESET_INVALID);
         }
 
-        String normalizedToken = resetToken.trim();
+        UUID userId = consumed.userId();
         try {
-            userCredentialActionApi.resetPasswordAndRevokeRefreshSessions(userId, trimmedPassword);
+            userCredentialActionApi.resetPasswordAndRevokeRefreshSessions(userId, newPassword);
         } catch (RuntimeException ex) {
-            tokenStore.store(normalizedToken, userId, restoreTtl());
+            tokenStore.store(normalizedToken, userId, restoreTtl(consumed.remainingTtl()));
             throw ex;
         }
         SecurityEventLogger.info(log, "password_reset_confirm", "success",
@@ -125,7 +146,10 @@ public class PasswordResetApplicationService {
         return true;
     }
 
-    private Duration restoreTtl() {
+    private Duration restoreTtl(Duration remainingTtl) {
+        if (remainingTtl != null && !remainingTtl.isNegative() && !remainingTtl.isZero()) {
+            return remainingTtl;
+        }
         return Duration.ofSeconds(Math.max(60, properties.getTtlSeconds()));
     }
 
@@ -146,8 +170,41 @@ public class PasswordResetApplicationService {
         return resetBaseUrl + "/#/auth/password/reset?token=" + token;
     }
 
-    private String uuid() {
-        return UUID.randomUUID().toString().replace("-", "");
+    private void enforceRequestRateLimit(String normalizedEmail, String clientIp) {
+        if (resetRequestRateLimitRepository == null) {
+            return;
+        }
+        int windowSeconds = Math.max(1, properties.getRequestWindowSeconds());
+        int maxRequestsPerEmail = properties.getMaxRequestsPerEmail();
+        if (maxRequestsPerEmail > 0 && StringUtils.hasText(normalizedEmail)) {
+            String emailKey = RATE_LIMIT_EMAIL_KEY_PREFIX + normalizedEmail.toLowerCase(Locale.ROOT);
+            int emailCount = resetRequestRateLimitRepository.increment(emailKey, windowSeconds);
+            if (emailCount > maxRequestsPerEmail) {
+                throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "请求过于频繁，请稍后再试");
+            }
+        }
+
+        int maxRequestsPerIp = properties.getMaxRequestsPerIp();
+        String ip = clientIp == null ? "" : clientIp.trim();
+        if (maxRequestsPerIp > 0 && StringUtils.hasText(ip)) {
+            String ipKey = RATE_LIMIT_IP_KEY_PREFIX + ip;
+            int ipCount = resetRequestRateLimitRepository.increment(ipKey, windowSeconds);
+            if (ipCount > maxRequestsPerIp) {
+                throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "请求过于频繁，请稍后再试");
+            }
+        }
+    }
+
+    private void cleanupIssuedResetToken(String token) {
+        try {
+            tokenStore.delete(token);
+        } catch (RuntimeException cleanupEx) {
+            log.warn("[password-reset] failed to cleanup issued token after mail failure: {}", cleanupEx.toString());
+        }
+    }
+
+    private String newResetToken() {
+        return authSecretGenerator.opaqueToken();
     }
 
     private String maskEmail(String email) {

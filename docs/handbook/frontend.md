@@ -96,7 +96,7 @@ shouldBootstrapSession(...)
 - `baseURL` 来自 `resolveApiBaseUrl()`。
 - `withCredentials=true`，用于 refresh cookie。
 - 请求 interceptor 注入 `Authorization: Bearer <accessToken>`。
-- 响应 `401` 时单飞行调用 `/api/auth/refresh`，成功后重试原请求。
+- 非 `/api/auth/**` 响应 `401` 时单飞行调用 `/api/auth/refresh`，成功后重试原请求；登录、注册、密码重置等 auth 自身入口不触发 refresh 重试。
 - 全局错误 toast 优先展示后端 `Result.message` 和 `traceId`。
 - 对发帖、评论、钱包写接口和市场下单自动附加 `Idempotency-Key`。
 

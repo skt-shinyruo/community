@@ -19,7 +19,7 @@
 
         <div class="auth-field">
           <div class="field-label">密码</div>
-          <UiInput v-model.trim="form.password" placeholder="请输入密码" type="password" autocomplete="new-password" />
+          <UiInput v-model="form.password" placeholder="请输入密码" type="password" autocomplete="new-password" />
         </div>
 
         <div class="auth-field">
@@ -117,6 +117,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ensureSessionReady } from '../auth/session'
 import { useAuthStore } from '../stores/auth'
+import { backendErrorMessage, isCaptchaRejected } from '../api/backendError'
 import { buildRegisterFlowState, clearRegisterFlowState, persistRegisterFlowState, resolveRegisterFlowError, restoreRegisterFlowState } from './registerFlowState'
 import { register as apiRegister, resendRegisterCode, verifyRegisterCode, issueCaptcha } from '../api/services/authService'
 import UiCard from '../components/ui/UiCard.vue'
@@ -158,19 +159,6 @@ function resetPersistedFlow(message) {
   form.emailCode = ''
   successMsg.value = ''
   error.value = message
-}
-
-function backendErrorCode(e) {
-  return Number(e?.response?.data?.code ?? e?.code ?? 0)
-}
-
-function backendErrorMessage(e) {
-  return e?.response?.data?.message || e?.message || ''
-}
-
-function isCaptchaRejected(e) {
-  const code = backendErrorCode(e)
-  return code === 10005 || code === 10006
 }
 
 async function refreshCaptcha() {

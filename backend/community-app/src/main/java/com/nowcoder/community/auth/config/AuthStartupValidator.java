@@ -27,11 +27,21 @@ public class AuthStartupValidator implements StartupValidator {
         requireNonBlank(environment, errors, "auth.password-reset.reset-base-url", "设置环境变量 AUTH_PASSWORD_RESET_BASE_URL（指向公网可访问入口）");
         requireTrue(environment, errors, "auth.registration.mail.enabled", "生产环境必须启用 SMTP 邮件发送，请设置 AUTH_MAIL_ENABLED=true 并配置 spring.mail.*");
         requireNonBlank(environment, errors, "spring.mail.host", "配置 spring.mail.host（SMTP 主机）");
+        Boolean originGuardEnabled = environment.getProperty("gateway.origin-guard.enabled", Boolean.class);
+        Boolean originGuardFailOpen = environment.getProperty("gateway.origin-guard.fail-open-when-allowlist-empty", Boolean.class);
+        if (Boolean.TRUE.equals(originGuardEnabled) && !Boolean.TRUE.equals(originGuardFailOpen)) {
+            requireNonBlank(environment, errors, "gateway.origin-guard.allowed-origins",
+                    "OriginGuard fail-closed 时必须配置可信前端 Origin，或明确改为同源部署策略");
+        }
 
         // dev-only：固定验证码只允许用于本地/联调。prod 下若误开会直接变成漏洞/事故源。
         String fixedCode = getTrimmed(environment, "auth.captcha.fixed-code");
         if (StringUtils.hasText(fixedCode)) {
             errors.add("配置不安全：auth.captcha.fixed-code 已设置（生产环境禁止固定验证码，请删除该配置或仅在 dev profile 使用）");
+        }
+        Boolean exposeRegistrationCode = environment.getProperty("auth.registration.code.expose-code", Boolean.class);
+        if (Boolean.TRUE.equals(exposeRegistrationCode)) {
+            errors.add("配置不安全：auth.registration.code.expose-code=true（生产环境禁止向响应体暴露注册验证码）");
         }
     }
 

@@ -1,35 +1,47 @@
 package com.nowcoder.community.auth.infrastructure.persistence;
 
+import com.nowcoder.community.auth.domain.repository.PasswordResetTokenRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
+import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RedisPasswordResetTokenRepositoryTest {
 
     @Test
-    void consumeShouldUseAtomicGetAndDelete() {
+    void consumeWithTtlShouldAtomicallyReturnUserIdAndRemainingTtl() {
         UUID userId = uuid(42);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        @SuppressWarnings("unchecked")
-        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.getAndDelete("auth:pwdreset:reset-token")).thenReturn(userId.toString());
+        when(redisTemplate.execute(any(RedisScript.class), eq(List.of("auth:pwdreset:reset-token"))))
+                .thenReturn(userId + "|123000");
 
         RedisPasswordResetTokenRepository store = new RedisPasswordResetTokenRepository(redisTemplate);
 
-        UUID consumed = store.consume("reset-token");
+        PasswordResetTokenRepository.ConsumedPasswordResetToken consumed = store.consumeWithTtl("reset-token");
 
-        assertThat(consumed).isEqualTo(userId);
-        verify(valueOperations).getAndDelete("auth:pwdreset:reset-token");
-        verify(redisTemplate, never()).delete("auth:pwdreset:reset-token");
+        assertThat(consumed.userId()).isEqualTo(userId);
+        assertThat(consumed.remainingTtl()).isEqualTo(Duration.ofSeconds(123));
+        verify(redisTemplate).execute(any(RedisScript.class), eq(List.of("auth:pwdreset:reset-token")));
+    }
+
+    @Test
+    void deleteShouldTrimToken() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        RedisPasswordResetTokenRepository store = new RedisPasswordResetTokenRepository(redisTemplate);
+
+        store.delete(" reset-token ");
+
+        verify(redisTemplate).delete("auth:pwdreset:reset-token");
     }
 
     private static UUID uuid(long suffix) {

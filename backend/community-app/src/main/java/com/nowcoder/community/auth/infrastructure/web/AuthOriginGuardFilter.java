@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * auth 模块 OriginGuard：
  * - 防止绕过 gateway 直接访问认证入口时降低安全性；
- * - 仅覆盖 cookie 会话相关敏感入口（login/refresh/logout）。
+ * - 覆盖会话、注册和密码重置等 public 且会改变认证状态的入口。
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 5)
@@ -59,7 +59,18 @@ public class AuthOriginGuardFilter extends OncePerRequestFilter {
             return true;
         }
         String path = request.getRequestURI();
-        return !("/api/auth/login".equals(path) || "/api/auth/refresh".equals(path) || "/api/auth/logout".equals(path));
+        return !isGuardedAuthMutation(path);
+    }
+
+    private boolean isGuardedAuthMutation(String path) {
+        return "/api/auth/login".equals(path)
+                || "/api/auth/refresh".equals(path)
+                || "/api/auth/logout".equals(path)
+                || "/api/auth/register".equals(path)
+                || "/api/auth/register/code/resend".equals(path)
+                || "/api/auth/register/code/verify".equals(path)
+                || "/api/auth/password/reset/request".equals(path)
+                || "/api/auth/password/reset/confirm".equals(path);
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.nowcoder.community.auth.application;
 
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
+import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.RefreshTokenDomainService;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
@@ -16,17 +17,20 @@ public class RefreshTokenApplicationService {
     private final JwtProperties jwtProperties;
     private final RefreshTokenRepository refreshTokenStore;
     private final RefreshTokenDomainService refreshTokenDomainService;
+    private final AuthSecretGenerator authSecretGenerator;
     private final UserRefreshTokenSessionActionApi refreshTokenSessionActionApi;
 
     public RefreshTokenApplicationService(
             JwtProperties jwtProperties,
             RefreshTokenRepository refreshTokenStore,
             RefreshTokenDomainService refreshTokenDomainService,
+            AuthSecretGenerator authSecretGenerator,
             UserRefreshTokenSessionActionApi refreshTokenSessionActionApi
     ) {
         this.jwtProperties = jwtProperties;
         this.refreshTokenStore = refreshTokenStore;
         this.refreshTokenDomainService = refreshTokenDomainService;
+        this.authSecretGenerator = authSecretGenerator;
         this.refreshTokenSessionActionApi = refreshTokenSessionActionApi;
     }
 
@@ -36,6 +40,18 @@ public class RefreshTokenApplicationService {
     }
 
     public IssuedRefreshToken rotate(String refreshToken) {
+        RefreshTokenRepository.StoredRefreshToken consumed = consume(refreshToken);
+        if (consumed == null) {
+            return null;
+        }
+        try {
+            return issueInFamily(consumed.userId(), consumed.familyId());
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    public RefreshTokenRepository.StoredRefreshToken consume(String refreshToken) {
         RefreshTokenRepository.StoredRefreshToken consumed = refreshTokenStore.consume(refreshToken);
         if (consumed == null) {
             maybeRevokeFamilyForReusedToken(refreshToken);
@@ -44,11 +60,11 @@ public class RefreshTokenApplicationService {
         if (refreshTokenDomainService.isExpired(consumed.expiresAt(), Instant.now())) {
             return null;
         }
-        try {
-            return issue(consumed.userId(), consumed.familyId());
-        } catch (RuntimeException e) {
-            return null;
-        }
+        return consumed;
+    }
+
+    public IssuedRefreshToken issueInFamily(UUID userId, String familyId) {
+        return issue(userId, familyId);
     }
 
     public RefreshTokenRepository.StoredRefreshToken find(String refreshToken) {
@@ -73,6 +89,10 @@ public class RefreshTokenApplicationService {
         if (token != null) {
             refreshTokenStore.revokeFamily(token.familyId());
         }
+    }
+
+    public void revokeFamily(String familyId) {
+        refreshTokenStore.revokeFamily(familyId);
     }
 
     public RefreshCookieSpec buildCookie(String refreshToken) {
@@ -108,10 +128,14 @@ public class RefreshTokenApplicationService {
     }
 
     private IssuedRefreshToken issue(UUID userId, String familyId) {
-        String tokenValue = UUID.randomUUID().toString().replace("-", "");
+        String tokenValue = secureTokenValue();
         Instant expiresAt = Instant.now().plusSeconds(jwtProperties.getRefreshTokenTtlSeconds());
         refreshTokenStore.store(tokenValue, userId, familyId, expiresAt);
         return new IssuedRefreshToken(tokenValue, buildCookie(tokenValue));
+    }
+
+    private String secureTokenValue() {
+        return authSecretGenerator.opaqueToken();
     }
 
     private void maybeRevokeFamilyForReusedToken(String refreshToken) {

@@ -13,7 +13,7 @@
 
       <div class="auth-field">
         <div class="field-label">密码</div>
-        <UiInput v-model.trim="form.password" placeholder="请输入密码" type="password" autocomplete="current-password" />
+        <UiInput v-model="form.password" placeholder="请输入密码" type="password" autocomplete="current-password" />
       </div>
 
       <div v-if="captchaRequired" class="auth-field">
@@ -56,6 +56,7 @@ import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ensureSessionReady } from '../auth/session'
 import { useAuthStore } from '../stores/auth'
+import { backendErrorMessage, isCaptchaRejected } from '../api/backendError'
 import { login as apiLogin, issueCaptcha } from '../api/services/authService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiInput from '../components/ui/UiInput.vue'
@@ -116,13 +117,12 @@ async function onLogin() {
     const redirect = route.query.redirect
     router.replace(redirect && redirect.startsWith('/') ? redirect : { name: 'posts' })
   } catch (e) {
-    const code = e?.code
-    if (code === 10005 || code === 10006) {
+    if (isCaptchaRejected(e)) {
       captchaRequired.value = true
-      error.value = e?.message || '需要验证码'
+      error.value = backendErrorMessage(e, '需要验证码')
       await refreshCaptcha()
     } else {
-      error.value = e?.message || '登录失败'
+      error.value = backendErrorMessage(e, '登录失败')
     }
   } finally {
     loading.value = false

@@ -7,6 +7,7 @@ import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.auth.domain.service.AuthDomainService;
+import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.RefreshTokenDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -126,6 +127,19 @@ class RefreshTokenApplicationServiceTest {
         RefreshResult result = authService.refresh(new RefreshCommand(issued.refreshToken()));
 
         assertThat(result.accessToken()).isEqualTo("access-token");
+    }
+
+    @Test
+    void issueShouldUseAtLeast256BitUrlSafeRefreshToken() {
+        RefreshTokenApplicationService refreshTokenService = refreshTokenService(new CoordinatedRefreshTokenStore("unused-token"));
+
+        RefreshTokenApplicationService.IssuedRefreshToken issued = refreshTokenService.issue(USER_ID);
+
+        assertThat(issued.refreshToken())
+                .hasSizeGreaterThanOrEqualTo(43)
+                .matches("[A-Za-z0-9_-]+")
+                .doesNotContain("=");
+        assertThat(issued.cookie().value()).isEqualTo(issued.refreshToken());
     }
 
     @Test
@@ -260,6 +274,7 @@ class RefreshTokenApplicationServiceTest {
                 properties,
                 repository,
                 new RefreshTokenDomainService(),
+                new AuthSecretGenerator(),
                 mock(UserRefreshTokenSessionActionApi.class)
         );
     }

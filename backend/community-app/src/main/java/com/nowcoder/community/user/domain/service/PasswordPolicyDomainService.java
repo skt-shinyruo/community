@@ -10,14 +10,17 @@ public class PasswordPolicyDomainService {
     private static final int PASSWORD_MIN = 8;
 
     public String requireValidPassword(String password) {
-        String trimmed = password == null ? "" : password.trim();
-        if (trimmed.length() < PASSWORD_MIN || trimmed.length() > ValidationLimits.PASSWORD_MAX) {
+        String value = password == null ? "" : password;
+        if (!value.equals(value.trim())) {
+            throw new BusinessException(INVALID_ARGUMENT, "密码首尾不能包含空白字符");
+        }
+        if (value.length() < PASSWORD_MIN || value.length() > ValidationLimits.PASSWORD_MAX) {
             throw new BusinessException(INVALID_ARGUMENT, "密码长度必须为 8-" + ValidationLimits.PASSWORD_MAX + " 个字符");
         }
-        if (characterClassCount(trimmed) < 2) {
+        if (characterClassCount(value) < 2) {
             throw new BusinessException(INVALID_ARGUMENT, "密码至少需要包含两类字符");
         }
-        return trimmed;
+        return value;
     }
 
     private int characterClassCount(String password) {

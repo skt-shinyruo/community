@@ -25,7 +25,7 @@
       <div v-else class="reset-stack">
         <div class="reset-field">
           <div class="reset-label">新密码</div>
-          <UiInput v-model.trim="form.newPassword" placeholder="请输入新密码" type="password" autocomplete="new-password" />
+          <UiInput v-model="form.newPassword" placeholder="请输入新密码" type="password" autocomplete="new-password" />
         </div>
         <div class="muted reset-token-note">resetToken：{{ shortToken }}</div>
       </div>
@@ -77,6 +77,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { backendErrorCode, backendErrorMessage, isCaptchaRejected } from '../api/backendError'
 import { issueCaptcha, requestPasswordReset, confirmPasswordReset } from '../api/services/authService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
@@ -142,8 +143,8 @@ async function onRequestReset() {
     }
     await refreshCaptcha()
   } catch (e) {
-    error.value = e?.message || '提交失败'
-    if (e?.code === 10005 || e?.code === 10006) {
+    error.value = backendErrorMessage(e, '提交失败')
+    if (isCaptchaRejected(e)) {
       await refreshCaptcha()
     }
   } finally {
@@ -179,8 +180,9 @@ async function onConfirmReset() {
     successMsg.value = '密码已重置，请使用新密码登录。'
     await refreshCaptcha()
   } catch (e) {
-    error.value = e?.message || '重置失败'
-    if (e?.code === 10005 || e?.code === 10006 || e?.code === 10007) {
+    error.value = backendErrorMessage(e, '重置失败')
+    const code = backendErrorCode(e)
+    if (isCaptchaRejected(e) || code === 10007) {
       await refreshCaptcha()
     }
   } finally {

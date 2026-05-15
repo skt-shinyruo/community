@@ -114,6 +114,42 @@ describe('RegisterView', () => {
     expect(wrapper.text()).toContain('验证码不正确或已失效')
   })
 
+  it('does not trim password before sending registration request', async () => {
+    issueCaptcha
+      .mockResolvedValueOnce(captchaResponse('captcha-old', 'old-image', 'trace-old'))
+      .mockResolvedValueOnce(captchaResponse('captcha-new', 'new-image', 'trace-new'))
+    register.mockResolvedValueOnce({
+      data: {
+        userId: '11111111-1111-7111-8111-111111111111',
+        registrationToken: 'reg-token',
+        emailCodeIssued: true,
+        maskedEmail: 'a***e@example.com',
+        debugEmailCode: ''
+      },
+      traceId: 'trace-register'
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[0].setValue('alice')
+    await inputs[1].setValue('alice@example.com')
+    await inputs[2].setValue(' secret12 ')
+    await inputs[3].setValue('abcd')
+
+    await wrapper.find('button.auth-submit-btn').trigger('click')
+    await flushPromises()
+
+    expect(register).toHaveBeenCalledWith({
+      username: 'alice',
+      password: ' secret12 ',
+      email: 'alice@example.com',
+      captchaId: 'captcha-old',
+      captchaCode: 'abcd'
+    })
+  })
+
   it('keeps the email-code verification area separate from the resend captcha area after registration succeeds', async () => {
     issueCaptcha
       .mockResolvedValueOnce(captchaResponse('captcha-old', 'old-image', 'trace-old'))

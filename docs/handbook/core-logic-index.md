@@ -22,6 +22,7 @@
 | `auth.application.CaptchaApplicationService` | 验证码发放和校验 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.LoginRateLimitApplicationService` | 登录失败计数和验证码触发 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.service.AuthDomainService` | token / credential 基础规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
+| `auth.domain.service.AuthSecretGenerator` | 256-bit opaque token 和安全随机数字验证码生成 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.service.CaptchaDomainService` | 验证码规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.service.LoginRateLimitDomainService` | 登录风控规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.service.PasswordResetDomainService` | reset token 和重置规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |

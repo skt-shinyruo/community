@@ -71,6 +71,21 @@ describe('http', () => {
     mock.restore()
   })
 
+  it('should not attempt refresh for any auth endpoint 401 response', async () => {
+    const auth = useAuthStore()
+    auth.setAccessToken('old-token')
+
+    const mock = new MockAdapter(http)
+    mock.onPost('/api/auth/password/reset/confirm').replyOnce(401, { code: 401, message: '未登录' })
+    mock.onPost('/api/auth/refresh').replyOnce(200, { code: 0, data: { accessToken: 'new-token' } })
+
+    await expect(http.post('/api/auth/password/reset/confirm', { resetToken: 'x' })).rejects.toBeTruthy()
+
+    expect(mock.history.post.filter((req) => req.url === '/api/auth/refresh')).toHaveLength(0)
+    expect(useAuthStore().accessToken).toBe('old-token')
+    mock.restore()
+  })
+
   it('should only attach Idempotency-Key to configured write endpoints', async () => {
     const mock = new MockAdapter(http)
     mock.onPost('/api/users/batch-summary').reply((config) => {

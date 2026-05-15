@@ -33,8 +33,13 @@ class PasswordPolicyDomainServiceTest {
     }
 
     @Test
-    void requireValidPasswordShouldReturnTrimmedValidPassword() {
-        assertThat(service.requireValidPassword("  abcdefg1  ")).isEqualTo("abcdefg1");
+    void requireValidPasswordShouldReturnValidPasswordWithoutTrimming() {
+        assertThat(service.requireValidPassword("abcdefg1")).isEqualTo("abcdefg1");
+    }
+
+    @Test
+    void requireValidPasswordShouldRejectLeadingOrTrailingWhitespace() {
+        assertInvalid(" abcdefg1 ");
     }
 
     private void assertInvalid(String password) {

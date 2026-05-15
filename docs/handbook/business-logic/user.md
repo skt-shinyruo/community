@@ -104,7 +104,7 @@ HTTP：
 
 当前注册由 auth 发起，user owner 只负责用户事实：
 
-- `prepareRegistrationUser(...)`：验证注册输入，准备用户名/邮箱/密码 hash/默认头像，不写库。
+- `prepareRegistrationUser(...)`：验证注册输入，前置检查用户名/邮箱冲突，准备用户名/邮箱/密码 hash/默认头像，不写库。
 - `createVerifiedRegistrationUser(...)`：验证码通过后插入 active 用户。
 
 创建 active 用户后，user owner 发布 user policy changed，通知 IM 用户存在性/策略投影发生变化。

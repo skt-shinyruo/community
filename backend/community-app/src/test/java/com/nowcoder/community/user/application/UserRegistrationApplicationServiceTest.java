@@ -22,6 +22,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Date;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -33,6 +35,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class UserRegistrationApplicationServiceTest {
@@ -51,7 +54,7 @@ class UserRegistrationApplicationServiceTest {
 
         PreparedRegistrationUserResult prepared = service.prepareRegistrationUser(
                 "  alice  ",
-                "  secret12  ",
+                "secret12",
                 "  alice@example.com  "
         );
 
@@ -143,6 +146,34 @@ class UserRegistrationApplicationServiceTest {
         verify(userRepository, never()).insertUser(any());
     }
 
+    @Test
+    void prepareRegistrationUserShouldRejectExistingUsernameBeforeIssuingDraft() {
+        UserRegistrationApplicationService service = service();
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(existingUser("alice", "other@example.com")));
+
+        assertThatThrownBy(() -> service.prepareRegistrationUser(" alice ", "secret12", "alice@example.com"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(UserErrorCode.USER_ALREADY_EXISTS);
+
+        verify(userRepository, never()).insertUser(any());
+        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class));
+    }
+
+    @Test
+    void prepareRegistrationUserShouldRejectExistingEmailBeforeIssuingDraft() {
+        UserRegistrationApplicationService service = service();
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(existingUser("other", "alice@example.com")));
+
+        assertThatThrownBy(() -> service.prepareRegistrationUser("alice", "secret12", " alice@example.com "))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(UserErrorCode.EMAIL_ALREADY_EXISTS);
+
+        verify(userRepository, never()).insertUser(any());
+        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class));
+    }
+
     private UserRegistrationApplicationService service() {
         return new UserRegistrationApplicationService(
                 userRepository,
@@ -154,5 +185,22 @@ class UserRegistrationApplicationServiceTest {
 
     private UUID userId(int tail) {
         return UUID.fromString("018f7f66-3f8f-7a5a-8e32-" + String.format("%012x", tail));
+    }
+
+    private UserAccount existingUser(String username, String email) {
+        return new UserAccount(
+                userId(99),
+                username,
+                new BCryptPasswordEncoder().encode("secret12"),
+                "",
+                email,
+                0,
+                1,
+                "h",
+                Date.from(NOW),
+                0,
+                null,
+                null
+        );
     }
 }

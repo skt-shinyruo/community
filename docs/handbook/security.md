@@ -35,10 +35,11 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 
 - refresh token 通过 HttpOnly Cookie 下发，浏览器 JS 不可读取。
 - 前端开启 `withCredentials: true`，由浏览器自动携带 cookie。
-- 当业务请求返回 `401`，前端调用 `/api/auth/refresh` 获取新 access token 后重试原请求。
+- 当非 `/api/auth/**` 业务请求返回 `401`，前端调用 `/api/auth/refresh` 获取新 access token 后重试原请求；auth 自身入口的 `401` 不触发 refresh 重试，避免循环和误刷新。
+- refresh token、registration token 和 password reset token 明文由 auth application 使用统一的 256-bit `SecureRandom` 生成器生成，并使用 base64url 无填充编码。
 - refresh token store 支持 `redis` / `db`，当前默认 `db`；不提供进程内存实现。
 - DB store 使用 `community.auth_refresh_token`，仅保存 token hash。
-- refresh 支持 rotation：刷新时可颁发新 refresh token，并使旧 token 失效。
+- refresh 支持 rotation：刷新时先消费旧 token，再回源校验用户仍 active，最后颁发同 family 的新 refresh token；用户不存在或被禁用时撤销 family 并清 cookie。
 - token family 支持族撤销，复用旧 token 可触发 family revoke。
 
 `GET /api/auth/me` 直接读取已验证 JWT claim，不实时查库；角色变化通常要等下一次 access token 重新签发后反映。
@@ -47,14 +48,15 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 
 找回密码链路的安全目标是防用户枚举、防 reset link 泄漏、防旧 session 继续可用：
 
-- 请求重置必须通过验证码。
+- 请求重置必须通过验证码；验证码通过后按邮箱/IP 做请求限流。
 - 邮箱不存在、用户未激活或状态不可用时也返回受理结果，但不签发 token、不发送邮件。
 - reset link 只通过邮件下发，HTTP 响应体不返回链接或 token。
-- token 存储在 `auth:pwdreset:<token>`，带短 TTL，确认时一次性消费。
+- token 存储在 `auth:pwdreset:<token>`，带短 TTL，确认时一次性消费；token 明文是 256-bit base64url 随机值；若 token 写入后邮件发送失败，会 best-effort 删除该 token。
 - 确认重置也需要验证码。
-- 新密码由 user owner 的密码策略校验：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符。
+- 新密码由 user owner 的密码策略校验：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符，并拒绝首尾空白字符。
 - 密码更新成功后撤销该用户 refresh sessions，避免旧 cookie 继续刷新 access token。
-- prod 下 `AuthStartupValidator` 要求找回密码基础配置可用，禁止 reset link 回传类 dev-only 行为。
+- 如果密码更新失败，reset token 会按消费时捕获的剩余 TTL 恢复，避免把有效期延长回完整 TTL。
+- prod 下 `AuthStartupValidator` 要求找回密码基础配置可用，禁止 reset link 回传和注册验证码回传类 dev-only 行为；OriginGuard 启用且 fail-closed 时必须配置 allowlist。
 
 ## CORS 和 OriginGuard
 
@@ -78,10 +80,15 @@ OriginGuard 位于 `community-app`：
 - 覆盖 `POST /api/auth/login`
 - 覆盖 `POST /api/auth/refresh`
 - 覆盖 `POST /api/auth/logout`
+- 覆盖 `POST /api/auth/register`
+- 覆盖 `POST /api/auth/register/code/resend`
+- 覆盖 `POST /api/auth/register/code/verify`
+- 覆盖 `POST /api/auth/password/reset/request`
+- 覆盖 `POST /api/auth/password/reset/confirm`
 - allowlist 通过 `AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS` 注入。
 - 配置键仍沿用 `gateway.origin-guard.*`，执行位置在单体内。
 - 同源请求始终放行。
-- prod 下 allowlist 缺失会 fail-closed。
+- prod 下 allowlist 缺失会 fail-closed，并由启动校验提前阻断。
 
 如果用 `127.0.0.1` 访问前端，或修改前端端口，需要同步更新浏览器 origin 相关配置。
 
@@ -174,6 +181,12 @@ prod 下如果开启 trusted proxy：
 - 维度包括用户名、用户 IP 和组合维度。
 - 达到阈值后拒绝登录，必要时要求验证码。
 
+密码重置请求风控：
+
+- 默认启用 `auth.password-reset.request-window-seconds`、`max-requests-per-email`、`max-requests-per-ip`。
+- 验证码通过后按邮箱和客户端 IP 自增计数，超过阈值返回 `TOO_MANY_REQUESTS`。
+- 邮箱不存在的请求也会计数，但不会暴露该邮箱是否存在。
+
 gateway 路径级限流：
 
 - 配置键：`gateway.http.rate-limit.*`
@@ -235,6 +248,7 @@ prod 下约束：
 
 - 禁止固定验证码。
 - 禁止回传注册验证码。
+- `AuthStartupValidator` 会在 `auth.registration.code.expose-code=true` 时阻断启动。
 - 必须启用 SMTP。
 - JWT secret 必须显式配置且长度满足要求。
 - 真实密钥必须通过 Secrets / 配置中心注入。
@@ -244,7 +258,7 @@ prod 下约束：
 启动期和 bean 创建期都会执行 fail-closed：
 
 - `StartupValidation` 聚合各模块 `StartupValidator`。
-- `AuthStartupValidator` 校验 refresh cookie、找回密码、注册邮件、固定验证码。
+- `AuthStartupValidator` 校验 refresh cookie、找回密码、注册邮件、固定验证码和 OriginGuard fail-closed allowlist。
 - 共享安全基础设施校验 JWT secret。
 - trusted proxy 校验 CIDR。
 - actuator / metrics basic auth 如果启用但缺凭据，会失败。

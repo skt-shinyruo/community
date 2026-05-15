@@ -3,6 +3,7 @@ package com.nowcoder.community.app.config;
 import com.nowcoder.community.analytics.domain.service.AnalyticsDomainService;
 import com.nowcoder.community.analytics.domain.service.AnalyticsIngestDomainService;
 import com.nowcoder.community.auth.domain.service.AuthDomainService;
+import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.CaptchaDomainService;
 import com.nowcoder.community.auth.domain.service.LoginRateLimitDomainService;
 import com.nowcoder.community.auth.domain.service.PasswordResetDomainService;
@@ -42,6 +43,11 @@ public class DomainServiceConfig {
     @Bean
     AuthDomainService authDomainService() {
         return new AuthDomainService();
+    }
+
+    @Bean
+    AuthSecretGenerator authSecretGenerator() {
+        return new AuthSecretGenerator();
     }
 
     @Bean

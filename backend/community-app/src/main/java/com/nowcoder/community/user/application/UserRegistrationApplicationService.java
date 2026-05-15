@@ -59,6 +59,12 @@ public class UserRegistrationApplicationService {
 
     public PreparedRegistrationUserResult prepareRegistrationUser(String username, String password, String email) {
         RegistrationInput input = userRegistrationDomainService.requireValidRegistration(username, password, email);
+        if (existsByUsername(input.username())) {
+            throw new BusinessException(USER_ALREADY_EXISTS);
+        }
+        if (existsByEmail(input.email())) {
+            throw new BusinessException(EMAIL_ALREADY_EXISTS);
+        }
         UserAccount prepared = userRegistrationDomainService.preparedRegistrationUser(
                 idGenerator.next(),
                 input,
@@ -72,6 +78,16 @@ public class UserRegistrationApplicationService {
                 prepared.encodedPassword(),
                 prepared.headerUrl()
         );
+    }
+
+    private boolean existsByUsername(String username) {
+        var existing = userRepository.findByUsername(username);
+        return existing != null && existing.isPresent();
+    }
+
+    private boolean existsByEmail(String email) {
+        var existing = userRepository.findByEmail(email);
+        return existing != null && existing.isPresent();
     }
 
     @Transactional

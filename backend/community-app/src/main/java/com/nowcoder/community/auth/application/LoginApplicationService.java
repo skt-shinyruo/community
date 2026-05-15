@@ -146,17 +146,20 @@ public class LoginApplicationService {
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        RefreshTokenApplicationService.IssuedRefreshToken rotated = refreshTokenService.rotate(refreshToken);
-        if (rotated == null) {
-            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
-        }
-        RefreshTokenRepository.StoredRefreshToken rotatedToken = refreshTokenService.find(rotated.refreshToken());
-        if (rotatedToken == null) {
+        RefreshTokenRepository.StoredRefreshToken consumed = refreshTokenService.consume(refreshToken);
+        if (consumed == null) {
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        UserCredentialView credentialView = getCredential(rotatedToken.userId());
+        UserCredentialView credentialView;
+        try {
+            credentialView = getCredential(consumed.userId());
+        } catch (BusinessException ex) {
+            refreshTokenService.revokeFamily(consumed.familyId());
+            throw new BusinessException(AuthErrorCode.USER_DISABLED);
+        }
         if (credentialView == null || credentialView.status() == 0) {
+            refreshTokenService.revokeFamily(consumed.familyId());
             throw new BusinessException(AuthErrorCode.USER_DISABLED);
         }
         List<String> authorities = authoritiesOf(credentialView);
@@ -165,6 +168,15 @@ public class LoginApplicationService {
                 credentialView.username(),
                 authorities
         );
+        RefreshTokenApplicationService.IssuedRefreshToken rotated;
+        try {
+            rotated = refreshTokenService.issueInFamily(credentialView.userId(), consumed.familyId());
+        } catch (RuntimeException ex) {
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+        }
+        if (rotated == null) {
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+        }
         return new RefreshResult(accessToken, rotated.cookie());
     }
 

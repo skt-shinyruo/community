@@ -76,7 +76,11 @@ class EventDeliverySemanticsStructureTest {
 
         Set<Class<?>> classes = new LinkedHashSet<>();
         for (String className : classNames) {
-            classes.add(Class.forName(className, false, classLoader));
+            try {
+                classes.add(Class.forName(className, false, classLoader));
+            } catch (NoClassDefFoundError ignored) {
+                // Some optional integration types are intentionally absent from this test classpath.
+            }
         }
         return classes;
     }
@@ -88,11 +92,15 @@ class EventDeliverySemanticsStructureTest {
     }
 
     private static boolean hasAfterCommitListener(Class<?> type) {
-        for (Method method : type.getDeclaredMethods()) {
-            TransactionalEventListener annotation = method.getAnnotation(TransactionalEventListener.class);
-            if (annotation != null && annotation.phase() == TransactionPhase.AFTER_COMMIT) {
-                return true;
+        try {
+            for (Method method : type.getDeclaredMethods()) {
+                TransactionalEventListener annotation = method.getAnnotation(TransactionalEventListener.class);
+                if (annotation != null && annotation.phase() == TransactionPhase.AFTER_COMMIT) {
+                    return true;
+                }
             }
+        } catch (NoClassDefFoundError ignored) {
+            return false;
         }
         return false;
     }

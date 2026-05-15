@@ -37,13 +37,13 @@ Main path：
 
 1. controller 只负责 HTTP binding、cookie/header 处理和 DTO 转换。
 2. 入口进入 `auth.application.*ApplicationService`。
-3. 注册采用 Verify-First：先生成 registration draft 和验证码，不插入 `user` row。
+3. 注册采用 Verify-First：先由 user owner 做用户名/邮箱前置查重，再生成 registration draft 和验证码，不插入 `user` row。
 4. 验证码通过邮件发送；本地默认用 MailHog。
-5. 验证注册验证码后创建 active 用户，并可自动登录。
+5. 验证注册验证码后创建 active 用户，并可自动登录；若用户已创建但 token 签发失败，提示直接登录而不是重新注册。
 6. 登录先经过登录风控、验证码要求和密码校验。
 7. 密码只接受 BCrypt hash。
-8. 登录成功后签发 access token，并通过 HttpOnly cookie 下发 refresh token。
-9. refresh token 旋转刷新，旧 token 失效；family reuse 可触发族撤销。
+8. 登录成功后签发 access token，并通过 HttpOnly cookie 下发 256-bit base64url refresh token；registration token 和 reset token 也由 auth application 使用同一安全随机生成策略。
+9. refresh 先消费旧 token，再回源 user 校验用户仍存在且 active，最后才签发同 family 的新 refresh token；family reuse 可触发族撤销。
 10. logout 撤销 refresh token / family 并清 cookie。
 11. cleanup job 清理过期 refresh session；registration draft 和验证码依赖各自 store TTL 自然过期。
 
@@ -55,12 +55,12 @@ The high-concurrency registration flow is Verify-First:
 
 1. `AuthController.register` calls `RegistrationApplicationService.register`.
 2. Auth validates captcha and request fields, then calls `user.api.action.UserRegistrationActionApi.prepareRegistrationUser`.
-3. User prepares normalized username/email, generated provisional user id, BCrypt password hash, and default avatar URL without inserting a `user` row.
-4. Auth stores `PreparedRegistrationDraft` behind an opaque `registrationToken` and issues a registration code.
+3. User checks username/email conflicts, then prepares normalized username/email, generated provisional user id, BCrypt password hash, and default avatar URL without inserting a `user` row.
+4. Auth application 生成 256-bit base64url opaque `registrationToken`，仓储只负责按该 token 存储 `PreparedRegistrationDraft`；token 冲突时 application 最多重试 5 次。
 5. `AuthController.verifyRegisterCode` calls `RegistrationVerificationApplicationService.verifyAndLogin`.
 6. Auth resolves the draft, consumes the code, then calls `user.api.action.UserRegistrationActionApi.createVerifiedRegistrationUser`.
 7. User inserts one active `user` row with `status=1` and publishes `UserPolicyChanged(userExists=true)`.
-8. Auth issues login tokens and deletes the draft as best-effort cleanup.
+8. Auth issues login tokens and deletes the draft as best-effort cleanup. If token issuance fails after the user row is created, auth returns `REGISTRATION_ACTIVATED_LOGIN_REQUIRED` and the user should log in manually.
 
 Abandoned registrations expire from the draft/code stores and do not create user rows or IM policy events.
 
@@ -69,25 +69,26 @@ Refresh session DB state：
 - `auth_refresh_token` 只保存 refresh token hash、用户、family、过期时间和撤销时间。
 - `RefreshTokenSessionApplicationService.store(...)` 在签发 refresh token 时写入 DB session 状态。
 - `/api/auth/refresh` 通过 `consume(...)` 消费当前 active token；找不到、已过期或已撤销都会视为不可刷新。
-- 刷新成功会旋转 refresh token，新 token 重新 `store(...)`，旧 token 不再保持 active。
+- 消费成功后先回源 user owner 校验用户状态；用户不存在或已禁用时撤销该 refresh family，并清浏览器 cookie。
+- 刷新成功会旋转 refresh token，新 token 重新 `store(...)`，旧 token 不再保持 active；不会在用户状态校验前提前签发新 token。
 - `revoke(...)` 用于单 token 撤销；`revokeFamily(...)` 用于 family reuse 或整族撤销；`revokeByUserId(...)` 用于密码重置后撤销该用户会话。
 - `deleteExpiredBefore(...)` 由 cleanup job 调用，只清理已过期 refresh session，不影响已经签出的 access token。
 
 Password reset：
 
 1. 请求重置密码必须带邮箱和验证码。
-2. 服务端先校验 reset base URL 配置，避免签发 token 后才发现无法生成链接。
+2. 服务端先校验 reset base URL 配置，避免签发 token 后才发现无法生成链接；验证码通过后按邮箱/IP 维度做请求限流。
 3. 邮箱不存在、用户未激活或状态不可用时也返回“已受理”，但不签发 token，不发邮件，防止用户枚举。
-4. token 存储在 `auth:pwdreset:<token>`，通过邮件下发链接，HTTP 响应体不返回 reset link。
+4. 256-bit base64url token 存储在 `auth:pwdreset:<token>`，通过邮件下发链接，HTTP 响应体不返回 reset link；若 token 已写入但邮件发送失败，会 best-effort 删除该 token。
 5. 确认重置时再次校验验证码、token 和密码策略。
-6. 密码策略由 user owner 校验：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符。
-7. 密码更新成功后撤销该用户 refresh sessions；若密码更新失败，会恢复 reset token TTL 以便用户重试。
+6. 密码策略由 user owner 校验：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符，并拒绝首尾空白字符，避免静默修改用户输入。
+7. 密码更新成功后撤销该用户 refresh sessions；若密码更新失败，会按消费时捕获的剩余 TTL 恢复 reset token，允许用户在原有效期内重试。
 
 Security：
 
 - `AuthSecurityRules` 决定 `/api/auth/**` 哪些入口允许匿名。
-- `AuthOriginGuardFilter` 只覆盖 login / refresh / logout 这类 cookie 会话敏感入口。
-- prod 下禁止固定验证码和验证码/reset link 回传，SMTP 必须可用。
+- `AuthOriginGuardFilter` 覆盖所有 public 且会改变认证状态的 auth POST 入口：login、refresh、logout、register、register code resend / verify、password reset request / confirm。
+- prod 下 `AuthStartupValidator` 禁止固定验证码、注册验证码回传和 reset link 回传，SMTP 必须可用；OriginGuard 启用且 fail-closed 时必须配置可信 Origin allowlist。
 - `/api/auth/me` 直接读 JWT claim；角色变化通常要等 token 重签后体现。
 
 Key code：

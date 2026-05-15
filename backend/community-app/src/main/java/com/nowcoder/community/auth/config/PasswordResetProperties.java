@@ -23,6 +23,21 @@ public class PasswordResetProperties {
      */
     private int ttlSeconds = 600;
 
+    /**
+     * 重置密码请求限流窗口（秒）。
+     */
+    private int requestWindowSeconds = 3600;
+
+    /**
+     * 单个邮箱在窗口内最多允许请求次数，<= 0 表示关闭邮箱维度限流。
+     */
+    private int maxRequestsPerEmail = 3;
+
+    /**
+     * 单个客户端 IP 在窗口内最多允许请求次数，<= 0 表示关闭 IP 维度限流。
+     */
+    private int maxRequestsPerIp = 20;
+
     public String getResetBaseUrl() {
         return resetBaseUrl;
     }
@@ -45,5 +60,29 @@ public class PasswordResetProperties {
 
     public void setTtlSeconds(int ttlSeconds) {
         this.ttlSeconds = ttlSeconds;
+    }
+
+    public int getRequestWindowSeconds() {
+        return requestWindowSeconds;
+    }
+
+    public void setRequestWindowSeconds(int requestWindowSeconds) {
+        this.requestWindowSeconds = requestWindowSeconds;
+    }
+
+    public int getMaxRequestsPerEmail() {
+        return maxRequestsPerEmail;
+    }
+
+    public void setMaxRequestsPerEmail(int maxRequestsPerEmail) {
+        this.maxRequestsPerEmail = maxRequestsPerEmail;
+    }
+
+    public int getMaxRequestsPerIp() {
+        return maxRequestsPerIp;
+    }
+
+    public void setMaxRequestsPerIp(int maxRequestsPerIp) {
+        this.maxRequestsPerIp = maxRequestsPerIp;
     }
 }

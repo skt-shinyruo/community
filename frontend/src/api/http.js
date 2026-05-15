@@ -74,6 +74,14 @@ function hashString(str) {
   return (h >>> 0).toString(36)
 }
 
+function isAuthEndpointUrl(url) {
+  let path = String(url || '')
+  try {
+    path = new URL(path, 'http://community.local').pathname
+  } catch { }
+  return path === '/api/auth' || path.startsWith('/api/auth/')
+}
+
 http.interceptors.request.use((config) => {
   const auth = useAuthStore()
   if (auth.accessToken) {
@@ -101,7 +109,7 @@ http.interceptors.response.use(
     const resultMessage = typeof result?.message === 'string' ? result.message : ''
     const traceId = typeof result?.traceId === 'string' ? result.traceId : ''
 
-    const isAuthEndpoint = url.includes('/api/auth/login') || url.includes('/api/auth/refresh') || url.includes('/api/auth/register')
+    const isAuthEndpoint = isAuthEndpointUrl(url)
 
     // Global Error Toast for non-2xx / network errors (prefer backend Result.message + traceId)
     if (!skipGlobalErrorToast && (status >= 500 || error.code === 'ERR_NETWORK')) {

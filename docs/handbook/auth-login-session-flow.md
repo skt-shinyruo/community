@@ -42,10 +42,13 @@ AuthController
 | `POST /api/auth/logout` | public，依赖 refresh cookie | 撤销 refresh token family，清 refresh cookie |
 | `GET /api/auth/me` | Bearer JWT | 从已验证 JWT claim 返回当前用户 |
 | `GET /api/auth/captcha` | public | 签发登录 / 注册 / 密码重置可复用的验证码 |
+| `POST /api/auth/register` | public | 校验注册字段和图形验证码，创建 registration draft 并发送邮箱验证码 |
+| `POST /api/auth/register/code/resend` | public | 校验 registration draft 和图形验证码，重发邮箱验证码 |
 | `POST /api/auth/register/code/verify` | public | 注册验证码通过后创建用户并自动登录，写 refresh cookie |
+| `POST /api/auth/password/reset/request` | public | 校验邮箱和图形验证码，发送密码重置链接 |
 | `POST /api/auth/password/reset/confirm` | public | 重置密码，并撤销该用户所有 refresh sessions |
 
-`AuthOriginGuardFilter` 当前只覆盖 `POST /api/auth/login`、`POST /api/auth/refresh` 和 `POST /api/auth/logout`。浏览器请求带 `Origin` 时必须同源或命中 allowlist；没有 `Origin` 的非浏览器客户端按服务端调用放行。注意：`POST /api/auth/register/code/verify` 也会下发 refresh cookie，但当前不在该 filter 的匹配范围内。
+`AuthOriginGuardFilter` 覆盖所有 public 且会改变认证状态的 auth POST 入口：login、refresh、logout、register、register code resend / verify、password reset request / confirm。浏览器请求带 `Origin` 时必须同源或命中 allowlist；没有 `Origin` 的非浏览器客户端按服务端调用放行。
 
 ## 运行时数据
 
@@ -66,6 +69,8 @@ AuthController
 
 - `password` 只在当前认证调用内使用，不进入 auth 持久化，也不写日志。
 - refresh token 明文只存在于 cookie、当前请求 / 响应和 hash 计算过程。
+- refresh token、registration token 和 password reset token 明文都由 auth application 使用统一的 256-bit `SecureRandom` 生成器生成，并使用 base64url 无填充编码。
+- 注册邮箱验证码由同一安全随机生成器生成 6 位数字码。
 - 默认 DB store 只保存 refresh token 的 SHA-256 hex hash。
 - 安全日志记录用户名、用户 ID、IP、IP 来源和失败原因，不记录密码或 refresh token 明文。
 
@@ -123,9 +128,11 @@ AuthController.verifyRegisterCode(...)
 关键语义：
 
 - registration draft 和邮箱验证码校验通过后才创建 active 用户。
+- prepare registration 阶段会先由 user owner 检查用户名和邮箱是否已存在；验证码通过后的最终插入仍以数据库唯一约束处理竞态冲突。
 - 创建用户成功后不再走用户名密码认证，而是对刚创建的 `UserCredentialView` 调 `issueLoginResult(...)`。
 - 响应体仍是 `LoginResponse(accessToken)`，并写入 refresh cookie。
 - `finally` 中 best-effort 删除 registration draft，避免重复使用。
+- 如果 active 用户已经创建但自动登录签发 token 失败，返回 `REGISTRATION_ACTIVATED_LOGIN_REQUIRED`，前端清理注册上下文并提示用户直接登录，避免误导用户重复注册。
 
 ## JWT 和 `/me`
 
@@ -162,18 +169,19 @@ CurrentUser.requireJwt(authentication)
 主流程：
 
 1. cookie 缺失或空值时抛 `REFRESH_TOKEN_INVALID`。
-2. `RefreshTokenApplicationService.rotate(...)` 消费旧 token。
-3. 旧 token 找不到、已撤销、已过期或新 token 写入失败时返回 invalid。
-4. rotation 成功后，用新 refresh token `find(...)` 读出 userId。
-5. 回源 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在且未禁用。
-6. 重新计算 authorities。
-7. 签发新的 access token，并返回新的 refresh cookie。
+2. `RefreshTokenApplicationService.consume(...)` 消费旧 token。
+3. 旧 token 找不到、已撤销或已过期时返回 invalid；被撤销 token 复用仍会走 family reuse 检测。
+4. 使用已消费 token 中的 `userId` 回源 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在且未禁用。
+5. 用户不存在或被禁用时撤销该 `familyId`，抛 `USER_DISABLED`，controller 会清 refresh cookie。
+6. 重新计算 authorities，签发新的 access token。
+7. 通过 `RefreshTokenApplicationService.issueInFamily(...)` 写入同 family 的新 refresh token，并返回新的 refresh cookie。
 
 rotation 语义：
 
 - 每次 refresh 都消费旧 refresh token。
 - 新 refresh token 复用同一个 `familyId`。
 - 旧 token 不再 active。
+- 新 refresh token 不会在用户存在性和状态校验前提前签发。
 - 如果旧 token 已被撤销但又被复用，`maybeRevokeFamilyForReusedToken(...)` 会检查 `security.jwt.refresh-reuse-grace-seconds`；超过 grace window 且未过期时撤销整个 family。
 - refresh 失败且错误是 `REFRESH_TOKEN_INVALID` 或 `USER_DISABLED` 时，controller 会额外写入 `Max-Age=0` 的 clear cookie。
 
@@ -202,6 +210,10 @@ PasswordResetApplicationService.confirmReset(...)
 ```
 
 这只影响 refresh token。已签出的 access token 不会被服务端集中撤销，仍等待短 TTL 过期。
+
+密码重置请求会先校验验证码，再按邮箱/IP 维度使用 `auth:pwdreset:req:email:<email>` 和 `auth:pwdreset:req:ip:<ip>` 计数限流；未知邮箱也计数，但不会暴露是否存在。reset token 使用 256-bit base64url 明文，只存储在 Redis key 和邮件链接中。如果 reset token 已写入但邮件发送失败，auth 会 best-effort 删除该 token。如果 reset token 已被消费但 user owner 更新密码失败，auth 会用消费时捕获的剩余 TTL 恢复该 reset token，允许用户在原有效期内重试；不会把 token 延长回完整 TTL。
+
+密码策略由 user owner 执行：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符，且拒绝首尾空白字符。前端和后端都不再静默 trim 密码字段。
 
 ## Refresh Session 存储
 
@@ -313,6 +325,12 @@ auth:
     store: redis
     ttl-seconds: 60
     max-failures: 3
+  password-reset:
+    reset-base-url: ${AUTH_PASSWORD_RESET_BASE_URL:}
+    ttl-seconds: 600
+    request-window-seconds: ${AUTH_PASSWORD_RESET_REQUEST_WINDOW_SECONDS:3600}
+    max-requests-per-email: ${AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_EMAIL:3}
+    max-requests-per-ip: ${AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_IP:20}
 ```
 
 `RefreshCookieSpec` 转为 Spring `ResponseCookie` 时使用：

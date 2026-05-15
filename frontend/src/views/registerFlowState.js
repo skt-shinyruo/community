@@ -81,10 +81,16 @@ export function resolveRegisterFlowError(error) {
       message: '账号已完成验证，请直接登录'
     }
   }
-  if (code === 11001) {
+  if (code === 10013 || code === 11001) {
     return {
       resetFlow: true,
       message: '注册上下文已失效，请重新注册'
+    }
+  }
+  if (code === 10014) {
+    return {
+      resetFlow: true,
+      message: error?.message || '注册已完成，请直接登录'
     }
   }
   return {

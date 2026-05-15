@@ -7,6 +7,7 @@ import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
 import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
+import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
@@ -27,10 +28,12 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -70,6 +73,7 @@ class RegistrationApplicationServiceTest {
                 captchaService,
                 registrationCodeStore,
                 registrationDraftRepository,
+                new AuthSecretGenerator(),
                 new RegistrationDomainService()
         );
     }
@@ -83,21 +87,26 @@ class RegistrationApplicationServiceTest {
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
-        when(registrationDraftRepository.issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
-                .thenReturn("0123456789abcdef0123456789abcdef");
+        when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
+                .thenReturn(true);
         when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
 
         RegisterResult response = service.register(command);
 
         assertThat(response.userId()).isEqualTo(userId);
-        assertThat(response.registrationToken()).isNotBlank().matches("[a-f0-9]{32}");
+        assertThat(response.registrationToken())
+                .isNotBlank()
+                .hasSizeGreaterThanOrEqualTo(43)
+                .matches("[A-Za-z0-9_-]+");
         assertThat(response.emailCodeIssued()).isTrue();
         assertThat(response.maskedEmail()).isNotBlank().contains("@").isNotEqualTo("alice@example.com");
         assertThat(response.debugEmailCode()).matches("\\d{6}");
         verify(userRegistrationActionApi).prepareRegistrationUser("alice", "secret", "alice@example.com");
+        ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<PreparedRegistrationDraft> draftCaptor = ArgumentCaptor.forClass(PreparedRegistrationDraft.class);
-        verify(registrationDraftRepository).issue(draftCaptor.capture(), eq(Duration.ofMinutes(30)));
+        verify(registrationDraftRepository).store(tokenCaptor.capture(), draftCaptor.capture(), eq(Duration.ofMinutes(30)));
+        assertThat(response.registrationToken()).isEqualTo(tokenCaptor.getValue());
         PreparedRegistrationDraft draft = draftCaptor.getValue();
         assertThat(draft.userId()).isEqualTo(userId);
         assertThat(draft.username()).isEqualTo("alice");
@@ -130,8 +139,8 @@ class RegistrationApplicationServiceTest {
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
-        when(registrationDraftRepository.issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
-                .thenReturn("0123456789abcdef0123456789abcdef");
+        when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
+                .thenReturn(true);
         when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
         doThrow(new IllegalStateException("mail down"))
@@ -141,14 +150,14 @@ class RegistrationApplicationServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("mail down");
 
-        verify(registrationDraftRepository).issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)));
+        verify(registrationDraftRepository).store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)));
         verify(registrationCodeStore).issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
-        verify(registrationDraftRepository).delete("0123456789abcdef0123456789abcdef");
+        verify(registrationDraftRepository).delete(matches("[A-Za-z0-9_-]+"));
         verify(registrationCodeStore).delete(userId);
     }
 
     @Test
-    void registerShouldFailBeforeIssuingCodeWhenRegistrationDraftCreationFails() {
+    void registerShouldFailBeforeIssuingCodeWhenRegistrationDraftStoreRejectsGeneratedTokens() {
         UUID userId = uuid(9);
         RegisterCommand command = registerCommand();
 
@@ -156,14 +165,14 @@ class RegistrationApplicationServiceTest {
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
-        when(registrationDraftRepository.issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)))).thenReturn(null);
+        when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)))).thenReturn(false);
 
         assertThatThrownBy(() -> service.register(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.INTERNAL_ERROR);
 
-        verify(registrationDraftRepository).issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)));
+        verify(registrationDraftRepository, times(5)).store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)));
         verify(registrationCodeStore, never()).issue(any(), any(), any(), any());
         verify(mailService, never()).sendRegistrationCodeMail(any(), any());
         verify(registrationCodeStore).delete(userId);
@@ -179,8 +188,8 @@ class RegistrationApplicationServiceTest {
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
-        when(registrationDraftRepository.issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
-                .thenReturn("0123456789abcdef0123456789abcdef");
+        when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
+                .thenReturn(true);
         when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
 
@@ -189,7 +198,7 @@ class RegistrationApplicationServiceTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.INTERNAL_ERROR);
 
-        verify(registrationDraftRepository).delete("0123456789abcdef0123456789abcdef");
+        verify(registrationDraftRepository).delete(matches("[A-Za-z0-9_-]+"));
         verify(registrationCodeStore).delete(userId);
         verify(mailService, never()).sendRegistrationCodeMail(any(), any());
     }
@@ -203,8 +212,8 @@ class RegistrationApplicationServiceTest {
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
-        when(registrationDraftRepository.issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
-                .thenReturn("0123456789abcdef0123456789abcdef");
+        when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
+                .thenReturn(true);
         when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenThrow(new IllegalStateException("redis down"));
 
@@ -212,7 +221,7 @@ class RegistrationApplicationServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("redis down");
 
-        verify(registrationDraftRepository).delete("0123456789abcdef0123456789abcdef");
+        verify(registrationDraftRepository).delete(matches("[A-Za-z0-9_-]+"));
         verify(registrationCodeStore).delete(userId);
         verify(mailService, never()).sendRegistrationCodeMail(any(), any());
     }
@@ -226,7 +235,7 @@ class RegistrationApplicationServiceTest {
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
-        when(registrationDraftRepository.issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
+        when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
                 .thenThrow(new IllegalStateException("draft down"));
 
         assertThatThrownBy(() -> service.register(command))
@@ -254,7 +263,7 @@ class RegistrationApplicationServiceTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.INTERNAL_ERROR);
 
-        verify(registrationDraftRepository, never()).issue(any(), any());
+        verify(registrationDraftRepository, never()).store(any(), any(), any());
         verify(registrationCodeStore, never()).issue(any(), any(), any(), any());
         verify(mailService, never()).sendRegistrationCodeMail(any(), any());
     }

@@ -19,9 +19,9 @@
 1. 浏览器提交注册请求到 auth controller。
 2. controller 只做 HTTP binding、客户端信息提取和 DTO 转换，然后进入 `RegistrationApplicationService`。
 3. auth 校验 captcha、用户名、密码、邮箱和邮件配置。
-4. auth 调 `UserRegistrationActionApi.prepareRegistrationUser(...)`，让 user owner 规范化用户名/邮箱、生成预备 userId、计算 BCrypt 密码 hash 和默认头像。
-5. auth 保存 `PreparedRegistrationDraft`，生成 opaque `registrationToken`。
-6. auth 发送注册验证码。
+4. auth 调 `UserRegistrationActionApi.prepareRegistrationUser(...)`，让 user owner 规范化用户名/邮箱、前置检查用户名/邮箱冲突、生成预备 userId、计算 BCrypt 密码 hash 和默认头像。
+5. auth 保存 `PreparedRegistrationDraft`，生成 256-bit base64url opaque `registrationToken`。
+6. auth 发送安全随机生成的 6 位注册验证码。
 7. 用户提交验证码后，auth 消费验证码和 draft。
 8. auth 调 `UserRegistrationActionApi.createVerifiedRegistrationUser(...)`，由 user owner 插入 active 用户。
 9. 注册成功后复用登录签发链路，返回 access token 和 refresh cookie。
@@ -30,8 +30,9 @@
 失败语义：
 
 - 验证码错误或过期时不创建用户。
-- 用户名或邮箱冲突由 user owner 判断。
+- 用户名或邮箱冲突由 user owner 判断；prepare 阶段先查重，最终插入仍由数据库唯一约束兜住竞态。
 - 邮件发送失败时不能伪造注册成功。
+- 用户已创建但自动登录 token 签发失败时，返回 `REGISTRATION_ACTIVATED_LOGIN_REQUIRED`，用户直接去登录。
 - abandoned draft 过期后自然清理。
 
 ## 登录主流程
@@ -44,7 +45,7 @@
 6. auth 调 `UserCredentialQueryApi.authenticate(...)`，让 user owner 校验密码 hash 和用户状态。
 7. 认证成功后，auth reset 失败计数。
 8. auth 签发短期 access token。
-9. auth 生成 refresh token 明文返回到 HttpOnly cookie，服务端只保存 hash 和 refresh session 状态。
+9. auth 生成 256-bit base64url refresh token 明文返回到 HttpOnly cookie，服务端只保存 hash 和 refresh session 状态。
 10. auth 记录安全日志，并可通过 analytics action API 记录登录成功。
 
 ## Refresh 和 Logout

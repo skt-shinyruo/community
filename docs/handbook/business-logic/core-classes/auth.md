@@ -35,6 +35,7 @@
 | 类 | 核心规则 |
 | --- | --- |
 | `auth.domain.service.AuthDomainService` | 凭据字段最小校验，避免暴露到底是用户名还是密码缺失。 |
+| `auth.domain.service.AuthSecretGenerator` | 统一生成 256-bit base64url opaque token 和安全随机数字验证码。 |
 | `auth.domain.service.CaptchaDomainService` | captchaId/code 必填、验证码归一化。 |
 | `auth.domain.service.LoginRateLimitDomainService` | 风控 key 归一化、封锁判断和验证码触发规则。 |
 | `auth.domain.service.PasswordResetDomainService` | reset token、email 和新密码的约束。 |
@@ -55,4 +56,3 @@
 - 注册是 Verify-First 的：先有 draft 和验证码，再有 active user。
 - refresh token 不是单个 token 的状态，而是 family 级状态。
 - 密码重置会影响 session 生命周期，不只是改一条密码 hash。
-

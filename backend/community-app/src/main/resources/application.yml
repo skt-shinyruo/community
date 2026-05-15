@@ -127,7 +127,7 @@ gateway:
   origin-guard:
     enabled: true
     allowed-origins: ${AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS:}
-    # 生产建议 fail-closed：allowlist 漏配时拒绝敏感 cookie 会话入口（login/refresh/logout）。
+    # 生产建议 fail-closed：allowlist 漏配时拒绝认证相关敏感写入口（/api/auth/**）。
     fail-open-when-allowlist-empty: false
 
 auth:
@@ -158,6 +158,9 @@ auth:
     reset-base-url: ${AUTH_PASSWORD_RESET_BASE_URL:}
     store: redis
     ttl-seconds: 600
+    request-window-seconds: ${AUTH_PASSWORD_RESET_REQUEST_WINDOW_SECONDS:3600}
+    max-requests-per-email: ${AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_EMAIL:3}
+    max-requests-per-ip: ${AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_IP:20}
   login-rate-limit:
     enabled: true
     window-seconds: 60

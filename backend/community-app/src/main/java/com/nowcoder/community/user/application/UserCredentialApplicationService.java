@@ -42,8 +42,8 @@ public class UserCredentialApplicationService {
 
     public UserAuthenticationResult authenticate(String username, String password) {
         String trimmedUsername = userCredentialDomainService.trim(username);
-        String trimmedPassword = userCredentialDomainService.trim(password);
-        if (!StringUtils.hasText(trimmedUsername) || !StringUtils.hasText(trimmedPassword)) {
+        String rawPassword = password == null ? "" : password;
+        if (!StringUtils.hasText(trimmedUsername) || !StringUtils.hasText(rawPassword)) {
             return UserAuthenticationResult.invalidCredentials();
         }
 
@@ -54,7 +54,7 @@ public class UserCredentialApplicationService {
         if (user.status() == 0) {
             return UserAuthenticationResult.userDisabled(toCredentialResult(user));
         }
-        if (!passwordMatches(user, trimmedPassword)) {
+        if (!passwordMatches(user, rawPassword)) {
             return UserAuthenticationResult.invalidCredentials();
         }
         return UserAuthenticationResult.authenticated(toCredentialResult(user));
@@ -95,11 +95,11 @@ public class UserCredentialApplicationService {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        String trimmedPassword = passwordPolicyDomainService.requireValidPassword(newPassword);
+        String validatedPassword = passwordPolicyDomainService.requireValidPassword(newPassword);
         if (userRepository.findById(userId).isEmpty()) {
             throw new BusinessException(USER_NOT_FOUND);
         }
-        userRepository.updatePassword(userId, passwordEncoder.encode(trimmedPassword));
+        userRepository.updatePassword(userId, passwordEncoder.encode(validatedPassword));
     }
 
     public List<String> authoritiesOf(UserCredentialResult user) {

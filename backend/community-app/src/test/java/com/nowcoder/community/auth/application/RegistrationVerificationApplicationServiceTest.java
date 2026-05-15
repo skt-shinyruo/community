@@ -10,6 +10,7 @@ import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
 import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
+import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -79,6 +80,7 @@ class RegistrationVerificationApplicationServiceTest {
                 captchaService,
                 registrationDraftRepository,
                 authService,
+                new AuthSecretGenerator(),
                 new RegistrationDomainService()
         );
     }
@@ -168,8 +170,9 @@ class RegistrationVerificationApplicationServiceTest {
         when(authService.issueLoginResult(activatedUser)).thenThrow(new IllegalStateException("token down"));
 
         assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222")))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("token down");
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
 
         verify(registrationDraftRepository).delete("token");
     }

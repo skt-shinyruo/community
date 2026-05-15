@@ -7,7 +7,7 @@ import java.util.Optional;
 
 public interface RegistrationDraftRepository {
 
-    String issue(PreparedRegistrationDraft draft, Duration ttl);
+    boolean store(String registrationToken, PreparedRegistrationDraft draft, Duration ttl);
 
     Optional<PreparedRegistrationDraft> find(String registrationToken);
 

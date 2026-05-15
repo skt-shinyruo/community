@@ -8,6 +8,8 @@ import com.nowcoder.community.auth.application.command.RefreshCommand;
 import com.nowcoder.community.auth.application.port.AuthTokenPort;
 import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
+import com.nowcoder.community.auth.application.result.RefreshResult;
+import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.auth.domain.service.AuthDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -15,6 +17,7 @@ import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
+import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +30,7 @@ import org.springframework.mock.env.MockEnvironment;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -36,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -252,17 +257,71 @@ class LoginApplicationServiceTest {
     }
 
     @Test
-    void refreshShouldLetRotateDecideInvalidTokenSoReplayDetectionCanRun() {
-        when(refreshTokenService.find("replayed-token")).thenReturn(null);
-        when(refreshTokenService.rotate("replayed-token")).thenReturn(null);
+    void refreshShouldLetRefreshTokenServiceDecideInvalidTokenSoReplayDetectionCanRun() {
+        when(refreshTokenService.consume("replayed-token")).thenReturn(null);
 
         Throwable thrown = catchThrowable(() -> authService.refresh(new RefreshCommand("replayed-token")));
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
         assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID);
-        verify(refreshTokenService).rotate("replayed-token");
+        verify(refreshTokenService).consume("replayed-token");
         verify(refreshTokenService, never()).find("replayed-token");
         verify(userCredentialQueryApi, never()).getByUserId(any());
+    }
+
+    @Test
+    void refreshShouldValidateUserBeforeIssuingReplacementRefreshToken() {
+        UUID userId = uuid(9);
+        RefreshTokenRepository.StoredRefreshToken consumed =
+                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-1", Instant.now().plusSeconds(600));
+        UserCredentialView disabled = new UserCredentialView(userId, "alice", 0, 0, "h1");
+        when(refreshTokenService.consume("old-refresh")).thenReturn(consumed);
+        when(userCredentialQueryApi.getByUserId(userId)).thenReturn(disabled);
+
+        Throwable thrown = catchThrowable(() -> authService.refresh(new RefreshCommand("old-refresh")));
+
+        assertThat(thrown).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(AuthErrorCode.USER_DISABLED);
+        verify(refreshTokenService, never()).issueInFamily(any(UUID.class), anyString());
+        verify(refreshTokenService).revokeFamily("family-1");
+    }
+
+    @Test
+    void refreshShouldMapMissingUserToUserDisabledAndRevokeRefreshFamily() {
+        UUID userId = uuid(10);
+        RefreshTokenRepository.StoredRefreshToken consumed =
+                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-2", Instant.now().plusSeconds(600));
+        when(refreshTokenService.consume("old-refresh")).thenReturn(consumed);
+        when(userCredentialQueryApi.getByUserId(userId)).thenThrow(new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        Throwable thrown = catchThrowable(() -> authService.refresh(new RefreshCommand("old-refresh")));
+
+        assertThat(thrown).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(AuthErrorCode.USER_DISABLED);
+        verify(refreshTokenService, never()).issueInFamily(any(UUID.class), anyString());
+        verify(refreshTokenService).revokeFamily("family-2");
+    }
+
+    @Test
+    void refreshShouldIssueReplacementOnlyAfterUserIsActive() {
+        UUID userId = uuid(11);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1");
+        RefreshCookieSpec cookie = issuedCookie("new-refresh");
+        RefreshTokenRepository.StoredRefreshToken consumed =
+                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-3", Instant.now().plusSeconds(600));
+        when(refreshTokenService.consume("old-refresh")).thenReturn(consumed);
+        when(userCredentialQueryApi.getByUserId(userId)).thenReturn(user);
+        when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
+        when(authTokenPort.createAccessToken(userId, "alice", List.of("ROLE_USER"))).thenReturn("access-token");
+        when(refreshTokenService.issueInFamily(userId, "family-3"))
+                .thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("new-refresh", cookie));
+
+        RefreshResult result = authService.refresh(new RefreshCommand("old-refresh"));
+
+        assertThat(result.accessToken()).isEqualTo("access-token");
+        assertThat(result.refreshCookie()).isEqualTo(cookie);
+        verify(refreshTokenService).issueInFamily(userId, "family-3");
+        verify(refreshTokenService, never()).find("new-refresh");
     }
 
     @Test

@@ -80,6 +80,20 @@ class UserCredentialApplicationServiceTest {
     }
 
     @Test
+    void authenticateShouldNotTrimPasswordBeforeMatching() {
+        UserCredentialApplicationService service = service();
+        UUID userId = uuid(7);
+        String encoded = new BCryptPasswordEncoder().encode("secret12");
+        UserAccount user = activeUser(userId, "alice", encoded, "");
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+
+        UserAuthenticationResult authenticationResult = service.authenticate("alice", " secret12 ");
+
+        assertThat(authenticationResult.failure()).isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+        assertThat(authenticationResult.user()).isNull();
+    }
+
+    @Test
     void getByUserIdShouldProjectCredentialResult() {
         UserCredentialApplicationService service = service();
         UUID userId = uuid(7);
@@ -126,7 +140,7 @@ class UserCredentialApplicationServiceTest {
         UUID userId = uuid(7);
         when(userRepository.findById(userId)).thenReturn(Optional.of(activeUser(userId, "alice", "encoded", "")));
 
-        service.updatePassword(userId, "  secret12  ");
+        service.updatePassword(userId, "secret12");
 
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
         verify(userRepository).updatePassword(eq(userId), passwordCaptor.capture());
@@ -139,7 +153,7 @@ class UserCredentialApplicationServiceTest {
         UUID userId = uuid(7);
         when(userRepository.findById(userId)).thenReturn(Optional.of(activeUser(userId, "alice", "encoded", "")));
 
-        service.resetPasswordAndRevokeRefreshSessions(userId, "  secret12  ");
+        service.resetPasswordAndRevokeRefreshSessions(userId, "secret12");
 
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
         verify(userRepository).updatePassword(eq(userId), passwordCaptor.capture());
@@ -168,6 +182,18 @@ class UserCredentialApplicationServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(INVALID_ARGUMENT);
+    }
+
+    @Test
+    void updatePasswordShouldRejectLeadingOrTrailingWhitespaceInsteadOfTrimming() {
+        UserCredentialApplicationService service = service();
+
+        assertThatThrownBy(() -> service.updatePassword(uuid(7), " secret12 "))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(INVALID_ARGUMENT);
+
+        verifyNoInteractions(userRepository);
     }
 
     @Test

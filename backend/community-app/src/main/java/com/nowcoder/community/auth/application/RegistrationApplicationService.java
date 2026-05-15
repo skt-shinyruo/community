@@ -7,6 +7,7 @@ import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
 import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
+import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
@@ -22,7 +23,6 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class RegistrationApplicationService {
@@ -35,6 +35,7 @@ public class RegistrationApplicationService {
     private final CaptchaApplicationService captchaService;
     private final RegistrationCodeRepository registrationCodeStore;
     private final RegistrationDraftRepository registrationDraftRepository;
+    private final AuthSecretGenerator authSecretGenerator;
     private final RegistrationDomainService registrationDomainService;
 
     public RegistrationApplicationService(
@@ -44,6 +45,7 @@ public class RegistrationApplicationService {
             CaptchaApplicationService captchaService,
             RegistrationCodeRepository registrationCodeStore,
             RegistrationDraftRepository registrationDraftRepository,
+            AuthSecretGenerator authSecretGenerator,
             RegistrationDomainService registrationDomainService
     ) {
         this.userRegistrationActionApi = userRegistrationActionApi;
@@ -52,6 +54,7 @@ public class RegistrationApplicationService {
         this.captchaService = captchaService;
         this.registrationCodeStore = registrationCodeStore;
         this.registrationDraftRepository = registrationDraftRepository;
+        this.authSecretGenerator = authSecretGenerator;
         this.registrationDomainService = registrationDomainService;
     }
 
@@ -67,7 +70,7 @@ public class RegistrationApplicationService {
         }
 
         String username = safeTrim(command.username());
-        String password = safeTrim(command.password());
+        String password = command.password() == null ? "" : command.password();
         String email = safeTrim(command.email());
 
         registrationDomainService.requireRegisterFields(username, password, email);
@@ -89,18 +92,16 @@ public class RegistrationApplicationService {
         String registrationToken = null;
         try {
             Instant issuedAt = Instant.now();
-            registrationToken = registrationDraftRepository == null ? null : registrationDraftRepository.issue(
-                    new PreparedRegistrationDraft(
-                            prepared.userId(),
-                            prepared.username(),
-                            prepared.email(),
-                            prepared.encodedPassword(),
-                            prepared.headerUrl(),
-                            issuedAt,
-                            issuedAt.plus(registrationDraftTtl)
-                    ),
-                    registrationDraftTtl
+            PreparedRegistrationDraft draft = new PreparedRegistrationDraft(
+                    prepared.userId(),
+                    prepared.username(),
+                    prepared.email(),
+                    prepared.encodedPassword(),
+                    prepared.headerUrl(),
+                    issuedAt,
+                    issuedAt.plus(registrationDraftTtl)
             );
+            registrationToken = storeRegistrationDraft(draft, registrationDraftTtl);
             if (!StringUtils.hasText(registrationToken)) {
                 throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册上下文创建失败");
             }
@@ -130,7 +131,20 @@ public class RegistrationApplicationService {
     }
 
     private String generateCode() {
-        return Integer.toString(ThreadLocalRandom.current().nextInt(100000, 1000000));
+        return authSecretGenerator.numericCode(6);
+    }
+
+    private String storeRegistrationDraft(PreparedRegistrationDraft draft, Duration ttl) {
+        if (registrationDraftRepository == null) {
+            return null;
+        }
+        for (int i = 0; i < 5; i++) {
+            String token = authSecretGenerator.opaqueToken();
+            if (registrationDraftRepository.store(token, draft, ttl)) {
+                return token;
+            }
+        }
+        return null;
     }
 
     private void rollbackFailedRegistration(UUID userId, String registrationToken) {

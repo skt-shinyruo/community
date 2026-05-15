@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.MediaType;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -52,6 +54,38 @@ class AuthOriginGuardFilterTest {
                 .contains("community.reason_code=origin_not_allowed")
                 .contains("origin=http://evil.example")
                 .contains("path=/api/auth/login");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/api/auth/register",
+            "/api/auth/register/code/resend",
+            "/api/auth/register/code/verify",
+            "/api/auth/password/reset/request",
+            "/api/auth/password/reset/confirm"
+    })
+    void unsafePublicAuthMutationShouldBeOriginGuarded(String path) throws Exception {
+        OriginGuardProperties props = new OriginGuardProperties();
+        props.setAllowedOrigins(List.of("http://allowed.example"));
+
+        AuthOriginGuardFilter filter = new AuthOriginGuardFilter(props, new ObjectMapper());
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setMethod("POST");
+        request.setRequestURI(path);
+        request.setScheme("http");
+        request.setServerName("localhost");
+        request.setServerPort(80);
+        request.addHeader("Origin", "http://evil.example");
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        AtomicBoolean chainCalled = new AtomicBoolean(false);
+        filter.doFilter(request, response, (req, resp) -> chainCalled.set(true));
+
+        assertThat(chainCalled).isFalse();
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("Origin 不被允许");
     }
 
     @Test

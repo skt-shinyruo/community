@@ -5,7 +5,9 @@ import com.nowcoder.community.auth.application.command.RequestPasswordResetComma
 import com.nowcoder.community.auth.application.port.MailPort;
 import com.nowcoder.community.auth.application.result.PasswordResetRequestResult;
 import com.nowcoder.community.auth.config.PasswordResetProperties;
+import com.nowcoder.community.auth.domain.repository.LoginRateLimitRepository;
 import com.nowcoder.community.auth.domain.repository.PasswordResetTokenRepository;
+import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.PasswordResetDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -30,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -41,6 +44,9 @@ class PasswordResetApplicationServiceTest {
 
     @Mock
     private PasswordResetTokenRepository tokenStore;
+
+    @Mock
+    private LoginRateLimitRepository resetRequestRateLimitRepository;
 
     @Mock
     private UserCredentialQueryApi userCredentialQueryApi;
@@ -65,10 +71,12 @@ class PasswordResetApplicationServiceTest {
         service = new PasswordResetApplicationService(
                 properties,
                 tokenStore,
+                resetRequestRateLimitRepository,
                 userCredentialQueryApi,
                 userCredentialActionApi,
                 mailService,
                 captchaService,
+                new AuthSecretGenerator(),
                 new PasswordResetDomainService()
         );
     }
@@ -99,6 +107,74 @@ class PasswordResetApplicationServiceTest {
     }
 
     @Test
+    void requestResetShouldIssueAtLeast256BitUrlSafeToken() {
+        UUID userId = uuid(7);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null);
+        String[] capturedToken = new String[1];
+
+        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(user);
+        doAnswer(invocation -> {
+            capturedToken[0] = invocation.getArgument(0);
+            return null;
+        }).when(tokenStore).store(anyString(), eq(userId), eq(Duration.ofSeconds(600)));
+
+        service.requestReset(new RequestPasswordResetCommand(" alice@example.com ", "cid", "1234"));
+
+        assertThat(capturedToken[0])
+                .hasSizeGreaterThanOrEqualTo(43)
+                .matches("[A-Za-z0-9_-]+")
+                .doesNotContain("=");
+        verify(mailService).sendPasswordResetMail(eq("alice@example.com"), contains("token=" + capturedToken[0]));
+    }
+
+    @Test
+    void requestResetShouldDeleteIssuedTokenWhenMailSendingFails() {
+        UUID userId = uuid(7);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null);
+        String[] capturedToken = new String[1];
+
+        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(user);
+        doAnswer(invocation -> {
+            capturedToken[0] = invocation.getArgument(0);
+            return null;
+        }).when(tokenStore).store(anyString(), eq(userId), eq(Duration.ofSeconds(600)));
+        doThrow(new IllegalStateException("mail down"))
+                .when(mailService).sendPasswordResetMail(eq("alice@example.com"), contains("/#/auth/password/reset?token="));
+
+        assertThatThrownBy(() -> service.requestReset(new RequestPasswordResetCommand("alice@example.com", "cid", "1234")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("mail down");
+
+        assertThat(capturedToken[0]).isNotBlank();
+        verify(tokenStore).delete(capturedToken[0]);
+    }
+
+    @Test
+    void requestResetShouldRejectTooManyRequestsBeforeLookingUpUser() {
+        properties.setRequestWindowSeconds(300);
+        properties.setMaxRequestsPerEmail(1);
+        properties.setMaxRequestsPerIp(20);
+        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        when(resetRequestRateLimitRepository.increment("auth:pwdreset:req:email:alice@example.com", 300)).thenReturn(2);
+
+        assertThatThrownBy(() -> service.requestReset(new RequestPasswordResetCommand(
+                " alice@example.com ",
+                "cid",
+                "1234",
+                "203.0.113.10"
+        )))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(CommonErrorCode.TOO_MANY_REQUESTS);
+
+        verify(userCredentialQueryApi, never()).findByEmailOrNull(anyString());
+        verify(tokenStore, never()).store(anyString(), any(UUID.class), any(Duration.class));
+        verify(mailService, never()).sendPasswordResetMail(anyString(), anyString());
+    }
+
+    @Test
     void requestResetShouldLogSkippedHiddenNoopForUnknownEmail(CapturedOutput output) {
         when(captchaService.verify("cid", "1234")).thenReturn(true);
         when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(null);
@@ -123,12 +199,14 @@ class PasswordResetApplicationServiceTest {
     void confirmResetShouldLogSuccessWithoutTokenOrPassword(CapturedOutput output) {
         UUID userId = uuid(7);
         when(captchaService.verify("cid", "1234")).thenReturn(true);
-        when(tokenStore.consume("token-123")).thenReturn(userId);
+        when(tokenStore.consumeWithTtl("token-123"))
+                .thenReturn(new PasswordResetTokenRepository.ConsumedPasswordResetToken(userId, Duration.ofSeconds(600)));
 
         boolean result = service.confirmReset(new ConfirmPasswordResetCommand(" token-123 ", " new-password ", "cid", "1234"));
 
         assertThat(result).isTrue();
-        verify(userCredentialActionApi).resetPasswordAndRevokeRefreshSessions(userId, "new-password");
+        verify(userCredentialActionApi).validatePasswordPolicy(" new-password ");
+        verify(userCredentialActionApi).resetPasswordAndRevokeRefreshSessions(userId, " new-password ");
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=password_reset_confirm")
@@ -144,10 +222,13 @@ class PasswordResetApplicationServiceTest {
         UUID userId = uuid(7);
         RuntimeException resetFailure = new IllegalStateException("reset failed");
         when(captchaService.verify("cid", "1234")).thenReturn(true);
-        when(tokenStore.consume("token-123")).thenReturn(userId, userId);
+        when(tokenStore.consumeWithTtl("token-123")).thenReturn(
+                new PasswordResetTokenRepository.ConsumedPasswordResetToken(userId, Duration.ofSeconds(600)),
+                new PasswordResetTokenRepository.ConsumedPasswordResetToken(userId, Duration.ofSeconds(600))
+        );
         doThrow(resetFailure)
                 .doNothing()
-                .when(userCredentialActionApi).resetPasswordAndRevokeRefreshSessions(userId, "new-password");
+                .when(userCredentialActionApi).resetPasswordAndRevokeRefreshSessions(userId, " new-password ");
 
         ConfirmPasswordResetCommand command = new ConfirmPasswordResetCommand(" token-123 ", " new-password ", "cid", "1234");
         assertThatThrownBy(() -> service.confirmReset(command)).isSameAs(resetFailure);
@@ -160,15 +241,30 @@ class PasswordResetApplicationServiceTest {
     }
 
     @Test
+    void confirmResetShouldRestoreConsumedTokenWithRemainingTtlWhenUserResetFails() {
+        UUID userId = uuid(8);
+        RuntimeException resetFailure = new IllegalStateException("reset failed");
+        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        when(tokenStore.consumeWithTtl("token-123"))
+                .thenReturn(new PasswordResetTokenRepository.ConsumedPasswordResetToken(userId, Duration.ofSeconds(123)));
+        doThrow(resetFailure).when(userCredentialActionApi).resetPasswordAndRevokeRefreshSessions(userId, " new-password ");
+
+        ConfirmPasswordResetCommand command = new ConfirmPasswordResetCommand(" token-123 ", " new-password ", "cid", "1234");
+        assertThatThrownBy(() -> service.confirmReset(command)).isSameAs(resetFailure);
+
+        verify(tokenStore).store("token-123", userId, Duration.ofSeconds(123));
+    }
+
+    @Test
     void confirmResetShouldValidatePasswordBeforeConsumingToken() {
         BusinessException weakPassword = new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "weak password");
         when(captchaService.verify("cid", "1234")).thenReturn(true);
-        doThrow(weakPassword).when(userCredentialActionApi).validatePasswordPolicy("weakpass");
+        doThrow(weakPassword).when(userCredentialActionApi).validatePasswordPolicy(" weakpass ");
 
         assertThatThrownBy(() -> service.confirmReset(new ConfirmPasswordResetCommand(" token-123 ", " weakpass ", "cid", "1234")))
                 .isSameAs(weakPassword);
 
-        verify(userCredentialActionApi).validatePasswordPolicy("weakpass");
+        verify(userCredentialActionApi).validatePasswordPolicy(" weakpass ");
         verify(tokenStore, never()).consume(anyString());
         verify(tokenStore, never()).store(anyString(), any(UUID.class), any(Duration.class));
         verifyNoMoreInteractions(userCredentialActionApi);
@@ -177,7 +273,7 @@ class PasswordResetApplicationServiceTest {
     @Test
     void confirmResetShouldLogDeniedWhenTokenIsInvalid(CapturedOutput output) {
         when(captchaService.verify("cid", "1234")).thenReturn(true);
-        when(tokenStore.consume("token-123")).thenReturn(null);
+        when(tokenStore.consumeWithTtl("token-123")).thenReturn(null);
 
         assertThatThrownBy(() -> service.confirmReset(new ConfirmPasswordResetCommand(" token-123 ", " new-password ", "cid", "1234")))
                 .isInstanceOf(BusinessException.class)

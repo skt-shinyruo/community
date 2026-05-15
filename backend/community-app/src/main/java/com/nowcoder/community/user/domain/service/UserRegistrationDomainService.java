@@ -33,14 +33,14 @@ public class UserRegistrationDomainService {
 
     public RegistrationInput requireValidRegistration(String username, String password, String email) {
         String trimmedUsername = safeTrim(username);
-        String trimmedPassword = passwordPolicyDomainService.requireValidPassword(password);
+        String validatedPassword = passwordPolicyDomainService.requireValidPassword(password);
         String trimmedEmail = safeTrim(email);
         if (!hasText(trimmedUsername)
-                || !hasText(trimmedPassword)
+                || !hasText(validatedPassword)
                 || !hasText(trimmedEmail)) {
             throw new BusinessException(INVALID_ARGUMENT, "用户名/密码/邮箱不能为空");
         }
-        return new RegistrationInput(trimmedUsername, trimmedPassword, trimmedEmail);
+        return new RegistrationInput(trimmedUsername, validatedPassword, trimmedEmail);
     }
 
     public String requireValidPreparedEncodedPassword(String encodedPassword) {

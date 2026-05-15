@@ -26,7 +26,8 @@ public enum AuthErrorCode implements ErrorCode {
     REGISTRATION_CODE_EXPIRED(10010, "注册验证码已过期", 400),
     REGISTRATION_CODE_RESEND_COOLDOWN(10011, "注册验证码发送过于频繁", 429),
     REGISTRATION_CODE_TOO_MANY_ATTEMPTS(10012, "注册验证码错误次数过多，请重新获取", 400),
-    REGISTRATION_CONTEXT_INVALID(10013, "注册上下文已失效，请重新注册", 404);
+    REGISTRATION_CONTEXT_INVALID(10013, "注册上下文已失效，请重新注册", 404),
+    REGISTRATION_ACTIVATED_LOGIN_REQUIRED(10014, "注册已完成，请直接登录", 409);
 
     private final int code;
     private final String message;

@@ -4,6 +4,26 @@
 
 这里不替代 [../architecture.md](../architecture.md)、[../system-design.md](../system-design.md)、[../business-flows.md](../business-flows.md) 和 [../core-logic-index.md](../core-logic-index.md)。如果你要理解业务，先读本目录；如果你要改代码，再回到架构规则和核心代码索引。
 
+## 项目业务总览
+
+`community` 的核心业务不是一个单一 CRUD 站点，而是一套社区产品域：内容社区、社交互动、通知搜索、成长激励、钱包市场、网盘文件和 IM 会话共同组成用户体验。前端 Vue3 SPA 通过 `frontend/src/api/services/*.js` 调用后端；后端主站业务集中在 `backend/community-app`，IM 消息事实在 `backend/community-im/*`，文件对象事实由 OSS 模块拥有。
+
+后端业务按 owner domain 治理。每个领域都要先分清“谁拥有主事实”：`content` 拥有帖子和评论，`social` 拥有点赞/关注/拉黑，`wallet` 拥有账户和账本，`market` 拥有商品和订单，`drive` 拥有网盘目录和分享，OSS 拥有对象和版本，IM 拥有消息和会话事实。通知、搜索、分析和 IM policy 多数是读模型或投影，不应该反向充当上游业务事实。
+
+一次用户动作通常从 HTTP controller、listener、job 或 WebSocket frame 进入同领域 `*ApplicationService`。ApplicationService 负责用例编排、事务、幂等、领域规则调用、repository 持久化、同步 owner API 协作和事件发布。必须当场知道结果的协作用同步 `api.query` / `api.action`；主事实已经成立、下游可以稍后追平的协作用 `contracts.event`、outbox 或 projection。
+
+最重要的端到端链路包括：
+
+1. 注册登录：`auth` 编排验证码、登录风控、JWT 和 refresh token，`user` 拥有账号、密码 hash、用户状态和 refresh session 存储事实。
+2. 发帖评论：`content` 写帖子/评论主事实，回源 `user` 校验发言资格，媒体通过 OSS，搜索和通知通过事件最终一致。
+3. 点赞关注拉黑：`social` 写互动关系，点赞目标回源 `content` 解析，拉黑变化通过 outbox / Kafka 追平 IM policy projection。
+4. 成长奖励：`growth` 根据内容和社交事件推进任务、去重和计算等级；真正入账由 `wallet` owner 决定。
+5. 市场交易：`market` 写商品、库存、订单和纠纷，资金动作进入 market wallet action saga，最终由 `wallet` 的复式账本落账。
+6. 网盘文件：`drive` 处理空间、目录、回收站、分享和提取码，OSS 处理对象、版本、引用、授权和签名 URL。
+7. IM 会话：前端先 bootstrap session，再走 WebSocket；send accepted 只表示 command 被接收，最终状态以 IM core 持久化和 history 为准。
+
+排查业务问题时，先确定 owner 和主事实，再看当前入口的 ApplicationService，然后区分同步 owner API、异步事件、outbox、projection 和补偿任务。HTTP 200、WebSocket accepted、outbox 投递成功、读模型追平和 saga action 成功不是同一个层面的成功。
+
 ## 推荐阅读路线
 
 1. 先读 [glossary.md](glossary.md)，把 owner、SSOT、ApplicationService、outbox、projection 等术语对齐。

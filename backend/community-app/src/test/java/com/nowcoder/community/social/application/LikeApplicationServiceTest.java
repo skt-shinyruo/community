@@ -17,8 +17,8 @@ import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.LikeRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
-import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
-import com.nowcoder.community.user.api.model.UserLikePointsAwardRequest;
+import com.nowcoder.community.user.api.action.UserRewardActionApi;
+import com.nowcoder.community.user.api.model.UserLikeRewardRequest;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -217,7 +217,7 @@ class LikeApplicationServiceTest {
         SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
         ContentEntityResolver resolver = mock(ContentEntityResolver.class);
         Mockito.when(resolver.resolve(POST, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
-        UserPointsAwardActionApi pointsAwardService = mock(UserPointsAwardActionApi.class);
+        UserRewardActionApi rewardActionApi = mock(UserRewardActionApi.class);
         GrowthTaskProgressActionApi taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);
 
         LikeApplicationService service = newService(
@@ -225,21 +225,21 @@ class LikeApplicationServiceTest {
                 new StatefulBlockRepository(),
                 publisher,
                 resolver,
-                pointsAwardService,
+                rewardActionApi,
                 taskProgressTriggerService
         );
 
         service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
 
-        ArgumentCaptor<UserLikePointsAwardRequest> pointsRequest = ArgumentCaptor.forClass(UserLikePointsAwardRequest.class);
+        ArgumentCaptor<UserLikeRewardRequest> rewardRequest = ArgumentCaptor.forClass(UserLikeRewardRequest.class);
         ArgumentCaptor<GrowthLikeTaskProgressRequest> growthRequest = ArgumentCaptor.forClass(GrowthLikeTaskProgressRequest.class);
-        InOrder inOrder = Mockito.inOrder(pointsAwardService, taskProgressTriggerService, publisher);
-        inOrder.verify(pointsAwardService).awardLikeCreated(pointsRequest.capture());
+        InOrder inOrder = Mockito.inOrder(rewardActionApi, taskProgressTriggerService, publisher);
+        inOrder.verify(rewardActionApi).awardLikeCreated(rewardRequest.capture());
         inOrder.verify(taskProgressTriggerService).triggerLikeCreated(growthRequest.capture());
         inOrder.verify(publisher).publishLikeChanged(any(LikeChangedDomainEvent.class));
-        assertThat(pointsRequest.getValue().sourceEventId()).startsWith("like-created-points:");
-        assertThat(pointsRequest.getValue().actorUserId()).isEqualTo(uuid(1));
-        assertThat(pointsRequest.getValue().entityUserId()).isEqualTo(uuid(2));
+        assertThat(rewardRequest.getValue().sourceEventId()).startsWith("like-created-reward:");
+        assertThat(rewardRequest.getValue().actorUserId()).isEqualTo(uuid(1));
+        assertThat(rewardRequest.getValue().entityUserId()).isEqualTo(uuid(2));
         assertThat(growthRequest.getValue().sourceEventId()).isEqualTo("like-created:" + uuid(1) + ":" + POST + ":" + uuid(100));
         assertThat(growthRequest.getValue().actorUserId()).isEqualTo(uuid(1));
         assertThat(growthRequest.getValue().entityUserId()).isEqualTo(uuid(2));
@@ -247,19 +247,19 @@ class LikeApplicationServiceTest {
     }
 
     @Test
-    void likeUnlikeRelikeShouldUseDistinctPointsIdsButStableGrowthId() {
+    void likeUnlikeRelikeShouldUseDistinctRewardIdsButStableGrowthId() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
         SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
         ContentEntityResolver resolver = mock(ContentEntityResolver.class);
         Mockito.when(resolver.resolve(POST, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
-        UserPointsAwardActionApi pointsAwardService = mock(UserPointsAwardActionApi.class);
+        UserRewardActionApi rewardActionApi = mock(UserRewardActionApi.class);
         GrowthTaskProgressActionApi taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
                 publisher,
                 resolver,
-                pointsAwardService,
+                rewardActionApi,
                 taskProgressTriggerService
         );
 
@@ -267,19 +267,19 @@ class LikeApplicationServiceTest {
         service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), false));
         service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
 
-        ArgumentCaptor<UserLikePointsAwardRequest> pointsCreateRequests = ArgumentCaptor.forClass(UserLikePointsAwardRequest.class);
-        ArgumentCaptor<UserLikePointsAwardRequest> pointsRemoveRequests = ArgumentCaptor.forClass(UserLikePointsAwardRequest.class);
+        ArgumentCaptor<UserLikeRewardRequest> rewardCreateRequests = ArgumentCaptor.forClass(UserLikeRewardRequest.class);
+        ArgumentCaptor<UserLikeRewardRequest> rewardRemoveRequests = ArgumentCaptor.forClass(UserLikeRewardRequest.class);
         ArgumentCaptor<GrowthLikeTaskProgressRequest> growthRequests = ArgumentCaptor.forClass(GrowthLikeTaskProgressRequest.class);
-        verify(pointsAwardService, times(2)).awardLikeCreated(pointsCreateRequests.capture());
-        verify(pointsAwardService).awardLikeRemoved(pointsRemoveRequests.capture());
+        verify(rewardActionApi, times(2)).awardLikeCreated(rewardCreateRequests.capture());
+        verify(rewardActionApi).awardLikeRemoved(rewardRemoveRequests.capture());
         verify(taskProgressTriggerService, times(2)).triggerLikeCreated(growthRequests.capture());
-        List<String> pointsCreateIds = pointsCreateRequests.getAllValues().stream()
-                .map(UserLikePointsAwardRequest::sourceEventId)
+        List<String> rewardCreateIds = rewardCreateRequests.getAllValues().stream()
+                .map(UserLikeRewardRequest::sourceEventId)
                 .toList();
-        assertThat(pointsCreateIds).hasSize(2).doesNotHaveDuplicates();
-        assertThat(pointsCreateIds).allSatisfy(id -> assertThat(id).startsWith("like-created-points:"));
-        assertThat(pointsRemoveRequests.getValue().sourceEventId()).startsWith("like-removed-points:");
-        assertThat(pointsRemoveRequests.getValue().sourceEventId()).isNotIn(pointsCreateIds);
+        assertThat(rewardCreateIds).hasSize(2).doesNotHaveDuplicates();
+        assertThat(rewardCreateIds).allSatisfy(id -> assertThat(id).startsWith("like-created-reward:"));
+        assertThat(rewardRemoveRequests.getValue().sourceEventId()).startsWith("like-removed-reward:");
+        assertThat(rewardRemoveRequests.getValue().sourceEventId()).isNotIn(rewardCreateIds);
         assertThat(growthRequests.getAllValues())
                 .extracting(GrowthLikeTaskProgressRequest::sourceEventId)
                 .containsExactly(
@@ -289,20 +289,20 @@ class LikeApplicationServiceTest {
     }
 
     @Test
-    void likeShouldRollbackStateWhenPointsAwardFailsForCompensatingRepository() {
+    void likeShouldRollbackStateWhenRewardAwardFailsForCompensatingRepository() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
         ContentEntityResolver resolver = mock(ContentEntityResolver.class);
         Mockito.when(resolver.resolve(POST, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
-        UserPointsAwardActionApi pointsAwardService = mock(UserPointsAwardActionApi.class);
+        UserRewardActionApi rewardActionApi = mock(UserRewardActionApi.class);
         GrowthTaskProgressActionApi taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);
-        doThrow(new IllegalStateException("award failed")).when(pointsAwardService).awardLikeCreated(any(UserLikePointsAwardRequest.class));
+        doThrow(new IllegalStateException("award failed")).when(rewardActionApi).awardLikeCreated(any(UserLikeRewardRequest.class));
 
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
                 mock(SocialDomainEventPublisher.class),
                 resolver,
-                pointsAwardService,
+                rewardActionApi,
                 taskProgressTriggerService
         );
 
@@ -320,7 +320,7 @@ class LikeApplicationServiceTest {
             BlockRepository blockRepository,
             SocialDomainEventPublisher publisher,
             ContentEntityResolver resolver,
-            UserPointsAwardActionApi pointsAwardActionApi,
+            UserRewardActionApi rewardActionApi,
             GrowthTaskProgressActionApi taskProgressActionApi
     ) {
         return new LikeApplicationService(
@@ -330,7 +330,7 @@ class LikeApplicationServiceTest {
                 new BlockDomainService(),
                 resolver,
                 publisher,
-                pointsAwardActionApi,
+                rewardActionApi,
                 taskProgressActionApi
         );
     }

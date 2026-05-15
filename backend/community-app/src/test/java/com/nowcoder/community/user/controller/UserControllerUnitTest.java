@@ -64,7 +64,7 @@ class UserControllerUnitTest {
         Authentication authentication = authentication(actorUserId);
         Date createTime = new Date();
         when(userProfileApplicationService.get(actorUserId, userId))
-                .thenReturn(new UserProfilePageResult(userId, "alice", "h7", 2, 0, createTime, 250, 3, true, 2, 13, 12, 5, 8, true));
+                .thenReturn(new UserProfilePageResult(userId, "alice", "h7", 2, 0, createTime, true, 2, 13, 12, 5, 8, true));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, userId);
 
@@ -76,12 +76,12 @@ class UserControllerUnitTest {
         assertThat(result.getData().getType()).isEqualTo(2);
         assertThat(result.getData().getStatus()).isEqualTo(0);
         assertThat(result.getData().getCreateTime()).isEqualTo(createTime);
-        assertThat(result.getData().getScore()).isEqualTo(250);
-        assertThat(result.getData().getLevel()).isEqualTo(3);
         assertThat(result.getData().isUserLevelEnabled()).isTrue();
         assertThat(result.getData()).extracting("userLevel", "signInDaysInWindow")
                 .containsExactly(2, 13);
         JsonNode data = objectMapper.valueToTree(result).path("data");
+        assertThat(data.has("score")).isFalse();
+        assertThat(data.has("level")).isFalse();
         assertThat(data.has("walletBalance")).isFalse();
         assertThat(data.has("walletStatus")).isFalse();
         assertThat(result.getData().getLikeCount()).isEqualTo(12);
@@ -98,7 +98,7 @@ class UserControllerUnitTest {
         Authentication authentication = authentication(actorUserId);
         Date createTime = new Date();
         when(userProfileApplicationService.get(actorUserId, userId))
-                .thenReturn(new UserProfilePageResult(userId, "bob", "h8", 1, 0, createTime, 99, 2, false, null, null, 3, 4, 5, false));
+                .thenReturn(new UserProfilePageResult(userId, "bob", "h8", 1, 0, createTime, false, null, null, 3, 4, 5, false));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, userId);
 
@@ -107,9 +107,9 @@ class UserControllerUnitTest {
         assertThat(result.getData().isUserLevelEnabled()).isFalse();
         assertThat(result.getData().getUserLevel()).isNull();
         assertThat(result.getData().getSignInDaysInWindow()).isNull();
-        assertThat(result.getData().getLevel()).isEqualTo(2);
-        assertThat(result.getData().getScore()).isEqualTo(99);
         JsonNode data = objectMapper.valueToTree(result).path("data");
+        assertThat(data.has("score")).isFalse();
+        assertThat(data.has("level")).isFalse();
         assertThat(data.has("walletBalance")).isFalse();
         assertThat(data.has("walletStatus")).isFalse();
         verify(userProfileApplicationService).get(actorUserId, userId);

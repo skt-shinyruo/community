@@ -274,7 +274,7 @@ Main path: create post：
 4. application 做文本清洗、分类存在性校验、用户发言资格校验。
 5. domain / repository 完成 `DiscussPost` 落库。
 6. tag 绑定；新 tag 通过 `ensureTagId(...)` 幂等创建。
-7. 同步触发积分 / 任务进度 owner API。
+7. 同步触发奖励 / 任务进度 owner API。
 8. 发布 content domain event。
 9. search outbox enqueuer 在 `BEFORE_COMMIT` 写 outbox。
 10. notice projection listener 在 `AFTER_COMMIT` best-effort 生成通知。
@@ -288,7 +288,7 @@ Main path: create comment：
 4. 若评论双方存在拉黑关系，写入会被拒绝。
 5. 文本在写入前做转义和敏感词过滤。
 6. 写 `comment` 并增加帖子 `comment_count`。
-7. 同步触发积分 / 任务进度 owner API。
+7. 同步触发奖励 / 任务进度 owner API。
 8. 发布评论事件。
 9. notice / growth / score refresh 等下游按各自语义处理。
 
@@ -353,7 +353,7 @@ Main path: like：
 4. 服务端解析 `entityUserId`、`postId` 等事件字段，不信任客户端声明。
 5. repository 写点赞关系。
 6. storage adapter 若声明需要补偿，application 注册事务回滚补偿。
-7. 同步调用积分 / 任务进度 owner API。
+7. 同步调用奖励 / 任务进度 owner API。
 8. 发布 social domain event。
 9. `LocalSocialDomainEventPublisher` 映射为 `SocialContractEvent`。
 10. notice / growth 等下游消费。
@@ -366,13 +366,13 @@ Main path: follow：
 Payload semantics：
 
 - 点赞事件里的目标用户和帖子归属由服务端权威解析。
-- 如果 `entityUserId` 不合法，积分/任务下游会跳过。
-- 自己给自己点赞不会获得积分奖励。
+- 如果 `entityUserId` 不合法，奖励/任务下游会跳过。
+- 自己给自己点赞不会获得奖励。
 
 Consistency：
 
 - 点赞 / 关注主业务写入在当前事务域内。
-- 积分 / 任务进度通过同步 owner API 处理。
+- 奖励 / 任务进度通过同步 owner API 处理。
 - notice 是 best-effort after-commit。
 
 Key code：
@@ -719,8 +719,8 @@ Task progress path：
 
 Reward / wallet：
 
-- 奖励/积分通过钱包侧 requestId 去重和总账规则承担幂等。
-- 积分投影先翻译成统一命令，再进入 wallet owner。
+- 奖励通过钱包侧 requestId 去重和总账规则承担幂等。
+- user reward bridge 先把内容/社交奖励语义翻译成统一命令，再进入 wallet owner。
 
 Level：
 
@@ -934,7 +934,7 @@ Ledger idempotency：
 Market / reward integration：
 
 - market 托管、放款、退款由 market wallet action processor 调用 wallet market action API。
-- growth / reward 积分或奖励写入 wallet，由钱包 requestId 去重。
+- growth / reward 奖励写入 wallet，由钱包 requestId 去重。
 - 冻结钱包不能发起用户主动转账、提现或市场购买。
 - 冻结钱包仍可接收系统必须完成的入账或补偿动作，例如退款、放款、奖励和管理员调整。
 

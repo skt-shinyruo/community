@@ -14,7 +14,6 @@ public record UserAccount(
         int status,
         String headerUrl,
         Date createTime,
-        int score,
         Instant muteUntil,
         Instant banUntil
 ) {

@@ -42,8 +42,7 @@ class FakeCommunityDb {
         {
           id: 1,
           username: 'existing-user',
-          email: 'existing@example.com',
-          score: 12
+          email: 'existing@example.com'
         }
       ],
       posts: [
@@ -212,7 +211,7 @@ class FakeCommunityDb {
   }
 
   #insertUsers(params) {
-    const columnCount = 9
+    const columnCount = 8
     const firstInsertId = this.state.nextUserId
 
     for (let index = 0; index < params.length; index += columnCount) {
@@ -224,8 +223,7 @@ class FakeCommunityDb {
         type,
         status,
         headerUrl,
-        createTime,
-        score
+        createTime
       ] = params.slice(index, index + columnCount)
 
       if (this.state.users.some((user) => user.username === username)) {
@@ -245,8 +243,7 @@ class FakeCommunityDb {
         type,
         status,
         header_url: headerUrl,
-        create_time: createTime,
-        score
+        create_time: createTime
       })
     }
 
@@ -732,7 +729,7 @@ test('community writer records refs for each inserted row set and keeps visible 
   const insertedPosts = db.state.posts.slice(-3)
   const insertedComments = db.state.comments.slice(-5)
 
-  assert.ok(insertedUsers.every((user) => user.score > 0))
+  assert.ok(insertedUsers.every((user) => !Object.hasOwn(user, 'score')))
   assert.deepEqual(
     recordedRefs.filter((ref) => ref.entityType === 'users').map((ref) => ref.entityKey),
     insertedUsers.map((user) => String(user.id))
@@ -825,20 +822,17 @@ test('community writer top-up avoids user identity and social graph collisions o
       {
         id: 1,
         username: 'existing-user-1',
-        email: 'existing-1@example.com',
-        score: 12
+        email: 'existing-1@example.com'
       },
       {
         id: 2,
         username: 'existing-user-2',
-        email: 'existing-2@example.com',
-        score: 18
+        email: 'existing-2@example.com'
       },
       {
         id: 3,
         username: 'existing-user-3',
-        email: 'existing-3@example.com',
-        score: 24
+        email: 'existing-3@example.com'
       }
     ],
     posts: [
@@ -931,11 +925,11 @@ test('community writer generates requested current phase 2 moderation and growth
     nextPostId: 4,
     nextCommentId: 4,
     users: [
-      { id: 1, username: 'existing-user-1', email: 'existing-1@example.com', score: 12 },
-      { id: 2, username: 'existing-user-2', email: 'existing-2@example.com', score: 18 },
-      { id: 3, username: 'existing-user-3', email: 'existing-3@example.com', score: 24 },
-      { id: 4, username: 'existing-user-4', email: 'existing-4@example.com', score: 30 },
-      { id: 5, username: 'existing-user-5', email: 'existing-5@example.com', score: 36 }
+      { id: 1, username: 'existing-user-1', email: 'existing-1@example.com' },
+      { id: 2, username: 'existing-user-2', email: 'existing-2@example.com' },
+      { id: 3, username: 'existing-user-3', email: 'existing-3@example.com' },
+      { id: 4, username: 'existing-user-4', email: 'existing-4@example.com' },
+      { id: 5, username: 'existing-user-5', email: 'existing-5@example.com' }
     ],
     posts: [
       { id: 1, user_id: 1, category_id: 2, title: 'Existing post 1', content: 'Already present', comment_count: 1, score: 42 },
@@ -987,12 +981,12 @@ test('im writer generates coherent room and private message refs for requested c
   const db = new FakeCommunityDb({
     nextUserId: 7,
     users: [
-      { id: 1, username: 'existing-user-1', email: 'existing-1@example.com', score: 12 },
-      { id: 2, username: 'existing-user-2', email: 'existing-2@example.com', score: 18 },
-      { id: 3, username: 'existing-user-3', email: 'existing-3@example.com', score: 24 },
-      { id: 4, username: 'existing-user-4', email: 'existing-4@example.com', score: 30 },
-      { id: 5, username: 'existing-user-5', email: 'existing-5@example.com', score: 36 },
-      { id: 6, username: 'existing-user-6', email: 'existing-6@example.com', score: 42 }
+      { id: 1, username: 'existing-user-1', email: 'existing-1@example.com' },
+      { id: 2, username: 'existing-user-2', email: 'existing-2@example.com' },
+      { id: 3, username: 'existing-user-3', email: 'existing-3@example.com' },
+      { id: 4, username: 'existing-user-4', email: 'existing-4@example.com' },
+      { id: 5, username: 'existing-user-5', email: 'existing-5@example.com' },
+      { id: 6, username: 'existing-user-6', email: 'existing-6@example.com' }
     ]
   })
   const entityRefRepository = createEntityRefRepositoryDouble()

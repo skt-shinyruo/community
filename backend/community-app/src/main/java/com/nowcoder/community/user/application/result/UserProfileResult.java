@@ -10,8 +10,6 @@ public record UserProfileResult(
         int type,
         int status,
         Date createTime,
-        int score,
-        int level,
         long walletBalance,
         String walletStatus
 ) {

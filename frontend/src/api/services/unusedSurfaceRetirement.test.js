@@ -32,6 +32,9 @@ const retiredUiTagView = ['components/ui/', 'UiTag.vue'].join('')
 const retiredUiEmptyView = ['components/ui/', 'UiEmpty.vue'].join('')
 const retiredUiEmptyImport = ['components/ui/', 'UiEmpty.vue'].join('')
 const retiredSearchReindexRoute = ['/api/search/internal', '/reindex'].join('')
+const retiredLeaderboardCopy = '排行榜'
+const retiredRewardBackendCopy = '旧奖励后台'
+const retiredRightPanelCopy = '右侧面板'
 
 function source(relativePath) {
   return readFileSync(resolve(srcRoot, relativePath), 'utf8')
@@ -102,5 +105,11 @@ describe('unused surface retirement', () => {
   it('keeps retired UiEmpty wrapper removed', () => {
     expect(exists(retiredUiEmptyView)).toBe(false)
     expect(source('views/PostsView.vue')).not.toContain(retiredUiEmptyImport)
+  })
+
+  it('keeps retired product copy out of active frontend sources', () => {
+    expect(source('views/SettingsView.vue')).not.toContain(retiredLeaderboardCopy)
+    expect(source('views/AdminMarketDisputesView.vue')).not.toContain(retiredRewardBackendCopy)
+    expect(source('stores/taxonomy.js')).not.toContain(retiredRightPanelCopy)
   })
 })

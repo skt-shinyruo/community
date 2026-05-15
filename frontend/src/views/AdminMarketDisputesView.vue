@@ -4,7 +4,7 @@
 
     <UiPageHeader>
       <template #title>争议裁定</template>
-      <template #subtitle>管理员只处理最终裁定，不处理普通卖家动作。这里专门承接卖家拒绝后的争议收口，不再混进钱包后台或旧奖励后台。</template>
+      <template #subtitle>管理员只处理最终裁定，不处理普通卖家动作。这里专门承接卖家拒绝后的争议收口。</template>
     </UiPageHeader>
 
     <UiState v-if="error" variant="error">{{ error }}</UiState>

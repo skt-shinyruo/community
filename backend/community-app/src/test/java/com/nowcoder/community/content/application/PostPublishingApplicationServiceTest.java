@@ -24,7 +24,7 @@ import com.nowcoder.community.content.application.ContentTextCodec;
 import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
-import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
+import com.nowcoder.community.user.api.action.UserRewardActionApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,7 +66,7 @@ class PostPublishingApplicationServiceTest {
     private PostDomainEventPublisher domainEventPublisher;
     private PostWriteSideEffectScheduler postWriteSideEffectScheduler;
     private SocialLikeCleanupActionApi socialLikeCleanupActionApi;
-    private UserPointsAwardActionApi pointsAwardService;
+    private UserRewardActionApi rewardActionApi;
     private GrowthTaskProgressActionApi taskProgressTriggerService;
     private PostPublishingApplicationService service;
 
@@ -86,7 +86,7 @@ class PostPublishingApplicationServiceTest {
         domainEventPublisher = mock(PostDomainEventPublisher.class);
         postWriteSideEffectScheduler = mock(PostWriteSideEffectScheduler.class);
         socialLikeCleanupActionApi = mock(SocialLikeCleanupActionApi.class);
-        pointsAwardService = mock(UserPointsAwardActionApi.class);
+        rewardActionApi = mock(UserRewardActionApi.class);
         taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);
         service = new PostPublishingApplicationService(
                 sensitiveFilter,
@@ -105,7 +105,7 @@ class PostPublishingApplicationServiceTest {
                 domainEventPublisher,
                 postWriteSideEffectScheduler,
                 socialLikeCleanupActionApi,
-                pointsAwardService,
+                rewardActionApi,
                 taskProgressTriggerService
         );
     }
@@ -142,7 +142,7 @@ class PostPublishingApplicationServiceTest {
                 postRepository,
                 postContentBlockRepository,
                 postTagRepository,
-                pointsAwardService,
+                rewardActionApi,
                 taskProgressTriggerService,
                 domainEventPublisher,
                 postWriteSideEffectScheduler
@@ -153,7 +153,7 @@ class PostPublishingApplicationServiceTest {
         inOrder.verify(postRepository).create(draft);
         inOrder.verify(postContentBlockRepository).replaceBlocks(eq(postId), any());
         inOrder.verify(postTagRepository).bindTagsToPost(postId, List.of("java"));
-        inOrder.verify(pointsAwardService).awardPostPublished(postId, userId);
+        inOrder.verify(rewardActionApi).awardPostPublished(postId, userId);
         inOrder.verify(taskProgressTriggerService).triggerPostPublished(postId, userId, createTime.toInstant());
         inOrder.verify(domainEventPublisher).postPublished(postId);
         inOrder.verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);

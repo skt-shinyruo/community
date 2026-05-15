@@ -50,8 +50,6 @@ public class UserProfileApplicationService {
                 user.type(),
                 user.status(),
                 user.createTime(),
-                user.score(),
-                user.level(),
                 userLevelEnabled,
                 userLevelEnabled ? levelSummary.userLevel() : null,
                 userLevelEnabled ? levelSummary.signInDaysInWindow() : null,

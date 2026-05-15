@@ -129,7 +129,7 @@ class AdminUserApplicationServiceTest {
     }
 
     private static UserAccount user(UUID id, String username, String email, int type, int status, String headerUrl, Date createTime) {
-        return new UserAccount(id, username, "pw", "salt", email, type, status, headerUrl, createTime, 0, null, null);
+        return new UserAccount(id, username, "pw", "salt", email, type, status, headerUrl, createTime, null, null);
     }
 
     private static UUID uuid(long suffix) {

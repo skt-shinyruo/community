@@ -8,8 +8,6 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 
 public class UserReadDomainService {
 
-    private static final int LEVEL_SCORE_STEP = 100;
-
     public void assertValidUserId(UUID userId) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
@@ -30,11 +28,6 @@ public class UserReadDomainService {
             throw new BusinessException(INVALID_ARGUMENT, "email 不能为空");
         }
         return value;
-    }
-
-    public int levelForScore(int score) {
-        int normalizedScore = Math.max(0, score);
-        return (normalizedScore / LEVEL_SCORE_STEP) + 1;
     }
 
     private String safeTrim(String value) {

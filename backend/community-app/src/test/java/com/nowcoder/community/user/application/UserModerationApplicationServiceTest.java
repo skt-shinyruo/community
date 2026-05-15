@@ -149,7 +149,6 @@ class UserModerationApplicationServiceTest {
                 0,
                 "h",
                 Date.from(Instant.now().minus(Duration.ofMinutes(1))),
-                0,
                 muteUntil,
                 banUntil
         );

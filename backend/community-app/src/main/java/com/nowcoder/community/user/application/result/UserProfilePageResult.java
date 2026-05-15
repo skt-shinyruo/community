@@ -11,8 +11,6 @@ public record UserProfilePageResult(
         int type,
         int status,
         Date createTime,
-        int score,
-        int level,
         boolean userLevelEnabled,
         Integer userLevel,
         Integer signInDaysInWindow,

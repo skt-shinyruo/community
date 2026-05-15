@@ -119,7 +119,7 @@
               <div v-if="showUserLevel" class="profile-summary-card">
                 <div class="profile-summary-label">签到用户等级</div>
                 <div class="profile-summary-value">LV {{ Number(profile?.userLevel ?? 0) }}</div>
-                <div class="profile-summary-text">最近签到 {{ Number(profile?.signInDaysInWindow ?? 0) }} 天，独立于积分等级计算。</div>
+                <div class="profile-summary-text">最近签到 {{ Number(profile?.signInDaysInWindow ?? 0) }} 天，由成长任务规则实时计算。</div>
               </div>
               <div class="profile-summary-card">
                 <div class="profile-summary-label">社交状态</div>

@@ -57,6 +57,7 @@ describe('AdminMarketDisputesView', () => {
     expect(wrapper.text()).toContain('待管理员裁定')
     expect(wrapper.text()).toContain('资金状态')
     expect(wrapper.text()).toContain('需要管理员裁定')
+    expect(wrapper.text()).not.toContain('旧奖励后台')
     await wrapper.find('button').trigger('click')
     await flushPromises()
 

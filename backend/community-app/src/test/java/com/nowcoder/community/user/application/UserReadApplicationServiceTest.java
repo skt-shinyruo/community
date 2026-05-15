@@ -46,7 +46,7 @@ class UserReadApplicationServiceTest {
         UUID userId = uuid(7);
         Date createTime = new Date();
         when(userRepository.findProfileById(userId))
-                .thenReturn(Optional.of(new UserProfile(userId, "alice", "h7", 2, 1, createTime, 250)));
+                .thenReturn(Optional.of(new UserProfile(userId, "alice", "h7", 2, 1, createTime)));
         when(walletAccountQueryApi.balanceOfUser(userId)).thenReturn(900L);
         when(walletAccountQueryApi.statusOfUser(userId)).thenReturn("ACTIVE");
 
@@ -59,11 +59,9 @@ class UserReadApplicationServiceTest {
                 UserProfileResult::type,
                 UserProfileResult::status,
                 UserProfileResult::createTime,
-                UserProfileResult::score,
-                UserProfileResult::level,
                 UserProfileResult::walletBalance,
                 UserProfileResult::walletStatus
-        ).containsExactly(userId, "alice", "h7", 2, 1, createTime, 250, 3, 900L, "ACTIVE");
+        ).containsExactly(userId, "alice", "h7", 2, 1, createTime, 900L, "ACTIVE");
     }
 
     @Test
@@ -125,7 +123,7 @@ class UserReadApplicationServiceTest {
     }
 
     private static UserAccount account(UUID id, String username, String headerUrl, int type) {
-        return new UserAccount(id, username, "encoded", "", username + "@example.com", type, 1, headerUrl, new Date(), 0, null, null);
+        return new UserAccount(id, username, "encoded", "", username + "@example.com", type, 1, headerUrl, new Date(), null, null);
     }
 
     private static UUID uuid(long suffix) {

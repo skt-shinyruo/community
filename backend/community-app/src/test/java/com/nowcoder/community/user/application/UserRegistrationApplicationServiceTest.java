@@ -198,7 +198,6 @@ class UserRegistrationApplicationServiceTest {
                 1,
                 "h",
                 Date.from(NOW),
-                0,
                 null,
                 null
         );

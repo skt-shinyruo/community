@@ -40,7 +40,4 @@ public interface UserMapper {
      */
     List<UserDataObject> selectUserSummariesByIds(@Param("ids") List<UUID> ids);
 
-    int addScore(UUID id, int delta);
-
-    List<UserDataObject> selectTopByScore(int limit);
 }

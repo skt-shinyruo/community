@@ -174,7 +174,6 @@ public class MyBatisUserRepository implements UserRepository {
                 row.getStatus(),
                 row.getHeaderUrl(),
                 row.getCreateTime(),
-                row.getScore(),
                 toInstant(row.getMuteUntil()),
                 toInstant(row.getBanUntil())
         );
@@ -191,7 +190,6 @@ public class MyBatisUserRepository implements UserRepository {
         row.setStatus(user.status());
         row.setHeaderUrl(user.headerUrl());
         row.setCreateTime(user.createTime());
-        row.setScore(user.score());
         row.setMuteUntil(user.muteUntil() == null ? null : Date.from(user.muteUntil()));
         row.setBanUntil(user.banUntil() == null ? null : Date.from(user.banUntil()));
         return row;
@@ -214,8 +212,7 @@ public class MyBatisUserRepository implements UserRepository {
                 row.getHeaderUrl(),
                 row.getType(),
                 row.getStatus(),
-                row.getCreateTime(),
-                row.getScore()
+                row.getCreateTime()
         );
     }
 

@@ -9,7 +9,7 @@
 | growth | 任务模板、任务进度、事件去重、等级规则和奖励触发。 |
 | content / social | 产生发帖、评论、点赞等源事件。 |
 | wallet | 奖励入账和撤销的最终账本事实。 |
-| user | 用户资料展示时可能组合等级或积分投影。 |
+| user | 用户资料展示时可组合 growth 等级；奖励余额事实回源 wallet。 |
 
 ![Growth task reward level workflow](../../assets/workflow-growth-reward-level.svg)
 

@@ -14,8 +14,8 @@ import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.LikeRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
-import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
-import com.nowcoder.community.user.api.model.UserLikePointsAwardRequest;
+import com.nowcoder.community.user.api.action.UserRewardActionApi;
+import com.nowcoder.community.user.api.model.UserLikeRewardRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -46,7 +46,7 @@ public class LikeApplicationService {
     private final BlockDomainService blockDomainService;
     private final ContentEntityResolver contentEntityResolver;
     private final SocialDomainEventPublisher eventPublisher;
-    private final UserPointsAwardActionApi pointsAwardActionApi;
+    private final UserRewardActionApi rewardActionApi;
     private final GrowthTaskProgressActionApi taskProgressActionApi;
 
     public LikeApplicationService(
@@ -56,7 +56,7 @@ public class LikeApplicationService {
             BlockDomainService blockDomainService,
             ContentEntityResolver contentEntityResolver,
             SocialDomainEventPublisher eventPublisher,
-            UserPointsAwardActionApi pointsAwardActionApi,
+            UserRewardActionApi rewardActionApi,
             GrowthTaskProgressActionApi taskProgressActionApi
     ) {
         this.likeRepository = likeRepository;
@@ -65,7 +65,7 @@ public class LikeApplicationService {
         this.blockDomainService = blockDomainService;
         this.contentEntityResolver = contentEntityResolver;
         this.eventPublisher = eventPublisher;
-        this.pointsAwardActionApi = pointsAwardActionApi;
+        this.rewardActionApi = rewardActionApi;
         this.taskProgressActionApi = taskProgressActionApi;
     }
 
@@ -186,9 +186,9 @@ public class LikeApplicationService {
     private void publishSideEffects(LikeChangedDomainEvent event) {
         String sideEffectEventId = null;
         if (event.liked()) {
-            if (pointsAwardActionApi != null) {
-                sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, event, "like-created-points", false);
-                pointsAwardActionApi.awardLikeCreated(new UserLikePointsAwardRequest(
+            if (rewardActionApi != null) {
+                sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, event, "like-created-reward", false);
+                rewardActionApi.awardLikeCreated(new UserLikeRewardRequest(
                         sideEffectEventId,
                         event.actorUserId(),
                         event.entityUserId()
@@ -205,9 +205,9 @@ public class LikeApplicationService {
             }
             return;
         }
-        if (pointsAwardActionApi != null) {
-            sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, event, "like-removed-points", false);
-            pointsAwardActionApi.awardLikeRemoved(new UserLikePointsAwardRequest(
+        if (rewardActionApi != null) {
+            sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, event, "like-removed-reward", false);
+            rewardActionApi.awardLikeRemoved(new UserLikeRewardRequest(
                     sideEffectEventId,
                     event.actorUserId(),
                     event.entityUserId()

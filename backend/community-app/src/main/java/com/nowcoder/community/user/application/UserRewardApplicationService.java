@@ -7,7 +7,7 @@ import org.springframework.util.StringUtils;
 import java.util.UUID;
 
 @Service
-public class UserPointsApplicationService {
+public class UserRewardApplicationService {
 
     private static final String TYPE_POST_PUBLISHED = "PostPublished";
     private static final String TYPE_COMMENT_CREATED = "CommentCreated";
@@ -16,33 +16,33 @@ public class UserPointsApplicationService {
 
     private final WalletRewardActionApi walletRewardActionApi;
 
-    public UserPointsApplicationService(WalletRewardActionApi walletRewardActionApi) {
+    public UserRewardApplicationService(WalletRewardActionApi walletRewardActionApi) {
         this.walletRewardActionApi = walletRewardActionApi;
     }
 
-    public PointsProjectionCommand commandForPostPublished(UUID postId, UUID userId) {
+    public RewardCommand commandForPostPublished(UUID postId, UUID userId) {
         if (postId == null || userId == null) {
             return null;
         }
-        return new PointsProjectionCommand(userId, 10, "post-published:" + postId, TYPE_POST_PUBLISHED);
+        return new RewardCommand(userId, 10, "post-published:" + postId, TYPE_POST_PUBLISHED);
     }
 
-    public PointsProjectionCommand commandForCommentCreated(UUID commentId, UUID userId) {
+    public RewardCommand commandForCommentCreated(UUID commentId, UUID userId) {
         if (commentId == null || userId == null) {
             return null;
         }
-        return new PointsProjectionCommand(userId, 2, "comment-created:" + commentId, TYPE_COMMENT_CREATED);
+        return new RewardCommand(userId, 2, "comment-created:" + commentId, TYPE_COMMENT_CREATED);
     }
 
-    public PointsProjectionCommand commandForLikeCreated(String sourceEventId, UUID actorUserId, UUID entityUserId) {
+    public RewardCommand commandForLikeCreated(String sourceEventId, UUID actorUserId, UUID entityUserId) {
         return commandForLike(sourceEventId, actorUserId, entityUserId, 1, TYPE_LIKE_CREATED);
     }
 
-    public PointsProjectionCommand commandForLikeRemoved(String sourceEventId, UUID actorUserId, UUID entityUserId) {
+    public RewardCommand commandForLikeRemoved(String sourceEventId, UUID actorUserId, UUID entityUserId) {
         return commandForLike(sourceEventId, actorUserId, entityUserId, -1, TYPE_LIKE_REMOVED);
     }
 
-    private PointsProjectionCommand commandForLike(
+    private RewardCommand commandForLike(
             String sourceEventId,
             UUID actorUserId,
             UUID entityUserId,
@@ -52,10 +52,10 @@ public class UserPointsApplicationService {
         if (!StringUtils.hasText(sourceEventId) || entityUserId == null || entityUserId.equals(actorUserId)) {
             return null;
         }
-        return new PointsProjectionCommand(entityUserId, delta, sourceEventId.trim(), sourceEventType);
+        return new RewardCommand(entityUserId, delta, sourceEventId.trim(), sourceEventType);
     }
 
-    public void project(PointsProjectionCommand command) {
+    public void apply(RewardCommand command) {
         if (command == null
                 || command.userId() == null
                 || command.delta() == 0
@@ -71,7 +71,7 @@ public class UserPointsApplicationService {
         );
     }
 
-    public record PointsProjectionCommand(
+    public record RewardCommand(
             UUID userId,
             int delta,
             String sourceEventId,

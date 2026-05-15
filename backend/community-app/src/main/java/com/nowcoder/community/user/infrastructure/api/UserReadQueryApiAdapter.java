@@ -53,8 +53,6 @@ public class UserReadQueryApiAdapter implements UserLookupQueryApi, UserProfileQ
                 user.type(),
                 user.status(),
                 user.createTime(),
-                user.score(),
-                user.level(),
                 user.walletBalance(),
                 user.walletStatus()
         );

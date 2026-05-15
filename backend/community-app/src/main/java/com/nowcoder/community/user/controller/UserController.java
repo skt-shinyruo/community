@@ -63,8 +63,6 @@ public class UserController {
         resp.setType(user.type());
         resp.setStatus(user.status());
         resp.setCreateTime(user.createTime());
-        resp.setScore(user.score());
-        resp.setLevel(user.level());
         resp.setUserLevelEnabled(user.userLevelEnabled());
         resp.setUserLevel(user.userLevel());
         resp.setSignInDaysInWindow(user.signInDaysInWindow());

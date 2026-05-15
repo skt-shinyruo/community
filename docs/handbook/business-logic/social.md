@@ -46,7 +46,7 @@
 
 社交域的数据流由关系写入和下游事件两部分组成：
 
-1. 点赞：`LikeApplicationService` 先解析 actor、entityType 和 entityId，再通过 content owner 回源内容实体，服务端计算目标用户、帖子归属和事件字段。写入或删除点赞关系后，同步触发 user points / growth task，并发布 `LikeChangedDomainEvent` 转成 social contract event。
+1. 点赞：`LikeApplicationService` 先解析 actor、entityType 和 entityId，再通过 content owner 回源内容实体，服务端计算目标用户、帖子归属和事件字段。写入或删除点赞关系后，同步触发 user reward / growth task，并发布 `LikeChangedDomainEvent` 转成 social contract event。
 2. 关注：`FollowApplicationService` 校验目标实体和拉黑关系后写 `social_follow`。重复关注是幂等 no-op；新增关注发布 follow created event，notice 可生成关注通知。
 3. 拉黑：`BlockApplicationService` 写 `social_block` 后同步清理双向 follow，再发布 `BlockRelationChangedDomainEvent`。IM policy outbox 在事务内写 `projection.im.policy`，outbox handler 转成 Kafka 事件供 realtime 更新本地 projection。
 4. 查询：列表、计数和状态查询都从 social owner 的关系事实读取；content、IM 或其他域需要关系判断时通过 social owner API，不直接读表。
@@ -66,8 +66,8 @@
 6. 如果 actor 和目标用户存在拉黑关系，拒绝点赞。
 7. 写入或删除点赞关系。
 8. 对需要显式补偿的 repository 注册事务回滚补偿。
-9. 点赞创建时同步触发用户积分和成长任务。
-10. 点赞取消时同步触发积分撤销/调整。
+9. 点赞创建时同步触发用户奖励和成长任务。
+10. 点赞取消时同步触发奖励撤销/调整。
 11. 发布 `LikeChangedDomainEvent`，再映射为 social contract event。
 12. 返回点赞状态和计数。
 
@@ -149,7 +149,7 @@ contract events：
 
 - notice 生成点赞/关注通知。
 - growth 对被点赞用户推进任务。
-- user/wallet 对点赞积分做奖励或撤销。
+- user/wallet 对点赞奖励做发放或撤销。
 - IM policy outbox 同步拉黑变化。
 
 ## 一致性和补偿

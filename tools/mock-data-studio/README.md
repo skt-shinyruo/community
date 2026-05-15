@@ -157,7 +157,6 @@ curl -X DELETE http://127.0.0.1:12890/api/batches/1
 - Phase 2 IM 写入不额外生成 read-state；当前 UI / API 在 read-state 缺失时会按 `0` 处理，因此仍能展示非空房间、会话和未读摘要。
 - 可见聚合字段会同步维护：
   - `discuss_post.comment_count`
-  - `user.score`
 - 所有业务写入都会追加 `demo_entity_ref`，因此批次详情 target / actual / failure summary 与 delete 流程都能覆盖 Phase 2 实体。
 - AI 文本增强只会修改文本字段（帖子/评论/通知/举报说明/IM 文案等）；数量控制、关系生成、批次管理和写库逻辑仍由规则链路负责。
 - 即便手动 job 开启 AI 增强，若 AI 凭据缺失、超时或 provider 异常，也会自动回退规则文案，不会导致整 job 失败。

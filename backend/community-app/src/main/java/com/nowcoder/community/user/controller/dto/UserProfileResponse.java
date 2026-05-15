@@ -11,8 +11,6 @@ public class UserProfileResponse {
     private int type;
     private int status;
     private Date createTime;
-    private int score;
-    private int level;
     private boolean userLevelEnabled;
     private Integer userLevel;
     private Integer signInDaysInWindow;
@@ -68,22 +66,6 @@ public class UserProfileResponse {
 
     public void setCreateTime(Date createTime) {
         this.createTime = createTime;
-    }
-
-    public int getScore() {
-        return score;
-    }
-
-    public void setScore(int score) {
-        this.score = score;
-    }
-
-    public int getLevel() {
-        return level;
-    }
-
-    public void setLevel(int level) {
-        this.level = level;
     }
 
     public boolean isUserLevelEnabled() {

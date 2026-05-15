@@ -11,7 +11,7 @@ public class Category {
     private int position;
     private Date createTime;
 
-    // 聚合字段（可选）：分类下帖子数（用于右侧面板/下拉展示）
+    // 聚合字段（可选）：分类下帖子数（用于分类列表和下拉展示）
     private int postCount;
 
     public UUID getId() {

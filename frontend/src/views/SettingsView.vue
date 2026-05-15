@@ -6,7 +6,7 @@
           <div>
             <div class="settings-eyebrow">Public Identity</div>
             <h2>公开资料</h2>
-            <p>你的头像和用户名会出现在帖子、评论、排行榜与关注关系中。</p>
+            <p>你的头像和用户名会出现在帖子、评论与关注关系中。</p>
           </div>
         </div>
 
@@ -23,7 +23,7 @@
             <div class="settings-summary-card">
               <div class="settings-summary-label">当前头像</div>
               <div class="settings-summary-value">{{ currentAvatarUrl ? '已设置' : '使用默认头像' }}</div>
-              <div class="settings-summary-text">更新后会同步到个人主页、排行榜与互动场景。</div>
+              <div class="settings-summary-text">更新后会同步到个人主页与互动场景。</div>
             </div>
             <div class="settings-summary-card">
               <div class="settings-summary-label">上传状态</div>

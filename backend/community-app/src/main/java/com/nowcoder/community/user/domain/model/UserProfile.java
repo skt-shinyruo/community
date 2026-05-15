@@ -9,7 +9,6 @@ public record UserProfile(
         String headerUrl,
         int type,
         int status,
-        Date createTime,
-        int score
+        Date createTime
 ) {
 }

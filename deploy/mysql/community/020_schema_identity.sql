@@ -17,12 +17,23 @@ create table if not exists user (
   status int default 0,
   header_url varchar(255),
   create_time timestamp null default current_timestamp,
-  score int not null default 0,
   mute_until timestamp null default null,
   ban_until timestamp null default null,
   unique key uk_user_username (username),
   unique key uk_user_email (email)
 );
+
+set @has_user_score_col := (
+  select count(*)
+  from information_schema.columns
+  where table_schema = database()
+    and table_name = 'user'
+    and column_name = 'score'
+);
+set @sql := if(@has_user_score_col > 0, 'alter table user drop column score', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
 
 -- refresh token（SSOT=DB）：auth 模块不直连 MySQL，改由 user 模块托管会话状态
 -- 注意：只存 token_hash（SHA-256 hex），避免明文凭据落库

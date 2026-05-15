@@ -78,7 +78,6 @@ public class UserRegistrationDomainService {
                 0,
                 headerUrl,
                 Date.from(Instant.now(clock)),
-                0,
                 null,
                 null
         );
@@ -101,7 +100,6 @@ public class UserRegistrationDomainService {
                 1,
                 safeTrim(headerUrl),
                 Date.from(Instant.now(clock)),
-                0,
                 null,
                 null
         );

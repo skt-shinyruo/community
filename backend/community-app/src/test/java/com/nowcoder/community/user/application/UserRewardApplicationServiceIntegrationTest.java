@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @ActiveProfiles("test")
-class UserPointsApplicationServiceIntegrationTest {
+class UserRewardApplicationServiceIntegrationTest {
 
     private static final UUID USER_ID = uuid(1);
 
@@ -30,7 +30,7 @@ class UserPointsApplicationServiceIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private UserPointsApplicationService userPointsApplicationService;
+    private UserRewardApplicationService userRewardApplicationService;
 
     @Autowired
     private WalletAccountApplicationService walletAccountService;
@@ -44,8 +44,8 @@ class UserPointsApplicationServiceIntegrationTest {
         jdbcTemplate.update("delete from wallet_txn");
         jdbcTemplate.update("delete from wallet_account");
         jdbcTemplate.update(
-                "merge into user (id, username, password, salt, email, type, status, header_url, create_time, score) key(id) " +
-                        "values (?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, 0)",
+                "merge into user (id, username, password, salt, email, type, status, header_url, create_time) key(id) " +
+                        "values (?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)",
                 BinaryUuidCodec.toBytes(USER_ID),
                 "u1",
                 "p",
@@ -55,33 +55,20 @@ class UserPointsApplicationServiceIntegrationTest {
                 1,
                 "http://old.local/a.png"
         );
-        jdbcTemplate.update("update user set score = 0");
     }
 
     @Test
-    void postPublishedShouldCreditWalletWithoutMutatingLegacyScore() {
-        int before = currentScore(USER_ID);
-
-        userPointsApplicationService.project(new UserPointsApplicationService.PointsProjectionCommand(
+    void postPublishedShouldCreditWallet() {
+        userRewardApplicationService.apply(new UserRewardApplicationService.RewardCommand(
                 USER_ID,
                 10,
-                "post-evt-cutover-1",
+                "post-reward-1",
                 "PostPublished"
         ));
 
-        assertThat(currentScore(USER_ID)).isEqualTo(before);
         assertThat(walletAccountService.balanceOfUser(USER_ID)).isEqualTo(10);
         assertThat(countRows("wallet_txn")).isEqualTo(1);
         assertThat(countRows("wallet_entry")).isEqualTo(2);
-    }
-
-    private int currentScore(UUID userId) {
-        Integer score = jdbcTemplate.queryForObject(
-                "select score from user where id = ?",
-                Integer.class,
-                BinaryUuidCodec.toBytes(userId)
-        );
-        return score == null ? 0 : score;
     }
 
     private int countRows(String tableName) {

@@ -55,7 +55,7 @@ class UserProfileApplicationServiceTest {
         UUID viewerId = uuid(42);
         Date createTime = new Date();
         when(userReadApplicationService.getProfile(userId))
-                .thenReturn(new UserProfileResult(userId, "alice", "h7", 2, 1, createTime, 250, 3, 900L, "ACTIVE"));
+                .thenReturn(new UserProfileResult(userId, "alice", "h7", 2, 1, createTime, 900L, "ACTIVE"));
         when(socialLikeQueryApi.userLikeCount(userId)).thenReturn(12L);
         when(socialFollowQueryApi.followeeCount(userId, USER)).thenReturn(5L);
         when(socialFollowQueryApi.followerCount(USER, userId)).thenReturn(8L);
@@ -88,7 +88,7 @@ class UserProfileApplicationServiceTest {
         );
         UUID userId = uuid(7);
         when(userReadApplicationService.getProfile(userId))
-                .thenReturn(new UserProfileResult(userId, "alice", "h7", 2, 1, new Date(), 250, 3, 900L, "ACTIVE"));
+                .thenReturn(new UserProfileResult(userId, "alice", "h7", 2, 1, new Date(), 900L, "ACTIVE"));
         when(userLevelQueryApi.evaluateLevel(userId)).thenReturn(null);
 
         service.get(null, userId);

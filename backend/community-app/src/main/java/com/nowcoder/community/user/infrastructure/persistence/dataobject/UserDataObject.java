@@ -14,7 +14,6 @@ public class UserDataObject {
     private int status;
     private String headerUrl;
     private Date createTime;
-    private int score;
     private Date muteUntil;
     private Date banUntil;
 
@@ -88,14 +87,6 @@ public class UserDataObject {
 
     public void setCreateTime(Date createTime) {
         this.createTime = createTime;
-    }
-
-    public int getScore() {
-        return score;
-    }
-
-    public void setScore(int score) {
-        this.score = score;
     }
 
     public Date getMuteUntil() {

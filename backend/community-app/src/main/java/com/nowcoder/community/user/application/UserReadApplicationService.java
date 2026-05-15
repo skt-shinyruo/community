@@ -83,8 +83,6 @@ public class UserReadApplicationService {
                 profile.type(),
                 profile.status(),
                 profile.createTime(),
-                profile.score(),
-                userReadDomainService.levelForScore(profile.score()),
                 walletAccountQueryApi.balanceOfUser(profile.id()),
                 walletAccountQueryApi.statusOfUser(profile.id())
         );

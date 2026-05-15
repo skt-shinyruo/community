@@ -4,7 +4,8 @@
 
 ## Owner / SSOT
 
-- `user` owns `user` 表中的账号、邮箱、密码 hash、头像业务投影、角色、状态、积分/score、禁言和封禁时间；头像对象本身在 `community-oss`。
+- `user` owns `user` 表中的账号、邮箱、密码 hash、头像业务投影、角色、状态、禁言和封禁时间；头像对象本身在 `community-oss`。
+- 钱包余额和奖励账本由 `wallet` owner 拥有；`user` 不再持有 profile score 字段。
 - `user` owns DB refresh session 存储事实，但 refresh token 策略由 auth 域编排。
 - 用户最近帖子/评论不是 user 主事实，来自 content owner 查询聚合。
 - IM 的本地 policy projection 不是用户处罚主事实；user owner 通过 snapshot 和事件向 IM 投影。
@@ -26,7 +27,7 @@ HTTP：
 内部 API：
 
 - auth 调 user 完成注册、登录认证、密码更新、refresh session 存储。
-- content/social/growth 调 user 做摘要查询、积分或处罚判断。
+- content/social/growth 调 user 做摘要查询、奖励语义转换或处罚判断。
 - IM snapshot 拉取用户 policy。
 
 ## 数据流
@@ -38,7 +39,7 @@ HTTP：
 3. 凭据协作：auth 登录通过 `UserCredentialQueryApi.authenticate(...)` 查询并校验密码；密码重置通过 `UserCredentialActionApi` 更新 BCrypt hash，并通过 refresh session application 撤销该用户会话。
 4. 注册用户创建：auth 只保存 draft；验证码通过后调用 user owner 创建 active 用户。user 写入 `user` 行后发布 user policy changed，驱动 IM policy projection 识别用户存在性。
 5. 处罚和角色：管理员或治理动作进入 user application，更新 `muteUntil`、`banUntil` 或 `type`。处罚变化发布 policy event，IM outbox/Kafka 最终刷新 realtime 本地 projection；角色变化要等 access token 重新签发后才体现在前端权限里。
-6. 积分投影：content/social/growth 不直接改余额事实；user 只做积分语义转换，最终奖励或撤销进入 wallet owner。
+6. 奖励语义桥接：content/social/growth 不直接改余额事实；user 只做奖励语义转换，最终奖励或撤销进入 wallet owner。
 
 ## 用户资料和摘要
 
@@ -55,7 +56,8 @@ HTTP：
 - `assertValidUserId(...)` 要求 userId 非空。
 - `normalizeUsername(...)` trim 后要求非空。
 - `normalizeEmail(...)` trim 后要求非空。
-- `levelForScore(...)` 按非负 score 每 100 分升一级，最低等级为 1。
+
+旧 `user.score` 和基于 score 的 profile level 已退休。用户主页只暴露 growth 的签到等级字段；可用余额必须从 wallet owner 查询。
 
 `UserProfileApplicationService` 负责用户主页聚合：
 
@@ -143,19 +145,19 @@ HTTP：
 
 角色决定 JWT authorities，但已签发的 access token 不会立即变化，需要重新签发后体现。
 
-## 积分投影
+## 奖励语义桥接
 
-`UserPointsApplicationService` 当前承担积分命令翻译：
+`UserRewardApplicationService` 当前承担奖励命令翻译：
 
 - 发帖：`commandForPostPublished(postId, userId)` 生成 `+10`，sourceEventId 为 `post-published:<postId>`。
 - 评论：`commandForCommentCreated(commentId, userId)` 生成 `+2`，sourceEventId 为 `comment-created:<commentId>`。
 - 点赞创建：`commandForLikeCreated(sourceEventId, actorUserId, entityUserId)` 给被点赞内容 owner 生成 `+1`。
 - 点赞移除：`commandForLikeRemoved(...)` 给被点赞内容 owner 生成 `-1`。
-- 点赞类命令要求 sourceEventId 非空、entityUserId 非空，且 actorUserId 不能等于 entityUserId；自己给自己点赞不产生积分命令。
-- `project(...)` 对 null、userId 为空、delta 为 0、sourceEventId/type 为空的命令直接跳过。
+- 点赞类命令要求 sourceEventId 非空、entityUserId 非空，且 actorUserId 不能等于 entityUserId；自己给自己点赞不产生奖励命令。
+- `apply(...)` 对 null、userId 为空、delta 为 0、sourceEventId/type 为空的命令直接跳过。
 - 有效命令会调用 `WalletRewardActionApi.applyDelta(...)`，requestId 为 `wallet-reward:<sourceEventId>`，由 wallet owner 承担幂等和余额事实。
 
-用户积分展示字段与 wallet 在线余额不是同一事实。当前奖励和余额以 wallet owner 为资金事实。
+用户资料不再保留旧 score 展示字段。当前奖励和余额以 wallet owner 为资金事实。
 
 ## 用户事件发布
 
@@ -193,7 +195,7 @@ refresh token 明文不归 user 域存储。
 - `user.application.UserRegistrationApplicationService`
 - `user.application.UserModerationApplicationService`
 - `user.application.AdminUserApplicationService`
-- `user.application.UserPointsApplicationService`
+- `user.application.UserRewardApplicationService`
 - `user.application.RefreshTokenSessionApplicationService`
 - `user.domain.service.*`
 - `user.infrastructure.api.*`

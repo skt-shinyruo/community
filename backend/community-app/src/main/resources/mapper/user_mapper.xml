@@ -10,7 +10,7 @@
     </sql>
 
     <sql id="selectFields">
-        id, username, password, salt, email, type, status, header_url, create_time, score, mute_until, ban_until
+        id, username, password, salt, email, type, status, header_url, create_time, mute_until, ban_until
     </sql>
 
     <select id="selectById" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
@@ -62,23 +62,6 @@
             ban_until = #{banUntil}
         where id = #{id, jdbcType=BINARY}
     </update>
-
-    <update id="addScore">
-        update user
-        set score = case
-            when score + #{delta} &lt; 0 then 0
-            else score + #{delta}
-        end
-        where id = #{id, jdbcType=BINARY}
-    </update>
-
-    <select id="selectTopByScore" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
-        select
-        <include refid="selectFields"></include>
-        from user
-        order by score desc, id asc
-        limit #{limit}
-    </select>
 
     <select id="selectModerationUsersAfterId" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
         select id, mute_until, ban_until

@@ -93,9 +93,7 @@ describe('UserProfileView route contract', () => {
         return Promise.resolve(
           okResult({
             id: userId,
-            username: 'alice',
-            level: 3,
-            score: 250
+            username: 'alice'
           })
         )
       }
@@ -142,6 +140,7 @@ describe('UserProfileView route contract', () => {
     expect(wrapper.text()).not.toContain('签到用户等级')
     expect(wrapper.text()).not.toContain('250 分')
     expect(wrapper.text()).not.toContain('LV 3')
+    expect(wrapper.text()).not.toContain('积分等级')
     expect(wrapper.text()).not.toContain('NaN')
   })
 

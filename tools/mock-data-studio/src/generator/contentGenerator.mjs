@@ -128,7 +128,6 @@ export function generateCommunityPhaseDataset({ plan, existing = {}, seed } = {}
       password: 'mock-data-studio-password',
       salt: `salt-${plan?.batchId ?? 'batch'}-${userSequence}`,
       headerUrl: `https://static.nowcoder.com/mock/avatar-${random.pick(avatarPool)}.png`,
-      score: 10 + activityScore * 7 + random.integer(0, 12),
       activityScore
     }
   })

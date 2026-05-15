@@ -42,7 +42,6 @@ class TaskProgressApplicationServiceTest {
         jdbcTemplate.update("delete from wallet_entry");
         jdbcTemplate.update("delete from wallet_txn");
         jdbcTemplate.update("delete from wallet_account");
-        jdbcTemplate.update("update user set score = 0");
     }
 
     @Test

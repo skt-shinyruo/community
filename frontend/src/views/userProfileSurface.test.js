@@ -9,7 +9,7 @@ import {
 describe('userProfileSurface', () => {
   it('builds a self-view summary that points wallet assets to the wallet page', () => {
     const signals = buildCommunitySignals({
-      profile: { username: 'Mara', likeCount: 12, followerCount: 8, followeeCount: 5, score: 320 },
+      profile: { username: 'Mara', likeCount: 12, followerCount: 8, followeeCount: 5 },
       joinedYear: '2024',
       followStatus: null,
       authed: true,
@@ -33,7 +33,7 @@ describe('userProfileSurface', () => {
 
   it('avoids fake zero wallet copy when no asset snapshot exists', () => {
     const signals = buildCommunitySignals({
-      profile: { username: 'Lin', likeCount: 0, followerCount: 0, followeeCount: 0, score: 0 },
+      profile: { username: 'Lin', likeCount: 0, followerCount: 0, followeeCount: 0 },
       joinedYear: '2023',
       followStatus: true,
       authed: true,
@@ -56,12 +56,12 @@ describe('userProfileSurface', () => {
   })
 
   it('does not derive self-view wallet copy from profile snapshots', () => {
-    expect(buildProfileWalletAsset({ profile: { score: 999 }, authed: true, isSelf: true })).toMatchObject({
+    expect(buildProfileWalletAsset({ profile: { walletBalance: 999 }, authed: true, isSelf: true })).toMatchObject({
       valueText: '仅自己可见',
       chipText: '仅自己可见'
     })
 
-    expect(buildProfileWalletAsset({ profile: { score: 28 }, authed: false, isSelf: false })).toMatchObject({
+    expect(buildProfileWalletAsset({ profile: { walletBalance: 28 }, authed: false, isSelf: false })).toMatchObject({
       valueText: '未公开'
     })
   })

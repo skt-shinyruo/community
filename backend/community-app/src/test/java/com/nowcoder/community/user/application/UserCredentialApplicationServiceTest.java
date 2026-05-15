@@ -240,7 +240,6 @@ class UserCredentialApplicationServiceTest {
                 1,
                 "h7",
                 Date.from(Instant.now()),
-                0,
                 null,
                 null
         );
@@ -258,7 +257,6 @@ class UserCredentialApplicationServiceTest {
                 0,
                 user.headerUrl(),
                 user.createTime(),
-                user.score(),
                 user.muteUntil(),
                 user.banUntil()
         );

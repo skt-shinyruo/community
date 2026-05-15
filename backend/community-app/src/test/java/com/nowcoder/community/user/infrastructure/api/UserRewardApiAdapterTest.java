@@ -1,8 +1,8 @@
 package com.nowcoder.community.user.infrastructure.api;
 
-import com.nowcoder.community.user.api.model.UserCommentPointsAwardRequest;
-import com.nowcoder.community.user.api.model.UserLikePointsAwardRequest;
-import com.nowcoder.community.user.application.UserPointsApplicationService;
+import com.nowcoder.community.user.api.model.UserCommentRewardRequest;
+import com.nowcoder.community.user.api.model.UserLikeRewardRequest;
+import com.nowcoder.community.user.application.UserRewardApplicationService;
 import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.junit.jupiter.api.Test;
 
@@ -13,12 +13,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-class UserPointsAwardApiAdapterTest {
+class UserRewardApiAdapterTest {
 
     @Test
-    void postPublishedShouldAwardAuthorPointsThroughProjectionService() {
+    void postPublishedShouldAwardAuthorRewardThroughRewardService() {
         WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
-        UserPointsAwardApiAdapter service = new UserPointsAwardApiAdapter(new UserPointsApplicationService(walletRewardActionApi));
+        UserRewardApiAdapter service = new UserRewardApiAdapter(new UserRewardApplicationService(walletRewardActionApi));
         UUID postId = uuid(100);
         UUID userId = uuid(7);
 
@@ -33,13 +33,13 @@ class UserPointsAwardApiAdapterTest {
     }
 
     @Test
-    void commentCreatedShouldAwardCommentAuthorPointsThroughProjectionService() {
+    void commentCreatedShouldAwardCommentAuthorRewardThroughRewardService() {
         WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
-        UserPointsAwardApiAdapter service = new UserPointsAwardApiAdapter(new UserPointsApplicationService(walletRewardActionApi));
+        UserRewardApiAdapter service = new UserRewardApiAdapter(new UserRewardApplicationService(walletRewardActionApi));
         UUID commentId = uuid(200);
         UUID userId = uuid(3);
 
-        service.awardCommentCreated(new UserCommentPointsAwardRequest(commentId, userId));
+        service.awardCommentCreated(new UserCommentRewardRequest(commentId, userId));
 
         verify(walletRewardActionApi).applyDelta(
                 "wallet-reward:comment-created:" + commentId,
@@ -50,14 +50,14 @@ class UserPointsAwardApiAdapterTest {
     }
 
     @Test
-    void likeCreatedAndRemovedShouldAwardEntityOwnerPointsThroughProjectionService() {
+    void likeCreatedAndRemovedShouldAwardEntityOwnerRewardThroughRewardService() {
         WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
-        UserPointsAwardApiAdapter service = new UserPointsAwardApiAdapter(new UserPointsApplicationService(walletRewardActionApi));
+        UserRewardApiAdapter service = new UserRewardApiAdapter(new UserRewardApplicationService(walletRewardActionApi));
         UUID actorUserId = uuid(1);
         UUID entityUserId = uuid(2);
 
-        service.awardLikeCreated(new UserLikePointsAwardRequest("like-created-event", actorUserId, entityUserId));
-        service.awardLikeRemoved(new UserLikePointsAwardRequest("like-removed-event", actorUserId, entityUserId));
+        service.awardLikeCreated(new UserLikeRewardRequest("like-created-event", actorUserId, entityUserId));
+        service.awardLikeRemoved(new UserLikeRewardRequest("like-removed-event", actorUserId, entityUserId));
 
         verify(walletRewardActionApi).applyDelta(
                 "wallet-reward:like-created-event",
@@ -76,10 +76,10 @@ class UserPointsAwardApiAdapterTest {
     @Test
     void selfLikeShouldRemainNoOp() {
         WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
-        UserPointsAwardApiAdapter service = new UserPointsAwardApiAdapter(new UserPointsApplicationService(walletRewardActionApi));
+        UserRewardApiAdapter service = new UserRewardApiAdapter(new UserRewardApplicationService(walletRewardActionApi));
         UUID userId = uuid(9);
 
-        service.awardLikeCreated(new UserLikePointsAwardRequest("like-created-event", userId, userId));
+        service.awardLikeCreated(new UserLikeRewardRequest("like-created-event", userId, userId));
 
         verifyNoInteractions(walletRewardActionApi);
     }

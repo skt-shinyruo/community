@@ -22,8 +22,8 @@ import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.growth.api.model.GrowthCommentTaskProgressRequest;
 import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
-import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
-import com.nowcoder.community.user.api.model.UserCommentPointsAwardRequest;
+import com.nowcoder.community.user.api.action.UserRewardActionApi;
+import com.nowcoder.community.user.api.model.UserCommentRewardRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -50,7 +50,7 @@ public class CommentApplicationService {
     private final CommentRepository commentRepository;
     private final PostContentRepository postContentPort;
     private final SocialBlockQueryApi blockQueryApi;
-    private final UserPointsAwardActionApi pointsAwardService;
+    private final UserRewardActionApi rewardActionApi;
     private final GrowthTaskProgressActionApi taskProgressTriggerService;
     private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private final CommentDomainEventPublisher domainEventPublisher;
@@ -66,7 +66,7 @@ public class CommentApplicationService {
             CommentRepository commentRepository,
             PostContentRepository postContentPort,
             SocialBlockQueryApi blockQueryApi,
-            UserPointsAwardActionApi pointsAwardService,
+            UserRewardActionApi rewardActionApi,
             GrowthTaskProgressActionApi taskProgressTriggerService,
             SocialLikeCleanupActionApi socialLikeCleanupActionApi,
             CommentDomainEventPublisher domainEventPublisher,
@@ -81,7 +81,7 @@ public class CommentApplicationService {
         this.commentRepository = commentRepository;
         this.postContentPort = postContentPort;
         this.blockQueryApi = blockQueryApi;
-        this.pointsAwardService = pointsAwardService;
+        this.rewardActionApi = rewardActionApi;
         this.taskProgressTriggerService = taskProgressTriggerService;
         this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
         this.domainEventPublisher = domainEventPublisher;
@@ -217,7 +217,7 @@ public class CommentApplicationService {
                 createdAt
         );
 
-        pointsAwardService.awardCommentCreated(new UserCommentPointsAwardRequest(commentId, userId));
+        rewardActionApi.awardCommentCreated(new UserCommentRewardRequest(commentId, userId));
         taskProgressTriggerService.triggerCommentCreated(new GrowthCommentTaskProgressRequest(commentId, userId, createdAt));
         domainEventPublisher.commentCreated(event);
         postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);

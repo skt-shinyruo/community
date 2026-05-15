@@ -24,7 +24,7 @@ import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
 import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
-import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
+import com.nowcoder.community.user.api.action.UserRewardActionApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,7 +63,7 @@ public class PostPublishingApplicationService {
     private final PostDomainEventPublisher domainEventPublisher;
     private final PostWriteSideEffectScheduler postWriteSideEffectScheduler;
     private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
-    private final UserPointsAwardActionApi pointsAwardService;
+    private final UserRewardActionApi rewardActionApi;
     private final GrowthTaskProgressActionApi taskProgressTriggerService;
 
     public PostPublishingApplicationService(
@@ -83,7 +83,7 @@ public class PostPublishingApplicationService {
             PostDomainEventPublisher domainEventPublisher,
             PostWriteSideEffectScheduler postWriteSideEffectScheduler,
             SocialLikeCleanupActionApi socialLikeCleanupActionApi,
-            UserPointsAwardActionApi pointsAwardService,
+            UserRewardActionApi rewardActionApi,
             GrowthTaskProgressActionApi taskProgressTriggerService
     ) {
         this.sensitiveFilter = sensitiveFilter;
@@ -102,7 +102,7 @@ public class PostPublishingApplicationService {
         this.domainEventPublisher = domainEventPublisher;
         this.postWriteSideEffectScheduler = postWriteSideEffectScheduler;
         this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
-        this.pointsAwardService = pointsAwardService;
+        this.rewardActionApi = rewardActionApi;
         this.taskProgressTriggerService = taskProgressTriggerService;
     }
 
@@ -121,7 +121,7 @@ public class PostPublishingApplicationService {
             bindMediaAssets(userId, postId, blocks, new Date());
             postContentBlockRepository.replaceBlocks(postId, toDomainBlocks(postId, blocks));
             postTagRepository.bindTagsToPost(postId, command.tags());
-            pointsAwardService.awardPostPublished(postId, userId);
+            rewardActionApi.awardPostPublished(postId, userId);
             taskProgressTriggerService.triggerPostPublished(postId, userId, draft.createTime().toInstant());
             domainEventPublisher.postPublished(postId);
             postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);

@@ -291,8 +291,7 @@ export function createCommunityWriter({
             0,
             ACTIVE_USER_STATUS,
             user.headerUrl,
-            timestamp.mysql,
-            user.score
+            timestamp.mysql
           ]
         })
         const insertedUserIds =
@@ -302,7 +301,7 @@ export function createCommunityWriter({
                 await runDb.execute(
                   formatBulkInsert(
                     'user',
-                    ['username', 'password', 'salt', 'email', 'type', 'status', 'header_url', 'create_time', 'score'],
+                    ['username', 'password', 'salt', 'email', 'type', 'status', 'header_url', 'create_time'],
                     userRows.length
                   ),
                   toInsertParams(userRows)

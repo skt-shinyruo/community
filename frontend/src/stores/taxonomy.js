@@ -1,4 +1,4 @@
-// taxonomy：分类与热门标签的轻量缓存（右侧面板/发帖/列表共用）。
+// taxonomy：分类与热门标签的轻量缓存（发帖、列表和搜索共用）。
 
 import { defineStore } from 'pinia'
 import { listCategories, listHotTags } from '../api/services/taxonomyService'

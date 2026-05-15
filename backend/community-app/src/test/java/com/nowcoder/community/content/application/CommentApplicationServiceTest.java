@@ -25,8 +25,8 @@ import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.growth.api.model.GrowthCommentTaskProgressRequest;
 import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
-import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
-import com.nowcoder.community.user.api.model.UserCommentPointsAwardRequest;
+import com.nowcoder.community.user.api.action.UserRewardActionApi;
+import com.nowcoder.community.user.api.model.UserCommentRewardRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -64,7 +64,7 @@ class CommentApplicationServiceTest {
     private CommentRepository commentRepository;
     private PostContentRepository postContentPort;
     private SocialBlockQueryApi blockQueryApi;
-    private UserPointsAwardActionApi pointsAwardService;
+    private UserRewardActionApi rewardActionApi;
     private GrowthTaskProgressActionApi taskProgressTriggerService;
     private SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private CommentDomainEventPublisher domainEventPublisher;
@@ -80,7 +80,7 @@ class CommentApplicationServiceTest {
         commentRepository = mock(CommentRepository.class);
         postContentPort = mock(PostContentRepository.class);
         blockQueryApi = mock(SocialBlockQueryApi.class);
-        pointsAwardService = mock(UserPointsAwardActionApi.class);
+        rewardActionApi = mock(UserRewardActionApi.class);
         taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);
         socialLikeCleanupActionApi = mock(SocialLikeCleanupActionApi.class);
         domainEventPublisher = mock(CommentDomainEventPublisher.class);
@@ -96,7 +96,7 @@ class CommentApplicationServiceTest {
                 commentRepository,
                 postContentPort,
                 blockQueryApi,
-                pointsAwardService,
+                rewardActionApi,
                 taskProgressTriggerService,
                 socialLikeCleanupActionApi,
                 domainEventPublisher,
@@ -139,7 +139,7 @@ class CommentApplicationServiceTest {
                 postContentPort,
                 blockQueryApi,
                 commentRepository,
-                pointsAwardService,
+                rewardActionApi,
                 taskProgressTriggerService,
                 domainEventPublisher,
                 postWriteSideEffectScheduler
@@ -150,8 +150,8 @@ class CommentApplicationServiceTest {
         ArgumentCaptor<CommentDraft> draftCaptor = ArgumentCaptor.forClass(CommentDraft.class);
         inOrder.verify(commentRepository).create(draftCaptor.capture());
         inOrder.verify(postContentPort).incrementCommentCount(postId, 1);
-        ArgumentCaptor<UserCommentPointsAwardRequest> pointsRequestCaptor = ArgumentCaptor.forClass(UserCommentPointsAwardRequest.class);
-        inOrder.verify(pointsAwardService).awardCommentCreated(pointsRequestCaptor.capture());
+        ArgumentCaptor<UserCommentRewardRequest> rewardRequestCaptor = ArgumentCaptor.forClass(UserCommentRewardRequest.class);
+        inOrder.verify(rewardActionApi).awardCommentCreated(rewardRequestCaptor.capture());
         ArgumentCaptor<GrowthCommentTaskProgressRequest> growthRequestCaptor = ArgumentCaptor.forClass(GrowthCommentTaskProgressRequest.class);
         inOrder.verify(taskProgressTriggerService).triggerCommentCreated(growthRequestCaptor.capture());
         ArgumentCaptor<CommentCreatedDomainEvent> eventCaptor = ArgumentCaptor.forClass(CommentCreatedDomainEvent.class);
@@ -166,9 +166,9 @@ class CommentApplicationServiceTest {
         assertThat(draft.content()).isEqualTo("clean & body");
         assertThat(draft.createTime()).isNotNull();
 
-        UserCommentPointsAwardRequest pointsRequest = pointsRequestCaptor.getValue();
-        assertThat(pointsRequest.commentId()).isEqualTo(commentId);
-        assertThat(pointsRequest.userId()).isEqualTo(userId);
+        UserCommentRewardRequest rewardRequest = rewardRequestCaptor.getValue();
+        assertThat(rewardRequest.commentId()).isEqualTo(commentId);
+        assertThat(rewardRequest.userId()).isEqualTo(userId);
 
         GrowthCommentTaskProgressRequest growthRequest = growthRequestCaptor.getValue();
         assertThat(growthRequest.commentId()).isEqualTo(commentId);
@@ -238,7 +238,7 @@ class CommentApplicationServiceTest {
                 commentRepository,
                 postContentPort,
                 blockQueryApi,
-                pointsAwardService,
+                rewardActionApi,
                 taskProgressTriggerService,
                 socialLikeCleanupActionApi,
                 domainEventPublisher,
@@ -290,7 +290,7 @@ class CommentApplicationServiceTest {
 
         verify(commentRepository, never()).create(any(CommentDraft.class));
         verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
-        verify(pointsAwardService, never()).awardCommentCreated(any(UserCommentPointsAwardRequest.class));
+        verify(rewardActionApi, never()).awardCommentCreated(any(UserCommentRewardRequest.class));
         verify(taskProgressTriggerService, never()).triggerCommentCreated(any(GrowthCommentTaskProgressRequest.class));
         verify(domainEventPublisher, never()).commentCreated(any(CommentCreatedDomainEvent.class));
         verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));
@@ -316,7 +316,7 @@ class CommentApplicationServiceTest {
 
         verify(commentRepository, never()).create(any(CommentDraft.class));
         verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
-        verify(pointsAwardService, never()).awardCommentCreated(any(UserCommentPointsAwardRequest.class));
+        verify(rewardActionApi, never()).awardCommentCreated(any(UserCommentRewardRequest.class));
         verify(taskProgressTriggerService, never()).triggerCommentCreated(any(GrowthCommentTaskProgressRequest.class));
         verify(domainEventPublisher, never()).commentCreated(any(CommentCreatedDomainEvent.class));
         verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));

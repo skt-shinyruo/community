@@ -126,6 +126,7 @@ describe('SettingsView', () => {
     expect(wrapper.text()).not.toContain('OSS 服务')
     expect(wrapper.text()).not.toContain('Cloudflare R2')
     expect(wrapper.text()).not.toContain('本地文件')
+    expect(wrapper.text()).not.toContain('排行榜')
 
     await fileInput.vm.$emit('update:modelValue', file)
     await nextTick()
@@ -159,6 +160,12 @@ describe('SettingsView', () => {
     expect(form.get('sessionId')).toBe('session-1')
     expect(form.get('versionId')).toBe('00000000-0000-7000-8000-000000000051')
     expect(http.put).toHaveBeenCalledWith('/api/users/7/avatar', { objectId: '00000000-0000-7000-8000-000000000050' })
+  })
+
+  it('does not expose retired leaderboard copy', () => {
+    const wrapper = mountView()
+
+    expect(wrapper.text()).not.toContain('排行榜')
   })
 
 })

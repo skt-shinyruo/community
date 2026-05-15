@@ -56,7 +56,7 @@ class MyBatisUserRepositoryTest {
     @Test
     void findMethodsShouldMapDataObjectToDomainAccount() {
         Date createTime = Date.from(Instant.parse("2026-04-27T10:15:30Z"));
-        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 2, 1, "h7", createTime, 120, null, null);
+        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 2, 1, "h7", createTime, null, null);
 
         Optional<UserAccount> byId = userRepository.findById(ALICE_ID);
         Optional<UserAccount> byName = userRepository.findByUsername("alice");
@@ -74,16 +74,15 @@ class MyBatisUserRepositoryTest {
                 UserAccount::type,
                 UserAccount::status,
                 UserAccount::headerUrl,
-                UserAccount::createTime,
-                UserAccount::score
-        ).containsExactly(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 2, 1, "h7", createTime, 120);
+                UserAccount::createTime
+        ).containsExactly(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 2, 1, "h7", createTime);
     }
 
     @Test
     void summaryAndProfileMethodsShouldProjectDomainViews() {
         Date createTime = Date.from(Instant.parse("2026-04-27T10:15:30Z"));
-        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 2, 1, "h7", createTime, 120, null, null);
-        insertUser(BOB_ID, "bob", "encoded", "salt", "bob@example.com", 1, 1, "h8", createTime, 50, null, null);
+        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 2, 1, "h7", createTime, null, null);
+        insertUser(BOB_ID, "bob", "encoded", "salt", "bob@example.com", 1, 1, "h8", createTime, null, null);
 
         List<UserSummary> summaries = userRepository.listSummariesByIds(List.of(BOB_ID, ALICE_ID));
         UserProfile profile = userRepository.findProfileById(ALICE_ID).orElseThrow();
@@ -96,9 +95,8 @@ class MyBatisUserRepositoryTest {
                 UserProfile::headerUrl,
                 UserProfile::type,
                 UserProfile::status,
-                UserProfile::createTime,
-                UserProfile::score
-        ).containsExactly(ALICE_ID, "alice", "h7", 2, 1, createTime, 120);
+                UserProfile::createTime
+        ).containsExactly(ALICE_ID, "alice", "h7", 2, 1, createTime);
     }
 
     @Test
@@ -106,7 +104,7 @@ class MyBatisUserRepositoryTest {
         Date createTime = Date.from(Instant.parse("2026-04-27T10:15:30Z"));
         Instant muteUntil = Instant.parse("2026-04-28T10:15:30Z");
         Instant banUntil = Instant.parse("2026-04-29T10:15:30Z");
-        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "old", createTime, 120, null, null);
+        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "old", createTime, null, null);
 
         userRepository.updateHeaderUrl(ALICE_ID, "new-header");
         userRepository.updateRole(ALICE_ID, 2);
@@ -134,8 +132,8 @@ class MyBatisUserRepositoryTest {
         Date createTime = Date.from(Instant.parse("2026-04-27T10:15:30Z"));
         Instant aliceMute = Instant.parse("2026-04-28T10:15:30Z");
         Instant bobBan = Instant.parse("2026-04-29T10:15:30Z");
-        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "h7", createTime, 120, aliceMute, null);
-        insertUser(BOB_ID, "bob", "encoded", "salt", "bob@example.com", 0, 1, "h8", createTime, 50, null, bobBan);
+        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "h7", createTime, aliceMute, null);
+        insertUser(BOB_ID, "bob", "encoded", "salt", "bob@example.com", 0, 1, "h8", createTime, null, bobBan);
 
         List<UserModerationStatus> statuses = userRepository.scanModerationStatesAfterId(new UUID(0L, 0L), 20);
 
@@ -156,14 +154,13 @@ class MyBatisUserRepositoryTest {
             int status,
             String headerUrl,
             Date createTime,
-            int score,
             Instant muteUntil,
             Instant banUntil
     ) {
         jdbcTemplate.update(
                 """
-                        insert into user (id, username, password, salt, email, type, status, header_url, create_time, score, mute_until, ban_until)
-                        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        insert into user (id, username, password, salt, email, type, status, header_url, create_time, mute_until, ban_until)
+                        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                 BinaryUuidCodec.toBytes(id),
                 username,
@@ -174,7 +171,6 @@ class MyBatisUserRepositoryTest {
                 status,
                 headerUrl,
                 createTime,
-                score,
                 muteUntil == null ? null : Date.from(muteUntil),
                 banUntil == null ? null : Date.from(banUntil)
         );

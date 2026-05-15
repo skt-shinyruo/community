@@ -49,7 +49,7 @@
 | `user.application.UserAvatarApplicationService` | 头像 upload session / confirm | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserModerationApplicationService` | 禁言 / 封禁状态和 policy event | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.AdminUserApplicationService` | 管理员用户搜索和角色修改 | [User 用户业务逻辑](business-logic/user.md) | Covered |
-| `user.application.UserPointsApplicationService` | 用户积分视图 / wallet 奖励协作入口 | [User 用户业务逻辑](business-logic/user.md) | Covered |
+| `user.application.UserRewardApplicationService` | 用户奖励语义 / wallet 奖励协作入口 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.domain.service.PasswordPolicyDomainService` | 密码复杂度规则 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.domain.service.UserCredentialDomainService` | 凭证校验和密码更新规则 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.domain.service.UserModerationDomainService` | 用户处罚状态规则 | [User 用户业务逻辑](business-logic/user.md) | Covered |
@@ -143,7 +143,7 @@
 | `social.controller.LikeController` | like HTTP binding | [Social 社交业务逻辑](business-logic/social.md) | IndexOnly |
 | `social.controller.FollowController` | follow HTTP binding | [Social 社交业务逻辑](business-logic/social.md) | IndexOnly |
 | `social.controller.BlockController` | block HTTP binding | [Social 社交业务逻辑](business-logic/social.md) | IndexOnly |
-| `social.application.LikeApplicationService` | 点赞关系、内容实体解析、任务 / 积分协作和事件 | [Social 社交业务逻辑](business-logic/social.md) | Covered |
+| `social.application.LikeApplicationService` | 点赞关系、内容实体解析、任务 / 奖励协作和事件 | [Social 社交业务逻辑](business-logic/social.md) | Covered |
 | `social.application.FollowApplicationService` | 关注关系和 follow event | [Social 社交业务逻辑](business-logic/social.md) | Covered |
 | `social.application.BlockApplicationService` | 拉黑关系、follow 清理、IM policy outbox | [Social 社交业务逻辑](business-logic/social.md) | Covered |
 | `social.domain.service.LikeDomainService` | 点赞实体和计数规则 | [Social 社交业务逻辑](business-logic/social.md) | Covered |

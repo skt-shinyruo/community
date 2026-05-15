@@ -185,10 +185,7 @@ onMounted(() => {
   offPrivate = imRealtimeClient.on('privateMessage', async (msg) => {
     if (!msg || msg.conversationId !== conversationId.value) return
     const seq = Number(msg?.seq || 0)
-    const message = mapConversationMessage({
-      ...msg,
-      createdAtEpochMs: msg?.createdAtEpochMs || Date.now()
-    })
+    const message = mapConversationMessage(msg)
 
     items.value = mergeConversationMessages(items.value, [{
       ...message,

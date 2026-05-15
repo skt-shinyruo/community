@@ -55,6 +55,33 @@ describe('conversationDetailState', () => {
     })
   })
 
+  it('rejects conversation messages that violate the API identity contract', () => {
+    const valid = {
+      seq: 12,
+      messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+      fromUserId: '11111111-1111-7111-8111-111111111111',
+      toUserId: '22222222-2222-7222-8222-222222222222',
+      content: 'hello',
+      createdAtEpochMs: 123456789
+    }
+
+    expect(() => mapConversationMessage({ ...valid, seq: 0 })).toThrow('seq 非法')
+    expect(() => mapConversationMessage({ ...valid, messageId: null })).toThrow('messageId 缺失')
+    expect(() => mapConversationMessage({ ...valid, fromUserId: 'bad' })).toThrow('fromUserId 非法')
+    expect(() => mapConversationMessage({ ...valid, createdAtEpochMs: 0 })).toThrow('createdAtEpochMs 非法')
+  })
+
+  it('rejects merging already-mapped messages without server identity', () => {
+    expect(() => mergeConversationMessages([], [{
+      id: '',
+      seq: 0,
+      fromId: '11111111-1111-7111-8111-111111111111',
+      toId: '22222222-2222-7222-8222-222222222222',
+      content: 'fallback should not be used',
+      createTime: 123456789
+    }])).toThrow('message identity 缺失')
+  })
+
   it('merges conversation messages without duplicating the same seq and keeps chronological order', () => {
     const older = {
       id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',

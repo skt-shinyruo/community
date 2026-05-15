@@ -86,7 +86,10 @@ export async function getLikeCounts(entityType, entityIds) {
   if (ids.length === 0) return { data: {}, traceId: '' }
   const resp = await http.get('/api/likes/counts', { params: { entityType, entityIds: ids.join(',') } })
   const { data, traceId } = unwrapResultBody(resp.data, '批量查询点赞数')
-  return { data: data && typeof data === 'object' ? data : {}, traceId }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('批量查询点赞数响应非法')
+  }
+  return { data, traceId }
 }
 
 export async function getLikeStatuses(entityType, entityIds) {
@@ -94,5 +97,8 @@ export async function getLikeStatuses(entityType, entityIds) {
   if (ids.length === 0) return { data: {}, traceId: '' }
   const resp = await http.get('/api/likes/statuses', { params: { entityType, entityIds: ids.join(',') } })
   const { data, traceId } = unwrapResultBody(resp.data, '批量查询点赞状态')
-  return { data: data && typeof data === 'object' ? data : {}, traceId }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('批量查询点赞状态响应非法')
+  }
+  return { data, traceId }
 }

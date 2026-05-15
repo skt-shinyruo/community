@@ -4,6 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
+  listeners,
   listImConversationMessages,
   markImConversationRead,
   sendPrivateText,
@@ -20,6 +21,7 @@ const {
   }
 
   return {
+    listeners: listenersLocal,
     listImConversationMessages: vi.fn(),
     markImConversationRead: vi.fn(),
     sendPrivateText: client.sendPrivateText,
@@ -85,20 +87,20 @@ describe('ConversationDetailView', () => {
     listImConversationMessages.mockResolvedValue({
       items: [
         {
-          id: 'msg-1',
+          messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
           seq: 3,
-          fromId: '22222222-2222-7222-8222-222222222222',
-          toId: '11111111-1111-7111-8111-111111111111',
+          fromUserId: '22222222-2222-7222-8222-222222222222',
+          toUserId: '11111111-1111-7111-8111-111111111111',
           content: '第一条消息',
-          createTime: 1774060182920
+          createdAtEpochMs: 1774060182920
         },
         {
-          id: 'msg-2',
+          messageId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
           seq: 8,
-          fromId: '11111111-1111-7111-8111-111111111111',
-          toId: '22222222-2222-7222-8222-222222222222',
+          fromUserId: '11111111-1111-7111-8111-111111111111',
+          toUserId: '22222222-2222-7222-8222-222222222222',
           content: '第二条消息',
-          createTime: 1774060183920
+          createdAtEpochMs: 1774060183920
         }
       ]
     })
@@ -127,5 +129,20 @@ describe('ConversationDetailView', () => {
       toUserId: '22222222-2222-7222-8222-222222222222',
       content: '继续聊'
     })
+  })
+
+  it('rejects realtime private messages that miss persisted timestamps', async () => {
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    mountView(conversationId)
+    await flushPromises()
+
+    await expect(listeners.privateMessage({
+      conversationId,
+      messageId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      seq: 9,
+      fromUserId: '22222222-2222-7222-8222-222222222222',
+      toUserId: '11111111-1111-7111-8111-111111111111',
+      content: '缺少时间'
+    })).rejects.toThrow('createdAtEpochMs 非法')
   })
 })

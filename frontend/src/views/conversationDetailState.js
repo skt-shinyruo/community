@@ -1,4 +1,4 @@
-import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
+import { normalizeOpaqueId, requireApiOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 
 const SIGNED_64_MINIMUM = 1n << 63n
 const UNSIGNED_64_MODULUS = 1n << 64n
@@ -52,14 +52,21 @@ export function buildCanonicalConversationId(leftUserId, rightUserId) {
 }
 
 export function mapConversationMessage(raw) {
-  const seq = Number(raw?.seq || 0)
+  const seq = Number(raw?.seq)
+  if (!Number.isSafeInteger(seq) || seq <= 0) {
+    throw new Error('seq 非法')
+  }
+  const createTime = Number(raw?.createdAtEpochMs)
+  if (!Number.isFinite(createTime) || createTime <= 0) {
+    throw new Error('createdAtEpochMs 非法')
+  }
   return {
-    id: normalizeOpaqueId(raw?.messageId) || (seq > 0 ? String(seq) : ''),
+    id: requireApiOpaqueId(raw?.messageId, 'messageId'),
     seq,
-    fromId: normalizeOpaqueId(raw?.fromUserId),
-    toId: normalizeOpaqueId(raw?.toUserId),
+    fromId: requireApiOpaqueId(raw?.fromUserId, 'fromUserId'),
+    toId: requireApiOpaqueId(raw?.toUserId, 'toUserId'),
     content: String(raw?.content || ''),
-    createTime: Number(raw?.createdAtEpochMs || 0)
+    createTime
   }
 }
 
@@ -86,11 +93,7 @@ function conversationMessageKey(message) {
   const id = normalizeOpaqueId(message?.id)
   if (id) return `id:${id}`
 
-  const fromId = normalizeOpaqueId(message?.fromId)
-  const toId = normalizeOpaqueId(message?.toId)
-  const createTime = Number(message?.createTime || 0)
-  const content = String(message?.content || '')
-  return `fallback:${fromId}:${toId}:${createTime}:${content}`
+  throw new Error('message identity 缺失')
 }
 
 export function mergeConversationMessages(currentItems, incomingItems) {

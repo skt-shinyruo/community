@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
-import { getLikeCounts } from './socialService'
+import { getLikeCounts, getLikeStatuses } from './socialService'
 
 describe('api/services/socialService', () => {
   let mock
@@ -44,5 +44,31 @@ describe('api/services/socialService', () => {
       [entityA]: 3,
       [entityB]: 7
     })
+  })
+
+  it('getLikeCounts should reject non-object response data instead of treating it as empty', async () => {
+    const entityA = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    mock = new MockAdapter(http)
+    mock.onGet('/api/likes/counts').reply(200, {
+      code: 0,
+      message: '',
+      data: null,
+      traceId: 'trace-like-counts'
+    })
+
+    await expect(getLikeCounts(2, [entityA])).rejects.toThrow('批量查询点赞数响应非法')
+  })
+
+  it('getLikeStatuses should reject non-object response data instead of treating it as empty', async () => {
+    const entityA = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    mock = new MockAdapter(http)
+    mock.onGet('/api/likes/statuses').reply(200, {
+      code: 0,
+      message: '',
+      data: null,
+      traceId: 'trace-like-statuses'
+    })
+
+    await expect(getLikeStatuses(2, [entityA])).rejects.toThrow('批量查询点赞状态响应非法')
   })
 })

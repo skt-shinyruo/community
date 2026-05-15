@@ -48,3 +48,14 @@ export function requireOpaqueId(value, label = 'id') {
   }
   return id
 }
+
+export function requireApiOpaqueId(value, label = 'id') {
+  const id = normalizeOpaqueId(value)
+  if (!id) {
+    throw new Error(`${label} 缺失`)
+  }
+  if (!isUuid(id)) {
+    throw new Error(`${label} 非法`)
+  }
+  return id
+}

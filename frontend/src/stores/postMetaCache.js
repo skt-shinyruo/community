@@ -112,7 +112,13 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
         const { data } = await getLikeCounts(entityType, missing)
         const t = nowMs()
         for (const id of missing) {
-          const v = Number(data?.[String(id)] || 0)
+          if (!Object.prototype.hasOwnProperty.call(data || {}, String(id))) {
+            throw new Error(`点赞数缺少实体 ${id}`)
+          }
+          const v = Number(data[String(id)])
+          if (!Number.isFinite(v)) {
+            throw new Error(`点赞数非法 ${id}`)
+          }
           this.likeCounts[likeKey(entityType, id)] = { value: v, expiresAt: t + LIKE_TTL_MS }
         }
       }
@@ -139,7 +145,14 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
         const { data } = await getLikeStatuses(entityType, missing)
         const t = nowMs()
         for (const id of missing) {
-          const v = !!data?.[String(id)]
+          if (!Object.prototype.hasOwnProperty.call(data || {}, String(id))) {
+            throw new Error(`点赞状态缺少实体 ${id}`)
+          }
+          const raw = data[String(id)]
+          if (typeof raw !== 'boolean') {
+            throw new Error(`点赞状态非法 ${id}`)
+          }
+          const v = raw
           this.likeStatuses[likeKey(entityType, id)] = { value: v, expiresAt: t + LIKE_TTL_MS }
         }
       }

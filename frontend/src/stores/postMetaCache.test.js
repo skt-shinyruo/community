@@ -76,4 +76,28 @@ describe('stores/postMetaCache', () => {
     })
     expect(store.getUser(userId)).toEqual(summary)
   })
+
+  it('should reject like count responses that omit requested entity ids', async () => {
+    const entityId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    getLikeCounts.mockResolvedValue({
+      data: {},
+      traceId: 'trace-like-counts'
+    })
+
+    const store = usePostMetaCacheStore()
+
+    await expect(store.ensureLikeCounts(1, [entityId])).rejects.toThrow(`点赞数缺少实体 ${entityId}`)
+  })
+
+  it('should reject like status responses that omit requested entity ids', async () => {
+    const entityId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    getLikeStatuses.mockResolvedValue({
+      data: {},
+      traceId: 'trace-like-statuses'
+    })
+
+    const store = usePostMetaCacheStore()
+
+    await expect(store.ensureLikeStatuses(1, [entityId])).rejects.toThrow(`点赞状态缺少实体 ${entityId}`)
+  })
 })

@@ -88,6 +88,3 @@ gateway:
       default-tags:
         plane: http
       rules: []
-  ws:
-    proxy:
-      path: /ws/im/workers/**

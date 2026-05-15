@@ -24,9 +24,6 @@
 | `im.gateway.ws.ExternalImEdgeWebSocketHandler` | `/ws/im` 的外部桥接和首帧控制。 |
 | `im.gateway.ws.InternalWorkerBridgeFactory` | 内部 worker bridge 创建和 traceparent 透传。 |
 | `im.gateway.ws.ImGatewayFrameCodec` | gateway connect frame 编解码。 |
-| `community-gateway.ws.WorkerPathResolver` | 从 proxy path 解析 workerId。 |
-| `community-gateway.ws.ExternalImWebSocketHandler` | gateway 侧的透明 worker bridge。 |
-| `community-gateway.ws.InternalWorkerBridgeFactory` | gateway 侧的内部桥接工厂。 |
 
 ## Realtime
 
@@ -84,4 +81,3 @@
 - realtime 的 policy / membership 只是快速判定，不是权威事实。
 - private / room 消息都靠 clientMsgId 做幂等。
 - room 推送是 state-only update，历史仍要靠 HTTP 拉。
-

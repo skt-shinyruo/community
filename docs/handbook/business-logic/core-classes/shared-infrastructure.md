@@ -48,10 +48,6 @@
 | --- | --- |
 | `community-gateway.edge.RateLimitWebFilter` | gateway edge 限流。 |
 | `community-gateway.edge.AccessLogWebFilter` | gateway HTTP access log。 |
-| `community-gateway.ws.ExternalImWebSocketHandler` | gateway 透明 IM WS proxy。 |
-| `community-gateway.ws.WorkerPathResolver` | WS proxy path -> workerId。 |
-| `community-gateway.ws.InternalWorkerBridgeFactory` | gateway worker bridge。 |
-| `community-gateway.ws.InternalWorkerBridge` | gateway bridge port。 |
 | `community-oss-client.CommunityOssClient` | typed OSS client contract。 |
 | `community-oss-client.HttpCommunityOssClient` | typed OSS client HTTP 实现。 |
 
@@ -60,4 +56,3 @@
 - 这些类都不拥有业务主事实，只做横切能力或基础设施适配。
 - UUID binary 适配、outbox 和 idempotency 都是跨域复用的底座。
 - gateway edge 只负责路由、限流和桥接，不承担业务规则。
-

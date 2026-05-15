@@ -12,18 +12,14 @@ import org.springframework.security.web.server.authorization.ServerAccessDeniedH
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
-import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.Sinks;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
+import reactor.test.StepVerifier;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,7 +32,6 @@ class GatewayDefaultSecurityIntegrationTest {
     private static final String METRICS_USERNAME = "prometheus";
     private static final String METRICS_PASSWORD = "gateway-metrics-pass-please-change";
     private static volatile DisposableServer httpUpstream;
-    private static volatile DisposableServer workerServer;
 
     @Autowired
     private WebTestClient webTestClient;
@@ -55,16 +50,8 @@ class GatewayDefaultSecurityIntegrationTest {
         registry.add("gateway.http.routes[0].service-id", () -> "community-app");
         registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri",
                 GatewayDefaultSecurityIntegrationTest::httpUpstreamBaseUrl);
-        registry.add("gateway.ws.discovery.service-id", () -> "im-realtime-worker");
-        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].uri",
-                () -> "http://127.0.0.1:" + workerServerPort());
-        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.workerId", () -> "worker-a");
-        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.wsPath", () -> "/internal/ws/im");
-        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.wsPort",
-                () -> String.valueOf(workerServerPort()));
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("management.health.redis.enabled", () -> "false");
-        registry.add("gateway.ws.proxy.path", () -> "/ws/im/workers/**");
         registry.add("security.jwt.hmac-secret", () -> "gateway-test-jwt-secret-please-change-123456");
         registry.add("community.metrics.basic-auth.username", () -> METRICS_USERNAME);
         registry.add("community.metrics.basic-auth.password", () -> METRICS_PASSWORD);
@@ -75,10 +62,6 @@ class GatewayDefaultSecurityIntegrationTest {
         if (httpUpstream != null) {
             httpUpstream.disposeNow();
             httpUpstream = null;
-        }
-        if (workerServer != null) {
-            workerServer.disposeNow();
-            workerServer = null;
         }
     }
 
@@ -93,30 +76,21 @@ class GatewayDefaultSecurityIntegrationTest {
     }
 
     @Test
-    void shouldAllowWebSocketHandshakeOnDefaultGatewaySecurityChain() throws Exception {
-        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
-        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
-
+    void shouldNotExposeLegacyWorkerWebSocketPath() {
         ReactorNettyWebSocketClient client = new ReactorNettyWebSocketClient();
         URI uri = URI.create("ws://127.0.0.1:" + port + "/ws/im/workers/worker-a");
 
-        Disposable handle = client.execute(uri, session -> {
-                    Mono<Void> send = session.send(outbound.asFlux().map(session::textMessage));
-                    Mono<Void> recv = session.receive()
-                            .map(WebSocketMessage::getPayloadAsText)
-                            .doOnNext(received::offer)
-                            .take(1)
-                            .then();
-                    return Mono.when(send, recv);
-                })
-                .subscribe();
-        try {
-            outbound.tryEmitNext("hello");
-            outbound.tryEmitComplete();
-            assertThat(received.poll(5, TimeUnit.SECONDS)).isEqualTo("worker-a:hello");
-        } finally {
-            handle.dispose();
-        }
+        StepVerifier.create(client.execute(uri, session -> Mono.empty()))
+                .expectErrorSatisfies(error -> assertThat(error).hasMessageContaining("404 Not Found"))
+                .verify(Duration.ofSeconds(5));
+    }
+
+    @Test
+    void shouldReturnNotFoundForLegacyWorkerHttpPath() {
+        webTestClient.get()
+                .uri("/ws/im/workers/worker-a")
+                .exchange()
+                .expectStatus().isNotFound();
     }
 
     @Test
@@ -159,15 +133,4 @@ class GatewayDefaultSecurityIntegrationTest {
         return "http://127.0.0.1:" + httpUpstream.port();
     }
 
-    private static synchronized int workerServerPort() {
-        if (workerServer == null) {
-            workerServer = HttpServer.create()
-                    .host("127.0.0.1")
-                    .port(0)
-                    .route(routes -> routes.ws("/internal/ws/im", (in, out) ->
-                            out.sendString(in.receive().asString().map(text -> "worker-a:" + text))))
-                    .bindNow(Duration.ofSeconds(5));
-        }
-        return workerServer.port();
-    }
 }

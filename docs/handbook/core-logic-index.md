@@ -278,11 +278,6 @@
 | --- | --- | --- | --- |
 | `community-gateway.edge.RateLimitWebFilter` | gateway edge rate limit by principal or IP | [安全模型](security.md) | Covered |
 | `community-gateway.edge.AccessLogWebFilter` | gateway HTTP access log after trace id resolution | [安全模型](security.md) | Covered |
-| `community-gateway.ws.ExternalImWebSocketHandler` | IM WS proxy path to selected realtime worker | [架构规则](architecture.md) | Covered |
-| `community-gateway.ws.WorkerPathResolver` | resolve workerId from gateway WS proxy path | [IM 消息业务逻辑](business-logic/im.md#网关和边缘) | Covered |
-| `community-gateway.ws.InternalWorkerBridge` | gateway WS bridge port from external client to worker | [IM 消息业务逻辑](business-logic/im.md#网关和边缘) | IndexOnly |
-| `community-gateway.ws.InternalWorkerBridgeFactory` | Reactor Netty bridge creation and traceparent propagation | [IM 消息业务逻辑](business-logic/im.md#网关和边缘) | Covered |
-| `community-gateway.shard.WorkerRegistry` | gateway worker registry for WS worker lookup | [架构规则](architecture.md) | Covered |
 | `im.gateway.session.ImSessionApiController` | `/api/im/sessions` HTTP binding | [IM 消息业务逻辑](business-logic/im.md) | IndexOnly |
 | `im.gateway.session.ImSessionService` | JWT validation, worker selection and session ticket issuance | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.gateway.session.PublicWsUrlFactory` | configured absolute public `wsUrl` validation | [IM 消息业务逻辑](business-logic/im.md#session-bootstrap) | Covered |

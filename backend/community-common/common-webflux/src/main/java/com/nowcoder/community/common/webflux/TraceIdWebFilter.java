@@ -1,10 +1,8 @@
 package com.nowcoder.community.common.webflux;
 
 import com.nowcoder.community.common.trace.OtelTraceContext;
-import com.nowcoder.community.common.trace.TraceContextScope;
 import com.nowcoder.community.common.trace.TraceContextSnapshot;
 import com.nowcoder.community.common.trace.TraceHeaders;
-import io.opentelemetry.api.trace.SpanKind;
 import org.springframework.core.Ordered;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.server.ServerWebExchange;
@@ -28,11 +26,9 @@ public class TraceIdWebFilter implements WebFilter, Ordered {
         }
 
         String incomingTraceparent = exchange.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT);
-        String method = exchange.getRequest().getMethod() == null
-                ? "request"
-                : exchange.getRequest().getMethod().name().toLowerCase();
-        TraceContextScope scope = OtelTraceContext.openForInbound(incomingTraceparent, "http " + method, SpanKind.SERVER);
-        TraceContextSnapshot snapshot = TraceContextSnapshot.currentOrNew();
+        TraceContextSnapshot snapshot = OtelTraceContext.currentSpanContext() == null
+                ? TraceContextSnapshot.fromInbound(incomingTraceparent)
+                : TraceContextSnapshot.currentOrNew();
 
         ServerHttpRequest mutatedRequest = exchange.getRequest()
                 .mutate()
@@ -40,6 +36,6 @@ public class TraceIdWebFilter implements WebFilter, Ordered {
                 .build();
         ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
         mutatedExchange.getResponse().getHeaders().set(TraceHeaders.HEADER_TRACEPARENT, snapshot.traceparent());
-        return chain.filter(mutatedExchange).doFinally(signal -> scope.close());
+        return chain.filter(mutatedExchange);
     }
 }

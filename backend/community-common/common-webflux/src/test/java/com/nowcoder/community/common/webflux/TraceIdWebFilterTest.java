@@ -1,6 +1,8 @@
 package com.nowcoder.community.common.webflux;
 
+import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
+import com.nowcoder.community.common.trace.TraceId;
 import com.nowcoder.community.common.trace.TraceIdCodec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
@@ -105,6 +107,21 @@ class TraceIdWebFilterTest {
                 .hasSize(32);
         assertThat(exchange.getResponse().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT))
                 .isEqualTo(seenTraceparent.get());
+    }
+
+    @Test
+    void filterShouldNotOpenThreadLocalScopeBeforeSubscription() {
+        TraceIdWebFilter filter = new TraceIdWebFilter();
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/posts")
+                .header(TraceHeaders.HEADER_TRACEPARENT, traceparent(TRACE_ID))
+                .build());
+        WebFilterChain chain = current -> Mono.empty();
+
+        Mono<Void> result = filter.filter(exchange, chain);
+
+        assertThat(result).isNotNull();
+        assertThat(TraceId.get()).isNull();
+        assertThat(org.slf4j.MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isNull();
     }
 
     private static String traceparent(String traceId) {

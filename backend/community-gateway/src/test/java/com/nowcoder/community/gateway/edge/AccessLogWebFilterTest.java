@@ -55,8 +55,8 @@ class AccessLogWebFilterTest {
         AccessLogWebFilter accessLogWebFilter = new AccessLogWebFilter();
 
         traceIdWebFilter.filter(exchange, current -> accessLogWebFilter.filter(current, tracedExchange -> {
-            assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo(resolvedTraceId);
-            assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo(resolvedTraceId);
+            assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo(staleTraceId);
+            assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo(staleTraceId);
             tracedExchange.getResponse().setStatusCode(HttpStatus.OK);
             return Mono.empty();
         })).block();

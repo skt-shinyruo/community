@@ -49,16 +49,23 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
                     String traceId = resolveTraceId(exchange);
                     String previousTraceId = MDC.get(MDC_KEY_TRACE_ID);
                     String previousLegacyTraceId = MDC.get(MDC_KEY_LEGACY_TRACE_ID);
+                    String previousSpanId = MDC.get(TraceContext.MDC_KEY_SPAN_ID);
                     String previousCategory = MDC.get(MDC_KEY_CATEGORY);
                     String previousAction = MDC.get(MDC_KEY_ACTION);
                     String previousOutcome = MDC.get(MDC_KEY_OUTCOME);
                     try {
+                        String spanId = resolveSpanId(exchange);
                         if (traceId == null || traceId.isBlank()) {
                             MDC.remove(MDC_KEY_TRACE_ID);
                             MDC.remove(MDC_KEY_LEGACY_TRACE_ID);
                         } else {
                             MDC.put(MDC_KEY_TRACE_ID, traceId);
                             MDC.put(MDC_KEY_LEGACY_TRACE_ID, traceId);
+                        }
+                        if (spanId == null || spanId.isBlank()) {
+                            MDC.remove(TraceContext.MDC_KEY_SPAN_ID);
+                        } else {
+                            MDC.put(TraceContext.MDC_KEY_SPAN_ID, spanId);
                         }
                         MDC.put(MDC_KEY_CATEGORY, CATEGORY_ACCESS);
                         MDC.put(MDC_KEY_ACTION, ACTION_HTTP_ACCESS);
@@ -76,6 +83,7 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
                             MDC.put(MDC_KEY_TRACE_ID, previousTraceId);
                         }
                         restore(MDC_KEY_LEGACY_TRACE_ID, previousLegacyTraceId);
+                        restore(TraceContext.MDC_KEY_SPAN_ID, previousSpanId);
                         restore(MDC_KEY_CATEGORY, previousCategory);
                         restore(MDC_KEY_ACTION, previousAction);
                         restore(MDC_KEY_OUTCOME, previousOutcome);
@@ -115,5 +123,17 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
             return "";
         }
         return traceId;
+    }
+
+    private String resolveSpanId(ServerWebExchange exchange) {
+        String active = OtelTraceContext.currentSpanId();
+        if (active != null) {
+            return active;
+        }
+        String traceparent = exchange.getResponse().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT);
+        if (traceparent == null || traceparent.isBlank()) {
+            traceparent = exchange.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT);
+        }
+        return TraceIdCodec.extractSpanIdFromTraceparent(traceparent);
     }
 }

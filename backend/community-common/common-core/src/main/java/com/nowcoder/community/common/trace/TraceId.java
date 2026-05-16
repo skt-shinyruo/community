@@ -13,7 +13,8 @@ public final class TraceId {
     }
 
     public static String get() {
-        return CURRENT.get();
+        String current = OtelTraceContext.currentTraceId();
+        return current == null ? CURRENT.get() : current;
     }
 
     public static void set(String traceId) {
@@ -22,6 +23,10 @@ public final class TraceId {
 
     public static void clear() {
         CURRENT.remove();
+    }
+
+    static String threadLocalValue() {
+        return CURRENT.get();
     }
 
     /**

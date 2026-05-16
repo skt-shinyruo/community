@@ -25,13 +25,14 @@ class TraceJobRunnerTest {
     }
 
     @Test
-    void runShouldReuseCurrentTraceAndRestoreItAfterwards() {
+    void runShouldCreateInternalSpanAndRestoreLegacyTraceAfterwards() {
         TraceContext.set("99999999999999999999999999999999");
         AtomicReference<String> seen = new AtomicReference<>();
 
         TraceJobRunner.run("test-job", () -> seen.set(TraceId.get()));
 
-        assertThat(seen.get()).isEqualTo("99999999999999999999999999999999");
+        assertThat(seen.get()).matches("[0-9a-f]{32}");
+        assertThat(seen.get()).isNotEqualTo("99999999999999999999999999999999");
         assertThat(TraceId.get()).isEqualTo("99999999999999999999999999999999");
     }
 

@@ -1,5 +1,7 @@
 package com.nowcoder.community.common.trace;
 
+import io.opentelemetry.api.trace.SpanContext;
+
 /**
  * Immutable trace context captured at a technical boundary.
  */
@@ -19,6 +21,10 @@ public record TraceContextSnapshot(String traceId, String traceparent, boolean r
         }
     }
 
+    public String spanId() {
+        return TraceIdCodec.extractSpanIdFromTraceparent(traceparent);
+    }
+
     public static TraceContextSnapshot fromInbound(String traceparentHeader) {
         String resolved = TraceIdCodec.resolveTraceId(traceparentHeader);
         String extracted = TraceIdCodec.extractTraceIdFromTraceparent(traceparentHeader);
@@ -36,9 +42,28 @@ public record TraceContextSnapshot(String traceId, String traceparent, boolean r
     }
 
     public static TraceContextSnapshot currentOrNew() {
-        String current = TraceIdCodec.normalizeTraceId(TraceId.get());
+        SpanContext spanContext = OtelTraceContext.currentSpanContext();
+        if (spanContext != null) {
+            return fromSpanContext(spanContext, false);
+        }
+        String current = TraceIdCodec.normalizeTraceId(TraceId.threadLocalValue());
         boolean recovered = current == null;
         return new TraceContextSnapshot(current, null, recovered);
+    }
+
+    public static TraceContextSnapshot fromSpanContext(SpanContext spanContext, boolean recovered) {
+        if (spanContext == null || !spanContext.isValid()) {
+            return synthetic();
+        }
+        return new TraceContextSnapshot(
+                spanContext.getTraceId(),
+                OtelTraceContext.traceparent(spanContext),
+                recovered
+        );
+    }
+
+    public static TraceContextSnapshot synthetic() {
+        return new TraceContextSnapshot(TraceIdCodec.generateTraceId(), null, true);
     }
 
     public TraceContextScope open() {

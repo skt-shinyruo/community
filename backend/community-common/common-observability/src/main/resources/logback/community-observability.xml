@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<included>
+    <springProperty scope="context" name="serviceName" source="spring.application.name" defaultValue="unknown-service"/>
+    <springProperty scope="context" name="serviceVersion" source="community.logging.service-version" defaultValue="unknown"/>
+    <springProperty scope="context" name="serviceNamespace" source="community.logging.service-namespace" defaultValue="community"/>
+    <springProperty scope="context" name="deploymentEnvironment" source="community.logging.deployment-environment" defaultValue="local"/>
+
+    <property name="TEXT_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [service.name=${serviceName} service.version=${serviceVersion} service.namespace=${serviceNamespace} deployment.environment=${deploymentEnvironment} trace.id=%X{trace.id:-} span.id=%X{span.id:-}] %logger - %msg%n%ex"/>
+
+    <appender name="CONSOLE_TEXT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <charset>UTF-8</charset>
+            <pattern>${TEXT_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp>
+                    <fieldName>@timestamp</fieldName>
+                    <timeZone>UTC</timeZone>
+                </timestamp>
+                <pattern>
+                    <pattern>{"service.name":"${serviceName}","service.version":"${serviceVersion}","service.namespace":"${serviceNamespace}","deployment.environment":"${deploymentEnvironment}"}</pattern>
+                </pattern>
+                <mdc>
+                    <excludeMdcKeyName>traceId</excludeMdcKeyName>
+                </mdc>
+                <logLevel>
+                    <fieldName>level</fieldName>
+                </logLevel>
+                <loggerName>
+                    <fieldName>logger</fieldName>
+                </loggerName>
+                <message/>
+                <stackTrace>
+                    <fieldName>stack_trace</fieldName>
+                </stackTrace>
+            </providers>
+        </encoder>
+    </appender>
+
+    <springProfile name="json-logs | (!default &amp; !local &amp; !dev &amp; !test)">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_JSON"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="!json-logs &amp; (default | local | dev | test)">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_TEXT"/>
+        </root>
+    </springProfile>
+</included>

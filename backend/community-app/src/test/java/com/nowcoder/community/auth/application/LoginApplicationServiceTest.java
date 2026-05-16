@@ -337,6 +337,9 @@ class LoginApplicationServiceTest {
         JsonNode event = findJsonEvent(output);
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
+        assertThat(event.path("service.namespace").asText()).isEqualTo("community");
+        assertThat(event.path("deployment.environment").asText()).isEqualTo("test");
+        assertThat(event.has("traceId")).isFalse();
         assertThat(event.path("event.category").asText()).isEqualTo("security");
         assertThat(event.path("event.action").asText()).isEqualTo("login");
         assertThat(event.path("event.outcome").asText()).isEqualTo("denied");
@@ -349,6 +352,7 @@ class LoginApplicationServiceTest {
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("spring.application.name", serviceName);
         environment.setProperty("community.logging.service-version", SERVICE_VERSION);
+        environment.setProperty("community.logging.deployment-environment", "test");
         environment.setProperty("spring.profiles.active", "prod");
 
         loggingSystem.cleanUp();

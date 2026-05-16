@@ -65,7 +65,11 @@ class AccessLogWebFilterTest {
 
         assertThat(event.path("service.name").asText()).isEqualTo("community-gateway");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
+        assertThat(event.path("service.namespace").asText()).isEqualTo("community");
+        assertThat(event.path("deployment.environment").asText()).isEqualTo("test");
         assertThat(event.path("trace.id").asText()).isEqualTo(resolvedTraceId);
+        assertThat(event.path("span.id").asText()).isEqualTo("00f067aa0ba902b7");
+        assertThat(event.has("traceId")).isFalse();
         assertThat(event.path("level").asText()).isEqualTo("INFO");
         assertThat(event.path("logger").asText()).isEqualTo(AccessLogWebFilter.class.getName());
         assertThat(event.path("event.category").asText()).isEqualTo("access");
@@ -98,6 +102,7 @@ class AccessLogWebFilterTest {
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("spring.application.name", serviceName);
         environment.setProperty("community.logging.service-version", SERVICE_VERSION);
+        environment.setProperty("community.logging.deployment-environment", "test");
         environment.setProperty("spring.profiles.active", "dev,json-logs");
 
         loggingSystem.cleanUp();

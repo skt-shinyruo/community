@@ -89,12 +89,12 @@ public final class OtelTraceContext {
 
     public static TraceContextScope openForInbound(String traceparent, String spanName, SpanKind spanKind) {
         SpanContext active = currentSpanContext();
-        if (active != null) {
+        Context parent = extract(traceparent);
+        SpanContext extracted = Span.fromContext(parent).getSpanContext();
+        if (active != null && !shouldSwitchToExtracted(active, extracted)) {
             return TraceContextScope.open(TraceContextSnapshot.fromSpanContext(active, false), Scope.noop(), null);
         }
 
-        Context parent = extract(traceparent);
-        SpanContext extracted = Span.fromContext(parent).getSpanContext();
         SpanBuilder builder = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME)
                 .spanBuilder(safeSpanName(spanName))
                 .setSpanKind(spanKind == null ? SpanKind.INTERNAL : spanKind);
@@ -144,5 +144,12 @@ public final class OtelTraceContext {
             return "community.internal";
         }
         return spanName.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean shouldSwitchToExtracted(SpanContext active, SpanContext extracted) {
+        return active != null
+                && extracted != null
+                && extracted.isValid()
+                && !extracted.getTraceId().equals(active.getTraceId());
     }
 }

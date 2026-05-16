@@ -13,6 +13,10 @@ public final class TraceKafkaHeaders {
     private TraceKafkaHeaders() {
     }
 
+    public static void inject(Headers headers) {
+        inject(headers, TraceContextSnapshot.currentOrNew());
+    }
+
     public static void inject(Headers headers, TraceContextSnapshot snapshot) {
         if (headers == null || snapshot == null) {
             return;

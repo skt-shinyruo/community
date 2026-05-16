@@ -1,6 +1,9 @@
 package com.nowcoder.community.common.tx;
 
+import com.nowcoder.community.common.trace.OtelTraceContext;
+import com.nowcoder.community.common.trace.TraceContextScope;
 import com.nowcoder.community.common.trace.TraceContextSnapshot;
+import io.opentelemetry.api.trace.SpanKind;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -22,7 +25,16 @@ public final class AfterCommitExecutor {
             return;
         }
 
-        Runnable tracedAction = TraceContextSnapshot.currentOrNew().wrap(action);
+        TraceContextSnapshot captured = TraceContextSnapshot.currentOrNew();
+        Runnable tracedAction = () -> {
+            try (TraceContextScope ignored = OtelTraceContext.openForInbound(
+                    captured.traceparent(),
+                    "tx.after_commit",
+                    SpanKind.INTERNAL
+            )) {
+                action.run();
+            }
+        };
 
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

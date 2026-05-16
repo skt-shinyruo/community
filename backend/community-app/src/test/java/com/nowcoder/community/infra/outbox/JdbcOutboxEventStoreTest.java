@@ -2,6 +2,11 @@ package com.nowcoder.community.common.outbox;
 
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.trace.TraceContext;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.context.Scope;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
@@ -29,14 +34,22 @@ class JdbcOutboxEventStoreTest {
             JdbcOutboxEventStore store = new JdbcOutboxEventStore(jdbcTemplate);
 
             Instant now = Instant.parse("2026-03-14T00:00:00Z");
-            TraceContext.set("dddddddddddddddddddddddddddddddd");
-
-            boolean inserted = store.enqueue(
-                    "e-1:points",
-                    "projection.points",
-                    "1",
-                    "{\"userId\":1,\"delta\":10}"
+            SpanContext spanContext = SpanContext.create(
+                    "dddddddddddddddddddddddddddddddd",
+                    "1234567890abcdef",
+                    TraceFlags.getSampled(),
+                    TraceState.getDefault()
             );
+
+            boolean inserted;
+            try (Scope ignored = Span.wrap(spanContext).makeCurrent()) {
+                inserted = store.enqueue(
+                        "e-1:points",
+                        "projection.points",
+                        "1",
+                        "{\"userId\":1,\"delta\":10}"
+                );
+            }
             assertThat(inserted).isTrue();
 
             List<OutboxEvent> due = store.findDuePending(10, now);
@@ -49,7 +62,7 @@ class JdbcOutboxEventStoreTest {
             assertThat(ev.topic()).isEqualTo("projection.points");
             assertThat(ev.status()).isEqualTo(OutboxEventStatus.PENDING);
             assertThat(ev.traceId()).isEqualTo("dddddddddddddddddddddddddddddddd");
-            assertThat(ev.traceparent()).startsWith("00-dddddddddddddddddddddddddddddddd-");
+            assertThat(ev.traceparent()).isEqualTo("00-dddddddddddddddddddddddddddddddd-1234567890abcdef-01");
 
             Instant leaseUntil = now.plusSeconds(30);
             boolean claimed = store.tryClaimProcessing(ev.id(), leaseUntil, now);

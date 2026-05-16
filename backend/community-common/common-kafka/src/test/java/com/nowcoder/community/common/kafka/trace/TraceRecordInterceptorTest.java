@@ -3,6 +3,11 @@ package com.nowcoder.community.common.kafka.trace;
 import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceId;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.context.Scope;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.record.TimestampType;
@@ -86,6 +91,31 @@ class TraceRecordInterceptorTest {
         interceptor.afterRecord(recordB, null);
 
         assertThat(TraceId.get()).isNull();
+    }
+
+    @Test
+    void interceptorShouldUseRecordTraceWhenAnotherOtelSpanIsActive() {
+        ConsumerRecord<Object, Object> record = recordWithTrace(
+                "topic-a",
+                1L,
+                "cccccccccccccccccccccccccccccccc"
+        );
+        SpanContext activeSpanContext = SpanContext.create(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "bbbbbbbbbbbbbbbb",
+                TraceFlags.getSampled(),
+                TraceState.getDefault()
+        );
+        TraceRecordInterceptor interceptor = new TraceRecordInterceptor();
+
+        try (Scope ignored = Span.wrap(activeSpanContext).makeCurrent()) {
+            interceptor.intercept(record, null);
+
+            assertThat(TraceId.get()).isEqualTo("cccccccccccccccccccccccccccccccc");
+
+            interceptor.afterRecord(record, null);
+            assertThat(TraceId.get()).isEqualTo("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        }
     }
 
     private ConsumerRecord<Object, Object> recordWithTrace(String topic, long offset, String traceId) {

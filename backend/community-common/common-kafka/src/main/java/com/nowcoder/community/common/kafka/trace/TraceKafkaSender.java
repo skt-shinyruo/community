@@ -1,6 +1,5 @@
 package com.nowcoder.community.common.kafka.trace;
 
-import com.nowcoder.community.common.trace.TraceContextSnapshot;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
@@ -19,7 +18,7 @@ public final class TraceKafkaSender {
             V value
     ) {
         ProducerRecord<K, V> record = new ProducerRecord<>(topic, key, value);
-        TraceKafkaHeaders.inject(record.headers(), TraceContextSnapshot.currentOrNew());
+        TraceKafkaHeaders.inject(record.headers());
         return kafkaTemplate.send(record);
     }
 }

@@ -5,6 +5,11 @@ import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.context.Scope;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -35,7 +40,6 @@ class CommandProducerTest {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
-        TraceContext.set("abababababababababababababababab");
         CommandProducer producer = new CommandProducer(kafkaTemplate);
         SendPrivateTextCommand command = new SendPrivateTextCommand(
                 "req-1",
@@ -47,7 +51,9 @@ class CommandProducerTest {
                 1L
         );
 
-        producer.sendPrivateText(command);
+        try (Scope ignored = activeSpan("abababababababababababababababab", "1234567890abcdef")) {
+            producer.sendPrivateText(command);
+        }
 
         ArgumentCaptor<ProducerRecord<String, Object>> captor = ArgumentCaptor.forClass(ProducerRecord.class);
         verify(kafkaTemplate).send(captor.capture());
@@ -56,7 +62,7 @@ class CommandProducerTest {
         assertThat(record.key()).isEqualTo("conv-1");
         assertThat(record.value()).isEqualTo(command);
         assertThat(new String(record.headers().lastHeader(TraceHeaders.HEADER_TRACEPARENT).value(), StandardCharsets.UTF_8))
-                .startsWith("00-abababababababababababababababab-");
+                .isEqualTo("00-abababababababababababababababab-1234567890abcdef-01");
     }
 
     @Test
@@ -65,7 +71,6 @@ class CommandProducerTest {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
-        TraceContext.set("bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc");
         CommandProducer producer = new CommandProducer(kafkaTemplate);
         UUID roomId = UUID.fromString("00000000-0000-0000-0000-000000000003");
         SendRoomTextCommand command = new SendRoomTextCommand(
@@ -77,7 +82,9 @@ class CommandProducerTest {
                 2L
         );
 
-        producer.sendRoomText(command);
+        try (Scope ignored = activeSpan("bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc", "abcdef1234567890")) {
+            producer.sendRoomText(command);
+        }
 
         ArgumentCaptor<ProducerRecord<String, Object>> captor = ArgumentCaptor.forClass(ProducerRecord.class);
         verify(kafkaTemplate).send(captor.capture());
@@ -86,6 +93,16 @@ class CommandProducerTest {
         assertThat(record.key()).isEqualTo(String.valueOf(roomId));
         assertThat(record.value()).isEqualTo(command);
         assertThat(new String(record.headers().lastHeader(TraceHeaders.HEADER_TRACEPARENT).value(), StandardCharsets.UTF_8))
-                .startsWith("00-bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc-");
+                .isEqualTo("00-bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc-abcdef1234567890-01");
+    }
+
+    private Scope activeSpan(String traceId, String spanId) {
+        SpanContext spanContext = SpanContext.create(
+                traceId,
+                spanId,
+                TraceFlags.getSampled(),
+                TraceState.getDefault()
+        );
+        return Span.wrap(spanContext).makeCurrent();
     }
 }

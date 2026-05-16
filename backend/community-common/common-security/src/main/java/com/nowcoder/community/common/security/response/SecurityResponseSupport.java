@@ -15,11 +15,19 @@ public final class SecurityResponseSupport {
     }
 
     public static Result<Void> unauthorized(String traceId, BiConsumer<String, String> headerWriter) {
-        return build(Result.error(CommonErrorCode.UNAUTHORIZED), traceId, headerWriter);
+        return unauthorized(traceId, null, headerWriter);
+    }
+
+    public static Result<Void> unauthorized(String traceId, String traceparent, BiConsumer<String, String> headerWriter) {
+        return build(Result.error(CommonErrorCode.UNAUTHORIZED), traceId, traceparent, headerWriter);
     }
 
     public static Result<Void> forbidden(String traceId, BiConsumer<String, String> headerWriter) {
-        return build(Result.error(CommonErrorCode.FORBIDDEN), traceId, headerWriter);
+        return forbidden(traceId, null, headerWriter);
+    }
+
+    public static Result<Void> forbidden(String traceId, String traceparent, BiConsumer<String, String> headerWriter) {
+        return build(Result.error(CommonErrorCode.FORBIDDEN), traceId, traceparent, headerWriter);
     }
 
     public static String resolveTraceId(String currentTraceId, String traceparent) {
@@ -38,13 +46,14 @@ public final class SecurityResponseSupport {
         return TraceContextSnapshot.currentOrNew().traceId();
     }
 
-    private static Result<Void> build(Result<Void> body, String traceId, BiConsumer<String, String> headerWriter) {
+    private static Result<Void> build(Result<Void> body, String traceId, String traceparent, BiConsumer<String, String> headerWriter) {
         String activeTraceparent = OtelTraceContext.currentTraceparent();
-        String resolvedTraceId = resolveTraceId(traceId, activeTraceparent);
+        String fallbackTraceparent = activeTraceparent == null ? traceparent : activeTraceparent;
+        String resolvedTraceId = resolveTraceId(traceId, fallbackTraceparent);
         if (resolvedTraceId != null && !resolvedTraceId.isBlank()) {
             body.setTraceId(resolvedTraceId);
             if (headerWriter != null) {
-                String headerTraceparent = activeTraceparent;
+                String headerTraceparent = fallbackTraceparent;
                 if (!resolvedTraceId.equals(TraceIdCodec.extractTraceIdFromTraceparent(headerTraceparent))) {
                     headerTraceparent = TraceIdCodec.buildTraceparent(resolvedTraceId);
                 }

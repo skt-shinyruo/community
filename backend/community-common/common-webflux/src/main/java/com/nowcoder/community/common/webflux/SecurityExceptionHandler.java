@@ -28,7 +28,7 @@ public class SecurityExceptionHandler implements ServerAuthenticationEntryPoint,
         return write(
                 exchange,
                 HttpStatus.UNAUTHORIZED,
-                SecurityResponseSupport.unauthorized(resolveTraceId(exchange), exchange.getResponse().getHeaders()::set)
+                SecurityResponseSupport.unauthorized(resolveTraceId(exchange), traceparent(exchange), exchange.getResponse().getHeaders()::set)
         );
     }
 
@@ -37,15 +37,19 @@ public class SecurityExceptionHandler implements ServerAuthenticationEntryPoint,
         return write(
                 exchange,
                 HttpStatus.FORBIDDEN,
-                SecurityResponseSupport.forbidden(resolveTraceId(exchange), exchange.getResponse().getHeaders()::set)
+                SecurityResponseSupport.forbidden(resolveTraceId(exchange), traceparent(exchange), exchange.getResponse().getHeaders()::set)
         );
     }
 
     private String resolveTraceId(ServerWebExchange exchange) {
         return SecurityResponseSupport.resolveTraceId(
                 null,
-                exchange == null ? null : exchange.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT)
+                traceparent(exchange)
         );
+    }
+
+    private String traceparent(ServerWebExchange exchange) {
+        return exchange == null ? null : exchange.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT);
     }
 
     private Mono<Void> write(ServerWebExchange exchange, HttpStatus status, Result<?> body) {

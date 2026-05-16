@@ -25,8 +25,9 @@ class SecurityExceptionHandlerTest {
     @Test
     void commence_shouldWriteUnifiedUnauthorizedResult() {
         SecurityExceptionHandler handler = new SecurityExceptionHandler(objectMapper);
+        String traceparent = traceparent("abcdefabcdefabcdefabcdefabcdefab");
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/secure")
-                .header(TraceHeaders.HEADER_TRACEPARENT, traceparent("abcdefabcdefabcdefabcdefabcdefab"))
+                .header(TraceHeaders.HEADER_TRACEPARENT, traceparent)
                 .build());
 
         try (Scope ignored = activeSpan()) {
@@ -46,8 +47,9 @@ class SecurityExceptionHandlerTest {
     @Test
     void handle_shouldWriteUnifiedForbiddenResult() {
         SecurityExceptionHandler handler = new SecurityExceptionHandler(objectMapper);
+        String traceparent = traceparent("abcdefabcdefabcdefabcdefabcdefab");
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/secure")
-                .header(TraceHeaders.HEADER_TRACEPARENT, traceparent("abcdefabcdefabcdefabcdefabcdefab"))
+                .header(TraceHeaders.HEADER_TRACEPARENT, traceparent)
                 .build());
 
         try (Scope ignored = activeSpan()) {
@@ -66,6 +68,22 @@ class SecurityExceptionHandlerTest {
 
     private static String traceparent(String traceId) {
         return "00-" + traceId + "-00f067aa0ba902b7-01";
+    }
+
+    @Test
+    void commenceShouldPreserveRequestTraceparentWhenNoActiveOtelSpan() {
+        SecurityExceptionHandler handler = new SecurityExceptionHandler(objectMapper);
+        String traceparent = traceparent("abcdefabcdefabcdefabcdefabcdefab");
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/secure")
+                .header(TraceHeaders.HEADER_TRACEPARENT, traceparent)
+                .build());
+
+        StepVerifier.create(handler.commence(exchange, null)).verifyComplete();
+
+        JsonNode body = readBody(exchange);
+        assertThat(exchange.getResponse().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT))
+                .isEqualTo(traceparent);
+        assertThat(body.path("traceId").asText()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
     }
 
     private Scope activeSpan() {

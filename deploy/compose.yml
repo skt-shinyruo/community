@@ -37,5 +37,3 @@ volumes:
     name: ${COMMUNITY_VOLUME_NAMESPACE}_elasticsearch_node_2_data
   elasticsearch_node_3_data:
     name: ${COMMUNITY_VOLUME_NAMESPACE}_elasticsearch_node_3_data
-  observability_logs:
-    name: ${COMMUNITY_VOLUME_NAMESPACE}_observability_logs

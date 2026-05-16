@@ -35,7 +35,7 @@ services:
     - --config=/etc/otelcol/config.yaml
     volumes:
     - ./observability/edot-collector.yml:/etc/otelcol/config.yaml:ro
-    - observability_logs:/var/log/community:ro
+    - /var/lib/docker/containers:/var/lib/docker/containers:ro
     depends_on:
       es-init:
         condition: service_completed_successfully

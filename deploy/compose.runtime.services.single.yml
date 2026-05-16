@@ -6,9 +6,6 @@ x-community-app-base: &community-app-base
       MODULE: community-app
       OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
   mem_limit: ${COMMUNITY_APP_MEM_LIMIT:-768m}
-  volumes:
-  - observability_logs:/var/log/community
-
 x-community-oss-base: &community-oss-base
   build:
     context: ../backend
@@ -17,9 +14,6 @@ x-community-oss-base: &community-oss-base
       MODULE: community-oss
       OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
   mem_limit: ${COMMUNITY_OSS_MEM_LIMIT:-512m}
-  volumes:
-  - observability_logs:/var/log/community
-
 x-community-gateway-base: &community-gateway-base
   build:
     context: ../backend
@@ -28,9 +22,6 @@ x-community-gateway-base: &community-gateway-base
       MODULE: community-gateway
       OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
   mem_limit: ${COMMUNITY_GATEWAY_MEM_LIMIT:-512m}
-  volumes:
-  - observability_logs:/var/log/community
-
 x-community-im-gateway-base: &community-im-gateway-base
   build:
     context: ../backend
@@ -39,9 +30,6 @@ x-community-im-gateway-base: &community-im-gateway-base
       MODULE: community-im-gateway
       OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
   mem_limit: ${COMMUNITY_IM_GATEWAY_MEM_LIMIT:-512m}
-  volumes:
-  - observability_logs:/var/log/community
-
 x-im-core-base: &im-core-base
   build:
     context: ../backend
@@ -50,9 +38,6 @@ x-im-core-base: &im-core-base
       MODULE: im-core
       OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
   mem_limit: ${IM_CORE_MEM_LIMIT:-640m}
-  volumes:
-  - observability_logs:/var/log/community
-
 x-im-realtime-base: &im-realtime-base
   build:
     context: ../backend
@@ -61,9 +46,6 @@ x-im-realtime-base: &im-realtime-base
       MODULE: im-realtime
       OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
   mem_limit: ${IM_REALTIME_MEM_LIMIT:-640m}
-  volumes:
-  - observability_logs:/var/log/community
-
 services:
   community-app:
     <<: *community-app-base
@@ -73,12 +55,13 @@ services:
     - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
     - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
     - OTEL_SERVICE_NAME=community-app
-    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=${DEPLOYMENT_ENVIRONMENT:-local-compose}
     - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - COMMUNITY_LOGGING_DEPLOYMENT_ENVIRONMENT=${DEPLOYMENT_ENVIRONMENT:-local-compose}
+    - COMMUNITY_LOG_FORMAT=${COMMUNITY_LOG_FORMAT:-json}
+    - OTEL_LOGS_COLLECTION=${OTEL_LOGS_COLLECTION:-stdout}
     - JAVA_OPTS=${COMMUNITY_APP_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=256m -XX:+ExitOnOutOfMemoryError}
-    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
-    - COMMUNITY_LOGGING_DIR=/var/log/community
-    - COMMUNITY_LOGGING_FILE_NAME=community-app.json.log
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},json-logs
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
@@ -142,12 +125,13 @@ services:
     - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
     - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
     - OTEL_SERVICE_NAME=community-oss
-    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=${DEPLOYMENT_ENVIRONMENT:-local-compose}
     - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - COMMUNITY_LOGGING_DEPLOYMENT_ENVIRONMENT=${DEPLOYMENT_ENVIRONMENT:-local-compose}
+    - COMMUNITY_LOG_FORMAT=${COMMUNITY_LOG_FORMAT:-json}
+    - OTEL_LOGS_COLLECTION=${OTEL_LOGS_COLLECTION:-stdout}
     - JAVA_OPTS=${COMMUNITY_OSS_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
-    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
-    - COMMUNITY_LOGGING_DIR=/var/log/community
-    - COMMUNITY_LOGGING_FILE_NAME=community-oss.json.log
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},json-logs
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
@@ -190,12 +174,13 @@ services:
     - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
     - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
     - OTEL_SERVICE_NAME=community-gateway
-    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=${DEPLOYMENT_ENVIRONMENT:-local-compose}
     - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - COMMUNITY_LOGGING_DEPLOYMENT_ENVIRONMENT=${DEPLOYMENT_ENVIRONMENT:-local-compose}
+    - COMMUNITY_LOG_FORMAT=${COMMUNITY_LOG_FORMAT:-json}
+    - OTEL_LOGS_COLLECTION=${OTEL_LOGS_COLLECTION:-stdout}
     - JAVA_OPTS=${COMMUNITY_GATEWAY_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
-    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
-    - COMMUNITY_LOGGING_DIR=/var/log/community
-    - COMMUNITY_LOGGING_FILE_NAME=community-gateway.json.log
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},json-logs
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
@@ -234,12 +219,13 @@ services:
     - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
     - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
     - OTEL_SERVICE_NAME=community-im-gateway
-    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=${DEPLOYMENT_ENVIRONMENT:-local-compose}
     - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - COMMUNITY_LOGGING_DEPLOYMENT_ENVIRONMENT=${DEPLOYMENT_ENVIRONMENT:-local-compose}
+    - COMMUNITY_LOG_FORMAT=${COMMUNITY_LOG_FORMAT:-json}
+    - OTEL_LOGS_COLLECTION=${OTEL_LOGS_COLLECTION:-stdout}
     - JAVA_OPTS=${COMMUNITY_IM_GATEWAY_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
-    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
-    - COMMUNITY_LOGGING_DIR=/var/log/community
-    - COMMUNITY_LOGGING_FILE_NAME=community-im-gateway.json.log
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},json-logs
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
@@ -266,12 +252,13 @@ services:
     - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
     - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
     - OTEL_SERVICE_NAME=im-core
-    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=${DEPLOYMENT_ENVIRONMENT:-local-compose}
     - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - COMMUNITY_LOGGING_DEPLOYMENT_ENVIRONMENT=${DEPLOYMENT_ENVIRONMENT:-local-compose}
+    - COMMUNITY_LOG_FORMAT=${COMMUNITY_LOG_FORMAT:-json}
+    - OTEL_LOGS_COLLECTION=${OTEL_LOGS_COLLECTION:-stdout}
     - JAVA_OPTS=${IM_CORE_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
-    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
-    - COMMUNITY_LOGGING_DIR=/var/log/community
-    - COMMUNITY_LOGGING_FILE_NAME=im-core.json.log
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},json-logs
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
@@ -303,12 +290,13 @@ services:
     - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
     - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
     - OTEL_SERVICE_NAME=im-realtime
-    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=${DEPLOYMENT_ENVIRONMENT:-local-compose}
     - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - COMMUNITY_LOGGING_DEPLOYMENT_ENVIRONMENT=${DEPLOYMENT_ENVIRONMENT:-local-compose}
+    - COMMUNITY_LOG_FORMAT=${COMMUNITY_LOG_FORMAT:-json}
+    - OTEL_LOGS_COLLECTION=${OTEL_LOGS_COLLECTION:-stdout}
     - JAVA_OPTS=${IM_REALTIME_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
-    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
-    - COMMUNITY_LOGGING_DIR=/var/log/community
-    - COMMUNITY_LOGGING_FILE_NAME=im-realtime.json.log
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},json-logs
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}

@@ -1,5 +1,10 @@
 package com.nowcoder.community.common.trace;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.context.Scope;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
@@ -52,6 +57,26 @@ class TraceContextSnapshotTest {
     }
 
     @Test
+    void currentOrNewShouldUseActiveOtelSpanBeforeLegacyThreadLocal() {
+        TraceContext.set("11111111111111111111111111111111");
+        SpanContext spanContext = SpanContext.create(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "bbbbbbbbbbbbbbbb",
+                TraceFlags.getSampled(),
+                TraceState.getDefault()
+        );
+
+        try (Scope ignored = Span.wrap(spanContext).makeCurrent()) {
+            TraceContextSnapshot snapshot = TraceContextSnapshot.currentOrNew();
+
+            assertThat(snapshot.traceId()).isEqualTo("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+            assertThat(snapshot.spanId()).isEqualTo("bbbbbbbbbbbbbbbb");
+            assertThat(snapshot.traceparent()).isEqualTo("00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01");
+            assertThat(TraceId.get()).isEqualTo("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        }
+    }
+
+    @Test
     void fromStoredShouldRecoverFromTraceparentWhenTraceIdIsMissingOrInvalid() {
         String traceparent = "00-44444444444444444444444444444444-00f067aa0ba902b7-01";
 
@@ -85,17 +110,23 @@ class TraceContextSnapshotTest {
 
         try (TraceContextScope ignored = snapshot.open()) {
             assertThat(TraceId.get()).isEqualTo("22222222222222222222222222222222");
-            assertThat(MDC.get("traceId")).isEqualTo("22222222222222222222222222222222");
+            assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("22222222222222222222222222222222");
+            assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isEqualTo("00f067aa0ba902b7");
+            assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo("22222222222222222222222222222222");
         }
 
         assertThat(TraceId.get()).isEqualTo("11111111111111111111111111111111");
-        assertThat(MDC.get("traceId")).isEqualTo("11111111111111111111111111111111");
+        assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("11111111111111111111111111111111");
+        assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isNull();
+        assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo("11111111111111111111111111111111");
     }
 
     @Test
     void openShouldRestoreDivergedPreviousTraceAndMdcExactly() {
         TraceId.set("previous-thread-trace");
         MDC.put(TraceContext.MDC_KEY_TRACE_ID, "previous-mdc-trace");
+        MDC.put(TraceContext.MDC_KEY_SPAN_ID, "previous-mdc-span");
+        MDC.put(TraceContext.MDC_KEY_LEGACY_TRACE_ID, "previous-legacy-trace");
         TraceContextSnapshot snapshot = TraceContextSnapshot.fromStored(
                 "22222222222222222222222222222222",
                 "00-22222222222222222222222222222222-00f067aa0ba902b7-01"
@@ -104,10 +135,14 @@ class TraceContextSnapshotTest {
         try (TraceContextScope ignored = snapshot.open()) {
             assertThat(TraceId.get()).isEqualTo("22222222222222222222222222222222");
             assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("22222222222222222222222222222222");
+            assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isEqualTo("00f067aa0ba902b7");
+            assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo("22222222222222222222222222222222");
         }
 
         assertThat(TraceId.get()).isEqualTo("previous-thread-trace");
         assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("previous-mdc-trace");
+        assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isEqualTo("previous-mdc-span");
+        assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo("previous-legacy-trace");
     }
 
     @Test
@@ -122,6 +157,8 @@ class TraceContextSnapshotTest {
 
         assertThat(seen.get()).isEqualTo("33333333333333333333333333333333");
         assertThat(TraceId.get()).isNull();
-        assertThat(MDC.get("traceId")).isNull();
+        assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isNull();
+        assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isNull();
+        assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isNull();
     }
 }

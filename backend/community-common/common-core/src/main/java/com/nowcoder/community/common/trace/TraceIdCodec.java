@@ -37,6 +37,17 @@ public final class TraceIdCodec {
         return t.toLowerCase();
     }
 
+    public static String normalizeSpanId(String spanId) {
+        if (spanId == null || spanId.isBlank()) {
+            return null;
+        }
+        String s = spanId.trim();
+        if (!isHex(s, 16) || isAllZeros(s)) {
+            return null;
+        }
+        return s.toLowerCase();
+    }
+
     /**
      * 从 W3C Trace Context 的 traceparent 中提取 traceId。
      * 格式：version-traceid-spanid-flags，例如：
@@ -62,6 +73,17 @@ public final class TraceIdCodec {
         return normalizeTraceId(parts[1]);
     }
 
+    public static String extractSpanIdFromTraceparent(String traceparent) {
+        if (traceparent == null || traceparent.isBlank()) {
+            return null;
+        }
+        String[] parts = traceparent.trim().split("-");
+        if (parts.length != 4 || extractTraceIdFromTraceparent(traceparent) == null) {
+            return null;
+        }
+        return normalizeSpanId(parts[2]);
+    }
+
     /**
      * 解析请求侧 traceId：使用合法 traceparent，缺失/非法则生成新的 traceId。
      */
@@ -74,10 +96,26 @@ public final class TraceIdCodec {
      * 构造 W3C traceparent：00-traceid-spanid-01
      */
     public static String buildTraceparent(String traceId) {
+        return buildTraceparent(traceId, null, "01");
+    }
+
+    public static String buildTraceparent(String traceId, String spanId, String flags) {
         String t = normalizeTraceId(traceId);
         if (t == null) {
             t = generateTraceId();
         }
+        String s = normalizeSpanId(spanId);
+        if (s == null) {
+            s = generateSpanId();
+        }
+        String f = flags == null ? null : flags.trim().toLowerCase();
+        if (f == null || !isHex(f, 2)) {
+            f = "01";
+        }
+        return "00-" + t + "-" + s + "-" + f;
+    }
+
+    private static String generateSpanId() {
         String spanId = Long.toHexString(UUID.randomUUID().getMostSignificantBits());
         spanId = spanId.replace("-", "");
         if (spanId.length() < 16) {
@@ -85,9 +123,10 @@ public final class TraceIdCodec {
         } else if (spanId.length() > 16) {
             spanId = spanId.substring(spanId.length() - 16);
         }
-        spanId = spanId.toLowerCase();
-        // Keep the sampled bit set on bridge-generated parents until sampling is modeled separately.
-        return "00-" + t + "-" + spanId + "-01";
+        if (isAllZeros(spanId)) {
+            return "0000000000000001";
+        }
+        return spanId.toLowerCase();
     }
 
     private static boolean isHex(String value, int expectedLength) {

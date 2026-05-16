@@ -9,6 +9,8 @@ public final class TraceJobRunner {
         if (action == null) {
             return;
         }
-        TraceContextSnapshot.currentOrNew().wrap(action).run();
+        try (TraceContextScope ignored = OtelTraceContext.openInternalSpan(jobName)) {
+            action.run();
+        }
     }
 }

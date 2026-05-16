@@ -9,12 +9,18 @@ import org.slf4j.MDC;
  */
 public final class TraceContext {
 
-    public static final String MDC_KEY_TRACE_ID = "traceId";
+    public static final String MDC_KEY_TRACE_ID = "trace.id";
+    public static final String MDC_KEY_SPAN_ID = "span.id";
+    public static final String MDC_KEY_LEGACY_TRACE_ID = "traceId";
 
     private TraceContext() {
     }
 
     public static void set(String traceId) {
+        set(traceId, null);
+    }
+
+    public static void set(String traceId, String spanId) {
         if (traceId == null || traceId.isBlank()) {
             return;
         }
@@ -24,10 +30,19 @@ public final class TraceContext {
         }
         TraceId.set(t);
         MDC.put(MDC_KEY_TRACE_ID, t);
+        MDC.put(MDC_KEY_LEGACY_TRACE_ID, t);
+        String normalizedSpanId = TraceIdCodec.normalizeSpanId(spanId);
+        if (normalizedSpanId == null) {
+            MDC.remove(MDC_KEY_SPAN_ID);
+            return;
+        }
+        MDC.put(MDC_KEY_SPAN_ID, normalizedSpanId);
     }
 
     public static void clear() {
         MDC.remove(MDC_KEY_TRACE_ID);
+        MDC.remove(MDC_KEY_SPAN_ID);
+        MDC.remove(MDC_KEY_LEGACY_TRACE_ID);
         TraceId.clear();
     }
 }

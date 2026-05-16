@@ -27,9 +27,9 @@ observability 默认启用；如需关闭整个 overlay，追加 `--no-observabi
 日志数据流：
 
 ```text
-backend structured JSON file appender
-  -> shared observability volume
-  -> EDOT collector filelog receiver
+backend SLF4J / Logback JSON stdout
+  -> Docker container logs
+  -> EDOT collector logs pipeline
   -> Elasticsearch
   -> Kibana
 ```
@@ -70,7 +70,7 @@ deploy/observability/kibana/README.md
 
 ### 运行态日志
 
-主要后端 deployable 默认启用业务无关运行态日志，包括 `community-app`、`community-oss`、`im-core`、`im-realtime`、`community-gateway` 和 `community-im-gateway`。日志仍走现有 JSON appender 和 observability volume。运行态日志只记录启动摘要、阈值事件和慢请求事件，不记录请求 body、cookie、Authorization、SQL bind、Redis key、Kafka payload 或完整 object key。
+主要后端 deployable 默认启用业务无关运行态日志，包括 `community-app`、`community-oss`、`im-core`、`im-realtime`、`community-gateway` 和 `community-im-gateway`。日志走共享 Logback JSON stdout 配置，由 EDOT Collector 从 Docker container logs 采集。运行态日志只记录启动摘要、阈值事件和慢请求事件，不记录请求 body、cookie、Authorization、SQL bind、Redis key、Kafka payload 或完整 object key。
 
 当前覆盖：
 
@@ -263,8 +263,8 @@ curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realt
 检查：
 
 - 启动命令是否没有带 `--no-observability`。
-- backend 是否写入 shared `community_cluster_observability_logs` / `community_single_observability_logs` volume。
-- EDOT collector 是否正常运行。
+- backend 是否在 `docker compose logs <service>` 中输出 JSON stdout（包含 `service.name`、`trace.id` 等字段）。
+- EDOT collector 是否正常运行，并挂载了 `/var/lib/docker/containers`。
 - Kibana saved objects 是否已导入。
 - 日志查询时间范围是否覆盖当前时间。
 

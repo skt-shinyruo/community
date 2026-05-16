@@ -139,7 +139,7 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
 - Elasticsearch localhost 入口
 - Kibana
 - EDOT collector
-- backend structured JSON logs -> shared volume -> collector -> Elastic
+- backend structured JSON stdout -> Docker container logs -> collector -> Elastic
 
 详细排障和 Kibana 资产见 [operations.md](operations.md)。
 

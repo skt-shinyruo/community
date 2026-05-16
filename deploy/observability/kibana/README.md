@@ -41,7 +41,7 @@ curl -sS -X POST "http://localhost:12889/api/saved_objects/_import?overwrite=tru
 
 ## Notes
 
-- `logs-*` comes from structured JSON logs written into the shared observability logs volume
+- `logs-*` comes from structured JSON backend stdout collected from Docker container logs by the EDOT Collector
 - `traces-*` is populated by default when services are started through `deployment.sh`; use `OTEL_ENABLED=false` to keep the overlay but opt out of tracing, or `--no-observability` to disable the overlay
 - Use `trace.id` to pivot between logs and spans; use business `requestId` only for idempotency or message acknowledgement questions
 - The saved objects are intended as a stable troubleshooting starting point, not as a full alerting solution

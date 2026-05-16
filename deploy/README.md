@@ -149,4 +149,4 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
 - Elasticsearch：`http://localhost:12888`
 - Kibana：`http://localhost:12889`
 
-更多说明见 `docs/handbook/operations.md`。
+日志路径是 backend JSON stdout -> Docker container logs -> EDOT collector -> Elasticsearch / Kibana。更多说明见 `docs/handbook/operations.md`。

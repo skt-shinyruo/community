@@ -46,7 +46,12 @@ operationally tuned after deployment:
 - IM session, worker, timeout, and public WebSocket settings,
 - runtime observability thresholds and log toggles,
 - outbox, analytics, search cleanup, and scheduled workload thresholds,
-- OSS public URLs and non-secret object-store routing values.
+- OSS public URLs and non-secret object-store routing values,
+- browser-facing runtime config that currently has to be baked into frontend build
+  or inferred from gateway URLs,
+- feature flags, degradation switches, canary rules, and release-track routing,
+- cache TTLs, media/upload policy, search policy, notification presentation
+  templates, and non-secret Kafka / outbox routing settings.
 
 Keeping these values only in packaged files and compose env vars creates avoidable
 friction:
@@ -69,22 +74,30 @@ Nacos.
 - Keep Nacos Discovery registration behavior intact.
 - Define a clear taxonomy for what belongs in Nacos Config, what remains in env,
   and what must stay in a secret store.
+- Move every eligible non-secret runtime and operational property into Nacos Config
+  seed dataIds, with an explicit "dynamic" or "restart required" behavior for each
+  property family.
 - Seed local Nacos Config dataIds for `single` and `cluster` topologies so local
   compose remains reproducible.
 - Make production config import required and fail-fast; keep local development able
   to start from packaged defaults when Nacos Config is intentionally unavailable.
+- Add browser-facing runtime configuration published from backend-owned sanitized
+  config, not direct browser access to Nacos.
+- Add feature flag, degradation, and canary routing config that combines Nacos
+  Config rules with Nacos Discovery metadata.
 - Add service discovery metadata for environment, version, zone, traffic group,
-  protocol, capabilities, and worker identity.
-- Introduce dynamic refresh only for explicitly tested, low-risk configuration
-  surfaces.
+  release track, weight, protocol, capabilities, capacity, drain state, and worker
+  identity.
+- Implement dynamic refresh for safe operational surfaces and fail-fast
+  restart-required handling for high-risk infrastructure surfaces.
 - Update handbook and deploy docs so Nacos is documented as both discovery and
   config center after this work.
 
 ## Non-Goals
 
 - Do not move secrets into ordinary Nacos Config.
-- Do not replace deployment platform secrets, `.env` files, or future Secret
-  managers with Nacos.
+- Do not replace deployment platform secrets, `.env` files, or Secret managers with
+  Nacos.
 - Do not make every property dynamically refreshable.
 - Do not let business domain code call Nacos APIs directly.
 - Do not use same-domain `api.*`, domain models, mappers, or DDD business packages
@@ -128,11 +141,23 @@ not be required to find itself.
 
 ### Decision 3: DataIds Are Explicit
 
-Each backend deployable imports one shared dataId and one service dataId. Optional
-profile-specific dataIds can be added later, but phase 1 keeps the shape simple:
+Each backend deployable imports shared platform dataIds, domain capability dataIds
+that it owns or consumes, and one service dataId. DataIds are intentionally explicit
+so operators can review and roll back one category without editing a monolithic
+configuration document:
 
 ```text
 community-shared.yaml
+community-feature-flags.yaml
+community-degradation.yaml
+community-canary-routing.yaml
+community-frontend-runtime.yaml
+community-cache-policy.yaml
+community-search-policy.yaml
+community-upload-policy.yaml
+community-notification-policy.yaml
+community-kafka-policy.yaml
+community-work-processing.yaml
 community-gateway.yaml
 community-app.yaml
 community-oss.yaml
@@ -159,20 +184,38 @@ Production-like profiles use required imports. Missing or unreadable config must
 fail startup. `StartupValidation` should be updated so its Nacos guidance matches
 the real config import contract.
 
-### Decision 5: Dynamic Refresh Is Narrow
+### Decision 5: Refreshability Is Explicit Per Property Family
 
-Nacos Config publication does not automatically mean safe runtime behavior. Phase 1
-supports dynamic refresh only for these surfaces after tests prove the refresh path:
+Nacos Config publication does not automatically mean safe runtime behavior. Every
+property family moved to Nacos must be classified as either dynamically refreshable
+or restart-required. Dynamic refresh is required for:
 
 - gateway HTTP route table,
 - gateway IM edge route target,
 - gateway rate-limit policies,
 - gateway traffic-policy rules,
-- runtime observability thresholds and toggles.
+- feature flags,
+- degradation switches,
+- canary routing rules,
+- CORS and origin allowlists,
+- runtime observability thresholds and toggles,
+- frontend runtime config exposed through the backend runtime-config endpoint,
+- cache TTLs and search/upload presentation limits where consumers can safely read
+  updated `@ConfigurationProperties`.
 
-All other imported values are startup-time config until an explicit refresh design
-and tests are added. This includes auth token TTLs, outbox processing thresholds,
-OSS object-store wiring, search cleanup, analytics ingest, and IM session settings.
+Restart is required for:
+
+- credentials and secret references,
+- database, Redis, Kafka, Elasticsearch, object-store, mail, and XXL bootstrap
+  endpoints,
+- Kafka topic names and consumer group names,
+- OSS object-store endpoint, bucket, region, and path-style,
+- core JWT signing material,
+- service ports and management ports.
+
+If a property cannot be safely refreshed, it still belongs in Nacos Config when it
+is non-secret operational config, but the docs and tests must make its restart
+requirement explicit.
 
 ### Decision 6: Discovery Metadata Carries Runtime Routing Facts
 
@@ -184,9 +227,12 @@ version
 deployment.environment
 zone
 traffic.group
+release.track
+weight
 protocol
 capabilities
 management.port
+draining
 ```
 
 `im-realtime-worker` continues to register:
@@ -196,11 +242,15 @@ role=ws-worker
 workerId
 wsPath
 wsPort
+maxConnections
+activeConnectionHint
+shardGroup
 ```
 
-Gateway and IM gateway can later consume metadata for canary or zone-aware routing,
-but this spec only requires registration and documentation unless a route rule
-explicitly needs it.
+Gateway and IM gateway consume this metadata for canary, zone-aware routing,
+capacity-aware worker selection, and worker drain behavior as part of this design.
+`draining=true` means the instance remains registered for existing traffic but must
+not receive new IM session assignments or new canary traffic.
 
 ## Target Architecture
 
@@ -224,7 +274,7 @@ Local compose
 
 ## Configuration Taxonomy
 
-### Move To Nacos Config In Phase 1
+### Move To Nacos Config
 
 Gateway:
 
@@ -235,6 +285,8 @@ Gateway:
 - `gateway.http.routes`
 - `gateway.http.rate-limit`
 - `gateway.http.traffic-policy`
+- gateway canary routing rules keyed by service id, path, method, header, cookie,
+  user hash bucket, `traffic.group`, `release.track`, `zone`, and instance weight.
 
 IM:
 
@@ -253,6 +305,36 @@ IM:
 - `im.ws.path`
 - `im.ws.outbound-buffer-size`
 - `im.room-flush-interval-ms`
+- `im.realtime.worker.max-connections`
+- `im.realtime.worker.drain-enabled`
+- `im.realtime.worker.shard-group`
+- `im.realtime.worker.capacity-weight`
+- IM delivery degradation switches, such as disabling online push while preserving
+  HTTP backfill.
+
+Frontend runtime config:
+
+- browser API base path and public gateway origin,
+- browser WebSocket URL,
+- upload size and media policy hints that mirror backend upload policy,
+- feature-entry visibility flags,
+- analytics collection switch and sampling rate,
+- frontend release channel labels.
+
+The browser must not read Nacos directly. A backend-owned runtime-config endpoint
+returns a sanitized subset of Nacos Config with no secrets, internal hostnames, or
+operator-only policy details.
+
+Feature flags and degradation:
+
+- global read-only mode,
+- registration, login, post publishing, comment publishing, private message,
+  file upload, market trading, report/moderation, analytics ingest, and search
+  enablement switches,
+- per-capability degradation mode, such as `off`, `read-only`, `best-effort`, or
+  `strict`,
+- kill switches for expensive optional paths, including analytics capture, search
+  indexing, online IM push, media processing, and background projections.
 
 Security and edge policy:
 
@@ -273,6 +355,8 @@ Observability:
 - `community.observability.runtime-logging.*`
 - HTTP access log enablement, slow thresholds, and exclude paths.
 - low-cardinality deployment labels that are not already resource attributes.
+- trace/log sampling rates where supported.
+- runtime diagnostic verbosity switches for infrastructure adapters.
 
 Work processing:
 
@@ -288,6 +372,16 @@ Work processing:
 - `search.idempotency.*`
 - `analytics.max-days-range`
 - `analytics.ingest.*`
+- scheduler enablement, fixed-delay values, lock lease durations, recovery windows,
+  and cleanup retention periods.
+
+Kafka and async routing:
+
+- non-secret topic names,
+- non-secret consumer group names,
+- retry, DLQ, backoff, and batch parameters,
+- producer idempotence and in-flight limits when not secret,
+- projection bootstrap flags and snapshot refresh windows.
 
 OSS non-secret routing:
 
@@ -299,6 +393,41 @@ OSS non-secret routing:
 - `oss.object-store.region`
 - `oss.object-store.path-style`
 - `oss.object-store.local-root`
+
+Cache policy:
+
+- Redis-backed cache TTLs,
+- null-cache TTLs,
+- hotspot protection thresholds,
+- cache prewarm switches,
+- cache bypass switches for diagnostics,
+- stale-read allowance windows where supported.
+
+Search policy:
+
+- default sort and ranking knobs,
+- max page size and max result window,
+- query timeout,
+- ES index prefix and alias names,
+- reindex batch size and throttling,
+- search degradation switch and fallback behavior.
+
+Upload and media policy:
+
+- allowed MIME types,
+- extension allowlists,
+- max file size per domain use case,
+- max request size hints mirrored to clients,
+- image compression thresholds,
+- media feature switches for attachments, images, video, and avatar upload.
+
+Notification and template policy:
+
+- non-secret email sender display name,
+- notification title and link templates that contain no secrets and no business
+  state-machine logic,
+- per-channel enablement switches for email and in-app notices,
+- digest and batching windows.
 
 ### Keep In Environment Variables
 
@@ -390,6 +519,16 @@ deploy/nacos/config/
   community-im-gateway.yaml
   im-core.yaml
   im-realtime.yaml
+  community-feature-flags.yaml
+  community-degradation.yaml
+  community-canary-routing.yaml
+  community-frontend-runtime.yaml
+  community-cache-policy.yaml
+  community-search-policy.yaml
+  community-upload-policy.yaml
+  community-notification-policy.yaml
+  community-kafka-policy.yaml
+  community-work-processing.yaml
 deploy/nacos/seed-configs.sh
 ```
 
@@ -403,6 +542,29 @@ Add a `nacos-config-bootstrap` compose service that:
 
 The seed files contain only non-secret values. Any placeholder secret in seed files
 is a bug.
+
+### Refresh Matrix
+
+The implementation must document and test the behavior of each imported dataId:
+
+| DataId | Behavior |
+| --- | --- |
+| `community-gateway.yaml` | dynamic |
+| `community-feature-flags.yaml` | dynamic |
+| `community-degradation.yaml` | dynamic |
+| `community-canary-routing.yaml` | dynamic |
+| `community-frontend-runtime.yaml` | dynamic |
+| `community-cache-policy.yaml` | dynamic when the consuming adapter supports it, otherwise restart-required with validation |
+| `community-search-policy.yaml` | dynamic for query limits and degradation, restart-required for index/alias wiring |
+| `community-upload-policy.yaml` | dynamic for allowlists and size policy, restart-required for servlet multipart hard limits |
+| `community-notification-policy.yaml` | dynamic |
+| `community-kafka-policy.yaml` | dynamic for retry/backoff/batch knobs, restart-required for topic and consumer group changes |
+| `community-work-processing.yaml` | dynamic for enablement and thresholds when worker loops read refreshed config, restart-required otherwise |
+| service dataIds | dynamic only for explicitly supported property groups; restart-required by default |
+
+Dynamic refresh requires tests that prove the application observes changed config
+without restart. Restart-required config requires startup validation and docs that
+say a config publish alone is insufficient.
 
 ### Configuration Classes And Refresh
 
@@ -420,7 +582,87 @@ Refreshable gateway surfaces need explicit runtime behavior:
 - refresh events are logged with dataId, group, changed property prefix, outcome,
   and trace-free process context.
 
-Non-refreshable surfaces may still come from Nacos at startup.
+Feature flags, degradation, frontend runtime config, cache/search/upload policy,
+notification policy, and work-processing settings need small application-owned
+accessors where direct `@ConfigurationProperties` refresh is not enough. These
+accessors live in application or infrastructure packages, not domain packages, and
+must expose typed values instead of raw maps.
+
+### Frontend Runtime Config Endpoint
+
+Add a sanitized runtime config endpoint owned by `community-app` or
+`community-gateway`:
+
+```text
+GET /api/runtime-config
+```
+
+The endpoint returns only browser-safe values derived from Nacos Config:
+
+- public API base path,
+- public WebSocket URL,
+- feature-entry visibility flags,
+- upload and media hints,
+- analytics switch and sample rate,
+- frontend release channel labels.
+
+It must not expose internal service ids, Nacos dataIds, Nacos server addresses,
+internal hostnames, credentials, raw canary rules, or operator-only degradation
+rules.
+
+### Feature Flag And Degradation Access
+
+Feature flag evaluation is a shared infrastructure/application concern. Business
+domain code must not read Nacos, raw config maps, or environment keys directly.
+Inbound adapters or application services read typed feature/degradation decisions
+from a local interface and then choose whether to execute the use case, return a
+stable disabled response, or route to a fallback.
+
+Flags must be low-cardinality and auditable. Each flag has:
+
+- key,
+- owner service,
+- default value,
+- allowed values,
+- refresh behavior,
+- failure behavior,
+- optional expiry/review date in docs.
+
+### Canary And Discovery-Aware Routing
+
+Gateway routing combines Nacos Config canary rules with Nacos Discovery metadata:
+
+```text
+request attributes
+  -> canary rule match
+      -> required discovery metadata selectors
+          -> Spring Cloud LoadBalancer instance choice
+```
+
+The minimum supported selectors are:
+
+- service id,
+- path prefix,
+- HTTP method,
+- request header,
+- cookie,
+- user hash bucket when user identity is available,
+- `traffic.group`,
+- `release.track`,
+- `zone`,
+- `weight`.
+
+If no healthy instance matches a canary selector, the route fails according to the
+rule's fallback policy: `stable`, `fail-closed`, or `fail-open`. The default is
+`stable`.
+
+IM gateway uses worker metadata for session assignment:
+
+- `draining=true` excludes a worker from new session assignment,
+- `maxConnections` and `activeConnectionHint` reduce assignment score when capacity
+  is low,
+- `zone` and `shardGroup` can prefer local or matching worker groups,
+- duplicate `workerId` still fails closed.
 
 ### Discovery Metadata
 
@@ -434,6 +676,9 @@ traffic.group: ${SERVICE_TRAFFIC_GROUP:baseline}
 protocol: http
 capabilities: ${SERVICE_CAPABILITIES:}
 management.port: ${MANAGEMENT_SERVER_PORT:${SERVER_PORT}}
+release.track: ${SERVICE_RELEASE_TRACK:stable}
+weight: ${SERVICE_WEIGHT:100}
+draining: ${SERVICE_DRAINING:false}
 ```
 
 `im-realtime` keeps and extends the existing worker metadata:
@@ -443,6 +688,9 @@ role: ws-worker
 wsPath: ${IM_WS_PATH:/internal/ws/im}
 wsPort: ${SERVER_PORT:18081}
 workerId: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
+maxConnections: ${IM_REALTIME_MAX_CONNECTIONS:10000}
+activeConnectionHint: ${IM_REALTIME_ACTIVE_CONNECTION_HINT:0}
+shardGroup: ${IM_REALTIME_SHARD_GROUP:default}
 ```
 
 Metadata values must be low-cardinality and must not include secrets, host-specific
@@ -469,6 +717,14 @@ when Nacos Config is actually enabled or required.
   config.
 - Invalid CORS or origin allowlist config fails closed in production-sensitive
   paths.
+- Invalid feature flag, degradation, frontend runtime, cache, search, upload, or
+  notification refresh keeps the last valid config and emits a structured config
+  refresh failure event.
+- Invalid canary routing rules are rejected before replacing active rules.
+- If canary selector metadata has no matching healthy instance, the rule fallback
+  decides whether to use stable instances or fail the request.
+- IM worker drain or capacity metadata changes must affect new session assignment
+  without interrupting existing WebSocket sessions.
 - Nacos Discovery outage after startup should not erase the last in-process gateway
   route config, but service instance lookup follows Spring Cloud LoadBalancer and
   existing IM gateway fail-closed behavior.
@@ -485,6 +741,11 @@ when Nacos Config is actually enabled or required.
   without secrets.
 - Runtime logs for config refresh must log dataId and prefix, not full config values.
 - CORS and origin guard defaults remain fail-closed for production.
+- Browser runtime config must be allowlisted field by field.
+- Feature flags and degradation switches must not bypass owner-domain application
+  services or move business rules into config.
+- Notification templates in Nacos must not contain executable expressions, SQL,
+  scripts, or state-machine logic.
 
 ## Testing Strategy
 
@@ -496,8 +757,15 @@ when Nacos Config is actually enabled or required.
   security-sensitive or route-sensitive.
 - Add gateway tests for refreshed route, rate-limit, and traffic-policy config.
 - Add tests that invalid refreshed gateway config keeps the last valid state.
+- Add feature flag and degradation evaluation tests for enabled, disabled,
+  read-only, and invalid config states.
+- Add runtime-config endpoint tests that prove only allowlisted browser-safe fields
+  are returned.
+- Add cache/search/upload/notification policy binding and validation tests.
+- Add canary routing tests for header, cookie, user hash, metadata selector,
+  weighted stable fallback, and fail-closed rules.
 - Add IM worker metadata tests for `workerId`, `wsPath`, `wsPort`, and new common
-  metadata.
+  metadata, including `draining`, `maxConnections`, and `shardGroup`.
 
 ### Integration And Compose Tests
 
@@ -505,10 +773,16 @@ when Nacos Config is actually enabled or required.
   services depend on it.
 - Add a local smoke script that starts `single`, queries Nacos config dataIds, and
   verifies service instance metadata.
+- Verify all required dataIds are seeded and contain no obvious secret keys or
+  placeholder credentials.
 - Verify `community-gateway` routes `/api`, `/api/oss`, `/files`, `/api/im`, and
   `/ws/im` through service discovery after config import.
+- Verify gateway canary rules can select instances by discovery metadata and fall
+  back to stable instances when configured.
 - Verify `community-im-gateway` can discover `im-realtime-worker` metadata from
   Nacos after config seed.
+- Verify `draining=true` removes a worker from new session assignment while keeping
+  existing bridge behavior intact.
 - Verify production-like required imports fail startup when the service dataId is
   absent.
 
@@ -547,21 +821,28 @@ Implementation must update:
 The docs must describe Nacos as both discovery and config center after this work,
 while still stating that secrets stay outside Nacos Config.
 
-## Rollout Plan
+## Implementation Plan
 
 1. Add Nacos Config dependencies and optional import blocks with no behavioral
    config moved yet.
-2. Add local Nacos config seed files that mirror current packaged defaults for the
-   selected non-secret properties.
+2. Add local Nacos config seed files for all non-secret platform, service, feature,
+   degradation, canary, frontend runtime, cache, search, upload, notification,
+   Kafka, and work-processing dataIds.
 3. Wire `nacos-config-bootstrap` into single and cluster compose.
-4. Move gateway config groups first and verify gateway startup and routing.
-5. Add gateway refresh support for routes, rate limits, and traffic policy.
-6. Move IM gateway and IM realtime non-secret routing and timeout config.
-7. Move observability thresholds and low-risk feature toggles.
-8. Move work-processing thresholds as startup-time config only.
-9. Add discovery metadata to all backend services.
-10. Make production-like config imports required and update startup validation.
-11. Update handbook, deploy docs, and local verification scripts.
+4. Move gateway config groups and add dynamic refresh for routes, rate limits,
+   traffic policy, CORS, canary rules, and IM edge routing.
+5. Add feature flag and degradation config accessors, then wire inbound adapters or
+   application services through typed decisions instead of raw config maps.
+6. Add the sanitized browser runtime-config endpoint.
+7. Move IM gateway and IM realtime non-secret routing, timeout, drain, capacity, and
+   worker metadata config.
+8. Move observability thresholds and diagnostic toggles.
+9. Move cache, search, upload, notification, Kafka, and work-processing policies,
+   with each property family marked dynamic or restart-required.
+10. Add discovery metadata to all backend services and consume it in gateway canary
+    routing and IM worker selection.
+11. Make production-like config imports required and update startup validation.
+12. Update handbook, deploy docs, and local verification scripts.
 
 ## Acceptance Criteria
 
@@ -570,23 +851,31 @@ while still stating that secrets stay outside Nacos Config.
 - Tests can still run without a live Nacos server.
 - Local `single` and `cluster` topologies seed Nacos Config before backend services
   start.
-- Gateway routes, rate limits, traffic policy, CORS, IM gateway settings,
-  observability thresholds, and selected work-processing thresholds are present in
-  Nacos seed dataIds.
+- Gateway routes, rate limits, traffic policy, CORS, canary routing, IM gateway
+  settings, frontend runtime config, feature flags, degradation rules,
+  observability thresholds, cache/search/upload/notification policy, Kafka policy,
+  and work-processing thresholds are present in Nacos seed dataIds.
 - Secrets are absent from Nacos seed files and config examples.
 - Production-like startup fails when required Nacos Config dataIds are missing.
-- Dynamic refresh is implemented only for the approved gateway and observability
-  surfaces and has tests.
+- Dynamic refresh or restart-required behavior is explicitly documented and tested
+  for every imported dataId.
+- Dynamic refresh is implemented for gateway, CORS, canary, feature flags,
+  degradation, frontend runtime config, observability thresholds, notification
+  policy, and safe cache/search/upload/work-processing knobs.
 - All backend services register the standard discovery metadata.
+- Gateway consumes discovery metadata for canary routing and stable fallback.
 - `im-realtime-worker` discovery still exposes valid `workerId`, `wsPath`, and
-  `wsPort` metadata.
+  `wsPort` metadata, plus drain and capacity metadata.
+- `community-im-gateway` honors worker drain and capacity metadata for new session
+  assignment.
+- `/api/runtime-config` exposes only allowlisted browser-safe config.
 - Documentation explains the config taxonomy, local seed flow, verification commands,
   and secret-handling rules.
 
 ## Implementation Defaults
 
-Phase 1 uses these defaults unless implementation proves they are incompatible with
-the selected Spring Cloud Alibaba version:
+Use these defaults unless implementation proves they are incompatible with the
+selected Spring Cloud Alibaba version:
 
 - Local compose uses the public Nacos namespace to avoid namespace bootstrap
   coupling. Production environments provide `NACOS_NAMESPACE`.
@@ -594,7 +883,8 @@ the selected Spring Cloud Alibaba version:
   Nacos listener callbacks are allowed only if the refresh infrastructure cannot
   provide deterministic route rebuild behavior.
 - Environment separation uses namespace and group. Profile-specific dataIds are not
-  introduced in phase 1.
+  introduced unless namespace/group cannot provide deterministic local and
+  production separation.
 - `community-shared.yaml` contains only cross-service observability defaults,
   `security.jwt.issuer`, Nacos/discovery metadata defaults, and other truly shared
   non-secret defaults. Service-specific auth, route, rate-limit, and processing

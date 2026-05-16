@@ -1,7 +1,9 @@
 package com.nowcoder.community.common.kafka.trace;
 
+import com.nowcoder.community.common.trace.OtelTraceContext;
 import com.nowcoder.community.common.trace.TraceContextScope;
 import com.nowcoder.community.common.trace.TraceContextSnapshot;
+import io.opentelemetry.api.trace.SpanKind;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.listener.RecordInterceptor;
@@ -16,7 +18,8 @@ public class TraceRecordInterceptor implements RecordInterceptor<Object, Object>
         TraceContextSnapshot snapshot = record == null
                 ? TraceContextSnapshot.currentOrNew()
                 : TraceKafkaHeaders.extract(record.headers());
-        currentScope.set(snapshot.open());
+        String spanName = record == null ? "kafka.consume" : "kafka.consume " + record.topic();
+        currentScope.set(OtelTraceContext.openForInbound(snapshot.traceparent(), spanName, SpanKind.CONSUMER));
         return record;
     }
 

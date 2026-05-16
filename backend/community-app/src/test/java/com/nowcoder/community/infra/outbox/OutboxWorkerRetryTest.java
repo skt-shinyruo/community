@@ -5,6 +5,11 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.nowcoder.community.common.logging.EventLogFields;
 import com.nowcoder.community.common.trace.TraceContext;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.context.Scope;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -295,6 +300,60 @@ class OutboxWorkerRetryTest {
         assertThat(processed).isEqualTo(1);
         assertThat(seenTrace.get()).isEqualTo("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
         assertThat(com.nowcoder.community.common.trace.TraceId.get()).isNull();
+        verify(store).markSucceeded(outboxId, now);
+    }
+
+    @Test
+    void workerShouldUseOutboxTraceWhenJobSpanIsActive() {
+        Instant now = Instant.parse("2026-03-14T00:00:00Z");
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxProperties properties = enabledProperties();
+        UUID outboxId = UUID.fromString("01965429-b34a-7000-8000-000000000004");
+        OutboxEvent event = new OutboxEvent(
+                outboxId,
+                "e-trace-active:points",
+                "projection.points",
+                "1",
+                "{}",
+                OutboxEventStatus.PENDING,
+                0,
+                null,
+                null,
+                "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                "00-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-00f067aa0ba902b7-01"
+        );
+        AtomicReference<String> seenTrace = new AtomicReference<>();
+        OutboxHandler handler = new OutboxHandler() {
+            @Override
+            public String topic() {
+                return "projection.points";
+            }
+
+            @Override
+            public void handle(OutboxEvent ignored) {
+                seenTrace.set(com.nowcoder.community.common.trace.TraceId.get());
+            }
+        };
+        SpanContext activeSpanContext = SpanContext.create(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "bbbbbbbbbbbbbbbb",
+                TraceFlags.getSampled(),
+                TraceState.getDefault()
+        );
+
+        when(store.recoverExpiredLeases(now)).thenReturn(0);
+        when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
+        when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(true);
+
+        OutboxWorker worker = new OutboxWorker(store, Map.of(handler.topic(), handler), properties, Clock.fixed(now, ZoneOffset.UTC));
+
+        try (Scope ignored = Span.wrap(activeSpanContext).makeCurrent()) {
+            int processed = worker.pollOnce();
+
+            assertThat(processed).isEqualTo(1);
+            assertThat(seenTrace.get()).isEqualTo("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+            assertThat(com.nowcoder.community.common.trace.TraceId.get()).isEqualTo("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        }
         verify(store).markSucceeded(outboxId, now);
     }
 

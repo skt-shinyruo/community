@@ -1,7 +1,9 @@
 package com.nowcoder.community.common.outbox;
 
 import com.nowcoder.community.common.logging.EventLogFields;
+import com.nowcoder.community.common.trace.OtelTraceContext;
 import com.nowcoder.community.common.trace.TraceContextSnapshot;
+import io.opentelemetry.api.trace.SpanKind;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -90,7 +92,12 @@ public class OutboxWorker {
 
             processed++;
 
-            try (var ignored = TraceContextSnapshot.fromStored(event.traceId(), event.traceparent()).open()) {
+            TraceContextSnapshot snapshot = TraceContextSnapshot.fromStored(event.traceId(), event.traceparent());
+            try (var ignored = OtelTraceContext.openForInbound(
+                    snapshot.traceparent(),
+                    "outbox.process " + event.topic(),
+                    SpanKind.CONSUMER
+            )) {
                 OutboxHandler handler = handlers.get(event.topic());
                 if (handler == null) {
                     Instant nextRetryAt = now.plus(Duration.ofSeconds(10));

@@ -1,6 +1,8 @@
 package com.nowcoder.community.gateway.edge;
 
 import com.nowcoder.community.common.logging.EventLogFields;
+import com.nowcoder.community.common.trace.OtelTraceContext;
+import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
 import com.nowcoder.community.common.webflux.TraceIdWebFilter;
@@ -17,7 +19,8 @@ import reactor.core.publisher.Mono;
 public class AccessLogWebFilter implements WebFilter, Ordered {
 
     private static final Logger log = LoggerFactory.getLogger(AccessLogWebFilter.class);
-    private static final String MDC_KEY_TRACE_ID = "traceId";
+    private static final String MDC_KEY_TRACE_ID = TraceContext.MDC_KEY_TRACE_ID;
+    private static final String MDC_KEY_LEGACY_TRACE_ID = TraceContext.MDC_KEY_LEGACY_TRACE_ID;
     private static final String MDC_KEY_CATEGORY = EventLogFields.EVENT_CATEGORY;
     private static final String MDC_KEY_ACTION = EventLogFields.EVENT_ACTION;
     private static final String MDC_KEY_OUTCOME = EventLogFields.EVENT_OUTCOME;
@@ -45,14 +48,17 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
                     long durationMs = (System.nanoTime() - startedAt) / 1_000_000L;
                     String traceId = resolveTraceId(exchange);
                     String previousTraceId = MDC.get(MDC_KEY_TRACE_ID);
+                    String previousLegacyTraceId = MDC.get(MDC_KEY_LEGACY_TRACE_ID);
                     String previousCategory = MDC.get(MDC_KEY_CATEGORY);
                     String previousAction = MDC.get(MDC_KEY_ACTION);
                     String previousOutcome = MDC.get(MDC_KEY_OUTCOME);
                     try {
                         if (traceId == null || traceId.isBlank()) {
                             MDC.remove(MDC_KEY_TRACE_ID);
+                            MDC.remove(MDC_KEY_LEGACY_TRACE_ID);
                         } else {
                             MDC.put(MDC_KEY_TRACE_ID, traceId);
+                            MDC.put(MDC_KEY_LEGACY_TRACE_ID, traceId);
                         }
                         MDC.put(MDC_KEY_CATEGORY, CATEGORY_ACCESS);
                         MDC.put(MDC_KEY_ACTION, ACTION_HTTP_ACCESS);
@@ -69,6 +75,7 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
                         } else {
                             MDC.put(MDC_KEY_TRACE_ID, previousTraceId);
                         }
+                        restore(MDC_KEY_LEGACY_TRACE_ID, previousLegacyTraceId);
                         restore(MDC_KEY_CATEGORY, previousCategory);
                         restore(MDC_KEY_ACTION, previousAction);
                         restore(MDC_KEY_OUTCOME, previousOutcome);
@@ -95,6 +102,10 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
     }
 
     private String resolveTraceId(ServerWebExchange exchange) {
+        String active = OtelTraceContext.currentTraceId();
+        if (active != null) {
+            return active;
+        }
         String traceparent = exchange.getResponse().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT);
         if (traceparent == null || traceparent.isBlank()) {
             traceparent = exchange.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT);

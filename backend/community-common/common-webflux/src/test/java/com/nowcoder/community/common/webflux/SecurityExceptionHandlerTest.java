@@ -4,6 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.trace.TraceHeaders;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.context.Scope;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
@@ -24,14 +29,16 @@ class SecurityExceptionHandlerTest {
                 .header(TraceHeaders.HEADER_TRACEPARENT, traceparent("abcdefabcdefabcdefabcdefabcdefab"))
                 .build());
 
-        StepVerifier.create(handler.commence(exchange, null)).verifyComplete();
+        try (Scope ignored = activeSpan()) {
+            StepVerifier.create(handler.commence(exchange, null)).verifyComplete();
+        }
 
         JsonNode body = readBody(exchange);
         assertThat(exchange.getResponse().getStatusCode()).isNotNull();
         assertThat(exchange.getResponse().getStatusCode().value()).isEqualTo(401);
         assertThat(exchange.getResponse().getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
         assertThat(exchange.getResponse().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT))
-                .matches("^00-abcdefabcdefabcdefabcdefabcdefab-[0-9a-f]{16}-01$");
+                .isEqualTo("00-abcdefabcdefabcdefabcdefabcdefab-1234567890abcdef-01");
         assertThat(body.path("code").asInt()).isEqualTo(CommonErrorCode.UNAUTHORIZED.getCode());
         assertThat(body.path("traceId").asText()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
     }
@@ -43,20 +50,32 @@ class SecurityExceptionHandlerTest {
                 .header(TraceHeaders.HEADER_TRACEPARENT, traceparent("abcdefabcdefabcdefabcdefabcdefab"))
                 .build());
 
-        StepVerifier.create(handler.handle(exchange, new AccessDeniedException("denied"))).verifyComplete();
+        try (Scope ignored = activeSpan()) {
+            StepVerifier.create(handler.handle(exchange, new AccessDeniedException("denied"))).verifyComplete();
+        }
 
         JsonNode body = readBody(exchange);
         assertThat(exchange.getResponse().getStatusCode()).isNotNull();
         assertThat(exchange.getResponse().getStatusCode().value()).isEqualTo(403);
         assertThat(exchange.getResponse().getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
         assertThat(exchange.getResponse().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT))
-                .matches("^00-abcdefabcdefabcdefabcdefabcdefab-[0-9a-f]{16}-01$");
+                .isEqualTo("00-abcdefabcdefabcdefabcdefabcdefab-1234567890abcdef-01");
         assertThat(body.path("code").asInt()).isEqualTo(CommonErrorCode.FORBIDDEN.getCode());
         assertThat(body.path("traceId").asText()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
     }
 
     private static String traceparent(String traceId) {
         return "00-" + traceId + "-00f067aa0ba902b7-01";
+    }
+
+    private Scope activeSpan() {
+        SpanContext spanContext = SpanContext.create(
+                "abcdefabcdefabcdefabcdefabcdefab",
+                "1234567890abcdef",
+                TraceFlags.getSampled(),
+                TraceState.getDefault()
+        );
+        return Span.wrap(spanContext).makeCurrent();
     }
 
     private JsonNode readBody(MockServerWebExchange exchange) {

@@ -2,6 +2,11 @@ package com.nowcoder.community.common.webflux;
 
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.context.Scope;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
@@ -52,6 +57,31 @@ class TraceIdWebFilterTest {
         assertThat(seenTraceparent.get()).isEqualTo(traceparent);
         assertThat(exchange.getResponse().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT))
                 .isEqualTo(traceparent);
+    }
+
+    @Test
+    void shouldExposeActiveOtelTraceparent() {
+        TraceIdWebFilter filter = new TraceIdWebFilter();
+        SpanContext spanContext = SpanContext.create(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "bbbbbbbbbbbbbbbb",
+                TraceFlags.getSampled(),
+                TraceState.getDefault()
+        );
+        AtomicReference<String> seenTraceparent = new AtomicReference<>();
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/posts").build());
+        WebFilterChain chain = current -> {
+            seenTraceparent.set(current.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT));
+            return Mono.empty();
+        };
+
+        try (Scope ignored = Span.wrap(spanContext).makeCurrent()) {
+            filter.filter(exchange, chain).block();
+        }
+
+        assertThat(seenTraceparent.get()).isEqualTo("00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01");
+        assertThat(exchange.getResponse().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT))
+                .isEqualTo("00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01");
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.nowcoder.community.gateway.edge;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -33,17 +34,18 @@ class AccessLogWebFilterTest {
 
     @AfterEach
     void tearDown() {
-        MDC.remove("traceId");
+        TraceContext.clear();
         loggingSystem.cleanUp();
     }
 
     @Test
-    void accessLogShouldUseResolvedTraceIdOnlyAroundLogEmission(CapturedOutput output) {
+    void accessLogShouldUseResolvedTraceIdAndRestorePreviousMdcAfterExchange(CapturedOutput output) {
         initializeJsonLogs("community-gateway");
 
         String staleTraceId = "stale-mdc-trace";
         String resolvedTraceId = "4bf92f3577b34da6a3ce929d0e0e4736";
-        MDC.put("traceId", staleTraceId);
+        MDC.put(TraceContext.MDC_KEY_TRACE_ID, staleTraceId);
+        MDC.put(TraceContext.MDC_KEY_LEGACY_TRACE_ID, staleTraceId);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/posts")
                 .header(TraceHeaders.HEADER_TRACEPARENT, traceparent(resolvedTraceId))
                 .build());
@@ -53,7 +55,8 @@ class AccessLogWebFilterTest {
         AccessLogWebFilter accessLogWebFilter = new AccessLogWebFilter();
 
         traceIdWebFilter.filter(exchange, current -> accessLogWebFilter.filter(current, tracedExchange -> {
-            assertThat(MDC.get("traceId")).isEqualTo(staleTraceId);
+            assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo(resolvedTraceId);
+            assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo(resolvedTraceId);
             tracedExchange.getResponse().setStatusCode(HttpStatus.OK);
             return Mono.empty();
         })).block();
@@ -73,7 +76,8 @@ class AccessLogWebFilterTest {
                 .contains("path=/api/posts")
                 .contains("status=200")
                 .contains("traceId=" + resolvedTraceId);
-        assertThat(MDC.get("traceId")).isEqualTo(staleTraceId);
+        assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo(staleTraceId);
+        assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo(staleTraceId);
     }
 
     @Test

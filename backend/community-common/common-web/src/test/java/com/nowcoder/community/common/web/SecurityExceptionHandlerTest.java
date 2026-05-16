@@ -3,8 +3,13 @@ package com.nowcoder.community.common.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
-import com.nowcoder.community.common.trace.TraceId;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.context.Scope;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -22,46 +27,58 @@ class SecurityExceptionHandlerTest {
 
     @AfterEach
     void tearDown() {
-        TraceId.clear();
+        TraceContext.clear();
     }
 
     @Test
     void commence_shouldWriteResultJsonAndTraceHeaders() throws Exception {
-        TraceId.set("ABCDEFABCDEFABCDEFABCDEFABCDEFAB");
         SecurityExceptionHandler handler = new SecurityExceptionHandler(objectMapper);
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        handler.commence(request, response, null);
+        try (Scope ignored = activeSpan()) {
+            handler.commence(request, response, null);
+        }
 
         JsonNode body = objectMapper.readTree(response.getContentAsString());
         assertThat(response.getStatus()).isEqualTo(401);
         assertThat(response.getCharacterEncoding()).isEqualTo(StandardCharsets.UTF_8.name());
         assertThat(response.getContentType()).startsWith(MediaType.APPLICATION_JSON_VALUE);
         assertThat(response.getHeader(TraceHeaders.HEADER_TRACEPARENT))
-                .matches("^00-abcdefabcdefabcdefabcdefabcdefab-[0-9a-f]{16}-01$");
+                .isEqualTo("00-abcdefabcdefabcdefabcdefabcdefab-1234567890abcdef-01");
         assertThat(body.path("code").asInt()).isEqualTo(CommonErrorCode.UNAUTHORIZED.getCode());
         assertThat(body.path("traceId").asText()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
     }
 
     @Test
     void handle_shouldWriteForbiddenResult() throws Exception {
-        TraceId.set("ABCDEFABCDEFABCDEFABCDEFABCDEFAB");
         SecurityExceptionHandler handler = new SecurityExceptionHandler(objectMapper);
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        handler.handle(request, response, new AccessDeniedException("denied"));
+        try (Scope ignored = activeSpan()) {
+            handler.handle(request, response, new AccessDeniedException("denied"));
+        }
 
         JsonNode body = objectMapper.readTree(response.getContentAsString());
         assertThat(response.getStatus()).isEqualTo(403);
         assertThat(response.getCharacterEncoding()).isEqualTo(StandardCharsets.UTF_8.name());
         assertThat(response.getContentType()).startsWith(MediaType.APPLICATION_JSON_VALUE);
         assertThat(response.getHeader(TraceHeaders.HEADER_TRACEPARENT))
-                .matches("^00-abcdefabcdefabcdefabcdefabcdefab-[0-9a-f]{16}-01$");
+                .isEqualTo("00-abcdefabcdefabcdefabcdefabcdefab-1234567890abcdef-01");
         assertThat(body.path("code").asInt()).isEqualTo(CommonErrorCode.FORBIDDEN.getCode());
         assertThat(body.path("traceId").asText()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
+    }
+
+    private Scope activeSpan() {
+        SpanContext spanContext = SpanContext.create(
+                "abcdefabcdefabcdefabcdefabcdefab",
+                "1234567890abcdef",
+                TraceFlags.getSampled(),
+                TraceState.getDefault()
+        );
+        return Span.wrap(spanContext).makeCurrent();
     }
 }

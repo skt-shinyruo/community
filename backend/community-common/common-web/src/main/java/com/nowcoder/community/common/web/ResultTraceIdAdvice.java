@@ -1,10 +1,7 @@
 package com.nowcoder.community.common.web;
 
-import com.nowcoder.community.common.security.response.SecurityResponseSupport;
-import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.trace.TraceContextSnapshot;
 import com.nowcoder.community.common.trace.TraceHeaders;
-import com.nowcoder.community.common.trace.TraceId;
-import com.nowcoder.community.common.trace.TraceIdCodec;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.ResolvableType;
 import org.springframework.core.io.Resource;
@@ -110,15 +107,13 @@ public class ResultTraceIdAdvice implements ResponseBodyAdvice<Object> {
         if (result == null || (result.getTraceId() != null && !result.getTraceId().isBlank())) {
             return;
         }
-        String traceId = SecurityResponseSupport.resolveTraceId(
-                TraceId.get(),
-                request == null ? null : request.getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT)
-        );
+        TraceContextSnapshot snapshot = TraceContextSnapshot.currentOrNew();
+        String traceId = snapshot.traceId();
         traceId = traceId == null ? "" : traceId.trim();
         if (!traceId.isEmpty()) {
             result.setTraceId(traceId);
             if (response != null) {
-                response.getHeaders().set(TraceHeaders.HEADER_TRACEPARENT, TraceIdCodec.buildTraceparent(traceId));
+                response.getHeaders().set(TraceHeaders.HEADER_TRACEPARENT, snapshot.traceparent());
             }
         }
     }

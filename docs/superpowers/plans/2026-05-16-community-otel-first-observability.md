@@ -16,6 +16,7 @@ Source spec: `docs/superpowers/specs/2026-05-16-community-otel-first-observabili
 
 - `backend/pom.xml`: add OTel BOM dependency management.
 - `backend/community-common/common-core/pom.xml`: add OTel API to the shared trace module.
+- `backend/community-common/common-spring/pom.xml`: add OTel API for Task 4 after-commit trace capture.
 - `backend/community-common/common-web/pom.xml`: add OTel API for servlet trace response bridge.
 - `backend/community-common/common-webflux/pom.xml`: add OTel API for WebFlux trace response bridge.
 - `backend/community-common/common-kafka/pom.xml`: add OTel API for Kafka trace propagation.
@@ -61,6 +62,7 @@ Source spec: `docs/superpowers/specs/2026-05-16-community-otel-first-observabili
 **Files:**
 - Modify: `backend/pom.xml`
 - Modify: `backend/community-common/common-core/pom.xml`
+- Modify: `backend/community-common/common-spring/pom.xml`
 - Modify: `backend/community-common/common-web/pom.xml`
 - Modify: `backend/community-common/common-webflux/pom.xml`
 - Modify: `backend/community-common/common-kafka/pom.xml`
@@ -88,7 +90,7 @@ Add this import under `<dependencyManagement><dependencies>` after the Spring Cl
 
 - [ ] **Step 2: Add direct OTel API dependencies**
 
-Add this dependency to `backend/community-common/common-core/pom.xml`, `backend/community-common/common-web/pom.xml`, `backend/community-common/common-webflux/pom.xml`, `backend/community-common/common-kafka/pom.xml`, and `backend/community-common/common-outbox/pom.xml`:
+Add this dependency to `backend/community-common/common-core/pom.xml`, `backend/community-common/common-spring/pom.xml`, `backend/community-common/common-web/pom.xml`, `backend/community-common/common-webflux/pom.xml`, `backend/community-common/common-kafka/pom.xml`, and `backend/community-common/common-outbox/pom.xml`. `common-spring` needs this now because Task 4 updates `AfterCommitExecutor` to capture the current OTel traceparent.
 
 ```xml
 <dependency>
@@ -103,7 +105,7 @@ Run:
 
 ```bash
 cd backend
-mvn -q -pl :community-common-core,:community-common-web,:community-common-webflux,:community-common-kafka,:community-common-outbox -DskipTests compile
+mvn -q -pl :community-common-core,:community-common-spring,:community-common-web,:community-common-webflux,:community-common-kafka,:community-common-outbox -DskipTests compile
 ```
 
 Expected: PASS. If Maven downloads dependencies, that is acceptable. If it fails with duplicate or missing OTel classes, stop and fix dependency management before changing trace code.
@@ -113,6 +115,7 @@ Expected: PASS. If Maven downloads dependencies, that is acceptable. If it fails
 ```bash
 git add backend/pom.xml \
   backend/community-common/common-core/pom.xml \
+  backend/community-common/common-spring/pom.xml \
   backend/community-common/common-web/pom.xml \
   backend/community-common/common-webflux/pom.xml \
   backend/community-common/common-kafka/pom.xml \

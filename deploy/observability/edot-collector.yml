@@ -5,12 +5,13 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
-  filelog/community:
+  filelog/docker_stdout:
     include:
-      - /var/log/community/*.json.log
-    # Phase 1 keeps restart behavior simple and avoids replaying old local compose file logs.
+      - /var/lib/docker/containers/*/*.log
     start_at: end
     include_file_path: true
+    operators:
+      - type: container
 
 processors:
   memory_limiter:
@@ -26,7 +27,12 @@ processors:
       - context: scope
         statements:
           - set(attributes["elastic.mapping.mode"], "bodymap")
-  # OTLP traces/metrics and filelog-backed application logs all belong to the community services.
+  filter/backend_json_logs:
+    error_mode: ignore
+    logs:
+      log_record:
+        - 'not (IsMap(body) and body["service.name"] != nil)'
+  # OTLP traces/metrics and stdout-backed application logs all belong to the community services.
   resource/community_service_namespace:
     attributes:
       - key: service.namespace
@@ -61,6 +67,6 @@ service:
       processors: [memory_limiter, resource/community_service_namespace, batch/metrics]
       exporters: [elasticsearch/otel]
     logs:
-      receivers: [filelog/community]
-      processors: [memory_limiter, transform/logs_bodymap, batch]
+      receivers: [filelog/docker_stdout]
+      processors: [memory_limiter, transform/logs_bodymap, filter/backend_json_logs, resource/community_service_namespace, batch]
       exporters: [elasticsearch/logs]

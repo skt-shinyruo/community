@@ -38,6 +38,26 @@ if ! rg -n '^  kibana:' "${cluster_config}" >/dev/null; then
   exit 1
 fi
 
+if rg -n '/var/log/community|COMMUNITY_LOGGING_DIR|COMMUNITY_LOGGING_FILE_NAME|volume-log-export|observability_logs' "${single_config}" >/dev/null; then
+  echo "expected default single config to avoid file-volume application logs" >&2
+  exit 1
+fi
+
+if rg -n '/var/log/community|COMMUNITY_LOGGING_DIR|COMMUNITY_LOGGING_FILE_NAME|volume-log-export|observability_logs' "${cluster_config}" >/dev/null; then
+  echo "expected default cluster config to avoid file-volume application logs" >&2
+  exit 1
+fi
+
+if ! rg -n 'OTEL_LOGS_COLLECTION[=: ]+"?stdout"?|OTEL_LOGS_COLLECTION=stdout' "${single_config}" >/dev/null; then
+  echo "expected single config to mark stdout log collection" >&2
+  exit 1
+fi
+
+if ! rg -n 'OTEL_LOGS_COLLECTION[=: ]+"?stdout"?|OTEL_LOGS_COLLECTION=stdout' "${cluster_config}" >/dev/null; then
+  echo "expected cluster config to mark stdout log collection" >&2
+  exit 1
+fi
+
 OTEL_ENABLED=false ./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example >"${override_config}"
 
 if ! rg -n 'OTEL_ENABLED[=: ]+"?false"?|OTEL_ENABLED=false' "${override_config}" >/dev/null; then

@@ -4,10 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.kafka.trace.TraceKafkaHeaders;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxEventStatus;
+import com.nowcoder.community.common.trace.OtelTraceContext;
 import com.nowcoder.community.common.trace.TraceContextSnapshot;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
+import io.opentelemetry.api.trace.SpanKind;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -60,7 +62,12 @@ class ImKafkaOutboxHandlerTest {
                 "00-cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd-00f067aa0ba902b7-01"
         );
 
-        try (var ignored = TraceContextSnapshot.fromStored(outboxEvent.traceId(), outboxEvent.traceparent()).open()) {
+        TraceContextSnapshot snapshot = TraceContextSnapshot.fromStored(outboxEvent.traceId(), outboxEvent.traceparent());
+        try (var ignored = OtelTraceContext.openForInbound(
+                snapshot.traceparent(),
+                "outbox.process " + outboxEvent.topic(),
+                SpanKind.CONSUMER
+        )) {
             handler.handle(outboxEvent);
         }
 
@@ -74,7 +81,7 @@ class ImKafkaOutboxHandlerTest {
         assertThat(published.messageId()).isEqualTo(uuid(7));
         assertThat(published.requestId()).isEqualTo("req-1");
         assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACEPARENT))
-                .startsWith("00-cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd-");
+                .isEqualTo(snapshot.traceparent());
     }
 
     @Test

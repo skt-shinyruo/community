@@ -3,11 +3,13 @@ package com.nowcoder.community.im.projection;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.kafka.trace.TraceKafkaHeaders;
 import com.nowcoder.community.common.outbox.OutboxEvent;
+import com.nowcoder.community.common.trace.OtelTraceContext;
 import com.nowcoder.community.common.trace.TraceContextSnapshot;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
+import io.opentelemetry.api.trace.SpanKind;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -68,7 +70,12 @@ class ImPolicyKafkaOutboxHandlerTest {
                 "00-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-00f067aa0ba902b7-01"
         );
 
-        try (var ignored = TraceContextSnapshot.fromStored(outboxEvent.traceId(), outboxEvent.traceparent()).open()) {
+        TraceContextSnapshot snapshot = TraceContextSnapshot.fromStored(outboxEvent.traceId(), outboxEvent.traceparent());
+        try (var ignored = OtelTraceContext.openForInbound(
+                snapshot.traceparent(),
+                "outbox.process " + outboxEvent.topic(),
+                SpanKind.CONSUMER
+        )) {
             handler.handle(outboxEvent);
         }
 
@@ -86,7 +93,7 @@ class ImPolicyKafkaOutboxHandlerTest {
         assertThat(recordComponentValue(published, "muteUntil")).isEqualTo(muteUntil.toEpochMilli());
         assertThat(recordComponentValue(published, "banUntil")).isEqualTo(expiredBanUntil.toEpochMilli());
         assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACEPARENT))
-                .startsWith("00-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-");
+                .isEqualTo(snapshot.traceparent());
     }
 
     @Test

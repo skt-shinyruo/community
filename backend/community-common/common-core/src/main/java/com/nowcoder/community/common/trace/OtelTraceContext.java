@@ -150,6 +150,7 @@ public final class OtelTraceContext {
         return active != null
                 && extracted != null
                 && extracted.isValid()
-                && !extracted.getTraceId().equals(active.getTraceId());
+                && (!extracted.getTraceId().equals(active.getTraceId())
+                || !extracted.getSpanId().equals(active.getSpanId()));
     }
 }

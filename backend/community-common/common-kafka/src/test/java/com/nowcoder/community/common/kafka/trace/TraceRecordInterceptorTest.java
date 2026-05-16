@@ -3,6 +3,7 @@ package com.nowcoder.community.common.kafka.trace;
 import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceId;
+import com.nowcoder.community.common.trace.TraceIdCodec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.TraceFlags;
@@ -118,9 +119,43 @@ class TraceRecordInterceptorTest {
         }
     }
 
+    @Test
+    void interceptorShouldUseRecordParentSpanWhenActiveSpanSharesTrace() {
+        String traceId = "cccccccccccccccccccccccccccccccc";
+        ConsumerRecord<Object, Object> record = recordWithTrace(
+                "topic-a",
+                1L,
+                traceId,
+                "1111111111111111"
+        );
+        SpanContext activeSpanContext = SpanContext.create(
+                traceId,
+                "2222222222222222",
+                TraceFlags.getSampled(),
+                TraceState.getDefault()
+        );
+        TraceRecordInterceptor interceptor = new TraceRecordInterceptor();
+
+        try (Scope ignored = Span.wrap(activeSpanContext).makeCurrent()) {
+            interceptor.intercept(record, null);
+
+            assertThat(TraceId.get()).isEqualTo(traceId);
+            assertThat(Span.current().getSpanContext().getSpanId()).isEqualTo("1111111111111111");
+            assertThat(org.slf4j.MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isEqualTo("1111111111111111");
+
+            interceptor.afterRecord(record, null);
+            assertThat(Span.current().getSpanContext().getSpanId()).isEqualTo("2222222222222222");
+        }
+    }
+
     private ConsumerRecord<Object, Object> recordWithTrace(String topic, long offset, String traceId) {
+        return recordWithTrace(topic, offset, traceId, "00f067aa0ba902b7");
+    }
+
+    private ConsumerRecord<Object, Object> recordWithTrace(String topic, long offset, String traceId, String spanId) {
         RecordHeaders headers = new RecordHeaders();
-        headers.add(TraceHeaders.HEADER_TRACEPARENT, traceparent(traceId).getBytes(StandardCharsets.UTF_8));
+        headers.add(TraceHeaders.HEADER_TRACEPARENT, TraceIdCodec.buildTraceparent(traceId, spanId, "01")
+                .getBytes(StandardCharsets.UTF_8));
         return new ConsumerRecord<>(
                 topic,
                 0,
@@ -134,9 +169,5 @@ class TraceRecordInterceptorTest {
                 "value",
                 headers
         );
-    }
-
-    private static String traceparent(String traceId) {
-        return "00-" + traceId + "-00f067aa0ba902b7-01";
     }
 }

@@ -2,6 +2,7 @@ package com.nowcoder.community.common.trace;
 
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.TraceFlags;
 import io.opentelemetry.api.trace.TraceState;
 import io.opentelemetry.context.Scope;
@@ -74,6 +75,33 @@ class TraceContextSnapshotTest {
             assertThat(snapshot.traceparent()).isEqualTo("00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01");
             assertThat(TraceId.get()).isEqualTo("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         }
+    }
+
+    @Test
+    void inboundScopeShouldUseProvidedTraceparentWhenActiveSpanBelongsToDifferentTrace() {
+        SpanContext jobSpanContext = SpanContext.create(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "bbbbbbbbbbbbbbbb",
+                TraceFlags.getSampled(),
+                TraceState.getDefault()
+        );
+        String storedTraceparent = "00-cccccccccccccccccccccccccccccccc-dddddddddddddddd-01";
+
+        try (Scope jobScope = Span.wrap(jobSpanContext).makeCurrent()) {
+            try (TraceContextScope ignored = OtelTraceContext.openForInbound(
+                    storedTraceparent,
+                    "outbox.process topic-a",
+                    SpanKind.CONSUMER
+            )) {
+                assertThat(TraceId.get()).isEqualTo("cccccccccccccccccccccccccccccccc");
+                assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("cccccccccccccccccccccccccccccccc");
+                assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isEqualTo("dddddddddddddddd");
+            }
+
+            assertThat(TraceId.get()).isEqualTo("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        }
+
+        assertThat(TraceId.get()).isNull();
     }
 
     @Test

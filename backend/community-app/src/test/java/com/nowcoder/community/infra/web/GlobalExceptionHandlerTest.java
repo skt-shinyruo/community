@@ -58,8 +58,8 @@ class GlobalExceptionHandlerTest {
     @Test
     void serverErrorBusinessExceptionShouldBeLoggedWithExceptionTaxonomy(CapturedOutput output) {
         initializeProductionLogging("community-app");
-        TraceContext.set("mdc-err-business");
-        TraceId.set("thread-err-business");
+        TraceContext.set("11111111111111111111111111111111", "1111111111111111");
+        TraceId.set("22222222222222222222222222222222");
 
         ResponseEntity<Result<Void>> response = handler.handleBusiness(new BusinessException(CommonErrorCode.INTERNAL_ERROR, "server exploded"));
 
@@ -70,14 +70,18 @@ class GlobalExceptionHandlerTest {
         JsonNode event = findJsonEvent(output, GlobalExceptionHandler.class.getName());
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
-        assertThat(event.path("trace.id").asText()).isEqualTo("mdc-err-business");
+        assertThat(event.path("service.namespace").asText()).isEqualTo("community");
+        assertThat(event.path("deployment.environment").asText()).isEqualTo("test");
+        assertThat(event.path("trace.id").asText()).isEqualTo("11111111111111111111111111111111");
+        assertThat(event.path("span.id").asText()).isEqualTo("1111111111111111");
+        assertThat(event.has("traceId")).isFalse();
         assertThat(event.path("event.category").asText()).isEqualTo("exception");
         assertThat(event.path("event.action").asText()).isEqualTo("business_exception");
         assertThat(event.path("event.outcome").asText()).isEqualTo("failure");
         assertThat(event.path("level").asText()).isEqualTo("ERROR");
         assertThat(event.path("message").asText())
                 .contains("[exception][business]")
-                .contains("traceId=thread-err-business")
+                .contains("traceId=22222222222222222222222222222222")
                 .contains("code=500")
                 .contains("status=500")
                 .contains("message=server exploded")
@@ -119,7 +123,7 @@ class GlobalExceptionHandlerTest {
     @Test
     void dataAccessExceptionShouldBeServiceUnavailableAndLogged(CapturedOutput output) {
         initializeProductionLogging("community-app");
-        TraceContext.set("mdc-err-5");
+        TraceContext.set("33333333333333333333333333333333", "3333333333333333");
         TraceId.set("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
         DataAccessException ex = new DataAccessException("db down") {
             @Override
@@ -138,7 +142,11 @@ class GlobalExceptionHandlerTest {
         JsonNode event = findJsonEvent(output, GlobalExceptionHandler.class.getName());
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
-        assertThat(event.path("trace.id").asText()).isEqualTo("mdc-err-5");
+        assertThat(event.path("service.namespace").asText()).isEqualTo("community");
+        assertThat(event.path("deployment.environment").asText()).isEqualTo("test");
+        assertThat(event.path("trace.id").asText()).isEqualTo("33333333333333333333333333333333");
+        assertThat(event.path("span.id").asText()).isEqualTo("3333333333333333");
+        assertThat(event.has("traceId")).isFalse();
         assertThat(event.path("event.category").asText()).isEqualTo("exception");
         assertThat(event.path("event.action").asText()).isEqualTo("data_access_exception");
         assertThat(event.path("event.outcome").asText()).isEqualTo("failure");
@@ -153,8 +161,8 @@ class GlobalExceptionHandlerTest {
     @Test
     void unknownExceptionShouldBeLogged(CapturedOutput output) {
         initializeProductionLogging("community-app");
-        TraceContext.set("mdc-err-6");
-        TraceId.set("thread-err-6");
+        TraceContext.set("44444444444444444444444444444444", "4444444444444444");
+        TraceId.set("55555555555555555555555555555555");
         RuntimeException ex = new RuntimeException("boom-2") {
             @Override
             public synchronized Throwable fillInStackTrace() {
@@ -167,14 +175,18 @@ class GlobalExceptionHandlerTest {
 
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
-        assertThat(event.path("trace.id").asText()).isEqualTo("mdc-err-6");
+        assertThat(event.path("service.namespace").asText()).isEqualTo("community");
+        assertThat(event.path("deployment.environment").asText()).isEqualTo("test");
+        assertThat(event.path("trace.id").asText()).isEqualTo("44444444444444444444444444444444");
+        assertThat(event.path("span.id").asText()).isEqualTo("4444444444444444");
+        assertThat(event.has("traceId")).isFalse();
         assertThat(event.path("event.category").asText()).isEqualTo("exception");
         assertThat(event.path("event.action").asText()).isEqualTo("unhandled_exception");
         assertThat(event.path("event.outcome").asText()).isEqualTo("failure");
         assertThat(event.path("level").asText()).isEqualTo("ERROR");
         assertThat(event.path("logger").asText()).isEqualTo(GlobalExceptionHandler.class.getName());
         assertThat(event.path("message").asText())
-                .contains("[exception][unhandled] traceId=thread-err-6")
+                .contains("[exception][unhandled] traceId=55555555555555555555555555555555")
                 .doesNotContain("community.category=")
                 .doesNotContain("community.action=")
                 .doesNotContain("community.outcome=");
@@ -197,6 +209,7 @@ class GlobalExceptionHandlerTest {
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("spring.application.name", serviceName);
         environment.setProperty("community.logging.service-version", SERVICE_VERSION);
+        environment.setProperty("community.logging.deployment-environment", "test");
         environment.setProperty("spring.profiles.active", "prod");
 
         loggingSystem.cleanUp();

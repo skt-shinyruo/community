@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.observability.logging.RuntimeLogEvent;
 import com.nowcoder.community.common.observability.logging.RuntimeLogFields;
 import com.nowcoder.community.common.observability.logging.RuntimeLogWriter;
+import com.nowcoder.community.common.trace.TraceContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,12 +31,14 @@ class RuntimeObservabilityIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        TraceContext.clear();
         loggingSystem.cleanUp();
     }
 
     @Test
     void runtimeEventsAreWrittenAsStructuredJson(CapturedOutput output) {
         initializeProductionLogging("community-app");
+        TraceContext.set("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb");
         RuntimeLogWriter writer = new RuntimeLogWriter(LoggerFactory.getLogger("com.nowcoder.community.runtime"));
 
         writer.warn(RuntimeLogEvent.builder("runtime", "jvm_gc_pause_threshold", "threshold", "jvm gc pause threshold")
@@ -49,9 +52,16 @@ class RuntimeObservabilityIntegrationTest {
                 .field(RuntimeLogFields.THRESHOLD_MS, 200)
                 .build());
 
-        JsonNode event = findJsonEvent(output, "com.nowcoder.community.runtime");
+        String eventLine = findJsonEventLine(output, "com.nowcoder.community.runtime");
+        JsonNode event = readJson(eventLine);
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
+        assertThat(event.path("service.namespace").asText()).isEqualTo("community");
+        assertThat(event.path("deployment.environment").asText()).isEqualTo("test");
+        assertThat(event.path("trace.id").asText()).isEqualTo("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        assertThat(event.path("span.id").asText()).isEqualTo("bbbbbbbbbbbbbbbb");
+        assertThat(eventLine).doesNotContain("\"traceId\"");
+        assertThat(eventLine).containsOnlyOnce("\"trace.id\"");
         assertThat(event.path(RuntimeLogFields.EVENT_CATEGORY).asText()).isEqualTo("runtime");
         assertThat(event.path(RuntimeLogFields.EVENT_ACTION).asText()).isEqualTo("jvm_gc_pause_threshold");
         assertThat(event.path(RuntimeLogFields.EVENT_OUTCOME).asText()).isEqualTo("threshold");
@@ -75,6 +85,7 @@ class RuntimeObservabilityIntegrationTest {
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("spring.application.name", serviceName);
         environment.setProperty("community.logging.service-version", SERVICE_VERSION);
+        environment.setProperty("community.logging.deployment-environment", "test");
         environment.setProperty("spring.profiles.active", "prod");
 
         loggingSystem.cleanUp();
@@ -83,11 +94,17 @@ class RuntimeObservabilityIntegrationTest {
     }
 
     private JsonNode findJsonEvent(CapturedOutput output, String loggerName) {
+        return readJson(findJsonEventLine(output, loggerName));
+    }
+
+    private String findJsonEventLine(CapturedOutput output, String loggerName) {
         return Arrays.stream(output.getAll().split("\\R"))
                 .map(String::trim)
                 .filter(line -> !line.isEmpty() && line.startsWith("{"))
-                .map(this::readJson)
-                .filter(event -> event != null && loggerName.equals(event.path("logger").asText()))
+                .filter(line -> {
+                    JsonNode event = readJson(line);
+                    return event != null && loggerName.equals(event.path("logger").asText());
+                })
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No structured log event found for " + loggerName + " in output: " + output.getAll()));
     }

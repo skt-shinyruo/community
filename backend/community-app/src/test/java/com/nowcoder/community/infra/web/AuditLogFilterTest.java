@@ -49,7 +49,7 @@ class AuditLogFilterTest {
     void writeRequestShouldEmitStructuredAuditTaxonomy(int status, String outcome, CapturedOutput output)
             throws ServletException, IOException {
         initializeJsonLogs("community-app");
-        TraceContext.set("audit-trace-id");
+        TraceContext.set("11111111111111111111111111111111", "2222222222222222");
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("42", null, "ROLE_USER"));
 
         AuditLogFilter filter = new AuditLogFilter("community-app");
@@ -64,7 +64,11 @@ class AuditLogFilterTest {
         JsonNode event = findJsonEvent(output, AuditLogFilter.class.getName());
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
         assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
-        assertThat(event.path("trace.id").asText()).isEqualTo("audit-trace-id");
+        assertThat(event.path("service.namespace").asText()).isEqualTo("community");
+        assertThat(event.path("deployment.environment").asText()).isEqualTo("test");
+        assertThat(event.path("trace.id").asText()).isEqualTo("11111111111111111111111111111111");
+        assertThat(event.path("span.id").asText()).isEqualTo("2222222222222222");
+        assertThat(event.has("traceId")).isFalse();
         assertThat(event.path("event.category").asText()).isEqualTo("audit");
         assertThat(event.path("event.action").asText()).isEqualTo("http_write_request");
         assertThat(event.path("event.outcome").asText()).isEqualTo(outcome);
@@ -75,7 +79,7 @@ class AuditLogFilterTest {
                 .contains("path=/api/posts")
                 .contains("status=" + status)
                 .contains("userId=42")
-                .contains("traceId=audit-trace-id")
+                .contains("traceId=11111111111111111111111111111111")
                 .doesNotContain("community.category=")
                 .doesNotContain("community.action=")
                 .doesNotContain("community.outcome=")
@@ -100,6 +104,7 @@ class AuditLogFilterTest {
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("spring.application.name", serviceName);
         environment.setProperty("community.logging.service-version", SERVICE_VERSION);
+        environment.setProperty("community.logging.deployment-environment", "test");
         environment.setProperty("spring.profiles.active", "dev,json-logs");
 
         loggingSystem.cleanUp();

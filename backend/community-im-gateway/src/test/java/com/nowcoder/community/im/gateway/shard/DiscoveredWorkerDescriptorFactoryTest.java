@@ -18,6 +18,10 @@ class DiscoveredWorkerDescriptorFactoryTest {
 
         assertThat(descriptor.getId()).isEqualTo("worker-a");
         assertThat(descriptor.getUri()).isEqualTo(URI.create("ws://127.0.0.1:18081/internal/ws/im"));
+        assertThat(descriptor.isDraining()).isFalse();
+        assertThat(descriptor.getMaxConnections()).isEqualTo(100);
+        assertThat(descriptor.getActiveConnectionHint()).isEqualTo(25);
+        assertThat(descriptor.getShardGroup()).isEqualTo("local-a");
     }
 
     @Test
@@ -42,6 +46,10 @@ class DiscoveredWorkerDescriptorFactoryTest {
         instance.getMetadata().put("workerId", "worker-a");
         instance.getMetadata().put("wsPath", "/internal/ws/im");
         instance.getMetadata().put("wsPort", wsPort);
+        instance.getMetadata().put("draining", "false");
+        instance.getMetadata().put("maxConnections", "100");
+        instance.getMetadata().put("activeConnectionHint", "25");
+        instance.getMetadata().put("shardGroup", "local-a");
         return instance;
     }
 }

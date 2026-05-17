@@ -39,6 +39,32 @@ class RendezvousWorkerSelectorTest {
     }
 
     @Test
+    void shouldIgnoreDrainingWorkersForHealthySelection() {
+        WorkerRegistry registry = new WorkerRegistry(List.of(
+                new WorkerDescriptor("worker-a", URI.create("ws://127.0.0.1:18081/internal/ws/im"),
+                        true, 100, 0, "local"),
+                new WorkerDescriptor("worker-b", URI.create("ws://127.0.0.1:18082/internal/ws/im"),
+                        false, 100, 0, "local")
+        ));
+
+        assertThat(registry.healthyWorkers()).extracting(WorkerDescriptor::getId).containsExactly("worker-b");
+    }
+
+    @Test
+    void shouldPreferAvailableCapacityOverHigherHashWhenWorkerIsFull() {
+        RendezvousWorkerSelector selector = new RendezvousWorkerSelector(new WorkerRegistry(List.of(
+                new WorkerDescriptor("worker-low", URI.create("ws://127.0.0.1:18081/internal/ws/im"),
+                        false, 100, 100, "local"),
+                new WorkerDescriptor("worker-full", URI.create("ws://127.0.0.1:18082/internal/ws/im"),
+                        false, 100, 0, "local")
+        )));
+
+        WorkerDescriptor selected = selector.select(UUID.fromString("00000000-0000-7000-8000-000000000123"));
+
+        assertThat(selected.getId()).isEqualTo("worker-full");
+    }
+
+    @Test
     void shouldReturnServiceUnavailableForRuntimeDuplicateWorkerIds() {
         RendezvousWorkerSelector selector = new RendezvousWorkerSelector(new WorkerRegistry(() -> List.of(
                 new WorkerDescriptor("worker-a", URI.create("ws://127.0.0.1:18081/internal/ws/im")),

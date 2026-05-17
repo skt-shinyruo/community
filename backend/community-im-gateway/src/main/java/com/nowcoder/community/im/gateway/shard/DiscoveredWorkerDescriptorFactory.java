@@ -33,6 +33,10 @@ public class DiscoveredWorkerDescriptorFactory {
         String workerId = metadata.get(workerProperties.getWorkerIdMetadataKey());
         String wsPath = metadata.get(workerProperties.getWsPathMetadataKey());
         String wsPort = metadata.get(workerProperties.getWsPortMetadataKey());
+        boolean draining = parseBoolean(metadata.get("draining"));
+        int maxConnections = parseNonNegativeInt(metadata.get("maxConnections"));
+        int activeConnectionHint = parseNonNegativeInt(metadata.get("activeConnectionHint"));
+        String shardGroup = metadata.get("shardGroup");
         if (!StringUtils.hasText(workerId) || !StringUtils.hasText(wsPath) || !StringUtils.hasText(wsPort)
                 || !StringUtils.hasText(instance.getHost())) {
             return Optional.empty();
@@ -49,10 +53,36 @@ public class DiscoveredWorkerDescriptorFactory {
             if (!scheme.equals(uri.getScheme()) || uri.getHost() == null || uri.getPort() != port) {
                 return Optional.empty();
             }
-            return Optional.of(new WorkerDescriptor(workerId.trim(), uri));
+            return Optional.of(new WorkerDescriptor(
+                    workerId.trim(), uri, draining, maxConnections, activeConnectionHint, shardGroup
+            ));
         } catch (IllegalArgumentException | URISyntaxException ex) {
             return Optional.empty();
         }
+    }
+
+    private static boolean parseBoolean(String value) {
+        return "true".equalsIgnoreCase(value == null ? "" : value.trim());
+    }
+
+    private static int parseNonNegativeInt(String value) {
+        if (!StringUtils.hasText(value)) {
+            return 0;
+        }
+        String trimmed = value.trim();
+        int parsed = 0;
+        for (int index = 0; index < trimmed.length(); index++) {
+            char ch = trimmed.charAt(index);
+            if (ch < '0' || ch > '9') {
+                return 0;
+            }
+            int digit = ch - '0';
+            if (parsed > (Integer.MAX_VALUE - digit) / 10) {
+                return 0;
+            }
+            parsed = parsed * 10 + digit;
+        }
+        return parsed;
     }
 
     private static Integer parsePort(String value) {

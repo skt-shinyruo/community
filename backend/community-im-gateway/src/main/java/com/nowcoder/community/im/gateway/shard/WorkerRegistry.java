@@ -126,7 +126,7 @@ public class WorkerRegistry {
     }
 
     private static boolean isValid(WorkerDescriptor worker) {
-        return worker != null && StringUtils.hasText(worker.getId()) && worker.getUri() != null;
+        return worker != null && !worker.isDraining() && StringUtils.hasText(worker.getId()) && worker.getUri() != null;
     }
 }
 

@@ -32,7 +32,9 @@ class NacosGatewayBindingTest {
         assertThat(routes.getRoutes())
                 .extracting(GatewayHttpRouteProperties.Route::getServiceId)
                 .contains("community-app", "community-oss", "im-core");
+        assertThat(environment.containsProperty("gateway.http.rate-limit.fail-open-on-error")).isTrue();
         assertThat(rateLimit.isEnabled()).isTrue();
+        assertThat(rateLimit.isFailOpenOnError()).isFalse();
         assertThat(traffic.getDefaultPolicyId()).isEqualTo("baseline");
     }
 

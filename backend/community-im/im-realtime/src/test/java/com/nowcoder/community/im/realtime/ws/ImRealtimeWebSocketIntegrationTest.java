@@ -76,6 +76,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.kafka.listener.auto-startup=true",
         "spring.kafka.consumer.auto-offset-reset=earliest",
         "spring.cloud.nacos.discovery.enabled=false",
+        "spring.cloud.nacos.config.enabled=false",
         "im.projection.bootstrap-on-startup=false",
         "im.session.worker-id=worker-a",
         "im.ws.path=/internal/ws/im",

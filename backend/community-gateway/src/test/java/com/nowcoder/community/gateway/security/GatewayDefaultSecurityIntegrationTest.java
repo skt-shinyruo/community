@@ -51,6 +51,7 @@ class GatewayDefaultSecurityIntegrationTest {
         registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri",
                 GatewayDefaultSecurityIntegrationTest::httpUpstreamBaseUrl);
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
+        registry.add("spring.cloud.nacos.config.enabled", () -> "false");
         registry.add("management.health.redis.enabled", () -> "false");
         registry.add("security.jwt.hmac-secret", () -> "gateway-test-jwt-secret-please-change-123456");
         registry.add("community.metrics.basic-auth.username", () -> METRICS_USERNAME);

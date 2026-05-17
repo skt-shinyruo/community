@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.http;
 
+import com.alibaba.cloud.nacos.NacosConfigManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.client.discovery.ReactiveDiscoveryClient;
 import org.springframework.cloud.gateway.config.GatewayAutoConfiguration;
@@ -16,5 +17,6 @@ class GatewayDiscoveryClasspathTest {
         assertThat(ReactiveDiscoveryClient.class).isNotNull();
         assertThat(GatewayAutoConfiguration.class).isNotNull();
         assertThat(GatewayDiscoveryClientAutoConfiguration.class).isNotNull();
+        assertThat(NacosConfigManager.class).isNotNull();
     }
 }

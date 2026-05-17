@@ -44,6 +44,7 @@ class ImSessionApiIntegrationTest {
         registry.add("security.jwt.hmac-secret", () -> SECRET);
         registry.add("security.jwt.issuer", () -> "community-auth");
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
+        registry.add("spring.cloud.nacos.config.enabled", () -> "false");
         registry.add("im.gateway.ws.path", () -> "/custom/ws/im");
         registry.add("im.gateway.public-ws-url", () -> "ws://localhost:12880/custom/ws/im");
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].uri",

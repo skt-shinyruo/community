@@ -65,6 +65,7 @@ class HttpRoutingIntegrationTest {
         registry.add("spring.cloud.discovery.client.simple.instances.im-core[0].uri", HttpRoutingIntegrationTest::imBaseUrl);
         registry.add("spring.cloud.discovery.client.simple.instances.community-oss[0].uri", HttpRoutingIntegrationTest::ossBaseUrl);
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
+        registry.add("spring.cloud.nacos.config.enabled", () -> "false");
         registry.add("gateway.cors.allowed-origins[0]", () -> "http://localhost:12881");
         registry.add("gateway.cors.allowed-origins[1]", () -> "http://127.0.0.1:12881");
     }

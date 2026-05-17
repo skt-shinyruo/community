@@ -1,10 +1,30 @@
 spring:
+  config:
+    import:
+      - ${NACOS_CONFIG_IMPORT_SHARED:optional:nacos:community-shared.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_SERVICE:optional:nacos:im-core.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
   application:
     name: im-core
   cloud:
     nacos:
       discovery:
         server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
+        metadata:
+          version: ${SERVICE_VERSION:@project.version@}
+          deployment.environment: ${DEPLOYMENT_ENVIRONMENT:local}
+          zone: ${SERVICE_ZONE:local}
+          traffic.group: ${SERVICE_TRAFFIC_GROUP:baseline}
+          release.track: ${SERVICE_RELEASE_TRACK:stable}
+          weight: ${SERVICE_WEIGHT:100}
+          protocol: http
+          capabilities: ${SERVICE_CAPABILITIES:}
+          management.port: ${MANAGEMENT_SERVER_PORT:${SERVER_PORT}}
+          draining: ${SERVICE_DRAINING:false}
+      config:
+        server-addr: ${SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_CONFIG_GROUP:COMMUNITY}
+        file-extension: yaml
   datasource:
     # Local HA keeps MySQL single-primary for writes; switch IM_CORE_DB_PRIMARY_HOST after manual promotion.
     url: ${IM_CORE_DB_URL:jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:localhost}:3306/im_core?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}

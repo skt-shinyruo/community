@@ -1,12 +1,17 @@
 package com.nowcoder.community.gateway.edge;
 
+import com.nowcoder.community.gateway.canary.CanaryRouteProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties({RateLimitProperties.class, TrafficPolicyProperties.class})
+@EnableConfigurationProperties({
+        RateLimitProperties.class,
+        TrafficPolicyProperties.class,
+        CanaryRouteProperties.class
+})
 public class EdgeConfig {
 
     @Bean

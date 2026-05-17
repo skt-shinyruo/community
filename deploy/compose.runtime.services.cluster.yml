@@ -85,7 +85,7 @@ services:
     - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
     - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
     - ELASTICSEARCH_URIS=${ELASTICSEARCH_URIS:-http://elasticsearch-1:9200,http://elasticsearch-2:9200,http://elasticsearch-3:9200}
-    - OSS_AVATAR_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:-http://localhost:12880}
+    - OSS_CLIENT_BASE_URL=${OSS_CLIENT_BASE_URL:-http://community-oss:18090}
     - XXL_JOB_EXECUTOR_ADDRESS=${XXL_JOB_EXECUTOR_ADDRESS:-http://community-app-1:9999/}
     - XXL_JOB_ACCESS_TOKEN=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
     - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-mailhog}
@@ -144,7 +144,7 @@ services:
     - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
     - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
     - ELASTICSEARCH_URIS=${ELASTICSEARCH_URIS:-http://elasticsearch-1:9200,http://elasticsearch-2:9200,http://elasticsearch-3:9200}
-    - OSS_AVATAR_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:-http://localhost:12880}
+    - OSS_CLIENT_BASE_URL=${OSS_CLIENT_BASE_URL:-http://community-oss:18090}
     - XXL_JOB_EXECUTOR_ADDRESS=${XXL_JOB_EXECUTOR_ADDRESS:-http://community-app-2:9999/}
     - XXL_JOB_ACCESS_TOKEN=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
     - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-mailhog}
@@ -199,7 +199,7 @@ services:
     - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
     - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
     - ELASTICSEARCH_URIS=${ELASTICSEARCH_URIS:-http://elasticsearch-1:9200,http://elasticsearch-2:9200,http://elasticsearch-3:9200}
-    - OSS_AVATAR_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:-http://localhost:12880}
+    - OSS_CLIENT_BASE_URL=${OSS_CLIENT_BASE_URL:-http://community-oss:18090}
     - XXL_JOB_EXECUTOR_ADDRESS=${XXL_JOB_EXECUTOR_ADDRESS:-http://community-app-3:9999/}
     - XXL_JOB_ACCESS_TOKEN=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
     - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-mailhog}

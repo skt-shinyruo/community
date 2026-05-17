@@ -115,3 +115,19 @@ services:
       timeout: 3s
       retries: 60
       start_period: 20s
+  nacos-config-bootstrap:
+    image: curlimages/curl:8.11.1
+    entrypoint:
+    - /bin/sh
+    - /nacos/seed-configs.sh
+    environment:
+    - NACOS_ADDR=${NACOS_CONFIG_BOOTSTRAP_ADDR:-http://nacos-1:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
+    - CONFIG_DIR=/nacos/config
+    volumes:
+    - ./nacos:/nacos:ro
+    depends_on:
+      nacos-1:
+        condition: service_healthy
+    restart: "no"

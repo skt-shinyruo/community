@@ -28,11 +28,17 @@ grep -F 'name: community-single' "${single_infra}"
 grep -E '^  mysql:$' "${single_infra}"
 grep -E '^  nacos:$' "${single_infra}"
 grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F 'healthcheck:'
+grep -E '^  nacos-config-bootstrap:$' "${single_infra}"
+grep -A24 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F '/deploy/nacos'
+grep -A24 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F 'target: /nacos'
+grep -A24 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F 'read_only: true'
 grep -E '^  community-gateway:$' "${single_full}"
 grep -A4 -E '^      nacos:$' "${single_full}" | grep -F 'condition: service_healthy'
+grep -A6 -E '^      nacos-config-bootstrap:$' "${single_full}" | grep -F 'condition: service_completed_successfully'
 grep -A4 -E '^      community-gateway:$' "${single_full}" | grep -F 'condition: service_healthy'
 grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?1"?' "${single_infra}"
-grep -F 'XXL_JOB_ADMIN_ADDRESSES: http://xxl-job-admin:8080/xxl-job-admin' "${single_full}"grep -F 'XXL_JOB_ADMIN_INGRESS_URL: http://xxl-job-admin:8080/xxl-job-admin' "${single_full}"
+grep -F 'XXL_JOB_ADMIN_ADDRESSES: http://xxl-job-admin:8080/xxl-job-admin' "${single_full}"
+grep -F 'XXL_JOB_ADMIN_INGRESS_URL: http://xxl-job-admin:8080/xxl-job-admin' "${single_full}"
 
 if grep -F 'XXL_JOB_ADMIN_ADDRESSES: http://nginx:8081/xxl-job-admin' "${single_full}" >/dev/null 2>&1; then
   echo "single community-app must use the direct XXL-JOB admin service address, not nginx" >&2
@@ -43,8 +49,13 @@ grep -F 'name: community-cluster' "${cluster_infra}"
 grep -E '^  mysql-primary:$' "${cluster_infra}"
 grep -E '^  nacos-1:$' "${cluster_infra}"
 grep -A40 -E '^  nacos-1:$' "${cluster_infra}" | grep -F 'healthcheck:'
+grep -E '^  nacos-config-bootstrap:$' "${cluster_infra}"
+grep -A24 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F '/deploy/nacos'
+grep -A24 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F 'target: /nacos'
+grep -A24 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F 'read_only: true'
 grep -E '^  community-gateway-1:$' "${cluster_full}"
 grep -A4 -E '^      nacos-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'
+grep -A6 -E '^      nacos-config-bootstrap:$' "${cluster_full}" | grep -F 'condition: service_completed_successfully'
 grep -A4 -E '^      community-gateway-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'
 grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?3"?' "${cluster_infra}"
 grep -F 'XXL_JOB_ADMIN_INGRESS_URL: http://xxl-job-admin-1:8080/xxl-job-admin,http://xxl-job-admin-2:8080/xxl-job-admin' "${cluster_full}"

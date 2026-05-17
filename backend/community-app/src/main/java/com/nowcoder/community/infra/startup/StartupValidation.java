@@ -43,6 +43,8 @@ public class StartupValidation {
             errors.add("配置不安全：security.jwt.hmac-secret 长度不足（建议 >= 32 字节）");
         }
 
+        validateNacosConfig(environment, errors);
+
         // 1.5) trusted-proxy（可选）：启用后必须配置 CIDR allowlist，避免信任 XFF 造成伪造风险。
         validateTrustedProxy(environment, errors);
 
@@ -64,7 +66,8 @@ public class StartupValidation {
                 sb.append(" - ").append(e).append('\n');
             }
             sb.append("fixGuide=").append('\n');
-            sb.append(" - 检查 Nacos 配置是否已发布（prod profile 下应为 required/fail-fast）").append('\n');
+            sb.append(" - 如果 community.nacos.config.required=true，检查 NACOS_CONFIG_IMPORT_SHARED / NACOS_CONFIG_IMPORT_SERVICE 是否使用 required nacos: dataId").append('\n');
+            sb.append(" - 检查 Nacos dataId 是否已发布到正确 namespace/group").append('\n');
             sb.append(" - 检查 deploy/.env.single / deploy/.env.cluster 与部署平台 Secret/ConfigMap 是否已注入对应环境变量").append('\n');
             throw new IllegalStateException(sb.toString());
         }
@@ -87,6 +90,17 @@ public class StartupValidation {
         if (!StringUtils.hasText(v)) {
             errors.add("缺失配置：" + key + "（" + hint + "）");
         }
+    }
+
+    private void validateNacosConfig(Environment environment, List<String> errors) {
+        Boolean required = environment.getProperty("community.nacos.config.required", Boolean.class, Boolean.FALSE);
+        if (!Boolean.TRUE.equals(required)) {
+            return;
+        }
+        requireNonBlank(environment, errors, "NACOS_CONFIG_IMPORT_SHARED",
+                "生产环境启用 Nacos Config required 模式时必须导入 community-shared.yaml");
+        requireNonBlank(environment, errors, "NACOS_CONFIG_IMPORT_SERVICE",
+                "生产环境启用 Nacos Config required 模式时必须导入当前服务 dataId");
     }
 
     private void requireTrue(Environment env, List<String> errors, String key, String hint) {

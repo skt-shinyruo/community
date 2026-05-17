@@ -224,6 +224,26 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - 自动动作型任务只写 owner command，例如市场自动确认只写 release command，不在 job 中直接记账。
 - 长任务或集群互斥任务需要 single-flight、lease 或条件更新保护。
 
+## Config And Discovery 设计
+
+Nacos 同时承担服务注册中心和非密钥配置中心职责。所有 runtime service 通过
+`spring.config.import` 导入 `community-shared.yaml` 和自身 service dataId；本地
+和测试 profile 使用 `optional:nacos:`，允许 IDE 启动回退到 packaged defaults。
+
+生产类运行应设置 required imports：
+
+- `NACOS_CONFIG_IMPORT_SHARED`
+- `NACOS_CONFIG_IMPORT_SERVICE`
+
+`deploy/nacos/config/*.yaml` 是可发布到 Nacos 的 seed 配置，只放动态策略、路由、
+降级、限流、前端 runtime、IM worker 元数据等非密钥配置。JWT HMAC secret、数据库
+密码、对象存储 access key、XXL-JOB token 和 Nacos 凭据必须来自 `.env`、Secret
+manager 或部署平台 Secret，不进入 Nacos Config dataId。
+
+服务注册 metadata 只放低基数运行态标签，例如 role、release track、draining、
+workerId、wsPath、wsPort、capacity 和 shardGroup。metadata 不承载用户态数据、
+业务明细、token、凭据或带认证信息的 URL。
+
 ## Runtime Observability 设计
 
 业务无关运行态日志由共享 `community-common-observability` 提供，属于基础设施能力，不进入任何业务 domain 或 application 编排。后端服务通过 Spring Boot auto-configuration 接入，日志通过 SLF4J/MDC 写入现有 Logback JSON stdout pipeline，再由 Docker container logs、EDOT collector、Elasticsearch 和 Kibana 查询。
@@ -239,6 +259,7 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 关键安全与一致性能力默认 fail-closed：
 
 - prod 下 JWT HMAC secret 缺失、过短或为占位值会阻断启动。
+- prod 且 `community.nacos.config.required=true` 时，缺失 `NACOS_CONFIG_IMPORT_SHARED` 或 `NACOS_CONFIG_IMPORT_SERVICE` 会阻断启动。
 - prod 下 trusted proxy 开启但 CIDR 为空或全信任会阻断启动。
 - prod 下固定验证码、注册验证码/重置链接回传、SMTP 缺失等认证误配会阻断启动。
 - OriginGuard 启用且 fail-closed 时，allowlist 缺失会阻断启动并拒绝 `/api/auth/**` 敏感写入口。

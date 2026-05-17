@@ -58,12 +58,21 @@ public class RendezvousWorkerSelector {
 
     private static BigInteger capacityAwareScore(UUID userId, WorkerDescriptor worker) {
         long score = score(userId, worker.getId());
+        BigInteger rawScore = BigInteger.valueOf(score);
         if (worker.getMaxConnections() <= 0) {
-            return BigInteger.valueOf(score);
+            return capacityBase().add(rawScore);
         }
-        return BigInteger.valueOf(score)
-                .multiply(BigInteger.valueOf(worker.availableCapacity()))
-                .divide(BigInteger.valueOf(worker.getMaxConnections()));
+        int availableCapacity = worker.availableCapacity();
+        if (availableCapacity <= 0) {
+            return rawScore;
+        }
+        return capacityBase().add(rawScore
+                .multiply(BigInteger.valueOf(availableCapacity))
+                .divide(BigInteger.valueOf(worker.getMaxConnections())));
+    }
+
+    private static BigInteger capacityBase() {
+        return BigInteger.ONE.shiftLeft(32);
     }
 
     private static long score(UUID userId, String workerId) {

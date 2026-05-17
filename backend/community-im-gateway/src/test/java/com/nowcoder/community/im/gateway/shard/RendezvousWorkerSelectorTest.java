@@ -51,17 +51,43 @@ class RendezvousWorkerSelectorTest {
     }
 
     @Test
-    void shouldPreferAvailableCapacityOverHigherHashWhenWorkerIsFull() {
+    void shouldStillFindDrainingWorkerForExistingTicketRouting() {
+        WorkerRegistry registry = new WorkerRegistry(List.of(
+                new WorkerDescriptor("worker-a", URI.create("ws://127.0.0.1:18081/internal/ws/im"),
+                        true, 100, 0, "local")
+        ));
+
+        assertThat(registry.find("worker-a"))
+                .map(WorkerDescriptor::getUri)
+                .contains(URI.create("ws://127.0.0.1:18081/internal/ws/im"));
+    }
+
+    @Test
+    void shouldPreferWorkerWithCapacityOverFullWorkerWithHigherHash() {
         RendezvousWorkerSelector selector = new RendezvousWorkerSelector(new WorkerRegistry(List.of(
-                new WorkerDescriptor("worker-low", URI.create("ws://127.0.0.1:18081/internal/ws/im"),
+                new WorkerDescriptor("worker-high-hash-full", URI.create("ws://127.0.0.1:18081/internal/ws/im"),
                         false, 100, 100, "local"),
-                new WorkerDescriptor("worker-full", URI.create("ws://127.0.0.1:18082/internal/ws/im"),
+                new WorkerDescriptor("worker-low-hash-available", URI.create("ws://127.0.0.1:18082/internal/ws/im"),
                         false, 100, 0, "local")
         )));
 
         WorkerDescriptor selected = selector.select(UUID.fromString("00000000-0000-7000-8000-000000000123"));
 
-        assertThat(selected.getId()).isEqualTo("worker-full");
+        assertThat(selected.getId()).isEqualTo("worker-low-hash-available");
+    }
+
+    @Test
+    void shouldKeepRendezvousDistributionWhenAllKnownWorkersAreFull() {
+        RendezvousWorkerSelector selector = new RendezvousWorkerSelector(new WorkerRegistry(List.of(
+                new WorkerDescriptor("worker-a", URI.create("ws://127.0.0.1:18081/internal/ws/im"),
+                        false, 100, 100, "local"),
+                new WorkerDescriptor("worker-b", URI.create("ws://127.0.0.1:18082/internal/ws/im"),
+                        false, 100, 100, "local")
+        )));
+
+        WorkerDescriptor selected = selector.select(UUID.fromString("00000000-0000-7000-8000-000000000123"));
+
+        assertThat(selected.getId()).isEqualTo("worker-a");
     }
 
     @Test

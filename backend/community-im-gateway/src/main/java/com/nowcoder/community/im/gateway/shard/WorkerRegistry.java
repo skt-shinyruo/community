@@ -57,7 +57,7 @@ public class WorkerRegistry {
         List<WorkerDescriptor> workers = currentWorkers();
         ArrayList<WorkerDescriptor> healthy = new ArrayList<>();
         for (WorkerDescriptor worker : workers) {
-            if (!unhealthyWorkerIds.contains(worker.getId())) {
+            if (!worker.isDraining() && !unhealthyWorkerIds.contains(worker.getId())) {
                 healthy.add(worker);
             }
         }
@@ -126,7 +126,7 @@ public class WorkerRegistry {
     }
 
     private static boolean isValid(WorkerDescriptor worker) {
-        return worker != null && !worker.isDraining() && StringUtils.hasText(worker.getId()) && worker.getUri() != null;
+        return worker != null && StringUtils.hasText(worker.getId()) && worker.getUri() != null;
     }
 }
 

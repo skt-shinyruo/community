@@ -22,6 +22,8 @@ class NacosImGatewayBindingTest {
                 .bind("im.gateway", ImGatewaySessionProperties.class)
                 .orElseThrow(IllegalStateException::new);
 
+        assertThat(environment.containsProperty("im.gateway.worker.service-id")).isTrue();
+        assertThat(environment.containsProperty("im.gateway.ws.path")).isTrue();
         assertThat(properties.getPublicWsUrl()).isEqualTo("ws://localhost:12880/ws/im");
         assertThat(properties.getWorker().getServiceId()).isEqualTo("im-realtime-worker");
         assertThat(properties.getWs().getPath()).isEqualTo("/ws/im");

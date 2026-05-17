@@ -22,6 +22,8 @@ class NacosImRealtimeBindingTest {
                 .bind("im.clients", ImServiceClientProperties.class)
                 .orElseThrow(IllegalStateException::new);
 
+        assertThat(environment.containsProperty("im.clients.community-service-id")).isTrue();
+        assertThat(environment.containsProperty("im.clients.im-core-service-id")).isTrue();
         assertThat(environment.containsProperty("im.clients.snapshot-timeout-ms")).isTrue();
         assertThat(properties.getCommunityServiceId()).isEqualTo("community-app");
         assertThat(properties.getImCoreServiceId()).isEqualTo("im-core");

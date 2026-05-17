@@ -28,6 +28,7 @@ class NacosPolicyBindingTest {
 
         assertThat(originGuard.isEnabled()).isTrue();
         assertThat(originGuard.isFailOpenWhenAllowlistEmpty()).isFalse();
+        assertThat(environment.containsProperty("auth.login-rate-limit.enabled")).isTrue();
         assertThat(environment.containsProperty("auth.login-rate-limit.max-failures-per-user")).isTrue();
         assertThat(loginRateLimit.isEnabled()).isTrue();
         assertThat(loginRateLimit.getMaxFailuresPerUser()).isEqualTo(5);

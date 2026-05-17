@@ -1,3 +1,13 @@
+spring:
+  cloud:
+    nacos:
+      config:
+        enabled: false
+        import-check:
+          enabled: false
+      discovery:
+        enabled: false
+
 security:
   jwt:
     hmac-secret: gateway-test-jwt-secret-please-change-123456

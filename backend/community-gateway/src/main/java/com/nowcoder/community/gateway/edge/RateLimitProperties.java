@@ -62,5 +62,13 @@ public class RateLimitProperties {
         public void setWindow(Duration window) {
             this.window = window;
         }
+
+        public Policy copy() {
+            Policy copy = new Policy();
+            copy.setEnabled(enabled);
+            copy.setLimit(limit);
+            copy.setWindow(window);
+            return copy;
+        }
     }
 }

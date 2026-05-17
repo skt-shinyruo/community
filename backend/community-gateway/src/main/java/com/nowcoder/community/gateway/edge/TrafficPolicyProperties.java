@@ -65,5 +65,15 @@ public class TrafficPolicyProperties {
         public Map<String, String> getTags() {
             return tags;
         }
+
+        public Rule copy() {
+            Rule copy = new Rule();
+            copy.setEnabled(enabled);
+            copy.setPolicyId(policyId);
+            copy.getPathPrefixes().addAll(pathPrefixes);
+            copy.getMethods().addAll(methods);
+            copy.getTags().putAll(tags);
+            return copy;
+        }
     }
 }

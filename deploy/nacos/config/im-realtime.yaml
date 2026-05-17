@@ -6,17 +6,27 @@ im:
     policy-snapshot-service-id: community-app
     snapshot-timeout-ms: 3000
     internal-scope: im.realtime.internal
+  community:
+    timeout-ms: 1500
+  projection:
+    bootstrap-on-startup: true
   session:
     worker-service-id: im-realtime-worker
     worker-id: local
+    ws-base-url: ws://127.0.0.1:18081/internal/ws/im
     ticket-ttl: PT2M
     worker-id-metadata-key: workerId
     ws-path-metadata-key: wsPath
     ws-port-metadata-key: wsPort
+  kafka:
+    event:
+      concurrency: 3
   ws:
     path: /internal/ws/im
+    max-inbound-chars: 10000
     outbound-buffer-size: 256
     kafka-send-timeout-ms: 5000
+    room-flush-interval-ms: 100
   realtime:
     worker:
       max-connections: 10000

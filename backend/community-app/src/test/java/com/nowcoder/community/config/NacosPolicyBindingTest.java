@@ -1,6 +1,7 @@
 package com.nowcoder.community.config;
 
 import com.nowcoder.community.auth.config.LoginRateLimitProperties;
+import com.nowcoder.community.auth.config.RefreshTokenCleanupProperties;
 import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -25,6 +26,9 @@ class NacosPolicyBindingTest {
                 .orElseThrow(IllegalStateException::new);
         LoginRateLimitProperties loginRateLimit = binder.bind("auth.login-rate-limit", LoginRateLimitProperties.class)
                 .orElseThrow(IllegalStateException::new);
+        RefreshTokenCleanupProperties refreshCleanup = binder
+                .bind("auth.refresh.cleanup", RefreshTokenCleanupProperties.class)
+                .orElseThrow(IllegalStateException::new);
 
         assertThat(originGuard.isEnabled()).isTrue();
         assertThat(originGuard.isFailOpenWhenAllowlistEmpty()).isFalse();
@@ -32,6 +36,13 @@ class NacosPolicyBindingTest {
         assertThat(environment.containsProperty("auth.login-rate-limit.max-failures-per-user")).isTrue();
         assertThat(loginRateLimit.isEnabled()).isTrue();
         assertThat(loginRateLimit.getMaxFailuresPerUser()).isEqualTo(5);
+        assertThat(environment.containsProperty("auth.refresh.cleanup.interval-ms")).isTrue();
+        assertThat(refreshCleanup.isEnabled()).isTrue();
+        assertThat(refreshCleanup.getIntervalMs()).isEqualTo(3_600_000L);
+        assertThat(environment.getProperty("auth.password-reset.reset-base-url")).isEqualTo("");
+        assertThat(environment.getProperty("auth.registration.mail.from")).isEqualTo("no-reply@community.local");
+        assertThat(environment.getProperty("http.idempotency.store")).isEqualTo("DB");
+        assertThat(environment.getProperty("growth.business-zone-id")).isEqualTo("Asia/Shanghai");
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

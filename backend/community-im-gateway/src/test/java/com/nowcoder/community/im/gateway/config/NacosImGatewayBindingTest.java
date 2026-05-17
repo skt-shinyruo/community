@@ -24,9 +24,13 @@ class NacosImGatewayBindingTest {
 
         assertThat(environment.containsProperty("im.gateway.worker.service-id")).isTrue();
         assertThat(environment.containsProperty("im.gateway.ws.path")).isTrue();
+        assertThat(environment.containsProperty("im.gateway.ws.first-frame-timeout-ms")).isTrue();
+        assertThat(environment.containsProperty("im.gateway.ws.max-inbound-chars")).isTrue();
         assertThat(properties.getPublicWsUrl()).isEqualTo("ws://localhost:12880/ws/im");
         assertThat(properties.getWorker().getServiceId()).isEqualTo("im-realtime-worker");
         assertThat(properties.getWs().getPath()).isEqualTo("/ws/im");
+        assertThat(properties.getWs().getFirstFrameTimeoutMs()).isEqualTo(5000);
+        assertThat(environment.getProperty("im.gateway.ws.max-inbound-chars", Integer.class)).isEqualTo(10000);
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

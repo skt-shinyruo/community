@@ -25,9 +25,16 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.containsProperty("im.clients.community-service-id")).isTrue();
         assertThat(environment.containsProperty("im.clients.im-core-service-id")).isTrue();
         assertThat(environment.containsProperty("im.clients.snapshot-timeout-ms")).isTrue();
+        assertThat(environment.containsProperty("im.community.timeout-ms")).isTrue();
+        assertThat(environment.containsProperty("im.projection.bootstrap-on-startup")).isTrue();
+        assertThat(environment.containsProperty("im.kafka.event.concurrency")).isTrue();
+        assertThat(environment.containsProperty("im.ws.room-flush-interval-ms")).isTrue();
+        assertThat(environment.containsProperty("im.ws.max-inbound-chars")).isTrue();
         assertThat(properties.getCommunityServiceId()).isEqualTo("community-app");
         assertThat(properties.getImCoreServiceId()).isEqualTo("im-core");
         assertThat(properties.getSnapshotTimeoutMs()).isEqualTo(3000);
+        assertThat(environment.getProperty("im.community.timeout-ms", Integer.class)).isEqualTo(1500);
+        assertThat(environment.getProperty("im.ws.max-inbound-chars", Integer.class)).isEqualTo(10000);
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

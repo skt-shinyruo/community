@@ -1,3 +1,7 @@
+security:
+  jwt:
+    issuer: community-auth
+
 gateway:
   cors:
     allowed-origins: []

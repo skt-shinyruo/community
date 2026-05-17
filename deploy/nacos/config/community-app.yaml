@@ -14,20 +14,32 @@ security:
     refresh-cookie-secure: false
 
 auth:
+  refresh:
+    store: db
+    cleanup:
+      enabled: true
+      interval-ms: 3600000
   captcha:
+    store: redis
     ttl-seconds: 60
     max-failures: 3
   registration:
     code:
+      store: redis
       ttl-seconds: 600
       max-failures: 3
       resend-cooldown-seconds: 60
       expose-code: false
     draft:
+      store: redis
       ttl-seconds: 1800
     mail:
       enabled: false
+      from: no-reply@community.local
+      subject: 注册验证码
   password-reset:
+    reset-base-url: ""
+    store: redis
     ttl-seconds: 600
     request-window-seconds: 3600
     max-requests-per-email: 3
@@ -40,6 +52,73 @@ auth:
     captcha-required-failures-per-ip: 5
     captcha-required-failures-per-user: 2
 
+http:
+  idempotency:
+    enabled: true
+    store: DB
+
+xxl:
+  job:
+    enabled: false
+    admin:
+      addresses: ""
+    executor:
+      appname: ""
+      address: ""
+
+content:
+  storage: redis
+  events:
+    publisher: local
+  score:
+    refresh:
+      enabled: true
+      batch-size: 200
+
+events:
+  outbox:
+    enabled: true
+    batch-size: 50
+    processing-lease: 30s
+    max-retries: 50
+    base-backoff: 5s
+    max-backoff: 10m
+    worker-fixed-delay-ms: 1000
+
+social:
+  storage: db
+  events:
+    publisher: local
+
+growth:
+  business-zone-id: Asia/Shanghai
+
 oss:
   client:
     base-url: http://community-oss:18090
+
+search:
+  storage: es
+  idempotency:
+    cleanup-enabled: true
+    retention-days: 7
+    cleanup-interval-ms: 21600000
+  index:
+    prefix: community_posts_v
+
+analytics:
+  max-days-range: 31
+  ingest:
+    enabled: false
+    record-uv: true
+    record-dau: true
+    include-paths:
+      - /api/posts/**
+      - /api/search/**
+      - /api/notices/**
+    exclude-paths:
+      - /api/analytics/**
+      - /api/auth/**
+      - /actuator/**
+      - /internal/**
+      - /files/**

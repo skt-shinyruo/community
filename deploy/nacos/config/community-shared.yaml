@@ -17,9 +17,33 @@ community:
       executors:
         enabled: true
         saturation-threshold-percent: 85
+      datasource:
+        enabled: true
+        pool-pending-threshold: 1
+      sql:
+        enabled: true
+        slow-query-threshold-ms: 500
+      redis:
+        enabled: true
+        pool-pending-threshold: 1
+        slow-command-threshold-ms: 100
+      kafka:
+        enabled: true
+        consumer-lag-threshold: 1000
+      oss:
+        enabled: true
+        slow-operation-threshold-ms: 1000
       http-client:
         enabled: true
         slow-request-threshold-ms: 1000
+      jobs:
+        enabled: true
+        slow-job-threshold-ms: 30000
+      cache:
+        enabled: true
+        hit-ratio-threshold-percent: 80
+      security:
+        enabled: true
       logging-system:
         enabled: true
         queue-pressure-threshold-percent: 80
@@ -28,3 +52,9 @@ community:
         fd-usage-threshold-percent: 80
         disk-usage-threshold-percent: 90
         cpu-load-threshold-percent: 85
+      http:
+        access-log-enabled: true
+        slow-request-threshold-ms: 1000
+        exclude-paths:
+          - /actuator/health
+          - /actuator/info

@@ -36,6 +36,8 @@ class NacosGatewayBindingTest {
         assertThat(rateLimit.isEnabled()).isTrue();
         assertThat(rateLimit.isFailOpenOnError()).isFalse();
         assertThat(traffic.getDefaultPolicyId()).isEqualTo("baseline");
+        assertThat(environment.containsProperty("gateway.cors.allowed-origins")).isTrue();
+        assertThat(environment.getProperty("security.jwt.issuer")).isEqualTo("community-auth");
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

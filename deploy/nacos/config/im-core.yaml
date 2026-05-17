@@ -7,3 +7,16 @@ events:
     base-backoff: 5s
     max-backoff: 10m
     worker-fixed-delay-ms: 1000
+
+im:
+  kafka:
+    command:
+      concurrency: 3
+  message:
+    max-chars: 10000
+  room:
+    max-members: 10000
+  room-member-change:
+    publisher: kafka
+  cors:
+    allowed-origins: []

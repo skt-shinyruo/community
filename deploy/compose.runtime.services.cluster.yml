@@ -74,6 +74,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
     - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
@@ -107,6 +110,8 @@ services:
       mailhog:
         condition: service_started
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -142,6 +147,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
     - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
@@ -176,6 +184,8 @@ services:
         condition: service_started
       nacos-db-bootstrap:
         condition: service_completed_successfully
+      nacos-config-bootstrap:
+        condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
       mock-data-studio-db-bootstrap:
@@ -206,6 +216,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
     - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
@@ -240,6 +253,8 @@ services:
         condition: service_started
       nacos-db-bootstrap:
         condition: service_completed_successfully
+      nacos-config-bootstrap:
+        condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
       mock-data-studio-db-bootstrap:
@@ -270,6 +285,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
     - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${OSS_MYSQL_DATABASE:-community_oss}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
@@ -287,6 +305,8 @@ services:
     - SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:-10GB}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -322,6 +342,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${OSS_MYSQL_DATABASE:-community_oss}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - OSS_DB_USERNAME=${OSS_MYSQL_USER:-community_oss}
     - OSS_DB_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}
@@ -338,6 +361,8 @@ services:
     depends_on:
       community-oss-1:
         condition: service_healthy
+      nacos-config-bootstrap:
+        condition: service_completed_successfully
   community-oss-3:
     <<: *community-oss-base
     environment:
@@ -356,6 +381,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${OSS_MYSQL_DATABASE:-community_oss}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - OSS_DB_USERNAME=${OSS_MYSQL_USER:-community_oss}
     - OSS_DB_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}
@@ -372,6 +400,8 @@ services:
     depends_on:
       community-oss-1:
         condition: service_healthy
+      nacos-config-bootstrap:
+        condition: service_completed_successfully
   community-gateway-1:
     <<: *community-gateway-base
     environment:
@@ -390,6 +420,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
     - GATEWAY_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
@@ -399,6 +432,8 @@ services:
     - IM_REALTIME_WS_BASE_URL=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -436,6 +471,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
     - GATEWAY_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
@@ -445,6 +483,8 @@ services:
     - IM_REALTIME_WS_BASE_URL=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -478,6 +518,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
     - GATEWAY_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
@@ -487,6 +530,8 @@ services:
     - IM_REALTIME_WS_BASE_URL=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -520,11 +565,16 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - IM_GATEWAY_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     - IM_GATEWAY_PUBLIC_WS_URL=${IM_GATEWAY_PUBLIC_WS_URL:-ws://localhost:12880/ws/im}
     - IM_REALTIME_WORKER_SERVICE_ID=${IM_REALTIME_WORKER_SERVICE_ID:-im-realtime-worker}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -552,11 +602,16 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - IM_GATEWAY_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     - IM_GATEWAY_PUBLIC_WS_URL=${IM_GATEWAY_PUBLIC_WS_URL:-ws://localhost:12880/ws/im}
     - IM_REALTIME_WORKER_SERVICE_ID=${IM_REALTIME_WORKER_SERVICE_ID:-im-realtime-worker}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -584,11 +639,16 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - IM_GATEWAY_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     - IM_GATEWAY_PUBLIC_WS_URL=${IM_GATEWAY_PUBLIC_WS_URL:-ws://localhost:12880/ws/im}
     - IM_REALTIME_WORKER_SERVICE_ID=${IM_REALTIME_WORKER_SERVICE_ID:-im-realtime-worker}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -616,6 +676,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
     - IM_CORE_DB_PRIMARY_HOST=${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}
     - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
@@ -624,6 +687,8 @@ services:
     - IM_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -653,6 +718,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
     - IM_CORE_DB_PRIMARY_HOST=${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}
     - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
@@ -661,6 +729,8 @@ services:
     - IM_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -686,6 +756,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
     - IM_CORE_DB_PRIMARY_HOST=${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}
     - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
@@ -694,6 +767,8 @@ services:
     - IM_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -719,6 +794,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
     - IM_REALTIME_CONSUMER_GROUP=im-realtime-1
     - IM_WS_PATH=${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
@@ -731,6 +809,8 @@ services:
     - IM_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -760,6 +840,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
     - IM_REALTIME_CONSUMER_GROUP=im-realtime-2
     - IM_WS_PATH=${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
@@ -772,6 +855,8 @@ services:
     - IM_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy
@@ -797,6 +882,9 @@ services:
     - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
     - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
+    - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
     - IM_REALTIME_CONSUMER_GROUP=im-realtime-3
     - IM_WS_PATH=${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
@@ -809,6 +897,8 @@ services:
     - IM_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     depends_on:
       nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-config-bootstrap:
         condition: service_completed_successfully
       nacos-1:
         condition: service_healthy

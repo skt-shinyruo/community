@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
@@ -43,7 +44,7 @@ public class RendezvousWorkerSelector {
         }
         return candidates.stream()
                 .max((left, right) -> {
-                    int byScore = Long.compare(score(userId, left.getId()), score(userId, right.getId()));
+                    int byScore = capacityAwareScore(userId, left).compareTo(capacityAwareScore(userId, right));
                     if (byScore != 0) {
                         return byScore;
                     }
@@ -53,6 +54,16 @@ public class RendezvousWorkerSelector {
                         HttpStatus.SERVICE_UNAVAILABLE,
                         "no websocket workers available"
                 ));
+    }
+
+    private static BigInteger capacityAwareScore(UUID userId, WorkerDescriptor worker) {
+        long score = score(userId, worker.getId());
+        if (worker.getMaxConnections() <= 0) {
+            return BigInteger.valueOf(score);
+        }
+        return BigInteger.valueOf(score)
+                .multiply(BigInteger.valueOf(worker.availableCapacity()))
+                .divide(BigInteger.valueOf(worker.getMaxConnections()));
     }
 
     private static long score(UUID userId, String workerId) {

@@ -1,0 +1,22 @@
+events:
+  outbox:
+    enabled: true
+    batch-size: 50
+    processing-lease: 30s
+    max-retries: 50
+    base-backoff: 5s
+    max-backoff: 10m
+    worker-fixed-delay-ms: 1000
+
+content:
+  score:
+    refresh:
+      enabled: true
+      batch-size: 200
+
+analytics:
+  max-days-range: 31
+  ingest:
+    enabled: false
+    record-uv: true
+    record-dau: true

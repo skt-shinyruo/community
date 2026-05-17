@@ -1,0 +1,16 @@
+im:
+  gateway:
+    cors:
+      allowed-origins: []
+    public-ws-url: ws://localhost:12880/ws/im
+    session:
+      ticket-ttl: PT2M
+    worker:
+      service-id: im-realtime-worker
+      worker-id-metadata-key: workerId
+      ws-path-metadata-key: wsPath
+      ws-port-metadata-key: wsPort
+    ws:
+      path: /ws/im
+      first-frame-timeout-ms: 5000
+      max-inbound-chars: 10000

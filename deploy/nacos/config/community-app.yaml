@@ -1,0 +1,45 @@
+gateway:
+  origin-guard:
+    enabled: true
+    allowed-origins: []
+    fail-open-when-allowlist-empty: false
+
+security:
+  jwt:
+    access-token-ttl-seconds: 900
+    refresh-token-ttl-seconds: 604800
+    refresh-cookie-name: refresh_token
+    refresh-cookie-path: /api/auth
+    refresh-cookie-same-site: Lax
+    refresh-cookie-secure: false
+
+auth:
+  captcha:
+    ttl-seconds: 60
+    max-failures: 3
+  registration:
+    code:
+      ttl-seconds: 600
+      max-failures: 3
+      resend-cooldown-seconds: 60
+      expose-code: false
+    draft:
+      ttl-seconds: 1800
+    mail:
+      enabled: false
+  password-reset:
+    ttl-seconds: 600
+    request-window-seconds: 3600
+    max-requests-per-email: 3
+    max-requests-per-ip: 20
+  login-rate-limit:
+    enabled: true
+    window-seconds: 60
+    max-failures-per-ip: 20
+    max-failures-per-user: 5
+    captcha-required-failures-per-ip: 5
+    captcha-required-failures-per-user: 2
+
+oss:
+  client:
+    base-url: http://community-oss:18090

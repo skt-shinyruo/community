@@ -1,0 +1,16 @@
+search:
+  storage: es
+  index:
+    prefix: community_posts_v
+    initialize: true
+  query:
+    default-sort: relevance
+    max-page-size: 50
+    max-result-window: 10000
+    timeout-ms: 1500
+  idempotency:
+    cleanup-enabled: true
+    retention-days: 7
+    cleanup-interval-ms: 21600000
+  degradation:
+    enabled: false

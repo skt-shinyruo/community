@@ -1,0 +1,7 @@
+community:
+  cache:
+    null-ttl: 30s
+    default-ttl: 300s
+    hotspot-threshold: 1000
+    prewarm-enabled: false
+    diagnostic-bypass-enabled: false

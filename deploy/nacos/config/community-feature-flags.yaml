@@ -1,0 +1,13 @@
+community:
+  features:
+    global-read-only: false
+    registration: true
+    login: true
+    post-publishing: true
+    comment-publishing: true
+    private-message: true
+    file-upload: true
+    market-trading: true
+    report-moderation: true
+    analytics-ingest: false
+    search: true

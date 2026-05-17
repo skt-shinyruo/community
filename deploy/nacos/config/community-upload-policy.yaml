@@ -1,0 +1,19 @@
+community:
+  upload:
+    max-file-size: 10GB
+    max-request-size: 10GB
+    allowed-mime-types:
+      - image/jpeg
+      - image/png
+      - image/webp
+      - video/mp4
+      - application/pdf
+    allowed-extensions:
+      - jpg
+      - jpeg
+      - png
+      - webp
+      - mp4
+      - pdf
+    avatar-upload-enabled: true
+    media-upload-enabled: true

@@ -1,0 +1,14 @@
+frontend:
+  runtime:
+    api-base-path: /api
+    public-gateway-origin: http://localhost:12880
+    websocket-url: ws://localhost:12880/ws/im
+    analytics-enabled: false
+    analytics-sample-rate: 0.0
+    release-channel: local
+    features:
+      posts: true
+      comments: true
+      private-message: true
+      file-upload: true
+      market: true

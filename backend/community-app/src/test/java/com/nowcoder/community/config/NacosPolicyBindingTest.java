@@ -42,6 +42,7 @@ class NacosPolicyBindingTest {
 
         assertThat(originGuard.isEnabled()).isTrue();
         assertThat(originGuard.isFailOpenWhenAllowlistEmpty()).isFalse();
+        assertThat(originGuard.getAllowedOrigins()).contains("http://localhost:12881");
         assertThat(environment.containsProperty("auth.login-rate-limit.enabled")).isTrue();
         assertThat(environment.containsProperty("auth.login-rate-limit.max-failures-per-user")).isTrue();
         assertThat(loginRateLimit.isEnabled()).isTrue();
@@ -49,7 +50,7 @@ class NacosPolicyBindingTest {
         assertThat(environment.containsProperty("auth.refresh.cleanup.interval-ms")).isTrue();
         assertThat(refreshCleanup.isEnabled()).isTrue();
         assertThat(refreshCleanup.getIntervalMs()).isEqualTo(3_600_000L);
-        assertThat(environment.getProperty("auth.password-reset.reset-base-url")).isEqualTo("");
+        assertThat(environment.getProperty("auth.password-reset.reset-base-url")).isEqualTo("http://localhost:12881");
         assertThat(environment.getProperty("auth.registration.mail.from")).isEqualTo("no-reply@community.local");
         assertThat(environment.getProperty("http.idempotency.store")).isEqualTo("DB");
         assertThat(environment.getProperty("growth.business-zone-id")).isEqualTo("Asia/Shanghai");
@@ -115,7 +116,22 @@ class NacosPolicyBindingTest {
                 .bind("community.kafka-policy", KafkaPolicyProperties.class)
                 .orElseThrow(IllegalStateException::new);
         assertThat(kafka.getRetry().getMaxAttempts()).isEqualTo(3);
+        assertThat(kafka.getProducer().getAcks()).isEqualTo("all");
         assertThat(kafka.getProducer().getMaxInFlightRequests()).isEqualTo(5);
+        assertThat(kafka.getProducer().getRequestTimeoutMs()).isEqualTo(3000);
+        assertThat(environmentFrom("community-kafka-policy.yaml").getProperty("community.kafka-policy.producer.acks"))
+                .isEqualTo("all");
+        assertThat(environmentFrom("community-kafka-policy.yaml")
+                .getProperty("community.kafka-policy.producer.request-timeout-ms", Integer.class)).isEqualTo(3000);
+        assertThat(environmentFrom("community-kafka-policy.yaml")
+                .getProperty("im.kafka.topics.command-private-text")).isEqualTo("im.command.private-text");
+        assertThat(environmentFrom("community-kafka-policy.yaml")
+                .getProperty("im.kafka.topics.event-user-block-relation-changed"))
+                .isEqualTo("im.event.user-block-relation-changed");
+        assertThat(environmentFrom("community-kafka-policy.yaml")
+                .getProperty("search.outbox.post-topic")).isEqualTo("projection.search.post");
+        assertThat(environmentFrom("community-kafka-policy.yaml")
+                .getProperty("im.policy.outbox.topic")).isEqualTo("projection.im.policy");
     }
 
     @Test

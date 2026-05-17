@@ -3,12 +3,12 @@ package com.nowcoder.community.im.core.outbox;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
-import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -23,10 +23,28 @@ public class ImMessageOutboxEnqueuer {
 
     private final JdbcOutboxEventStore store;
     private final ObjectMapper objectMapper;
+    private final String privatePersistedTopic;
+    private final String roomPersistedTopic;
+    private final String privateRejectedTopic;
+    private final String roomRejectedTopic;
+    private final String roomMemberChangedTopic;
 
-    public ImMessageOutboxEnqueuer(JdbcOutboxEventStore store, ObjectMapper objectMapper) {
+    public ImMessageOutboxEnqueuer(
+            JdbcOutboxEventStore store,
+            ObjectMapper objectMapper,
+            @Value("${im.kafka.topics.event-private-persisted:im.event.private-persisted}") String privatePersistedTopic,
+            @Value("${im.kafka.topics.event-room-persisted:im.event.room-persisted}") String roomPersistedTopic,
+            @Value("${im.kafka.topics.event-private-rejected:im.event.private-rejected}") String privateRejectedTopic,
+            @Value("${im.kafka.topics.event-room-rejected:im.event.room-rejected}") String roomRejectedTopic,
+            @Value("${im.kafka.topics.event-room-member-changed:im.event.room-member-changed}") String roomMemberChangedTopic
+    ) {
         this.store = store;
         this.objectMapper = objectMapper;
+        this.privatePersistedTopic = privatePersistedTopic;
+        this.roomPersistedTopic = roomPersistedTopic;
+        this.privateRejectedTopic = privateRejectedTopic;
+        this.roomRejectedTopic = roomRejectedTopic;
+        this.roomMemberChangedTopic = roomMemberChangedTopic;
     }
 
     @Transactional
@@ -36,7 +54,7 @@ public class ImMessageOutboxEnqueuer {
         }
         enqueue(
                 outboxEventId(event.requestId(), PRIVATE_PERSISTED_SUFFIX),
-                ImTopics.EVENT_PRIVATE_PERSISTED,
+                privatePersistedTopic,
                 event.conversationId(),
                 event
         );
@@ -49,7 +67,7 @@ public class ImMessageOutboxEnqueuer {
         }
         enqueue(
                 outboxEventId(event.requestId(), ROOM_PERSISTED_SUFFIX),
-                ImTopics.EVENT_ROOM_PERSISTED,
+                roomPersistedTopic,
                 String.valueOf(event.roomId()),
                 event
         );
@@ -62,7 +80,7 @@ public class ImMessageOutboxEnqueuer {
         }
         enqueue(
                 outboxEventId(event.requestId(), PRIVATE_REJECTED_SUFFIX),
-                ImTopics.EVENT_PRIVATE_REJECTED,
+                privateRejectedTopic,
                 event.conversationId(),
                 event
         );
@@ -75,7 +93,7 @@ public class ImMessageOutboxEnqueuer {
         }
         enqueue(
                 outboxEventId(event.requestId(), ROOM_REJECTED_SUFFIX),
-                ImTopics.EVENT_ROOM_REJECTED,
+                roomRejectedTopic,
                 String.valueOf(event.roomId()),
                 event
         );
@@ -88,7 +106,7 @@ public class ImMessageOutboxEnqueuer {
         }
         enqueue(
                 requiredEventId(event.eventId()),
-                ImTopics.EVENT_ROOM_MEMBER_CHANGED,
+                roomMemberChangedTopic,
                 String.valueOf(event.roomId()),
                 event
         );

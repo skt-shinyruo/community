@@ -38,16 +38,16 @@ if grep -F 'CMD-SHELL' "${single_infra}" | grep -F 'garage' >/dev/null 2>&1; the
 fi
 grep -F 'GARAGE_DEFAULT_ACCESS_KEY: GK000000000000000000000001' "${single_infra}"
 grep -F 'OSS_OBJECT_STORE_ACCESS_KEY: GK000000000000000000000001' "${single_full}"
-grep -F 'OSS_OBJECT_STORE_REGION: garage' "${single_full}"
+grep -F 'region: garage' deploy/nacos/config/community-oss.yaml
 grep -E 'GARAGE_REPLICATION_FACTOR: "?1"?' "${single_infra}"
 grep -E '^  community-oss:$' "${single_full}"
 grep -A4 -E '^      garage-init:$' "${single_full}" | grep -F 'condition: service_completed_successfully'
-grep -F 'OSS_OBJECT_STORE_ENDPOINT: http://garage:3900' "${single_full}"
+grep -F 'endpoint: http://garage:3900' deploy/nacos/config/community-oss.yaml
 grep -F 'OSS_DB_URL: jdbc:mysql://mysql:3306/community_oss' "${single_full}"
 grep -F 'default.conf.template' "${single_full}"
 grep -E 'NGINX_CLIENT_MAX_BODY_SIZE: "?10g"?' "${single_full}"
-grep -F 'SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 10GB' "${single_full}"
-grep -F 'SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 10GB' "${single_full}"
+grep -F 'max-file-size: 10GB' deploy/nacos/config/community-oss.yaml
+grep -F 'max-request-size: 10GB' deploy/nacos/config/community-oss.yaml
 
 grep -E '^  garage-1:$' "${cluster_infra}"
 grep -E '^  garage-2:$' "${cluster_infra}"
@@ -55,15 +55,15 @@ grep -E '^  garage-3:$' "${cluster_infra}"
 grep -F 'garage-init:' "${cluster_infra}"
 grep -F 'GARAGE_DEFAULT_ACCESS_KEY: GK000000000000000000000001' "${cluster_infra}"
 grep -F 'OSS_OBJECT_STORE_ACCESS_KEY: GK000000000000000000000001' "${cluster_full}"
-grep -F 'OSS_OBJECT_STORE_REGION: garage' "${cluster_full}"
+grep -F 'region: garage' deploy/nacos/config/community-oss.yaml
 grep -E 'GARAGE_REPLICATION_FACTOR: "?3"?' "${cluster_infra}"
 grep -E '^  community-oss-1:$' "${cluster_full}"
 grep -A4 -E '^      garage-init:$' "${cluster_full}" | grep -F 'condition: service_completed_successfully'
 grep -E '^  community-oss-2:$' "${cluster_full}"
 grep -E '^  community-oss-3:$' "${cluster_full}"
-grep -F 'OSS_OBJECT_STORE_ENDPOINT: http://garage:3900' "${cluster_full}"
+grep -F 'endpoint: http://garage:3900' deploy/nacos/config/community-oss.yaml
 grep -F 'OSS_DB_URL: jdbc:mysql://mysql-primary:3306/community_oss' "${cluster_full}"
 grep -F 'default.conf.template' "${cluster_full}"
 grep -E 'NGINX_CLIENT_MAX_BODY_SIZE: "?10g"?' "${cluster_full}"
-grep -F 'SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 10GB' "${cluster_full}"
-grep -F 'SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 10GB' "${cluster_full}"
+grep -F 'max-file-size: 10GB' deploy/nacos/config/community-oss.yaml
+grep -F 'max-request-size: 10GB' deploy/nacos/config/community-oss.yaml

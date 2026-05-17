@@ -1,6 +1,5 @@
 package com.nowcoder.community.im.realtime.kafka;
 
-import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
@@ -50,7 +49,7 @@ public class EventConsumers {
     }
 
     @KafkaListener(
-            topics = ImTopics.EVENT_PRIVATE_PERSISTED,
+            topics = "${im.kafka.topics.event-private-persisted:im.event.private-persisted}",
             containerFactory = "kafkaListenerContainerFactory",
             concurrency = "${im.kafka.event.concurrency:3}"
     )
@@ -60,7 +59,7 @@ public class EventConsumers {
     }
 
     @KafkaListener(
-            topics = ImTopics.EVENT_ROOM_PERSISTED,
+            topics = "${im.kafka.topics.event-room-persisted:im.event.room-persisted}",
             containerFactory = "kafkaListenerContainerFactory",
             concurrency = "${im.kafka.event.concurrency:3}"
     )
@@ -73,7 +72,7 @@ public class EventConsumers {
     }
 
     @KafkaListener(
-            topics = ImTopics.EVENT_PRIVATE_REJECTED,
+            topics = "${im.kafka.topics.event-private-rejected:im.event.private-rejected}",
             containerFactory = "kafkaListenerContainerFactory",
             concurrency = "${im.kafka.event.concurrency:3}"
     )
@@ -82,7 +81,7 @@ public class EventConsumers {
     }
 
     @KafkaListener(
-            topics = ImTopics.EVENT_ROOM_REJECTED,
+            topics = "${im.kafka.topics.event-room-rejected:im.event.room-rejected}",
             containerFactory = "kafkaListenerContainerFactory",
             concurrency = "${im.kafka.event.concurrency:3}"
     )
@@ -90,7 +89,10 @@ public class EventConsumers {
         sendResultPushService.pushRoomRejected(event);
     }
 
-    @KafkaListener(topics = ImTopics.EVENT_ROOM_MEMBER_CHANGED, containerFactory = "kafkaListenerContainerFactory")
+    @KafkaListener(
+            topics = "${im.kafka.topics.event-room-member-changed:im.event.room-member-changed}",
+            containerFactory = "kafkaListenerContainerFactory"
+    )
     public void onRoomMemberChanged(RoomMemberChanged event) {
         if (event == null) {
             return;
@@ -114,12 +116,18 @@ public class EventConsumers {
         }
     }
 
-    @KafkaListener(topics = ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED, containerFactory = "kafkaListenerContainerFactory")
+    @KafkaListener(
+            topics = "${im.kafka.topics.event-user-messaging-policy-changed:im.event.user-messaging-policy-changed}",
+            containerFactory = "kafkaListenerContainerFactory"
+    )
     public void onUserMessagingPolicyChanged(UserMessagingPolicyChanged event) {
         policyProjectionService.applyUserMessagingPolicyChanged(event);
     }
 
-    @KafkaListener(topics = ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED, containerFactory = "kafkaListenerContainerFactory")
+    @KafkaListener(
+            topics = "${im.kafka.topics.event-user-block-relation-changed:im.event.user-block-relation-changed}",
+            containerFactory = "kafkaListenerContainerFactory"
+    )
     public void onUserBlockRelationChanged(UserBlockRelationChanged event) {
         policyProjectionService.applyUserBlockRelationChanged(event);
     }

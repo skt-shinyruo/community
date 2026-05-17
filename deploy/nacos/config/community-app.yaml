@@ -1,7 +1,13 @@
 gateway:
   origin-guard:
     enabled: true
-    allowed-origins: []
+    allowed-origins:
+      - http://localhost:5173
+      - http://127.0.0.1:5173
+      - http://localhost:12881
+      - http://127.0.0.1:12881
+      - http://localhost:12888
+      - http://127.0.0.1:12888
     fail-open-when-allowlist-empty: false
 
 spring:
@@ -40,11 +46,11 @@ auth:
       store: redis
       ttl-seconds: 1800
     mail:
-      enabled: false
+      enabled: true
       from: no-reply@community.local
       subject: 注册验证码
   password-reset:
-    reset-base-url: ""
+    reset-base-url: http://localhost:12881
     store: redis
     ttl-seconds: 600
     request-window-seconds: 3600
@@ -65,11 +71,11 @@ http:
 
 xxl:
   job:
-    enabled: false
+    enabled: true
     admin:
-      addresses: ""
+      addresses: http://xxl-job-admin:8080/xxl-job-admin
     executor:
-      appname: ""
+      appname: community-app
       address: ""
 
 content:

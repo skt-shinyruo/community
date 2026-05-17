@@ -35,6 +35,16 @@ class NacosImRealtimeBindingTest {
         assertThat(properties.getSnapshotTimeoutMs()).isEqualTo(3000);
         assertThat(environment.getProperty("im.community.timeout-ms", Integer.class)).isEqualTo(1500);
         assertThat(environment.getProperty("im.ws.max-inbound-chars", Integer.class)).isEqualTo(10000);
+        assertThat(environment.getProperty("im.ws.room-flush-interval-ms", Integer.class)).isEqualTo(50);
+        assertThat(environment.getProperty("im.cors.allowed-origins[2]")).isEqualTo("http://localhost:12881");
+        assertThat(rawProperty(environment, "im-realtime.yaml", "spring.kafka.consumer.group-id"))
+                .isEqualTo("im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}");
+        assertThat(environment.getProperty("spring.kafka.consumer.group-id")).startsWith("im-realtime-");
+        assertThat(environment.getProperty("spring.kafka.consumer.auto-offset-reset")).isEqualTo("latest");
+        assertThat(environment.getProperty("spring.cloud.nacos.discovery.service")).isEqualTo("im-realtime-worker");
+        assertThat(rawProperty(environment, "im-realtime.yaml", "im.kafka.consumer.group-id"))
+                .isEqualTo("im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}");
+        assertThat(environment.getProperty("im.kafka.consumer.group-id")).startsWith("im-realtime-");
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {
@@ -43,6 +53,10 @@ class NacosImRealtimeBindingTest {
         MutablePropertySources sources = environment.getPropertySources();
         sources.addFirst(new YamlPropertySourceLoader().load(fileName, new FileSystemResource(path)).get(0));
         return environment;
+    }
+
+    private static Object rawProperty(StandardEnvironment environment, String sourceName, String propertyName) {
+        return environment.getPropertySources().get(sourceName).getProperty(propertyName);
     }
 
     private static Path seedFile(String fileName) {

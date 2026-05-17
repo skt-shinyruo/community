@@ -6,6 +6,7 @@ import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -22,10 +23,16 @@ public class PostOutboxEnqueuer {
 
     private final ObjectMapper objectMapper;
     private final JdbcOutboxEventStore store;
+    private final String topic;
 
-    public PostOutboxEnqueuer(ObjectMapper objectMapper, JdbcOutboxEventStore store) {
+    public PostOutboxEnqueuer(
+            ObjectMapper objectMapper,
+            JdbcOutboxEventStore store,
+            @Value("${search.outbox.post-topic:projection.search.post}") String topic
+    ) {
         this.objectMapper = objectMapper;
         this.store = store;
+        this.topic = topic;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = false)
@@ -55,6 +62,6 @@ public class PostOutboxEnqueuer {
             throw new IllegalStateException("search outbox payload 序列化失败: " + event.type(), e);
         }
 
-        store.enqueue(event.eventId() + OUTBOX_EVENT_SUFFIX, PostOutboxHandler.TOPIC, String.valueOf(payload.getPostId()), payloadJson);
+        store.enqueue(event.eventId() + OUTBOX_EVENT_SUFFIX, topic, String.valueOf(payload.getPostId()), payloadJson);
     }
 }

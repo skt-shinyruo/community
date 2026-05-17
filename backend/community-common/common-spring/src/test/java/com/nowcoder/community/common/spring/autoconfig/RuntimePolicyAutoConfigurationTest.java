@@ -39,7 +39,9 @@ class RuntimePolicyAutoConfigurationTest {
                         "community.kafka-policy.retry.max-attempts=3",
                         "community.kafka-policy.retry.base-backoff=1s",
                         "community.kafka-policy.dlq.enabled=true",
-                        "community.kafka-policy.producer.enable-idempotence=true"
+                        "community.kafka-policy.producer.acks=all",
+                        "community.kafka-policy.producer.enable-idempotence=true",
+                        "community.kafka-policy.producer.request-timeout-ms=3000"
                 )
                 .run(context -> {
                     assertThat(context).hasSingleBean(FeatureFlagDecisions.class);
@@ -56,7 +58,9 @@ class RuntimePolicyAutoConfigurationTest {
                     assertThat(context.getBean(UploadPolicyProperties.class).getAllowedMimeTypes()).containsExactly("image/png");
                     assertThat(context.getBean(KafkaPolicyProperties.class).getRetry().getMaxAttempts()).isEqualTo(3);
                     assertThat(context.getBean(KafkaPolicyProperties.class).getDlq().isEnabled()).isTrue();
+                    assertThat(context.getBean(KafkaPolicyProperties.class).getProducer().getAcks()).isEqualTo("all");
                     assertThat(context.getBean(KafkaPolicyProperties.class).getProducer().isEnableIdempotence()).isTrue();
+                    assertThat(context.getBean(KafkaPolicyProperties.class).getProducer().getRequestTimeoutMs()).isEqualTo(3000);
                     assertThat(context.getBean(CachePolicyDecisions.class).defaultTtl()).isEqualTo(Duration.ofSeconds(300));
                     assertThat(context.getBean(UploadPolicyDecisions.class).allowsMimeType("image/png")).isTrue();
                     assertThat(context.getBean(UploadPolicyDecisions.class).maxFileSizeBytes()).isEqualTo(10L * 1024 * 1024 * 1024);

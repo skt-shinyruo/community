@@ -50,12 +50,19 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     producer:
+      acks: ${community.kafka-policy.producer.acks:all}
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.add.type.headers: true
-        enable.idempotence: ${COMMUNITY_KAFKA_POLICY_PRODUCER_ENABLE_IDEMPOTENCE:${community.kafka-policy.producer.enable-idempotence:true}}
-        max.in.flight.requests.per.connection: ${COMMUNITY_KAFKA_POLICY_PRODUCER_MAX_IN_FLIGHT_REQUESTS:${community.kafka-policy.producer.max-in-flight-requests:5}}
+        enable.idempotence: ${community.kafka-policy.producer.enable-idempotence:true}
+        max.in.flight.requests.per.connection: ${community.kafka-policy.producer.max-in-flight-requests:5}
+        metadata.max.age.ms: ${community.kafka-policy.producer.metadata-max-age-ms:1000}
+        reconnect.backoff.ms: ${community.kafka-policy.producer.reconnect-backoff-ms:100}
+        reconnect.backoff.max.ms: ${community.kafka-policy.producer.reconnect-backoff-max-ms:1000}
+        request.timeout.ms: ${community.kafka-policy.producer.request-timeout-ms:3000}
+        delivery.timeout.ms: ${community.kafka-policy.producer.delivery-timeout-ms:5000}
+        max.block.ms: ${community.kafka-policy.producer.max-block-ms:5000}
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}

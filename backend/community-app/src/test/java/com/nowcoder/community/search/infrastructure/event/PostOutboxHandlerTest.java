@@ -19,6 +19,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class PostOutboxHandlerTest {
 
+    private static final String TOPIC = "custom.projection.search.post";
+
     @Test
     void handlerShouldDeserializePayloadAndDelegateToApplication() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
@@ -26,7 +28,7 @@ class PostOutboxHandlerTest {
                 mock(SearchPostProjectionApplicationService.class);
         UUID postId = uuid(101);
 
-        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, projectionApplicationService);
+        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, projectionApplicationService, TOPIC);
 
         handler.handle(outboxEvent(objectMapper, postId, "src-s1", "PostUpdated"));
 
@@ -42,12 +44,12 @@ class PostOutboxHandlerTest {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         SearchPostProjectionApplicationService projectionApplicationService =
                 mock(SearchPostProjectionApplicationService.class);
-        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, projectionApplicationService);
+        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, projectionApplicationService, TOPIC);
 
         handler.handle(new OutboxEvent(
                 UUID.fromString("01965429-b34a-7000-8000-000000000021"),
                 "aggregate",
-                PostOutboxHandler.TOPIC,
+                TOPIC,
                 "key",
                 " ",
                 "PENDING",
@@ -66,12 +68,12 @@ class PostOutboxHandlerTest {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         SearchPostProjectionApplicationService projectionApplicationService =
                 mock(SearchPostProjectionApplicationService.class);
-        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, projectionApplicationService);
+        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, projectionApplicationService, TOPIC);
 
         Throwable thrown = catchThrowable(() -> handler.handle(new OutboxEvent(
                 UUID.fromString("01965429-b34a-7000-8000-000000000021"),
                 "aggregate",
-                PostOutboxHandler.TOPIC,
+                TOPIC,
                 "key",
                 "{",
                 "PENDING",
@@ -102,7 +104,7 @@ class PostOutboxHandlerTest {
         return new OutboxEvent(
                 UUID.fromString("01965429-b34a-7000-8000-000000000021"),
                 sourceEventId + ":search_post",
-                PostOutboxHandler.TOPIC,
+                TOPIC,
                 postId.toString(),
                 payloadJson,
                 "PENDING",

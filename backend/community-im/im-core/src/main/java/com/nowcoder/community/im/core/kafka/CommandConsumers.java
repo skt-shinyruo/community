@@ -1,7 +1,6 @@
 package com.nowcoder.community.im.core.kafka;
 
 import com.nowcoder.community.common.logging.EventLogFields;
-import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
@@ -41,7 +40,7 @@ public class CommandConsumers {
     }
 
     @KafkaListener(
-            topics = ImTopics.COMMAND_PRIVATE_TEXT,
+            topics = "${im.kafka.topics.command-private-text:im.command.private-text}",
             containerFactory = "kafkaListenerContainerFactory",
             concurrency = "${im.kafka.command.concurrency:3}"
     )
@@ -86,7 +85,7 @@ public class CommandConsumers {
     }
 
     @KafkaListener(
-            topics = ImTopics.COMMAND_ROOM_TEXT,
+            topics = "${im.kafka.topics.command-room-text:im.command.room-text}",
             containerFactory = "kafkaListenerContainerFactory",
             concurrency = "${im.kafka.command.concurrency:3}"
     )

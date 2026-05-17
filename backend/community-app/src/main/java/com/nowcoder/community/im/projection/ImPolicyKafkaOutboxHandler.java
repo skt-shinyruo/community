@@ -5,9 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.kafka.trace.TraceKafkaSender;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
-import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -22,22 +22,29 @@ import java.util.concurrent.CompletionException;
 @ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "true")
 public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
 
-    public static final String TOPIC = ImPolicyChangePublisher.TOPIC;
-
     private final ObjectMapper objectMapper;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final String outboxTopic;
+    private final String userMessagingPolicyChangedTopic;
+    private final String userBlockRelationChangedTopic;
 
     public ImPolicyKafkaOutboxHandler(
             ObjectMapper objectMapper,
-            KafkaTemplate<String, Object> kafkaTemplate
+            KafkaTemplate<String, Object> kafkaTemplate,
+            @Value("${im.policy.outbox.topic:projection.im.policy}") String outboxTopic,
+            @Value("${im.kafka.topics.event-user-messaging-policy-changed:im.event.user-messaging-policy-changed}") String userMessagingPolicyChangedTopic,
+            @Value("${im.kafka.topics.event-user-block-relation-changed:im.event.user-block-relation-changed}") String userBlockRelationChangedTopic
     ) {
         this.objectMapper = objectMapper;
         this.kafkaTemplate = kafkaTemplate;
+        this.outboxTopic = outboxTopic;
+        this.userMessagingPolicyChangedTopic = userMessagingPolicyChangedTopic;
+        this.userBlockRelationChangedTopic = userBlockRelationChangedTopic;
     }
 
     @Override
     public String topic() {
-        return TOPIC;
+        return outboxTopic;
     }
 
     @Override
@@ -79,7 +86,7 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
                 booleanValue(payload, "canSendPrivate"),
                 requiredLongValue(payload, "occurredAtEpochMillis")
         );
-        sendToKafka(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED, userId.toString(), changed);
+        sendToKafka(userMessagingPolicyChangedTopic, userId.toString(), changed);
     }
 
     private void publishBlockState(OutboxEvent event, JsonNode payload) {
@@ -95,7 +102,7 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
                 booleanValue(payload, "active"),
                 requiredLongValue(payload, "occurredAtEpochMillis")
         );
-        sendToKafka(ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED, blockerUserId.toString(), changed);
+        sendToKafka(userBlockRelationChangedTopic, blockerUserId.toString(), changed);
     }
 
     private void sendToKafka(String topic, String key, Object value) {

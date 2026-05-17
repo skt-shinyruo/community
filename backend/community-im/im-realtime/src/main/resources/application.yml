@@ -13,7 +13,7 @@ spring:
     nacos:
       discovery:
         server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
-        service: ${IM_REALTIME_WORKER_SERVICE_ID:im-realtime-worker}
+        service: ${im.session.worker-service-id:im-realtime-worker}
         metadata:
           version: ${SERVICE_VERSION:@project.version@}
           deployment.environment: ${DEPLOYMENT_ENVIRONMENT:local}
@@ -26,7 +26,7 @@ spring:
           management.port: ${MANAGEMENT_SERVER_PORT:${SERVER_PORT}}
           draining: ${SERVICE_DRAINING:false}
           role: ws-worker
-          wsPath: ${IM_WS_PATH:/internal/ws/im}
+          wsPath: ${im.ws.path:/internal/ws/im}
           wsPort: ${SERVER_PORT:18081}
           workerId: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
           maxConnections: ${IM_REALTIME_MAX_CONNECTIONS:10000}
@@ -41,26 +41,26 @@ spring:
     # Comma-separated broker list, for example kafka-1:9092,kafka-2:9092,kafka-3:9092.
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     consumer:
-      group-id: ${IM_REALTIME_CONSUMER_GROUP:im-realtime-${HOSTNAME:local}}
-      auto-offset-reset: latest
+      group-id: ${IM_REALTIME_CONSUMER_GROUP:${im.kafka.consumer.group-id:im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}}}
+      auto-offset-reset: ${IM_REALTIME_KAFKA_CONSUMER_AUTO_OFFSET_RESET:${im.kafka.consumer.auto-offset-reset:latest}}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: com.nowcoder.community.im.common.*
     producer:
-      acks: all
+      acks: ${community.kafka-policy.producer.acks:all}
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.add.type.headers: true
-        enable.idempotence: ${IM_KAFKA_PRODUCER_ENABLE_IDEMPOTENCE:${community.kafka-policy.producer.enable-idempotence:true}}
-        max.in.flight.requests.per.connection: ${IM_KAFKA_PRODUCER_MAX_IN_FLIGHT_REQUESTS:${community.kafka-policy.producer.max-in-flight-requests:5}}
-        metadata.max.age.ms: ${IM_KAFKA_PRODUCER_METADATA_MAX_AGE_MS:1000}
-        reconnect.backoff.ms: ${IM_KAFKA_PRODUCER_RECONNECT_BACKOFF_MS:100}
-        reconnect.backoff.max.ms: ${IM_KAFKA_PRODUCER_RECONNECT_BACKOFF_MAX_MS:1000}
-        request.timeout.ms: ${IM_KAFKA_PRODUCER_REQUEST_TIMEOUT_MS:3000}
-        delivery.timeout.ms: ${IM_KAFKA_PRODUCER_DELIVERY_TIMEOUT_MS:5000}
-        max.block.ms: ${IM_KAFKA_PRODUCER_MAX_BLOCK_MS:5000}
+        enable.idempotence: ${community.kafka-policy.producer.enable-idempotence:true}
+        max.in.flight.requests.per.connection: ${community.kafka-policy.producer.max-in-flight-requests:5}
+        metadata.max.age.ms: ${community.kafka-policy.producer.metadata-max-age-ms:1000}
+        reconnect.backoff.ms: ${community.kafka-policy.producer.reconnect-backoff-ms:100}
+        reconnect.backoff.max.ms: ${community.kafka-policy.producer.reconnect-backoff-max-ms:1000}
+        request.timeout.ms: ${community.kafka-policy.producer.request-timeout-ms:3000}
+        delivery.timeout.ms: ${community.kafka-policy.producer.delivery-timeout-ms:5000}
+        max.block.ms: ${community.kafka-policy.producer.max-block-ms:5000}
 
 server:
   port: ${SERVER_PORT:18081}
@@ -120,7 +120,7 @@ im:
     # Public session bootstrap routing moved to community-im-gateway.
     worker-service-id: ${IM_REALTIME_WORKER_SERVICE_ID:im-realtime-worker}
     worker-id: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
-    ws-base-url: "${IM_SESSION_WS_BASE_URL:ws://127.0.0.1:${SERVER_PORT:18081}${IM_WS_PATH:/internal/ws/im}}"
+    ws-base-url: "${IM_SESSION_WS_BASE_URL:ws://127.0.0.1:${SERVER_PORT:18081}${im.ws.path:/internal/ws/im}}"
     ticket-ttl: ${IM_SESSION_TICKET_TTL:PT2M}
     worker-id-metadata-key: ${IM_SESSION_WORKER_ID_METADATA_KEY:workerId}
     ws-path-metadata-key: ${IM_SESSION_WS_PATH_METADATA_KEY:wsPath}

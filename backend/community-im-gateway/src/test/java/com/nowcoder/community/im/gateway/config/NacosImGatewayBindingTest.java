@@ -26,6 +26,7 @@ class NacosImGatewayBindingTest {
         assertThat(environment.containsProperty("im.gateway.ws.path")).isTrue();
         assertThat(environment.containsProperty("im.gateway.ws.first-frame-timeout-ms")).isTrue();
         assertThat(environment.containsProperty("im.gateway.ws.max-inbound-chars")).isTrue();
+        assertThat(environment.getProperty("im.gateway.cors.allowed-origins[2]")).isEqualTo("http://localhost:12881");
         assertThat(properties.getPublicWsUrl()).isEqualTo("ws://localhost:12880/ws/im");
         assertThat(properties.getWorker().getServiceId()).isEqualTo("im-realtime-worker");
         assertThat(properties.getWs().getPath()).isEqualTo("/ws/im");

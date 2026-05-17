@@ -1,3 +1,13 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        service: im-realtime-worker
+  kafka:
+    consumer:
+      group-id: im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
+      auto-offset-reset: latest
+
 im:
   clients:
     community-service-id: community-app
@@ -19,6 +29,9 @@ im:
     ws-path-metadata-key: wsPath
     ws-port-metadata-key: wsPort
   kafka:
+    consumer:
+      group-id: im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
+      auto-offset-reset: latest
     event:
       concurrency: 3
   ws:
@@ -26,7 +39,15 @@ im:
     max-inbound-chars: 10000
     outbound-buffer-size: 256
     kafka-send-timeout-ms: 5000
-    room-flush-interval-ms: 100
+    room-flush-interval-ms: 50
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+      - http://127.0.0.1:5173
+      - http://localhost:12881
+      - http://127.0.0.1:12881
+      - http://localhost:12888
+      - http://127.0.0.1:12888
   realtime:
     worker:
       max-connections: 10000

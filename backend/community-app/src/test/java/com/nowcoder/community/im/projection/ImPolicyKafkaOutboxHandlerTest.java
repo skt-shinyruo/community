@@ -6,7 +6,6 @@ import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.trace.OtelTraceContext;
 import com.nowcoder.community.common.trace.TraceContextSnapshot;
 import com.nowcoder.community.common.trace.TraceHeaders;
-import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import io.opentelemetry.api.trace.SpanKind;
@@ -31,6 +30,10 @@ import static org.mockito.Mockito.when;
 
 class ImPolicyKafkaOutboxHandlerTest {
 
+    private static final String OUTBOX_TOPIC = "custom.projection.im.policy";
+    private static final String USER_POLICY_TOPIC = "custom.im.event.user-policy";
+    private static final String BLOCK_TOPIC = "custom.im.event.block";
+
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Test
@@ -39,7 +42,10 @@ class ImPolicyKafkaOutboxHandlerTest {
                 .singleElement()
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
                         ObjectMapper.class,
-                        KafkaTemplate.class
+                        KafkaTemplate.class,
+                        String.class,
+                        String.class,
+                        String.class
                 ));
     }
 
@@ -51,12 +57,18 @@ class ImPolicyKafkaOutboxHandlerTest {
         when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(completedSend());
 
-        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(objectMapper, kafkaTemplate);
+        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
+                objectMapper,
+                kafkaTemplate,
+                OUTBOX_TOPIC,
+                USER_POLICY_TOPIC,
+                BLOCK_TOPIC
+        );
 
         OutboxEvent outboxEvent = new OutboxEvent(
                 UUID.randomUUID(),
                 "evt-policy-1",
-                ImPolicyKafkaOutboxHandler.TOPIC,
+                OUTBOX_TOPIC,
                 uuid(7).toString(),
                 "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
                         + "\",\"userExists\":true,\"suspended\":false,\"muted\":true,\"muteUntil\":" + muteUntil.toEpochMilli()
@@ -82,7 +94,7 @@ class ImPolicyKafkaOutboxHandlerTest {
         ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor = ArgumentCaptor.forClass(ProducerRecord.class);
         verify(kafkaTemplate).send(recordCaptor.capture());
         ProducerRecord<String, Object> record = recordCaptor.getValue();
-        assertThat(record.topic()).isEqualTo(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED);
+        assertThat(record.topic()).isEqualTo(USER_POLICY_TOPIC);
         assertThat(record.key()).isEqualTo(uuid(7).toString());
         assertThat(record.value()).isInstanceOf(UserMessagingPolicyChanged.class);
         UserMessagingPolicyChanged published = (UserMessagingPolicyChanged) record.value();
@@ -102,12 +114,18 @@ class ImPolicyKafkaOutboxHandlerTest {
         when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(completedSend());
 
-        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(objectMapper, kafkaTemplate);
+        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
+                objectMapper,
+                kafkaTemplate,
+                OUTBOX_TOPIC,
+                USER_POLICY_TOPIC,
+                BLOCK_TOPIC
+        );
 
         handler.handle(new OutboxEvent(
                 UUID.randomUUID(),
                 "evt-policy-2",
-                ImPolicyKafkaOutboxHandler.TOPIC,
+                OUTBOX_TOPIC,
                 uuid(7).toString(),
                 "{\"kind\":\"BLOCK\",\"primaryUserId\":\"" + uuid(7)
                         + "\",\"secondaryUserId\":\"" + uuid(8)
@@ -123,7 +141,7 @@ class ImPolicyKafkaOutboxHandlerTest {
         ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor = ArgumentCaptor.forClass(ProducerRecord.class);
         verify(kafkaTemplate).send(recordCaptor.capture());
         ProducerRecord<String, Object> record = recordCaptor.getValue();
-        assertThat(record.topic()).isEqualTo(ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED);
+        assertThat(record.topic()).isEqualTo(BLOCK_TOPIC);
         assertThat(record.key()).isEqualTo(uuid(7).toString());
         assertThat(record.value()).isInstanceOf(UserBlockRelationChanged.class);
     }
@@ -134,12 +152,18 @@ class ImPolicyKafkaOutboxHandlerTest {
         when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(failedSend());
 
-        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(objectMapper, kafkaTemplate);
+        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
+                objectMapper,
+                kafkaTemplate,
+                OUTBOX_TOPIC,
+                USER_POLICY_TOPIC,
+                BLOCK_TOPIC
+        );
 
         assertThatThrownBy(() -> handler.handle(new OutboxEvent(
                 UUID.randomUUID(),
                 "evt-policy-1",
-                ImPolicyKafkaOutboxHandler.TOPIC,
+                OUTBOX_TOPIC,
                 uuid(7).toString(),
                 "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
                         + "\",\"userExists\":true,\"suspended\":false,\"muted\":false,\"muteUntil\":null,\"banUntil\":null"

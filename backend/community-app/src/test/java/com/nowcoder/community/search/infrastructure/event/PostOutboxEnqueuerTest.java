@@ -26,8 +26,9 @@ class PostOutboxEnqueuerTest {
         when(store.enqueue(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(true);
         UUID postId = uuid(101);
+        String topic = "custom.projection.search.post";
 
-        PostOutboxEnqueuer enqueuer = new PostOutboxEnqueuer(objectMapper, store);
+        PostOutboxEnqueuer enqueuer = new PostOutboxEnqueuer(objectMapper, store, topic);
 
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
@@ -35,7 +36,7 @@ class PostOutboxEnqueuerTest {
         enqueuer.onContentEvent(new ContentContractEvent("evt-s1", ContentEventTypes.POST_UPDATED, payload));
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
-        verify(store).enqueue(org.mockito.ArgumentMatchers.eq("evt-s1:search_post"), org.mockito.ArgumentMatchers.eq(PostOutboxHandler.TOPIC), org.mockito.ArgumentMatchers.eq(postId.toString()), payloadCaptor.capture());
+        verify(store).enqueue(org.mockito.ArgumentMatchers.eq("evt-s1:search_post"), org.mockito.ArgumentMatchers.eq(topic), org.mockito.ArgumentMatchers.eq(postId.toString()), payloadCaptor.capture());
 
         JsonNode json = objectMapper.readTree(payloadCaptor.getValue());
         assertThat(json.path("postId").asText()).isEqualTo(postId.toString());

@@ -73,8 +73,23 @@ public class KafkaPolicyProperties {
 
     public static class Producer {
 
+        private String acks = "all";
         private boolean enableIdempotence = true;
         private int maxInFlightRequests = 5;
+        private int metadataMaxAgeMs = 1000;
+        private int reconnectBackoffMs = 100;
+        private int reconnectBackoffMaxMs = 1000;
+        private int requestTimeoutMs = 3000;
+        private int deliveryTimeoutMs = 5000;
+        private int maxBlockMs = 5000;
+
+        public String getAcks() {
+            return acks;
+        }
+
+        public void setAcks(String acks) {
+            this.acks = positiveTextOrDefault(acks, "all");
+        }
 
         public boolean isEnableIdempotence() {
             return enableIdempotence;
@@ -90,6 +105,58 @@ public class KafkaPolicyProperties {
 
         public void setMaxInFlightRequests(int maxInFlightRequests) {
             this.maxInFlightRequests = Math.max(1, maxInFlightRequests);
+        }
+
+        public int getMetadataMaxAgeMs() {
+            return metadataMaxAgeMs;
+        }
+
+        public void setMetadataMaxAgeMs(int metadataMaxAgeMs) {
+            this.metadataMaxAgeMs = Math.max(1, metadataMaxAgeMs);
+        }
+
+        public int getReconnectBackoffMs() {
+            return reconnectBackoffMs;
+        }
+
+        public void setReconnectBackoffMs(int reconnectBackoffMs) {
+            this.reconnectBackoffMs = Math.max(1, reconnectBackoffMs);
+        }
+
+        public int getReconnectBackoffMaxMs() {
+            return reconnectBackoffMaxMs;
+        }
+
+        public void setReconnectBackoffMaxMs(int reconnectBackoffMaxMs) {
+            this.reconnectBackoffMaxMs = Math.max(1, reconnectBackoffMaxMs);
+        }
+
+        public int getRequestTimeoutMs() {
+            return requestTimeoutMs;
+        }
+
+        public void setRequestTimeoutMs(int requestTimeoutMs) {
+            this.requestTimeoutMs = Math.max(1, requestTimeoutMs);
+        }
+
+        public int getDeliveryTimeoutMs() {
+            return deliveryTimeoutMs;
+        }
+
+        public void setDeliveryTimeoutMs(int deliveryTimeoutMs) {
+            this.deliveryTimeoutMs = Math.max(1, deliveryTimeoutMs);
+        }
+
+        public int getMaxBlockMs() {
+            return maxBlockMs;
+        }
+
+        public void setMaxBlockMs(int maxBlockMs) {
+            this.maxBlockMs = Math.max(1, maxBlockMs);
+        }
+
+        private String positiveTextOrDefault(String value, String fallback) {
+            return value == null || value.isBlank() ? fallback : value.trim();
         }
     }
 }

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -14,15 +15,19 @@ import java.util.UUID;
 @ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "true")
 public class ImPolicyChangePublisher {
 
-    static final String TOPIC = "projection.im.policy";
-
     private final JdbcOutboxEventStore store;
     private final ObjectMapper objectMapper;
+    private final String topic;
     private final UuidV7Generator idGenerator = new UuidV7Generator();
 
-    public ImPolicyChangePublisher(JdbcOutboxEventStore store, ObjectMapper objectMapper) {
+    public ImPolicyChangePublisher(
+            JdbcOutboxEventStore store,
+            ObjectMapper objectMapper,
+            @Value("${im.policy.outbox.topic:projection.im.policy}") String topic
+    ) {
         this.store = store;
         this.objectMapper = objectMapper;
+        this.topic = topic;
     }
 
     public void publishUserPolicyChanged(UserPolicyChangedPayload payload) {
@@ -67,7 +72,7 @@ public class ImPolicyChangePublisher {
         try {
             String json = objectMapper.writeValueAsString(payload);
             String eventId = buildEventId(payload);
-            store.enqueue(eventId, TOPIC, String.valueOf(payload.primaryUserId()), json);
+            store.enqueue(eventId, topic, String.valueOf(payload.primaryUserId()), json);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("im policy outbox payload 序列化失败", e);
         }

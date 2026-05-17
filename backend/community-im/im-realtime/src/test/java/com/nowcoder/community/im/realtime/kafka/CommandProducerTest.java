@@ -2,7 +2,6 @@ package com.nowcoder.community.im.realtime.kafka;
 
 import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
-import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import io.opentelemetry.api.trace.Span;
@@ -29,6 +28,9 @@ import static org.mockito.Mockito.when;
 
 class CommandProducerTest {
 
+    private static final String PRIVATE_TEXT_TOPIC = "custom.im.command.private-text";
+    private static final String ROOM_TEXT_TOPIC = "custom.im.command.room-text";
+
     @AfterEach
     void tearDown() {
         TraceContext.clear();
@@ -40,7 +42,7 @@ class CommandProducerTest {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
-        CommandProducer producer = new CommandProducer(kafkaTemplate);
+        CommandProducer producer = new CommandProducer(kafkaTemplate, PRIVATE_TEXT_TOPIC, ROOM_TEXT_TOPIC);
         SendPrivateTextCommand command = new SendPrivateTextCommand(
                 "req-1",
                 "client-1",
@@ -58,7 +60,7 @@ class CommandProducerTest {
         ArgumentCaptor<ProducerRecord<String, Object>> captor = ArgumentCaptor.forClass(ProducerRecord.class);
         verify(kafkaTemplate).send(captor.capture());
         ProducerRecord<String, Object> record = captor.getValue();
-        assertThat(record.topic()).isEqualTo(ImTopics.COMMAND_PRIVATE_TEXT);
+        assertThat(record.topic()).isEqualTo(PRIVATE_TEXT_TOPIC);
         assertThat(record.key()).isEqualTo("conv-1");
         assertThat(record.value()).isEqualTo(command);
         assertThat(new String(record.headers().lastHeader(TraceHeaders.HEADER_TRACEPARENT).value(), StandardCharsets.UTF_8))
@@ -71,7 +73,7 @@ class CommandProducerTest {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
-        CommandProducer producer = new CommandProducer(kafkaTemplate);
+        CommandProducer producer = new CommandProducer(kafkaTemplate, PRIVATE_TEXT_TOPIC, ROOM_TEXT_TOPIC);
         UUID roomId = UUID.fromString("00000000-0000-0000-0000-000000000003");
         SendRoomTextCommand command = new SendRoomTextCommand(
                 "req-2",
@@ -89,7 +91,7 @@ class CommandProducerTest {
         ArgumentCaptor<ProducerRecord<String, Object>> captor = ArgumentCaptor.forClass(ProducerRecord.class);
         verify(kafkaTemplate).send(captor.capture());
         ProducerRecord<String, Object> record = captor.getValue();
-        assertThat(record.topic()).isEqualTo(ImTopics.COMMAND_ROOM_TEXT);
+        assertThat(record.topic()).isEqualTo(ROOM_TEXT_TOPIC);
         assertThat(record.key()).isEqualTo(String.valueOf(roomId));
         assertThat(record.value()).isEqualTo(command);
         assertThat(new String(record.headers().lastHeader(TraceHeaders.HEADER_TRACEPARENT).value(), StandardCharsets.UTF_8))

@@ -5,6 +5,7 @@ import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.search.application.SearchPostProjectionApplicationService;
 import com.nowcoder.community.search.application.command.ProjectPostOutboxCommand;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -20,22 +21,23 @@ import java.util.UUID;
 @ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "true")
 public class PostOutboxHandler implements OutboxHandler {
 
-    public static final String TOPIC = "projection.search.post";
-
     private final ObjectMapper objectMapper;
     private final SearchPostProjectionApplicationService projectionApplicationService;
+    private final String topic;
 
     public PostOutboxHandler(
             ObjectMapper objectMapper,
-            SearchPostProjectionApplicationService projectionApplicationService
+            SearchPostProjectionApplicationService projectionApplicationService,
+            @Value("${search.outbox.post-topic:projection.search.post}") String topic
     ) {
         this.objectMapper = objectMapper;
         this.projectionApplicationService = projectionApplicationService;
+        this.topic = topic;
     }
 
     @Override
     public String topic() {
-        return TOPIC;
+        return topic;
     }
 
     @Override

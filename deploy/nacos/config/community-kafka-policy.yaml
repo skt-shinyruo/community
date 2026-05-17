@@ -1,3 +1,15 @@
+spring:
+  kafka:
+    producer:
+      acks: all
+      properties:
+        metadata.max.age.ms: 1000
+        reconnect.backoff.ms: 100
+        reconnect.backoff.max.ms: 1000
+        request.timeout.ms: 3000
+        delivery.timeout.ms: 5000
+        max.block.ms: 5000
+
 community:
   kafka-policy:
     retry:
@@ -7,5 +19,32 @@ community:
     dlq:
       enabled: true
     producer:
+      acks: all
       enable-idempotence: true
       max-in-flight-requests: 5
+      metadata-max-age-ms: 1000
+      reconnect-backoff-ms: 100
+      reconnect-backoff-max-ms: 1000
+      request-timeout-ms: 3000
+      delivery-timeout-ms: 5000
+      max-block-ms: 5000
+
+im:
+  kafka:
+    topics:
+      command-private-text: im.command.private-text
+      command-room-text: im.command.room-text
+      event-private-persisted: im.event.private-persisted
+      event-room-persisted: im.event.room-persisted
+      event-private-rejected: im.event.private-rejected
+      event-room-rejected: im.event.room-rejected
+      event-room-member-changed: im.event.room-member-changed
+      event-user-messaging-policy-changed: im.event.user-messaging-policy-changed
+      event-user-block-relation-changed: im.event.user-block-relation-changed
+  policy:
+    outbox:
+      topic: projection.im.policy
+
+search:
+  outbox:
+    post-topic: projection.search.post

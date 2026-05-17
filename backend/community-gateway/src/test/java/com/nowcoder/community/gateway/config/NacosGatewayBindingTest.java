@@ -37,7 +37,7 @@ class NacosGatewayBindingTest {
         assertThat(rateLimit.isEnabled()).isTrue();
         assertThat(rateLimit.isFailOpenOnError()).isFalse();
         assertThat(traffic.getDefaultPolicyId()).isEqualTo("baseline");
-        assertThat(environment.containsProperty("gateway.cors.allowed-origins")).isTrue();
+        assertThat(environment.getProperty("gateway.cors.allowed-origins[2]")).isEqualTo("http://localhost:12881");
         assertThat(environment.getProperty("security.jwt.issuer")).isEqualTo("community-auth");
     }
 

@@ -6,12 +6,17 @@ spring:
     import:
       - ${NACOS_CONFIG_IMPORT_SHARED:optional:nacos:community-shared.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_SERVICE:optional:nacos:community-oss.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_FEATURE_FLAGS:optional:nacos:community-feature-flags.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_DEGRADATION:optional:nacos:community-degradation.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_CACHE_POLICY:optional:nacos:community-cache-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_KAFKA_POLICY:optional:nacos:community-kafka-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_UPLOAD_POLICY:optional:nacos:community-upload-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
   application:
     name: community-oss
   servlet:
     multipart:
-      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:10GB}
-      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:10GB}
+      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:${community.upload.max-file-size:10GB}}
+      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:${community.upload.max-request-size:10GB}}
   datasource:
     url: ${OSS_DB_URL:jdbc:mysql://mysql:3306/community_oss?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${OSS_DB_USERNAME:community_oss}

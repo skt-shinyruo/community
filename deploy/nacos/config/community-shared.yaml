@@ -2,7 +2,15 @@ security:
   jwt:
     issuer: community-auth
 
+gateway:
+  trusted-proxy:
+    enabled: false
+    cidrs: []
+
 community:
+  metrics:
+    basic-auth:
+      username: prometheus
   observability:
     runtime-logging:
       enabled: true

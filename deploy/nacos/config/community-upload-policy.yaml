@@ -6,14 +6,20 @@ community:
       - image/jpeg
       - image/png
       - image/webp
+      - image/gif
       - video/mp4
       - application/pdf
+      - text/plain
+      - application/octet-stream
     allowed-extensions:
       - jpg
       - jpeg
       - png
       - webp
+      - gif
       - mp4
       - pdf
+      - txt
+      - bin
     avatar-upload-enabled: true
     media-upload-enabled: true

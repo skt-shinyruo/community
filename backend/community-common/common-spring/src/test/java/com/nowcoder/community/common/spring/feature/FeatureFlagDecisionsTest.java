@@ -32,6 +32,14 @@ class FeatureFlagDecisionsTest {
     }
 
     @Test
+    void unknownFlagCanUseCallerDefault() {
+        FeatureFlagDecisions decisions = new FeatureFlagDecisions(new FeatureFlagProperties());
+
+        assertTrue(decisions.enabledOrDefault("search", true));
+        assertFalse(decisions.enabledOrDefault("analytics-ingest", false));
+    }
+
+    @Test
     void bindsSeedStyleFeatureProperties() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("community.features.post-publishing", "true");

@@ -1,5 +1,9 @@
 package com.nowcoder.community.search.application;
 
+import com.nowcoder.community.common.spring.degradation.DegradationDecisions;
+import com.nowcoder.community.common.spring.degradation.DegradationProperties;
+import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
+import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.search.application.command.DeleteIndexedPostCommand;
 import com.nowcoder.community.search.application.command.SearchPostsCommand;
 import com.nowcoder.community.search.application.command.SyncPostProjectionCommand;
@@ -17,6 +21,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -50,6 +55,95 @@ class SearchApplicationServiceTest {
         assertThat(results.get(0).highlightedTitle()).isEqualTo("<em>spring</em>");
         verify(repository).search(expectedQuery);
         verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void searchPostsShouldUseConfiguredMaxPageSize() {
+        PostSearchRepository repository = mock(PostSearchRepository.class);
+        SearchPolicyProperties properties = new SearchPolicyProperties();
+        properties.getQuery().setMaxPageSize(20);
+        SearchApplicationService service = new SearchApplicationService(
+                repository,
+                new PostSearchDomainService(),
+                properties
+        );
+        PostSearchQuery expectedQuery = new PostSearchQuery("spring", null, null, 0, 20);
+        when(repository.search(expectedQuery)).thenReturn(List.of());
+
+        var results = service.searchPosts(new SearchPostsCommand("spring", null, null, 0, 100));
+
+        assertThat(results).isEmpty();
+        verify(repository).search(expectedQuery);
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void searchPostsShouldReturnEmptyResultsWhenDegradationIsEnabledAndRepositoryFails() {
+        PostSearchRepository repository = mock(PostSearchRepository.class);
+        SearchPolicyProperties properties = new SearchPolicyProperties();
+        properties.getDegradation().setEnabled(true);
+        SearchApplicationService service = new SearchApplicationService(
+                repository,
+                new PostSearchDomainService(),
+                properties
+        );
+        when(repository.search(new PostSearchQuery("spring", null, null, 0, 10)))
+                .thenThrow(new IllegalStateException("es unavailable"));
+
+        var results = service.searchPosts(new SearchPostsCommand("spring", null, null, 0, 10));
+
+        assertThat(results).isEmpty();
+    }
+
+    @Test
+    void searchPostsShouldReturnEmptyResultsWhenNacosSearchDegradationIsBestEffort() {
+        PostSearchRepository repository = mock(PostSearchRepository.class);
+        DegradationProperties degradationProperties = new DegradationProperties();
+        degradationProperties.getModes().put("search", "best-effort");
+        SearchApplicationService service = new SearchApplicationService(
+                repository,
+                new PostSearchDomainService(),
+                new SearchPolicyProperties(),
+                new FeatureFlagDecisions(new FeatureFlagProperties()),
+                new DegradationDecisions(degradationProperties)
+        );
+        when(repository.search(new PostSearchQuery("spring", null, null, 0, 10)))
+                .thenThrow(new IllegalStateException("es unavailable"));
+
+        var results = service.searchPosts(new SearchPostsCommand("spring", null, null, 0, 10));
+
+        assertThat(results).isEmpty();
+    }
+
+    @Test
+    void searchPostsShouldSkipRepositoryWhenNacosFeatureFlagDisablesSearch() {
+        PostSearchRepository repository = mock(PostSearchRepository.class);
+        FeatureFlagProperties featureFlagProperties = new FeatureFlagProperties();
+        featureFlagProperties.getFlags().put("search", false);
+        SearchApplicationService service = new SearchApplicationService(
+                repository,
+                new PostSearchDomainService(),
+                new SearchPolicyProperties(),
+                new FeatureFlagDecisions(featureFlagProperties),
+                new DegradationDecisions(new DegradationProperties())
+        );
+
+        var results = service.searchPosts(new SearchPostsCommand("spring", null, null, 0, 10));
+
+        assertThat(results).isEmpty();
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void searchPostsShouldPropagateRepositoryFailureWhenDegradationIsDisabled() {
+        PostSearchRepository repository = mock(PostSearchRepository.class);
+        SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
+        when(repository.search(new PostSearchQuery("spring", null, null, 0, 10)))
+                .thenThrow(new IllegalStateException("es unavailable"));
+
+        assertThatThrownBy(() -> service.searchPosts(new SearchPostsCommand("spring", null, null, 0, 10)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("es unavailable");
     }
 
     @Test

@@ -41,6 +41,56 @@ for data_id in "${required_data_ids[@]}"; do
   grep -F "${data_id}" "${SEED_SCRIPT}"
 done
 
+backend_application_ymls=(
+  "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
+  "${REPO_ROOT}/backend/community-gateway/src/main/resources/application.yml"
+  "${REPO_ROOT}/backend/community-oss/src/main/resources/application.yml"
+  "${REPO_ROOT}/backend/community-im-gateway/src/main/resources/application.yml"
+  "${REPO_ROOT}/backend/community-im/im-core/src/main/resources/application.yml"
+  "${REPO_ROOT}/backend/community-im/im-realtime/src/main/resources/application.yml"
+)
+
+common_policy_imports=(
+  community-feature-flags.yaml
+  community-degradation.yaml
+  community-cache-policy.yaml
+  community-kafka-policy.yaml
+)
+
+for application_yml in "${backend_application_ymls[@]}"; do
+  for data_id in "${common_policy_imports[@]}"; do
+    grep -F "${data_id}" "${application_yml}"
+  done
+done
+
+grep -F 'community-frontend-runtime.yaml' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
+grep -F 'community-search-policy.yaml' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
+grep -F 'community-notification-policy.yaml' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
+grep -F 'community-upload-policy.yaml' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
+grep -F 'community-upload-policy.yaml' "${REPO_ROOT}/backend/community-oss/src/main/resources/application.yml"
+grep -F 'community-work-processing.yaml' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
+grep -F 'community-canary-routing.yaml' "${REPO_ROOT}/backend/community-gateway/src/main/resources/application.yml"
+
+kafka_producer_ymls=(
+  "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
+  "${REPO_ROOT}/backend/community-im/im-core/src/main/resources/application.yml"
+  "${REPO_ROOT}/backend/community-im/im-realtime/src/main/resources/application.yml"
+)
+
+for application_yml in "${kafka_producer_ymls[@]}"; do
+  grep -F 'community.kafka-policy.producer.enable-idempotence' "${application_yml}"
+  grep -F 'community.kafka-policy.producer.max-in-flight-requests' "${application_yml}"
+done
+
+grep -F 'trusted-proxy:' "${CONFIG_DIR}/community-shared.yaml"
+grep -F 'username: prometheus' "${CONFIG_DIR}/community-shared.yaml"
+grep -F 'initialize: true' "${CONFIG_DIR}/community-app.yaml"
+grep -F -- '- /api/ops/**' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'max-file-size: 10GB' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'max-request-size: 10GB' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'max-file-size: 10GB' "${CONFIG_DIR}/community-oss.yaml"
+grep -F 'max-request-size: 10GB' "${CONFIG_DIR}/community-oss.yaml"
+
 awk '
   /^auth:/ { in_auth = 1 }
   in_auth && /^  registration:/ { in_registration = 1 }

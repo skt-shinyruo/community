@@ -9,8 +9,20 @@ public class PostSearchDomainService {
     private static final int DELETED_STATUS = 2;
 
     public PostSearchQuery normalizeSearchQuery(String keyword, UUID categoryId, String tag, Integer page, Integer size) {
+        return normalizeSearchQuery(keyword, categoryId, tag, page, size, 50);
+    }
+
+    public PostSearchQuery normalizeSearchQuery(
+            String keyword,
+            UUID categoryId,
+            String tag,
+            Integer page,
+            Integer size,
+            int maxPageSize
+    ) {
         int safePage = page == null ? 0 : Math.max(0, page);
-        int safeSize = size == null ? 10 : Math.min(50, Math.max(1, size));
+        int safeMaxPageSize = Math.max(1, maxPageSize);
+        int safeSize = size == null ? 10 : Math.min(safeMaxPageSize, Math.max(1, size));
         return new PostSearchQuery(normalizeKeyword(keyword), categoryId, normalizeTag(tag), safePage, safeSize);
     }
 

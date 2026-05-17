@@ -1,5 +1,9 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
+import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
+import com.nowcoder.community.common.spring.policy.UploadPolicyDecisions;
+import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
 import com.nowcoder.community.oss.application.command.CompleteObjectUploadCommand;
 import com.nowcoder.community.oss.application.command.ObjectUploadContent;
 import com.nowcoder.community.oss.application.command.PrepareObjectUploadCommand;
@@ -32,6 +36,8 @@ import java.util.UUID;
 public class ObjectUploadApplicationService {
 
     private static final String UPLOAD_MODE_PROXY = "PROXY";
+    private static final String USAGE_USER_AVATAR = "USER_AVATAR";
+    private static final String FEATURE_FILE_UPLOAD = "file-upload";
     private static final Duration DEFAULT_SESSION_TTL = Duration.ofMinutes(15);
 
     private final OssObjectRepository objectRepository;
@@ -42,6 +48,8 @@ public class ObjectUploadApplicationService {
     private final String storageBucket;
     private final String publicBaseUrl;
     private final Clock clock;
+    private final UploadPolicyDecisions uploadPolicyDecisions;
+    private final FeatureFlagDecisions featureFlags;
 
     @Autowired
     public ObjectUploadApplicationService(
@@ -51,7 +59,9 @@ public class ObjectUploadApplicationService {
             OssUsagePolicyRepository policyRepository,
             ObjectStore objectStore,
             OssProperties properties,
-            Clock clock
+            Clock clock,
+            UploadPolicyDecisions uploadPolicyDecisions,
+            FeatureFlagDecisions featureFlags
     ) {
         this(
                 objectRepository,
@@ -61,7 +71,9 @@ public class ObjectUploadApplicationService {
                 objectStore,
                 properties.objectStore().bucket(),
                 properties.publicBaseUrl(),
-                clock
+                clock,
+                uploadPolicyDecisions,
+                featureFlags
         );
     }
 
@@ -82,7 +94,9 @@ public class ObjectUploadApplicationService {
                 objectStore,
                 storageBucket,
                 publicBaseUrl,
-                clock
+                clock,
+                defaultUploadPolicyDecisions(),
+                defaultFeatureFlagDecisions()
         );
     }
 
@@ -96,6 +110,57 @@ public class ObjectUploadApplicationService {
             String publicBaseUrl,
             Clock clock
     ) {
+        this(
+                objectRepository,
+                versionRepository,
+                uploadSessionRepository,
+                policyRepository,
+                objectStore,
+                storageBucket,
+                publicBaseUrl,
+                clock,
+                defaultUploadPolicyDecisions(),
+                defaultFeatureFlagDecisions()
+        );
+    }
+
+    public ObjectUploadApplicationService(
+            OssObjectRepository objectRepository,
+            OssObjectVersionRepository versionRepository,
+            OssUploadSessionRepository uploadSessionRepository,
+            OssUsagePolicyRepository policyRepository,
+            ObjectStore objectStore,
+            String storageBucket,
+            String publicBaseUrl,
+            Clock clock,
+            UploadPolicyDecisions uploadPolicyDecisions
+    ) {
+        this(
+                objectRepository,
+                versionRepository,
+                uploadSessionRepository,
+                policyRepository,
+                objectStore,
+                storageBucket,
+                publicBaseUrl,
+                clock,
+                uploadPolicyDecisions,
+                defaultFeatureFlagDecisions()
+        );
+    }
+
+    public ObjectUploadApplicationService(
+            OssObjectRepository objectRepository,
+            OssObjectVersionRepository versionRepository,
+            OssUploadSessionRepository uploadSessionRepository,
+            OssUsagePolicyRepository policyRepository,
+            ObjectStore objectStore,
+            String storageBucket,
+            String publicBaseUrl,
+            Clock clock,
+            UploadPolicyDecisions uploadPolicyDecisions,
+            FeatureFlagDecisions featureFlags
+    ) {
         this.objectRepository = objectRepository;
         this.versionRepository = versionRepository;
         this.uploadSessionRepository = uploadSessionRepository;
@@ -104,11 +169,16 @@ public class ObjectUploadApplicationService {
         this.storageBucket = requireText(storageBucket, "storageBucket");
         this.publicBaseUrl = normalizeBaseUrl(publicBaseUrl);
         this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.uploadPolicyDecisions = uploadPolicyDecisions == null ? defaultUploadPolicyDecisions() : uploadPolicyDecisions;
+        this.featureFlags = featureFlags == null ? defaultFeatureFlagDecisions() : featureFlags;
     }
 
     @Transactional
     public ObjectUploadSessionResult prepareUpload(PrepareObjectUploadCommand command) {
         requirePrepareCommand(command);
+        validateUploadPolicyChannel(command.usage());
+        String safeFileName = safeFileName(command.fileName());
+        validateGlobalUploadPolicy(safeFileName, command.contentType(), command.contentLength());
         Optional<OssUsagePolicy> policy = usagePolicy(command.usage());
         policy.ifPresent(value -> value.validateUpload(
                 command.contentType(),
@@ -119,7 +189,6 @@ public class ObjectUploadApplicationService {
         UUID objectId = UUID.randomUUID();
         UUID versionId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
-        String safeFileName = safeFileName(command.fileName());
         String storageKey = storageKey(objectId, versionId, safeFileName);
 
         OssObject object = OssObject.stage(
@@ -194,8 +263,10 @@ public class ObjectUploadApplicationService {
                 .orElseThrow(() -> new IllegalArgumentException("object not found"));
         OssObjectVersion version = versionRepository.findById(command.versionId())
                 .orElseThrow(() -> new IllegalArgumentException("object version not found"));
+        validateUploadPolicyChannel(object.usage());
         ObjectUploadContent content = command.content();
         validateContent(session, content);
+        validateGlobalUploadPolicy(version.fileName(), content.contentType(), content.contentLength());
         if (!object.objectId().equals(version.objectId())) {
             throw new IllegalArgumentException("object version does not belong to object");
         }
@@ -260,6 +331,38 @@ public class ObjectUploadApplicationService {
                 && !session.expectedChecksumSha256().equals(content.checksumSha256())) {
             throw new IllegalArgumentException("upload checksum does not match session");
         }
+    }
+
+    private void validateGlobalUploadPolicy(String fileName, String contentType, long contentLength) {
+        if (!featureFlags.enabledOrDefault(FEATURE_FILE_UPLOAD, true)) {
+            throw new IllegalStateException("file upload is disabled by feature flag");
+        }
+        if (!uploadPolicyDecisions.allowsFileSize(contentLength)) {
+            throw new IllegalArgumentException("upload exceeds global max file size");
+        }
+        if (!uploadPolicyDecisions.allowsMimeType(contentType)) {
+            throw new IllegalArgumentException("content type is not allowed by global upload policy");
+        }
+        if (!uploadPolicyDecisions.allowsFileName(fileName)) {
+            throw new IllegalArgumentException("file extension is not allowed by global upload policy");
+        }
+    }
+
+    private void validateUploadPolicyChannel(String usage) {
+        if (USAGE_USER_AVATAR.equals(usage) && !uploadPolicyDecisions.avatarUploadEnabled()) {
+            throw new IllegalStateException("avatar upload is disabled by upload policy");
+        }
+        if (!USAGE_USER_AVATAR.equals(usage) && !uploadPolicyDecisions.mediaUploadEnabled()) {
+            throw new IllegalStateException("media upload is disabled by upload policy");
+        }
+    }
+
+    private static UploadPolicyDecisions defaultUploadPolicyDecisions() {
+        return new UploadPolicyDecisions(new UploadPolicyProperties());
+    }
+
+    private static FeatureFlagDecisions defaultFeatureFlagDecisions() {
+        return new FeatureFlagDecisions(new FeatureFlagProperties());
     }
 
     private void requirePrepareCommand(PrepareObjectUploadCommand command) {

@@ -2,7 +2,16 @@ package com.nowcoder.community.config;
 
 import com.nowcoder.community.auth.config.LoginRateLimitProperties;
 import com.nowcoder.community.auth.config.RefreshTokenCleanupProperties;
+import com.nowcoder.community.common.spring.degradation.DegradationProperties;
+import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
+import com.nowcoder.community.common.spring.policy.CachePolicyProperties;
+import com.nowcoder.community.common.spring.policy.KafkaPolicyProperties;
+import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
+import com.nowcoder.community.common.web.net.TrustedProxyProperties;
 import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
+import com.nowcoder.community.notice.application.NoticePolicyProperties;
+import com.nowcoder.community.runtime.config.RuntimeConfigProperties;
+import com.nowcoder.community.search.application.SearchPolicyProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
@@ -10,6 +19,7 @@ import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.FileSystemResource;
 
+import java.time.Duration;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -43,6 +53,79 @@ class NacosPolicyBindingTest {
         assertThat(environment.getProperty("auth.registration.mail.from")).isEqualTo("no-reply@community.local");
         assertThat(environment.getProperty("http.idempotency.store")).isEqualTo("DB");
         assertThat(environment.getProperty("growth.business-zone-id")).isEqualTo("Asia/Shanghai");
+        assertThat(environment.getProperty("search.index.initialize", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("analytics.ingest.exclude-paths[2]")).isEqualTo("/api/ops/**");
+        assertThat(environment.getProperty("spring.servlet.multipart.max-file-size")).isEqualTo("10GB");
+    }
+
+    @Test
+    void bindsSharedSeedDataId() throws Exception {
+        StandardEnvironment environment = environmentFrom("community-shared.yaml");
+        Binder binder = Binder.get(environment);
+        TrustedProxyProperties trustedProxy = binder.bind("gateway.trusted-proxy", TrustedProxyProperties.class)
+                .orElseThrow(IllegalStateException::new);
+
+        assertThat(trustedProxy.isEnabled()).isFalse();
+        assertThat(trustedProxy.getCidrs()).isEmpty();
+        assertThat(environment.getProperty("community.metrics.basic-auth.username")).isEqualTo("prometheus");
+    }
+
+    @Test
+    void bindsRuntimePolicySeedDataIds() throws Exception {
+        assertThat(Binder.get(environmentFrom("community-feature-flags.yaml"))
+                .bind("community", FeatureFlagProperties.class)
+                .orElseThrow(IllegalStateException::new)
+                .getFlags())
+                .containsEntry("post-publishing", true)
+                .containsEntry("analytics-ingest", false);
+
+        assertThat(Binder.get(environmentFrom("community-degradation.yaml"))
+                .bind("community", DegradationProperties.class)
+                .orElseThrow(IllegalStateException::new)
+                .getModes())
+                .containsEntry("search", "strict")
+                .containsEntry("analytics", "best-effort");
+
+        CachePolicyProperties cache = Binder.get(environmentFrom("community-cache-policy.yaml"))
+                .bind("community.cache", CachePolicyProperties.class)
+                .orElseThrow(IllegalStateException::new);
+        assertThat(cache.getDefaultTtl()).isEqualTo(Duration.ofSeconds(300));
+        assertThat(cache.getNullTtl()).isEqualTo(Duration.ofSeconds(30));
+
+        UploadPolicyProperties upload = Binder.get(environmentFrom("community-upload-policy.yaml"))
+                .bind("community.upload", UploadPolicyProperties.class)
+                .orElseThrow(IllegalStateException::new);
+        assertThat(upload.getMaxFileSize().toGigabytes()).isEqualTo(10);
+        assertThat(upload.getAllowedMimeTypes()).contains("image/png", "text/plain", "application/octet-stream");
+        assertThat(upload.getAllowedExtensions()).contains("jpg", "pdf", "txt", "bin");
+
+        SearchPolicyProperties search = Binder.get(environmentFrom("community-search-policy.yaml"))
+                .bind("search", SearchPolicyProperties.class)
+                .orElseThrow(IllegalStateException::new);
+        assertThat(search.getIndex().isInitialize()).isTrue();
+        assertThat(search.getQuery().getMaxPageSize()).isEqualTo(50);
+
+        NoticePolicyProperties notice = Binder.get(environmentFrom("community-notification-policy.yaml"))
+                .bind("notice", NoticePolicyProperties.class)
+                .orElseThrow(IllegalStateException::new);
+        assertThat(notice.getChannels().isInAppEnabled()).isTrue();
+        assertThat(notice.getDigest().getWindow()).isEqualTo(Duration.ofHours(1));
+
+        KafkaPolicyProperties kafka = Binder.get(environmentFrom("community-kafka-policy.yaml"))
+                .bind("community.kafka-policy", KafkaPolicyProperties.class)
+                .orElseThrow(IllegalStateException::new);
+        assertThat(kafka.getRetry().getMaxAttempts()).isEqualTo(3);
+        assertThat(kafka.getProducer().getMaxInFlightRequests()).isEqualTo(5);
+    }
+
+    @Test
+    void bindsFrontendRuntimeSeedDataId() throws Exception {
+        RuntimeConfigProperties runtime = Binder.get(environmentFrom("community-frontend-runtime.yaml"))
+                .bind("frontend.runtime", RuntimeConfigProperties.class)
+                .orElseThrow(IllegalStateException::new);
+
+        assertThat(runtime.getApiBasePath()).isEqualTo("/api");
+        assertThat(runtime.getFeatures()).containsEntry("file-upload", true);
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

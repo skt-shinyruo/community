@@ -1,5 +1,9 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.spring.policy.UploadPolicyDecisions;
+import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
+import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
+import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.oss.application.command.CompleteObjectUploadCommand;
 import com.nowcoder.community.oss.application.command.ObjectUploadContent;
 import com.nowcoder.community.oss.application.command.PrepareObjectUploadCommand;
@@ -30,6 +34,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -198,6 +203,129 @@ class ObjectUploadApplicationServiceTest {
     }
 
     @Test
+    void prepareUploadShouldRejectContentThatViolatesNacosUploadPolicy() {
+        UploadPolicyProperties uploadPolicy = new UploadPolicyProperties();
+        uploadPolicy.setAllowedMimeTypes(List.of("image/png"));
+        uploadPolicy.setAllowedExtensions(List.of("png"));
+        uploadPolicy.setMaxFileSize(org.springframework.util.unit.DataSize.ofBytes(5));
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                new FakeObjectRepository(),
+                new FakeObjectVersionRepository(),
+                new FakeUploadSessionRepository(),
+                null,
+                new CapturingObjectStore(),
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK,
+                new UploadPolicyDecisions(uploadPolicy)
+        );
+
+        assertThatThrownBy(() -> service.prepareUpload(new PrepareObjectUploadCommand(
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                "PUBLIC",
+                "avatar.exe",
+                "application/x-msdownload",
+                6,
+                "",
+                "7"
+        ))).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("upload exceeds global max file size");
+
+        assertThatThrownBy(() -> service.prepareUpload(new PrepareObjectUploadCommand(
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                "PUBLIC",
+                "avatar.exe",
+                "image/png",
+                5,
+                "",
+                "7"
+        ))).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("file extension is not allowed by global upload policy");
+    }
+
+    @Test
+    void prepareUploadShouldRejectWhenNacosFileUploadFeatureIsDisabled() {
+        FeatureFlagProperties flags = new FeatureFlagProperties();
+        flags.getFlags().put("file-upload", false);
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                new FakeObjectRepository(),
+                new FakeObjectVersionRepository(),
+                new FakeUploadSessionRepository(),
+                null,
+                new CapturingObjectStore(),
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK,
+                new UploadPolicyDecisions(new UploadPolicyProperties()),
+                new FeatureFlagDecisions(flags)
+        );
+
+        assertThatThrownBy(() -> service.prepareUpload(new PrepareObjectUploadCommand(
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                "PUBLIC",
+                "avatar.png",
+                "image/png",
+                5,
+                "",
+                "7"
+        ))).isInstanceOf(IllegalStateException.class)
+                .hasMessage("file upload is disabled by feature flag");
+    }
+
+    @Test
+    void prepareUploadShouldRejectWhenNacosAvatarOrMediaUploadPolicyIsDisabled() {
+        UploadPolicyProperties avatarPolicy = new UploadPolicyProperties();
+        avatarPolicy.setAvatarUploadEnabled(false);
+        ObjectUploadApplicationService avatarService = serviceWithUploadPolicy(avatarPolicy);
+
+        assertThatThrownBy(() -> avatarService.prepareUpload(new PrepareObjectUploadCommand(
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                "PUBLIC",
+                "avatar.png",
+                "image/png",
+                5,
+                "",
+                "7"
+        ))).isInstanceOf(IllegalStateException.class)
+                .hasMessage("avatar upload is disabled by upload policy");
+
+        UploadPolicyProperties mediaPolicy = new UploadPolicyProperties();
+        mediaPolicy.setMediaUploadEnabled(false);
+        ObjectUploadApplicationService mediaService = serviceWithUploadPolicy(mediaPolicy);
+
+        assertThatThrownBy(() -> mediaService.prepareUpload(new PrepareObjectUploadCommand(
+                "DRIVE_FILE",
+                "community-app",
+                "drive",
+                "drive-upload",
+                "7",
+                "PRIVATE",
+                "file.txt",
+                "text/plain",
+                5,
+                "",
+                "7"
+        ))).isInstanceOf(IllegalStateException.class)
+                .hasMessage("media upload is disabled by upload policy");
+    }
+
+    @Test
     void completeUploadShouldRejectActualContentThatViolatesUsagePolicy() {
         FakeObjectRepository objectRepository = new FakeObjectRepository();
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
@@ -258,8 +386,71 @@ class ObjectUploadApplicationServiceTest {
         assertThat(objectStore.capturedKey).isNull();
     }
 
+    @Test
+    void completeUploadShouldRejectWhenNacosMediaUploadPolicyIsDisabledAfterPrepare() {
+        UploadPolicyProperties uploadPolicy = new UploadPolicyProperties();
+        UploadPolicyDecisions uploadPolicyDecisions = new UploadPolicyDecisions(uploadPolicy);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository uploadSessionRepository = new FakeUploadSessionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                uploadSessionRepository,
+                null,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK,
+                uploadPolicyDecisions
+        );
+        ObjectUploadSessionResult prepared = service.prepareUpload(new PrepareObjectUploadCommand(
+                "DRIVE_FILE",
+                "community-app",
+                "drive",
+                "drive-upload",
+                "7",
+                "PRIVATE",
+                "file.txt",
+                "text/plain",
+                5,
+                "",
+                "7"
+        ));
+        uploadPolicy.setMediaUploadEnabled(false);
+
+        assertThatThrownBy(() -> service.completeUpload(new CompleteObjectUploadCommand(
+                prepared.sessionId(),
+                prepared.objectId(),
+                prepared.versionId(),
+                new ObjectUploadContent(
+                        () -> new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)),
+                        "text/plain",
+                        5,
+                        ""
+                )
+        ))).isInstanceOf(IllegalStateException.class)
+                .hasMessage("media upload is disabled by upload policy");
+        assertThat(objectStore.capturedKey).isNull();
+    }
+
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+
+    private static ObjectUploadApplicationService serviceWithUploadPolicy(UploadPolicyProperties uploadPolicy) {
+        return new ObjectUploadApplicationService(
+                new FakeObjectRepository(),
+                new FakeObjectVersionRepository(),
+                new FakeUploadSessionRepository(),
+                null,
+                new CapturingObjectStore(),
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK,
+                new UploadPolicyDecisions(uploadPolicy)
+        );
     }
 
     private static final class FakeObjectRepository implements OssObjectRepository {

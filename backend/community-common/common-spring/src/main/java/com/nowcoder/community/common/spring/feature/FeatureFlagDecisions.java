@@ -11,11 +11,18 @@ public class FeatureFlagDecisions {
     }
 
     public boolean enabled(String key) {
+        return enabledOrDefault(key, false);
+    }
+
+    public boolean enabledOrDefault(String key, boolean defaultValue) {
         if (key == null || key.isBlank() || properties == null) {
-            return false;
+            return defaultValue;
         }
 
         Map<String, Boolean> flags = properties.getFlags();
-        return flags != null && Boolean.TRUE.equals(flags.get(key));
+        if (flags == null || !flags.containsKey(key)) {
+            return defaultValue;
+        }
+        return Boolean.TRUE.equals(flags.get(key));
     }
 }

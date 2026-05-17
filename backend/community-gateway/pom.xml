@@ -28,6 +28,11 @@
         </dependency>
         <dependency>
             <groupId>com.nowcoder.community</groupId>
+            <artifactId>community-common-spring</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
             <artifactId>community-common-webflux</artifactId>
             <version>${project.version}</version>
         </dependency>

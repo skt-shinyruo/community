@@ -32,20 +32,31 @@ public class NoticeProjectionApplicationService {
     private final ObjectMapper objectMapper;
     private final NoticeApplicationService noticeApplicationService;
     private final NoticeProjectionDomainService noticeProjectionDomainService;
+    private final NoticePolicyProperties noticePolicyProperties;
 
     @Autowired
+    public NoticeProjectionApplicationService(
+            ObjectMapper objectMapper,
+            NoticeApplicationService noticeApplicationService,
+            NoticePolicyProperties noticePolicyProperties
+    ) {
+        this(objectMapper, noticeApplicationService, new NoticeProjectionDomainService(), noticePolicyProperties);
+    }
+
     public NoticeProjectionApplicationService(ObjectMapper objectMapper, NoticeApplicationService noticeApplicationService) {
-        this(objectMapper, noticeApplicationService, new NoticeProjectionDomainService());
+        this(objectMapper, noticeApplicationService, new NoticeProjectionDomainService(), new NoticePolicyProperties());
     }
 
     NoticeProjectionApplicationService(
             ObjectMapper objectMapper,
             NoticeApplicationService noticeApplicationService,
-            NoticeProjectionDomainService noticeProjectionDomainService
+            NoticeProjectionDomainService noticeProjectionDomainService,
+            NoticePolicyProperties noticePolicyProperties
     ) {
         this.objectMapper = objectMapper;
         this.noticeApplicationService = noticeApplicationService;
         this.noticeProjectionDomainService = noticeProjectionDomainService;
+        this.noticePolicyProperties = noticePolicyProperties == null ? new NoticePolicyProperties() : noticePolicyProperties;
     }
 
     public void projectContentEvent(ContentContractEvent event) {
@@ -107,6 +118,9 @@ public class NoticeProjectionApplicationService {
     }
 
     private void project(NoticeProjection projection) {
+        if (!noticePolicyProperties.getChannels().isInAppEnabled()) {
+            return;
+        }
         if (!noticeProjectionDomainService.shouldProject(projection)) {
             return;
         }

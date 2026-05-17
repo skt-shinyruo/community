@@ -4,6 +4,12 @@ gateway:
     allowed-origins: []
     fail-open-when-allowlist-empty: false
 
+spring:
+  servlet:
+    multipart:
+      max-file-size: 10GB
+      max-request-size: 10GB
+
 security:
   jwt:
     access-token-ttl-seconds: 900
@@ -105,6 +111,7 @@ search:
     cleanup-interval-ms: 21600000
   index:
     prefix: community_posts_v
+    initialize: true
 
 analytics:
   max-days-range: 31
@@ -119,6 +126,7 @@ analytics:
     exclude-paths:
       - /api/analytics/**
       - /api/auth/**
+      - /api/ops/**
       - /actuator/**
       - /internal/**
       - /files/**

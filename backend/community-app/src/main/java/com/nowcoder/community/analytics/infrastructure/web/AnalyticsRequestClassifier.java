@@ -1,5 +1,8 @@
 package com.nowcoder.community.analytics.infrastructure.web;
 
+import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
+import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
@@ -8,15 +11,25 @@ import org.springframework.util.StringUtils;
 public class AnalyticsRequestClassifier {
 
     private final AnalyticsIngestProperties properties;
+    private final FeatureFlagDecisions featureFlags;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public AnalyticsRequestClassifier(AnalyticsIngestProperties properties) {
+        this(properties, new FeatureFlagDecisions(new FeatureFlagProperties()));
+    }
+
+    @Autowired
+    public AnalyticsRequestClassifier(AnalyticsIngestProperties properties, FeatureFlagDecisions featureFlags) {
         this.properties = properties;
+        this.featureFlags = featureFlags == null ? new FeatureFlagDecisions(new FeatureFlagProperties()) : featureFlags;
     }
 
     public Decision classify(String method, String path, int status) {
         if (properties == null || !properties.isEnabled()) {
             return Decision.skip("disabled");
+        }
+        if (!featureFlags.enabledOrDefault("analytics-ingest", true)) {
+            return Decision.skip("feature_disabled");
         }
         if (!StringUtils.hasText(method) || !StringUtils.hasText(path)) {
             return Decision.skip("missing_request");

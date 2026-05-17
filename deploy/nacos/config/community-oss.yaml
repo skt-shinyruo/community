@@ -1,3 +1,9 @@
+spring:
+  servlet:
+    multipart:
+      max-file-size: 10GB
+      max-request-size: 10GB
+
 oss:
   public-base-url: http://localhost:12880
   object-store:

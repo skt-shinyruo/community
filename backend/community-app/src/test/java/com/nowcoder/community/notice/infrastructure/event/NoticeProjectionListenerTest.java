@@ -7,6 +7,7 @@ import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.notice.application.NoticeApplicationService;
 import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.NoticeProjectionApplicationService;
+import com.nowcoder.community.notice.application.NoticePolicyProperties;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
@@ -18,6 +19,7 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class NoticeProjectionListenerTest {
 
@@ -55,6 +57,24 @@ class NoticeProjectionListenerTest {
         listener.onSocialEvent(new SocialContractEvent("evt-like-1", SocialEventTypes.LIKE_CREATED, payload));
 
         verify(noticeService).createNotice(argThat(command -> matches(command, entityUserId, "like", "evt-like-1")));
+    }
+
+    @Test
+    void inAppDisabledShouldSuppressProjectedNoticeCreation() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticePolicyProperties properties = new NoticePolicyProperties();
+        properties.getChannels().setInAppEnabled(false);
+        NoticeProjectionListener listener = new NoticeProjectionListener(
+                new NoticeProjectionApplicationService(new ObjectMapper().findAndRegisterModules(), noticeService, properties)
+        );
+        UUID targetUserId = uuid(9);
+
+        CommentPayload payload = new CommentPayload();
+        payload.setTargetUserId(targetUserId);
+
+        listener.onContentEvent(new ContentContractEvent("evt-comment-disabled", ContentEventTypes.COMMENT_CREATED, payload));
+
+        verifyNoInteractions(noticeService);
     }
 
     private boolean matches(CreateNoticeCommand command, UUID toUserId, String topic, String eventId) {

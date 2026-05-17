@@ -1,5 +1,7 @@
 package com.nowcoder.community.analytics.infrastructure.web;
 
+import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
+import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -47,5 +49,23 @@ class AnalyticsRequestClassifierTest {
         properties.setEnabled(true);
         properties.setIncludePaths(List.of("/api/posts/**"));
         assertThat(classifier.classify("GET", "/api/posts/123", 500).capture()).isFalse();
+    }
+
+    @Test
+    void shouldSkipWhenNacosFeatureFlagDisablesAnalyticsIngest() {
+        AnalyticsIngestProperties properties = new AnalyticsIngestProperties();
+        properties.setEnabled(true);
+        properties.setIncludePaths(List.of("/api/posts/**"));
+        FeatureFlagProperties flags = new FeatureFlagProperties();
+        flags.getFlags().put("analytics-ingest", false);
+        AnalyticsRequestClassifier classifier = new AnalyticsRequestClassifier(
+                properties,
+                new FeatureFlagDecisions(flags)
+        );
+
+        AnalyticsRequestClassifier.Decision decision = classifier.classify("GET", "/api/posts/123", 200);
+
+        assertThat(decision.capture()).isFalse();
+        assertThat(decision.reason()).isEqualTo("feature_disabled");
     }
 }

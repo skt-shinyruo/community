@@ -6,12 +6,21 @@ spring:
     import:
       - ${NACOS_CONFIG_IMPORT_SHARED:optional:nacos:community-shared.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_SERVICE:optional:nacos:community-app.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_FEATURE_FLAGS:optional:nacos:community-feature-flags.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_DEGRADATION:optional:nacos:community-degradation.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_CACHE_POLICY:optional:nacos:community-cache-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_KAFKA_POLICY:optional:nacos:community-kafka-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_FRONTEND_RUNTIME:optional:nacos:community-frontend-runtime.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_SEARCH_POLICY:optional:nacos:community-search-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_NOTIFICATION_POLICY:optional:nacos:community-notification-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_UPLOAD_POLICY:optional:nacos:community-upload-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_WORK_PROCESSING:optional:nacos:community-work-processing.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
   application:
     name: community-app
   servlet:
     multipart:
-      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:10GB}
-      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:10GB}
+      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:${community.upload.max-file-size:10GB}}
+      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:${community.upload.max-request-size:10GB}}
   cloud:
     nacos:
       discovery:
@@ -45,6 +54,8 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.add.type.headers: true
+        enable.idempotence: ${COMMUNITY_KAFKA_POLICY_PRODUCER_ENABLE_IDEMPOTENCE:${community.kafka-policy.producer.enable-idempotence:true}}
+        max.in.flight.requests.per.connection: ${COMMUNITY_KAFKA_POLICY_PRODUCER_MAX_IN_FLIGHT_REQUESTS:${community.kafka-policy.producer.max-in-flight-requests:5}}
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}

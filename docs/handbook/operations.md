@@ -244,6 +244,24 @@ curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realt
 
 如果 worker 列表为空，查看 `im-realtime-*` 启动日志和 Nacos 注册 metadata。
 
+### Nacos Config Verification
+
+List a seeded config:
+
+```bash
+curl -fsS "http://localhost:18848/nacos/v1/cs/configs?dataId=community-gateway.yaml&group=COMMUNITY"
+```
+
+List IM worker registration metadata:
+
+```bash
+curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realtime-worker"
+```
+
+If a required config import is missing in production-like mode, the service must
+fail startup before serving traffic. Check `NACOS_CONFIG_IMPORT_SHARED`,
+`NACOS_CONFIG_IMPORT_SERVICE`, `NACOS_NAMESPACE`, and `NACOS_CONFIG_GROUP`.
+
 ### Kafka health 长时间 starting
 
 ```bash

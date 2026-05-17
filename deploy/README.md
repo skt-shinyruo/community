@@ -79,7 +79,7 @@
 - 统一入口：`http://localhost:12880`
 - IM session bootstrap：`POST http://localhost:12880/api/im/sessions`
 - IM WebSocket：session `wsUrl` 默认 `ws://localhost:12880/ws/im`
-- Nacos：`http://localhost:18848/nacos`
+- Nacos：`http://localhost:18848/nacos`，作为服务注册中心和非密钥配置中心。
 - XXL-JOB：`http://localhost:12887/xxl-job-admin`
 - MailHog：`http://localhost:8025`
 
@@ -113,6 +113,10 @@
 - Nacos：`nacos-1..3` + `nacos-db-bootstrap`
 - XXL-JOB：`xxl-job-admin-1/2`
 - Runtime：`community-app-1..3` / `community-gateway-1..3` / `community-im-gateway-1..3` / `im-core-1..3` / `im-realtime-1..3`
+
+`nacos-config-bootstrap` 会把 `deploy/nacos/config/*.yaml` 发布到 Nacos group
+`COMMUNITY`。这些 seed 文件不得包含密码、token、access key、JWT HMAC secret 或
+其他密钥。
 
 ## 停止与清理
 

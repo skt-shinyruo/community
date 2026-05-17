@@ -162,6 +162,20 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
 
 默认浏览器流量经 `community-gateway`。IM WebSocket 经 NGINX 到 gateway，再转到 `community-im-gateway`；`community-im-gateway` 负责 session bootstrap 和稳定 `/ws/im`，`im-realtime` 保持 internal worker，不直接暴露给浏览器工作流。除 observability 和本地控制面外，内部依赖端口不应直接暴露给浏览器工作流。
 
+## Nacos Config And Discovery
+
+Nacos is both the local service registry and non-secret configuration center.
+`nacos-db-bootstrap` initializes the Nacos MySQL schema, then
+`nacos-config-bootstrap` publishes YAML dataIds from `deploy/nacos/config`.
+
+Local services import config with optional `nacos:` imports so IDE startup can still
+fall back to packaged defaults. Production-like runs set required imports through
+`NACOS_CONFIG_IMPORT_SHARED` and `NACOS_CONFIG_IMPORT_SERVICE`.
+
+Secrets do not live in Nacos Config. Keep JWT HMAC secrets, database passwords,
+object-store access keys, XXL-JOB tokens, and Nacos credentials in `.env` or a
+secret manager.
+
 ## 前端 API 解析
 
 本地前端通过 `frontend/src/config/endpointResolution.js` 解析 API 入口：

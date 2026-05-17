@@ -22,8 +22,10 @@ class NacosImRealtimeBindingTest {
                 .bind("im.clients", ImServiceClientProperties.class)
                 .orElseThrow(IllegalStateException::new);
 
+        assertThat(environment.containsProperty("im.clients.snapshot-timeout-ms")).isTrue();
         assertThat(properties.getCommunityServiceId()).isEqualTo("community-app");
         assertThat(properties.getImCoreServiceId()).isEqualTo("im-core");
+        assertThat(properties.getSnapshotTimeoutMs()).isEqualTo(3000);
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

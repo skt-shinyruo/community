@@ -27,7 +27,10 @@ class NacosPolicyBindingTest {
                 .orElseThrow(IllegalStateException::new);
 
         assertThat(originGuard.isEnabled()).isTrue();
+        assertThat(originGuard.isFailOpenWhenAllowlistEmpty()).isFalse();
+        assertThat(environment.containsProperty("auth.login-rate-limit.max-failures-per-user")).isTrue();
         assertThat(loginRateLimit.isEnabled()).isTrue();
+        assertThat(loginRateLimit.getMaxFailuresPerUser()).isEqualTo(5);
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

@@ -1,4 +1,8 @@
 spring:
+  config:
+    import:
+      - ${NACOS_CONFIG_IMPORT_SHARED:optional:nacos:community-shared.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_SERVICE:optional:nacos:im-realtime.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
   application:
     name: im-realtime
   cloud:
@@ -7,10 +11,28 @@ spring:
         server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
         service: ${IM_REALTIME_WORKER_SERVICE_ID:im-realtime-worker}
         metadata:
+          version: ${SERVICE_VERSION:@project.version@}
+          deployment.environment: ${DEPLOYMENT_ENVIRONMENT:local}
+          zone: ${SERVICE_ZONE:local}
+          traffic.group: ${SERVICE_TRAFFIC_GROUP:baseline}
+          release.track: ${SERVICE_RELEASE_TRACK:stable}
+          weight: ${SERVICE_WEIGHT:100}
+          protocol: http
+          capabilities: ${SERVICE_CAPABILITIES:}
+          management.port: ${MANAGEMENT_SERVER_PORT:${SERVER_PORT}}
+          draining: ${SERVICE_DRAINING:false}
           role: ws-worker
           wsPath: ${IM_WS_PATH:/internal/ws/im}
           wsPort: ${SERVER_PORT:18081}
           workerId: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
+          maxConnections: ${IM_REALTIME_MAX_CONNECTIONS:10000}
+          activeConnectionHint: ${IM_REALTIME_ACTIVE_CONNECTION_HINT:0}
+          shardGroup: ${IM_REALTIME_SHARD_GROUP:default}
+      config:
+        server-addr: ${SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_CONFIG_GROUP:COMMUNITY}
+        file-extension: yaml
   kafka:
     # Comma-separated broker list, for example kafka-1:9092,kafka-2:9092,kafka-3:9092.
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}

@@ -2,12 +2,32 @@ server:
   port: ${SERVER_PORT:18083}
 
 spring:
+  config:
+    import:
+      - ${NACOS_CONFIG_IMPORT_SHARED:optional:nacos:community-shared.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
+      - ${NACOS_CONFIG_IMPORT_SERVICE:optional:nacos:community-im-gateway.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
   application:
     name: community-im-gateway
   cloud:
     nacos:
       discovery:
         server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
+        metadata:
+          version: ${SERVICE_VERSION:@project.version@}
+          deployment.environment: ${DEPLOYMENT_ENVIRONMENT:local}
+          zone: ${SERVICE_ZONE:local}
+          traffic.group: ${SERVICE_TRAFFIC_GROUP:baseline}
+          release.track: ${SERVICE_RELEASE_TRACK:stable}
+          weight: ${SERVICE_WEIGHT:100}
+          protocol: http
+          capabilities: ${SERVICE_CAPABILITIES:}
+          management.port: ${MANAGEMENT_SERVER_PORT:${SERVER_PORT}}
+          draining: ${SERVICE_DRAINING:false}
+      config:
+        server-addr: ${SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_CONFIG_GROUP:COMMUNITY}
+        file-extension: yaml
 
 community:
   logging:

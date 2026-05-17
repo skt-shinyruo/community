@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
         "security.jwt.issuer=community-oss-test",
         "spring.cloud.discovery.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",
+        "spring.cloud.nacos.config.enabled=false",
         "oss.object-store.mode=local",
         "oss.object-store.local-root=${java.io.tmpdir}/community-oss-smoke"
 })

@@ -1,0 +1,11 @@
+community:
+  kafka-policy:
+    retry:
+      max-attempts: 3
+      base-backoff: 1s
+      max-backoff: 30s
+    dlq:
+      enabled: true
+    producer:
+      enable-idempotence: true
+      max-in-flight-requests: 5

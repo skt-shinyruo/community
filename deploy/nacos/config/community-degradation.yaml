@@ -1,0 +1,7 @@
+community:
+  degradation:
+    search: strict
+    analytics: best-effort
+    online-im-push: best-effort
+    media-processing: strict
+    background-projections: best-effort

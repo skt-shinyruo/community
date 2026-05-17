@@ -1,0 +1,25 @@
+im:
+  clients:
+    community-service-id: community-app
+    im-core-service-id: im-core
+    membership-snapshot-service-id: im-core
+    policy-snapshot-service-id: community-app
+    snapshot-timeout-ms: 3000
+    internal-scope: im.realtime.internal
+  session:
+    worker-service-id: im-realtime-worker
+    worker-id: local
+    ticket-ttl: PT2M
+    worker-id-metadata-key: workerId
+    ws-path-metadata-key: wsPath
+    ws-port-metadata-key: wsPort
+  ws:
+    path: /internal/ws/im
+    outbound-buffer-size: 256
+    kafka-send-timeout-ms: 5000
+  realtime:
+    worker:
+      max-connections: 10000
+      drain-enabled: false
+      shard-group: default
+      capacity-weight: 100

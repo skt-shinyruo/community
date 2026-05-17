@@ -1,0 +1,30 @@
+security:
+  jwt:
+    issuer: community-auth
+
+community:
+  observability:
+    runtime-logging:
+      enabled: true
+      startup-summary-enabled: true
+      periodic-summary-enabled: true
+      periodic-summary-interval: 60s
+      jvm:
+        enabled: true
+        memory-threshold-percent: 85
+        gc-pause-threshold-ms: 200
+        direct-memory-threshold-percent: 85
+      executors:
+        enabled: true
+        saturation-threshold-percent: 85
+      http-client:
+        enabled: true
+        slow-request-threshold-ms: 1000
+      logging-system:
+        enabled: true
+        queue-pressure-threshold-percent: 80
+      system:
+        enabled: true
+        fd-usage-threshold-percent: 80
+        disk-usage-threshold-percent: 90
+        cpu-load-threshold-percent: 85

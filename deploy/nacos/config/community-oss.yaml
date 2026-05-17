@@ -1,0 +1,9 @@
+oss:
+  public-base-url: http://localhost:12880
+  object-store:
+    mode: garage
+    endpoint: http://garage:3900
+    bucket: community-oss
+    region: garage
+    path-style: true
+    local-root: /tmp/community-oss

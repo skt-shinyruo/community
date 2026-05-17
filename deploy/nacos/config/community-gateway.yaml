@@ -1,0 +1,30 @@
+gateway:
+  cors:
+    allowed-origins: []
+  im-edge:
+    service-id: community-im-gateway
+    session-path: /api/im/sessions
+    ws-path: /ws/im
+  http:
+    routes:
+      - id: oss-api
+        path-prefix: /api/oss
+        service-id: community-oss
+      - id: im-core
+        path-prefix: /api/im
+        service-id: im-core
+      - id: bootstrap-api
+        path-prefix: /api
+        service-id: community-app
+      - id: oss-files
+        path-prefix: /files
+        service-id: community-oss
+    rate-limit:
+      enabled: true
+      fail-open-on-error: false
+      policies: {}
+    traffic-policy:
+      default-policy-id: baseline
+      default-tags:
+        plane: http
+      rules: []

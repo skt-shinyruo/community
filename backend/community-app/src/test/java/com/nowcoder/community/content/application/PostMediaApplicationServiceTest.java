@@ -44,7 +44,7 @@ class PostMediaApplicationServiceTest {
     void setUp() {
         assetRepository = mock(PostMediaAssetRepository.class);
         storagePort = mock(PostMediaStoragePort.class);
-        idGenerator = mock(UuidV7Generator.class);
+        idGenerator = new UuidV7Generator();
         service = new PostMediaApplicationService(assetRepository, storagePort, idGenerator);
     }
 
@@ -54,8 +54,6 @@ class PostMediaApplicationServiceTest {
         UUID objectId = uuid(9);
         UUID versionId = uuid(10);
         UUID sessionId = uuid(11);
-        UUID assetId = uuid(12);
-        when(idGenerator.next()).thenReturn(assetId);
         when(storagePort.prepareUpload(any(), any())).thenAnswer(invocation -> {
             PostMediaAsset draft = invocation.getArgument(0);
             return new PostMediaUploadSessionResult(
@@ -82,7 +80,8 @@ class PostMediaApplicationServiceTest {
                 "sha256"
         ));
 
-        assertThat(result.assetId()).isEqualTo(assetId);
+        assertThat(result.assetId()).isNotNull();
+        assertThat(result.assetId().version()).isEqualTo(7);
         assertThat(result.uploadUrl()).isEqualTo("/api/posts/media/" + result.assetId() + "/upload");
         var storageDraftCaptor = forClass(PostMediaAsset.class);
         var persistedDraftCaptor = forClass(PostMediaAsset.class);
@@ -91,7 +90,7 @@ class PostMediaApplicationServiceTest {
         inOrder.verify(assetRepository).createDraft(persistedDraftCaptor.capture());
         PostMediaAsset storageDraft = storageDraftCaptor.getValue();
         PostMediaAsset persistedDraft = persistedDraftCaptor.getValue();
-        assertThat(storageDraft.id()).isEqualTo(assetId);
+        assertThat(storageDraft.id()).isEqualTo(result.assetId());
         assertThat(storageDraft.ownerUserId()).isEqualTo(userId);
         assertThat(storageDraft.fileName()).isEqualTo("demo.mp4");
         assertThat(storageDraft.contentType()).isEqualTo("video/mp4");
@@ -111,7 +110,6 @@ class PostMediaApplicationServiceTest {
     @Test
     void prepareUploadShouldInferImageKindFromContentType() {
         UUID userId = uuid(7);
-        when(idGenerator.next()).thenReturn(uuid(8));
         when(storagePort.prepareUpload(any(), any())).thenAnswer(invocation -> session(invocation.getArgument(0, PostMediaAsset.class).id()));
 
         service.prepareUpload(new PreparePostMediaUploadCommand(userId, "cover.png", "image/png", 10, "", ""));

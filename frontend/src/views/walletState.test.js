@@ -32,4 +32,26 @@ describe('walletState', () => {
     expect(state.hero.statusText).not.toContain('后续')
     expect(state.hero.statusText).not.toContain('待同步')
   })
+
+  it('uses backend transaction references and signed amounts', () => {
+    const state = buildWalletState({
+      summary: { balance: 975, status: 'ACTIVE' },
+      txns: [
+        {
+          txnId: '0198f4b6-9ad4-7a22-8df4-3c680e0d0d01',
+          txnRef: 'wallet:transfer:history',
+          txnType: 'TRANSFER',
+          amount: -25,
+          balanceAfter: 975,
+          counterpartLabel: '用户 202',
+          status: 'SUCCEEDED'
+        }
+      ]
+    })
+
+    expect(state.feed[0].key).toBe('wallet:transfer:history')
+    expect(state.feed[0].label).toBe('转账转出')
+    expect(state.feed[0].amountText).toBe('-25 积分')
+    expect(state.feed[0].meta).toBe('用户 202')
+  })
 })

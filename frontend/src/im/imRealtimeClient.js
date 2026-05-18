@@ -120,6 +120,7 @@ class ImRealtimeClient {
     } catch {}
     this.ws = null
     this.state = createInitialState()
+    this._emitStateChanged()
   }
 
   sendPrivateText({ toUserId, content, clientMsgId } = {}) {
@@ -127,7 +128,7 @@ class ImRealtimeClient {
     const c = String(content || '')
     if (!toId) return ''
     const cmid = String(clientMsgId || '').trim() || randomId()
-    this._send({
+    this._sendCommand({
       type: 'sendPrivateText',
       toUserId: toId,
       content: c,
@@ -140,7 +141,7 @@ class ImRealtimeClient {
     const rid = Number(roomId || 0)
     const c = String(content || '')
     const cmid = String(clientMsgId || '').trim() || randomId()
-    this._send({
+    this._sendCommand({
       type: 'sendRoomText',
       roomId: rid,
       content: c,
@@ -188,7 +189,12 @@ class ImRealtimeClient {
       this.state.userId = ''
       this.state.sessionId = ''
       this.reconnectAttempts = 0
-      this._send({ type: 'connect', ticket })
+      this._emitStateChanged()
+      try {
+        this._send({ type: 'connect', ticket })
+      } catch {
+        try { this.ws?.close?.() } catch {}
+      }
     }
 
     this.ws.onmessage = (evt) => {
@@ -198,9 +204,13 @@ class ImRealtimeClient {
       if (type === 'connected') {
         this.state.authed = true
         this.state.sessionId = String(msg?.sessionId || '').trim()
+        this._emitStateChanged()
       } else if (type === 'reject' && String(msg?.cmd || '') === 'connect') {
         this.state.authed = false
         this.state.sessionId = ''
+        this._emitStateChanged()
+      } else if (type === 'reject' && this._isSendCommand(msg?.cmd)) {
+        this.emitter.emit('sendRejected', msg)
       }
       this.emitter.emit(type, msg)
     }
@@ -211,6 +221,7 @@ class ImRealtimeClient {
       this.state.userId = ''
       this.state.sessionId = ''
       this.ws = null
+      this._emitStateChanged()
       if (this.accessToken) this._scheduleReconnect()
     }
 
@@ -220,10 +231,29 @@ class ImRealtimeClient {
   }
 
   _send(obj) {
-    try {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return
-      this.ws.send(JSON.stringify(obj || {}))
-    } catch {}
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('IM 未连接')
+    }
+    this.ws.send(JSON.stringify(obj || {}))
+  }
+
+  _sendCommand(obj) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('IM 未连接')
+    }
+    if (!this.state.authed) {
+      throw new Error('IM 正在认证，请稍后重试')
+    }
+    this._send(obj)
+  }
+
+  _isSendCommand(cmd) {
+    const c = String(cmd || '')
+    return c === 'sendPrivateText' || c === 'sendRoomText'
+  }
+
+  _emitStateChanged() {
+    this.emitter.emit('stateChanged', { ...this.state })
   }
 
   _scheduleReconnect() {

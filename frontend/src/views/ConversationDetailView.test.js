@@ -84,6 +84,8 @@ function mountView(conversationId) {
 describe('ConversationDetailView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
     listImConversationMessages.mockResolvedValue({
       items: [
         {
@@ -119,7 +121,7 @@ describe('ConversationDetailView', () => {
     expect(wrapper.text()).toContain('消息时间线')
     expect(wrapper.text()).toContain('第一条消息')
     expect(wrapper.text()).toContain('第二条消息')
-    expect(wrapper.text()).toContain('实时已连接')
+    expect(wrapper.text()).toContain('实时已就绪')
 
     await wrapper.get('textarea').setValue('继续聊')
     await wrapper.get('button[aria-label="发送消息"]').trigger('click')
@@ -129,6 +131,44 @@ describe('ConversationDetailView', () => {
       toUserId: '22222222-2222-7222-8222-222222222222',
       content: '继续聊'
     })
+  })
+
+  it('does not send or clear the composer before realtime authentication completes', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = false
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('还没认证')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+
+    expect(sendPrivateText).not.toHaveBeenCalled()
+    expect(wrapper.get('textarea').element.value).toBe('还没认证')
+    expect(wrapper.text()).toContain('IM 正在认证，请稍后重试')
+  })
+
+  it('updates the realtime status when the client emits state changes', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = false
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('实时认证中')
+
+    listeners.stateChanged({
+      connected: true,
+      authed: true,
+      sessionId: 'sess-1',
+      userId: ''
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('实时已就绪')
   })
 
   it('rejects realtime private messages that miss persisted timestamps', async () => {

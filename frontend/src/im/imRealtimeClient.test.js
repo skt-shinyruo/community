@@ -157,6 +157,126 @@ describe('imRealtimeClient URL resolution', () => {
     })
   })
 
+  it('should reject command sends while websocket is open but not authenticated', async () => {
+    const { imRealtimeClient, imCoreHttp } = await loadClient()
+    imCoreHttp.post.mockResolvedValue({
+      data: {
+        data: {
+          sessionId: 'sess-1',
+          wsUrl: 'wss://edge.example.com/ws/im',
+          ticket: 'ticket-1'
+        }
+      }
+    })
+    const sent = []
+    FakeWebSocket.prototype.send = (payload) => {
+      sent.push(JSON.parse(payload))
+    }
+
+    await imRealtimeClient.connect('token-1')
+    await flushMicrotasks()
+
+    const ws = FakeWebSocket.instances[0]
+    ws.readyState = FakeWebSocket.OPEN
+    ws.onopen?.()
+
+    expect(imRealtimeClient.state.connected).toBe(true)
+    expect(imRealtimeClient.state.authed).toBe(false)
+    expect(() => imRealtimeClient.sendPrivateText({
+      toUserId: '22222222-2222-7222-8222-222222222222',
+      content: 'hello'
+    })).toThrow('IM 正在认证，请稍后重试')
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toMatchObject({ type: 'connect', ticket: 'ticket-1' })
+  })
+
+  it('should reject command sends when websocket is not open', async () => {
+    const { imRealtimeClient } = await loadClient()
+
+    expect(() => imRealtimeClient.sendPrivateText({
+      toUserId: '22222222-2222-7222-8222-222222222222',
+      content: 'hello'
+    })).toThrow('IM 未连接')
+  })
+
+  it('should emit sendRejected for command reject frames', async () => {
+    const { imRealtimeClient, imCoreHttp } = await loadClient()
+    imCoreHttp.post.mockResolvedValue({
+      data: {
+        data: {
+          sessionId: 'sess-1',
+          wsUrl: 'wss://edge.example.com/ws/im',
+          ticket: 'ticket-1'
+        }
+      }
+    })
+    const rejected = []
+    imRealtimeClient.on('sendRejected', (msg) => rejected.push(msg))
+
+    await imRealtimeClient.connect('token-1')
+    await flushMicrotasks()
+
+    const ws = FakeWebSocket.instances[0]
+    ws.readyState = FakeWebSocket.OPEN
+    ws.onopen?.()
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'connected',
+        sessionId: 'sess-1'
+      })
+    })
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'reject',
+        cmd: 'sendPrivateText',
+        clientMsgId: 'client-msg-1',
+        message: 'connect required'
+      })
+    })
+
+    expect(rejected).toHaveLength(1)
+    expect(rejected[0]).toMatchObject({
+      cmd: 'sendPrivateText',
+      clientMsgId: 'client-msg-1',
+      message: 'connect required'
+    })
+  })
+
+  it('should emit stateChanged when websocket auth state changes', async () => {
+    const { imRealtimeClient, imCoreHttp } = await loadClient()
+    imCoreHttp.post.mockResolvedValue({
+      data: {
+        data: {
+          sessionId: 'sess-1',
+          wsUrl: 'wss://edge.example.com/ws/im',
+          ticket: 'ticket-1'
+        }
+      }
+    })
+    const states = []
+    imRealtimeClient.on('stateChanged', (state) => states.push(state))
+
+    await imRealtimeClient.connect('token-1')
+    await flushMicrotasks()
+
+    const ws = FakeWebSocket.instances[0]
+    ws.readyState = FakeWebSocket.OPEN
+    ws.onopen?.()
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'connected',
+        sessionId: 'sess-1'
+      })
+    })
+    ws.onclose?.()
+
+    expect(states).toEqual([
+      expect.objectContaining({ connected: true, authed: false, sessionId: '' }),
+      expect.objectContaining({ connected: true, authed: true, sessionId: 'sess-1' }),
+      expect.objectContaining({ connected: false, authed: false, sessionId: '' })
+    ])
+  })
+
   it('should reopen a fresh IM session when the browser comes back online or visible', async () => {
     const { imRealtimeClient, imCoreHttp } = await loadClient()
     imCoreHttp.post

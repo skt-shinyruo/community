@@ -20,8 +20,8 @@
         </div>
 
         <div class="chat-header-actions">
-          <div class="chat-status-pill" :class="{ online: imRealtimeClient?.state?.connected }">
-            {{ imRealtimeClient?.state?.connected ? '实时已连接' : '实时未连接' }}
+          <div class="chat-status-pill" :class="{ online: realtimeState.authed }">
+            {{ realtimeStatusText }}
           </div>
           <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
         </div>
@@ -98,11 +98,17 @@ const error = ref('')
 const content = ref('')
 const sending = ref(false)
 const chatArea = ref(null)
+const realtimeState = ref({ ...imRealtimeClient.state })
 const pendingClientMsgIds = new Set()
 const loadRequestTracker = createLatestRequestTracker()
 
 const conversationId = computed(() => String(props.conversationId || '').trim())
 const targetId = computed(() => parseTargetId())
+const realtimeStatusText = computed(() => {
+  if (realtimeState.value.authed) return '实时已就绪'
+  if (realtimeState.value.connected) return '实时认证中'
+  return '实时未连接'
+})
 
 function formatTimeShort(ts) {
    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -145,8 +151,11 @@ async function send() {
   
   sending.value = true
   try {
-    if (!imRealtimeClient?.state?.connected) {
+    if (!realtimeState.value.connected) {
       throw new Error('IM 未连接')
+    }
+    if (!realtimeState.value.authed) {
+      throw new Error('IM 正在认证，请稍后重试')
     }
     const cmid = imRealtimeClient.sendPrivateText({ toUserId: toId, content: content.value })
     if (cmid) pendingClientMsgIds.add(String(cmid))
@@ -181,6 +190,7 @@ let offPrivate = null
 let offSendCommitted = null
 let offSendRejected = null
 let offSendError = null
+let offStateChanged = null
 onMounted(() => {
   offPrivate = imRealtimeClient.on('privateMessage', async (msg) => {
     if (!msg || msg.conversationId !== conversationId.value) return
@@ -206,9 +216,15 @@ onBeforeUnmount(() => {
   try { offSendCommitted?.() } catch {}
   try { offSendRejected?.() } catch {}
   try { offSendError?.() } catch {}
+  try { offStateChanged?.() } catch {}
 })
 
 onMounted(() => {
+  realtimeState.value = { ...imRealtimeClient.state }
+  offStateChanged = imRealtimeClient.on('stateChanged', (state) => {
+    realtimeState.value = { ...state }
+  })
+
   offSendCommitted = imRealtimeClient.on('sendCommitted', (msg) => {
     if (String(msg?.cmd || '') !== 'sendPrivateText') return
     const cmid = String(msg?.clientMsgId || '')

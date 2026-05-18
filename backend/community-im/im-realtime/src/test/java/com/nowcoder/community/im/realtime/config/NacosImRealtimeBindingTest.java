@@ -1,15 +1,18 @@
 package com.nowcoder.community.im.realtime.config;
 
 import com.nowcoder.community.im.realtime.client.ImServiceClientProperties;
+import com.nowcoder.community.im.realtime.session.ImSessionProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.FileSystemResource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,6 +23,9 @@ class NacosImRealtimeBindingTest {
         StandardEnvironment environment = environmentFrom("im-realtime.yaml");
         ImServiceClientProperties properties = Binder.get(environment)
                 .bind("im.clients", ImServiceClientProperties.class)
+                .orElseThrow(IllegalStateException::new);
+        ImSessionProperties sessionProperties = Binder.get(environment)
+                .bind("im.session", ImSessionProperties.class)
                 .orElseThrow(IllegalStateException::new);
 
         assertThat(environment.containsProperty("im.clients.community-service-id")).isTrue();
@@ -47,6 +53,9 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.getProperty("spring.kafka.consumer.group-id")).startsWith("im-realtime-");
         assertThat(environment.getProperty("spring.kafka.consumer.auto-offset-reset")).isEqualTo("latest");
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.service")).isEqualTo("im-realtime-worker");
+        assertThat(rawProperty(environment, "im-realtime.yaml", "im.session.worker-id"))
+                .isEqualTo("${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}");
+        assertThat(sessionProperties.getWorkerId()).isEqualTo("im-realtime-test");
         assertThat(rawProperty(environment, "im-realtime.yaml", "im.kafka.consumer.group-id"))
                 .isEqualTo("im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}");
         assertThat(environment.getProperty("im.kafka.consumer.group-id")).startsWith("im-realtime-");
@@ -57,6 +66,9 @@ class NacosImRealtimeBindingTest {
         StandardEnvironment environment = new StandardEnvironment();
         MutablePropertySources sources = environment.getPropertySources();
         sources.addFirst(new YamlPropertySourceLoader().load(fileName, new FileSystemResource(path)).get(0));
+        sources.addFirst(new MapPropertySource("test-worker-env", Map.of(
+                "IM_REALTIME_WORKER_ID", "im-realtime-test"
+        )));
         return environment;
     }
 

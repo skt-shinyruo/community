@@ -162,6 +162,7 @@ grep -F 'auto-offset-reset: earliest' "${CONFIG_DIR}/im-core.yaml"
 grep -F 'group-id: im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'auto-offset-reset: latest' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'service: im-realtime-worker' "${CONFIG_DIR}/im-realtime.yaml"
+grep -F 'worker-id: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}' "${CONFIG_DIR}/im-realtime.yaml"
 
 nacos_owned_env_vars=(
   OSS_CLIENT_BASE_URL

@@ -28,7 +28,7 @@ im:
     bootstrap-on-startup: true
   session:
     worker-service-id: im-realtime-worker
-    worker-id: local
+    worker-id: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
     ws-base-url: ws://127.0.0.1:18081/internal/ws/im
     ticket-ttl: PT2M
     worker-id-metadata-key: workerId

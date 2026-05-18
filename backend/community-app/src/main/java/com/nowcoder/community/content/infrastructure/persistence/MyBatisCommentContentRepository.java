@@ -66,7 +66,16 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
     @Override
     public Comment getById(UUID commentId) {
         Comment comment = commentMapper.selectCommentById(commentId);
-        if (comment == null || comment.getStatus() != 0) {
+        if (comment == null || !comment.isActive()) {
+            throw new BusinessException(COMMENT_NOT_FOUND);
+        }
+        return comment;
+    }
+
+    @Override
+    public Comment getByIdAllowDeleted(UUID commentId) {
+        Comment comment = commentMapper.selectCommentById(commentId);
+        if (comment == null) {
             throw new BusinessException(COMMENT_NOT_FOUND);
         }
         return comment;

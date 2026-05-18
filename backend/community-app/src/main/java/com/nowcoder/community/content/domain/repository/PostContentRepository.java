@@ -19,6 +19,8 @@ public interface PostContentRepository {
 
     List<DiscussPost> listPostsByIds(List<UUID> postIds);
 
+    List<DiscussPost> scanAfterId(UUID afterId, int limit);
+
     DiscussPost getById(UUID postId);
 
     DiscussPost getByIdAllowDeleted(UUID postId);

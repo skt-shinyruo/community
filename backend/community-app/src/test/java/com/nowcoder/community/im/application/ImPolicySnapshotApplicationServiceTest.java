@@ -1,4 +1,4 @@
-package com.nowcoder.community.im.projection;
+package com.nowcoder.community.im.application;
 
 import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicySnapshot;
@@ -17,11 +17,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class ImPolicySnapshotServiceTest {
+class ImPolicySnapshotApplicationServiceTest {
 
     @Test
-    void snapshotServiceShouldOnlyExposeOwnerDomainQueryApiConstructor() {
-        assertThat(ImPolicySnapshotService.class.getDeclaredConstructors())
+    void snapshotApplicationServiceShouldOnlyExposeOwnerDomainQueryApiConstructor() {
+        assertThat(ImPolicySnapshotApplicationService.class.getDeclaredConstructors())
                 .singleElement()
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
                         UserModerationQueryApi.class,
@@ -43,7 +43,7 @@ class ImPolicySnapshotServiceTest {
         ));
         when(moderationQueryApi.scanModerationStatesAfterId(uuid(8), 1)).thenReturn(List.of());
 
-        ImPolicySnapshotService service = new ImPolicySnapshotService(moderationQueryApi, blockQueryApi);
+        ImPolicySnapshotApplicationService service = new ImPolicySnapshotApplicationService(moderationQueryApi, blockQueryApi);
 
         UserMessagingPolicySnapshot snapshot = service.userPolicies(null, 2);
 
@@ -72,7 +72,7 @@ class ImPolicySnapshotServiceTest {
         ));
         when(blockQueryApi.scanBlockRelationsAfter(uuid(1), uuid(3), 1)).thenReturn(List.of());
 
-        ImPolicySnapshotService service = new ImPolicySnapshotService(moderationQueryApi, blockQueryApi);
+        ImPolicySnapshotApplicationService service = new ImPolicySnapshotApplicationService(moderationQueryApi, blockQueryApi);
 
         UserBlockRelationSnapshot snapshot = service.blockRelations(null, null, 2);
 

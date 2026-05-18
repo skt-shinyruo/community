@@ -93,12 +93,19 @@ public class MyBatisPostContentRepository implements PostContentRepository {
     }
 
     @Override
+    public List<DiscussPost> scanAfterId(UUID afterId, int limit) {
+        int safeLimit = limit <= 0 ? 500 : Math.min(1000, Math.max(1, limit));
+        List<DiscussPost> posts = discussPostMapper.selectDiscussPostsAfterId(afterId, safeLimit);
+        return posts == null ? List.of() : posts;
+    }
+
+    @Override
     public DiscussPost getById(UUID postId) {
         DiscussPost post = discussPostMapper.selectDiscussPostById(postId);
         if (post == null) {
             throw new BusinessException(POST_NOT_FOUND);
         }
-        if (post.getStatus() == 2) {
+        if (post.isDeleted()) {
             throw new BusinessException(POST_NOT_FOUND);
         }
         return post;

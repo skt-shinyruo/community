@@ -9,6 +9,7 @@ import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository
 import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.application.result.PostDetailResult;
+import com.nowcoder.community.content.application.result.PostScanResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.application.result.RecentUserCommentResult;
 import com.nowcoder.community.content.domain.model.Comment;
@@ -34,6 +35,7 @@ public class PostReadApplicationService {
     private final PostContentBlockRepository postContentBlockRepository;
     private final PostMediaAssetRepository postMediaAssetRepository;
     private final PostContentBlockTextProjector postContentBlockTextProjector;
+    private final ContentTextCodec textCodec;
     private final PostSummaryAssembler postSummaryAssembler;
     private final PostDetailAssembler postDetailAssembler;
     private final RecentUserCommentAssembler recentUserCommentAssembler;
@@ -48,6 +50,7 @@ public class PostReadApplicationService {
             PostContentBlockRepository postContentBlockRepository,
             PostMediaAssetRepository postMediaAssetRepository,
             PostContentBlockTextProjector postContentBlockTextProjector,
+            ContentTextCodec textCodec,
             PostSummaryAssembler postSummaryAssembler,
             PostDetailAssembler postDetailAssembler,
             RecentUserCommentAssembler recentUserCommentAssembler
@@ -61,6 +64,7 @@ public class PostReadApplicationService {
         this.postContentBlockRepository = postContentBlockRepository;
         this.postMediaAssetRepository = postMediaAssetRepository;
         this.postContentBlockTextProjector = postContentBlockTextProjector;
+        this.textCodec = textCodec;
         this.postSummaryAssembler = postSummaryAssembler;
         this.postDetailAssembler = postDetailAssembler;
         this.recentUserCommentAssembler = recentUserCommentAssembler;
@@ -123,6 +127,22 @@ public class PostReadApplicationService {
                 .toList();
     }
 
+    public PostScanResult scanPosts(UUID afterId, int limit) {
+        int safeLimit = limit <= 0 ? 500 : Math.min(1000, Math.max(1, limit));
+        List<DiscussPost> posts = postContentPort.scanAfterId(afterId, safeLimit);
+        List<PostScanResult.PostProjectionResult> items = toPostProjectionResults(posts);
+        UUID nextAfterId = posts.isEmpty() ? afterId : posts.get(posts.size() - 1).getId();
+        return new PostScanResult(items, nextAfterId, posts.size() == safeLimit);
+    }
+
+    public PostScanResult.PostProjectionResult getPostProjectionAllowDeleted(UUID postId) {
+        if (postId == null) {
+            return null;
+        }
+        DiscussPost post = postContentPort.getByIdAllowDeleted(postId);
+        return toPostProjectionResult(post);
+    }
+
     private List<PostSummaryResult> assembleSummaries(List<DiscussPost> posts) {
         if (posts == null || posts.isEmpty()) {
             return List.of();
@@ -139,6 +159,49 @@ public class PostReadApplicationService {
                         postContentBlockTextProjector.preview(blocksByPostId.get(post.getId()), 240)
                 ))
                 .toList();
+    }
+
+    private List<PostScanResult.PostProjectionResult> toPostProjectionResults(List<DiscussPost> posts) {
+        if (posts == null || posts.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> postIds = posts.stream().map(DiscussPost::getId).toList();
+        Map<UUID, List<String>> tagsByPostId = tagContentPort.getTagsByPostIds(postIds);
+        Map<UUID, List<PostContentBlock>> blocksByPostId = postContentBlockRepository.listByPostIds(postIds);
+        Map<UUID, List<String>> safeTagsByPostId = tagsByPostId == null ? Map.of() : tagsByPostId;
+        Map<UUID, List<PostContentBlock>> safeBlocksByPostId = blocksByPostId == null ? Map.of() : blocksByPostId;
+        return posts.stream()
+                .map(post -> toPostProjectionResult(
+                        post,
+                        safeTagsByPostId.getOrDefault(post.getId(), List.of()),
+                        safeBlocksByPostId.getOrDefault(post.getId(), List.of())
+                ))
+                .toList();
+    }
+
+    private PostScanResult.PostProjectionResult toPostProjectionResult(DiscussPost post) {
+        List<String> tags = tagContentPort.getTagsByPostIds(List.of(post.getId())).getOrDefault(post.getId(), List.of());
+        List<PostContentBlock> blocks = postContentBlockRepository.listByPostId(post.getId());
+        return toPostProjectionResult(post, tags, blocks);
+    }
+
+    private PostScanResult.PostProjectionResult toPostProjectionResult(
+            DiscussPost post,
+            List<String> tags,
+            List<PostContentBlock> blocks
+    ) {
+        return new PostScanResult.PostProjectionResult(
+                post.getId(),
+                post.getUserId(),
+                post.getCategoryId(),
+                tags,
+                textCodec.decodeOnRead(post.getTitle()),
+                textCodec.decodeOnRead(postContentBlockTextProjector.fullText(blocks)),
+                post.getType(),
+                post.getStatus(),
+                post.getCreateTime() == null ? null : post.getCreateTime().toInstant(),
+                post.getScore()
+        );
     }
 
     private RecentUserCommentResult toRecentComment(Comment comment) {

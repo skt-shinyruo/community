@@ -5,6 +5,8 @@ import java.util.UUID;
 
 public class DiscussPost {
 
+    private static final int STATUS_DELETED = 2;
+
     private UUID id;
     private UUID userId;
     private UUID categoryId;
@@ -26,6 +28,14 @@ public class DiscussPost {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public boolean isDeleted() {
+        return status == STATUS_DELETED;
+    }
+
+    public boolean isActive() {
+        return !isDeleted();
     }
 
     public UUID getUserId() {

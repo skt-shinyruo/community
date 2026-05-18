@@ -28,7 +28,7 @@ class InfraBoundaryArchTest {
     @ArchTest
     static final ArchRule infra_must_not_depend_on_core_domain_implementation_layers =
             classes()
-                    .that().resideInAnyPackage("..infra..")
+                    .that().resideInAnyPackage("..infra..", "..infrastructure..")
                     .should(ArchitectureRulesSupport.notDependOnLayers(
                             "not depend on core-domain controller/mapper/dao/entity/config/security/service packages",
                             FOREIGN_IMPLEMENTATION_LAYERS,

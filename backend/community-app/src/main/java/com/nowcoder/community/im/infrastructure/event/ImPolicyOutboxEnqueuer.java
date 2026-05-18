@@ -1,4 +1,4 @@
-package com.nowcoder.community.im.projection;
+package com.nowcoder.community.im.infrastructure.event;
 
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;

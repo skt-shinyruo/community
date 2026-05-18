@@ -416,6 +416,7 @@ class PostReadApplicationServiceTest {
                 blockRepository,
                 mediaAssetRepository,
                 new PostContentBlockTextProjector(),
+                textCodec(),
                 new PostSummaryAssembler(textCodec()),
                 new PostDetailAssembler(textCodec()),
                 new RecentUserCommentAssembler(textCodec())

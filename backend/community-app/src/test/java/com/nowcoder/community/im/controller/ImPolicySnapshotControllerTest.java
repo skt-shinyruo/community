@@ -1,4 +1,4 @@
-package com.nowcoder.community.im.projection;
+package com.nowcoder.community.im.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JWSAlgorithm;

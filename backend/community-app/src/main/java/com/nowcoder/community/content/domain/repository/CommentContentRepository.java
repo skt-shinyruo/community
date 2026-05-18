@@ -19,6 +19,8 @@ public interface CommentContentRepository {
 
     Comment getById(UUID commentId);
 
+    Comment getByIdAllowDeleted(UUID commentId);
+
     void assertCommentBelongsToPost(UUID postId, UUID commentId);
 
     Map<UUID, Comment> getLatestPostActivitiesByPostIds(List<UUID> postIds);

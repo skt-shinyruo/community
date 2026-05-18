@@ -5,6 +5,8 @@ import java.util.UUID;
 
 public class Comment {
 
+    private static final int STATUS_ACTIVE = 0;
+
     private UUID id;
     private UUID userId;
     private int entityType;
@@ -25,6 +27,14 @@ public class Comment {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public boolean isActive() {
+        return status == STATUS_ACTIVE;
+    }
+
+    public boolean pointsTo(int expectedEntityType) {
+        return entityType == expectedEntityType && entityId != null;
     }
 
     public UUID getUserId() {

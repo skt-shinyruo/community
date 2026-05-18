@@ -1,4 +1,4 @@
-package com.nowcoder.community.im.projection;
+package com.nowcoder.community.im.controller;
 
 import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicySnapshot;

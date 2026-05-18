@@ -7,13 +7,16 @@ import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.wallet.application.WalletAccountApplicationService;
 import com.nowcoder.community.wallet.application.WalletApplicationService;
+import com.nowcoder.community.wallet.application.WalletLedgerApplicationService;
 import com.nowcoder.community.wallet.application.WalletRechargeApplicationService;
 import com.nowcoder.community.wallet.application.WalletTransferApplicationService;
 import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
 import com.nowcoder.community.wallet.application.result.TransferOrderResult;
+import com.nowcoder.community.wallet.application.result.WalletTransactionResult;
 import com.nowcoder.community.wallet.application.result.WithdrawOrderResult;
+import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -24,6 +27,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -65,6 +70,9 @@ class WalletControllerTest {
     private WalletTransferApplicationService transferService;
 
     @MockBean
+    private WalletLedgerApplicationService ledgerService;
+
+    @MockBean
     private IdempotencyGuard idempotencyGuard;
 
     @MockBean
@@ -85,6 +93,10 @@ class WalletControllerTest {
     @Test
     void walletApisShouldRequireAuthentication() throws Exception {
         mockMvc.perform(get("/api/wallet/summary"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+
+        mockMvc.perform(get("/api/wallet/transactions"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
 
@@ -133,6 +145,43 @@ class WalletControllerTest {
                 .andExpect(jsonPath("$.data.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.data.balance").value(2300))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+    }
+
+    @Test
+    void walletTransactionsShouldReturnCurrentUserLedgerRows() throws Exception {
+        UUID userId = uuid(1);
+        UUID counterpartUserId = uuid(2);
+        UUID accountId = UUID.fromString("00000000-0000-7000-8000-000000000721");
+        UUID txnId = UUID.fromString("00000000-0000-7000-8000-000000000722");
+        WalletAccount account = userAccount(accountId, userId, 975L);
+        when(accountService.findUserWallet(userId)).thenReturn(account);
+        when(ledgerService.recentTransactions(eq(account), eq(12))).thenReturn(List.of(
+                new WalletTransactionResult(
+                        txnId,
+                        "wallet:transfer:api-test",
+                        "TRANSFER",
+                        "TRANSFER",
+                        "order-api-test",
+                        "SUCCEEDED",
+                        -25L,
+                        975L,
+                        "用户 " + counterpartUserId,
+                        null,
+                        new Date(1779100000000L)
+                )
+        ));
+
+        mockMvc.perform(get("/api/wallet/transactions")
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data[0].txnId").value(txnId.toString()))
+                .andExpect(jsonPath("$.data[0].txnRef").value("wallet:transfer:api-test"))
+                .andExpect(jsonPath("$.data[0].txnType").value("TRANSFER"))
+                .andExpect(jsonPath("$.data[0].status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data[0].amount").value(-25))
+                .andExpect(jsonPath("$.data[0].balanceAfter").value(975))
+                .andExpect(jsonPath("$.data[0].counterpartLabel").value("用户 " + counterpartUserId));
     }
 
     @Test
@@ -359,5 +408,17 @@ class WalletControllerTest {
                                                  long amount,
                                                  String status) {
         return new TransferOrderResult(orderId, requestId, fromUserId, toUserId, amount, status);
+    }
+
+    private WalletAccount userAccount(UUID accountId, UUID userId, long balance) {
+        WalletAccount account = new WalletAccount();
+        account.setAccountId(accountId);
+        account.setOwnerType("USER");
+        account.setOwnerId(userId);
+        account.setAccountType("USER_WALLET");
+        account.setBalance(balance);
+        account.setStatus("ACTIVE");
+        account.setVersion(0L);
+        return account;
     }
 }

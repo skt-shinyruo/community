@@ -32,8 +32,7 @@ vi.mock('vue-router', async () => {
 })
 
 vi.mock('../api/services/searchService', () => ({
-  searchPosts: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-search' }),
-  reindex: vi.fn().mockResolvedValue({ data: { indexedCount: 0, jobId: '' }, traceId: 'trace-reindex' })
+  searchPosts: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-search' })
 }))
 
 vi.mock('../api/services/postService', () => ({
@@ -215,14 +214,11 @@ describe('SearchView', () => {
     await Promise.allSettled([firstRun, secondRun])
   })
 
-  it('renders admin reindex confirmation as an accessible dialog', async () => {
+  it('does not render the retired admin reindex action', () => {
     const wrapper = mountView({ admin: true })
 
-    await wrapper.find('.search-reindex-btn').trigger('click')
-
-    const dialog = wrapper.get('[role="dialog"]')
-    expect(dialog.attributes('aria-modal')).toBe('true')
-    expect(wrapper.get(`#${dialog.attributes('aria-labelledby')}`).text()).toBe('重建索引')
-    expect(dialog.text()).toContain('此操作可能耗时较长')
+    expect(wrapper.find('.search-reindex-btn').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('重建索引')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
   })
 })

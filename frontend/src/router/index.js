@@ -34,7 +34,6 @@ const BookmarksView = () => import('../views/BookmarksView.vue')
 const WalletAdminView = () => import('../views/WalletAdminView.vue')
 const AdminMarketDisputesView = () => import('../views/AdminMarketDisputesView.vue')
 const ModerationView = () => import('../views/ModerationView.vue')
-const OpsConsoleView = () => import('../views/OpsConsoleView.vue')
 const UserManagementView = () => import('../views/UserManagementView.vue')
 const ForbiddenView = () => import('../views/ForbiddenView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
@@ -261,18 +260,6 @@ const router = createRouter({
         navGroup: 'admin',
         requiresAuth: true,
         roles: ['ROLE_ADMIN', 'ROLE_MODERATOR']
-      }
-    },
-    {
-      path: '/ops',
-      name: 'opsConsole',
-      component: OpsConsoleView,
-      meta: {
-        title: 'Ops Console',
-        subtitle: '仅在确认风险与范围后使用的运维动作面板。',
-        navGroup: 'admin',
-        requiresAuth: true,
-        roles: ['ROLE_ADMIN']
       }
     },
     {

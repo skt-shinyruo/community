@@ -32,6 +32,10 @@ const retiredUiTagView = ['components/ui/', 'UiTag.vue'].join('')
 const retiredUiEmptyView = ['components/ui/', 'UiEmpty.vue'].join('')
 const retiredUiEmptyImport = ['components/ui/', 'UiEmpty.vue'].join('')
 const retiredSearchReindexRoute = ['/api/search/internal', '/reindex'].join('')
+const retiredSearchOpsReindexRoute = ['/api/ops/search', '/reindex'].join('')
+const retiredSearchReindexWrapper = ['re', 'index'].join('')
+const retiredOpsConsoleView = ['views/', 'Ops', 'Console', 'View.vue'].join('')
+const retiredOpsConsoleRouteName = ['ops', 'Console'].join('')
 const retiredLeaderboardCopy = '排行榜'
 const retiredRewardBackendCopy = '旧奖励后台'
 const retiredRightPanelCopy = '右侧面板'
@@ -67,6 +71,8 @@ describe('unused surface retirement', () => {
     expect(socialService).not.toContain(retiredUserLikesRoutePrefix)
 
     expect(searchService).not.toContain(retiredSearchReindexRoute)
+    expect(searchService).not.toContain(retiredSearchOpsReindexRoute)
+    expect(searchService).not.toContain(retiredSearchReindexWrapper)
   })
 
   it('keeps retired navigation helpers removed', () => {
@@ -80,6 +86,14 @@ describe('unused surface retirement', () => {
   it('keeps retired growth views unmounted', () => {
     expect(exists(retiredGrowthViewOne)).toBe(false)
     expect(exists(retiredGrowthViewTwo)).toBe(false)
+  })
+
+  it('keeps retired search reindex operation surfaces removed', () => {
+    expect(exists(retiredOpsConsoleView)).toBe(false)
+    expect(source('router/index.js')).not.toContain(retiredOpsConsoleRouteName)
+    expect(source('router/navigation.js')).not.toContain(retiredOpsConsoleRouteName)
+    expect(source('views/SearchView.vue')).not.toContain(retiredSearchReindexWrapper)
+    expect(source('views/SearchView.vue')).not.toContain(retiredSearchOpsReindexRoute)
   })
 
   it('keeps retired market and subscription wrappers removed', () => {

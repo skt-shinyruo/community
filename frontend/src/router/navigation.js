@@ -65,7 +65,6 @@ const ROUTE_WORKSPACE_LABELS = Object.freeze({
   userManagement: 'Operations',
   walletAdmin: 'Operations',
   adminMarketDisputes: 'Operations',
-  opsConsole: 'Operations',
   forbidden: 'System',
   notFound: 'System'
 })
@@ -339,15 +338,6 @@ const NAV_DEFS = Object.freeze([
         roles: ['ROLE_ADMIN'],
         to: () => ({ name: 'adminMarketDisputes' }),
         activeNames: ['adminMarketDisputes']
-      },
-      {
-        key: 'opsConsole',
-        label: '运维控制台',
-        icon: 'settings',
-        requiresAuth: true,
-        roles: ['ROLE_ADMIN'],
-        to: () => ({ name: 'opsConsole' }),
-        activeNames: ['opsConsole']
       }
     ]
   },

@@ -3,9 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
-import { reindex, searchPosts } from './searchService'
-
-const retiredReindexRoute = ['/api/search/internal', '/reindex'].join('')
+import * as searchService from './searchService'
 
 describe('api/services/searchService', () => {
   let mock
@@ -37,54 +35,13 @@ describe('api/services/searchService', () => {
       }]
     })
 
-    const resp = await searchPosts({ categoryId })
+    const resp = await searchService.searchPosts({ categoryId })
 
     expect(resp.traceId).toBe('trace-search-posts')
     expect(resp.data).toEqual([])
   })
 
-  it('reindex should call the ops route', async () => {
-    mock = new MockAdapter(http)
-    mock.onPost('/api/ops/search/reindex').reply(200, {
-      code: 0,
-      message: '',
-      data: {
-        jobId: 'job-1',
-        indexedCount: 42
-      },
-      traceId: 'trace-reindex'
-    })
-
-    const resp = await reindex()
-
-    expect(resp.traceId).toBe('trace-reindex')
-    expect(resp.data).toEqual({
-      jobId: 'job-1',
-      indexedCount: 42
-    })
-  })
-
-  it('reindex should not fall back to the retired internal route', async () => {
-    mock = new MockAdapter(http)
-    mock.onPost('/api/ops/search/reindex').reply(404, {
-      code: 404,
-      message: 'Not Found'
-    })
-    mock.onPost(retiredReindexRoute).reply(200, {
-      code: 0,
-      message: '',
-      data: {
-        jobId: 'retired-route-job',
-        indexedCount: 1
-      },
-      traceId: 'trace-retired-route'
-    })
-
-    await expect(reindex()).rejects.toMatchObject({
-      response: {
-        status: 404
-      }
-    })
-    expect(mock.history.post.map((req) => req.url)).toEqual(['/api/ops/search/reindex'])
+  it('does not expose the retired reindex operation', () => {
+    expect(Object.keys(searchService)).toEqual(['searchPosts'])
   })
 })

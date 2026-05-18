@@ -52,15 +52,6 @@
 
         <template #actions>
           <UiButton variant="ghost" @click="clearFilters" :disabled="loading">清空筛选</UiButton>
-          <UiButton
-            v-if="auth.isAdmin"
-            variant="ghost"
-            class="search-reindex-btn"
-            @click="openReindexConfirm"
-            :disabled="loading"
-          >
-            {{ loading ? '处理中…' : '重建索引' }}
-          </UiButton>
         </template>
       </UiToolbar>
 
@@ -183,38 +174,13 @@
        <UiButton variant="secondary" @click="nextPage" :disabled="!hasNext || loading">下一页</UiButton>
     </div>
 
-    <div v-if="reindexConfirmOpen" class="modal-mask" @click.self="reindexConfirmOpen = false" @keydown.esc.stop.prevent="reindexConfirmOpen = false">
-      <div
-        class="modal-card card"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="search-reindex-title"
-        aria-describedby="search-reindex-description"
-        tabindex="-1"
-      >
-        <div class="stack">
-          <div id="search-reindex-title" class="search-modal-title">重建索引</div>
-          <div id="search-reindex-description" class="muted">此操作可能耗时较长，会对搜索/下游产生负载，是否继续？</div>
-
-          <div class="search-modal-actions">
-            <UiButton variant="secondary" @click="reindexConfirmOpen = false">取消</UiButton>
-            <UiButton @click="onConfirmReindex" :disabled="loading">继续</UiButton>
-          </div>
-
-          <div class="muted search-modal-note">
-            提示：该操作仅管理员可执行；若失败可查看错误提示或进入 Ops Console 获取引导。
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 	<script setup>
-	import { computed, inject, onMounted, ref, watch } from 'vue'
+	import { computed, onMounted, ref, watch } from 'vue'
 	import { useRoute, useRouter } from 'vue-router'
-	import { useAuthStore } from '../stores/auth'
-	import { searchPosts, reindex } from '../api/services/searchService'
+	import { searchPosts } from '../api/services/searchService'
 	import { batchPostSummaries } from '../api/services/postService'
 	import { suggestTags as apiSuggestTags } from '../api/services/taxonomyService'
 	import { usePostMetaCacheStore } from '../stores/postMetaCache'
@@ -234,10 +200,8 @@ import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiToolbar from '../components/ui/UiToolbar.vue'
 
 const emit = defineEmits(['trace'])
-const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
-const showToast = inject('showToast', () => {})
 const postMetaCache = usePostMetaCacheStore()
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform || '')
@@ -252,7 +216,6 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	const error = ref('')
 	const items = ref([])
 	const hasNext = computed(() => items.value.length === Number(size.value))
-	const reindexConfirmOpen = ref(false)
 	const searchRequestTracker = createLatestRequestTracker()
 
 	const taxonomy = useTaxonomyStore()
@@ -420,33 +383,8 @@ async function nextPage() {
 	  window.scrollTo({ top: 0, behavior: 'smooth' })
 	}
 
-async function onReindex() {
-  try {
-    const { data, traceId } = await reindex()
-    emit('trace', traceId || '')
-    const count = Number(data?.indexedCount || 0)
-    const jobId = String(data?.jobId || '').trim()
-    showToast({ type: 'success', title: '重建完成', text: `已处理 ${count} 条${jobId ? `（jobId=${jobId}）` : ''}` })
-  } catch (e) {
-    const code = e?.code
-    if (code === 403) {
-      showToast({ type: 'error', title: '重建失败', text: e?.message || '无权限' })
-    } else {
-      showToast({ type: 'error', title: '重建失败', text: e?.message || '请求失败' })
-    }
-  }
-}
-
 function searchActivity(item) {
   return describeSearchActivity(item)
-}
-
-function openReindexConfirm() {
-  reindexConfirmOpen.value = true
-}
-async function onConfirmReindex() {
-  reindexConfirmOpen.value = false
-  await onReindex()
 }
 
 	function syncFromRoute() {
@@ -566,10 +504,6 @@ async function onConfirmReindex() {
 
 .search-submit-btn {
   min-width: 104px;
-}
-
-.search-reindex-btn {
-  min-width: 96px;
 }
 
 .search-filters {
@@ -786,20 +720,6 @@ async function onConfirmReindex() {
   display: flex;
   justify-content: center;
   gap: 12px;
-}
-
-.search-modal-title {
-  font-weight: 700;
-}
-
-.search-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.search-modal-note {
-  font-size: 12px;
 }
 
 @media (max-width: 768px) {

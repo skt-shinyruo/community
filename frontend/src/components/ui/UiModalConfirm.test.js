@@ -8,7 +8,7 @@ describe('UiModalConfirm', () => {
   it('exposes dialog semantics with labelled title and description', () => {
     const wrapper = mount(UiModalConfirm, {
       props: {
-        title: '确认重建索引',
+        title: '确认操作',
         message: '该操作可能影响线上性能',
         confirmText: '继续'
       }
@@ -18,7 +18,7 @@ describe('UiModalConfirm', () => {
     expect(dialog.attributes('aria-modal')).toBe('true')
     expect(dialog.attributes('aria-labelledby')).toBeTruthy()
     expect(dialog.attributes('aria-describedby')).toBeTruthy()
-    expect(wrapper.get(`#${dialog.attributes('aria-labelledby')}`).text()).toBe('确认重建索引')
+    expect(wrapper.get(`#${dialog.attributes('aria-labelledby')}`).text()).toBe('确认操作')
     expect(wrapper.get(`#${dialog.attributes('aria-describedby')}`).text()).toContain('影响线上性能')
   })
 

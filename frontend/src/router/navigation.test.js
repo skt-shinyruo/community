@@ -97,8 +97,7 @@ describe('router/navigation', () => {
       'analytics',
       'userManagement',
       'walletAdmin',
-      'adminMarketDisputes',
-      'opsConsole'
+      'adminMarketDisputes'
     ])
   })
 

@@ -1,4 +1,4 @@
-// 搜索相关 API：帖子搜索与索引重建（管理员）。
+// 搜索相关 API：帖子搜索。
 
 import http from '../http'
 import { unwrapResultBody } from '../result'
@@ -14,10 +14,4 @@ export async function searchPosts({ keyword = '', categoryId, tag, page = 0, siz
   const resp = await http.get('/api/search/posts', { params })
   const { data, traceId } = unwrapResultBody(resp.data, '搜索')
   return { data: Array.isArray(data) ? data : [], traceId }
-}
-
-export async function reindex() {
-  const resp = await http.post('/api/ops/search/reindex', null)
-  const { data, traceId } = unwrapResultBody(resp.data, '重建索引')
-  return { data, traceId }
 }

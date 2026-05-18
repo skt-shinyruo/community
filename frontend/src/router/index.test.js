@@ -91,6 +91,7 @@ describe('router/index', () => {
 
     expect(routesByName.get('walletAdmin')?.meta?.navGroup).toBe('admin')
     expect(routesByName.get('adminMarketDisputes')?.meta?.navGroup).toBe('admin')
+    expect(routesByName.has('opsConsole')).toBe(false)
     expect(routesByName.has('growthCenter')).toBe(false)
     expect(routesByName.has('rewardShop')).toBe(false)
     expect(routesByName.has('rewardOrders')).toBe(false)

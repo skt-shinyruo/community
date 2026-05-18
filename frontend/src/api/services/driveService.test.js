@@ -35,6 +35,7 @@ import {
   createDriveUploadSession,
   getDriveSpace,
   getPublicDriveShare,
+  listDriveShareEntries,
   listDriveEntries,
   listDriveTrash,
   searchDriveEntries,
@@ -146,5 +147,16 @@ describe('driveService', () => {
 
     expect(http.post).toHaveBeenCalledWith('/api/drive/shares/token-a/verify', { password: '1234' })
     expect(result.data.ticket).toBe('ticket-a')
+  })
+
+  it('listDriveShareEntries should load public share children with ticket and parent', async () => {
+    http.get.mockResolvedValue({ data: { code: 0, data: [{ entryId: 'child-1' }], traceId: 'trace-share-entries' } })
+
+    const result = await listDriveShareEntries('token-a', 'ticket-a', 'folder-1')
+
+    expect(http.get).toHaveBeenCalledWith('/api/drive/shares/token-a/entries', {
+      params: { ticket: 'ticket-a', parentId: 'folder-1' }
+    })
+    expect(result).toEqual({ data: [{ entryId: 'child-1' }], traceId: 'trace-share-entries' })
   })
 })

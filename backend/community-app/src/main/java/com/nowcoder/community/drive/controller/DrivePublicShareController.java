@@ -5,6 +5,7 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.drive.application.DriveShareApplicationService;
 import com.nowcoder.community.drive.application.command.VerifyDriveShareCommand;
 import com.nowcoder.community.drive.controller.dto.DriveDownloadUrlResponse;
+import com.nowcoder.community.drive.controller.dto.DriveEntryResponse;
 import com.nowcoder.community.drive.controller.dto.DriveShareResponse;
 import com.nowcoder.community.drive.controller.dto.VerifyDriveShareRequest;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -46,6 +48,19 @@ public class DrivePublicShareController {
     ) {
         return Result.ok(DriveShareResponse.from(shareApplicationService.verifyShare(
                 new VerifyDriveShareCommand(shareToken, request.getPassword(), visitorFingerprint(httpRequest))
+        )));
+    }
+
+    @GetMapping("/{shareToken}/entries")
+    public Result<List<DriveEntryResponse>> listShareEntries(
+            @PathVariable String shareToken,
+            @RequestParam(value = "ticket", required = false) String ticket,
+            @RequestParam(value = "parentId", required = false) String parentId
+    ) {
+        return Result.ok(DriveEntryResponse.from(shareApplicationService.listShareEntries(
+                shareToken,
+                ticket,
+                parseUuidOrNull(parentId, "parentId")
         )));
     }
 

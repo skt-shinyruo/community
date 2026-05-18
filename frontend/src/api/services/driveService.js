@@ -110,6 +110,14 @@ export async function verifyDriveShare(shareToken, password) {
   return { data: data || {}, traceId }
 }
 
+export async function listDriveShareEntries(shareToken, ticket, parentId = '') {
+  const resp = await http.get(`/api/drive/shares/${encodeURIComponent(shareToken)}/entries`, {
+    params: { ticket, parentId }
+  })
+  const { data, traceId } = unwrapResultBody(resp.data, '查询分享文件')
+  return { data: Array.isArray(data) ? data : [], traceId }
+}
+
 export async function getDriveShareDownloadUrl(shareToken, ticket, entryId = '') {
   const resp = await http.get(`/api/drive/shares/${encodeURIComponent(shareToken)}/download-url`, {
     params: { ticket, entryId }

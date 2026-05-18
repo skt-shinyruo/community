@@ -5,6 +5,7 @@ import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.drive.application.DriveShareApplicationService;
 import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
+import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.application.result.DriveShareResult;
 import com.nowcoder.community.drive.security.DriveSecurityRules;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -110,5 +112,23 @@ class DrivePublicShareControllerUnitTest {
                 .andExpect(jsonPath("$.data.url").value("https://cdn.example.test/file"));
 
         verify(shareApplicationService).createShareDownloadUrl("token-a", "ticket-a", entryId);
+    }
+
+    @Test
+    void shareEntriesShouldNotRequireAuthentication() throws Exception {
+        UUID parentId = uuid(4);
+        UUID entryId = uuid(5);
+        when(shareApplicationService.listShareEntries(eq("token-a"), eq("ticket-a"), eq(parentId))).thenReturn(List.of(
+                new DriveEntryResult(entryId, parentId, "FILE", "child.txt", 8, "text/plain", "ACTIVE", Instant.parse("2026-05-09T00:00:00Z"))
+        ));
+
+        mockMvc.perform(get("/api/drive/shares/token-a/entries")
+                        .param("ticket", "ticket-a")
+                        .param("parentId", parentId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].entryId").value(entryId.toString()))
+                .andExpect(jsonPath("$.data[0].name").value("child.txt"));
+
+        verify(shareApplicationService).listShareEntries("token-a", "ticket-a", parentId);
     }
 }

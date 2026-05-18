@@ -14,6 +14,7 @@ import com.nowcoder.community.drive.infrastructure.security.HmacDriveShareTicket
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -117,6 +118,57 @@ class DriveShareApplicationServiceTest {
         assertThat(download.url()).contains("https://cdn.example.test/");
         assertThat(fixture.storage().downloadObjectIds).containsExactly(fixture.entry(nestedFileId).objectId());
         assertThatThrownBy(() -> service.createShareDownloadUrl(share.shareToken(), verified.ticket(), otherFileId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("分享链接不可用");
+    }
+
+    @Test
+    void folderShareShouldListRootAndNestedChildrenAfterVerification() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveShareApplicationService service = fixture.shareService();
+        DriveEntryApplicationService entryService = fixture.entryService();
+        UUID userId = uuid(7);
+        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
+        DriveEntryResult nestedFolder = entryService.createFolder(new CreateDriveFolderCommand(userId, folder.entryId(), "Nested"));
+        fixture.createFile(userId, folder.entryId(), "root-file.txt", 8);
+        fixture.createFile(userId, nestedFolder.entryId(), "nested-file.txt", 8);
+        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+                userId,
+                folder.entryId(),
+                "1234",
+                Instant.parse("2026-05-10T00:00:00Z")
+        ));
+        DriveShareResult verified = service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "1234", "ip:1"));
+
+        List<DriveEntryResult> rootChildren = service.listShareEntries(share.shareToken(), verified.ticket(), null);
+        List<DriveEntryResult> nestedChildren = service.listShareEntries(share.shareToken(), verified.ticket(), nestedFolder.entryId());
+
+        assertThat(rootChildren).extracting(DriveEntryResult::name)
+                .containsExactly("Nested", "root-file.txt");
+        assertThat(nestedChildren).extracting(DriveEntryResult::name)
+                .containsExactly("nested-file.txt");
+    }
+
+    @Test
+    void folderShareListingShouldRejectInvalidTicketAndParentOutsideShareScope() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveShareApplicationService service = fixture.shareService();
+        DriveEntryApplicationService entryService = fixture.entryService();
+        UUID userId = uuid(7);
+        DriveEntryResult sharedFolder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Shared"));
+        DriveEntryResult outsideFolder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Outside"));
+        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+                userId,
+                sharedFolder.entryId(),
+                "1234",
+                Instant.parse("2026-05-10T00:00:00Z")
+        ));
+        DriveShareResult verified = service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "1234", "ip:1"));
+
+        assertThatThrownBy(() -> service.listShareEntries(share.shareToken(), "bad-ticket", null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("分享链接不可用");
+        assertThatThrownBy(() -> service.listShareEntries(share.shareToken(), verified.ticket(), outsideFolder.entryId()))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("分享链接不可用");
     }

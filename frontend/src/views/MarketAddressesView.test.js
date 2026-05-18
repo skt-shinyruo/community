@@ -126,13 +126,57 @@ describe('MarketAddressesView', () => {
     }))
     expect(createMarketAddress.mock.calls[0][0]).not.toHaveProperty('isDefault')
 
-    await wrapper.findAll('button')[1].trigger('click')
+    await wrapper.find('[data-test="address-edit"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-test="address-edit-form"]').trigger('submit.prevent')
     await flushPromises()
     expect(updateMarketAddress).toHaveBeenCalledWith(41, expect.objectContaining({ receiverName: '张三', defaultAddress: true }))
     expect(updateMarketAddress.mock.calls[0][1]).not.toHaveProperty('isDefault')
 
-    await wrapper.findAll('button')[2].trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '删除').trigger('click')
     await flushPromises()
     expect(deleteMarketAddress).toHaveBeenCalledWith(41)
+  })
+
+  it('opens an editable form before updating an existing address', async () => {
+    listMarketAddresses.mockResolvedValue({
+      data: [
+        {
+          addressId: 41,
+          receiverName: '张三',
+          receiverPhone: '13800000000',
+          province: '上海市',
+          city: '上海市',
+          district: '浦东新区',
+          detailAddress: '世纪大道 100 号',
+          postalCode: '200120',
+          defaultAddress: true
+        }
+      ],
+      traceId: 'trace-list'
+    })
+
+    const wrapper = mount(MarketAddressesView, mountOptions())
+    await flushPromises()
+
+    await wrapper.find('[data-test="address-edit"]').trigger('click')
+    await flushPromises()
+
+    expect(updateMarketAddress).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('编辑地址')
+
+    const editInputs = wrapper.findAll('[data-test="address-edit-form"] input')
+    expect(editInputs[0].element.value).toBe('张三')
+
+    await editInputs[0].setValue('李四')
+    await editInputs[5].setValue('陆家嘴 200 号')
+    await wrapper.find('[data-test="address-edit-form"]').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(updateMarketAddress).toHaveBeenCalledWith(41, expect.objectContaining({
+      receiverName: '李四',
+      detailAddress: '陆家嘴 200 号',
+      defaultAddress: true
+    }))
   })
 })

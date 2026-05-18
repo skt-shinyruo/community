@@ -10,12 +10,14 @@ const routeState = reactive({
   path: '/market/listings/22222222-2222-7222-8222-222222222222',
   fullPath: '/market/listings/22222222-2222-7222-8222-222222222222'
 })
+const routerPush = vi.fn()
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual('vue-router')
   return {
     ...actual,
-    useRoute: () => routeState
+    useRoute: () => routeState,
+    useRouter: () => ({ push: routerPush })
   }
 })
 
@@ -191,6 +193,47 @@ describe('Unified market views', () => {
       listingId: '22222222-2222-7222-8222-222222222222',
       quantity: 1,
       addressId: '33333333-3333-7333-8333-333333333333'
+    })
+  })
+
+  it('uses the created order response to show the order id and enter order detail', async () => {
+    const orderId = '44444444-4444-7444-8444-444444444444'
+    getMarketListingDetail.mockResolvedValue({
+      data: {
+        listingId: '22222222-2222-7222-8222-222222222222',
+        goodsType: 'VIRTUAL',
+        title: 'Steam Key',
+        description: '自动交付',
+        unitPrice: 1999,
+        stockAvailable: 2,
+        status: 'ACTIVE'
+      },
+      traceId: 'trace-market-detail'
+    })
+    createMarketOrder.mockResolvedValue({
+      data: {
+        orderId,
+        status: 'ESCROWED'
+      },
+      traceId: 'trace-create-order'
+    })
+
+    const wrapper = mount(MarketDetailView, mountOptions())
+    await flushPromises()
+
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+
+    expect(createMarketOrder).toHaveBeenCalledWith({
+      listingId: '22222222-2222-7222-8222-222222222222',
+      quantity: 1,
+      addressId: undefined
+    })
+    expect(wrapper.text()).toContain('订单已创建')
+    expect(wrapper.text()).toContain(orderId)
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'marketOrderDetail',
+      params: { orderId }
     })
   })
 

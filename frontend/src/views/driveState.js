@@ -48,7 +48,7 @@ export function buildDriveBreadcrumb(ancestors = []) {
 
 export function normalizeDriveEntry(raw = {}) {
   const status = String(raw.status || 'ACTIVE').toUpperCase()
-  const type = String(raw.type || 'FILE').toUpperCase()
+  const type = String(raw.type || raw.entryType || 'FILE').toUpperCase()
   const active = status === 'ACTIVE'
   return {
     ...raw,

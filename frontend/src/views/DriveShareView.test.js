@@ -114,4 +114,44 @@ describe('DriveShareView', () => {
 
     expect(listDriveShareEntries).toHaveBeenLastCalledWith('token-a', 'ticket-a', 'child-folder')
   })
+
+  it('renders folder shares from the verified entryType field', async () => {
+    getPublicDriveShare.mockResolvedValueOnce({
+      data: { shareToken: 'token-a', requiresPassword: true },
+      traceId: ''
+    })
+    verifyDriveShare.mockResolvedValueOnce({
+      data: { shareToken: 'token-a', entryId: 'folder-root', entryName: 'Folder', entryType: 'FOLDER', ticket: 'ticket-a' },
+      traceId: ''
+    })
+    listDriveShareEntries.mockResolvedValueOnce({
+      data: [{ entryId: 'child-folder', parentId: 'folder-root', entryType: 'FOLDER', name: 'Nested', status: 'ACTIVE' }],
+      traceId: ''
+    })
+
+    const wrapper = mount(DriveShareView, {
+      props: { shareToken: 'token-a' },
+      global: {
+        stubs: {
+          UiCard: { template: '<section><slot /></section>' },
+          UiBreadcrumb: true,
+          UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
+          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' },
+          UiInput: { props: ['modelValue', 'type'], emits: ['update:modelValue'], template: '<input :type="type" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' }
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Folder')
+
+    await wrapper.find('input[type="password"]').setValue('1234')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('文件夹分享')
+    expect(wrapper.text()).toContain('文件夹')
+    expect(wrapper.text()).toContain('Nested')
+    expect(wrapper.text()).not.toContain('文件分享')
+  })
 })

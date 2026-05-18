@@ -46,6 +46,9 @@
             <span>邮编</span>
             <UiInput v-model="form.postalCode" />
           </label>
+          <label class="market-field market-field--inline">
+            <UiCheckbox v-model="form.defaultAddress">设为默认地址</UiCheckbox>
+          </label>
         </div>
 
         <div class="market-inline-actions">
@@ -68,9 +71,61 @@
               <p v-if="item.defaultLabel">{{ item.defaultLabel }}</p>
             </div>
             <div class="market-inline-actions">
-              <UiButton variant="secondary" :disabled="submitting" @click="submitUpdate(item)">编辑</UiButton>
+              <UiButton variant="secondary" :disabled="submitting" data-test="address-edit" @click="startEdit(item)">编辑</UiButton>
               <UiButton :disabled="submitting" @click="submitDelete(item.addressId)">删除</UiButton>
             </div>
+            <form
+              v-if="editingAddressId === item.addressId"
+              class="market-edit-form"
+              data-test="address-edit-form"
+              @submit.prevent="submitUpdate"
+            >
+              <UiPageHeader>
+                <template #title>编辑地址</template>
+                <template #subtitle>修改后的地址只会用于后续下单，已创建订单仍使用当时的地址快照。</template>
+              </UiPageHeader>
+
+              <div class="market-form-grid market-form-grid--wide">
+                <label class="market-field">
+                  <span>收货人</span>
+                  <UiInput v-model="editForm.receiverName" />
+                </label>
+                <label class="market-field">
+                  <span>手机号</span>
+                  <UiInput v-model="editForm.receiverPhone" />
+                </label>
+                <label class="market-field">
+                  <span>省份</span>
+                  <UiInput v-model="editForm.province" />
+                </label>
+                <label class="market-field">
+                  <span>城市</span>
+                  <UiInput v-model="editForm.city" />
+                </label>
+                <label class="market-field">
+                  <span>区县</span>
+                  <UiInput v-model="editForm.district" />
+                </label>
+                <label class="market-field">
+                  <span>详细地址</span>
+                  <UiInput v-model="editForm.detailAddress" />
+                </label>
+                <label class="market-field">
+                  <span>邮编</span>
+                  <UiInput v-model="editForm.postalCode" />
+                </label>
+                <label class="market-field market-field--inline">
+                  <UiCheckbox v-model="editForm.defaultAddress">设为默认地址</UiCheckbox>
+                </label>
+              </div>
+
+              <div class="market-inline-actions">
+                <UiButton :disabled="submitting" type="submit" data-test="address-update-submit">
+                  {{ submitting ? '保存中…' : '保存修改' }}
+                </UiButton>
+                <UiButton variant="secondary" :disabled="submitting" @click="cancelEdit">取消</UiButton>
+              </div>
+            </form>
           </article>
         </div>
       </UiCard>
@@ -83,6 +138,7 @@ import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
+import UiCheckbox from '../components/ui/UiCheckbox.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
@@ -99,6 +155,7 @@ const submitting = ref(false)
 const error = ref('')
 const message = ref('地址簿会在实物商品详情页直接复用。')
 const addresses = ref([])
+const editingAddressId = ref(null)
 const form = ref({
   receiverName: '',
   receiverPhone: '',
@@ -109,8 +166,35 @@ const form = ref({
   postalCode: '',
   defaultAddress: true
 })
+const editForm = ref(emptyAddressForm())
 
 const state = computed(() => buildMarketState({ addresses: addresses.value }))
+
+function emptyAddressForm() {
+  return {
+    receiverName: '',
+    receiverPhone: '',
+    province: '',
+    city: '',
+    district: '',
+    detailAddress: '',
+    postalCode: '',
+    defaultAddress: true
+  }
+}
+
+function cloneAddressForm(source = {}) {
+  return {
+    receiverName: source.receiverName || '',
+    receiverPhone: source.receiverPhone || '',
+    province: source.province || '',
+    city: source.city || '',
+    district: source.district || '',
+    detailAddress: source.detailAddress || '',
+    postalCode: source.postalCode || '',
+    defaultAddress: !!source.defaultAddress
+  }
+}
 
 function buildPayload(source) {
   return {
@@ -126,16 +210,18 @@ function buildPayload(source) {
 }
 
 function resetForm() {
-  form.value = {
-    receiverName: '',
-    receiverPhone: '',
-    province: '',
-    city: '',
-    district: '',
-    detailAddress: '',
-    postalCode: '',
-    defaultAddress: true
-  }
+  form.value = emptyAddressForm()
+}
+
+function cancelEdit() {
+  editingAddressId.value = null
+  editForm.value = emptyAddressForm()
+}
+
+function startEdit(item) {
+  editingAddressId.value = item.addressId
+  editForm.value = cloneAddressForm(item)
+  message.value = '正在编辑地址。'
 }
 
 async function reload() {
@@ -144,6 +230,9 @@ async function reload() {
   try {
     const { data } = await listMarketAddresses()
     addresses.value = Array.isArray(data) ? data : []
+    if (editingAddressId.value && !addresses.value.some((item) => item?.addressId === editingAddressId.value)) {
+      cancelEdit()
+    }
   } catch (e) {
     error.value = e?.message || '加载地址簿失败'
   } finally {
@@ -166,12 +255,14 @@ async function submitCreate() {
   }
 }
 
-async function submitUpdate(item) {
+async function submitUpdate() {
+  if (!editingAddressId.value) return
   submitting.value = true
   message.value = ''
   try {
-    await updateMarketAddress(item.addressId, buildPayload(item))
+    await updateMarketAddress(editingAddressId.value, buildPayload(editForm.value))
     message.value = '地址已更新。'
+    cancelEdit()
     await reload()
   } catch (e) {
     message.value = e?.message || '更新地址失败'
@@ -186,6 +277,9 @@ async function submitDelete(addressId) {
   try {
     await deleteMarketAddress(addressId)
     message.value = '地址已删除。'
+    if (editingAddressId.value === addressId) {
+      cancelEdit()
+    }
     await reload()
   } catch (e) {
     message.value = e?.message || '删除地址失败'

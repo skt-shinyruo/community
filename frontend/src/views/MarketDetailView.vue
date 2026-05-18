@@ -46,6 +46,17 @@
             <UiButton :disabled="submitting" @click="submitOrder">
               {{ submitting ? '下单中…' : '安全下单' }}
             </UiButton>
+            <div v-if="orderMessage" class="market-success-note" data-test="market-order-success" role="status">
+              <strong>{{ orderMessage }}</strong>
+              <UiButton
+                v-if="createdOrderId"
+                variant="secondary"
+                :disabled="submitting"
+                @click="goCreatedOrder"
+              >
+                查看订单详情
+              </UiButton>
+            </div>
           </div>
         </UiCard>
 
@@ -71,7 +82,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
@@ -87,9 +98,12 @@ import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildMarketState } from './marketState'
 
 const route = useRoute()
+const router = useRouter()
 const loading = ref(false)
 const submitting = ref(false)
 const error = ref('')
+const orderMessage = ref('')
+const createdOrderId = ref('')
 const listing = ref({})
 const quantity = ref(1)
 const addresses = ref([])
@@ -133,12 +147,21 @@ async function submitOrder() {
   }
   submitting.value = true
   error.value = ''
+  orderMessage.value = ''
+  createdOrderId.value = ''
   try {
-    await createMarketOrder({
+    const { data } = await createMarketOrder({
       listingId,
       quantity: Math.max(1, Number(quantity.value || 1)),
       addressId
     })
+    const orderId = normalizeOpaqueId(data?.orderId)
+    createdOrderId.value = orderId
+    orderMessage.value = orderId ? `订单已创建：${orderId}` : '订单已创建，请到我的购买中查看。'
+    if (orderId) {
+      await goCreatedOrder()
+      return
+    }
     await loadDetail()
   } catch (e) {
     error.value = e?.message || '下单失败'
@@ -147,9 +170,20 @@ async function submitOrder() {
   }
 }
 
+async function goCreatedOrder() {
+  const orderId = normalizeOpaqueId(createdOrderId.value)
+  if (!orderId) return
+  await router.push({
+    name: 'marketOrderDetail',
+    params: { orderId }
+  })
+}
+
 watch(
   () => route.params.listingId,
   () => {
+    orderMessage.value = ''
+    createdOrderId.value = ''
     loadDetail()
   },
   { immediate: true }

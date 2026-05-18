@@ -595,6 +595,11 @@ html[data-density='compact'] .topic-list {
   text-transform: uppercase;
 }
 
+.market-field--inline {
+  align-content: end;
+  min-height: 44px;
+}
+
 .market-textarea,
 .market-select {
   width: 100%;
@@ -633,6 +638,26 @@ html[data-density='compact'] .topic-list {
 }
 
 .market-risk-note strong {
+  color: var(--text-1);
+}
+
+.market-success-note,
+.market-edit-form {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--success) 28%, var(--border) 72%);
+  background: color-mix(in srgb, var(--success) 8%, var(--surface) 92%);
+}
+
+.market-edit-form {
+  grid-column: 1 / -1;
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+
+.market-success-note strong {
   color: var(--text-1);
 }
 

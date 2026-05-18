@@ -53,6 +53,14 @@ describe('driveState', () => {
     expect(trashed.visibilityLabel).toBe('私有')
   })
 
+  it('normalizeDriveEntry should accept backend entryType as the entry discriminator', () => {
+    expect(normalizeDriveEntry({ entryId: 'folder-1', entryType: 'FOLDER', name: 'Docs' })).toMatchObject({
+      type: 'FOLDER',
+      isFolder: true,
+      isFile: false
+    })
+  })
+
   it('normalizes drive entry status and visibility labels for product UI', () => {
     expect(normalizeDriveEntry({ status: 'ACTIVE', type: 'FILE', canShare: true })).toMatchObject({
       statusLabel: '可用',

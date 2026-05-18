@@ -62,7 +62,9 @@ class DriveTrashApplicationServiceSpringTest {
     void deletePermanentlyShouldCommitDriveMutationBeforeOssFailureAndRetryCleanup() {
         UUID userId = uuid(7);
         Instant now = Instant.parse("2026-05-09T00:00:00Z");
-        DriveSpace space = DriveSpace.createDefault(uuid(80), userId, now).reserve(8, now);
+        DriveSpace space = DriveSpace.createDefault(uuid(80), userId, now)
+                .reserve(8, now)
+                .commitReserved(8, now);
         spaceRepository.save(space);
 
         UUID objectId = uuid(81);

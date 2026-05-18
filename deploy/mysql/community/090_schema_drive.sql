@@ -5,11 +5,24 @@ create table if not exists drive_space (
   user_id binary(16) not null,
   quota_bytes bigint not null default 10737418240,
   used_bytes bigint not null default 0,
+  reserved_bytes bigint not null default 0,
   created_at timestamp not null default current_timestamp,
   updated_at timestamp not null default current_timestamp,
   unique key uk_drive_space_user (user_id),
   key idx_drive_space_updated (updated_at)
 );
+
+set @col_drive_space_reserved_bytes := (
+  select count(*)
+  from information_schema.columns
+  where table_schema = database()
+    and table_name = 'drive_space'
+    and column_name = 'reserved_bytes'
+);
+set @sql := if(@col_drive_space_reserved_bytes = 0, 'alter table drive_space add column reserved_bytes bigint not null default 0 after used_bytes', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
 
 create table if not exists drive_entry (
   entry_id binary(16) primary key,
@@ -54,8 +67,21 @@ create table if not exists drive_upload (
   completed_at timestamp null default null,
   completed_entry_id binary(16) null,
   key idx_drive_upload_space_status (space_id, status, expires_at),
+  key idx_drive_upload_recovery (status, updated_at, upload_id),
   key idx_drive_upload_object (object_id, version_id)
 );
+
+set @idx_drive_upload_recovery := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'drive_upload'
+    and index_name = 'idx_drive_upload_recovery'
+);
+set @sql := if(@idx_drive_upload_recovery = 0, 'create index idx_drive_upload_recovery on drive_upload(status, updated_at, upload_id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
 
 create table if not exists drive_share (
   share_id binary(16) primary key,

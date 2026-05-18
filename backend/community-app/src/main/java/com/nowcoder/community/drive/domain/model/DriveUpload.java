@@ -66,29 +66,69 @@ public record DriveUpload(
         return status == DriveUploadStatus.COMPLETED;
     }
 
+    public DriveUpload startCompleting(UUID entryId, Instant now) {
+        requireId(entryId, "entryId");
+        requireNow(now);
+        if (status == DriveUploadStatus.COMPLETED
+                || status == DriveUploadStatus.COMPLETING
+                || status == DriveUploadStatus.OBJECT_COMPLETED) {
+            return this;
+        }
+        if (expiredAt(now)) {
+            return expire(now);
+        }
+        if (status != DriveUploadStatus.PREPARED) {
+            throw new IllegalStateException("upload is not ready to complete: " + status);
+        }
+        return withState(DriveUploadStatus.COMPLETING, entryId, now, null);
+    }
+
+    public DriveUpload markObjectCompleted(Instant now) {
+        requireNow(now);
+        if (status == DriveUploadStatus.OBJECT_COMPLETED || status == DriveUploadStatus.COMPLETED) {
+            return this;
+        }
+        if (status != DriveUploadStatus.COMPLETING) {
+            throw new IllegalStateException("upload object completion cannot be recorded from: " + status);
+        }
+        requireId(completedEntryId, "completedEntryId");
+        return withState(DriveUploadStatus.OBJECT_COMPLETED, completedEntryId, now, null);
+    }
+
+    public DriveUpload completeFinalization(Instant now) {
+        requireNow(now);
+        if (status == DriveUploadStatus.COMPLETED) {
+            return this;
+        }
+        if (status != DriveUploadStatus.OBJECT_COMPLETED) {
+            throw new IllegalStateException("upload finalization cannot be completed from: " + status);
+        }
+        requireId(completedEntryId, "completedEntryId");
+        return withState(DriveUploadStatus.COMPLETED, completedEntryId, now, now);
+    }
+
+    public DriveUpload failCompletion(Instant now) {
+        requireNow(now);
+        if (status == DriveUploadStatus.COMPLETED) {
+            return this;
+        }
+        return withState(DriveUploadStatus.FAILED, completedEntryId, now, completedAt);
+    }
+
     public DriveUpload complete(UUID entryId, Instant now) {
         requireId(entryId, "entryId");
         requireNow(now);
         if (expiredAt(now)) {
-            return new DriveUpload(
-                    uploadId,
-                    spaceId,
-                    parentId,
-                    name,
-                    sizeBytes,
-                    mimeType,
-                    objectId,
-                    versionId,
-                    ossSessionId,
-                    createdBy,
-                    DriveUploadStatus.EXPIRED,
-                    completedEntryId,
-                    createdAt,
-                    now,
-                    expiresAt,
-                    completedAt
-            );
+            return expire(now);
         }
+        return withState(DriveUploadStatus.COMPLETED, entryId, now, now);
+    }
+
+    private DriveUpload expire(Instant now) {
+        return withState(DriveUploadStatus.EXPIRED, completedEntryId, now, completedAt);
+    }
+
+    private DriveUpload withState(DriveUploadStatus nextStatus, UUID nextCompletedEntryId, Instant nextUpdatedAt, Instant nextCompletedAt) {
         return new DriveUpload(
                 uploadId,
                 spaceId,
@@ -100,12 +140,12 @@ public record DriveUpload(
                 versionId,
                 ossSessionId,
                 createdBy,
-                DriveUploadStatus.COMPLETED,
-                entryId,
+                nextStatus,
+                nextCompletedEntryId,
                 createdAt,
-                now,
+                nextUpdatedAt,
                 expiresAt,
-                now
+                nextCompletedAt
         );
     }
 

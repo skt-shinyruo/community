@@ -14,6 +14,7 @@ import com.nowcoder.community.drive.domain.model.DriveEntryType;
 import com.nowcoder.community.drive.domain.model.DriveShare;
 import com.nowcoder.community.drive.domain.model.DriveSpace;
 import com.nowcoder.community.drive.domain.model.DriveUpload;
+import com.nowcoder.community.drive.domain.model.DriveUploadStatus;
 import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
 import com.nowcoder.community.drive.domain.repository.DriveShareAccessRepository;
 import com.nowcoder.community.drive.domain.repository.DriveShareRepository;
@@ -143,10 +144,30 @@ final class TestDriveFixture {
         @Override
         public boolean reserve(UUID spaceId, long bytes, Instant updatedAt) {
             DriveSpace space = rows.get(spaceId);
-            if (space == null || bytes < 0 || space.usedBytes() + bytes > space.quotaBytes()) {
+            if (space == null || bytes < 0 || space.usedBytes() + space.reservedBytes() + bytes > space.quotaBytes()) {
                 return false;
             }
             rows.put(spaceId, space.reserve(bytes, updatedAt));
+            return true;
+        }
+
+        @Override
+        public boolean commitReserved(UUID spaceId, long bytes, Instant updatedAt) {
+            DriveSpace space = rows.get(spaceId);
+            if (space == null || bytes < 0 || bytes > space.reservedBytes() || space.usedBytes() + bytes > space.quotaBytes()) {
+                return false;
+            }
+            rows.put(spaceId, space.commitReserved(bytes, updatedAt));
+            return true;
+        }
+
+        @Override
+        public boolean releaseReserved(UUID spaceId, long bytes, Instant updatedAt) {
+            DriveSpace space = rows.get(spaceId);
+            if (space == null || bytes < 0) {
+                return false;
+            }
+            rows.put(spaceId, space.releaseReserved(bytes, updatedAt));
             return true;
         }
 
@@ -246,6 +267,30 @@ final class TestDriveFixture {
         }
 
         @Override
+        public boolean transitionStatus(DriveUpload upload, DriveUploadStatus expectedStatus) {
+            DriveUpload current = rows.get(upload.uploadId());
+            if (current == null || current.status() != expectedStatus) {
+                return false;
+            }
+            rows.put(upload.uploadId(), upload);
+            return true;
+        }
+
+        @Override
+        public List<DriveUpload> listRecoverableBefore(Instant updatedBefore, int limit) {
+            if (updatedBefore == null || limit <= 0) {
+                return List.of();
+            }
+            return rows.values().stream()
+                    .filter(upload -> upload.status() == DriveUploadStatus.COMPLETING
+                            || upload.status() == DriveUploadStatus.OBJECT_COMPLETED)
+                    .filter(upload -> upload.updatedAt().isBefore(updatedBefore))
+                    .sorted(Comparator.comparing(DriveUpload::updatedAt).thenComparing(DriveUpload::uploadId))
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
         public void save(DriveUpload upload) {
             rows.put(upload.uploadId(), upload);
         }
@@ -310,6 +355,24 @@ final class TestDriveFixture {
         public StoredObject completeUpload(CompleteObject command) {
             completed.add(command);
             return new StoredObject(command.objectId(), command.versionId(), "");
+        }
+
+        @Override
+        public ObjectMetadata getMetadata(UUID objectId) {
+            return completed.stream()
+                    .filter(command -> command.objectId().equals(objectId))
+                    .findFirst()
+                    .map(command -> new ObjectMetadata(
+                            command.objectId(),
+                            command.versionId(),
+                            "ACTIVE",
+                            command.fileName(),
+                            command.contentType(),
+                            command.contentLength(),
+                            command.checksumSha256(),
+                            ""
+                    ))
+                    .orElse(null);
         }
 
         @Override

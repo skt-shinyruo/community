@@ -2,7 +2,6 @@ package com.nowcoder.community.drive.infrastructure.persistence;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import com.nowcoder.community.drive.domain.model.DriveShare;
@@ -19,7 +18,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -66,9 +64,6 @@ class MyBatisDriveRepositoryTest {
     @Autowired
     private DriveShareAccessRepository shareAccessRepository;
 
-    @MockBean
-    private ClientIpResolver clientIpResolver;
-
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from drive_share_access");
@@ -83,11 +78,22 @@ class MyBatisDriveRepositoryTest {
         DriveSpace created = DriveSpace.createDefault(SPACE_ID, USER_ID, NOW);
 
         spaceRepository.save(created);
-        DriveSpace reserved = created.reserve(128L, NOW.plusSeconds(10));
-        spaceRepository.save(reserved);
+        assertThat(spaceRepository.reserve(SPACE_ID, 128L, NOW.plusSeconds(10))).isTrue();
+        assertThat(spaceRepository.commitReserved(SPACE_ID, 64L, NOW.plusSeconds(11))).isTrue();
+        assertThat(spaceRepository.releaseReserved(SPACE_ID, 16L, NOW.plusSeconds(12))).isTrue();
+        spaceRepository.save(new DriveSpace(
+                SPACE_ID,
+                USER_ID,
+                created.quotaBytes(),
+                64L,
+                48L,
+                NOW,
+                NOW.plusSeconds(12)
+        ));
 
-        assertThat(spaceRepository.findById(SPACE_ID)).contains(reserved);
-        assertThat(spaceRepository.findByUserId(USER_ID)).contains(reserved);
+        DriveSpace expected = new DriveSpace(SPACE_ID, USER_ID, created.quotaBytes(), 64L, 48L, NOW, NOW.plusSeconds(12));
+        assertThat(spaceRepository.findById(SPACE_ID)).contains(expected);
+        assertThat(spaceRepository.findByUserId(USER_ID)).contains(expected);
     }
 
     @Test
@@ -166,6 +172,50 @@ class MyBatisDriveRepositoryTest {
         ).containsExactly(UPLOAD_ID, SPACE_ID, ROOT_ID, "upload.bin", DriveUploadStatus.COMPLETED, FILE_ID);
         assertThat(persisted.updatedAt()).isEqualTo(NOW.plusSeconds(20));
         assertThat(persisted.completedAt()).isEqualTo(NOW.plusSeconds(20));
+    }
+
+    @Test
+    void driveUploadRepositoryShouldClaimCompletionOnceAndListStaleRecoverableUploads() {
+        DriveUpload prepared = DriveUpload.prepared(
+                UPLOAD_ID,
+                SPACE_ID,
+                ROOT_ID,
+                "upload.bin",
+                99L,
+                "application/octet-stream",
+                uuid(30),
+                uuid(31),
+                uuid(32),
+                USER_ID,
+                NOW,
+                NOW.plusSeconds(3600)
+        );
+        UUID entryId = uuid(90);
+
+        uploadRepository.save(prepared);
+
+        boolean firstClaim = uploadRepository.transitionStatus(
+                prepared.startCompleting(entryId, NOW.plusSeconds(1)),
+                DriveUploadStatus.PREPARED
+        );
+        boolean secondClaim = uploadRepository.transitionStatus(
+                prepared.startCompleting(uuid(91), NOW.plusSeconds(2)),
+                DriveUploadStatus.PREPARED
+        );
+        DriveUpload objectCompleted = uploadRepository.findById(UPLOAD_ID).orElseThrow()
+                .markObjectCompleted(NOW.plusSeconds(3));
+        boolean objectMarked = uploadRepository.transitionStatus(objectCompleted, DriveUploadStatus.COMPLETING);
+
+        assertThat(firstClaim).isTrue();
+        assertThat(secondClaim).isFalse();
+        assertThat(objectMarked).isTrue();
+        assertThat(uploadRepository.findById(UPLOAD_ID).orElseThrow())
+                .extracting(DriveUpload::status, DriveUpload::completedEntryId)
+                .containsExactly(DriveUploadStatus.OBJECT_COMPLETED, entryId);
+        assertThat(uploadRepository.listRecoverableBefore(NOW.plusSeconds(4), 10))
+                .extracting(DriveUpload::uploadId)
+                .containsExactly(UPLOAD_ID);
+        assertThat(uploadRepository.listRecoverableBefore(NOW.plusSeconds(2), 10)).isEmpty();
     }
 
     @Test

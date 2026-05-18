@@ -562,6 +562,7 @@ create table if not exists drive_space (
   user_id binary(16) not null,
   quota_bytes bigint not null default 10737418240,
   used_bytes bigint not null default 0,
+  reserved_bytes bigint not null default 0,
   created_at timestamp default current_timestamp,
   updated_at timestamp default current_timestamp,
   constraint uk_drive_space_user unique (user_id)
@@ -611,6 +612,7 @@ create table if not exists drive_upload (
 );
 
 create index if not exists idx_drive_upload_space_status on drive_upload(space_id, status, expires_at);
+create index if not exists idx_drive_upload_recovery on drive_upload(status, updated_at, upload_id);
 
 create table if not exists drive_share (
   share_id binary(16) primary key,

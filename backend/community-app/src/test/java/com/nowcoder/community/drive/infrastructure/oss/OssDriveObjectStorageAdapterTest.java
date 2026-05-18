@@ -55,6 +55,22 @@ class OssDriveObjectStorageAdapterTest {
                 "",
                 "http://localhost:12880/files/" + objectId + "/" + versionId + "/report.pdf"
         ));
+        when(client.getMetadata(objectId)).thenReturn(new OssMetadataResponse(
+                objectId,
+                versionId,
+                "DRIVE_FILE",
+                "community-app",
+                "drive",
+                "drive-upload",
+                uuid(7).toString(),
+                "PRIVATE",
+                "ACTIVE",
+                "report.pdf",
+                "application/pdf",
+                4,
+                "",
+                "http://localhost:12880/files/" + objectId + "/" + versionId + "/report.pdf"
+        ));
 
         OssDriveObjectStorageAdapter adapter = new OssDriveObjectStorageAdapter(client);
         DriveObjectStoragePort.PreparedObject prepared = adapter.prepareUpload(new DriveObjectStoragePort.PrepareObject(
@@ -80,14 +96,18 @@ class OssDriveObjectStorageAdapterTest {
                 "",
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes(StandardCharsets.UTF_8)), "application/pdf", 4, "")
         ));
+        DriveObjectStoragePort.ObjectMetadata metadata = adapter.getMetadata(objectId);
 
         assertThat(prepared.objectId()).isEqualTo(objectId);
         assertThat(prepared.versionId()).isEqualTo(versionId);
         assertThat(stored.objectId()).isEqualTo(objectId);
         assertThat(stored.versionId()).isEqualTo(versionId);
         assertThat(stored.publicUrl()).contains("/files/");
+        assertThat(metadata.status()).isEqualTo("ACTIVE");
+        assertThat(metadata.currentVersionId()).isEqualTo(versionId);
         verify(client).prepareUpload(any(OssUploadSessionRequest.class));
         verify(client).completeProxyUpload(any(OssCompleteUploadRequest.class));
+        verify(client).getMetadata(objectId);
     }
 
     @Test

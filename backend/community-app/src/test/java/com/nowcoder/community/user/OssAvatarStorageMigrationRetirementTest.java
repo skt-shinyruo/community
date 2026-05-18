@@ -51,8 +51,19 @@ class OssAvatarStorageMigrationRetirementTest {
 
     @Test
     void deployRuntimeConfigsShouldNotPassLegacyAvatarStorageEnvironment() throws IOException {
-        assertUsesOssClientEnv(REPO_ROOT.resolve("deploy/compose.runtime.services.single.yml"));
-        assertUsesOssClientEnv(REPO_ROOT.resolve("deploy/compose.runtime.services.cluster.yml"));
+        assertDoesNotPassOssClientEnv(REPO_ROOT.resolve("deploy/compose.runtime.services.single.yml"));
+        assertDoesNotPassOssClientEnv(REPO_ROOT.resolve("deploy/compose.runtime.services.cluster.yml"));
+    }
+
+    @Test
+    void nacosCommunityAppConfigShouldProvideOssClientBaseUrl() throws IOException {
+        String yaml = Files.readString(REPO_ROOT.resolve("deploy/nacos/config/community-app.yaml"));
+
+        assertThat(yaml).contains(
+                "oss:",
+                "client:",
+                "base-url: http://community-oss:18090"
+        );
     }
 
     private boolean hasPublicFileMapping(Path path) {
@@ -76,10 +87,13 @@ class OssAvatarStorageMigrationRetirementTest {
         }
     }
 
-    private void assertUsesOssClientEnv(Path path) throws IOException {
+    private void assertDoesNotPassOssClientEnv(Path path) throws IOException {
         String content = Files.readString(path);
         assertThat(content)
                 .as(path.toString())
-                .contains("OSS_CLIENT_BASE_URL");
+                .doesNotContain(
+                        "OSS_CLIENT_BASE_URL",
+                        "OSS_AVATAR_PUBLIC_BASE_URL"
+                );
     }
 }

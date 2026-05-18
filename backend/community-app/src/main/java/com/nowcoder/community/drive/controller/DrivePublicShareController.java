@@ -6,6 +6,7 @@ import com.nowcoder.community.drive.application.DriveShareApplicationService;
 import com.nowcoder.community.drive.application.command.VerifyDriveShareCommand;
 import com.nowcoder.community.drive.controller.dto.DriveDownloadUrlResponse;
 import com.nowcoder.community.drive.controller.dto.DriveEntryResponse;
+import com.nowcoder.community.drive.controller.dto.DrivePublicShareGateResponse;
 import com.nowcoder.community.drive.controller.dto.DriveShareResponse;
 import com.nowcoder.community.drive.controller.dto.VerifyDriveShareRequest;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,8 +37,8 @@ public class DrivePublicShareController {
     }
 
     @GetMapping("/{shareToken}")
-    public Result<DriveShareResponse> loadPublicShare(@PathVariable String shareToken) {
-        return Result.ok(DriveShareResponse.from(shareApplicationService.loadPublicShare(shareToken)));
+    public Result<DrivePublicShareGateResponse> loadPublicShare(@PathVariable String shareToken) {
+        return Result.ok(DrivePublicShareGateResponse.from(shareApplicationService.loadPublicShareGate(shareToken)));
     }
 
     @PostMapping("/{shareToken}/verify")

@@ -4,6 +4,7 @@ import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.drive.application.DriveShareApplicationService;
+import com.nowcoder.community.drive.application.result.DrivePublicShareGateResult;
 import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.application.result.DriveShareResult;
@@ -57,23 +58,22 @@ class DrivePublicShareControllerUnitTest {
     }
 
     @Test
-    void publicShareMetadataShouldNotRequireAuthentication() throws Exception {
-        when(shareApplicationService.loadPublicShare("token-a")).thenReturn(new DriveShareResult(
-                uuid(1),
-                uuid(2),
+    void publicShareGateShouldNotExposeEntryMetadataBeforeVerification() throws Exception {
+        when(shareApplicationService.loadPublicShareGate("token-a")).thenReturn(new DrivePublicShareGateResult(
                 "token-a",
-                "a.txt",
-                "FILE",
-                Instant.parse("2026-05-10T00:00:00Z"),
-                "ACTIVE",
-                null,
-                null
+                true
         ));
 
         mockMvc.perform(get("/api/drive/shares/token-a"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.shareToken").value("token-a"))
-                .andExpect(jsonPath("$.data.entryName").value("a.txt"));
+                .andExpect(jsonPath("$.data.requiresPassword").value(true))
+                .andExpect(jsonPath("$.data.shareId").doesNotExist())
+                .andExpect(jsonPath("$.data.entryId").doesNotExist())
+                .andExpect(jsonPath("$.data.entryName").doesNotExist())
+                .andExpect(jsonPath("$.data.entryType").doesNotExist())
+                .andExpect(jsonPath("$.data.status").doesNotExist())
+                .andExpect(jsonPath("$.data.ticket").doesNotExist());
     }
 
     @Test

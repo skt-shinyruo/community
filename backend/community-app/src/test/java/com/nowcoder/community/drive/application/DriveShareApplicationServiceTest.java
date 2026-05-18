@@ -6,6 +6,7 @@ import com.nowcoder.community.drive.application.command.CreateDriveShareCommand;
 import com.nowcoder.community.drive.application.command.VerifyDriveShareCommand;
 import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
+import com.nowcoder.community.drive.application.result.DrivePublicShareGateResult;
 import com.nowcoder.community.drive.application.result.DriveShareResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
@@ -174,9 +175,10 @@ class DriveShareApplicationServiceTest {
     }
 
     @Test
-    void loadPublicShareAndRevokeShouldNotExposeVerifiedDownloadAccess() {
+    void loadPublicShareGateShouldNotExposeEntryMetadataOrEntryStateBeforeVerification() {
         TestDriveFixture fixture = TestDriveFixture.create();
         DriveShareApplicationService service = fixture.shareService();
+        DriveTrashApplicationService trashService = fixture.trashService();
         UUID userId = uuid(7);
         UUID entryId = fixture.createFile(userId, "a.txt", 8);
         DriveShareResult share = service.createShare(new CreateDriveShareCommand(
@@ -186,13 +188,15 @@ class DriveShareApplicationServiceTest {
                 Instant.parse("2026-05-10T00:00:00Z")
         ));
 
-        DriveShareResult loaded = service.loadPublicShare(share.shareToken());
+        trashService.trash(userId, entryId);
+
+        DrivePublicShareGateResult loaded = service.loadPublicShareGate(share.shareToken());
         service.revokeShare(userId, share.shareId());
 
-        assertThat(loaded.entryId()).isEqualTo(entryId);
-        assertThat(loaded.ticket()).isNull();
+        assertThat(loaded.shareToken()).isEqualTo(share.shareToken());
+        assertThat(loaded.requiresPassword()).isTrue();
         assertThat(fixture.storage().downloadObjectIds).isEmpty();
-        assertThatThrownBy(() -> service.loadPublicShare(share.shareToken()))
+        assertThatThrownBy(() -> service.loadPublicShareGate(share.shareToken()))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("分享链接不可用");
     }

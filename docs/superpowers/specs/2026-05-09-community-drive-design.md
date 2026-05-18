@@ -297,9 +297,9 @@ API response models should be drive-specific result DTOs at the application boun
 
 1. User creates a share for an active file or folder with password and expiry.
 2. Application stores a generated token and password hash.
-3. Public visitor loads share metadata by token.
+3. Public visitor loads only the share gate by token; the gate does not expose the target entry name, type, IDs, status, or ticket.
 4. Visitor submits password.
-5. Application records access attempt, validates status and expiry, and returns a short-lived share ticket.
+5. Application records access attempt, validates status and expiry, and returns target entry metadata plus a short-lived share ticket.
 6. Visitor exchanges the ticket for a short-lived download URL or file list view.
 
 Folder shares expose a drive-controlled listing and issue download URLs per file after the ticket is validated.
@@ -331,6 +331,7 @@ The first frontend implementation should use the existing restrained product she
 - Drive entries are private by default.
 - Authenticated APIs must scope every lookup by `user_id` or `space_id`.
 - Public share APIs must not reveal whether an internal object ID exists.
+- Public share gate APIs must not reveal target entry metadata before password verification.
 - Password hashes must be stored, never plaintext extraction codes.
 - Share tickets must be short-lived and tied to the share token.
 - Download URLs must be short-lived and generated on demand.

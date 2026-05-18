@@ -4,8 +4,14 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../api/services/driveService', () => ({
-  getPublicDriveShare: vi.fn().mockResolvedValue({ data: { shareToken: 'token-a', name: 'a.txt', type: 'FILE' }, traceId: '' }),
-  verifyDriveShare: vi.fn().mockResolvedValue({ data: { ticket: 'ticket-a' }, traceId: '' }),
+  getPublicDriveShare: vi.fn().mockResolvedValue({
+    data: { shareToken: 'token-a', requiresPassword: true, entryName: 'a.txt', entryType: 'FILE' },
+    traceId: ''
+  }),
+  verifyDriveShare: vi.fn().mockResolvedValue({
+    data: { shareToken: 'token-a', entryId: 'file-root', entryName: 'a.txt', entryType: 'FILE', ticket: 'ticket-a' },
+    traceId: ''
+  }),
   listDriveShareEntries: vi.fn().mockResolvedValue({ data: [], traceId: '' }),
   getDriveShareDownloadUrl: vi.fn().mockResolvedValue({ data: { url: 'https://cdn.example.test/file' }, traceId: '' })
 }))
@@ -44,16 +50,19 @@ describe('DriveShareView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('提取码')
+    expect(wrapper.text()).toContain('访问分享')
+    expect(wrapper.text()).not.toContain('a.txt')
+    expect(wrapper.text()).not.toContain('文件分享')
     expect(wrapper.find('input[type="password"]').exists()).toBe(true)
   })
 
   it('lists folder share children after verification and downloads child files', async () => {
     getPublicDriveShare.mockResolvedValueOnce({
-      data: { shareToken: 'token-a', entryId: 'folder-root', entryName: 'Folder', entryType: 'FOLDER' },
+      data: { shareToken: 'token-a', requiresPassword: true },
       traceId: ''
     })
     verifyDriveShare.mockResolvedValueOnce({
-      data: { ticket: 'ticket-a', entryType: 'FOLDER' },
+      data: { shareToken: 'token-a', entryId: 'folder-root', entryName: 'Folder', entryType: 'FOLDER', ticket: 'ticket-a' },
       traceId: ''
     })
     listDriveShareEntries

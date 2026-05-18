@@ -3,9 +3,12 @@
     <UiPageHeader>
       <template #title>{{ shareName }}</template>
       <template #subtitle>
-        <span>{{ isFolderShare ? '文件夹分享' : '文件分享' }}</span>
-        <span v-if="share.expiresAt" class="drive-header-dot" aria-hidden="true">·</span>
-        <span v-if="share.expiresAt">{{ share.expiresAt }}</span>
+        <template v-if="ticket">
+          <span>{{ isFolderShare ? '文件夹分享' : '文件分享' }}</span>
+          <span v-if="share.expiresAt" class="drive-header-dot" aria-hidden="true">·</span>
+          <span v-if="share.expiresAt">{{ share.expiresAt }}</span>
+        </template>
+        <span v-else>等待验证</span>
       </template>
     </UiPageHeader>
 
@@ -14,7 +17,7 @@
 
     <UiCard v-else class="drive-share-card">
       <div class="drive-share-summary">
-        <div class="drive-share-summary-item">
+        <div v-if="ticket" class="drive-share-summary-item">
           <span>分享类型</span>
           <strong>{{ isFolderShare ? '文件夹' : '文件' }}</strong>
         </div>
@@ -22,7 +25,7 @@
           <span>链接状态</span>
           <strong>{{ ticket ? '已验证' : '等待验证' }}</strong>
         </div>
-        <div class="drive-share-summary-item">
+        <div v-if="ticket" class="drive-share-summary-item">
           <span>内容名称</span>
           <strong>{{ shareName }}</strong>
         </div>
@@ -133,10 +136,13 @@ const folderTrail = ref([])
 const entriesLoading = ref(false)
 const entriesError = ref('')
 
-const shareName = computed(() => share.value?.name || share.value?.entryName || '分享文件')
-const shareType = computed(() => String(share.value?.entryType || share.value?.type || 'FILE').toUpperCase())
+const shareName = computed(() => {
+  if (!ticket.value) return '访问分享'
+  return share.value?.name || share.value?.entryName || '分享文件'
+})
+const shareType = computed(() => ticket.value ? String(share.value?.entryType || share.value?.type || 'FILE').toUpperCase() : '')
 const isFolderShare = computed(() => shareType.value === 'FOLDER')
-const isFileShare = computed(() => !isFolderShare.value)
+const isFileShare = computed(() => Boolean(ticket.value) && !isFolderShare.value)
 
 async function loadShare() {
   loading.value = true
@@ -144,7 +150,10 @@ async function loadShare() {
   message.value = ''
   try {
     const { data } = await getPublicDriveShare(props.shareToken)
-    share.value = data || {}
+    share.value = {
+      shareToken: String(data?.shareToken || props.shareToken || ''),
+      requiresPassword: data?.requiresPassword !== false
+    }
   } catch (e) {
     error.value = e?.message || '加载分享失败'
   } finally {

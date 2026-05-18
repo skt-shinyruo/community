@@ -8,6 +8,7 @@ import com.nowcoder.community.drive.application.port.DrivePasswordHasher;
 import com.nowcoder.community.drive.application.port.DriveShareTicketCodec;
 import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
+import com.nowcoder.community.drive.application.result.DrivePublicShareGateResult;
 import com.nowcoder.community.drive.application.result.DriveShareResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
@@ -109,10 +110,9 @@ public class DriveShareApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public DriveShareResult loadPublicShare(String shareToken) {
+    public DrivePublicShareGateResult loadPublicShareGate(String shareToken) {
         DriveShare share = loadActiveShare(shareToken);
-        DriveEntry entry = loadActiveEntryForShare(share);
-        return toShareResult(share, entry, null, null);
+        return new DrivePublicShareGateResult(share.shareToken(), true);
     }
 
     @Transactional(noRollbackFor = BusinessException.class)

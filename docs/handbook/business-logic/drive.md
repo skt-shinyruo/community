@@ -96,9 +96,9 @@ Front-end：
 1. `createShare(...)` 只允许 owner 对 active file 或 folder 创建分享。
 2. 分享必须设置非空提取码和未来过期时间。
 3. 分享 token 使用 18 字节随机数做 URL-safe base64；提取码只保存 hash。
-4. `loadPublicShare(...)` 只返回 active share 的基础信息，不返回 ticket。
+4. `loadPublicShareGate(...)` 只返回提取码门禁信息，不返回目标 entry 的名称、类型、ID、状态或 ticket。
 5. `verifyShare(...)` 对过期、撤销、密码错误、目标 entry 不可用都记录 `drive_share_access`；密码错误返回提取码错误。
-6. 校验成功后记录成功访问，签发 600 秒短时 ticket。
+6. 校验成功后返回目标 entry 元数据，记录成功访问，签发 600 秒短时 ticket。
 7. `createShareDownloadUrl(...)` 必须带合法 ticket；分享 file 时只能下载该 file，分享 folder 时只能下载其 active file 子孙。
 8. 分享下载 URL 由 OSS 签发，TTL 也是 600 秒。
 

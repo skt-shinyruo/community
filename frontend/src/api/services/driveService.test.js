@@ -131,13 +131,24 @@ describe('driveService', () => {
     expect(result.data).toHaveLength(1)
   })
 
-  it('getPublicDriveShare should load share metadata without a password', async () => {
-    http.get.mockResolvedValue({ data: { code: 0, data: { shareToken: 'token-a', name: 'a.txt' }, traceId: 'trace-share-meta' } })
+  it('getPublicDriveShare should load only the share gate before verification', async () => {
+    http.get.mockResolvedValue({
+      data: {
+        code: 0,
+        data: {
+          shareToken: 'token-a',
+          requiresPassword: true,
+          entryName: 'a.txt',
+          entryType: 'FILE'
+        },
+        traceId: 'trace-share-meta'
+      }
+    })
 
     const result = await getPublicDriveShare('token-a')
 
     expect(http.get).toHaveBeenCalledWith('/api/drive/shares/token-a')
-    expect(result.data.name).toBe('a.txt')
+    expect(result.data).toEqual({ shareToken: 'token-a', requiresPassword: true })
   })
 
   it('verifyDriveShare should post extraction code to public endpoint', async () => {

@@ -101,7 +101,14 @@ export async function revokeDriveShare(shareId) {
 export async function getPublicDriveShare(shareToken) {
   const resp = await http.get(`/api/drive/shares/${encodeURIComponent(shareToken)}`)
   const { data, traceId } = unwrapResultBody(resp.data, '获取公开分享信息')
-  return { data: data || {}, traceId }
+  return { data: normalizePublicShareGate(data || {}, shareToken), traceId }
+}
+
+function normalizePublicShareGate(raw, fallbackToken = '') {
+  return {
+    shareToken: String(raw?.shareToken || fallbackToken || ''),
+    requiresPassword: raw?.requiresPassword !== false
+  }
 }
 
 export async function verifyDriveShare(shareToken, password) {

@@ -52,8 +52,8 @@
 4. content 回源 user owner 校验作者发言资格。
 5. content 可通过 social owner 判断双方拉黑关系。
 6. content 写 `comment`，同步更新帖子评论数或活动状态。
-7. content 触发积分、成长任务和评论事件。
-8. notice 根据评论事件生成接收人的通知。
+7. content 发布评论事件，并在提交前写入 user reward / growth task 的 outbox 记录。
+8. 评论事务提交后，outbox worker 异步触发奖励、成长任务和可能的 wallet 记账；notice 根据评论事件生成接收人的通知。
 
 ## 删除和治理
 

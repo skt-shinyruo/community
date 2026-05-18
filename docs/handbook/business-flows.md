@@ -288,9 +288,9 @@ Main path: create comment：
 4. 若评论双方存在拉黑关系，写入会被拒绝。
 5. 文本在写入前做转义和敏感词过滤。
 6. 写 `comment` 并增加帖子 `comment_count`。
-7. 同步触发奖励 / 任务进度 owner API。
-8. 发布评论事件。
-9. notice / growth / score refresh 等下游按各自语义处理。
+7. 发布评论事件。
+8. user reward / growth task outbox enqueuer 在提交前写入各自 outbox 记录。
+9. 评论事务提交后，outbox worker 异步触发奖励、成长任务和可能的 wallet 记账；notice / score refresh 等下游按各自语义处理。
 
 Main path: update / delete comment：
 

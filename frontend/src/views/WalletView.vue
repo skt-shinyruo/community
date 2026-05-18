@@ -101,7 +101,8 @@ import {
   createRecharge,
   createTransfer,
   createWithdrawal,
-  getWalletSummary
+  getWalletSummary,
+  getWalletTransactions
 } from '../api/services/walletService'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -137,8 +138,8 @@ function normalizeSummary(data) {
   }
 }
 
-function prependTxn(entry) {
-  txns.value = [entry, ...txns.value].slice(0, 12)
+function normalizeTxns(data) {
+  return Array.isArray(data) ? data.map((item) => ({ ...item })) : []
 }
 
 function requirePositiveAmount(amount, fallbackMessage) {
@@ -153,8 +154,12 @@ async function reload() {
   loading.value = true
   error.value = ''
   try {
-    const { data } = await getWalletSummary()
-    summary.value = normalizeSummary(data)
+    const [summaryResp, txnsResp] = await Promise.all([
+      getWalletSummary(),
+      getWalletTransactions(12)
+    ])
+    summary.value = normalizeSummary(summaryResp.data)
+    txns.value = normalizeTxns(txnsResp.data)
     ready.value = true
   } catch (e) {
     error.value = e?.message || '加载钱包失败'
@@ -175,14 +180,7 @@ async function submitRecharge() {
   submittingKey.value = 'recharge'
   error.value = ''
   try {
-    const { data } = await createRecharge({ amount })
-    prependTxn({
-      txnType: 'RECHARGE',
-      amount,
-      counterpartLabel: '平台入账',
-      requestId: data?.requestId || '',
-      status: data?.status || 'SUCCEEDED'
-    })
+    await createRecharge({ amount })
     rechargeForm.value.amount = ''
     await reload()
   } catch (e) {
@@ -204,14 +202,7 @@ async function submitWithdrawal() {
   submittingKey.value = 'withdraw'
   error.value = ''
   try {
-    const { data } = await createWithdrawal({ amount })
-    prependTxn({
-      txnType: 'WITHDRAW',
-      amount: -amount,
-      counterpartLabel: '提现申请',
-      requestId: data?.requestId || '',
-      status: data?.status || 'PENDING'
-    })
+    await createWithdrawal({ amount })
     withdrawForm.value.amount = ''
     await reload()
   } catch (e) {
@@ -237,14 +228,7 @@ async function submitTransfer() {
   submittingKey.value = 'transfer'
   error.value = ''
   try {
-    const { data } = await createTransfer({ toUserId, amount })
-    prependTxn({
-      txnType: 'TRANSFER',
-      amount: -amount,
-      counterpartLabel: `用户 ${toUserId}`,
-      requestId: data?.requestId || '',
-      status: data?.status || 'SUCCEEDED'
-    })
+    await createTransfer({ toUserId, amount })
     transferForm.value.toUserId = ''
     transferForm.value.amount = ''
     await reload()

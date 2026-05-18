@@ -7,6 +7,12 @@ export async function getWalletSummary() {
   return { data: data || {}, traceId }
 }
 
+export async function getWalletTransactions(limit = 12) {
+  const resp = await http.get('/api/wallet/transactions', { params: { limit } })
+  const { data, traceId } = unwrapResultBody(resp.data, '查询钱包流水')
+  return { data: Array.isArray(data) ? data : [], traceId }
+}
+
 export async function createRecharge(payload) {
   const resp = await http.post('/api/wallet/recharges', payload)
   const { data, traceId } = unwrapResultBody(resp.data, '发起充值')

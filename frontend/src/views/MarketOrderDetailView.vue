@@ -40,6 +40,78 @@
           </article>
         </div>
 
+        <section v-if="hasAvailableActions" class="market-panel">
+          <UiPageHeader>
+            <template #title>订单操作</template>
+            <template #subtitle>根据当前账号角色和订单状态继续推进履约、确认、取消或申诉。</template>
+          </UiPageHeader>
+
+          <UiState v-if="actionError" variant="error">{{ actionError }}</UiState>
+
+          <div class="market-form-grid">
+            <template v-if="canDeliver">
+              <label class="market-field">
+                <span>交付内容</span>
+                <UiTextarea v-model.trim="deliveryForm.deliveryContent" rows="4" placeholder="输入卡密、邀请码或其他交付内容" />
+              </label>
+              <div class="market-inline-actions">
+                <UiButton :disabled="actionSubmitting" @click="submitDelivery">
+                  {{ actionSubmitting ? '提交中…' : '提交交付' }}
+                </UiButton>
+              </div>
+            </template>
+
+            <template v-if="canShip">
+              <div class="market-form-grid market-form-grid--wide">
+                <label class="market-field">
+                  <span>承运商</span>
+                  <UiInput v-model.trim="shipForm.carrierName" placeholder="例如：顺丰" autocomplete="off" />
+                </label>
+                <label class="market-field">
+                  <span>运单号</span>
+                  <UiInput v-model.trim="shipForm.trackingNo" placeholder="输入运单号" autocomplete="off" />
+                </label>
+              </div>
+              <label class="market-field">
+                <span>发货备注</span>
+                <UiTextarea v-model.trim="shipForm.shippingRemark" rows="3" placeholder="可选，补充配送说明" />
+              </label>
+              <div class="market-inline-actions">
+                <UiButton :disabled="actionSubmitting" @click="submitShipment">
+                  {{ actionSubmitting ? '提交中…' : '确认发货' }}
+                </UiButton>
+              </div>
+            </template>
+
+            <div v-if="canConfirm || canCancel" class="market-inline-actions">
+              <UiButton v-if="canConfirm" :disabled="actionSubmitting" @click="submitConfirm">
+                {{ actionSubmitting ? '提交中…' : confirmButtonText }}
+              </UiButton>
+              <UiButton v-if="canCancel" variant="dangerSecondary" :disabled="actionSubmitting" @click="submitCancel">
+                {{ actionSubmitting ? '提交中…' : '取消订单' }}
+              </UiButton>
+            </div>
+
+            <template v-if="canDispute">
+              <div class="market-form-grid market-form-grid--wide">
+                <label class="market-field">
+                  <span>申诉原因</span>
+                  <UiInput v-model.trim="disputeForm.reason" placeholder="简要说明问题" autocomplete="off" />
+                </label>
+              </div>
+              <label class="market-field">
+                <span>申诉说明</span>
+                <UiTextarea v-model.trim="disputeForm.buyerNote" rows="3" placeholder="描述未收到、内容无效或其他异常" />
+              </label>
+              <div class="market-inline-actions">
+                <UiButton variant="secondary" :disabled="actionSubmitting" @click="submitDispute">
+                  {{ actionSubmitting ? '提交中…' : '发起申诉' }}
+                </UiButton>
+              </div>
+            </template>
+          </div>
+        </section>
+
         <section class="market-panel">
           <UiPageHeader>
             <template #title>审计上下文</template>
@@ -94,19 +166,46 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
+import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
+import UiInput from '../components/ui/UiInput.vue'
 import UiState from '../components/ui/UiState.vue'
+import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
-import { getMarketOrderDetail } from '../api/services/marketService'
+import {
+  cancelMarketOrder,
+  confirmMarketOrder,
+  deliverMarketOrder,
+  getMarketOrderDetail,
+  openMarketOrderDispute,
+  shipMarketOrder
+} from '../api/services/marketService'
+import { useAuthStore } from '../stores/auth'
+import { sameOpaqueId } from '../utils/opaqueId'
 import { buildMarketState } from './marketState'
 
 const route = useRoute()
+const auth = useAuthStore()
 const loading = ref(false)
 const error = ref('')
+const actionError = ref('')
+const actionSubmitting = ref(false)
 const order = ref(null)
+const deliveryForm = reactive({
+  deliveryContent: ''
+})
+const shipForm = reactive({
+  carrierName: '',
+  trackingNo: '',
+  shippingRemark: ''
+})
+const disputeForm = reactive({
+  reason: '',
+  buyerNote: ''
+})
 let activeRequestToken = 0
 
 const detail = computed(() => {
@@ -115,6 +214,27 @@ const detail = computed(() => {
 })
 const deliveryContents = computed(() => (Array.isArray(order.value?.deliveryContents) ? order.value.deliveryContents : []))
 const shipment = computed(() => order.value?.shipment || null)
+const normalizedStatus = computed(() => String(order.value?.status || '').trim().toUpperCase())
+const normalizedGoodsType = computed(() => String(order.value?.goodsType || '').trim().toUpperCase())
+const normalizedDeliveryMode = computed(() => String(order.value?.deliveryModeSnapshot || order.value?.deliveryMode || '').trim().toUpperCase())
+const isBuyer = computed(() => sameOpaqueId(auth.userId, order.value?.buyerUserId))
+const isSeller = computed(() => sameOpaqueId(auth.userId, order.value?.sellerUserId))
+const canDeliver = computed(() => {
+  return isSeller.value
+    && normalizedStatus.value === 'ESCROWED'
+    && normalizedGoodsType.value === 'VIRTUAL'
+    && normalizedDeliveryMode.value === 'MANUAL'
+})
+const canShip = computed(() => {
+  return isSeller.value
+    && normalizedStatus.value === 'ESCROWED'
+    && normalizedGoodsType.value === 'PHYSICAL'
+})
+const canConfirm = computed(() => isBuyer.value && ['DELIVERED', 'SHIPPED'].includes(normalizedStatus.value))
+const canCancel = computed(() => isBuyer.value && ['ESCROW_PENDING', 'ESCROWED'].includes(normalizedStatus.value))
+const canDispute = computed(() => isBuyer.value && ['DELIVERED', 'SHIPPED'].includes(normalizedStatus.value))
+const hasAvailableActions = computed(() => canDeliver.value || canShip.value || canConfirm.value || canCancel.value || canDispute.value)
+const confirmButtonText = computed(() => (normalizedStatus.value === 'SHIPPED' ? '确认收货' : '确认完成'))
 const addressSnapshot = computed(() => {
   const parts = [
     order.value?.provinceSnapshot,
@@ -124,6 +244,88 @@ const addressSnapshot = computed(() => {
   ].map((part) => String(part || '').trim()).filter(Boolean)
   return parts.join(' ')
 })
+
+function resetActionForms() {
+  actionError.value = ''
+  deliveryForm.deliveryContent = ''
+  shipForm.carrierName = ''
+  shipForm.trackingNo = ''
+  shipForm.shippingRemark = ''
+  disputeForm.reason = ''
+  disputeForm.buyerNote = ''
+}
+
+async function runOrderAction(action, fallbackMessage) {
+  if (actionSubmitting.value) return
+  actionSubmitting.value = true
+  actionError.value = ''
+  try {
+    await action()
+    await loadDetail()
+    resetActionForms()
+  } catch (e) {
+    actionError.value = e?.message || fallbackMessage
+  } finally {
+    actionSubmitting.value = false
+  }
+}
+
+async function submitDelivery() {
+  const deliveryContent = deliveryForm.deliveryContent.trim()
+  if (!deliveryContent) {
+    actionError.value = '请输入交付内容'
+    return
+  }
+  await runOrderAction(
+    () => deliverMarketOrder(route.params.orderId, { deliveryContent }),
+    '提交交付失败'
+  )
+}
+
+async function submitShipment() {
+  const carrierName = shipForm.carrierName.trim()
+  const trackingNo = shipForm.trackingNo.trim()
+  const shippingRemark = shipForm.shippingRemark.trim()
+  if (!carrierName || !trackingNo) {
+    actionError.value = '请输入承运商和运单号'
+    return
+  }
+  await runOrderAction(
+    () => shipMarketOrder(route.params.orderId, {
+      carrierName,
+      trackingNo,
+      shippingRemark
+    }),
+    '提交发货失败'
+  )
+}
+
+async function submitConfirm() {
+  await runOrderAction(
+    () => confirmMarketOrder(route.params.orderId),
+    '确认订单失败'
+  )
+}
+
+async function submitCancel() {
+  await runOrderAction(
+    () => cancelMarketOrder(route.params.orderId),
+    '取消订单失败'
+  )
+}
+
+async function submitDispute() {
+  const reason = disputeForm.reason.trim()
+  const buyerNote = disputeForm.buyerNote.trim()
+  if (!reason || !buyerNote) {
+    actionError.value = '请输入申诉原因和说明'
+    return
+  }
+  await runOrderAction(
+    () => openMarketOrderDispute(route.params.orderId, { reason, buyerNote }),
+    '发起申诉失败'
+  )
+}
 
 async function loadDetail() {
   const requestToken = ++activeRequestToken

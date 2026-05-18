@@ -82,6 +82,142 @@ describe('api/services/marketService', () => {
     expect(resp.data.goodsType).toBe('PHYSICAL')
   })
 
+  it('deliverMarketOrder should post manual virtual delivery content', async () => {
+    mock = new MockAdapter(http)
+    mock.onPost('/api/market/orders/31/deliver').reply((config) => {
+      expect(JSON.parse(config.data)).toEqual({
+        deliveryContent: 'card-secret-123'
+      })
+      return [200, {
+        code: 0,
+        message: 'OK',
+        httpStatus: 200,
+        data: {
+          orderId: 31,
+          goodsType: 'VIRTUAL',
+          status: 'DELIVERED'
+        },
+        traceId: 'trace-deliver-order',
+        timestamp: 1774060182920
+      }]
+    })
+
+    const resp = await marketService.deliverMarketOrder(31, {
+      deliveryContent: 'card-secret-123'
+    })
+
+    expect(resp.traceId).toBe('trace-deliver-order')
+    expect(resp.data.status).toBe('DELIVERED')
+  })
+
+  it('shipMarketOrder should post physical shipment information', async () => {
+    mock = new MockAdapter(http)
+    mock.onPost('/api/market/orders/32/ship').reply((config) => {
+      expect(JSON.parse(config.data)).toEqual({
+        carrierName: '顺丰',
+        trackingNo: 'SF1234567890',
+        shippingRemark: '工作日派送'
+      })
+      return [200, {
+        code: 0,
+        message: 'OK',
+        httpStatus: 200,
+        data: {
+          orderId: 32,
+          goodsType: 'PHYSICAL',
+          status: 'SHIPPED'
+        },
+        traceId: 'trace-ship-order',
+        timestamp: 1774060182920
+      }]
+    })
+
+    const resp = await marketService.shipMarketOrder(32, {
+      carrierName: '顺丰',
+      trackingNo: 'SF1234567890',
+      shippingRemark: '工作日派送'
+    })
+
+    expect(resp.traceId).toBe('trace-ship-order')
+    expect(resp.data.status).toBe('SHIPPED')
+  })
+
+  it('confirmMarketOrder should post buyer confirmation without payload', async () => {
+    mock = new MockAdapter(http)
+    mock.onPost('/api/market/orders/33/confirm').reply((config) => {
+      expect(config.data).toBeUndefined()
+      return [200, {
+        code: 0,
+        message: 'OK',
+        httpStatus: 200,
+        data: {
+          orderId: 33,
+          status: 'RELEASE_PENDING'
+        },
+        traceId: 'trace-confirm-order',
+        timestamp: 1774060182920
+      }]
+    })
+
+    const resp = await marketService.confirmMarketOrder(33)
+
+    expect(resp.traceId).toBe('trace-confirm-order')
+    expect(resp.data.status).toBe('RELEASE_PENDING')
+  })
+
+  it('cancelMarketOrder should post buyer cancellation without payload', async () => {
+    mock = new MockAdapter(http)
+    mock.onPost('/api/market/orders/34/cancel').reply((config) => {
+      expect(config.data).toBeUndefined()
+      return [200, {
+        code: 0,
+        message: 'OK',
+        httpStatus: 200,
+        data: {
+          orderId: 34,
+          status: 'REFUND_PENDING'
+        },
+        traceId: 'trace-cancel-order',
+        timestamp: 1774060182920
+      }]
+    })
+
+    const resp = await marketService.cancelMarketOrder(34)
+
+    expect(resp.traceId).toBe('trace-cancel-order')
+    expect(resp.data.status).toBe('REFUND_PENDING')
+  })
+
+  it('openMarketOrderDispute should post buyer dispute details', async () => {
+    mock = new MockAdapter(http)
+    mock.onPost('/api/market/orders/35/disputes').reply((config) => {
+      expect(JSON.parse(config.data)).toEqual({
+        reason: '未收到商品',
+        buyerNote: '物流一直没有更新'
+      })
+      return [200, {
+        code: 0,
+        message: 'OK',
+        httpStatus: 200,
+        data: {
+          disputeId: 41,
+          orderId: 35,
+          status: 'OPEN'
+        },
+        traceId: 'trace-open-dispute',
+        timestamp: 1774060182920
+      }]
+    })
+
+    const resp = await marketService.openMarketOrderDispute(35, {
+      reason: '未收到商品',
+      buyerNote: '物流一直没有更新'
+    })
+
+    expect(resp.traceId).toBe('trace-open-dispute')
+    expect(resp.data.status).toBe('OPEN')
+  })
+
   it('listMarketAddresses should read the unified address endpoint', async () => {
     mock = new MockAdapter(http)
     mock.onGet('/api/market/addresses').reply(200, {

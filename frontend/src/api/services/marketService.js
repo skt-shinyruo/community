@@ -67,6 +67,36 @@ export async function getMarketOrderDetail(orderId) {
   return { data: data || {}, traceId }
 }
 
+export async function deliverMarketOrder(orderId, payload) {
+  const resp = await http.post(`/api/market/orders/${encodeURIComponent(orderId)}/deliver`, payload)
+  const { data, traceId } = unwrapResultBody(resp.data, '提交市场订单交付')
+  return { data: data || {}, traceId }
+}
+
+export async function shipMarketOrder(orderId, payload) {
+  const resp = await http.post(`/api/market/orders/${encodeURIComponent(orderId)}/ship`, payload)
+  const { data, traceId } = unwrapResultBody(resp.data, '提交市场订单发货')
+  return { data: data || {}, traceId }
+}
+
+export async function confirmMarketOrder(orderId) {
+  const resp = await http.post(`/api/market/orders/${encodeURIComponent(orderId)}/confirm`)
+  const { data, traceId } = unwrapResultBody(resp.data, '确认市场订单')
+  return { data: data || {}, traceId }
+}
+
+export async function cancelMarketOrder(orderId) {
+  const resp = await http.post(`/api/market/orders/${encodeURIComponent(orderId)}/cancel`)
+  const { data, traceId } = unwrapResultBody(resp.data, '取消市场订单')
+  return { data: data || {}, traceId }
+}
+
+export async function openMarketOrderDispute(orderId, payload) {
+  const resp = await http.post(`/api/market/orders/${encodeURIComponent(orderId)}/disputes`, payload)
+  const { data, traceId } = unwrapResultBody(resp.data, '发起市场订单申诉')
+  return { data: data || {}, traceId }
+}
+
 export async function listAdminMarketDisputes() {
   const resp = await http.get('/api/admin/market/disputes')
   const { data, traceId } = unwrapResultBody(resp.data, '查询争议列表')

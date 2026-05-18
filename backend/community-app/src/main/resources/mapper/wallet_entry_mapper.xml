@@ -17,4 +17,36 @@
         order by entry_id asc
     </select>
 
+    <select id="selectRecentItemsByAccountId" resultType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletLedgerItemDataObject">
+        select e.entry_id,
+               e.txn_id,
+               e.account_id,
+               e.direction,
+               e.amount as entry_amount,
+               e.balance_after,
+               e.create_time as entry_create_time,
+               t.request_id,
+               t.txn_type,
+               t.biz_type,
+               t.biz_id,
+               t.status,
+               t.remark,
+               (
+                   select cp.owner_id
+                   from wallet_entry ce
+                   join wallet_account cp on cp.account_id = ce.account_id
+                   where ce.txn_id = e.txn_id
+                     and ce.account_id &lt;&gt; e.account_id
+                     and cp.owner_type = 'USER'
+                     and cp.account_type = 'USER_WALLET'
+                   order by ce.entry_id asc
+                   limit 1
+               ) as counterpart_user_id
+        from wallet_entry e
+        join wallet_txn t on t.txn_id = e.txn_id
+        where e.account_id = #{accountId, jdbcType=BINARY}
+        order by e.create_time desc, e.entry_id desc
+        limit #{limit}
+    </select>
+
 </mapper>

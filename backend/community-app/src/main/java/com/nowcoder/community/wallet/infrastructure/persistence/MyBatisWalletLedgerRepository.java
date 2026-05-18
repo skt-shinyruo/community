@@ -1,9 +1,11 @@
 package com.nowcoder.community.wallet.infrastructure.persistence;
 
 import com.nowcoder.community.wallet.domain.model.WalletEntry;
+import com.nowcoder.community.wallet.domain.model.WalletLedgerItem;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
 import com.nowcoder.community.wallet.domain.repository.WalletLedgerRepository;
 import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletEntryDataObject;
+import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletLedgerItemDataObject;
 import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletTxnDataObject;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletEntryMapper;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletTxnMapper;
@@ -47,5 +49,12 @@ public class MyBatisWalletLedgerRepository implements WalletLedgerRepository {
     @Override
     public List<WalletEntry> findEntriesByTxnId(UUID txnId) {
         return new ArrayList<>(entryMapper.selectByTxnId(txnId));
+    }
+
+    @Override
+    public List<WalletLedgerItem> findRecentItemsByAccountId(UUID accountId, int limit) {
+        return entryMapper.selectRecentItemsByAccountId(accountId, limit).stream()
+                .map(WalletLedgerItemDataObject::toDomain)
+                .toList();
     }
 }

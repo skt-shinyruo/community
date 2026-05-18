@@ -1,6 +1,7 @@
 package com.nowcoder.community.wallet.domain.repository;
 
 import com.nowcoder.community.wallet.domain.model.WalletEntry;
+import com.nowcoder.community.wallet.domain.model.WalletLedgerItem;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
 
 import java.util.List;
@@ -17,4 +18,6 @@ public interface WalletLedgerRepository {
     int insertEntry(WalletEntry entry);
 
     List<WalletEntry> findEntriesByTxnId(UUID txnId);
+
+    List<WalletLedgerItem> findRecentItemsByAccountId(UUID accountId, int limit);
 }

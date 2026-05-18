@@ -1,5 +1,6 @@
 package com.nowcoder.community.wallet.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.infra.idempotency.EffectiveIdempotencyKey;
 import com.nowcoder.community.infra.idempotency.IdempotencyKeyResolver;
@@ -7,13 +8,17 @@ import com.nowcoder.community.infra.idempotency.RequestFingerprint;
 import com.nowcoder.community.wallet.application.command.CreateRechargeCommand;
 import com.nowcoder.community.wallet.application.command.CreateTransferCommand;
 import com.nowcoder.community.wallet.application.command.CreateWithdrawCommand;
+import com.nowcoder.community.wallet.application.command.ListWalletTransactionsCommand;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
 import com.nowcoder.community.wallet.application.result.TransferOrderResult;
 import com.nowcoder.community.wallet.application.result.WalletSummaryResult;
+import com.nowcoder.community.wallet.application.result.WalletTransactionResult;
 import com.nowcoder.community.wallet.application.result.WithdrawOrderResult;
+import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -23,6 +28,7 @@ public class WalletApplicationService {
     private final WalletRechargeApplicationService rechargeApplicationService;
     private final WalletWithdrawApplicationService withdrawApplicationService;
     private final WalletTransferApplicationService transferApplicationService;
+    private final WalletLedgerApplicationService ledgerApplicationService;
     private final IdempotencyGuard idempotencyGuard;
 
     public WalletApplicationService(
@@ -30,17 +36,30 @@ public class WalletApplicationService {
             WalletRechargeApplicationService rechargeApplicationService,
             WalletWithdrawApplicationService withdrawApplicationService,
             WalletTransferApplicationService transferApplicationService,
+            WalletLedgerApplicationService ledgerApplicationService,
             IdempotencyGuard idempotencyGuard
     ) {
         this.accountService = accountService;
         this.rechargeApplicationService = rechargeApplicationService;
         this.withdrawApplicationService = withdrawApplicationService;
         this.transferApplicationService = transferApplicationService;
+        this.ledgerApplicationService = ledgerApplicationService;
         this.idempotencyGuard = idempotencyGuard;
     }
 
     public WalletSummaryResult summary(UUID userId) {
         return new WalletSummaryResult(userId, accountService.balanceOfUser(userId), accountService.statusOfUser(userId));
+    }
+
+    public List<WalletTransactionResult> recentTransactions(ListWalletTransactionsCommand command) {
+        if (command == null || command.userId() == null) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "userId must not be null");
+        }
+        WalletAccount account = accountService.findUserWallet(command.userId());
+        if (account == null) {
+            return List.of();
+        }
+        return ledgerApplicationService.recentTransactions(account, normalizeLimit(command.limit()));
     }
 
     public RechargeOrderResult recharge(CreateRechargeCommand command) {
@@ -88,6 +107,13 @@ public class WalletApplicationService {
                         command.amount()
                 )
         );
+    }
+
+    private int normalizeLimit(Integer limit) {
+        if (limit == null) {
+            return 12;
+        }
+        return Math.min(50, Math.max(1, limit));
     }
 
 }

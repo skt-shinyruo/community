@@ -48,6 +48,14 @@ public class WalletAccountApplicationService {
         return ensureAccount(WalletAccountDomainService.OWNER_TYPE_SYSTEM, SYSTEM_OWNER_ID, accountType).getAccountId();
     }
 
+    public WalletAccount findUserWallet(UUID userId) {
+        return walletAccountRepository.findByOwner(
+                WalletAccountDomainService.OWNER_TYPE_USER,
+                requireUserId(userId),
+                WalletAccountDomainService.ACCOUNT_TYPE_USER_WALLET
+        );
+    }
+
     public long balanceOfUser(UUID userId) {
         WalletAccount account = walletAccountRepository.findByOwner(
                 WalletAccountDomainService.OWNER_TYPE_USER,

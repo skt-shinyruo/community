@@ -2,13 +2,16 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.wallet.application.result.WalletTransactionResult;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletEntry;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
+import com.nowcoder.community.wallet.domain.model.WalletLedgerItem;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
 import com.nowcoder.community.wallet.domain.repository.WalletLedgerRepository;
+import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
 import com.nowcoder.community.wallet.domain.service.WalletLedgerDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.application.result.WalletTxnResult;
@@ -62,6 +65,27 @@ public class WalletLedgerApplicationService {
 
     public List<WalletEntry> entriesOfTxn(UUID txnId) {
         return walletLedgerRepository.findEntriesByTxnId(txnId);
+    }
+
+    public List<WalletTransactionResult> recentTransactions(WalletAccount userAccount, int limit) {
+        if (userAccount == null) {
+            return List.of();
+        }
+        return walletLedgerRepository.findRecentItemsByAccountId(userAccount.getAccountId(), limit).stream()
+                .map(item -> new WalletTransactionResult(
+                        item.txnId(),
+                        item.requestId(),
+                        item.txnType(),
+                        item.bizType(),
+                        item.bizId(),
+                        item.status(),
+                        signedAmount(userAccount, item),
+                        item.balanceAfter(),
+                        counterpartLabelOf(item),
+                        item.remark(),
+                        item.entryCreateTime()
+                ))
+                .toList();
     }
 
     @Transactional
@@ -130,6 +154,43 @@ public class WalletLedgerApplicationService {
 
     private long amountOf(List<WalletPosting> postings) {
         return domainService.balancedAmountOf(postings);
+    }
+
+    private long signedAmount(WalletAccount userAccount, WalletLedgerItem item) {
+        WalletPosting posting = WalletAccountDomainService.DIRECTION_DEBIT.equals(item.direction())
+                ? WalletPosting.debit(item.accountId(), item.entryAmount())
+                : WalletPosting.credit(item.accountId(), item.entryAmount());
+        return walletAccountService.deltaOf(userAccount, posting);
+    }
+
+    private String counterpartLabelOf(WalletLedgerItem item) {
+        String txnType = item.txnType();
+        if (WalletTxnType.RECHARGE.name().equals(txnType)) {
+            return "平台入账";
+        }
+        if (WalletTxnType.WITHDRAW.name().equals(txnType)) {
+            return "提现申请";
+        }
+        if (WalletTxnType.TRANSFER.name().equals(txnType)) {
+            return item.counterpartUserId() == null ? "钱包转账" : "用户 " + item.counterpartUserId();
+        }
+        if (WalletTxnType.ORDER_ESCROW.name().equals(txnType)) {
+            return "订单托管";
+        }
+        if (WalletTxnType.ORDER_RELEASE.name().equals(txnType)) {
+            return "订单结算";
+        }
+        if (WalletTxnType.ORDER_REFUND.name().equals(txnType)) {
+            return "订单退款";
+        }
+        if (WalletTxnType.REWARD_ISSUE.name().equals(txnType)) {
+            return "活动奖励";
+        }
+        if (WalletTxnType.REVERSAL.name().equals(txnType)) {
+            return "交易回滚";
+        }
+        String remark = item.remark();
+        return remark == null || remark.isBlank() ? "系统记账" : remark.trim();
     }
 
     private String defaultBizType(WalletTxnType txnType) {

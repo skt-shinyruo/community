@@ -16,20 +16,37 @@ class DriveSpaceTest {
 
         assertThat(space.quotaBytes()).isEqualTo(10_737_418_240L);
         assertThat(space.usedBytes()).isZero();
+        assertThat(space.reservedBytes()).isZero();
         assertThat(space.remainingBytes()).isEqualTo(10_737_418_240L);
     }
 
     @Test
-    void reserveAndReleaseShouldProtectQuotaBounds() {
+    void reserveCommitAndReleaseShouldProtectQuotaBounds() {
         DriveSpace space = DriveSpace.createDefault(uuid(1), uuid(7), Instant.parse("2026-05-09T00:00:00Z"));
 
         DriveSpace reserved = space.reserve(1_024L, Instant.parse("2026-05-09T00:01:00Z"));
-        assertThat(reserved.usedBytes()).isEqualTo(1_024L);
-        assertThat(reserved.release(512L, Instant.parse("2026-05-09T00:02:00Z")).usedBytes()).isEqualTo(512L);
+        assertThat(reserved.usedBytes()).isZero();
+        assertThat(reserved.reservedBytes()).isEqualTo(1_024L);
+        assertThat(reserved.remainingBytes()).isEqualTo(10_737_417_216L);
 
-        assertThatThrownBy(() -> space.reserve(10_737_418_241L, Instant.parse("2026-05-09T00:03:00Z")))
+        DriveSpace committed = reserved.commitReserved(512L, Instant.parse("2026-05-09T00:02:00Z"));
+        assertThat(committed.usedBytes()).isEqualTo(512L);
+        assertThat(committed.reservedBytes()).isEqualTo(512L);
+
+        DriveSpace releasedReservation = committed.releaseReserved(256L, Instant.parse("2026-05-09T00:03:00Z"));
+        assertThat(releasedReservation.usedBytes()).isEqualTo(512L);
+        assertThat(releasedReservation.reservedBytes()).isEqualTo(256L);
+
+        DriveSpace releasedUsedBytes = releasedReservation.release(128L, Instant.parse("2026-05-09T00:04:00Z"));
+        assertThat(releasedUsedBytes.usedBytes()).isEqualTo(384L);
+        assertThat(releasedUsedBytes.reservedBytes()).isEqualTo(256L);
+
+        assertThatThrownBy(() -> space.reserve(10_737_418_241L, Instant.parse("2026-05-09T00:05:00Z")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("drive quota exceeded");
+        assertThatThrownBy(() -> space.commitReserved(1L, Instant.parse("2026-05-09T00:06:00Z")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("drive quota reservation insufficient");
     }
 
     private static UUID uuid(long suffix) {

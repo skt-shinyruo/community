@@ -20,6 +20,14 @@ public interface DriveSpaceMapper {
                 @Param("bytes") long bytes,
                 @Param("updatedAt") Instant updatedAt);
 
+    int commitReserved(@Param("spaceId") UUID spaceId,
+                       @Param("bytes") long bytes,
+                       @Param("updatedAt") Instant updatedAt);
+
+    int releaseReserved(@Param("spaceId") UUID spaceId,
+                        @Param("bytes") long bytes,
+                        @Param("updatedAt") Instant updatedAt);
+
     int insert(DriveSpaceDataObject space);
 
     int update(DriveSpaceDataObject space);

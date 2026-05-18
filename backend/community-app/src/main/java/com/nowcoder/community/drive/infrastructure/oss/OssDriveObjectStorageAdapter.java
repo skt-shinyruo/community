@@ -61,6 +61,24 @@ public class OssDriveObjectStorageAdapter implements DriveObjectStoragePort {
     }
 
     @Override
+    public ObjectMetadata getMetadata(java.util.UUID objectId) {
+        OssMetadataResponse response = ossClient.getMetadata(objectId);
+        if (response == null || response.objectId() == null) {
+            return null;
+        }
+        return new ObjectMetadata(
+                response.objectId(),
+                response.currentVersionId(),
+                response.status(),
+                response.fileName(),
+                response.contentType(),
+                response.contentLength(),
+                response.checksumSha256(),
+                response.publicUrl()
+        );
+    }
+
+    @Override
     public SignedDownloadUrl createDownloadUrl(java.util.UUID objectId, long ttlSeconds) {
         OssSignedUrlResponse response = ossClient.createSignedDownloadUrl(objectId, ttlSeconds);
         if (response == null || response.url() == null || response.url().isBlank()) {

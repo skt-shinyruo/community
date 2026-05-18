@@ -6,7 +6,7 @@
 <mapper namespace="com.nowcoder.community.drive.infrastructure.persistence.mapper.DriveSpaceMapper">
 
     <sql id="fields">
-        space_id, user_id, quota_bytes, used_bytes, created_at, updated_at
+        space_id, user_id, quota_bytes, used_bytes, reserved_bytes, created_at, updated_at
     </sql>
 
     <select id="selectByUserId" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveSpaceDataObject">
@@ -22,12 +22,13 @@
     </select>
 
     <insert id="insert" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveSpaceDataObject">
-        insert into drive_space(space_id, user_id, quota_bytes, used_bytes, created_at, updated_at)
+        insert into drive_space(space_id, user_id, quota_bytes, used_bytes, reserved_bytes, created_at, updated_at)
         values(
             #{spaceId, jdbcType=BINARY},
             #{userId, jdbcType=BINARY},
             #{quotaBytes},
             #{usedBytes},
+            #{reservedBytes},
             #{createdAt},
             #{updatedAt}
         )
@@ -35,16 +36,34 @@
 
     <update id="reserve">
         update drive_space
-        set used_bytes = used_bytes + #{bytes},
+        set reserved_bytes = reserved_bytes + #{bytes},
             updated_at = #{updatedAt}
         where space_id = #{spaceId, jdbcType=BINARY}
+          and used_bytes + reserved_bytes + #{bytes} &lt;= quota_bytes
+    </update>
+
+    <update id="commitReserved">
+        update drive_space
+        set used_bytes = used_bytes + #{bytes},
+            reserved_bytes = reserved_bytes - #{bytes},
+            updated_at = #{updatedAt}
+        where space_id = #{spaceId, jdbcType=BINARY}
+          and reserved_bytes &gt;= #{bytes}
           and used_bytes + #{bytes} &lt;= quota_bytes
+    </update>
+
+    <update id="releaseReserved">
+        update drive_space
+        set reserved_bytes = greatest(0, reserved_bytes - #{bytes}),
+            updated_at = #{updatedAt}
+        where space_id = #{spaceId, jdbcType=BINARY}
     </update>
 
     <update id="update" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveSpaceDataObject">
         update drive_space
         set quota_bytes = #{quotaBytes},
             used_bytes = #{usedBytes},
+            reserved_bytes = #{reservedBytes},
             updated_at = #{updatedAt}
         where space_id = #{spaceId, jdbcType=BINARY}
     </update>

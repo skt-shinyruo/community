@@ -35,6 +35,16 @@ public class MyBatisDriveSpaceRepository implements DriveSpaceRepository {
     }
 
     @Override
+    public boolean commitReserved(UUID spaceId, long bytes, Instant updatedAt) {
+        return mapper.commitReserved(spaceId, bytes, updatedAt) == 1;
+    }
+
+    @Override
+    public boolean releaseReserved(UUID spaceId, long bytes, Instant updatedAt) {
+        return mapper.releaseReserved(spaceId, bytes, updatedAt) == 1;
+    }
+
+    @Override
     public void save(DriveSpace space) {
         DriveSpaceDataObject dataObject = DriveSpaceDataObject.fromDomain(space);
         if (mapper.update(dataObject) == 0) {

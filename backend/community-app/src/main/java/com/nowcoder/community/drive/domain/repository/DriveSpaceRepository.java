@@ -14,5 +14,9 @@ public interface DriveSpaceRepository {
 
     boolean reserve(UUID spaceId, long bytes, Instant updatedAt);
 
+    boolean commitReserved(UUID spaceId, long bytes, Instant updatedAt);
+
+    boolean releaseReserved(UUID spaceId, long bytes, Instant updatedAt);
+
     void save(DriveSpace space);
 }

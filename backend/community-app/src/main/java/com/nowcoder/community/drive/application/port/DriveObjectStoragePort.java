@@ -11,6 +11,8 @@ public interface DriveObjectStoragePort {
 
     StoredObject completeUpload(CompleteObject command);
 
+    ObjectMetadata getMetadata(UUID objectId);
+
     SignedDownloadUrl createDownloadUrl(UUID objectId, long ttlSeconds);
 
     void deleteObject(UUID objectId, String actorId);
@@ -46,6 +48,18 @@ public interface DriveObjectStoragePort {
     }
 
     record StoredObject(UUID objectId, UUID versionId, String publicUrl) {
+    }
+
+    record ObjectMetadata(
+            UUID objectId,
+            UUID currentVersionId,
+            String status,
+            String fileName,
+            String contentType,
+            long contentLength,
+            String checksumSha256,
+            String publicUrl
+    ) {
     }
 
     record SignedDownloadUrl(String url, Instant expiresAt) {

@@ -11,6 +11,7 @@ public class DriveSpaceDataObject {
     private UUID userId;
     private long quotaBytes;
     private long usedBytes;
+    private long reservedBytes;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -20,13 +21,14 @@ public class DriveSpaceDataObject {
         dataObject.setUserId(space.userId());
         dataObject.setQuotaBytes(space.quotaBytes());
         dataObject.setUsedBytes(space.usedBytes());
+        dataObject.setReservedBytes(space.reservedBytes());
         dataObject.setCreatedAt(space.createdAt());
         dataObject.setUpdatedAt(space.updatedAt());
         return dataObject;
     }
 
     public DriveSpace toDomain() {
-        return new DriveSpace(spaceId, userId, quotaBytes, usedBytes, createdAt, updatedAt);
+        return new DriveSpace(spaceId, userId, quotaBytes, usedBytes, reservedBytes, createdAt, updatedAt);
     }
 
     public UUID getSpaceId() {
@@ -59,6 +61,14 @@ public class DriveSpaceDataObject {
 
     public void setUsedBytes(long usedBytes) {
         this.usedBytes = usedBytes;
+    }
+
+    public long getReservedBytes() {
+        return reservedBytes;
+    }
+
+    public void setReservedBytes(long reservedBytes) {
+        this.reservedBytes = reservedBytes;
     }
 
     public Instant getCreatedAt() {

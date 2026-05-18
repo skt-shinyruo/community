@@ -22,8 +22,10 @@ class DriveSchemaResourceTest {
                 "create table if not exists drive_upload",
                 "create table if not exists drive_share",
                 "create table if not exists drive_share_access",
+                "reserved_bytes bigint not null default 0",
                 "unique key uk_drive_space_user",
                 "unique key uk_drive_entry_active_name",
+                "key idx_drive_upload_recovery",
                 "unique key uk_drive_share_token"
         );
     }

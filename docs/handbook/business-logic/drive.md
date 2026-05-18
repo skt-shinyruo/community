@@ -43,8 +43,8 @@ Front-end：
 
 网盘的数据流围绕“空间 quota、条目树和 OSS 对象”展开：
 
-1. 空间：用户进入网盘时先读 `drive_space`。空间不存在则创建默认配额，后续上传、删除和恢复都通过 space 的 used/quota 变化收敛。
-2. 上传：`DriveUploadApplicationService.prepareUpload(...)` 先校验父目录、文件名、大小和剩余空间，再通过 OSS prepare upload 创建对象会话。`completeUpload(...)` 成功后把 OSS object/version 绑定到 `drive_upload`，再落成新的 file entry。
+1. 空间：用户进入网盘时先读 `drive_space`。空间不存在则创建默认配额，后续上传、删除和恢复都通过 space 的 used/reserved/quota 变化收敛。
+2. 上传：`DriveUploadApplicationService.prepareUpload(...)` 先校验父目录、文件名、大小和剩余空间，再通过 OSS prepare upload 创建对象会话。`completeUpload(...)` 先用短事务 claim 上传并预留容量，事务外完成 OSS，再把 OSS object/version 落成新的 file entry。
 3. 目录树：`DriveEntryApplicationService` 负责 create folder、rename、move 和 search。所有条目状态都围绕 `ACTIVE/TRASHED/DELETED` 转换，不直接修改 OSS blob。
 4. 回收站：`DriveTrashApplicationService` 先把条目标记为 trashed，恢复时按 trashRootId 恢复整棵子树，彻底删除时先收敛数据库和 quota，再调用 OSS 清理 blob。
 5. 分享：`DriveShareApplicationService` 创建分享 token 和提取码 hash，校验成功后发放短时 ticket，再由 OSS 签发 download URL。访问日志写 `drive_share_access`，分享是否可下载以 drive 的条目和 share 状态为准。
@@ -76,10 +76,12 @@ Front-end：
 3. drive 保存 `drive_upload`，owner context 是 `community-app / drive / drive-upload / <uploadId>`。
 4. 返回通用上传指令：`POST /api/drive/uploads/{uploadId}/complete`，multipart field 为 `file`，并要求带回 `fileKey`。
 5. `completeUpload(...)` 校验上传会话属于当前用户；已完成会话幂等返回已生成的 entry。
-6. 过期会话会被标记完成到一个占位 entryId，并返回上传会话不可用；该标记使用新事务保存，避免随异常回滚。
-7. 完成时再次校验文件大小、父目录、重名和剩余空间。
-8. drive 先 reserve quota，再通过 OSS complete 写 blob 和激活版本。
-9. OSS complete 成功后创建 `DriveEntry` file，并把 upload 标记为 completed。
+6. 过期会话会被标记为失效并返回上传会话不可用；该标记使用新事务保存，避免随异常回滚。
+7. 完成时再次校验文件大小、父目录、重名和剩余空间；claim 成功后状态从 `PREPARED` 变成 `COMPLETING`，并把容量写入 `reserved_bytes`，避免并发请求重复打 OSS 或超卖配额。
+8. drive 在事务外通过 OSS complete 写 blob 和激活版本；OSS 成功后先把 upload 标记为 `OBJECT_COMPLETED`，再在短事务里创建 `DriveEntry` file、把 `reserved_bytes` 转入 `used_bytes`，最后标记 `COMPLETED`。
+9. 如果 OSS 已成功但 entry/quota/upload finalization 失败，upload 会停在 `OBJECT_COMPLETED`，用户暂时看不到文件，`used_bytes` 不增加，后续重试或 recovery 会用同一个 entryId 补完，不会再次 complete OSS。
+10. 如果 OSS complete 返回失败但 OSS 元数据已显示对象 active，upload 也会进入 `OBJECT_COMPLETED` 等待补偿；如果元数据无法确认，则保持 `COMPLETING`，由 recovery 后续判断。
+11. `DriveUploadRecoveryJob` 定期扫描 stale `COMPLETING/OBJECT_COMPLETED`：可确认 OSS active 的会补写 entry 和 used quota；确认未完成的会标记 failed 并释放 reserved quota；无法确认的留到下一轮。
 
 回收站：
 
@@ -109,14 +111,16 @@ Front-end：
 - 分享密码错误、分享过期、分享撤销：只返回统一失败，不暴露内部对象细节。
 - 上传会话过期或重复完成：返回幂等或失效语义。
 - OSS 不可用：上传、下载链接签发和生命周期动作会返回网盘存储不可用。
+- 上传完成链路不依赖 MQ；MQ/outbox 只适合作为补偿触发源。当前实现使用 DB 状态机和定时 recovery 兜底，避免主链路等待消息投递。
+- OSS 成功但 DB finalization 失败：`drive_upload` 保持 recoverable，`reserved_bytes` 保留容量占位，`used_bytes` 不增加，避免用户可见配额和 entry 不一致。
 - 彻底删除时数据库状态和 quota 先收敛；OSS 删除失败后依靠重复 delete 重试 blob 清理。
 - share verify 使用 `noRollbackFor=BusinessException`，因此失败访问记录会保留。
 
 ## State
 
-- `drive_space`：每个用户一个空间，记录 quota、used 和更新时间。
+- `drive_space`：每个用户一个空间，记录 quota、used、reserved 和更新时间；`reserved` 是上传完成中的容量占位，`used` 只代表已经生成 drive entry 的真实占用。
 - `drive_entry`：目录树节点，`type=FOLDER|FILE`，`status=ACTIVE|TRASHED|DELETED`。
-- `drive_upload`：上传会话，保存 OSS object/version/session、文件元数据、创建人、过期时间和 completed entry。
+- `drive_upload`：上传会话，保存 OSS object/version/session、文件元数据、创建人、过期时间和 completed entry；状态包括 `PREPARED`、`COMPLETING`、`OBJECT_COMPLETED`、`COMPLETED`、`FAILED`、`EXPIRED`。
 - `drive_share`：分享 token、entry、提取码 hash、过期时间、状态和创建人。
 - `drive_share_access`：分享校验访问日志，记录 visitor fingerprint 和 success。
 

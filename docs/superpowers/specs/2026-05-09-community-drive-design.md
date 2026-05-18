@@ -117,6 +117,7 @@ One logical drive per user.
 - `user_id binary(16)` unique, not null
 - `quota_bytes bigint` not null, default `10737418240`
 - `used_bytes bigint` not null, default `0`
+- `reserved_bytes bigint` not null, default `0`
 - `created_at timestamp`
 - `updated_at timestamp`
 
@@ -125,6 +126,7 @@ Rules:
 - Create lazily on first authenticated drive access.
 - Default quota is exactly 10 GiB, or `10 * 1024 * 1024 * 1024` bytes.
 - `used_bytes` counts active and trashed files until permanent deletion.
+- `reserved_bytes` holds in-progress upload completion reservations; available quota is `quota_bytes - used_bytes - reserved_bytes`.
 
 ### `drive_entry`
 
@@ -165,7 +167,7 @@ Tracks an in-flight upload and makes completion idempotent.
 - `object_id binary(16)` not null
 - `version_id binary(16)` not null
 - `oss_session_id binary(16)` not null
-- `status varchar(16)` with `PREPARED`, `COMPLETED`, or `EXPIRED`
+- `status varchar(16)` with `PREPARED`, `COMPLETING`, `OBJECT_COMPLETED`, `COMPLETED`, `FAILED`, or `EXPIRED`
 - `created_by binary(16)` not null
 - `created_at timestamp`
 - `expires_at timestamp` not null
@@ -174,8 +176,9 @@ Tracks an in-flight upload and makes completion idempotent.
 Rules:
 
 - Prepare upload validates parent folder and quota before asking OSS for a session.
-- Complete upload creates exactly one file entry and increments quota usage exactly once.
+- Complete upload claims capacity into `reserved_bytes`, completes OSS outside the DB transaction, then creates exactly one file entry and moves the reservation into `used_bytes`.
 - Repeated completion for the same `upload_id` returns the original result.
+- If OSS succeeds but local finalization fails, retry or recovery finalizes from `OBJECT_COMPLETED` without re-uploading the object.
 
 ### `drive_share`
 
@@ -278,7 +281,10 @@ API response models should be drive-specific result DTOs at the application boun
 4. Application saves `drive_upload` with OSS object/session identifiers.
 5. Frontend executes the returned upload instruction.
 6. Frontend calls drive complete.
-7. Application completes idempotently, creates `drive_entry` type `FILE`, and increments `used_bytes`.
+7. Application atomically claims completion, writes the upload size into `reserved_bytes`, and changes the upload to `COMPLETING`.
+8. Application completes OSS outside the DB transaction.
+9. Application records `OBJECT_COMPLETED`, creates `drive_entry` type `FILE`, moves the reservation into `used_bytes`, and marks the upload `COMPLETED`.
+10. A recovery job scans stale `COMPLETING/OBJECT_COMPLETED` rows and either finalizes confirmed OSS objects or releases reservations for confirmed failed uploads.
 
 ### Download
 
@@ -354,7 +360,7 @@ Use business errors with stable meanings:
 - upload already completed
 - OSS session failed
 
-OSS prepare or complete failures must not create a drive file entry or increment quota. Permanent deletion should release drive quota only after the drive state transition succeeds; OSS lifecycle deletion can be retried by infrastructure job if the synchronous call fails after the drive record is already marked deleted.
+OSS prepare failures must not create a drive file entry or increment quota. OSS complete uncertainty keeps the upload recoverable instead of deleting the reservation eagerly; `used_bytes` only changes when the drive entry is committed. Permanent deletion should release drive quota only after the drive state transition succeeds; OSS lifecycle deletion can be retried by infrastructure job if the synchronous call fails after the drive record is already marked deleted.
 
 ## Testing Strategy
 

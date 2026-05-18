@@ -16,6 +16,15 @@
         where upload_id = #{uploadId, jdbcType=BINARY}
     </select>
 
+    <select id="selectRecoverableBefore" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveUploadDataObject">
+        select <include refid="fields"/>
+        from drive_upload
+        where status in ('COMPLETING', 'OBJECT_COMPLETED')
+          and updated_at &lt; #{updatedBefore}
+        order by updated_at asc, upload_id asc
+        limit #{limit}
+    </select>
+
     <insert id="insert" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveUploadDataObject">
         insert into drive_upload(
             upload_id, space_id, parent_id, name, size_bytes, mime_type, object_id, version_id,
@@ -49,6 +58,17 @@
             completed_entry_id = #{completedEntryId, jdbcType=BINARY}
         where upload_id = #{uploadId, jdbcType=BINARY}
           and space_id = #{spaceId, jdbcType=BINARY}
+    </update>
+
+    <update id="updateStatusIfCurrent">
+        update drive_upload
+        set status = #{upload.status},
+            updated_at = #{upload.updatedAt},
+            completed_at = #{upload.completedAt},
+            completed_entry_id = #{upload.completedEntryId, jdbcType=BINARY}
+        where upload_id = #{upload.uploadId, jdbcType=BINARY}
+          and space_id = #{upload.spaceId, jdbcType=BINARY}
+          and status = #{expectedStatus}
     </update>
 
 </mapper>

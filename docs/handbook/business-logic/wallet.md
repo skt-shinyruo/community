@@ -13,6 +13,7 @@
 HTTP：
 
 - `GET /api/wallet/summary`
+- `GET /api/wallet/transactions`
 - `POST /api/wallet/recharges`
 - `POST /api/wallet/withdrawals`
 - `POST /api/wallet/transfers`
@@ -73,6 +74,20 @@ owner API：
 11. 标记交易 `SUCCEEDED`。
 
 总账 requestId 必须全局唯一，代表资金事实幂等键。
+
+## 最近流水
+
+HTTP `GET /api/wallet/transactions` 返回当前登录用户钱包账户的最近流水。
+
+读取路径：
+
+1. `WalletController` 只提取当前登录用户和 `limit`。
+2. `WalletApplicationService.recentTransactions(...)` 归一化 `limit`，默认 `12`，范围 `1..50`。
+3. `WalletAccountApplicationService.findUserWallet(...)` 只读查询用户钱包账户；没有账户时返回空列表，不创建账户。
+4. `WalletLedgerApplicationService.recentTransactions(...)` 从用户钱包账户对应的 `wallet_entry` 读取分录，并关联 `wallet_txn`。
+5. 返回金额按当前用户账户视角计算：`USER_WALLET` 的 normal direction 是 `CREDIT`，所以 `CREDIT` 为正，`DEBIT` 为负。
+
+钱包查询接口不得使用 `ensureUserWallet(...)` 或 `loadUserWallet(...)` 作为读路径入口，避免 GET 请求产生账户创建副作用。
 
 ## 充值
 

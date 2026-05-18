@@ -13,17 +13,14 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 class MarketWalletActionApplicationServiceTest {
 
     @Test
     void enqueueEscrowShouldUseOrderIdBasedRequestId() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
-        UuidV7Generator idGenerator = mock(UuidV7Generator.class);
-        UUID actionId = uuid(1);
+        UuidV7Generator idGenerator = new UuidV7Generator();
         UUID orderId = uuid(2);
-        when(idGenerator.next()).thenReturn(actionId);
 
         MarketWalletActionApplicationService service = new MarketWalletActionApplicationService(
                 new MyBatisMarketWalletActionRepository(mapper),
@@ -33,7 +30,8 @@ class MarketWalletActionApplicationServiceTest {
 
         ArgumentCaptor<MarketWalletActionDataObject> captor = ArgumentCaptor.forClass(MarketWalletActionDataObject.class);
         verify(mapper).insert(captor.capture());
-        assertThat(captor.getValue().getActionId()).isEqualTo(actionId);
+        assertThat(captor.getValue().getActionId()).isNotNull();
+        assertThat(captor.getValue().getActionId().version()).isEqualTo(7);
         assertThat(captor.getValue().getOrderId()).isEqualTo(orderId);
         assertThat(captor.getValue().getRequestId()).isEqualTo("market-order:" + orderId + ":escrow");
         assertThat(captor.getValue().getWalletBizId()).isEqualTo("market-order:" + orderId);

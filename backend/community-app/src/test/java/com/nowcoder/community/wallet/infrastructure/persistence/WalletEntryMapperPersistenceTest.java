@@ -17,6 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
 import java.util.UUID;
+import java.sql.Timestamp;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,7 +56,7 @@ class WalletEntryMapperPersistenceTest {
 
         insertUserAccount(senderAccountId, senderUserId, 700L);
         insertUserAccount(receiverAccountId, receiverUserId, 300L);
-        insertTxn(txnId, "wallet:transfer:plan-test", "TRANSFER", 300L);
+        insertTxn(txnId, "wallet:transfer:plan-test", "TRANSFER", 300L, "transfer remark");
         insertEntry(senderEntryId, txnId, senderAccountId, "DEBIT", 300L, 700L, "2026-05-18 10:00:00");
         insertEntry(receiverEntryId, txnId, receiverAccountId, "CREDIT", 300L, 300L, "2026-05-18 10:00:00");
 
@@ -74,6 +75,9 @@ class WalletEntryMapperPersistenceTest {
         assertThat(row.getBizType()).isEqualTo("TRANSFER");
         assertThat(row.getBizId()).isEqualTo("wallet:transfer:plan-test");
         assertThat(row.getStatus()).isEqualTo("SUCCEEDED");
+        assertThat(row.getRemark()).isEqualTo("transfer remark");
+        assertThat(row.getEntryCreateTime()).isNotNull();
+        assertThat(row.getEntryCreateTime().getTime()).isEqualTo(Timestamp.valueOf("2026-05-18 10:00:00").getTime());
         assertThat(row.getCounterpartUserId()).isEqualTo(receiverUserId);
     }
 
@@ -89,9 +93,9 @@ class WalletEntryMapperPersistenceTest {
 
         insertUserAccount(accountId, userId, 300L);
         insertUserAccount(otherAccountId, otherUserId, 900L);
-        insertTxn(oldTxnId, "wallet:reward:old", "REWARD_ISSUE", 100L);
-        insertTxn(newTxnId, "wallet:reward:new", "REWARD_ISSUE", 200L);
-        insertTxn(otherTxnId, "wallet:reward:other", "REWARD_ISSUE", 900L);
+        insertTxn(oldTxnId, "wallet:reward:old", "REWARD_ISSUE", 100L, null);
+        insertTxn(newTxnId, "wallet:reward:new", "REWARD_ISSUE", 200L, null);
+        insertTxn(otherTxnId, "wallet:reward:other", "REWARD_ISSUE", 900L, null);
         insertEntry(UUID.fromString("00000000-0000-7000-8000-000000000716"), oldTxnId, accountId, "CREDIT", 100L, 100L, "2026-05-18 09:00:00");
         insertEntry(UUID.fromString("00000000-0000-7000-8000-000000000717"), newTxnId, accountId, "CREDIT", 200L, 300L, "2026-05-18 11:00:00");
         insertEntry(UUID.fromString("00000000-0000-7000-8000-000000000718"), otherTxnId, otherAccountId, "CREDIT", 900L, 900L, "2026-05-18 12:00:00");
@@ -112,15 +116,16 @@ class WalletEntryMapperPersistenceTest {
         );
     }
 
-    private void insertTxn(UUID txnId, String requestId, String txnType, long amount) {
+    private void insertTxn(UUID txnId, String requestId, String txnType, long amount, String remark) {
         jdbcTemplate.update(
-                "insert into wallet_txn(txn_id, request_id, txn_type, biz_type, biz_id, status, amount, remark, create_time, update_time) values (?, ?, ?, ?, ?, 'SUCCEEDED', ?, null, current_timestamp, current_timestamp)",
+                "insert into wallet_txn(txn_id, request_id, txn_type, biz_type, biz_id, status, amount, remark, create_time, update_time) values (?, ?, ?, ?, ?, 'SUCCEEDED', ?, ?, current_timestamp, current_timestamp)",
                 BinaryUuidCodec.toBytes(txnId),
                 requestId,
                 txnType,
                 txnType,
                 requestId,
-                amount
+                amount,
+                remark
         );
     }
 

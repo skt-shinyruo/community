@@ -17,6 +17,7 @@ SCHEMA_FILES=(
   060_schema_notice.sql
   070_schema_im_core.sql
   080_schema_search.sql
+  090_schema_drive.sql
   090_seed_identity.sql
 )
 

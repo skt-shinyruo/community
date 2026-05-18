@@ -7,6 +7,7 @@ import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -17,16 +18,21 @@ public class MarketWalletActionRecoveryHandler {
     private static final Logger log = LoggerFactory.getLogger(MarketWalletActionRecoveryHandler.class);
 
     private final MarketWalletActionRecoveryApplicationService recoveryService;
+    private final int recoveryBatchSize;
 
-    public MarketWalletActionRecoveryHandler(MarketWalletActionRecoveryApplicationService recoveryService) {
+    public MarketWalletActionRecoveryHandler(
+            MarketWalletActionRecoveryApplicationService recoveryService,
+            @Value("${market.wallet-action.recovery-batch-size:100}") int recoveryBatchSize
+    ) {
         this.recoveryService = recoveryService;
+        this.recoveryBatchSize = Math.max(1, recoveryBatchSize);
     }
 
     @XxlJob(JOB_NAME)
     public void recover() {
         TraceJobRunner.run(JOB_NAME, () -> {
             try {
-                MarketWalletActionRecoveryResult result = recoveryService.reconcileOnce(100);
+                MarketWalletActionRecoveryResult result = recoveryService.reconcileOnce(recoveryBatchSize);
                 String message = "[market-wallet-action] recoveredLeases=" + result.recoveredLeases()
                         + " reconciled=" + result.reconciledCount()
                         + " skipped=" + result.skippedCount();

@@ -61,7 +61,15 @@ class RuntimeConfigControllerTest {
                 false,
                 0.0,
                 "local",
-                Map.of("file-upload", true)
+                Map.of("file-upload", true),
+                new RuntimeConfigResult.UploadPolicy(
+                        "10GB",
+                        "10GB",
+                        java.util.List.of("image/png"),
+                        java.util.List.of("png"),
+                        true,
+                        true
+                )
         ));
 
         mockMvc.perform(get("/api/runtime-config"))
@@ -72,6 +80,12 @@ class RuntimeConfigControllerTest {
                 .andExpect(jsonPath("$.analyticsEnabled").value(false))
                 .andExpect(jsonPath("$.analyticsSampleRate").value(0.0))
                 .andExpect(jsonPath("$.releaseChannel").value("local"))
-                .andExpect(jsonPath("$.features.file-upload").value(true));
+                .andExpect(jsonPath("$.features.file-upload").value(true))
+                .andExpect(jsonPath("$.upload.maxFileSize").value("10GB"))
+                .andExpect(jsonPath("$.upload.maxRequestSize").value("10GB"))
+                .andExpect(jsonPath("$.upload.allowedMimeTypes[0]").value("image/png"))
+                .andExpect(jsonPath("$.upload.allowedExtensions[0]").value("png"))
+                .andExpect(jsonPath("$.upload.avatarUploadEnabled").value(true))
+                .andExpect(jsonPath("$.upload.mediaUploadEnabled").value(true));
     }
 }

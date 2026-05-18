@@ -13,6 +13,13 @@ content:
     refresh:
       enabled: true
       batch-size: 200
+      delay-ms: 30000
+
+market:
+  wallet-action:
+    process-batch-size: 50
+    recovery-batch-size: 100
+    processing-lease: 60s
 
 analytics:
   max-days-range: 31

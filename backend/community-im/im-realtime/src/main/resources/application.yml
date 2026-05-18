@@ -24,14 +24,15 @@ spring:
           protocol: http
           capabilities: ${SERVICE_CAPABILITIES:}
           management.port: ${MANAGEMENT_SERVER_PORT:${SERVER_PORT}}
-          draining: ${SERVICE_DRAINING:false}
+          draining: ${im.realtime.worker.drain-enabled:${SERVICE_DRAINING:false}}
           role: ws-worker
           wsPath: ${im.ws.path:/internal/ws/im}
           wsPort: ${SERVER_PORT:18081}
           workerId: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
-          maxConnections: ${IM_REALTIME_MAX_CONNECTIONS:10000}
-          activeConnectionHint: ${IM_REALTIME_ACTIVE_CONNECTION_HINT:0}
-          shardGroup: ${IM_REALTIME_SHARD_GROUP:default}
+          maxConnections: ${im.realtime.worker.max-connections:${IM_REALTIME_MAX_CONNECTIONS:10000}}
+          activeConnectionHint: ${im.realtime.worker.active-connection-hint:${IM_REALTIME_ACTIVE_CONNECTION_HINT:0}}
+          shardGroup: ${im.realtime.worker.shard-group:${IM_REALTIME_SHARD_GROUP:default}}
+          capacityWeight: ${im.realtime.worker.capacity-weight:${SERVICE_WEIGHT:100}}
       config:
         server-addr: ${SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
         namespace: ${NACOS_NAMESPACE:}
@@ -135,6 +136,13 @@ im:
     room-flush-interval-ms: ${IM_ROOM_FLUSH_INTERVAL_MS:100}
   cors:
     allowed-origins: ${IM_CORS_ALLOWED_ORIGINS:}
+  realtime:
+    worker:
+      max-connections: ${IM_REALTIME_MAX_CONNECTIONS:10000}
+      active-connection-hint: ${IM_REALTIME_ACTIVE_CONNECTION_HINT:0}
+      drain-enabled: ${SERVICE_DRAINING:false}
+      shard-group: ${IM_REALTIME_SHARD_GROUP:default}
+      capacity-weight: ${SERVICE_WEIGHT:100}
 
 management:
   endpoints:

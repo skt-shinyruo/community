@@ -136,12 +136,31 @@ class NacosPolicyBindingTest {
 
     @Test
     void bindsFrontendRuntimeSeedDataId() throws Exception {
-        RuntimeConfigProperties runtime = Binder.get(environmentFrom("community-frontend-runtime.yaml"))
+        StandardEnvironment environment = environmentFrom("community-frontend-runtime.yaml");
+        RuntimeConfigProperties runtime = Binder.get(environment)
                 .bind("frontend.runtime", RuntimeConfigProperties.class)
                 .orElseThrow(IllegalStateException::new);
 
         assertThat(runtime.getApiBasePath()).isEqualTo("/api");
         assertThat(runtime.getFeatures()).containsEntry("file-upload", true);
+        assertThat(environment.getProperty("frontend.runtime.upload.max-file-size")).isEqualTo("10GB");
+        assertThat(environment.getProperty("frontend.runtime.upload.max-request-size")).isEqualTo("10GB");
+        assertThat(environment.getProperty("frontend.runtime.upload.allowed-mime-types[0]")).isEqualTo("image/jpeg");
+        assertThat(environment.getProperty("frontend.runtime.upload.allowed-extensions[0]")).isEqualTo("jpg");
+        assertThat(environment.getProperty("frontend.runtime.upload.avatar-upload-enabled", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("frontend.runtime.upload.media-upload-enabled", Boolean.class)).isTrue();
+    }
+
+    @Test
+    void bindsWorkProcessingSeedDataId() throws Exception {
+        StandardEnvironment environment = environmentFrom("community-work-processing.yaml");
+
+        assertThat(environment.getProperty("content.score.refresh.enabled", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("content.score.refresh.batch-size", Integer.class)).isEqualTo(200);
+        assertThat(environment.getProperty("content.score.refresh.delay-ms", Long.class)).isEqualTo(30_000L);
+        assertThat(environment.getProperty("market.wallet-action.process-batch-size", Integer.class)).isEqualTo(50);
+        assertThat(environment.getProperty("market.wallet-action.recovery-batch-size", Integer.class)).isEqualTo(100);
+        assertThat(environment.getProperty("market.wallet-action.processing-lease")).isEqualTo("60s");
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

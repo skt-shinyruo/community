@@ -10,9 +10,11 @@ import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import com.nowcoder.community.wallet.api.model.WalletErrorCodes;
 import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
@@ -22,7 +24,7 @@ import java.util.Set;
 @Service
 public class MarketWalletActionProcessorApplicationService {
 
-    private static final int PROCESSING_LEASE_SECONDS = 60;
+    private static final Duration DEFAULT_PROCESSING_LEASE = Duration.ofSeconds(60);
     private static final int MAX_LAST_ERROR_LENGTH = 255;
     private static final Set<Integer> RECOVERABLE_RELEASE_REFUND_WALLET_ERROR_CODES = Set.of(
             WalletErrorCodes.ACCOUNT_UPDATE_CONFLICT,
@@ -34,13 +36,15 @@ public class MarketWalletActionProcessorApplicationService {
     private final MarketOrderSagaApplicationService sagaService;
     private final MarketWalletActionApplicationService actionService;
     private final Clock clock;
+    private final Duration processingLease;
 
     @Autowired
     public MarketWalletActionProcessorApplicationService(MarketWalletActionRepository walletActionRepository,
                                        WalletMarketActionApi walletApi,
                                        MarketOrderSagaApplicationService sagaService,
-                                       MarketWalletActionApplicationService actionService) {
-        this(walletActionRepository, walletApi, sagaService, actionService, Clock.systemUTC());
+                                       MarketWalletActionApplicationService actionService,
+                                       @Value("${market.wallet-action.processing-lease:60s}") Duration processingLease) {
+        this(walletActionRepository, walletApi, sagaService, actionService, Clock.systemUTC(), processingLease);
     }
 
     MarketWalletActionProcessorApplicationService(MarketWalletActionRepository walletActionRepository,
@@ -48,11 +52,21 @@ public class MarketWalletActionProcessorApplicationService {
                                 MarketOrderSagaApplicationService sagaService,
                                 MarketWalletActionApplicationService actionService,
                                 Clock clock) {
+        this(walletActionRepository, walletApi, sagaService, actionService, clock, DEFAULT_PROCESSING_LEASE);
+    }
+
+    MarketWalletActionProcessorApplicationService(MarketWalletActionRepository walletActionRepository,
+                                WalletMarketActionApi walletApi,
+                                MarketOrderSagaApplicationService sagaService,
+                                MarketWalletActionApplicationService actionService,
+                                Clock clock,
+                                Duration processingLease) {
         this.walletActionRepository = walletActionRepository;
         this.walletApi = walletApi;
         this.sagaService = sagaService;
         this.actionService = actionService;
         this.clock = clock;
+        this.processingLease = normalizeProcessingLease(processingLease);
     }
 
     public int processDue(int limit) {
@@ -70,7 +84,7 @@ public class MarketWalletActionProcessorApplicationService {
     }
 
     public boolean processOne(MarketWalletAction action) {
-        Date leaseUntil = Date.from(clock.instant().plus(PROCESSING_LEASE_SECONDS, ChronoUnit.SECONDS));
+        Date leaseUntil = Date.from(clock.instant().plus(processingLease));
         int claimed = walletActionRepository.claimProcessing(action.getActionId(), leaseUntil);
         if (claimed != 1) {
             return false;
@@ -81,6 +95,12 @@ public class MarketWalletActionProcessorApplicationService {
         } catch (RuntimeException ex) {
             return handleFailure(action, ex);
         }
+    }
+
+    private static Duration normalizeProcessingLease(Duration processingLease) {
+        return processingLease == null || processingLease.isZero() || processingLease.isNegative()
+                ? DEFAULT_PROCESSING_LEASE
+                : processingLease;
     }
 
     private void route(MarketWalletAction action) {

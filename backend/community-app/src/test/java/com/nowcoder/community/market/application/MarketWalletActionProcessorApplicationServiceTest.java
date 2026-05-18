@@ -7,8 +7,13 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Date;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,6 +26,31 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class MarketWalletActionProcessorApplicationServiceTest {
+
+    @Test
+    void processOneShouldUseConfiguredProcessingLease() {
+        MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
+        MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
+        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
+        MarketWalletAction action = escrowAction();
+        Instant now = Instant.parse("2026-05-18T00:00:00Z");
+        when(mapper.claimProcessing(eq(action.getActionId()), any())).thenReturn(0);
+        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+                new MyBatisMarketWalletActionRepository(mapper),
+                walletApi,
+                sagaService,
+                actionService,
+                Clock.fixed(now, ZoneOffset.UTC),
+                Duration.ofSeconds(120)
+        );
+
+        processor.processOne(action);
+
+        ArgumentCaptor<Date> leaseCaptor = ArgumentCaptor.forClass(Date.class);
+        verify(mapper).claimProcessing(eq(action.getActionId()), leaseCaptor.capture());
+        assertThat(leaseCaptor.getValue().toInstant()).isEqualTo(now.plusSeconds(120));
+    }
 
     @Test
     void processOneShouldNoopEscrowWhenSagaRejectsForwardAction() {

@@ -3,6 +3,12 @@ spring:
     nacos:
       discovery:
         service: im-realtime-worker
+        metadata:
+          draining: ${im.realtime.worker.drain-enabled:false}
+          maxConnections: ${im.realtime.worker.max-connections:10000}
+          activeConnectionHint: ${im.realtime.worker.active-connection-hint:0}
+          shardGroup: ${im.realtime.worker.shard-group:default}
+          capacityWeight: ${im.realtime.worker.capacity-weight:100}
   kafka:
     consumer:
       group-id: im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
@@ -51,6 +57,7 @@ im:
   realtime:
     worker:
       max-connections: 10000
+      active-connection-hint: 0
       drain-enabled: false
       shard-group: default
       capacity-weight: 100

@@ -37,6 +37,11 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.getProperty("im.ws.max-inbound-chars", Integer.class)).isEqualTo(10000);
         assertThat(environment.getProperty("im.ws.room-flush-interval-ms", Integer.class)).isEqualTo(50);
         assertThat(environment.getProperty("im.cors.allowed-origins[2]")).isEqualTo("http://localhost:12881");
+        assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.draining", Boolean.class)).isFalse();
+        assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.maxConnections", Integer.class)).isEqualTo(10000);
+        assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.activeConnectionHint", Integer.class)).isZero();
+        assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.shardGroup")).isEqualTo("default");
+        assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.capacityWeight", Integer.class)).isEqualTo(100);
         assertThat(rawProperty(environment, "im-realtime.yaml", "spring.kafka.consumer.group-id"))
                 .isEqualTo("im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}");
         assertThat(environment.getProperty("spring.kafka.consumer.group-id")).startsWith("im-realtime-");

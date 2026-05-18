@@ -1,5 +1,6 @@
 package com.nowcoder.community.runtime.application.result;
 
+import java.util.List;
 import java.util.Map;
 
 public record RuntimeConfigResult(
@@ -9,6 +10,17 @@ public record RuntimeConfigResult(
         boolean analyticsEnabled,
         double analyticsSampleRate,
         String releaseChannel,
-        Map<String, Boolean> features
+        Map<String, Boolean> features,
+        UploadPolicy upload
 ) {
+
+    public record UploadPolicy(
+            String maxFileSize,
+            String maxRequestSize,
+            List<String> allowedMimeTypes,
+            List<String> allowedExtensions,
+            boolean avatarUploadEnabled,
+            boolean mediaUploadEnabled
+    ) {
+    }
 }

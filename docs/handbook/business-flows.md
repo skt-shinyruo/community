@@ -996,8 +996,8 @@ Task details：
 - `RefreshTokenCleanupJob` 是本地 `@Scheduled` 清理，受 `auth.refresh.cleanup.interval-ms` 和 `auth.refresh.cleanup.enabled` 控制，调用 refresh token application 删除过期 session。
 - `PostScoreRefresher` 是本地 `@Scheduled`，受 `content.score.refresh.enabled`、`content.score.refresh.delay-ms` 和 `content.score.refresh.batch-size` 控制，batch size 被限制在 1 到 2000。
 - `MarketOrderAutoConfirmHandler` 是 XXL `marketOrderAutoConfirm`，进入 market owner 自动确认 due orders，只写 release command。
-- `MarketWalletActionProcessorHandler` 是 XXL `marketWalletActionProcessor`，每轮处理最多 50 条 due market wallet action。
-- `MarketWalletActionRecoveryHandler` 是 XXL `marketWalletActionRecovery`，每轮 reconcile 最多 100 条，恢复过期 lease、补齐命令和应用已有 wallet 结果。
+- `MarketWalletActionProcessorHandler` 是 XXL `marketWalletActionProcessor`，每轮处理数量受 `market.wallet-action.process-batch-size` 控制。
+- `MarketWalletActionRecoveryHandler` 是 XXL `marketWalletActionRecovery`，每轮 reconcile 数量受 `market.wallet-action.recovery-batch-size` 控制；同时恢复过期 lease、补齐命令和应用已有 wallet 结果。
 - `OutboxWorkerScheduler` 是 common-outbox 本地 `@Scheduled` worker，按配置轮询 outbox 表。
 
 Rules：

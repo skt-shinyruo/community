@@ -1,8 +1,5 @@
 package com.nowcoder.community.im.core.domain.repository;
 
-import com.nowcoder.community.im.core.domain.model.ConversationListItem;
-
-import java.util.List;
 import java.util.UUID;
 
 public interface ConversationRepository {
@@ -14,6 +11,4 @@ public interface ConversationRepository {
     long selectLastSeqForUpdate(String conversationId);
 
     void updateLastSeq(String conversationId, long lastSeq);
-
-    List<ConversationListItem> listByUser(UUID userId, int limit, long offset);
 }

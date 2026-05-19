@@ -3,6 +3,7 @@ package com.nowcoder.community.im.core.application;
 import com.nowcoder.community.im.core.domain.repository.ConversationReadStateRepository;
 import com.nowcoder.community.im.core.domain.repository.ConversationRepository;
 import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository;
+import com.nowcoder.community.im.core.domain.repository.UserInboxRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -20,10 +21,10 @@ class ConversationApplicationServicePaginationOverflowTest {
 
     @Test
     void listConversationsShouldNotPassNegativeOffsetWhenPageIsHuge() {
-        ConversationRepository conversationRepository = mock(ConversationRepository.class);
+        UserInboxRepository userInboxRepository = mock(UserInboxRepository.class);
 
         AtomicLong capturedOffset = new AtomicLong(-1L);
-        when(conversationRepository.listByUser(any(UUID.class), anyInt(), anyLong()))
+        when(userInboxRepository.listConversations(any(UUID.class), anyInt(), anyLong()))
                 .thenAnswer(invocation -> {
                     capturedOffset.set(invocation.getArgument(2, Long.class));
                     return List.of();
@@ -32,7 +33,8 @@ class ConversationApplicationServicePaginationOverflowTest {
         ConversationApplicationService applicationService = new ConversationApplicationService(
                 mock(PrivateMessageRepository.class),
                 mock(ConversationReadStateRepository.class),
-                conversationRepository
+                mock(ConversationRepository.class),
+                userInboxRepository
         );
 
         applicationService.listConversations(

@@ -66,6 +66,46 @@ create table if not exists im_conversation_read_state (
   primary key (conversation_id, user_id)
 );
 
+create table if not exists im_user_conversation_inbox (
+  user_id binary(16) not null,
+  conversation_id varchar(80) not null,
+  peer_user_id binary(16) not null,
+  last_seq bigint not null default 0,
+  last_message_id binary(16),
+  last_from_user_id binary(16),
+  last_to_user_id binary(16),
+  last_content text,
+  last_message_created_at timestamp,
+  last_read_seq bigint not null default 0,
+  unread_count bigint not null default 0,
+  sort_at timestamp null default current_timestamp,
+  created_at timestamp null default current_timestamp,
+  updated_at timestamp null default current_timestamp,
+  primary key (user_id, conversation_id)
+);
+
+create index if not exists idx_im_user_conversation_inbox_user_sort
+  on im_user_conversation_inbox(user_id, sort_at, conversation_id);
+
+create table if not exists im_user_room_inbox (
+  user_id binary(16) not null,
+  room_id binary(16) not null,
+  last_seq bigint not null default 0,
+  last_message_id binary(16),
+  last_from_user_id binary(16),
+  last_content text,
+  last_message_created_at timestamp,
+  last_read_seq bigint not null default 0,
+  unread_count bigint not null default 0,
+  sort_at timestamp null default current_timestamp,
+  created_at timestamp null default current_timestamp,
+  updated_at timestamp null default current_timestamp,
+  primary key (user_id, room_id)
+);
+
+create index if not exists idx_im_user_room_inbox_user_sort
+  on im_user_room_inbox(user_id, sort_at, room_id);
+
 create table if not exists outbox_event (
   id binary(16) primary key,
   event_id varchar(64) not null,

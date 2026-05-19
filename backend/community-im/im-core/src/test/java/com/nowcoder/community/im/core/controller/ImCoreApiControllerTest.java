@@ -261,6 +261,118 @@ class ImCoreApiControllerTest {
         assertThat(senderData.path("conversations").get(0).path("unreadCount").asLong()).isEqualTo(0L);
     }
 
+    @Test
+    void conversation_list_should_readUserInboxLastMessageUnreadAndSortByLatestMessage() throws Exception {
+        UUID viewer = uuid(31);
+        UUID olderPeer = uuid(32);
+        UUID newerPeer = uuid(33);
+        String olderConversationId = conversationId(viewer, olderPeer);
+        String newerConversationId = conversationId(viewer, newerPeer);
+
+        privateMessageApplicationService.persist(new SendPrivateTextCommand(
+                "req-list-old",
+                "c-list-old",
+                olderPeer,
+                viewer,
+                olderConversationId,
+                "older",
+                System.currentTimeMillis()
+        ));
+        privateMessageApplicationService.persist(new SendPrivateTextCommand(
+                "req-list-new",
+                "c-list-new",
+                newerPeer,
+                viewer,
+                newerConversationId,
+                "newer",
+                System.currentTimeMillis()
+        ));
+
+        String res = mockMvc.perform(get("/api/im/conversations")
+                        .param("page", "0")
+                        .param("size", "20")
+                        .header("Authorization", bearer(viewer)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode items = objectMapper.readTree(res).path("data");
+        assertThat(items).hasSize(2);
+        assertThat(items.get(0).path("conversationId").asText()).isEqualTo(newerConversationId);
+        assertThat(items.get(0).path("otherUserId").asText()).isEqualTo(newerPeer.toString());
+        assertThat(items.get(0).path("unreadCount").asLong()).isEqualTo(1L);
+        assertThat(items.get(0).path("lastMessage").path("content").asText()).isEqualTo("newer");
+        assertThat(items.get(1).path("conversationId").asText()).isEqualTo(olderConversationId);
+    }
+
+    @Test
+    void markRead_shouldUpdateConversationAndRoomInboxUnreadIdempotently() throws Exception {
+        UUID sender = uuid(41);
+        UUID receiver = uuid(42);
+        String conversationId = conversationId(sender, receiver);
+
+        UUID roomId = roomApplicationService.createRoom(sender, "room").roomId();
+        roomApplicationService.joinRoom(receiver, roomId);
+
+        privateMessageApplicationService.persist(new SendPrivateTextCommand(
+                "req-mark-p1",
+                "c-mark-p1",
+                sender,
+                receiver,
+                conversationId,
+                "hello",
+                System.currentTimeMillis()
+        ));
+        roomMessageApplicationService.persist(new SendRoomTextCommand(
+                "req-mark-r1",
+                "c-mark-r1",
+                sender,
+                roomId,
+                "hi room",
+                System.currentTimeMillis()
+        ));
+
+        mockMvc.perform(post("/api/im/conversations/{id}/read", conversationId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lastReadSeq\":1}")
+                        .header("Authorization", bearer(receiver)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/im/conversations/{id}/read", conversationId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lastReadSeq\":1}")
+                        .header("Authorization", bearer(receiver)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/im/conversations/{id}/read", conversationId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lastReadSeq\":0}")
+                        .header("Authorization", bearer(receiver)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/im/rooms/{roomId}/read", roomId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lastReadSeq\":1}")
+                        .header("Authorization", bearer(receiver)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/im/rooms/{roomId}/read", roomId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lastReadSeq\":0}")
+                        .header("Authorization", bearer(receiver)))
+                .andExpect(status().isOk());
+
+        String receiverRes = mockMvc.perform(get("/api/im/unread/summary")
+                        .header("Authorization", bearer(receiver)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        JsonNode receiverData = objectMapper.readTree(receiverRes).path("data");
+        assertThat(receiverData.path("conversations").get(0).path("lastReadSeq").asLong()).isEqualTo(1L);
+        assertThat(receiverData.path("conversations").get(0).path("unreadCount").asLong()).isZero();
+        assertThat(receiverData.path("rooms").get(0).path("lastReadSeq").asLong()).isEqualTo(1L);
+        assertThat(receiverData.path("rooms").get(0).path("unreadCount").asLong()).isZero();
+    }
+
     private String bearer(UUID userId) throws Exception {
         String token = signHs256(jwtSecret, jwtIssuer, String.valueOf(userId), Instant.now().plusSeconds(120));
         return "Bearer " + token;

@@ -4,6 +4,7 @@ import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.event.ImEventIds;
 import com.nowcoder.community.im.common.event.RoomMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
+import com.nowcoder.community.im.core.domain.repository.UserInboxRepository;
 import com.nowcoder.community.im.core.domain.service.RoomMessageDomainService;
 import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
 import org.springframework.stereotype.Service;
@@ -14,13 +15,16 @@ public class RoomMessageApplicationService {
 
     private final RoomMessageDomainService roomMessageDomainService;
     private final ImMessageOutboxEnqueuer outboxEnqueuer;
+    private final UserInboxRepository userInboxRepository;
 
     public RoomMessageApplicationService(
             RoomMessageDomainService roomMessageDomainService,
-            ImMessageOutboxEnqueuer outboxEnqueuer
+            ImMessageOutboxEnqueuer outboxEnqueuer,
+            UserInboxRepository userInboxRepository
     ) {
         this.roomMessageDomainService = roomMessageDomainService;
         this.outboxEnqueuer = outboxEnqueuer;
+        this.userInboxRepository = userInboxRepository;
     }
 
     @Transactional
@@ -43,6 +47,7 @@ public class RoomMessageApplicationService {
                 message.fromUserId(),
                 message.createdAt().toEpochMilli()
         );
+        userInboxRepository.applyRoomMessage(message);
         if (result.created()) {
             outboxEnqueuer.enqueueRoomPersisted(event);
         }

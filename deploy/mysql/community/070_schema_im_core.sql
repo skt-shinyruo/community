@@ -210,6 +210,64 @@ prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
 
+create table if not exists im_user_conversation_inbox (
+  user_id binary(16) not null,
+  conversation_id varchar(80) not null,
+  peer_user_id binary(16) not null,
+  last_seq bigint not null default 0,
+  last_message_id binary(16),
+  last_from_user_id binary(16),
+  last_to_user_id binary(16),
+  last_content mediumtext,
+  last_message_created_at timestamp null default null,
+  last_read_seq bigint not null default 0,
+  unread_count bigint not null default 0,
+  sort_at timestamp null default current_timestamp,
+  created_at timestamp null default current_timestamp,
+  updated_at timestamp null default current_timestamp on update current_timestamp,
+  primary key (user_id, conversation_id)
+);
+
+set @idx_im_user_conversation_inbox_user_sort := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'im_user_conversation_inbox'
+    and index_name = 'idx_im_user_conversation_inbox_user_sort'
+);
+set @sql := if(@idx_im_user_conversation_inbox_user_sort = 0, 'create index idx_im_user_conversation_inbox_user_sort on im_user_conversation_inbox(user_id, sort_at, conversation_id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+create table if not exists im_user_room_inbox (
+  user_id binary(16) not null,
+  room_id binary(16) not null,
+  last_seq bigint not null default 0,
+  last_message_id binary(16),
+  last_from_user_id binary(16),
+  last_content mediumtext,
+  last_message_created_at timestamp null default null,
+  last_read_seq bigint not null default 0,
+  unread_count bigint not null default 0,
+  sort_at timestamp null default current_timestamp,
+  created_at timestamp null default current_timestamp,
+  updated_at timestamp null default current_timestamp on update current_timestamp,
+  primary key (user_id, room_id)
+);
+
+set @idx_im_user_room_inbox_user_sort := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'im_user_room_inbox'
+    and index_name = 'idx_im_user_room_inbox_user_sort'
+);
+set @sql := if(@idx_im_user_room_inbox_user_sort = 0, 'create index idx_im_user_room_inbox_user_sort on im_user_room_inbox(user_id, sort_at, room_id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
 
 
 -- --------------------------------------------------------------------

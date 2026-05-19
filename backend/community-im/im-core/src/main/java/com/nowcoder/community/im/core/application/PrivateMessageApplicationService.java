@@ -5,6 +5,7 @@ import com.nowcoder.community.im.common.event.ImEventIds;
 import com.nowcoder.community.im.common.event.PrivateMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.core.domain.model.PrivateMessageRecord;
+import com.nowcoder.community.im.core.domain.repository.UserInboxRepository;
 import com.nowcoder.community.im.core.domain.service.PrivateMessageDomainService;
 import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
 import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
@@ -17,15 +18,18 @@ public class PrivateMessageApplicationService {
     private final PrivateMessageDomainService privateMessageDomainService;
     private final PrivateMessagePolicyVerifier policyVerifier;
     private final ImMessageOutboxEnqueuer outboxEnqueuer;
+    private final UserInboxRepository userInboxRepository;
 
     public PrivateMessageApplicationService(
             PrivateMessageDomainService privateMessageDomainService,
             PrivateMessagePolicyVerifier policyVerifier,
-            ImMessageOutboxEnqueuer outboxEnqueuer
+            ImMessageOutboxEnqueuer outboxEnqueuer,
+            UserInboxRepository userInboxRepository
     ) {
         this.privateMessageDomainService = privateMessageDomainService;
         this.policyVerifier = policyVerifier;
         this.outboxEnqueuer = outboxEnqueuer;
+        this.userInboxRepository = userInboxRepository;
     }
 
     @Transactional
@@ -42,6 +46,7 @@ public class PrivateMessageApplicationService {
         );
         var existing = privateMessageDomainService.findExisting(draft);
         if (existing.isPresent()) {
+            userInboxRepository.applyPrivateMessage(existing.get());
             PrivateMessagePersistedEvent event = toPersistedEvent(existing.get(), command);
             outboxEnqueuer.enqueuePrivateCommitted(toCommittedEvent(existing.get(), command));
             return event;
@@ -51,6 +56,7 @@ public class PrivateMessageApplicationService {
         var result = privateMessageDomainService.persist(draft);
         var message = result.message();
         PrivateMessagePersistedEvent event = toPersistedEvent(message, command);
+        userInboxRepository.applyPrivateMessage(message);
         if (result.created()) {
             outboxEnqueuer.enqueuePrivatePersisted(event);
         }

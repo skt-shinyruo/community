@@ -6,6 +6,7 @@ import com.nowcoder.community.im.core.application.result.RoomResults;
 import com.nowcoder.community.im.core.domain.event.RoomMemberChangePublisher;
 import com.nowcoder.community.im.core.domain.repository.RoomMessageRepository;
 import com.nowcoder.community.im.core.domain.repository.RoomReadStateRepository;
+import com.nowcoder.community.im.core.domain.repository.UserInboxRepository;
 import com.nowcoder.community.im.core.domain.service.RoomMembershipDomainService;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -21,22 +22,26 @@ public class RoomApplicationService {
     private final RoomMessageRepository roomMessageRepository;
     private final RoomReadStateRepository readStateRepository;
     private final RoomMemberChangePublisher changePublisher;
+    private final UserInboxRepository userInboxRepository;
 
     public RoomApplicationService(
             RoomMembershipDomainService membershipService,
             RoomMessageRepository roomMessageRepository,
             RoomReadStateRepository readStateRepository,
-            RoomMemberChangePublisher changePublisher
+            RoomMemberChangePublisher changePublisher,
+            UserInboxRepository userInboxRepository
     ) {
         this.membershipService = membershipService;
         this.roomMessageRepository = roomMessageRepository;
         this.readStateRepository = readStateRepository;
         this.changePublisher = changePublisher;
+        this.userInboxRepository = userInboxRepository;
     }
 
     @Transactional
     public RoomResults.Created createRoom(UUID creatorUserId, String name) {
         UUID roomId = membershipService.createRoom(creatorUserId, name);
+        userInboxRepository.ensureRoomMemberInbox(roomId, creatorUserId);
         AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishJoined(roomId, creatorUserId));
         return new RoomResults.Created(roomId);
     }
@@ -45,6 +50,7 @@ public class RoomApplicationService {
     public void joinRoom(UUID userId, UUID roomId) {
         boolean joined = membershipService.joinRoom(userId, roomId);
         if (joined) {
+            userInboxRepository.ensureRoomMemberInbox(roomId, userId);
             AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishJoined(roomId, userId));
         }
     }
@@ -52,6 +58,7 @@ public class RoomApplicationService {
     @Transactional
     public void leaveRoom(UUID userId, UUID roomId) {
         membershipService.leaveRoom(userId, roomId);
+        userInboxRepository.removeRoomMemberInbox(roomId, userId);
         AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishLeft(roomId, userId));
     }
 
@@ -85,6 +92,7 @@ public class RoomApplicationService {
         long lastReadSeq = Math.max(0L, requestedLastReadSeq);
         if (lastReadSeq > 0) {
             readStateRepository.updateLastReadSeqMax(roomId, viewerId, lastReadSeq);
+            userInboxRepository.markRoomRead(roomId, viewerId, lastReadSeq);
         }
     }
 

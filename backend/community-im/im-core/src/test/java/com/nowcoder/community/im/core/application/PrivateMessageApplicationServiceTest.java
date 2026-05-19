@@ -201,6 +201,21 @@ class PrivateMessageApplicationServiceTest {
     }
 
     @Test
+    void persist_maintainsUserConversationInboxWithoutDoubleUnreadOnReplay() {
+        UUID fromUserId = uuid(21);
+        UUID toUserId = uuid(22);
+        String conversationId = ConversationIdSupport.conversationId(fromUserId, toUserId);
+        SendPrivateTextCommand cmd = command("req-inbox-private", "c-inbox-private", fromUserId, toUserId, conversationId);
+
+        var first = privateMessageApplicationService.persist(cmd);
+        var second = privateMessageApplicationService.persist(cmd);
+
+        assertThat(second.messageId()).isEqualTo(first.messageId());
+        assertConversationInbox(fromUserId, conversationId, toUserId, first.seq(), first.messageId(), 1L, 0L);
+        assertConversationInbox(toUserId, conversationId, fromUserId, first.seq(), first.messageId(), 0L, 1L);
+    }
+
+    @Test
     void persist_sameMessageDifferentRequestIdReusesFactButEnqueuesCurrentAttemptCommittedResult() {
         UUID fromUserId = uuid(15);
         UUID toUserId = uuid(16);
@@ -336,6 +351,36 @@ class PrivateMessageApplicationServiceTest {
         return count == null ? 0 : count;
     }
 
+    private void assertConversationInbox(
+            UUID userId,
+            String conversationId,
+            UUID peerUserId,
+            long lastSeq,
+            UUID lastMessageId,
+            long lastReadSeq,
+            long unreadCount
+    ) {
+        List<JsonNode> rows = jdbcTemplate.query(
+                "select peer_user_id, last_seq, last_message_id, last_read_seq, unread_count " +
+                        "from im_user_conversation_inbox where user_id = ? and conversation_id = ?",
+                (rs, rowNum) -> objectMapper.createObjectNode()
+                        .put("peerUserId", BinaryUuidTestCodec.fromBytes(rs.getBytes("peer_user_id")).toString())
+                        .put("lastSeq", rs.getLong("last_seq"))
+                        .put("lastMessageId", BinaryUuidTestCodec.fromBytes(rs.getBytes("last_message_id")).toString())
+                        .put("lastReadSeq", rs.getLong("last_read_seq"))
+                        .put("unreadCount", rs.getLong("unread_count")),
+                BinaryUuidTestCodec.toBytes(userId),
+                conversationId
+        );
+        assertThat(rows).hasSize(1);
+        JsonNode row = rows.get(0);
+        assertThat(row.path("peerUserId").asText()).isEqualTo(peerUserId.toString());
+        assertThat(row.path("lastSeq").asLong()).isEqualTo(lastSeq);
+        assertThat(row.path("lastMessageId").asText()).isEqualTo(lastMessageId.toString());
+        assertThat(row.path("lastReadSeq").asLong()).isEqualTo(lastReadSeq);
+        assertThat(row.path("unreadCount").asLong()).isEqualTo(unreadCount);
+    }
+
     private String outboxPayload(String eventId) {
         return jdbcTemplate.queryForObject(
                 "select payload from outbox_event where event_id = ?",
@@ -364,5 +409,35 @@ class PrivateMessageApplicationServiceTest {
 
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+
+    private static final class BinaryUuidTestCodec {
+
+        private BinaryUuidTestCodec() {
+        }
+
+        static byte[] toBytes(UUID uuid) {
+            byte[] bytes = new byte[16];
+            long most = uuid.getMostSignificantBits();
+            long least = uuid.getLeastSignificantBits();
+            for (int i = 0; i < 8; i++) {
+                bytes[i] = (byte) (most >>> (8 * (7 - i)));
+                bytes[i + 8] = (byte) (least >>> (8 * (7 - i)));
+            }
+            return bytes;
+        }
+
+        static UUID fromBytes(byte[] bytes) {
+            if (bytes == null) {
+                return null;
+            }
+            long most = 0L;
+            long least = 0L;
+            for (int i = 0; i < 8; i++) {
+                most = (most << 8) | (bytes[i] & 0xffL);
+                least = (least << 8) | (bytes[i + 8] & 0xffL);
+            }
+            return new UUID(most, least);
+        }
     }
 }

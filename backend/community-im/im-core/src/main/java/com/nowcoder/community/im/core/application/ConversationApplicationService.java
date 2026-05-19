@@ -6,6 +6,7 @@ import com.nowcoder.community.im.core.application.result.ConversationResults;
 import com.nowcoder.community.im.core.domain.repository.ConversationReadStateRepository;
 import com.nowcoder.community.im.core.domain.repository.ConversationRepository;
 import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository;
+import com.nowcoder.community.im.core.domain.repository.UserInboxRepository;
 import com.nowcoder.community.im.core.support.ConversationIdSupport;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -20,15 +21,18 @@ public class ConversationApplicationService {
     private final PrivateMessageRepository privateMessageRepository;
     private final ConversationReadStateRepository readStateRepository;
     private final ConversationRepository conversationRepository;
+    private final UserInboxRepository userInboxRepository;
 
     public ConversationApplicationService(
             PrivateMessageRepository privateMessageRepository,
             ConversationReadStateRepository readStateRepository,
-            ConversationRepository conversationRepository
+            ConversationRepository conversationRepository,
+            UserInboxRepository userInboxRepository
     ) {
         this.privateMessageRepository = privateMessageRepository;
         this.readStateRepository = readStateRepository;
         this.conversationRepository = conversationRepository;
+        this.userInboxRepository = userInboxRepository;
     }
 
     @Transactional(readOnly = true)
@@ -36,7 +40,7 @@ public class ConversationApplicationService {
         int s = Math.min(Math.max(1, size), 200);
         int p = Math.max(0, page);
         long offset = Math.multiplyExact((long) p, (long) s);
-        return conversationRepository.listByUser(viewerId, s, offset).stream()
+        return userInboxRepository.listConversations(viewerId, s, offset).stream()
                 .map(item -> new ConversationResults.ListItem(
                         item.conversationId(),
                         item.otherUserId(),
@@ -108,6 +112,7 @@ public class ConversationApplicationService {
         long lastReadSeq = Math.max(0L, requestedLastReadSeq);
         if (lastReadSeq > 0) {
             readStateRepository.updateLastReadSeqMax(canonicalConversationId, viewerId, lastReadSeq);
+            userInboxRepository.markConversationRead(canonicalConversationId, viewerId, lastReadSeq);
         }
     }
 

@@ -154,6 +154,22 @@ class RoomMessageApplicationServiceTest {
         assertThat(rows).hasSize(1);
     }
 
+    @Test
+    void persist_maintainsUserRoomInboxWithoutDoubleUnreadOnReplay() {
+        UUID sender = uuid(21);
+        UUID receiver = uuid(22);
+        UUID roomId = roomApplicationService.createRoom(sender, "room").roomId();
+        roomApplicationService.joinRoom(receiver, roomId);
+        SendRoomTextCommand cmd = command("req-room-inbox", "c-room-inbox", sender, roomId);
+
+        var first = roomMessageApplicationService.persist(cmd);
+        var second = roomMessageApplicationService.persist(cmd);
+
+        assertThat(second.messageId()).isEqualTo(first.messageId());
+        assertRoomInbox(sender, roomId, first.seq(), first.messageId(), 1L, 0L);
+        assertRoomInbox(receiver, roomId, first.seq(), first.messageId(), 0L, 1L);
+    }
+
     private SendRoomTextCommand command(String requestId, String clientMsgId, UUID sender, UUID roomId) {
         return new SendRoomTextCommand(
                 requestId,
@@ -163,6 +179,37 @@ class RoomMessageApplicationServiceTest {
                 "hi",
                 System.currentTimeMillis()
         );
+    }
+
+    private void assertRoomInbox(
+            UUID userId,
+            UUID roomId,
+            long lastSeq,
+            UUID lastMessageId,
+            long lastReadSeq,
+            long unreadCount
+    ) {
+        List<RoomInboxRow> rows = jdbcTemplate.query(
+                "select last_seq, last_message_id, last_read_seq, unread_count " +
+                        "from im_user_room_inbox where user_id = ? and room_id = ?",
+                (rs, rowNum) -> new RoomInboxRow(
+                        rs.getLong("last_seq"),
+                        BinaryUuidTestCodec.fromBytes(rs.getBytes("last_message_id")),
+                        rs.getLong("last_read_seq"),
+                        rs.getLong("unread_count")
+                ),
+                BinaryUuidTestCodec.toBytes(userId),
+                BinaryUuidTestCodec.toBytes(roomId)
+        );
+        assertThat(rows).hasSize(1);
+        RoomInboxRow row = rows.get(0);
+        assertThat(row.lastSeq()).isEqualTo(lastSeq);
+        assertThat(row.lastMessageId()).isEqualTo(lastMessageId);
+        assertThat(row.lastReadSeq()).isEqualTo(lastReadSeq);
+        assertThat(row.unreadCount()).isEqualTo(unreadCount);
+    }
+
+    private record RoomInboxRow(long lastSeq, UUID lastMessageId, long lastReadSeq, long unreadCount) {
     }
 
     private void assertOutboxRow(String eventId, String topic, String eventKey) {
@@ -219,5 +266,35 @@ class RoomMessageApplicationServiceTest {
 
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+
+    private static final class BinaryUuidTestCodec {
+
+        private BinaryUuidTestCodec() {
+        }
+
+        static byte[] toBytes(UUID uuid) {
+            byte[] bytes = new byte[16];
+            long most = uuid.getMostSignificantBits();
+            long least = uuid.getLeastSignificantBits();
+            for (int i = 0; i < 8; i++) {
+                bytes[i] = (byte) (most >>> (8 * (7 - i)));
+                bytes[i + 8] = (byte) (least >>> (8 * (7 - i)));
+            }
+            return bytes;
+        }
+
+        static UUID fromBytes(byte[] bytes) {
+            if (bytes == null) {
+                return null;
+            }
+            long most = 0L;
+            long least = 0L;
+            for (int i = 0; i < 8; i++) {
+                most = (most << 8) | (bytes[i] & 0xffL);
+                least = (least << 8) | (bytes[i + 8] & 0xffL);
+            }
+            return new UUID(most, least);
+        }
     }
 }

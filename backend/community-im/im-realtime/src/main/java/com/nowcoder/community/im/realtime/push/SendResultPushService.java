@@ -1,8 +1,8 @@
 package com.nowcoder.community.im.realtime.push;
 
-import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
+import com.nowcoder.community.im.common.event.PrivateMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
-import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
+import com.nowcoder.community.im.common.event.RoomMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.common.ws.CommittedFrame;
 import com.nowcoder.community.im.common.ws.RejectFrame;
@@ -23,7 +23,7 @@ public class SendResultPushService {
         this.frameCodec = frameCodec;
     }
 
-    public void pushPrivateCommitted(PrivateMessagePersistedEvent event) {
+    public void pushPrivateCommitted(PrivateMessageCommittedEvent event) {
         if (event == null) {
             return;
         }
@@ -42,7 +42,7 @@ public class SendResultPushService {
         );
     }
 
-    public void pushRoomCommitted(RoomMessagePersistedEvent event) {
+    public void pushRoomCommitted(RoomMessageCommittedEvent event) {
         if (event == null) {
             return;
         }

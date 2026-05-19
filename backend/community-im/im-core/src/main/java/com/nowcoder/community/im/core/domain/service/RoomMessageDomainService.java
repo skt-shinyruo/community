@@ -37,7 +37,7 @@ public class RoomMessageDomainService {
         this.maxContentChars = Math.max(1, maxContentChars);
     }
 
-    public RoomMessageRecord persist(
+    public PersistResult persist(
             UUID roomId,
             UUID fromUserId,
             String content,
@@ -60,10 +60,11 @@ public class RoomMessageDomainService {
         if (!membershipService.isMember(roomId, fromUserId)) {
             throw new SecurityException("not a room member");
         }
+        roomRepository.selectLastSeqForUpdate(roomId);
 
         var existing = roomMessageRepository.findByIdempotency(roomId, fromUserId, clientMsgId);
         if (existing.isPresent()) {
-            return existing.get();
+            return new PersistResult(existing.get(), false);
         }
 
         long seq = seqAllocator.nextRoomSeq(roomId);
@@ -84,6 +85,9 @@ public class RoomMessageDomainService {
         // Sender has read their own outgoing message.
         readStateRepository.updateLastReadSeqMax(roomId, fromUserId, seq);
 
-        return message;
+        return new PersistResult(message, true);
+    }
+
+    public record PersistResult(RoomMessageRecord message, boolean created) {
     }
 }

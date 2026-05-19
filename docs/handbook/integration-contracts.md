@@ -128,7 +128,9 @@ Command topics：
 Event topics：
 
 - `im.event.private-persisted`
+- `im.event.private-committed`
 - `im.event.room-persisted`
+- `im.event.room-committed`
 - `im.event.private-rejected`
 - `im.event.room-rejected`
 - `im.event.room-member-changed`
@@ -144,8 +146,9 @@ DLQ：
 
 - `im-realtime` 写 command 表示请求被接单，不表示消息已落库。
 - `im-core` 是持久化、顺序号和已读状态 owner。
-- persisted event 表示消息已由 `im-core` 持久化。
-- rejected event 表示 core 拒绝 command，客户端需要根据错误语义处理。
+- persisted event 是消息事实事件，表示消息已由 `im-core` 持久化；私信事实身份为 `messageId`，群聊事实身份为 `roomId + seq`。
+- committed event 是发送结果事件，表示某次发送尝试已映射到已持久化消息；rejected event 表示 core 拒绝某次发送尝试。
+- committed / rejected 的尝试身份来自 `requestId + clientMsgId + fromUserId`，用于给发送端推送 committed/rejected frame。
 - room member changed event 用于 `im-realtime` 维护本机在线房间索引。
 - user messaging policy changed / user block relation changed event 用于 `im-realtime` 维护本机私信治理投影。
 - unknown version / unsupported payload 应进入失败路径或 DLQ，不能静默丢弃。
@@ -157,6 +160,8 @@ DLQ：
 
 - 私信：`(conversationId, fromUserId, clientMsgId)`。
 - 群聊：`(roomId, fromUserId, clientMsgId)`。
+- 重复 command 不会重复创建消息事实，也不会重复发布同一事实 event；不同 request 重放同一 `clientMsgId` 时会各自得到 committed 发送结果。
+- IM outbox 的 event id 按语义拆分：私信事实 `im:pf:<messageId>`，群聊事实 `im:rf:<roomId>:<seq>`，私信发送结果 `im:psr:<attemptHash>`，群聊发送结果 `im:rsr:<attemptHash>`。事实事件和发送尝试事件不能共用 event id。
 
 ## HTTP 写接口契约
 

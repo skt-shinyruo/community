@@ -1,8 +1,10 @@
 package com.nowcoder.community.im.realtime.kafka;
 
+import com.nowcoder.community.im.common.event.PrivateMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
+import com.nowcoder.community.im.common.event.RoomMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
@@ -54,7 +56,6 @@ public class EventConsumers {
             concurrency = "${im.kafka.event.concurrency:3}"
     )
     public void onPrivatePersisted(PrivateMessagePersistedEvent event) {
-        sendResultPushService.pushPrivateCommitted(event);
         privatePushService.pushPrivateMessage(event);
     }
 
@@ -67,8 +68,25 @@ public class EventConsumers {
         if (event == null) {
             return;
         }
-        sendResultPushService.pushRoomCommitted(event);
         roomFanoutCoalescer.markRoomUpdated(event.roomId(), event.seq());
+    }
+
+    @KafkaListener(
+            topics = "${im.kafka.topics.event-private-committed:im.event.private-committed}",
+            containerFactory = "kafkaListenerContainerFactory",
+            concurrency = "${im.kafka.event.concurrency:3}"
+    )
+    public void onPrivateCommitted(PrivateMessageCommittedEvent event) {
+        sendResultPushService.pushPrivateCommitted(event);
+    }
+
+    @KafkaListener(
+            topics = "${im.kafka.topics.event-room-committed:im.event.room-committed}",
+            containerFactory = "kafkaListenerContainerFactory",
+            concurrency = "${im.kafka.event.concurrency:3}"
+    )
+    public void onRoomCommitted(RoomMessageCommittedEvent event) {
+        sendResultPushService.pushRoomCommitted(event);
     }
 
     @KafkaListener(

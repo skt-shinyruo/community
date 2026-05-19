@@ -2,9 +2,11 @@ package com.nowcoder.community.im.core.outbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.outbox.OutboxHandler;
+import com.nowcoder.community.im.common.event.PrivateMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
+import com.nowcoder.community.im.common.event.RoomMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,6 +44,34 @@ public class ImOutboxConfiguration {
         return new ImKafkaOutboxHandler<>(
                 topic,
                 RoomMessagePersistedEvent.class,
+                objectMapper,
+                kafkaTemplate
+        );
+    }
+
+    @Bean
+    public OutboxHandler imPrivateCommittedKafkaOutboxHandler(
+            ObjectMapper objectMapper,
+            KafkaTemplate<String, Object> kafkaTemplate,
+            @Value("${im.kafka.topics.event-private-committed:im.event.private-committed}") String topic
+    ) {
+        return new ImKafkaOutboxHandler<>(
+                topic,
+                PrivateMessageCommittedEvent.class,
+                objectMapper,
+                kafkaTemplate
+        );
+    }
+
+    @Bean
+    public OutboxHandler imRoomCommittedKafkaOutboxHandler(
+            ObjectMapper objectMapper,
+            KafkaTemplate<String, Object> kafkaTemplate,
+            @Value("${im.kafka.topics.event-room-committed:im.event.room-committed}") String topic
+    ) {
+        return new ImKafkaOutboxHandler<>(
+                topic,
+                RoomMessageCommittedEvent.class,
                 objectMapper,
                 kafkaTemplate
         );

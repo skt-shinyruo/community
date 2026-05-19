@@ -144,7 +144,7 @@ POST /api/im/sessions -> WS /ws/im
   -> Kafka im.command.private-text
   -> im-core 回源 community-app owner decision 做最终校验
   -> im-core 持久化、分配 seq、clientMsgId 幂等
-  -> Kafka im.event.private-persisted
+  -> Kafka im.event.private-persisted + im.event.private-committed
   -> im-realtime 在线推送
   -> client HTTP backfill /api/im/**
 ```
@@ -159,7 +159,7 @@ POST /api/im/sessions -> WS /ws/im
   -> sendRoomText
   -> Kafka im.command.room-text
   -> im-core 校验房间与成员、分配 seq、clientMsgId 幂等
-  -> Kafka im.event.room-persisted
+  -> Kafka im.event.room-persisted + im.event.room-committed
   -> im-realtime 推送 roomUpdatedBatch
   -> client HTTP 拉取房间消息并推进 lastReadSeq
 ```
@@ -193,7 +193,7 @@ POST /api/im/sessions -> WS /ws/im
 - access token 存在前端内存；refresh token 由 HttpOnly cookie 自动携带。普通业务请求 `401` 后，前端会调用 `/api/auth/refresh`，成功后重试原请求。
 - HTTP 返回统一 `Result<T>`；客户端要同时看 HTTP status 和 `Result.code` / `message`，排障时保留 `traceId`。
 - 高风险写接口应使用稳定的 `Idempotency-Key`，同一次业务尝试重试时复用同一个值。
-- IM 发送侧使用 `clientMsgId` 做消息级幂等；`ack` / `sendAccepted` 是接单语义，最终消息状态仍以 `im-core` history 为准。
+- IM 发送侧使用 `clientMsgId` 做消息级幂等，使用 `requestId + clientMsgId + fromUserId` 区分发送尝试回执；`ack` / `sendAccepted` 是接单语义，最终消息状态仍以 `committed` / `rejected` 或 `im-core` history 为准。
 
 ## 推荐源码阅读顺序
 

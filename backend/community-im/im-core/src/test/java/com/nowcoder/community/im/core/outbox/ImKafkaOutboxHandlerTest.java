@@ -43,8 +43,6 @@ class ImKafkaOutboxHandlerTest {
                 uuid(1),
                 uuid(2),
                 "hello",
-                "req-1",
-                "c1",
                 123L
         );
         ImKafkaOutboxHandler<PrivateMessagePersistedEvent> handler = new ImKafkaOutboxHandler<>(
@@ -55,7 +53,7 @@ class ImKafkaOutboxHandlerTest {
         );
 
         OutboxEvent outboxEvent = outboxEvent(
-                "req-1:private_persisted",
+                "im:pf:" + uuid(7),
                 "conv-1",
                 objectMapper.writeValueAsString(event),
                 "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
@@ -79,7 +77,6 @@ class ImKafkaOutboxHandlerTest {
         assertThat(record.value()).isInstanceOf(PrivateMessagePersistedEvent.class);
         PrivateMessagePersistedEvent published = (PrivateMessagePersistedEvent) record.value();
         assertThat(published.messageId()).isEqualTo(uuid(7));
-        assertThat(published.requestId()).isEqualTo("req-1");
         assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACEPARENT))
                 .isEqualTo(snapshot.traceparent());
     }
@@ -98,8 +95,6 @@ class ImKafkaOutboxHandlerTest {
                 uuid(1),
                 uuid(2),
                 "hello",
-                "req-1",
-                "c1",
                 123L
         );
         ImKafkaOutboxHandler<PrivateMessagePersistedEvent> handler = new ImKafkaOutboxHandler<>(
@@ -110,7 +105,7 @@ class ImKafkaOutboxHandlerTest {
         );
 
         assertThatThrownBy(() -> handler.handle(outboxEvent(
-                "req-1:private_persisted",
+                "im:pf:" + uuid(7),
                 "conv-1",
                 objectMapper.writeValueAsString(event),
                 null,

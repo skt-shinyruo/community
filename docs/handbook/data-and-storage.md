@@ -152,7 +152,9 @@ IM 必需 topic：
 - `im.command.private-text`
 - `im.command.room-text`
 - `im.event.private-persisted`
+- `im.event.private-committed`
 - `im.event.room-persisted`
+- `im.event.room-committed`
 - `im.event.private-rejected`
 - `im.event.room-rejected`
 - `im.event.room-member-changed`
@@ -165,6 +167,8 @@ DLQ：
 - `im.command.room-text.dlq`
 
 IM policy projection 先在主站 outbox 使用内部 topic `projection.im.policy`，再由 outbox handler 发布到 `im.event.user-messaging-policy-changed` / `im.event.user-block-relation-changed` 供 `im-realtime` 消费。
+
+IM 消息事实和发送结果使用不同 outbox event id 空间：私信事实 `im:pf:<messageId>`，群聊事实 `im:rf:<roomId>:<seq>`，私信发送结果 `im:psr:<attemptHash>`，群聊发送结果 `im:rsr:<attemptHash>`。`attemptHash` 来自 `fromUserId + requestId + clientMsgId`，用于避免事实事件和发送尝试回执互相覆盖。
 
 `community.event.*` 是已退休跨服务 topic，当前默认 compose 不创建、不使用；`community-app` 的主站投影/通知不依赖 Kafka，而是使用本地事务事件、DB outbox 或同步 owner API。
 

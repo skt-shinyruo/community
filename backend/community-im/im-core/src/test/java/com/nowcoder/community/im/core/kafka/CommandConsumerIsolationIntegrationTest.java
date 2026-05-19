@@ -43,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 ImTopics.COMMAND_ROOM_TEXT,
                 ImTopics.COMMAND_ROOM_TEXT + ".dlq",
                 ImTopics.EVENT_ROOM_PERSISTED,
+                ImTopics.EVENT_ROOM_COMMITTED,
                 ImTopics.EVENT_ROOM_REJECTED
         }
 )
@@ -95,7 +96,7 @@ class CommandConsumerIsolationIntegrationTest {
         String dlqTopic = ImTopics.COMMAND_ROOM_TEXT + ".dlq";
 
         consumer = newStringConsumer("im-core-it-isolation");
-        consumer.subscribe(List.of(dlqTopic, ImTopics.EVENT_ROOM_PERSISTED, ImTopics.EVENT_ROOM_REJECTED));
+        consumer.subscribe(List.of(dlqTopic, ImTopics.EVENT_ROOM_PERSISTED, ImTopics.EVENT_ROOM_COMMITTED, ImTopics.EVENT_ROOM_REJECTED));
         consumer.poll(Duration.ofMillis(200));
 
         kafkaTemplate.send(
@@ -130,13 +131,22 @@ class CommandConsumerIsolationIntegrationTest {
                 new SendRoomTextCommand(okRequestId, okClientMsgId, sender, roomId, "hi", System.currentTimeMillis())
         );
 
-        ConsumerRecord<String, String> eventRecord = pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_PERSISTED, Duration.ofSeconds(10));
-        JsonNode eventJson = objectMapper.readTree(eventRecord.value());
+        Map<String, ConsumerRecord<String, String>> persistedBatch = pollForTopics(
+                consumer,
+                Set.of(ImTopics.EVENT_ROOM_PERSISTED, ImTopics.EVENT_ROOM_COMMITTED),
+                Duration.ofSeconds(10)
+        );
+        JsonNode eventJson = objectMapper.readTree(persistedBatch.get(ImTopics.EVENT_ROOM_PERSISTED).value());
         assertThat(eventJson.path("roomId").asText("")).isEqualTo(roomId.toString());
         assertThat(eventJson.path("seq").asLong()).isEqualTo(1L);
         assertThat(eventJson.path("fromUserId").asText("")).isEqualTo(sender.toString());
-        assertThat(eventJson.path("requestId").asText("")).isEqualTo(okRequestId);
-        assertThat(eventJson.path("clientMsgId").asText("")).isEqualTo(okClientMsgId);
+        assertThat(eventJson.has("requestId")).isFalse();
+        assertThat(eventJson.has("clientMsgId")).isFalse();
+
+        JsonNode committedJson = objectMapper.readTree(persistedBatch.get(ImTopics.EVENT_ROOM_COMMITTED).value());
+        assertThat(committedJson.path("roomId").asText("")).isEqualTo(roomId.toString());
+        assertThat(committedJson.path("requestId").asText("")).isEqualTo(okRequestId);
+        assertThat(committedJson.path("clientMsgId").asText("")).isEqualTo(okClientMsgId);
     }
 
     private Consumer<String, String> newStringConsumer(String groupId) {
@@ -146,27 +156,6 @@ class CommandConsumerIsolationIntegrationTest {
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         DefaultKafkaConsumerFactory<String, String> cf = new DefaultKafkaConsumerFactory<>(props);
         return cf.createConsumer();
-    }
-
-    private static ConsumerRecord<String, String> pollForSingleRecord(
-            Consumer<String, String> consumer,
-            String topic,
-            Duration timeout
-    ) {
-        Instant deadline = Instant.now().plus(timeout);
-        while (Instant.now().isBefore(deadline)) {
-            ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(200));
-            if (records == null || records.isEmpty()) {
-                continue;
-            }
-            Iterable<ConsumerRecord<String, String>> iterable = records.records(topic);
-            if (iterable != null) {
-                for (ConsumerRecord<String, String> r : iterable) {
-                    return r;
-                }
-            }
-        }
-        throw new AssertionError("Timed out waiting for record on topic " + topic);
     }
 
     private static Map<String, ConsumerRecord<String, String>> pollForTopics(

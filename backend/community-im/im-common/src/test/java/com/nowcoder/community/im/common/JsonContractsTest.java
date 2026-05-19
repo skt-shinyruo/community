@@ -3,9 +3,11 @@ package com.nowcoder.community.im.common;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
+import com.nowcoder.community.im.common.event.PrivateMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
+import com.nowcoder.community.im.common.event.RoomMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
@@ -92,8 +94,6 @@ class JsonContractsTest {
                 fromUserId,
                 toUserId,
                 "hello",
-                "req-1",
-                "cmsg-1",
                 1700000001000L
         );
 
@@ -110,12 +110,48 @@ class JsonContractsTest {
                 7L,
                 uuid(20001),
                 fromUserId,
-                "req-2",
-                "cmsg-2",
                 1700000002000L
         );
 
         RoomMessagePersistedEvent back = roundTrip(event, RoomMessagePersistedEvent.class);
+        assertEquals(event, back);
+    }
+
+    @Test
+    void event_roundtrip_privateCommitted() throws Exception {
+        UUID fromUserId = uuid(12);
+        UUID toUserId = uuid(99);
+        PrivateMessageCommittedEvent event = new PrivateMessageCommittedEvent(
+                "evt-committed-1",
+                "req-1",
+                "cmsg-1",
+                fromUserId,
+                toUserId,
+                conversationId(fromUserId, toUserId),
+                uuid(10001),
+                7L,
+                1700000001000L
+        );
+
+        PrivateMessageCommittedEvent back = roundTrip(event, PrivateMessageCommittedEvent.class);
+        assertEquals(event, back);
+    }
+
+    @Test
+    void event_roundtrip_roomCommitted() throws Exception {
+        UUID fromUserId = uuid(12);
+        RoomMessageCommittedEvent event = new RoomMessageCommittedEvent(
+                "evt-committed-2",
+                "req-2",
+                "cmsg-2",
+                fromUserId,
+                uuid(1001),
+                uuid(20001),
+                7L,
+                1700000002000L
+        );
+
+        RoomMessageCommittedEvent back = roundTrip(event, RoomMessageCommittedEvent.class);
         assertEquals(event, back);
     }
 
@@ -472,6 +508,8 @@ class JsonContractsTest {
 
     @Test
     void shouldExposeNewProjectionTopics() {
+        assertEquals("im.event.private-committed", ImTopics.EVENT_PRIVATE_COMMITTED);
+        assertEquals("im.event.room-committed", ImTopics.EVENT_ROOM_COMMITTED);
         assertEquals("im.event.room-member-changed", ImTopics.EVENT_ROOM_MEMBER_CHANGED);
         assertEquals("im.event.user-messaging-policy-changed", ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED);
         assertEquals("im.event.user-block-relation-changed", ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED);

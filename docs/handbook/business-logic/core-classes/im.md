@@ -57,11 +57,11 @@
 | `im.core.service.RoomMessageService` | 群聊幂等、成员校验和 seq 分配。 |
 | `im.core.service.RoomMembershipService` | 房间创建、加入、离开和成员事件。 |
 | `im.core.service.UnreadService` | 私聊 / 群聊未读汇总和 watermark。 |
-| `im.core.kafka.CommandConsumers` | 消费 IM command 并发布 persisted / rejected event。 |
+| `im.core.kafka.CommandConsumers` | 消费 IM command 并发布 persisted / committed / rejected event。 |
 | `im.core.kafka.KafkaRoomMemberChangePublisher` | 通过 outbox 发布成员变化。 |
 | `im.core.service.RoomMemberChangePublisher` | 房间成员事件发布端口。 |
 | `im.core.service.NoopRoomMemberChangePublisher` | Kafka/outbox 关闭时的空实现。 |
-| `im.core.outbox.ImMessageOutboxEnqueuer` | persisted / rejected / member 事件入 outbox。 |
+| `im.core.outbox.ImMessageOutboxEnqueuer` | persisted fact、committed/rejected send-result、member 事件入 outbox。 |
 | `im.core.outbox.ImKafkaOutboxHandler` | IM outbox 到 Kafka topic 的分发。 |
 
 ## Community-app policy projection
@@ -79,5 +79,5 @@
 
 - connect accepted 不等于 persisted。
 - realtime 的 policy / membership 只是快速判定，不是权威事实。
-- private / room 消息都靠 clientMsgId 做幂等。
+- private / room 消息都靠 clientMsgId 做消息级幂等；发送结果回执按 requestId + clientMsgId + fromUserId 区分尝试。
 - room 推送是 state-only update，历史仍要靠 HTTP 拉。

@@ -52,6 +52,8 @@ import static org.mockito.Mockito.when;
                 ImTopics.COMMAND_ROOM_TEXT,
                 ImTopics.EVENT_PRIVATE_PERSISTED,
                 ImTopics.EVENT_ROOM_PERSISTED,
+                ImTopics.EVENT_PRIVATE_COMMITTED,
+                ImTopics.EVENT_ROOM_COMMITTED,
                 ImTopics.EVENT_PRIVATE_REJECTED,
                 ImTopics.EVENT_ROOM_REJECTED,
                 ImTopics.EVENT_ROOM_MEMBER_CHANGED
@@ -113,7 +115,7 @@ class ImCoreKafkaIntegrationTest {
 
         // subscribe before sending to avoid missing the event
         consumer = newStringConsumer("im-core-it-room");
-        consumer.subscribe(List.of(ImTopics.EVENT_ROOM_PERSISTED));
+        consumer.subscribe(List.of(ImTopics.EVENT_ROOM_PERSISTED, ImTopics.EVENT_ROOM_COMMITTED));
         // trigger partition assignment
         consumer.poll(Duration.ofMillis(200));
 
@@ -123,15 +125,25 @@ class ImCoreKafkaIntegrationTest {
                 new SendRoomTextCommand("req-1", "c1", sender, roomId, "hi", System.currentTimeMillis())
         );
 
-        ConsumerRecord<String, String> record = pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_PERSISTED, Duration.ofSeconds(10));
-        JsonNode eventJson = objectMapper.readTree(record.value());
+        Map<String, ConsumerRecord<String, String>> records = pollForTopics(
+                consumer,
+                List.of(ImTopics.EVENT_ROOM_PERSISTED, ImTopics.EVENT_ROOM_COMMITTED),
+                Duration.ofSeconds(10)
+        );
+        JsonNode eventJson = objectMapper.readTree(records.get(ImTopics.EVENT_ROOM_PERSISTED).value());
 
         assertThat(eventJson.path("roomId").asText("")).isEqualTo(roomId.toString());
         assertThat(eventJson.path("seq").asLong()).isEqualTo(1L);
         assertThat(eventJson.path("fromUserId").asText("")).isEqualTo(sender.toString());
-        assertThat(eventJson.path("requestId").asText("")).isEqualTo("req-1");
-        assertThat(eventJson.path("clientMsgId").asText("")).isEqualTo("c1");
+        assertThat(eventJson.has("requestId")).isFalse();
+        assertThat(eventJson.has("clientMsgId")).isFalse();
         assertThat(eventJson.hasNonNull("content")).isFalse();
+
+        JsonNode committedJson = objectMapper.readTree(records.get(ImTopics.EVENT_ROOM_COMMITTED).value());
+        assertThat(committedJson.path("requestId").asText("")).isEqualTo("req-1");
+        assertThat(committedJson.path("clientMsgId").asText("")).isEqualTo("c1");
+        assertThat(committedJson.path("roomId").asText("")).isEqualTo(roomId.toString());
+        assertThat(committedJson.path("seq").asLong()).isEqualTo(1L);
 
         List<RoomMessageRecord> rows = roomMessageRepository.listAfterSeq(roomId, 0, 10);
         assertThat(rows).hasSize(1);
@@ -145,7 +157,7 @@ class ImCoreKafkaIntegrationTest {
         String conversationId = fromUserId + "_" + toUserId;
 
         consumer = newStringConsumer("im-core-it-private");
-        consumer.subscribe(List.of(ImTopics.EVENT_PRIVATE_PERSISTED));
+        consumer.subscribe(List.of(ImTopics.EVENT_PRIVATE_PERSISTED, ImTopics.EVENT_PRIVATE_COMMITTED));
         consumer.poll(Duration.ofMillis(200));
 
         kafkaTemplate.send(
@@ -154,16 +166,26 @@ class ImCoreKafkaIntegrationTest {
                 new SendPrivateTextCommand("req-1", "c1", fromUserId, toUserId, conversationId, "hello", System.currentTimeMillis())
         );
 
-        ConsumerRecord<String, String> record = pollForSingleRecord(consumer, ImTopics.EVENT_PRIVATE_PERSISTED, Duration.ofSeconds(10));
-        JsonNode eventJson = objectMapper.readTree(record.value());
+        Map<String, ConsumerRecord<String, String>> records = pollForTopics(
+                consumer,
+                List.of(ImTopics.EVENT_PRIVATE_PERSISTED, ImTopics.EVENT_PRIVATE_COMMITTED),
+                Duration.ofSeconds(10)
+        );
+        JsonNode eventJson = objectMapper.readTree(records.get(ImTopics.EVENT_PRIVATE_PERSISTED).value());
 
         assertThat(eventJson.path("conversationId").asText("")).isEqualTo(conversationId);
         assertThat(eventJson.path("seq").asLong()).isEqualTo(1L);
         assertThat(eventJson.path("fromUserId").asText("")).isEqualTo(fromUserId.toString());
         assertThat(eventJson.path("toUserId").asText("")).isEqualTo(toUserId.toString());
         assertThat(eventJson.path("content").asText("")).isEqualTo("hello");
-        assertThat(eventJson.path("requestId").asText("")).isEqualTo("req-1");
-        assertThat(eventJson.path("clientMsgId").asText("")).isEqualTo("c1");
+        assertThat(eventJson.has("requestId")).isFalse();
+        assertThat(eventJson.has("clientMsgId")).isFalse();
+
+        JsonNode committedJson = objectMapper.readTree(records.get(ImTopics.EVENT_PRIVATE_COMMITTED).value());
+        assertThat(committedJson.path("requestId").asText("")).isEqualTo("req-1");
+        assertThat(committedJson.path("clientMsgId").asText("")).isEqualTo("c1");
+        assertThat(committedJson.path("conversationId").asText("")).isEqualTo(conversationId);
+        assertThat(committedJson.path("seq").asLong()).isEqualTo(1L);
 
         List<PrivateMessageRecord> rows = privateMessageRepository.listAfterSeq(conversationId, 0, 10);
         assertThat(rows).hasSize(1);
@@ -235,6 +257,38 @@ class ImCoreKafkaIntegrationTest {
             }
         }
         throw new AssertionError("Timed out waiting for record on topic " + topic);
+    }
+
+    private static Map<String, ConsumerRecord<String, String>> pollForTopics(
+            Consumer<String, String> consumer,
+            List<String> topics,
+            Duration timeout
+    ) {
+        java.util.LinkedHashMap<String, ConsumerRecord<String, String>> found = new java.util.LinkedHashMap<>();
+        Instant deadline = Instant.now().plus(timeout);
+        while (Instant.now().isBefore(deadline)) {
+            ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(200));
+            if (records == null || records.isEmpty()) {
+                continue;
+            }
+            for (String topic : topics) {
+                if (found.containsKey(topic)) {
+                    continue;
+                }
+                Iterable<ConsumerRecord<String, String>> iterable = records.records(topic);
+                if (iterable == null) {
+                    continue;
+                }
+                for (ConsumerRecord<String, String> r : iterable) {
+                    found.put(topic, r);
+                    break;
+                }
+            }
+            if (found.keySet().containsAll(topics)) {
+                return found;
+            }
+        }
+        throw new AssertionError("Timed out waiting for records on topics " + topics + ", found=" + found.keySet());
     }
 
     private static UUID uuid(long suffix) {

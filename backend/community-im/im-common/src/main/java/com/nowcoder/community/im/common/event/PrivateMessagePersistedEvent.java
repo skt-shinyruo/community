@@ -15,8 +15,6 @@ public record PrivateMessagePersistedEvent(
         UUID fromUserId,
         UUID toUserId,
         String content,
-        String requestId,
-        String clientMsgId,
         long createdAtEpochMs
 ) {
 }

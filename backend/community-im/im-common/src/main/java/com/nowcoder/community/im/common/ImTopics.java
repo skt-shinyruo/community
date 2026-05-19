@@ -15,6 +15,8 @@ public final class ImTopics {
 
     public static final String EVENT_PRIVATE_PERSISTED = "im.event.private-persisted";
     public static final String EVENT_ROOM_PERSISTED = "im.event.room-persisted";
+    public static final String EVENT_PRIVATE_COMMITTED = "im.event.private-committed";
+    public static final String EVENT_ROOM_COMMITTED = "im.event.room-committed";
     public static final String EVENT_PRIVATE_REJECTED = "im.event.private-rejected";
     public static final String EVENT_ROOM_REJECTED = "im.event.room-rejected";
 

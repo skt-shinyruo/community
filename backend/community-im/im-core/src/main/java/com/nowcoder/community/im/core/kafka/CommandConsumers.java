@@ -3,6 +3,7 @@ package com.nowcoder.community.im.core.kafka;
 import com.nowcoder.community.common.logging.EventLogFields;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
+import com.nowcoder.community.im.common.event.ImEventIds;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.core.application.PrivateMessageApplicationService;
@@ -171,7 +172,7 @@ public class CommandConsumers {
 
     private PrivateMessageRejectedEvent toPrivateRejectedEvent(SendPrivateTextCommand cmd, RuntimeException e) {
         return new PrivateMessageRejectedEvent(
-                "evt_reject_" + String.valueOf(cmd.requestId()),
+                ImEventIds.privateSendResult(cmd.requestId(), cmd.clientMsgId(), cmd.fromUserId()),
                 cmd.requestId(),
                 cmd.clientMsgId(),
                 cmd.fromUserId(),
@@ -186,7 +187,7 @@ public class CommandConsumers {
 
     private RoomMessageRejectedEvent toRoomRejectedEvent(SendRoomTextCommand cmd, RuntimeException e) {
         return new RoomMessageRejectedEvent(
-                "evt_reject_" + String.valueOf(cmd.requestId()),
+                ImEventIds.roomSendResult(cmd.requestId(), cmd.clientMsgId(), cmd.fromUserId()),
                 cmd.requestId(),
                 cmd.clientMsgId(),
                 cmd.fromUserId(),

@@ -78,8 +78,6 @@ class CommandConsumersLoggingTest {
                 fromUserId,
                 toUserId,
                 "hello-private",
-                "req-1",
-                "c1",
                 System.currentTimeMillis()
         );
         when(privateMessageApplicationService.persist(cmd)).thenReturn(event);
@@ -127,8 +125,6 @@ class CommandConsumersLoggingTest {
                 3L,
                 uuid(8080),
                 fromUserId,
-                "req-2",
-                "c2",
                 System.currentTimeMillis()
         );
         when(roomMessageApplicationService.persist(cmd)).thenReturn(event);

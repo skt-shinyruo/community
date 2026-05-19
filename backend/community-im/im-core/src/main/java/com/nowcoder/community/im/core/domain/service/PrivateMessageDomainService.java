@@ -68,17 +68,18 @@ public class PrivateMessageDomainService {
         );
     }
 
-    public PrivateMessageRecord persist(PrivateMessageDraft draft) {
+    public PersistResult persist(PrivateMessageDraft draft) {
         if (draft == null) {
             throw new IllegalArgumentException("message draft required");
         }
         UUID userA = draft.fromUserId().compareTo(draft.toUserId()) <= 0 ? draft.fromUserId() : draft.toUserId();
         UUID userB = userA.equals(draft.fromUserId()) ? draft.toUserId() : draft.fromUserId();
         conversationRepository.ensureExists(draft.conversationId(), userA, userB);
+        conversationRepository.selectLastSeqForUpdate(draft.conversationId());
 
         var existing = findExisting(draft);
         if (existing.isPresent()) {
-            return existing.get();
+            return new PersistResult(existing.get(), false);
         }
 
         long seq = seqAllocator.nextConversationSeq(draft.conversationId());
@@ -100,7 +101,7 @@ public class PrivateMessageDomainService {
         // Sender has read their own outgoing message.
         readStateRepository.updateLastReadSeqMax(draft.conversationId(), draft.fromUserId(), seq);
 
-        return message;
+        return new PersistResult(message, true);
     }
 
     public Optional<PrivateMessageRecord> findExisting(PrivateMessageDraft draft) {
@@ -121,5 +122,8 @@ public class PrivateMessageDomainService {
             String content,
             String clientMsgId
     ) {
+    }
+
+    public record PersistResult(PrivateMessageRecord message, boolean created) {
     }
 }

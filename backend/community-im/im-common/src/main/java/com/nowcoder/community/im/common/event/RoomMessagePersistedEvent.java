@@ -13,8 +13,6 @@ public record RoomMessagePersistedEvent(
         long seq,
         UUID messageId,
         UUID fromUserId,
-        String requestId,
-        String clientMsgId,
         long createdAtEpochMs
 ) {
 }

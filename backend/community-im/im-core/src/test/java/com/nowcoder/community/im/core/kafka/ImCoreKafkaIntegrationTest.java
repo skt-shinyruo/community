@@ -5,9 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
+import com.nowcoder.community.im.core.application.RoomApplicationService;
 import com.nowcoder.community.im.core.repository.PrivateMessageRepository;
 import com.nowcoder.community.im.core.repository.RoomMessageRepository;
-import com.nowcoder.community.im.core.service.RoomMembershipService;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -69,7 +69,7 @@ class ImCoreKafkaIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private RoomMembershipService roomMembershipService;
+    private RoomApplicationService roomApplicationService;
 
     @Autowired
     private RoomMessageRepository roomMessageRepository;
@@ -92,7 +92,7 @@ class ImCoreKafkaIntegrationTest {
     @Test
     void roomCommand_shouldPersist_andEmitRoomPersistedEvent_withoutContent() throws Exception {
         UUID sender = uuid(1);
-        UUID roomId = roomMembershipService.createRoom(sender, "room");
+        UUID roomId = roomApplicationService.createRoom(sender, "room").roomId();
 
         // subscribe before sending to avoid missing the event
         consumer = newStringConsumer("im-core-it-room");
@@ -157,7 +157,7 @@ class ImCoreKafkaIntegrationTest {
     void roomMembershipJoin_shouldEmitRoomMemberChangedEvent() throws Exception {
         UUID owner = uuid(1);
         UUID member = uuid(3);
-        UUID roomId = roomMembershipService.createRoom(owner, "room");
+        UUID roomId = roomApplicationService.createRoom(owner, "room").roomId();
 
         consumer = newStringConsumer("im-core-it-room-member-changed");
         consumer.subscribe(List.of(ImTopics.EVENT_ROOM_MEMBER_CHANGED));
@@ -166,7 +166,7 @@ class ImCoreKafkaIntegrationTest {
         consumer.assignment().forEach(consumer::position);
 
         long beforeJoin = System.currentTimeMillis();
-        roomMembershipService.joinRoom(member, roomId);
+        roomApplicationService.joinRoom(member, roomId);
 
         ConsumerRecord<String, String> changedRecord =
                 pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_MEMBER_CHANGED, Duration.ofSeconds(10));

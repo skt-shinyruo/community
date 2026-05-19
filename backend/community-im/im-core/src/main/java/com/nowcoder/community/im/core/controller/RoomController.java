@@ -1,11 +1,9 @@
 package com.nowcoder.community.im.core.controller;
 
-import com.nowcoder.community.im.core.repository.RoomMessageRepository;
-import com.nowcoder.community.im.core.repository.RoomReadStateRepository;
+import com.nowcoder.community.im.core.application.RoomApplicationService;
+import com.nowcoder.community.im.core.application.result.RoomResults;
 import com.nowcoder.community.im.core.security.CurrentUser;
-import com.nowcoder.community.im.core.service.RoomMembershipService;
 import com.nowcoder.community.common.web.Result;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -17,39 +15,31 @@ import java.util.UUID;
 @RequestMapping("/api/im/rooms")
 public class RoomController {
 
-    private final RoomMembershipService membershipService;
-    private final RoomMessageRepository roomMessageRepository;
-    private final RoomReadStateRepository readStateRepository;
+    private final RoomApplicationService roomApplicationService;
 
-    public RoomController(
-            RoomMembershipService membershipService,
-            RoomMessageRepository roomMessageRepository,
-            RoomReadStateRepository readStateRepository
-    ) {
-        this.membershipService = membershipService;
-        this.roomMessageRepository = roomMessageRepository;
-        this.readStateRepository = readStateRepository;
+    public RoomController(RoomApplicationService roomApplicationService) {
+        this.roomApplicationService = roomApplicationService;
     }
 
     @PostMapping
     public Result<CreateRoomResponse> createRoom(@AuthenticationPrincipal Jwt jwt, @RequestBody CreateRoomRequest req) {
         UUID me = CurrentUser.userIdOrThrow(jwt);
         String name = req == null ? null : req.name();
-        UUID roomId = membershipService.createRoom(me, name);
-        return Result.ok(new CreateRoomResponse(roomId));
+        RoomResults.Created created = roomApplicationService.createRoom(me, name);
+        return Result.ok(new CreateRoomResponse(created.roomId()));
     }
 
     @PostMapping("/{roomId}/join")
     public Result<Void> joinRoom(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID roomId) {
         UUID me = CurrentUser.userIdOrThrow(jwt);
-        membershipService.joinRoom(me, roomId);
+        roomApplicationService.joinRoom(me, roomId);
         return Result.ok();
     }
 
     @PostMapping("/{roomId}/leave")
     public Result<Void> leaveRoom(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID roomId) {
         UUID me = CurrentUser.userIdOrThrow(jwt);
-        membershipService.leaveRoom(me, roomId);
+        roomApplicationService.leaveRoom(me, roomId);
         return Result.ok();
     }
 
@@ -61,27 +51,7 @@ public class RoomController {
             @RequestParam(name = "limit", required = false, defaultValue = "50") int limit
     ) {
         UUID me = CurrentUser.userIdOrThrow(jwt);
-        if (!membershipService.isMember(roomId, me)) {
-            throw new AccessDeniedException("not a room member");
-        }
-
-        int l = Math.min(Math.max(1, limit), 200);
-        long after = Math.max(0L, afterSeq);
-        List<RoomMessageRepository.RoomMessageRow> rows = roomMessageRepository.listAfterSeq(roomId, after, l);
-        List<RoomMessageItem> items = rows.stream()
-                .map(r -> new RoomMessageItem(
-                        r.roomId(),
-                        r.seq(),
-                        r.messageId(),
-                        r.fromUserId(),
-                        r.content(),
-                        r.clientMsgId(),
-                        r.createdAt().toEpochMilli()
-                ))
-                .toList();
-        long nextAfterSeq = items.isEmpty() ? after : items.get(items.size() - 1).seq();
-        long lastReadSeq = readStateRepository.getLastReadSeq(roomId, me);
-        return Result.ok(new RoomMessagesResponse(roomId, items, nextAfterSeq, lastReadSeq));
+        return Result.ok(toMessagesResponse(roomApplicationService.listMessages(me, roomId, afterSeq, limit)));
     }
 
     @PostMapping("/{roomId}/read")
@@ -91,14 +61,32 @@ public class RoomController {
             @RequestBody MarkReadRequest req
     ) {
         UUID me = CurrentUser.userIdOrThrow(jwt);
-        if (!membershipService.isMember(roomId, me)) {
-            throw new AccessDeniedException("not a room member");
-        }
-        long lastReadSeq = req == null ? 0L : Math.max(0L, req.lastReadSeq());
-        if (lastReadSeq > 0) {
-            readStateRepository.updateLastReadSeqMax(roomId, me, lastReadSeq);
-        }
+        long lastReadSeq = req == null ? 0L : req.lastReadSeq();
+        roomApplicationService.markRead(me, roomId, lastReadSeq);
         return Result.ok();
+    }
+
+    private static RoomMessagesResponse toMessagesResponse(RoomResults.Messages messages) {
+        return new RoomMessagesResponse(
+                messages.roomId(),
+                messages.items().stream()
+                        .map(RoomController::toMessageItem)
+                        .toList(),
+                messages.nextAfterSeq(),
+                messages.lastReadSeq()
+        );
+    }
+
+    private static RoomMessageItem toMessageItem(RoomResults.MessageItem item) {
+        return new RoomMessageItem(
+                item.roomId(),
+                item.seq(),
+                item.messageId(),
+                item.fromUserId(),
+                item.content(),
+                item.clientMsgId(),
+                item.createdAtEpochMs()
+        );
     }
 
     public record CreateRoomRequest(String name) {

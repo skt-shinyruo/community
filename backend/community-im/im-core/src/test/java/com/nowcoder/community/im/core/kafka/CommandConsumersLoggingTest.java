@@ -12,9 +12,9 @@ import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
+import com.nowcoder.community.im.core.application.PrivateMessageApplicationService;
+import com.nowcoder.community.im.core.application.RoomMessageApplicationService;
 import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
-import com.nowcoder.community.im.core.service.PrivateMessageService;
-import com.nowcoder.community.im.core.service.RoomMessageService;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.PartitionInfo;
@@ -41,17 +41,17 @@ import static org.mockito.Mockito.when;
 @ExtendWith(OutputCaptureExtension.class)
 class CommandConsumersLoggingTest {
 
-    private PrivateMessageService privateMessageService;
-    private RoomMessageService roomMessageService;
+    private PrivateMessageApplicationService privateMessageApplicationService;
+    private RoomMessageApplicationService roomMessageApplicationService;
     private ImMessageOutboxEnqueuer outboxEnqueuer;
     private CommandConsumers consumers;
 
     @BeforeEach
     void setUp() {
-        privateMessageService = mock(PrivateMessageService.class);
-        roomMessageService = mock(RoomMessageService.class);
+        privateMessageApplicationService = mock(PrivateMessageApplicationService.class);
+        roomMessageApplicationService = mock(RoomMessageApplicationService.class);
         outboxEnqueuer = mock(ImMessageOutboxEnqueuer.class);
-        consumers = new CommandConsumers(privateMessageService, roomMessageService, outboxEnqueuer);
+        consumers = new CommandConsumers(privateMessageApplicationService, roomMessageApplicationService, outboxEnqueuer);
     }
 
     @Test
@@ -80,13 +80,13 @@ class CommandConsumersLoggingTest {
                 "c1",
                 System.currentTimeMillis()
         );
-        when(privateMessageService.persist(cmd)).thenReturn(event);
+        when(privateMessageApplicationService.persist(cmd)).thenReturn(event);
         CommandConsumersLogCapture capture = startCommandConsumersLogCapture();
 
         try {
             consumers.onPrivateText(cmd);
 
-            verify(privateMessageService).persist(cmd);
+            verify(privateMessageApplicationService).persist(cmd);
             verify(outboxEnqueuer, never()).enqueuePrivatePersisted(any(PrivateMessagePersistedEvent.class));
             ILoggingEvent persistedEvent = findSingleEventByAction(capture.appender(), "im_private_command_persist");
             assertThat(persistedEvent.getLevel()).isEqualTo(Level.DEBUG);
@@ -129,13 +129,13 @@ class CommandConsumersLoggingTest {
                 "c2",
                 System.currentTimeMillis()
         );
-        when(roomMessageService.persist(cmd)).thenReturn(event);
+        when(roomMessageApplicationService.persist(cmd)).thenReturn(event);
         CommandConsumersLogCapture capture = startCommandConsumersLogCapture();
 
         try {
             consumers.onRoomText(cmd);
 
-            verify(roomMessageService).persist(cmd);
+            verify(roomMessageApplicationService).persist(cmd);
             verify(outboxEnqueuer, never()).enqueueRoomPersisted(any(RoomMessagePersistedEvent.class));
             ILoggingEvent persistedEvent = findSingleEventByAction(capture.appender(), "im_room_command_persist");
             assertThat(persistedEvent.getLevel()).isEqualTo(Level.DEBUG);
@@ -169,7 +169,7 @@ class CommandConsumersLoggingTest {
                 "hello-room",
                 System.currentTimeMillis()
         );
-        when(roomMessageService.persist(cmd)).thenThrow(new SecurityException("not a room member"));
+        when(roomMessageApplicationService.persist(cmd)).thenThrow(new SecurityException("not a room member"));
         CommandConsumersLogCapture capture = startCommandConsumersLogCapture();
 
         try {
@@ -215,7 +215,7 @@ class CommandConsumersLoggingTest {
                 "hello-private",
                 System.currentTimeMillis()
         );
-        when(privateMessageService.persist(cmd)).thenThrow(new IllegalStateException("database unavailable"));
+        when(privateMessageApplicationService.persist(cmd)).thenThrow(new IllegalStateException("database unavailable"));
 
         try {
             consumers.onPrivateText(cmd);

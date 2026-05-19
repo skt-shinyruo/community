@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.core.controller;
 
 import com.nowcoder.community.im.common.projection.RoomMembershipSnapshot;
-import com.nowcoder.community.im.core.service.RoomMembershipService;
+import com.nowcoder.community.im.core.application.RoomApplicationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,10 +16,10 @@ import java.util.UUID;
 @RequestMapping("/internal/im/realtime/projections")
 public class InternalRealtimeProjectionController {
 
-    private final RoomMembershipService roomMembershipService;
+    private final RoomApplicationService roomApplicationService;
 
-    public InternalRealtimeProjectionController(RoomMembershipService roomMembershipService) {
-        this.roomMembershipService = roomMembershipService;
+    public InternalRealtimeProjectionController(RoomApplicationService roomApplicationService) {
+        this.roomApplicationService = roomApplicationService;
     }
 
     @GetMapping("/room-memberships")
@@ -29,7 +29,7 @@ public class InternalRealtimeProjectionController {
             @RequestParam(name = "limit", defaultValue = "500") int limit
     ) {
         try {
-            return ResponseEntity.ok(roomMembershipService.snapshot(afterRoomId, afterUserId, limit));
+            return ResponseEntity.ok(roomApplicationService.membershipSnapshot(afterRoomId, afterUserId, limit));
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         }

@@ -7,7 +7,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.nowcoder.community.im.core.service.RoomMembershipService;
+import com.nowcoder.community.im.core.application.RoomApplicationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,7 +41,7 @@ class InternalRealtimeProjectionControllerTest {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private RoomMembershipService roomMembershipService;
+    private RoomApplicationService roomApplicationService;
 
     @Value("${security.jwt.hmac-secret}")
     private String jwtSecret;
@@ -52,7 +52,7 @@ class InternalRealtimeProjectionControllerTest {
     @Test
     void projectionEndpointShouldRequireInternalScope() throws Exception {
         UUID owner = uuid(1);
-        UUID roomId = roomMembershipService.createRoom(owner, "room-a");
+        UUID roomId = roomApplicationService.createRoom(owner, "room-a").roomId();
 
         mockMvc.perform(get("/internal/im/realtime/projections/room-memberships")
                         .header("Authorization", bearer(owner))
@@ -72,9 +72,9 @@ class InternalRealtimeProjectionControllerTest {
         UUID owner = uuid(1);
         UUID member2 = uuid(2);
         UUID member3 = uuid(3);
-        UUID roomId = roomMembershipService.createRoom(owner, "room-a");
-        roomMembershipService.joinRoom(member2, roomId);
-        roomMembershipService.joinRoom(member3, roomId);
+        UUID roomId = roomApplicationService.createRoom(owner, "room-a").roomId();
+        roomApplicationService.joinRoom(member2, roomId);
+        roomApplicationService.joinRoom(member3, roomId);
 
         MvcResult firstPage = mockMvc.perform(get("/internal/im/realtime/projections/room-memberships")
                         .header("Authorization", internalBearer(owner))
@@ -107,9 +107,9 @@ class InternalRealtimeProjectionControllerTest {
     @Test
     void roomMembershipSnapshotShouldRejectPartialCursor() throws Exception {
         UUID owner = uuid(1);
-        UUID roomId = roomMembershipService.createRoom(owner, "room-a");
+        UUID roomId = roomApplicationService.createRoom(owner, "room-a").roomId();
 
-        assertThatThrownBy(() -> roomMembershipService.snapshot(roomId, null, 10))
+        assertThatThrownBy(() -> roomApplicationService.membershipSnapshot(roomId, null, 10))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("afterRoomId and afterUserId must be provided together");
 
@@ -125,8 +125,8 @@ class InternalRealtimeProjectionControllerTest {
     void roomMembershipSnapshotShouldNotReportHasMoreWhenLimitExactlyMatchesRowCount() throws Exception {
         UUID owner = uuid(1);
         UUID member2 = uuid(2);
-        UUID roomId = roomMembershipService.createRoom(owner, "room-a");
-        roomMembershipService.joinRoom(member2, roomId);
+        UUID roomId = roomApplicationService.createRoom(owner, "room-a").roomId();
+        roomApplicationService.joinRoom(member2, roomId);
 
         mockMvc.perform(get("/internal/im/realtime/projections/room-memberships")
                         .header("Authorization", internalBearer(owner))

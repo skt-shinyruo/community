@@ -7,11 +7,11 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.nowcoder.community.im.core.application.PrivateMessageApplicationService;
+import com.nowcoder.community.im.core.application.RoomApplicationService;
+import com.nowcoder.community.im.core.application.RoomMessageApplicationService;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
-import com.nowcoder.community.im.core.service.PrivateMessageService;
-import com.nowcoder.community.im.core.service.RoomMembershipService;
-import com.nowcoder.community.im.core.service.RoomMessageService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,13 +45,13 @@ class ImCoreApiControllerTest {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private RoomMembershipService roomMembershipService;
+    private RoomApplicationService roomApplicationService;
 
     @Autowired
-    private RoomMessageService roomMessageService;
+    private RoomMessageApplicationService roomMessageApplicationService;
 
     @Autowired
-    private PrivateMessageService privateMessageService;
+    private PrivateMessageApplicationService privateMessageApplicationService;
 
     @Value("${security.jwt.hmac-secret}")
     private String jwtSecret;
@@ -72,7 +72,7 @@ class ImCoreApiControllerTest {
         UUID user3 = uuid(3);
         String conversationId = conversationId(user1, user2);
 
-        privateMessageService.persist(new SendPrivateTextCommand(
+        privateMessageApplicationService.persist(new SendPrivateTextCommand(
                 "req-1",
                 "c1",
                 user1,
@@ -130,10 +130,10 @@ class ImCoreApiControllerTest {
         UUID member = uuid(2);
         UUID outsider = uuid(99);
 
-        UUID roomId = roomMembershipService.createRoom(owner, "room");
-        roomMembershipService.joinRoom(member, roomId);
+        UUID roomId = roomApplicationService.createRoom(owner, "room").roomId();
+        roomApplicationService.joinRoom(member, roomId);
 
-        roomMessageService.persist(new SendRoomTextCommand(
+        roomMessageApplicationService.persist(new SendRoomTextCommand(
                 "req-1",
                 "c1",
                 owner,
@@ -188,10 +188,10 @@ class ImCoreApiControllerTest {
         UUID receiver = uuid(2);
         String conversationId = conversationId(sender, receiver);
 
-        UUID roomId = roomMembershipService.createRoom(sender, "room");
-        roomMembershipService.joinRoom(receiver, roomId);
+        UUID roomId = roomApplicationService.createRoom(sender, "room").roomId();
+        roomApplicationService.joinRoom(receiver, roomId);
 
-        privateMessageService.persist(new SendPrivateTextCommand(
+        privateMessageApplicationService.persist(new SendPrivateTextCommand(
                 "req-p1",
                 "cp1",
                 sender,
@@ -200,7 +200,7 @@ class ImCoreApiControllerTest {
                 "hello",
                 System.currentTimeMillis()
         ));
-        roomMessageService.persist(new SendRoomTextCommand(
+        roomMessageApplicationService.persist(new SendRoomTextCommand(
                 "req-r1",
                 "cr1",
                 sender,

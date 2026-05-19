@@ -1,14 +1,9 @@
-package com.nowcoder.community.im.core.controller;
+package com.nowcoder.community.im.core.application;
 
-import com.nowcoder.community.im.core.repository.ConversationReadStateRepository;
-import com.nowcoder.community.im.core.repository.ConversationRepository;
-import com.nowcoder.community.im.core.repository.PrivateMessageRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.security.oauth2.jwt.Jwt;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -19,10 +14,10 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class ConversationControllerPaginationOverflowTest {
+class ConversationApplicationServicePaginationOverflowTest {
 
     @Test
-    void listConversations_should_not_pass_negative_offset_when_page_is_huge() {
+    void listConversationsShouldNotPassNegativeOffsetWhenPageIsHuge() {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
 
         List<Object[]> capturedArgs = new ArrayList<>();
@@ -32,21 +27,18 @@ class ConversationControllerPaginationOverflowTest {
                     return List.of();
                 });
 
-        ConversationController controller = new ConversationController(
-                mock(PrivateMessageRepository.class),
-                mock(ConversationReadStateRepository.class),
-                mock(ConversationRepository.class),
+        ConversationApplicationService applicationService = new ConversationApplicationService(
+                mock(com.nowcoder.community.im.core.repository.PrivateMessageRepository.class),
+                mock(com.nowcoder.community.im.core.repository.ConversationReadStateRepository.class),
+                mock(com.nowcoder.community.im.core.repository.ConversationRepository.class),
                 jdbcTemplate
         );
 
-        Jwt jwt = Jwt.withTokenValue("t")
-                .header("alg", "none")
-                .subject(UUID.fromString("00000000-0000-7000-8000-000000000001").toString())
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(60))
-                .build();
-
-        controller.listConversations(jwt, Integer.MAX_VALUE, 200);
+        applicationService.listConversations(
+                UUID.fromString("00000000-0000-7000-8000-000000000001"),
+                Integer.MAX_VALUE,
+                200
+        );
 
         assertThat(capturedArgs).hasSize(1);
         Object[] args = capturedArgs.get(0);

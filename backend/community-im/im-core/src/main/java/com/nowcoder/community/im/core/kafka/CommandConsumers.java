@@ -5,9 +5,9 @@ import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
+import com.nowcoder.community.im.core.application.PrivateMessageApplicationService;
+import com.nowcoder.community.im.core.application.RoomMessageApplicationService;
 import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
-import com.nowcoder.community.im.core.service.PrivateMessageService;
-import com.nowcoder.community.im.core.service.RoomMessageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -25,17 +25,17 @@ public class CommandConsumers {
     private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
     private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
 
-    private final PrivateMessageService privateMessageService;
-    private final RoomMessageService roomMessageService;
+    private final PrivateMessageApplicationService privateMessageApplicationService;
+    private final RoomMessageApplicationService roomMessageApplicationService;
     private final ImMessageOutboxEnqueuer outboxEnqueuer;
 
     public CommandConsumers(
-            PrivateMessageService privateMessageService,
-            RoomMessageService roomMessageService,
+            PrivateMessageApplicationService privateMessageApplicationService,
+            RoomMessageApplicationService roomMessageApplicationService,
             ImMessageOutboxEnqueuer outboxEnqueuer
     ) {
-        this.privateMessageService = privateMessageService;
-        this.roomMessageService = roomMessageService;
+        this.privateMessageApplicationService = privateMessageApplicationService;
+        this.roomMessageApplicationService = roomMessageApplicationService;
         this.outboxEnqueuer = outboxEnqueuer;
     }
 
@@ -49,7 +49,7 @@ public class CommandConsumers {
             return;
         }
         try {
-            var event = privateMessageService.persist(cmd);
+            var event = privateMessageApplicationService.persist(cmd);
             debugEvent(
                     "im_private_command_persist",
                     "success",
@@ -94,7 +94,7 @@ public class CommandConsumers {
             return;
         }
         try {
-            var event = roomMessageService.persist(cmd);
+            var event = roomMessageApplicationService.persist(cmd);
             debugEvent(
                     "im_room_command_persist",
                     "success",

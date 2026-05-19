@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
-import com.nowcoder.community.im.core.service.RoomMembershipService;
+import com.nowcoder.community.im.core.application.RoomApplicationService;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -65,7 +65,7 @@ class CommandConsumerIsolationIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private RoomMembershipService roomMembershipService;
+    private RoomApplicationService roomApplicationService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -86,7 +86,7 @@ class CommandConsumerIsolationIntegrationTest {
     void invalidRoomCommand_shouldGoToDlq_andNotBlockFollowingCommands() throws Exception {
         jdbcTemplate.update("delete from outbox_event");
         UUID sender = uuid(1);
-        UUID roomId = roomMembershipService.createRoom(sender, "room");
+        UUID roomId = roomApplicationService.createRoom(sender, "room").roomId();
         String badRequestId = "req-bad-" + UUID.randomUUID();
         String badClientMsgId = "c-bad-" + UUID.randomUUID();
         String okRequestId = "req-ok-" + UUID.randomUUID();

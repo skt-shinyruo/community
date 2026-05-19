@@ -132,6 +132,36 @@ npm test -- src/views/marketState.test.js src/views/walletState.test.js
 
 复杂页面逻辑优先写纯函数测试。只有必须验证渲染、事件绑定或组件生命周期时，才写组件测试。
 
+## single Playwright 本地 E2E
+
+独立浏览器验收套件位于：
+
+```text
+tests/playwright-single
+```
+
+它面向已经启动的 `single` 拓扑，默认访问 `http://localhost:12881` 和
+`http://localhost:12880`。常用命令：
+
+```bash
+./deploy/deployment.sh up --topology single --no-observability
+npm --prefix tests/playwright-single install
+npm --prefix tests/playwright-single run health
+npm --prefix tests/playwright-single run test:smoke
+npm --prefix tests/playwright-single run test
+npm --prefix tests/playwright-single run report
+```
+
+默认 `test` 入口会排除 `99-known-issues.spec.ts`，用于稳定产品回归；
+需要跟踪当前已知失败时，单独执行：
+
+```bash
+npm --prefix tests/playwright-single run test:known
+```
+
+状态会变化的用例会创建带时间戳的本地测试数据。当前套件不自动清空
+single 数据库、Redis、对象存储或 Elasticsearch。
+
 ## Mock Data Studio 测试
 
 从仓库根目录执行：

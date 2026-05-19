@@ -59,3 +59,11 @@ tools/**/node_modules/
 .superpowers/
 .playwright-mcp/
 .vite/
+
+### Playwright single E2E ###
+tests/playwright-single/node_modules/
+tests/playwright-single/.auth/
+tests/playwright-single/test-results/
+tests/playwright-single/playwright-report/
+tests/playwright-single/reports/*.json
+tests/playwright-single/reports/*.md

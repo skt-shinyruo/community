@@ -97,7 +97,10 @@ public class EventConsumers {
         if (event == null) {
             return;
         }
-        membershipProjectionService.applyRoomMemberChanged(event);
+        boolean applied = membershipProjectionService.applyRoomMemberChanged(event);
+        if (!applied) {
+            return;
+        }
         UUID roomId = event.roomId();
         UUID userId = event.userId();
         String action = event.action() == null ? "" : event.action().trim().toUpperCase();

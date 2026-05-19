@@ -31,6 +31,7 @@ class KafkaRoomMemberChangePublisherTest {
         assertThat(event.userId()).isEqualTo(userId);
         assertThat(event.action()).isEqualTo("JOINED");
         assertThat(event.occurredAtEpochMillis()).isPositive();
+        assertThat(event.version()).isNotNull().isPositive();
     }
 
     private static UUID uuid(long suffix) {

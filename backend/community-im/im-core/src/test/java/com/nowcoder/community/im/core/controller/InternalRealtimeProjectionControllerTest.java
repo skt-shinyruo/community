@@ -64,7 +64,9 @@ class InternalRealtimeProjectionControllerTest {
                         .queryParam("limit", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.entries[0].roomId").value(roomId.toString()))
-                .andExpect(jsonPath("$.entries[0].userId").value(owner.toString()));
+                .andExpect(jsonPath("$.entries[0].userId").value(owner.toString()))
+                .andExpect(jsonPath("$.entries[0].version").isNumber())
+                .andExpect(jsonPath("$.snapshotHighWatermark").isNumber());
     }
 
     @Test

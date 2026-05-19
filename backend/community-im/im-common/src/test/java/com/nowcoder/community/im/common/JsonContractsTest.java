@@ -311,7 +311,8 @@ class JsonContractsTest {
                 )),
                 UUID.fromString("00000000-0000-7000-8000-000000000010"),
                 UUID.fromString("00000000-0000-7000-8000-000000000001"),
-                false
+                false,
+                1_712_345_678_904L
         );
 
         RoomMembershipSnapshot back = roundTrip(snapshot, RoomMembershipSnapshot.class);
@@ -322,6 +323,7 @@ class JsonContractsTest {
         assertEquals(snapshot.nextRoomId(), back.nextRoomId());
         assertEquals(snapshot.nextUserId(), back.nextUserId());
         assertFalse(back.hasMore());
+        assertEquals(1_712_345_678_904L, back.snapshotHighWatermark());
     }
 
     @Test
@@ -334,10 +336,13 @@ class JsonContractsTest {
                         true,
                         1_712_345_678_906L,
                         null,
-                        false
+                        false,
+                        1_712_345_678_901L,
+                        1_712_345_678_900L
                 ))),
                 uuid(52),
-                true
+                true,
+                1_712_345_678_901L
         );
 
         UserMessagingPolicySnapshot back = roundTrip(snapshot, UserMessagingPolicySnapshot.class);
@@ -345,7 +350,10 @@ class JsonContractsTest {
         assertEquals(snapshot, back);
         assertEquals(1_712_345_678_906L, recordComponentValue(back.entries().get(0), "muteUntil"));
         assertEquals(null, recordComponentValue(back.entries().get(0), "banUntil"));
+        assertEquals(1_712_345_678_901L, recordComponentValue(back.entries().get(0), "version"));
+        assertEquals(1_712_345_678_900L, recordComponentValue(back.entries().get(0), "occurredAtEpochMillis"));
         assertTrue(back.hasMore());
+        assertEquals(1_712_345_678_901L, back.snapshotHighWatermark());
     }
 
     @Test
@@ -354,17 +362,21 @@ class JsonContractsTest {
                 List.of(new UserBlockRelationEntry(
                         uuid(61),
                         uuid(62),
-                        true
+                        true,
+                        1_712_345_678_902L,
+                        1_712_345_678_901L
                 )),
                 uuid(63),
                 uuid(64),
-                false
+                false,
+                1_712_345_678_902L
         );
 
         UserBlockRelationSnapshot back = roundTrip(snapshot, UserBlockRelationSnapshot.class);
 
         assertEquals(snapshot, back);
         assertFalse(back.hasMore());
+        assertEquals(1_712_345_678_902L, back.snapshotHighWatermark());
     }
 
     @Test
@@ -390,12 +402,14 @@ class JsonContractsTest {
                 uuid(71),
                 uuid(72),
                 "JOINED",
-                1_712_345_678_904L
+                1_712_345_678_904L,
+                1_712_345_678_905L
         );
 
         RoomMemberChanged back = roundTrip(event, RoomMemberChanged.class);
         assertEquals(event, back);
         assertEquals("JOINED", back.action());
+        assertEquals(1_712_345_678_905L, back.version());
     }
 
     @Test
@@ -409,13 +423,15 @@ class JsonContractsTest {
                 1_712_345_678_907L,
                 null,
                 false,
-                1_712_345_678_905L
+                1_712_345_678_905L,
+                1_712_345_678_906L
         ));
 
         UserMessagingPolicyChanged back = roundTrip(event, UserMessagingPolicyChanged.class);
         assertEquals(event, back);
         assertEquals(1_712_345_678_907L, recordComponentValue(back, "muteUntil"));
         assertEquals(null, recordComponentValue(back, "banUntil"));
+        assertEquals(1_712_345_678_906L, recordComponentValue(back, "version"));
     }
 
     @Test
@@ -440,7 +456,8 @@ class JsonContractsTest {
                 UUID.fromString("00000000-0000-7000-8000-000000000011"),
                 UUID.fromString("00000000-0000-7000-8000-000000000022"),
                 true,
-                1_712_345_678_901L
+                1_712_345_678_901L,
+                1_712_345_678_902L
         );
 
         UserBlockRelationChanged back = roundTrip(event, UserBlockRelationChanged.class);
@@ -450,6 +467,7 @@ class JsonContractsTest {
         assertEquals(event.blockerUserId(), back.blockerUserId());
         assertEquals(event.blockedUserId(), back.blockedUserId());
         assertEquals(1_712_345_678_901L, back.occurredAtEpochMillis());
+        assertEquals(1_712_345_678_902L, back.version());
     }
 
     @Test
@@ -471,7 +489,9 @@ class JsonContractsTest {
             boolean muted,
             Long muteUntil,
             Long banUntil,
-            boolean canSendPrivate
+            boolean canSendPrivate,
+            Long version,
+            Long occurredAtEpochMillis
     ) {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("userId", userId);
@@ -481,6 +501,8 @@ class JsonContractsTest {
         values.put("muteUntil", muteUntil);
         values.put("banUntil", banUntil);
         values.put("canSendPrivate", canSendPrivate);
+        values.put("version", version);
+        values.put("occurredAtEpochMillis", occurredAtEpochMillis);
         return values;
     }
 
@@ -493,7 +515,8 @@ class JsonContractsTest {
             Long muteUntil,
             Long banUntil,
             boolean canSendPrivate,
-            long occurredAtEpochMillis
+            long occurredAtEpochMillis,
+            Long version
     ) {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("eventId", eventId);
@@ -505,6 +528,7 @@ class JsonContractsTest {
         values.put("banUntil", banUntil);
         values.put("canSendPrivate", canSendPrivate);
         values.put("occurredAtEpochMillis", occurredAtEpochMillis);
+        values.put("version", version);
         return values;
     }
 

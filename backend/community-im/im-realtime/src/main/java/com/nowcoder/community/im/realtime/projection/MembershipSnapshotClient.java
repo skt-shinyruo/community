@@ -4,6 +4,7 @@ import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
 import com.nowcoder.community.im.common.projection.RoomMembershipSnapshot;
+import com.nowcoder.community.im.common.projection.ProjectionVersions;
 import com.nowcoder.community.im.realtime.client.ImServiceClientProperties;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -21,6 +22,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -51,6 +53,10 @@ public class MembershipSnapshotClient {
     }
 
     public Flux<RoomMembershipEntry> fetchAll() {
+        return fetchSnapshot().flatMapIterable(FetchedMembershipSnapshot::entries);
+    }
+
+    public Mono<FetchedMembershipSnapshot> fetchSnapshot() {
         return fetchPage(null, null)
                 .expand(page -> {
                     if (page == null || !page.hasMore() || page.nextRoomId() == null || page.nextUserId() == null) {
@@ -58,7 +64,8 @@ public class MembershipSnapshotClient {
                     }
                     return fetchPage(page.nextRoomId(), page.nextUserId());
                 })
-                .flatMapIterable(page -> page == null || page.entries() == null ? List.<RoomMembershipEntry>of() : page.entries());
+                .collectList()
+                .map(pages -> new FetchedMembershipSnapshot(entries(pages), watermark(pages)));
     }
 
     private Mono<RoomMembershipSnapshot> fetchPage(UUID afterRoomId, UUID afterUserId) {
@@ -89,5 +96,48 @@ public class MembershipSnapshotClient {
                 .build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
         return "Bearer " + jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+    }
+
+    private static List<RoomMembershipEntry> entries(List<RoomMembershipSnapshot> pages) {
+        if (pages == null || pages.isEmpty()) {
+            return List.of();
+        }
+        List<RoomMembershipEntry> entries = new ArrayList<>();
+        for (RoomMembershipSnapshot page : pages) {
+            if (page != null && page.entries() != null) {
+                entries.addAll(page.entries());
+            }
+        }
+        return List.copyOf(entries);
+    }
+
+    private static long watermark(List<RoomMembershipSnapshot> pages) {
+        if (pages == null || pages.isEmpty()) {
+            return 0L;
+        }
+        RoomMembershipSnapshot firstPage = pages.get(0);
+        if (firstPage != null && firstPage.snapshotHighWatermark() != null && firstPage.snapshotHighWatermark() > 0L) {
+            return firstPage.snapshotHighWatermark();
+        }
+        long watermark = 0L;
+        for (RoomMembershipSnapshot page : pages) {
+            if (page == null) {
+                continue;
+            }
+            if (page.entries() == null) {
+                continue;
+            }
+            for (RoomMembershipEntry entry : page.entries()) {
+                watermark = Math.max(watermark, ProjectionVersions.resolve(
+                        entry.version(),
+                        entry.occurredAtEpochMillis(),
+                        null
+                ));
+            }
+        }
+        return watermark;
+    }
+
+    public record FetchedMembershipSnapshot(List<RoomMembershipEntry> entries, long snapshotHighWatermark) {
     }
 }

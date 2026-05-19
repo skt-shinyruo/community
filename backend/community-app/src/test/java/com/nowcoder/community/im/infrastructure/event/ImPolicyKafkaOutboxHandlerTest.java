@@ -104,6 +104,7 @@ class ImPolicyKafkaOutboxHandlerTest {
         assertThat(published.suspended()).isFalse();
         assertThat(recordComponentValue(published, "muteUntil")).isEqualTo(muteUntil.toEpochMilli());
         assertThat(recordComponentValue(published, "banUntil")).isEqualTo(expiredBanUntil.toEpochMilli());
+        assertThat(published.version()).isNotNull().isPositive();
         assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACEPARENT))
                 .isEqualTo(snapshot.traceparent());
     }
@@ -144,6 +145,8 @@ class ImPolicyKafkaOutboxHandlerTest {
         assertThat(record.topic()).isEqualTo(BLOCK_TOPIC);
         assertThat(record.key()).isEqualTo(uuid(7).toString());
         assertThat(record.value()).isInstanceOf(UserBlockRelationChanged.class);
+        UserBlockRelationChanged published = (UserBlockRelationChanged) record.value();
+        assertThat(published.version()).isNotNull().isPositive();
     }
 
     @Test

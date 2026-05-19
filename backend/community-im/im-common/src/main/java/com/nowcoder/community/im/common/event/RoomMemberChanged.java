@@ -7,6 +7,17 @@ public record RoomMemberChanged(
         UUID roomId,
         UUID userId,
         String action,
-        long occurredAtEpochMillis
+        long occurredAtEpochMillis,
+        Long version
 ) {
+
+    public RoomMemberChanged(
+            String eventId,
+            UUID roomId,
+            UUID userId,
+            String action,
+            long occurredAtEpochMillis
+    ) {
+        this(eventId, roomId, userId, action, occurredAtEpochMillis, null);
+    }
 }

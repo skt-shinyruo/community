@@ -4,6 +4,7 @@ import com.nowcoder.community.im.common.projection.UserBlockRelationEntry;
 import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicyEntry;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicySnapshot;
+import com.nowcoder.community.im.common.projection.ProjectionVersions;
 import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
 import com.nowcoder.community.social.api.model.SocialBlockRelationView;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
@@ -36,9 +37,10 @@ public class ImPolicySnapshotApplicationService {
     public UserMessagingPolicySnapshot userPolicies(UUID afterUserId, int limit) {
         int normalizedLimit = normalizeLimit(limit);
         Instant now = Instant.now();
+        long snapshotHighWatermark = ProjectionVersions.snapshotHighWatermarkFromEpochMillis(now.toEpochMilli());
         List<UserModerationStateView> states = userModerationQueryApi.scanModerationStatesAfterId(afterUserId, normalizedLimit);
         List<UserMessagingPolicyEntry> entries = states.stream()
-                .map(state -> toUserPolicyEntry(state, now))
+                .map(state -> toUserPolicyEntry(state, now, snapshotHighWatermark))
                 .toList();
 
         UUID nextUserId = entries.isEmpty() ? null : entries.get(entries.size() - 1).userId();
@@ -46,15 +48,17 @@ public class ImPolicySnapshotApplicationService {
                 && entries.size() == normalizedLimit
                 && !userModerationQueryApi.scanModerationStatesAfterId(nextUserId, 1).isEmpty();
 
-        return new UserMessagingPolicySnapshot(entries, nextUserId, hasMore);
+        return new UserMessagingPolicySnapshot(entries, nextUserId, hasMore, snapshotHighWatermark);
     }
 
     public UserBlockRelationSnapshot blockRelations(UUID afterBlockerUserId, UUID afterBlockedUserId, int limit) {
         int normalizedLimit = normalizeLimit(limit);
+        long occurredAtEpochMillis = System.currentTimeMillis();
+        long snapshotHighWatermark = ProjectionVersions.snapshotHighWatermarkFromEpochMillis(occurredAtEpochMillis);
         List<SocialBlockRelationView> views =
                 socialBlockQueryApi.scanBlockRelationsAfter(afterBlockerUserId, afterBlockedUserId, normalizedLimit);
         List<UserBlockRelationEntry> entries = views.stream()
-                .map(this::toBlockRelationEntry)
+                .map(view -> toBlockRelationEntry(view, snapshotHighWatermark, occurredAtEpochMillis))
                 .toList();
 
         UUID nextBlockerUserId = entries.isEmpty() ? null : entries.get(entries.size() - 1).blockerUserId();
@@ -64,7 +68,7 @@ public class ImPolicySnapshotApplicationService {
                 && entries.size() == normalizedLimit
                 && !socialBlockQueryApi.scanBlockRelationsAfter(nextBlockerUserId, nextBlockedUserId, 1).isEmpty();
 
-        return new UserBlockRelationSnapshot(entries, nextBlockerUserId, nextBlockedUserId, hasMore);
+        return new UserBlockRelationSnapshot(entries, nextBlockerUserId, nextBlockedUserId, hasMore, snapshotHighWatermark);
     }
 
     public PrivateMessagePolicyDecision decidePrivateMessage(UUID fromUserId, UUID toUserId) {
@@ -81,14 +85,16 @@ public class ImPolicySnapshotApplicationService {
         Instant now = Instant.now();
         UserMessagingPolicyEntry fromPolicy = toUserPolicyEntry(
                 userModerationQueryApi.getModerationState(fromUserId),
-                now
+                now,
+                ProjectionVersions.snapshotHighWatermarkFromEpochMillis(now.toEpochMilli())
         );
         if (fromPolicy.suspended() || fromPolicy.muted() || !fromPolicy.canSendPrivate()) {
             return PrivateMessagePolicyDecision.deny(403, "policy_denied", "发送方无权限发送私信");
         }
         UserMessagingPolicyEntry toPolicy = toUserPolicyEntry(
                 userModerationQueryApi.getModerationState(toUserId),
-                now
+                now,
+                ProjectionVersions.snapshotHighWatermarkFromEpochMillis(now.toEpochMilli())
         );
         if (!toPolicy.canSendPrivate()) {
             return PrivateMessagePolicyDecision.deny(403, "policy_denied", "接收方不允许私信");
@@ -100,7 +106,7 @@ public class ImPolicySnapshotApplicationService {
         return PrivateMessagePolicyDecision.allow();
     }
 
-    private UserMessagingPolicyEntry toUserPolicyEntry(UserModerationStateView state, Instant now) {
+    private UserMessagingPolicyEntry toUserPolicyEntry(UserModerationStateView state, Instant now, long snapshotHighWatermark) {
         boolean suspended = state != null && state.banUntil() != null && state.banUntil().isAfter(now);
         boolean muted = state != null && state.muteUntil() != null && state.muteUntil().isAfter(now);
         boolean canSendPrivate = state != null && state.userId() != null && !suspended && !muted;
@@ -111,12 +117,24 @@ public class ImPolicySnapshotApplicationService {
                 muted,
                 toEpochMillis(state == null ? null : state.muteUntil()),
                 toEpochMillis(state == null ? null : state.banUntil()),
-                canSendPrivate
+                canSendPrivate,
+                snapshotHighWatermark,
+                now.toEpochMilli()
         );
     }
 
-    private UserBlockRelationEntry toBlockRelationEntry(SocialBlockRelationView view) {
-        return new UserBlockRelationEntry(view.blockerUserId(), view.blockedUserId(), true);
+    private UserBlockRelationEntry toBlockRelationEntry(
+            SocialBlockRelationView view,
+            long snapshotHighWatermark,
+            long occurredAtEpochMillis
+    ) {
+        return new UserBlockRelationEntry(
+                view.blockerUserId(),
+                view.blockedUserId(),
+                true,
+                snapshotHighWatermark,
+                occurredAtEpochMillis
+        );
     }
 
     private int normalizeLimit(int limit) {

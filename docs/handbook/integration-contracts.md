@@ -149,6 +149,9 @@ DLQ：
 - room member changed event 用于 `im-realtime` 维护本机在线房间索引。
 - user messaging policy changed / user block relation changed event 用于 `im-realtime` 维护本机私信治理投影。
 - unknown version / unsupported payload 应进入失败路径或 DLQ，不能静默丢弃。
+- projection snapshot / delta 都带 `version` 和 `occurredAtEpochMillis`。`version` 是同一 projection key 上单调递增的状态版本；旧 payload 缺少 `version` 时，consumer 使用 `occurredAtEpochMillis` 派生兼容版本。
+- snapshot 响应带 `snapshotHighWatermark`，表示该快照覆盖到的版本上界。分页 snapshot 的整次刷新只使用第一页水位作为覆盖边界；后续页只贡献 entries，不能扩大覆盖边界。
+- `im-realtime` 对 user policy、block relation、room membership 都按 key 比较版本：只应用版本更大的 snapshot entry 或 delta。重复事件、乱序旧事件、旧 snapshot 都不能回滚本地状态；高水位高于本地版本且 snapshot 缺少的 key 才能表示删除或不存在。
 
 幂等：
 

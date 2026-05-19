@@ -7,6 +7,16 @@ public record RoomMembershipSnapshot(
         List<RoomMembershipEntry> entries,
         UUID nextRoomId,
         UUID nextUserId,
-        boolean hasMore
+        boolean hasMore,
+        Long snapshotHighWatermark
 ) {
+
+    public RoomMembershipSnapshot(
+            List<RoomMembershipEntry> entries,
+            UUID nextRoomId,
+            UUID nextUserId,
+            boolean hasMore
+    ) {
+        this(entries, nextRoomId, nextUserId, hasMore, null);
+    }
 }

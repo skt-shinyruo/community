@@ -7,6 +7,17 @@ public record UserBlockRelationChanged(
         UUID blockerUserId,
         UUID blockedUserId,
         boolean active,
-        long occurredAtEpochMillis
+        long occurredAtEpochMillis,
+        Long version
 ) {
+
+    public UserBlockRelationChanged(
+            String eventId,
+            UUID blockerUserId,
+            UUID blockedUserId,
+            boolean active,
+            long occurredAtEpochMillis
+    ) {
+        this(eventId, blockerUserId, blockedUserId, active, occurredAtEpochMillis, null);
+    }
 }

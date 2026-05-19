@@ -3,6 +3,7 @@ package com.nowcoder.community.im.core.domain.service;
 import com.nowcoder.community.im.core.domain.repository.RoomMemberRepository;
 import com.nowcoder.community.im.core.domain.repository.RoomRepository;
 import com.nowcoder.community.im.core.support.IdGenerator;
+import com.nowcoder.community.im.common.projection.ProjectionVersions;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
 import com.nowcoder.community.im.common.projection.RoomMembershipSnapshot;
 
@@ -66,20 +67,34 @@ public class RoomMembershipDomainService {
         if ((afterRoomId == null) != (afterUserId == null)) {
             throw new IllegalArgumentException("afterRoomId and afterUserId must be provided together");
         }
+        long snapshotHighWatermark = ProjectionVersions.snapshotHighWatermarkFromEpochMillis(System.currentTimeMillis());
         int l = Math.min(500, Math.max(1, limit));
         List<RoomMembershipEntry> scannedEntries = roomMemberRepository.scanMemberships(afterRoomId, afterUserId, l + 1);
         boolean hasMore = scannedEntries.size() > l;
-        List<RoomMembershipEntry> pageEntries = hasMore ? scannedEntries.subList(0, l) : scannedEntries;
+        List<RoomMembershipEntry> pageEntries = (hasMore ? scannedEntries.subList(0, l) : scannedEntries).stream()
+                .filter(entry -> entry != null && entry.roomId() != null && entry.userId() != null)
+                .map(entry -> withSnapshotVersion(entry, snapshotHighWatermark))
+                .toList();
         RoomMembershipEntry last = pageEntries.isEmpty() ? null : pageEntries.get(pageEntries.size() - 1);
         return new RoomMembershipSnapshot(
                 pageEntries,
                 last == null ? null : last.roomId(),
                 last == null ? null : last.userId(),
-                hasMore
+                hasMore,
+                snapshotHighWatermark
         );
     }
 
     public boolean isMember(UUID roomId, UUID userId) {
         return roomMemberRepository.isMember(roomId, userId);
+    }
+
+    private RoomMembershipEntry withSnapshotVersion(RoomMembershipEntry entry, long snapshotHighWatermark) {
+        return new RoomMembershipEntry(
+                entry.roomId(),
+                entry.userId(),
+                snapshotHighWatermark,
+                null
+        );
     }
 }

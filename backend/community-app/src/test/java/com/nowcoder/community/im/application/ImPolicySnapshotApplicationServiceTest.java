@@ -62,13 +62,17 @@ class ImPolicySnapshotApplicationServiceTest {
         assertThat(recordComponentValue(snapshot.entries().get(0), "muteUntil")).isEqualTo(activeMuteUntil.toEpochMilli());
         assertThat(recordComponentValue(snapshot.entries().get(0), "banUntil")).isNull();
         assertThat(snapshot.entries().get(0).canSendPrivate()).isFalse();
+        assertThat(snapshot.entries().get(0).version()).isNotNull().isPositive();
+        assertThat(snapshot.entries().get(0).occurredAtEpochMillis()).isNotNull().isPositive();
         assertThat(snapshot.entries().get(1).userId()).isEqualTo(uuid(8));
         assertThat(snapshot.entries().get(1).suspended()).isTrue();
         assertThat(snapshot.entries().get(1).muted()).isFalse();
         assertThat(recordComponentValue(snapshot.entries().get(1), "muteUntil")).isEqualTo(expiredMuteUntil.toEpochMilli());
         assertThat(recordComponentValue(snapshot.entries().get(1), "banUntil")).isEqualTo(activeBanUntil.toEpochMilli());
         assertThat(snapshot.entries().get(1).canSendPrivate()).isFalse();
+        assertThat(snapshot.entries().get(1).version()).isEqualTo(snapshot.snapshotHighWatermark());
         assertThat(snapshot.hasMore()).isFalse();
+        assertThat(snapshot.snapshotHighWatermark()).isPositive();
     }
 
     @Test
@@ -94,10 +98,13 @@ class ImPolicySnapshotApplicationServiceTest {
         assertThat(snapshot.entries().get(0).blockerUserId()).isEqualTo(uuid(1));
         assertThat(snapshot.entries().get(0).blockedUserId()).isEqualTo(uuid(2));
         assertThat(snapshot.entries().get(0).active()).isTrue();
+        assertThat(snapshot.entries().get(0).version()).isNotNull().isPositive();
         assertThat(snapshot.entries().get(1).blockerUserId()).isEqualTo(uuid(1));
         assertThat(snapshot.entries().get(1).blockedUserId()).isEqualTo(uuid(3));
         assertThat(snapshot.entries().get(1).active()).isTrue();
+        assertThat(snapshot.entries().get(1).version()).isEqualTo(snapshot.snapshotHighWatermark());
         assertThat(snapshot.hasMore()).isFalse();
+        assertThat(snapshot.snapshotHighWatermark()).isPositive();
     }
 
     @Test

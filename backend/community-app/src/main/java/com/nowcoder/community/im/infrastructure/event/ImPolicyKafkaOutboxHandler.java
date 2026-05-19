@@ -7,6 +7,7 @@ import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
+import com.nowcoder.community.im.common.projection.ProjectionVersions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -84,7 +85,8 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
                 longValue(payload, "muteUntil"),
                 longValue(payload, "banUntil"),
                 booleanValue(payload, "canSendPrivate"),
-                requiredLongValue(payload, "occurredAtEpochMillis")
+                requiredLongValue(payload, "occurredAtEpochMillis"),
+                resolvedVersion(payload)
         );
         sendToKafka(userMessagingPolicyChangedTopic, userId.toString(), changed);
     }
@@ -100,7 +102,8 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
                 blockerUserId,
                 blockedUserId,
                 booleanValue(payload, "active"),
-                requiredLongValue(payload, "occurredAtEpochMillis")
+                requiredLongValue(payload, "occurredAtEpochMillis"),
+                resolvedVersion(payload)
         );
         sendToKafka(userBlockRelationChangedTopic, blockerUserId.toString(), changed);
     }
@@ -158,5 +161,13 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
             throw new IllegalStateException("im policy outbox payload 缺少字段: " + fieldName);
         }
         return value;
+    }
+
+    private Long resolvedVersion(JsonNode payload) {
+        Long version = longValue(payload, "version");
+        if (version != null && version > 0L) {
+            return version;
+        }
+        return ProjectionVersions.resolve(null, requiredLongValue(payload, "occurredAtEpochMillis"), null);
     }
 }

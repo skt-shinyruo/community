@@ -6,6 +6,7 @@ import com.nowcoder.community.im.common.projection.UserBlockRelationEntry;
 import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicyEntry;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicySnapshot;
+import com.nowcoder.community.im.common.projection.ProjectionVersions;
 import com.nowcoder.community.im.realtime.client.ImServiceClientProperties;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -23,6 +24,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,6 +55,14 @@ public class PolicySnapshotClient {
     }
 
     public Flux<UserMessagingPolicyEntry> fetchUserPolicies() {
+        return fetchUserPolicySnapshot().flatMapIterable(FetchedUserPolicySnapshot::entries);
+    }
+
+    public Flux<UserBlockRelationEntry> fetchBlockRelations() {
+        return fetchBlockRelationSnapshot().flatMapIterable(FetchedBlockRelationSnapshot::entries);
+    }
+
+    public Mono<FetchedUserPolicySnapshot> fetchUserPolicySnapshot() {
         return fetchUserPolicyPage(null)
                 .expand(page -> {
                     if (page == null || !page.hasMore() || page.nextUserId() == null) {
@@ -60,10 +70,11 @@ public class PolicySnapshotClient {
                     }
                     return fetchUserPolicyPage(page.nextUserId());
                 })
-                .flatMapIterable(page -> page == null || page.entries() == null ? List.<UserMessagingPolicyEntry>of() : page.entries());
+                .collectList()
+                .map(pages -> new FetchedUserPolicySnapshot(userPolicyEntries(pages), userPolicyWatermark(pages)));
     }
 
-    public Flux<UserBlockRelationEntry> fetchBlockRelations() {
+    public Mono<FetchedBlockRelationSnapshot> fetchBlockRelationSnapshot() {
         return fetchBlockRelationPage(null, null)
                 .expand(page -> {
                     if (page == null || !page.hasMore()
@@ -72,7 +83,8 @@ public class PolicySnapshotClient {
                     }
                     return fetchBlockRelationPage(page.nextBlockerUserId(), page.nextBlockedUserId());
                 })
-                .flatMapIterable(page -> page == null || page.entries() == null ? List.<UserBlockRelationEntry>of() : page.entries());
+                .collectList()
+                .map(pages -> new FetchedBlockRelationSnapshot(blockRelationEntries(pages), blockRelationWatermark(pages)));
     }
 
     private Mono<UserMessagingPolicySnapshot> fetchUserPolicyPage(UUID afterUserId) {
@@ -119,5 +131,91 @@ public class PolicySnapshotClient {
                 .build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
         return "Bearer " + jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+    }
+
+    private static List<UserMessagingPolicyEntry> userPolicyEntries(List<UserMessagingPolicySnapshot> pages) {
+        if (pages == null || pages.isEmpty()) {
+            return List.of();
+        }
+        List<UserMessagingPolicyEntry> entries = new ArrayList<>();
+        for (UserMessagingPolicySnapshot page : pages) {
+            if (page != null && page.entries() != null) {
+                entries.addAll(page.entries());
+            }
+        }
+        return List.copyOf(entries);
+    }
+
+    private static List<UserBlockRelationEntry> blockRelationEntries(List<UserBlockRelationSnapshot> pages) {
+        if (pages == null || pages.isEmpty()) {
+            return List.of();
+        }
+        List<UserBlockRelationEntry> entries = new ArrayList<>();
+        for (UserBlockRelationSnapshot page : pages) {
+            if (page != null && page.entries() != null) {
+                entries.addAll(page.entries());
+            }
+        }
+        return List.copyOf(entries);
+    }
+
+    private static long userPolicyWatermark(List<UserMessagingPolicySnapshot> pages) {
+        if (pages == null || pages.isEmpty()) {
+            return 0L;
+        }
+        UserMessagingPolicySnapshot firstPage = pages.get(0);
+        if (firstPage != null && firstPage.snapshotHighWatermark() != null && firstPage.snapshotHighWatermark() > 0L) {
+            return firstPage.snapshotHighWatermark();
+        }
+        long watermark = 0L;
+        for (UserMessagingPolicySnapshot page : pages) {
+            if (page == null) {
+                continue;
+            }
+            if (page.entries() == null) {
+                continue;
+            }
+            for (UserMessagingPolicyEntry entry : page.entries()) {
+                watermark = Math.max(watermark, ProjectionVersions.resolve(
+                        entry.version(),
+                        entry.occurredAtEpochMillis(),
+                        null
+                ));
+            }
+        }
+        return watermark;
+    }
+
+    private static long blockRelationWatermark(List<UserBlockRelationSnapshot> pages) {
+        if (pages == null || pages.isEmpty()) {
+            return 0L;
+        }
+        UserBlockRelationSnapshot firstPage = pages.get(0);
+        if (firstPage != null && firstPage.snapshotHighWatermark() != null && firstPage.snapshotHighWatermark() > 0L) {
+            return firstPage.snapshotHighWatermark();
+        }
+        long watermark = 0L;
+        for (UserBlockRelationSnapshot page : pages) {
+            if (page == null) {
+                continue;
+            }
+            if (page.entries() == null) {
+                continue;
+            }
+            for (UserBlockRelationEntry entry : page.entries()) {
+                watermark = Math.max(watermark, ProjectionVersions.resolve(
+                        entry.version(),
+                        entry.occurredAtEpochMillis(),
+                        null
+                ));
+            }
+        }
+        return watermark;
+    }
+
+    public record FetchedUserPolicySnapshot(List<UserMessagingPolicyEntry> entries, long snapshotHighWatermark) {
+    }
+
+    public record FetchedBlockRelationSnapshot(List<UserBlockRelationEntry> entries, long snapshotHighWatermark) {
     }
 }

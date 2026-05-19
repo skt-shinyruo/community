@@ -7,6 +7,16 @@ public record UserBlockRelationSnapshot(
         List<UserBlockRelationEntry> entries,
         UUID nextBlockerUserId,
         UUID nextBlockedUserId,
-        boolean hasMore
+        boolean hasMore,
+        Long snapshotHighWatermark
 ) {
+
+    public UserBlockRelationSnapshot(
+            List<UserBlockRelationEntry> entries,
+            UUID nextBlockerUserId,
+            UUID nextBlockedUserId,
+            boolean hasMore
+    ) {
+        this(entries, nextBlockerUserId, nextBlockedUserId, hasMore, null);
+    }
 }

@@ -174,6 +174,7 @@ Membership projection：
 - connect、私信发送和群消息发送都会先检查 projection ready。未 ready 时，connect 返回 `projection_not_ready` 并关闭，发送 frame 返回 reject。
 - `RoomMemberChanged` 事件增量更新 realtime 本地 `MembershipProjectionService` 和 `RoomLocalIndex`。
 - `RoomLocalIndex` 只保存当前 worker 进程内的 roomId -> connectionId 集合，用于房间在线 fanout 和 room 连接数指标；它不是 membership 权威状态。
+- membership snapshot 带 `snapshotHighWatermark`，entry / delta 带 `version` 和 `occurredAtEpochMillis`。realtime 只接受同一 `(roomId,userId)` 上版本更大的状态；旧 snapshot 或乱序 `RoomMemberChanged` 不会回滚 membership 或本机 room index。
 
 Policy projection：
 
@@ -181,6 +182,7 @@ Policy projection：
 - realtime 通过 internal endpoint 拉 user policies 和 block relations snapshot。
 - user moderation change 和 social block change 通过 Kafka 增量事件更新 realtime。
 - realtime 发私信前使用本地 policy projection 做快速判定。
+- user policy 以 `userId` 为 projection key，block relation 以 `(blockerUserId,blockedUserId)` 为 projection key。snapshot / delta 同样使用 `version`、`occurredAtEpochMillis` 和 `snapshotHighWatermark`，refresh 与 Kafka delta 并发时按 key 版本决胜。
 
 projection 不是权威事实；启动和异常恢复依赖 snapshot 重新构建。
 

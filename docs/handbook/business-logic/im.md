@@ -185,6 +185,10 @@ Membership projection：
 - `RoomMemberChanged` 事件增量更新 realtime 本地 `MembershipProjectionService` 和 `RoomLocalIndex`。
 - `RoomLocalIndex` 只保存当前 worker 进程内的 roomId -> connectionId 集合，用于房间在线 fanout 和 room 连接数指标；它不是 membership 权威状态。
 - membership snapshot 带 `snapshotHighWatermark`，entry / delta 带 `version` 和 `occurredAtEpochMillis`。realtime 只接受同一 `(roomId,userId)` 上版本更大的状态；旧 snapshot 或乱序 `RoomMemberChanged` 不会回滚 membership 或本机 room index。
+- 房间 fanout 默认保持 `legacy`，这是 routed rollout gate。`shadow` 继续 legacy 投递并只计算 owner route；`routed` 使用共享 owner consumer group 读取 room persisted event，再按分布式 room presence 将 state-only update dispatch 到持有本房间连接的 worker。
+- `routed` 必须绑定 Redis-backed distributed room presence；如果 presence 是 `NoopRoomPresenceDirectory`，realtime 启动期 fail-fast。
+- routed owner 对 route planning / HTTP target dispatch 使用进程内 pending retry：失败时继续尝试其它目标 worker，并把该 room 最新 update 留到后续 flush 重试。空 target set 不重试，表示 presence 当前没有报告活跃 worker。
+- internal target endpoint 仍由 `SCOPE_im.realtime.internal` 保护，并要求 `targetWorkerId` 匹配本 worker；同时要求非空 `sourceEventId`，同一 target worker 对重复 `sourceEventId` 做有界内存去重，重复命令返回 no-op accepted，不再次触发本地 fanout。客户端最终仍按 room message `seq` 和 history backfill 收敛。
 
 Policy projection：
 

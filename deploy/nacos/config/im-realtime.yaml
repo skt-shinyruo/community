@@ -1,4 +1,8 @@
 spring:
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
   cloud:
     nacos:
       discovery:
@@ -26,6 +30,19 @@ im:
     timeout-ms: 1500
   projection:
     bootstrap-on-startup: true
+  room-presence:
+    enabled: false
+    key-prefix: "im:"
+    ttl: PT30S
+    heartbeat-interval: PT10S
+  room-fanout:
+    mode: legacy
+    owner-group-id: im-realtime-room-fanout-owner
+    owner-concurrency: 3
+    owner-flush-interval: PT0.05S
+    target-path: /internal/im/realtime/fanout/room
+    target-timeout: PT1S
+    worker-directory-cache-ttl: PT0.5S
   session:
     worker-service-id: im-realtime-worker
     worker-id: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}

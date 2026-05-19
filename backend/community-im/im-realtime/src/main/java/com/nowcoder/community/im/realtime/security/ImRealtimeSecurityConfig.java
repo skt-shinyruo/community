@@ -3,6 +3,7 @@ package com.nowcoder.community.im.realtime.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
@@ -33,8 +34,10 @@ public class ImRealtimeSecurityConfig {
                         .pathMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
                         .pathMatchers(wsPathValue).permitAll()
                         // WebSocket connect auth remains inside the handler through signed session tickets.
+                        .pathMatchers("/internal/im/realtime/fanout/**").hasAuthority("SCOPE_im.realtime.internal")
                         .anyExchange().denyAll()
                 )
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .build();
     }
 

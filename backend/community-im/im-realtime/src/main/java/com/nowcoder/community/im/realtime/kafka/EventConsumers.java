@@ -5,16 +5,14 @@ import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
 import com.nowcoder.community.im.common.event.RoomMessageCommittedEvent;
-import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
+import com.nowcoder.community.im.realtime.presence.RoomLocalPresenceService;
 import com.nowcoder.community.im.realtime.projection.MembershipProjectionService;
 import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
 import com.nowcoder.community.im.realtime.push.PrivatePushService;
-import com.nowcoder.community.im.realtime.push.RoomFanoutCoalescer;
 import com.nowcoder.community.im.realtime.push.SendResultPushService;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -28,8 +26,7 @@ public class EventConsumers {
     private final MembershipProjectionService membershipProjectionService;
     private final PolicyProjectionService policyProjectionService;
     private final ConnectionRegistry connectionRegistry;
-    private final RoomLocalIndex roomLocalIndex;
-    private final RoomFanoutCoalescer roomFanoutCoalescer;
+    private final RoomLocalPresenceService roomLocalPresenceService;
     private final SendResultPushService sendResultPushService;
 
     public EventConsumers(
@@ -37,16 +34,14 @@ public class EventConsumers {
             MembershipProjectionService membershipProjectionService,
             PolicyProjectionService policyProjectionService,
             ConnectionRegistry connectionRegistry,
-            RoomLocalIndex roomLocalIndex,
-            RoomFanoutCoalescer roomFanoutCoalescer,
+            RoomLocalPresenceService roomLocalPresenceService,
             SendResultPushService sendResultPushService
     ) {
         this.privatePushService = privatePushService;
         this.membershipProjectionService = membershipProjectionService;
         this.policyProjectionService = policyProjectionService;
         this.connectionRegistry = connectionRegistry;
-        this.roomLocalIndex = roomLocalIndex;
-        this.roomFanoutCoalescer = roomFanoutCoalescer;
+        this.roomLocalPresenceService = roomLocalPresenceService;
         this.sendResultPushService = sendResultPushService;
     }
 
@@ -57,18 +52,6 @@ public class EventConsumers {
     )
     public void onPrivatePersisted(PrivateMessagePersistedEvent event) {
         privatePushService.pushPrivateMessage(event);
-    }
-
-    @KafkaListener(
-            topics = "${im.kafka.topics.event-room-persisted:im.event.room-persisted}",
-            containerFactory = "kafkaListenerContainerFactory",
-            concurrency = "${im.kafka.event.concurrency:3}"
-    )
-    public void onRoomPersisted(RoomMessagePersistedEvent event) {
-        if (event == null) {
-            return;
-        }
-        roomFanoutCoalescer.markRoomUpdated(event.roomId(), event.seq());
     }
 
     @KafkaListener(
@@ -124,14 +107,14 @@ public class EventConsumers {
         String action = event.action() == null ? "" : event.action().trim().toUpperCase();
         if ("JOINED".equals(action)) {
             connectionRegistry.forEachConnectionByUserId(userId, conn -> {
-                roomLocalIndex.add(roomId, conn.connectionId());
+                roomLocalPresenceService.addLocalConnection(roomId, conn.connectionId());
                 conn.joinRoom(roomId);
             });
             return;
         }
         if ("LEFT".equals(action)) {
             connectionRegistry.forEachConnectionByUserId(userId, conn -> {
-                roomLocalIndex.remove(roomId, conn.connectionId());
+                roomLocalPresenceService.removeLocalConnection(roomId, conn.connectionId());
                 conn.leaveRoom(roomId);
             });
         }

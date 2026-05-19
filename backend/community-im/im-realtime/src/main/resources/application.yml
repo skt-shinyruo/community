@@ -9,6 +9,10 @@ spring:
       - ${NACOS_CONFIG_IMPORT_KAFKA_POLICY:optional:nacos:community-kafka-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
   application:
     name: im-realtime
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
   cloud:
     nacos:
       discovery:
@@ -116,6 +120,19 @@ im:
     timeout-ms: ${IM_COMMUNITY_TIMEOUT_MS:1500}
   projection:
     bootstrap-on-startup: ${IM_PROJECTION_BOOTSTRAP_ON_STARTUP:true}
+  room-presence:
+    enabled: ${IM_ROOM_PRESENCE_ENABLED:false}
+    key-prefix: "${IM_ROOM_PRESENCE_KEY_PREFIX:im:}"
+    ttl: ${IM_ROOM_PRESENCE_TTL:PT30S}
+    heartbeat-interval: ${IM_ROOM_PRESENCE_HEARTBEAT_INTERVAL:PT10S}
+  room-fanout:
+    mode: ${IM_ROOM_FANOUT_MODE:legacy}
+    owner-group-id: ${IM_ROOM_FANOUT_OWNER_GROUP_ID:im-realtime-room-fanout-owner}
+    owner-concurrency: ${IM_ROOM_FANOUT_OWNER_CONCURRENCY:${IM_REALTIME_KAFKA_EVENT_CONCURRENCY:3}}
+    owner-flush-interval: ${IM_ROOM_FANOUT_OWNER_FLUSH_INTERVAL:PT0.05S}
+    target-path: ${IM_ROOM_FANOUT_TARGET_PATH:/internal/im/realtime/fanout/room}
+    target-timeout: ${IM_ROOM_FANOUT_TARGET_TIMEOUT:PT1S}
+    worker-directory-cache-ttl: ${IM_ROOM_FANOUT_WORKER_DIRECTORY_CACHE_TTL:PT0.5S}
   session:
     # Worker-local ticket and identity settings used to validate connect tickets.
     # Public session bootstrap routing moved to community-im-gateway.

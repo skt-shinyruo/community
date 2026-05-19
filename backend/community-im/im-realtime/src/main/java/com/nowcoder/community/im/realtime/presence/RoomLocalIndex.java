@@ -46,38 +46,44 @@ public class RoomLocalIndex {
         this(meterRegistryProvider == null ? null : meterRegistryProvider.getIfAvailable(), DEFAULT_ROOM_SIZE_SAMPLE_RATE);
     }
 
-    public void add(UUID roomId, String connectionId) {
+    public boolean add(UUID roomId, String connectionId) {
         if (roomId == null || connectionId == null || connectionId.isBlank()) {
-            return;
+            return false;
         }
         Set<String> ids = connectionIdsByRoomId.get(roomId);
+        boolean firstLocalConnection = false;
         if (ids == null) {
             Set<String> created = ConcurrentHashMap.newKeySet();
             ids = connectionIdsByRoomId.putIfAbsent(roomId, created);
             if (ids == null) {
                 ids = created;
+                firstLocalConnection = true;
                 indexedRooms.incrementAndGet();
             }
         }
         ids.add(connectionId);
         recordRoomSizeSampled(ids);
+        return firstLocalConnection;
     }
 
-    public void remove(UUID roomId, String connectionId) {
+    public boolean remove(UUID roomId, String connectionId) {
         if (roomId == null || connectionId == null || connectionId.isBlank()) {
-            return;
+            return false;
         }
         Set<String> ids = connectionIdsByRoomId.get(roomId);
         if (ids == null) {
-            return;
+            return false;
         }
         ids.remove(connectionId);
+        boolean lastLocalConnectionRemoved = false;
         if (ids.isEmpty()) {
             if (connectionIdsByRoomId.remove(roomId, ids)) {
+                lastLocalConnectionRemoved = true;
                 indexedRooms.decrementAndGet();
             }
         }
         recordRoomSizeSampled(ids);
+        return lastLocalConnectionRemoved;
     }
 
     public void forEachConnectionId(UUID roomId, Consumer<String> consumer) {

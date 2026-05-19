@@ -306,6 +306,9 @@
 | `im.realtime.projection.PolicySnapshotClient` | internal community-app policy snapshot client | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.projection.MembershipSnapshotClient` | internal im-core membership snapshot client | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.presence.RoomLocalIndex` | in-process room-to-connection index for room fanout | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
+| `im.realtime.presence.RedisRoomPresenceDirectory` | distributed room-to-worker presence for routed room fanout | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
+| `im.realtime.fanout.RoomFanoutOwnerCoalescer` | routed owner coalescing, target dispatch, and pending retry | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
+| `im.realtime.fanout.RoomFanoutTargetService` | internal routed fanout target validation and source-event dedupe | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
 | `im.realtime.session.SessionTicketCodec` | realtime ticket validation | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.push.PrivatePushService` | online private message fanout | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.push.SendResultPushService` | accepted / committed / rejected send result push | [IM 消息业务逻辑](business-logic/im.md) | Covered |

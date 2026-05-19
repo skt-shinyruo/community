@@ -3,7 +3,7 @@ package com.nowcoder.community.im.realtime.projection;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
 import com.nowcoder.community.im.common.projection.ProjectionVersions;
-import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
+import com.nowcoder.community.im.realtime.presence.RoomLocalPresenceService;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -44,13 +44,13 @@ public class MembershipProjectionService {
         return memberIdsByRoom.get().getOrDefault(roomId, Set.of()).contains(userId);
     }
 
-    public void bindExistingRooms(WsConnection conn, RoomLocalIndex roomLocalIndex) {
-        if (conn == null || conn.userId() == null || roomLocalIndex == null) {
+    public void bindExistingRooms(WsConnection conn, RoomLocalPresenceService roomLocalPresenceService) {
+        if (conn == null || conn.userId() == null || roomLocalPresenceService == null) {
             return;
         }
         for (UUID roomId : roomIdsForUser(conn.userId())) {
             conn.joinRoom(roomId);
-            roomLocalIndex.add(roomId, conn.connectionId());
+            roomLocalPresenceService.addLocalConnection(roomId, conn.connectionId());
         }
     }
 

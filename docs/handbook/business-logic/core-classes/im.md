@@ -39,6 +39,9 @@
 | `im.realtime.projection.PolicySnapshotClient` | 拉 user policy snapshot。 |
 | `im.realtime.projection.MembershipSnapshotClient` | 拉 room membership snapshot。 |
 | `im.realtime.presence.RoomLocalIndex` | 本进程 room -> connectionId 索引。 |
+| `im.realtime.presence.RedisRoomPresenceDirectory` | routed fanout 使用的分布式 room -> worker presence。 |
+| `im.realtime.fanout.RoomFanoutOwnerCoalescer` | routed owner 侧房间更新合并、目标 dispatch 和 pending retry。 |
+| `im.realtime.fanout.RoomFanoutTargetService` | routed target 校验、本地 fanout 触发和 sourceEventId 去重。 |
 | `im.realtime.session.SessionTicketCodec` | realtime 侧 session ticket 校验。 |
 | `im.realtime.push.PrivatePushService` | 私信在线 fanout。 |
 | `im.realtime.push.SendResultPushService` | accepted / committed / rejected push。 |

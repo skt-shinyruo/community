@@ -33,6 +33,9 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.containsProperty("im.clients.snapshot-timeout-ms")).isTrue();
         assertThat(environment.containsProperty("im.community.timeout-ms")).isTrue();
         assertThat(environment.containsProperty("im.projection.bootstrap-on-startup")).isTrue();
+        assertThat(environment.containsProperty("im.room-presence.enabled")).isTrue();
+        assertThat(environment.containsProperty("im.room-fanout.mode")).isTrue();
+        assertThat(environment.containsProperty("im.room-fanout.owner-group-id")).isTrue();
         assertThat(environment.containsProperty("im.kafka.event.concurrency")).isTrue();
         assertThat(environment.containsProperty("im.ws.room-flush-interval-ms")).isTrue();
         assertThat(environment.containsProperty("im.ws.max-inbound-chars")).isTrue();
@@ -42,6 +45,11 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.getProperty("im.community.timeout-ms", Integer.class)).isEqualTo(1500);
         assertThat(environment.getProperty("im.ws.max-inbound-chars", Integer.class)).isEqualTo(10000);
         assertThat(environment.getProperty("im.ws.room-flush-interval-ms", Integer.class)).isEqualTo(50);
+        assertThat(environment.getProperty("im.room-presence.enabled", Boolean.class)).isFalse();
+        assertThat(environment.getProperty("im.room-presence.ttl")).isEqualTo("PT30S");
+        assertThat(environment.getProperty("im.room-fanout.mode")).isEqualTo("legacy");
+        assertThat(environment.getProperty("im.room-fanout.owner-group-id")).isEqualTo("im-realtime-room-fanout-owner");
+        assertThat(environment.getProperty("im.room-fanout.target-path")).isEqualTo("/internal/im/realtime/fanout/room");
         assertThat(environment.getProperty("im.cors.allowed-origins[2]")).isEqualTo("http://localhost:12881");
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.draining", Boolean.class)).isFalse();
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.maxConnections", Integer.class)).isEqualTo(10000);

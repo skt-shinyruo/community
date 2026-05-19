@@ -12,7 +12,7 @@ import com.nowcoder.community.im.common.ws.RejectFrame;
 import com.nowcoder.community.im.common.ws.SendPrivateTextFrame;
 import com.nowcoder.community.im.common.ws.SendRoomTextFrame;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
+import com.nowcoder.community.im.realtime.presence.RoomLocalPresenceService;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
 import com.nowcoder.community.im.realtime.projection.MembershipProjectionService;
 import com.nowcoder.community.im.realtime.projection.PolicyDecision;
@@ -58,7 +58,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
     private final PolicyProjectionService policyProjectionService;
     private final MessageCommandIngressService commandIngressService;
     private final ConnectionRegistry connectionRegistry;
-    private final RoomLocalIndex roomLocalIndex;
+    private final RoomLocalPresenceService roomLocalPresenceService;
     private final int maxChars;
     private final int maxOutboundBacklog;
 
@@ -71,7 +71,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
             PolicyProjectionService policyProjectionService,
             MessageCommandIngressService commandIngressService,
             ConnectionRegistry connectionRegistry,
-            RoomLocalIndex roomLocalIndex,
+            RoomLocalPresenceService roomLocalPresenceService,
             @Value("${im.ws.max-inbound-chars:10000}") int maxChars,
             @Value("${im.ws.outbound-buffer-size:256}") int maxOutboundBacklog
     ) {
@@ -83,7 +83,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
         this.policyProjectionService = policyProjectionService;
         this.commandIngressService = commandIngressService;
         this.connectionRegistry = connectionRegistry;
-        this.roomLocalIndex = roomLocalIndex;
+        this.roomLocalPresenceService = roomLocalPresenceService;
         this.maxChars = Math.min(Math.max(1, maxChars), 100_000);
         this.maxOutboundBacklog = Math.min(Math.max(1, maxOutboundBacklog), 10_000);
     }
@@ -181,7 +181,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
             }
 
             conn.bindSession(ticket.sessionId(), ticket.userId(), ticket.workerId());
-            membershipProjectionService.bindExistingRooms(conn, roomLocalIndex);
+            membershipProjectionService.bindExistingRooms(conn, roomLocalPresenceService);
             connectionRegistry.register(conn);
             conn.trySendText(frameCodec.write(new ConnectedFrame("connected", ticket.sessionId())));
             infoEvent(
@@ -301,7 +301,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
         try {
             connectionRegistry.unregister(conn);
             for (UUID roomId : conn.joinedRoomsView()) {
-                roomLocalIndex.remove(roomId, conn.connectionId());
+                roomLocalPresenceService.removeLocalConnection(roomId, conn.connectionId());
             }
             conn.complete();
         } catch (RuntimeException ignore) {

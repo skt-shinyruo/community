@@ -1,15 +1,37 @@
 package com.nowcoder.community.im.common.projection;
 
+import com.nowcoder.community.im.common.ImContractVersions;
+import com.nowcoder.community.im.common.ImJsonContract;
+import com.nowcoder.community.im.common.ImSchemaVersion;
+
 import java.util.List;
 import java.util.UUID;
 
+@ImJsonContract
 public record RoomMembershipSnapshot(
         List<RoomMembershipEntry> entries,
         UUID nextRoomId,
         UUID nextUserId,
         boolean hasMore,
-        Long snapshotHighWatermark
+        Long snapshotHighWatermark,
+        @ImSchemaVersion
+        int schemaVersion
 ) {
+
+    public RoomMembershipSnapshot {
+        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+    }
+
+    public RoomMembershipSnapshot(
+            List<RoomMembershipEntry> entries,
+            UUID nextRoomId,
+            UUID nextUserId,
+            boolean hasMore,
+            Long snapshotHighWatermark
+    ) {
+        this(entries, nextRoomId, nextUserId, hasMore, snapshotHighWatermark,
+                ImContractVersions.PROJECTION_SCHEMA_VERSION);
+    }
 
     public RoomMembershipSnapshot(
             List<RoomMembershipEntry> entries,
@@ -17,6 +39,7 @@ public record RoomMembershipSnapshot(
             UUID nextUserId,
             boolean hasMore
     ) {
-        this(entries, nextRoomId, nextUserId, hasMore, null);
+        this(entries, nextRoomId, nextUserId, hasMore, null,
+                ImContractVersions.PROJECTION_SCHEMA_VERSION);
     }
 }

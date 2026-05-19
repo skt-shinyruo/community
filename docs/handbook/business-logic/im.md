@@ -48,6 +48,13 @@ Kafka command/event：
 - `UserMessagingPolicyChanged`
 - `UserBlockRelationChanged`
 
+契约版本：
+
+- `im-common` 下 command、event、projection snapshot 和 WebSocket frame 都是跨 deployable JSON contract。
+- 当前 schema version 是 `1`。读取缺失 `schemaVersion` 的旧 payload 时按 `1` 处理；写出当前 v1 payload 时默认省略 `schemaVersion`，避免滚动升级时新 producer 主动打破旧 consumer。
+- consumer 忽略未知 JSON 字段；新增字段必须是 optional，并有明确默认值。必填字段、字段改名、字段类型或语义变化属于破坏性变更，必须新 topic / 新 frame type / 新显式版本迁移。
+- Kafka topic 与 WebSocket `type` 是路由契约。兼容性字段演进不换名；不兼容语义演进不能复用旧 topic/type。
+
 ## 数据流
 
 IM 的数据流分成 session、command、消息事实 event、发送结果 event 和本地投影五层：

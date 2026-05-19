@@ -32,6 +32,7 @@ import com.nowcoder.community.im.common.ws.SendPrivateTextFrame;
 import com.nowcoder.community.im.common.ws.SendRoomTextFrame;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.RecordComponent;
 import java.util.List;
@@ -41,7 +42,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JsonContractsTest {
@@ -64,6 +64,8 @@ class JsonContractsTest {
 
         SendPrivateTextCommand back = roundTrip(cmd, SendPrivateTextCommand.class);
         assertEquals(cmd, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertFalse(objectMapper.writeValueAsString(cmd).contains("schemaVersion"));
     }
 
     @Test
@@ -80,6 +82,55 @@ class JsonContractsTest {
 
         SendRoomTextCommand back = roundTrip(cmd, SendRoomTextCommand.class);
         assertEquals(cmd, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+    }
+
+    @Test
+    void command_shouldReadLegacyPrivateTextWithoutSchemaVersion() throws Exception {
+        UUID fromUserId = uuid(12);
+        UUID toUserId = uuid(99);
+
+        SendPrivateTextCommand back = objectMapper.readValue("""
+                {
+                  "requestId": "req-legacy-private",
+                  "clientMsgId": "cmsg-legacy-private",
+                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
+                  "toUserId": "00000000-0000-7000-8000-000000000063",
+                  "conversationId": "%s",
+                  "content": "legacy hello",
+                  "clientSentAtEpochMs": 1700000000000
+                }
+                """.formatted(conversationId(fromUserId, toUserId)), SendPrivateTextCommand.class);
+
+        assertEquals("req-legacy-private", back.requestId());
+        assertEquals("cmsg-legacy-private", back.clientMsgId());
+        assertEquals(fromUserId, back.fromUserId());
+        assertEquals(toUserId, back.toUserId());
+        assertEquals("legacy hello", back.content());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+    }
+
+    @Test
+    void command_shouldIgnoreFutureFieldsAndKeepRoomTextFieldsReadable() throws Exception {
+        SendRoomTextCommand back = objectMapper.readValue("""
+                {
+                  "schemaVersion": 1,
+                  "requestId": "req-future-room",
+                  "clientMsgId": "cmsg-future-room",
+                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
+                  "roomId": "00000000-0000-7000-8000-0000000003e9",
+                  "content": "future room hello",
+                  "clientSentAtEpochMs": 1700000000001,
+                  "traceContext": "future writer metadata",
+                  "futureObject": {"feature": "attachment-preview"}
+                }
+                """, SendRoomTextCommand.class);
+
+        assertEquals("req-future-room", back.requestId());
+        assertEquals("cmsg-future-room", back.clientMsgId());
+        assertEquals(uuid(1001), back.roomId());
+        assertEquals("future room hello", back.content());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -99,6 +150,7 @@ class JsonContractsTest {
 
         PrivateMessagePersistedEvent back = roundTrip(event, PrivateMessagePersistedEvent.class);
         assertEquals(event, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -115,6 +167,7 @@ class JsonContractsTest {
 
         RoomMessagePersistedEvent back = roundTrip(event, RoomMessagePersistedEvent.class);
         assertEquals(event, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -135,6 +188,7 @@ class JsonContractsTest {
 
         PrivateMessageCommittedEvent back = roundTrip(event, PrivateMessageCommittedEvent.class);
         assertEquals(event, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -153,6 +207,7 @@ class JsonContractsTest {
 
         RoomMessageCommittedEvent back = roundTrip(event, RoomMessageCommittedEvent.class);
         assertEquals(event, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -174,6 +229,7 @@ class JsonContractsTest {
 
         PrivateMessageRejectedEvent back = roundTrip(event, PrivateMessageRejectedEvent.class);
         assertEquals(event, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -192,6 +248,56 @@ class JsonContractsTest {
 
         RoomMessageRejectedEvent back = roundTrip(event, RoomMessageRejectedEvent.class);
         assertEquals(event, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+    }
+
+    @Test
+    void event_shouldReadLegacyCommittedEventWithoutSchemaVersion() throws Exception {
+        UUID fromUserId = uuid(12);
+        UUID toUserId = uuid(99);
+
+        PrivateMessageCommittedEvent back = objectMapper.readValue("""
+                {
+                  "eventId": "evt-legacy-committed",
+                  "requestId": "req-legacy-committed",
+                  "clientMsgId": "cmsg-legacy-committed",
+                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
+                  "toUserId": "00000000-0000-7000-8000-000000000063",
+                  "conversationId": "%s",
+                  "messageId": "00000000-0000-7000-8000-000000002711",
+                  "seq": 7,
+                  "createdAtEpochMs": 1700000001000
+                }
+                """.formatted(conversationId(fromUserId, toUserId)), PrivateMessageCommittedEvent.class);
+
+        assertEquals("evt-legacy-committed", back.eventId());
+        assertEquals("req-legacy-committed", back.requestId());
+        assertEquals("cmsg-legacy-committed", back.clientMsgId());
+        assertEquals(uuid(10001), back.messageId());
+        assertEquals(7L, back.seq());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+    }
+
+    @Test
+    void event_shouldIgnoreFutureFieldsAndKeepPersistedEventFieldsReadable() throws Exception {
+        RoomMessagePersistedEvent back = objectMapper.readValue("""
+                {
+                  "schemaVersion": 1,
+                  "eventId": "evt-future-room-persisted",
+                  "roomId": "00000000-0000-7000-8000-0000000003e9",
+                  "seq": 11,
+                  "messageId": "00000000-0000-7000-8000-000000004e21",
+                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
+                  "createdAtEpochMs": 1700000002000,
+                  "deliveryHint": "future-writer-added-field"
+                }
+                """, RoomMessagePersistedEvent.class);
+
+        assertEquals("evt-future-room-persisted", back.eventId());
+        assertEquals(uuid(1001), back.roomId());
+        assertEquals(11L, back.seq());
+        assertEquals(uuid(20001), back.messageId());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -217,6 +323,8 @@ class JsonContractsTest {
 
         ConnectFrame back = roundTrip(frame, ConnectFrame.class);
         assertEquals(frame, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertFalse(objectMapper.writeValueAsString(frame).contains("schemaVersion"));
     }
 
     @Test
@@ -230,6 +338,7 @@ class JsonContractsTest {
 
         SendPrivateTextFrame back = roundTrip(frame, SendPrivateTextFrame.class);
         assertEquals(frame, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -243,6 +352,7 @@ class JsonContractsTest {
 
         SendRoomTextFrame back = roundTrip(frame, SendRoomTextFrame.class);
         assertEquals(frame, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -251,6 +361,7 @@ class JsonContractsTest {
 
         AckFrame back = roundTrip(frame, AckFrame.class);
         assertEquals(frame, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -267,6 +378,7 @@ class JsonContractsTest {
 
         RejectFrame back = roundTrip(frame, RejectFrame.class);
         assertEquals(frame, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -284,6 +396,7 @@ class JsonContractsTest {
 
         CommittedFrame back = roundTrip(frame, CommittedFrame.class);
         assertEquals(frame, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -301,6 +414,7 @@ class JsonContractsTest {
 
         PrivateMessageFrame back = roundTrip(frame, PrivateMessageFrame.class);
         assertEquals(frame, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -316,6 +430,7 @@ class JsonContractsTest {
 
         RoomMessageFrame back = roundTrip(frame, RoomMessageFrame.class);
         assertEquals(frame, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -328,6 +443,52 @@ class JsonContractsTest {
 
         assertEquals(ping, pingBack);
         assertEquals(pong, pongBack);
+        assertEquals(1, recordComponentValue(pingBack, "schemaVersion"));
+        assertEquals(1, recordComponentValue(pongBack, "schemaVersion"));
+    }
+
+    @Test
+    void frame_shouldReadLegacyInboundFrameWithoutSchemaVersion() throws Exception {
+        SendPrivateTextFrame back = objectMapper.readValue("""
+                {
+                  "type": "sendPrivateText",
+                  "clientMsgId": "cmsg-legacy-frame",
+                  "toUserId": "00000000-0000-7000-8000-000000000015",
+                  "content": "legacy frame hello"
+                }
+                """, SendPrivateTextFrame.class);
+
+        assertEquals("sendPrivateText", back.type());
+        assertEquals("cmsg-legacy-frame", back.clientMsgId());
+        assertEquals(uuid(21), back.toUserId());
+        assertEquals("legacy frame hello", back.content());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+    }
+
+    @Test
+    void frame_shouldIgnoreFutureFieldsAndKeepCommittedFieldsReadable() throws Exception {
+        CommittedFrame back = objectMapper.readValue("""
+                {
+                  "schemaVersion": 1,
+                  "type": "committed",
+                  "cmd": "sendPrivateText",
+                  "clientMsgId": "cmsg-future-frame",
+                  "requestId": "req-future-frame",
+                  "conversationId": "%s",
+                  "roomId": null,
+                  "messageId": "00000000-0000-7000-8000-000000002711",
+                  "seq": 18,
+                  "serverTraceId": "future-outbound-metadata"
+                }
+                """.formatted(conversationId(uuid(31), uuid(32))), CommittedFrame.class);
+
+        assertEquals("committed", back.type());
+        assertEquals("sendPrivateText", back.cmd());
+        assertEquals("cmsg-future-frame", back.clientMsgId());
+        assertEquals("req-future-frame", back.requestId());
+        assertEquals(uuid(10001), back.messageId());
+        assertEquals(18L, back.seq());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -336,6 +497,7 @@ class JsonContractsTest {
 
         RoomMembershipEntry back = roundTrip(entry, RoomMembershipEntry.class);
         assertEquals(entry, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -360,6 +522,8 @@ class JsonContractsTest {
         assertEquals(snapshot.nextUserId(), back.nextUserId());
         assertFalse(back.hasMore());
         assertEquals(1_712_345_678_904L, back.snapshotHighWatermark());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, recordComponentValue(back.entries().get(0), "schemaVersion"));
     }
 
     @Test
@@ -390,6 +554,8 @@ class JsonContractsTest {
         assertEquals(1_712_345_678_900L, recordComponentValue(back.entries().get(0), "occurredAtEpochMillis"));
         assertTrue(back.hasMore());
         assertEquals(1_712_345_678_901L, back.snapshotHighWatermark());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, recordComponentValue(back.entries().get(0), "schemaVersion"));
     }
 
     @Test
@@ -413,6 +579,68 @@ class JsonContractsTest {
         assertEquals(snapshot, back);
         assertFalse(back.hasMore());
         assertEquals(1_712_345_678_902L, back.snapshotHighWatermark());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, recordComponentValue(back.entries().get(0), "schemaVersion"));
+    }
+
+    @Test
+    void projection_shouldReadLegacySnapshotWithoutSchemaVersion() throws Exception {
+        UserBlockRelationSnapshot back = objectMapper.readValue("""
+                {
+                  "entries": [
+                    {
+                      "blockerUserId": "00000000-0000-7000-8000-00000000003d",
+                      "blockedUserId": "00000000-0000-7000-8000-00000000003e",
+                      "active": true,
+                      "version": 1712345678902,
+                      "occurredAtEpochMillis": 1712345678901
+                    }
+                  ],
+                  "nextBlockerUserId": "00000000-0000-7000-8000-00000000003f",
+                  "nextBlockedUserId": "00000000-0000-7000-8000-000000000040",
+                  "hasMore": false,
+                  "snapshotHighWatermark": 1712345678902
+                }
+                """, UserBlockRelationSnapshot.class);
+
+        assertEquals(1, back.entries().size());
+        assertEquals(uuid(61), back.entries().get(0).blockerUserId());
+        assertEquals(uuid(62), back.entries().get(0).blockedUserId());
+        assertEquals(1_712_345_678_902L, back.snapshotHighWatermark());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, recordComponentValue(back.entries().get(0), "schemaVersion"));
+    }
+
+    @Test
+    void projection_shouldIgnoreFutureFieldsAndKeepSnapshotFieldsReadable() throws Exception {
+        RoomMembershipSnapshot back = objectMapper.readValue("""
+                {
+                  "schemaVersion": 1,
+                  "entries": [
+                    {
+                      "schemaVersion": 1,
+                      "roomId": "00000000-0000-7000-8000-00000000000a",
+                      "userId": "00000000-0000-7000-8000-000000000001",
+                      "version": 1712345678904,
+                      "occurredAtEpochMillis": 1712345678903,
+                      "role": "future-admin"
+                    }
+                  ],
+                  "nextRoomId": "00000000-0000-7000-8000-00000000000a",
+                  "nextUserId": "00000000-0000-7000-8000-000000000001",
+                  "hasMore": false,
+                  "snapshotHighWatermark": 1712345678904,
+                  "futureCursor": "opaque"
+                }
+                """, RoomMembershipSnapshot.class);
+
+        assertEquals(1, back.entries().size());
+        assertEquals(uuid(10), back.entries().get(0).roomId());
+        assertEquals(uuid(1), back.entries().get(0).userId());
+        assertFalse(back.hasMore());
+        assertEquals(1_712_345_678_904L, back.snapshotHighWatermark());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, recordComponentValue(back.entries().get(0), "schemaVersion"));
     }
 
     @Test
@@ -471,8 +699,8 @@ class JsonContractsTest {
     }
 
     @Test
-    void shouldRejectUnknownUserMessagingPolicyFieldNames() {
-        assertThrows(Exception.class, () -> objectMapper.readValue("""
+    void shouldIgnoreUnknownUserMessagingPolicyFieldNames() throws Exception {
+        UserMessagingPolicyChanged back = objectMapper.readValue("""
                 {
                   "eventId": "evt-policy-unknown",
                   "userId": "00000000-0000-7000-8000-000000000081",
@@ -482,7 +710,12 @@ class JsonContractsTest {
                   "unknownPolicyFlag": true,
                   "occurredAtEpochMillis": 1712345678905
                 }
-                """, UserMessagingPolicyChanged.class));
+                """, UserMessagingPolicyChanged.class);
+
+        assertEquals("evt-policy-unknown", back.eventId());
+        assertEquals(UUID.fromString("00000000-0000-7000-8000-000000000081"), back.userId());
+        assertFalse(back.canSendPrivate());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -504,6 +737,7 @@ class JsonContractsTest {
         assertEquals(event.blockedUserId(), back.blockedUserId());
         assertEquals(1_712_345_678_901L, back.occurredAtEpochMillis());
         assertEquals(1_712_345_678_902L, back.version());
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
     @Test
@@ -513,6 +747,33 @@ class JsonContractsTest {
         assertEquals("im.event.room-member-changed", ImTopics.EVENT_ROOM_MEMBER_CHANGED);
         assertEquals("im.event.user-messaging-policy-changed", ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED);
         assertEquals("im.event.user-block-relation-changed", ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED);
+    }
+
+    @Test
+    void shouldExposeContractVersionConstants() throws Exception {
+        assertEquals(1, classConstant("com.nowcoder.community.im.common.ImContractVersions", "CURRENT_SCHEMA_VERSION"));
+        assertEquals(1, classConstant("com.nowcoder.community.im.common.ImContractVersions", "WS_FRAME_VERSION"));
+        assertEquals("im.event.private-committed", ImTopics.EVENT_PRIVATE_COMMITTED);
+    }
+
+    @Test
+    void shouldWriteExplicitSchemaVersionWhenVersionIsNotCurrent() throws Exception {
+        SendRoomTextCommand command = new SendRoomTextCommand(
+                "req-v2",
+                "cmsg-v2",
+                uuid(12),
+                uuid(1001),
+                "hello v2",
+                1700000000001L,
+                2
+        );
+
+        String json = objectMapper.writeValueAsString(command);
+        SendRoomTextCommand back = objectMapper.readValue(json, SendRoomTextCommand.class);
+
+        assertTrue(json.contains("\"schemaVersion\":2"));
+        assertEquals(2, recordComponentValue(back, "schemaVersion"));
+        assertEquals("hello v2", back.content());
     }
 
     private <T> T roundTrip(T value, Class<T> type) throws Exception {
@@ -589,11 +850,46 @@ class JsonContractsTest {
         Object[] args = new Object[components.length];
         for (int i = 0; i < components.length; i++) {
             parameterTypes[i] = components[i].getType();
-            args[i] = values.get(components[i].getName());
+            args[i] = constructorValue(components[i], values.get(components[i].getName()));
         }
 
         Constructor<T> constructor = recordType.getDeclaredConstructor(parameterTypes);
         return constructor.newInstance(args);
+    }
+
+    private static Object constructorValue(RecordComponent component, Object value) {
+        if (value != null) {
+            return value;
+        }
+        Class<?> type = component.getType();
+        if (!type.isPrimitive()) {
+            return null;
+        }
+        if (type == boolean.class) {
+            return false;
+        }
+        if (type == int.class) {
+            return 0;
+        }
+        if (type == long.class) {
+            return 0L;
+        }
+        if (type == double.class) {
+            return 0D;
+        }
+        if (type == float.class) {
+            return 0F;
+        }
+        if (type == short.class) {
+            return (short) 0;
+        }
+        if (type == byte.class) {
+            return (byte) 0;
+        }
+        if (type == char.class) {
+            return '\0';
+        }
+        return Array.get(Array.newInstance(type, 1), 0);
     }
 
     private static Object recordComponentValue(Object record, String componentName) throws Exception {
@@ -603,6 +899,11 @@ class JsonContractsTest {
             }
         }
         throw new AssertionError(record.getClass().getSimpleName() + " missing component: " + componentName);
+    }
+
+    private static Object classConstant(String className, String fieldName) throws Exception {
+        Class<?> type = Class.forName(className);
+        return type.getField(fieldName).get(null);
     }
 
     private static UUID uuid(long suffix) {

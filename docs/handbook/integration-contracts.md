@@ -120,6 +120,8 @@ IM policy 的 `projection.im.policy` 是 `community-app` 内部 outbox topic：
 
 IM 使用 Kafka 连接 realtime 与 core：
 
+Contract code lives in `backend/community-im/im-common` and is shared by `community-im-gateway` / `im-realtime` / `im-core`. It is a deployable boundary, not an internal DTO bag. Rolling upgrades must assume one deployable may produce an older or newer JSON payload than the consumer currently running.
+
 Command topics：
 
 - `im.command.private-text`
@@ -141,6 +143,31 @@ DLQ：
 
 - `im.command.private-text.dlq`
 - `im.command.room-text.dlq`
+
+Contract inventory：
+
+| Area | Types |
+| --- | --- |
+| Command | `SendPrivateTextCommand`, `SendRoomTextCommand` |
+| Message fact events | `PrivateMessagePersistedEvent`, `RoomMessagePersistedEvent` |
+| Send-result events | `PrivateMessageCommittedEvent`, `RoomMessageCommittedEvent`, `PrivateMessageRejectedEvent`, `RoomMessageRejectedEvent` |
+| Projection events | `RoomMemberChanged`, `UserMessagingPolicyChanged`, `UserBlockRelationChanged` |
+| Projection snapshots | `RoomMembershipSnapshot` / `RoomMembershipEntry`, `UserMessagingPolicySnapshot` / `UserMessagingPolicyEntry`, `UserBlockRelationSnapshot` / `UserBlockRelationEntry` |
+| Browser WebSocket frames | `ConnectFrame`, `ConnectedFrame`, `SendPrivateTextFrame`, `SendRoomTextFrame`, `AckFrame`, `RejectFrame`, `CommittedFrame`, `PrivateMessageFrame`, `RoomMessageFrame`, `PingFrame`, `PongFrame` |
+
+Versioning and schema evolution：
+
+- IM JSON contracts use `schemaVersion` with current value `1` from `ImContractVersions`.
+- Missing or non-positive `schemaVersion` is read as version `1`. This is the compatibility path for payloads produced before the version field existed.
+- Version `1` is not written by default so a newly upgraded producer does not break an old consumer during the same rolling upgrade. Future non-current versions are written explicitly.
+- All `im-common` command / event / frame / projection records ignore unknown JSON properties. Consumers must preserve known field semantics and ignore additive metadata they do not understand.
+- Adding an optional field is allowed only when the consumer can apply a deterministic default if the field is missing. Valid defaults must be documented with the field.
+- Adding a required field to an existing topic or frame type is not allowed. Use a new optional field plus fallback first, then enforce it only after all producers are known to send it.
+- Renaming or deleting a field is a breaking change. Keep the old field readable and mark it deprecated in docs/code until all deployables and persisted/replayed payloads no longer need it.
+- Changing the meaning, unit, key semantics, idempotency semantics, or type of an existing field is breaking even if JSON still parses.
+- Unknown `schemaVersion` values must not silently reinterpret payloads. If the consumer cannot safely process the known fields, fail the Kafka record into retry/DLQ or reject the WS frame with a protocol error.
+- Kafka topic names stay stable for compatible v1 additive changes. Incompatible command/event changes require a new topic or a new event/frame type, with a dual-write/dual-read migration window.
+- WebSocket `type` stays stable for compatible v1 additive changes. Incompatible browser-visible behavior requires a new frame `type` or an explicitly negotiated non-v1 frame version.
 
 语义：
 

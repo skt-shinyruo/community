@@ -1,10 +1,15 @@
 package com.nowcoder.community.im.common.event;
 
+import com.nowcoder.community.im.common.ImContractVersions;
+import com.nowcoder.community.im.common.ImJsonContract;
+import com.nowcoder.community.im.common.ImSchemaVersion;
+
 import java.util.UUID;
 
 /**
  * im-core -> Kafka -> im-realtime event for async send rejection after enqueue.
  */
+@ImJsonContract
 public record RoomMessageRejectedEvent(
         String eventId,
         String requestId,
@@ -14,6 +19,27 @@ public record RoomMessageRejectedEvent(
         int code,
         String reasonCode,
         String message,
-        long createdAtEpochMs
+        long createdAtEpochMs,
+        @ImSchemaVersion
+        int schemaVersion
 ) {
+
+    public RoomMessageRejectedEvent {
+        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+    }
+
+    public RoomMessageRejectedEvent(
+            String eventId,
+            String requestId,
+            String clientMsgId,
+            UUID fromUserId,
+            UUID roomId,
+            int code,
+            String reasonCode,
+            String message,
+            long createdAtEpochMs
+    ) {
+        this(eventId, requestId, clientMsgId, fromUserId, roomId, code, reasonCode, message, createdAtEpochMs,
+                ImContractVersions.KAFKA_EVENT_SCHEMA_VERSION);
+    }
 }

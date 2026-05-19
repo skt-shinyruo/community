@@ -140,8 +140,9 @@ POST /api/im/sessions -> WS /ws/im
   -> community-im-gateway selects worker
   -> im-realtime auth
   -> sendPrivateText
-  -> local policy projection 判断拉黑/处罚/目标用户
+  -> local policy projection 快速拒绝拉黑/处罚/目标用户
   -> Kafka im.command.private-text
+  -> im-core 回源 community-app owner decision 做最终校验
   -> im-core 持久化、分配 seq、clientMsgId 幂等
   -> Kafka im.event.private-persisted
   -> im-realtime 在线推送

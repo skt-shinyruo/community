@@ -12,6 +12,7 @@ import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
+import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
 import com.nowcoder.community.im.core.application.PrivateMessageApplicationService;
 import com.nowcoder.community.im.core.application.RoomMessageApplicationService;
 import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
@@ -37,6 +38,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.argThat;
 
 @ExtendWith(OutputCaptureExtension.class)
 class CommandConsumersLoggingTest {
@@ -224,6 +226,52 @@ class CommandConsumersLoggingTest {
 
         verify(outboxEnqueuer, never()).enqueuePrivatePersisted(any(PrivateMessagePersistedEvent.class));
         verify(outboxEnqueuer, never()).enqueuePrivateRejected(any(PrivateMessageRejectedEvent.class));
+    }
+
+    @Test
+    void privatePolicyRejectionShouldPublishRejectedEventAndNotThrowForDlq() {
+        UUID fromUserId = uuid(101);
+        UUID toUserId = uuid(202);
+        String conversationId = fromUserId + "_" + toUserId;
+        SendPrivateTextCommand cmd = new SendPrivateTextCommand(
+                "req-policy",
+                "c-policy",
+                fromUserId,
+                toUserId,
+                conversationId,
+                "hello-private",
+                System.currentTimeMillis()
+        );
+        when(privateMessageApplicationService.persist(cmd))
+                .thenThrow(new PrivateMessagePolicyVerifier.PrivateMessagePolicyRejectedException(
+                        403,
+                        "policy_denied",
+                        "用户已拉黑"
+                ));
+        CommandConsumersLogCapture capture = startCommandConsumersLogCapture();
+
+        try {
+            consumers.onPrivateText(cmd);
+
+            verify(outboxEnqueuer).enqueuePrivateRejected(argThat(event ->
+                    event != null
+                            && "req-policy".equals(event.requestId())
+                            && "c-policy".equals(event.clientMsgId())
+                            && fromUserId.equals(event.fromUserId())
+                            && toUserId.equals(event.toUserId())
+                            && conversationId.equals(event.conversationId())
+                            && event.code() == 403
+                            && "policy_denied".equals(event.reasonCode())
+                            && "用户已拉黑".equals(event.message())
+            ));
+            ILoggingEvent rejectedEvent = findSingleEventByAction(capture.appender(), "im_private_command_reject");
+            assertThat(rejectedEvent.getFormattedMessage())
+                    .contains("community.reason_code=policy_denied")
+                    .contains("community.error_message=用户已拉黑")
+                    .doesNotContain("hello-private");
+        } finally {
+            stopCommandConsumersLogCapture(capture);
+        }
     }
 
     @Test

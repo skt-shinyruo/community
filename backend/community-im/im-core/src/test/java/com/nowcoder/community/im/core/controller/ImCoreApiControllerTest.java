@@ -12,11 +12,15 @@ import com.nowcoder.community.im.core.application.RoomApplicationService;
 import com.nowcoder.community.im.core.application.RoomMessageApplicationService;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
+import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
+import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -28,6 +32,8 @@ import java.util.Date;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -58,6 +64,15 @@ class ImCoreApiControllerTest {
 
     @Value("${security.jwt.issuer}")
     private String jwtIssuer;
+
+    @MockBean
+    private PrivateMessagePolicyVerifier privateMessagePolicyVerifier;
+
+    @BeforeEach
+    void setUp() {
+        when(privateMessagePolicyVerifier.verify(any(UUID.class), any(UUID.class)))
+                .thenReturn(PrivateMessagePolicyDecision.allow());
+    }
 
     @Test
     void api_should_require_authentication() throws Exception {

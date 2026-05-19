@@ -119,6 +119,12 @@ security:
     issuer: ${JWT_ISSUER:community-auth}
 
 im:
+  policy:
+    community-service-id: ${IM_POLICY_COMMUNITY_SERVICE_ID:community-app}
+    internal-scope: ${IM_INTERNAL_SCOPE:im.realtime.internal}
+    request-timeout: ${IM_POLICY_REQUEST_TIMEOUT:500ms}
+    rejection-cache-ttl: ${IM_POLICY_REJECTION_CACHE_TTL:500ms}
+    rejection-cache-max-entries: ${IM_POLICY_REJECTION_CACHE_MAX_ENTRIES:100000}
   kafka:
     command:
       concurrency: ${IM_CORE_KAFKA_COMMAND_CONCURRENCY:3}

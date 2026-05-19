@@ -143,6 +143,31 @@ class ImPolicySnapshotControllerTest {
                 .andExpect(jsonPath("$.hasMore").value(false));
     }
 
+    @Test
+    void privateMessageDecisionShouldRequireInternalScopeAndUseOwnerState() throws Exception {
+        UUID fromUserId = uuid(7);
+        UUID toUserId = uuid(8);
+        insertUser(fromUserId, "u7");
+        insertUser(toUserId, "u8");
+        blockApplicationService.block(new BlockCommand(toUserId, fromUserId));
+
+        mockMvc.perform(get("/internal/im/realtime/projections/private-message-decision")
+                        .header("Authorization", bearer(fromUserId))
+                        .param("fromUserId", fromUserId.toString())
+                        .param("toUserId", toUserId.toString()))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/internal/im/realtime/projections/private-message-decision")
+                        .header("Authorization", internalBearer(fromUserId))
+                        .param("fromUserId", fromUserId.toString())
+                        .param("toUserId", toUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.allowed").value(false))
+                .andExpect(jsonPath("$.code").value(403))
+                .andExpect(jsonPath("$.reasonCode").value("policy_denied"))
+                .andExpect(jsonPath("$.message").value("用户已拉黑"));
+    }
+
     private void insertUser(UUID userId, String username) {
         UserDataObject user = new UserDataObject();
         user.setId(userId);

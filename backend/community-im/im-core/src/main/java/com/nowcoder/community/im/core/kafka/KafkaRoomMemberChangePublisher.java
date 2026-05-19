@@ -1,8 +1,8 @@
 package com.nowcoder.community.im.core.kafka;
 
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
+import com.nowcoder.community.im.core.domain.event.RoomMemberChangePublisher;
 import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
-import com.nowcoder.community.im.core.service.RoomMemberChangePublisher;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 

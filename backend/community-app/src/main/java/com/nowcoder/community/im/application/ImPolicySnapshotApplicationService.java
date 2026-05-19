@@ -4,9 +4,11 @@ import com.nowcoder.community.im.common.projection.UserBlockRelationEntry;
 import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicyEntry;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicySnapshot;
+import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
 import com.nowcoder.community.social.api.model.SocialBlockRelationView;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.user.api.model.UserModerationStateView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import org.springframework.stereotype.Service;
 
@@ -19,13 +21,16 @@ public class ImPolicySnapshotApplicationService {
 
     private final UserModerationQueryApi userModerationQueryApi;
     private final SocialBlockQueryApi socialBlockQueryApi;
+    private final UserLookupQueryApi userLookupQueryApi;
 
     public ImPolicySnapshotApplicationService(
             UserModerationQueryApi userModerationQueryApi,
-            SocialBlockQueryApi socialBlockQueryApi
+            SocialBlockQueryApi socialBlockQueryApi,
+            UserLookupQueryApi userLookupQueryApi
     ) {
         this.userModerationQueryApi = userModerationQueryApi;
         this.socialBlockQueryApi = socialBlockQueryApi;
+        this.userLookupQueryApi = userLookupQueryApi;
     }
 
     public UserMessagingPolicySnapshot userPolicies(UUID afterUserId, int limit) {
@@ -60,6 +65,39 @@ public class ImPolicySnapshotApplicationService {
                 && !socialBlockQueryApi.scanBlockRelationsAfter(nextBlockerUserId, nextBlockedUserId, 1).isEmpty();
 
         return new UserBlockRelationSnapshot(entries, nextBlockerUserId, nextBlockedUserId, hasMore);
+    }
+
+    public PrivateMessagePolicyDecision decidePrivateMessage(UUID fromUserId, UUID toUserId) {
+        if (fromUserId == null || toUserId == null || fromUserId.equals(toUserId)) {
+            return PrivateMessagePolicyDecision.deny(400, "invalid_request", "参数错误");
+        }
+        if (userLookupQueryApi.getSummaryById(fromUserId) == null) {
+            return PrivateMessagePolicyDecision.deny(404, "policy_denied", "发送方不存在");
+        }
+        if (userLookupQueryApi.getSummaryById(toUserId) == null) {
+            return PrivateMessagePolicyDecision.deny(404, "policy_denied", "接收方不存在");
+        }
+
+        Instant now = Instant.now();
+        UserMessagingPolicyEntry fromPolicy = toUserPolicyEntry(
+                userModerationQueryApi.getModerationState(fromUserId),
+                now
+        );
+        if (fromPolicy.suspended() || fromPolicy.muted() || !fromPolicy.canSendPrivate()) {
+            return PrivateMessagePolicyDecision.deny(403, "policy_denied", "发送方无权限发送私信");
+        }
+        UserMessagingPolicyEntry toPolicy = toUserPolicyEntry(
+                userModerationQueryApi.getModerationState(toUserId),
+                now
+        );
+        if (!toPolicy.canSendPrivate()) {
+            return PrivateMessagePolicyDecision.deny(403, "policy_denied", "接收方不允许私信");
+        }
+
+        if (socialBlockQueryApi.isEitherBlocked(fromUserId, toUserId)) {
+            return PrivateMessagePolicyDecision.deny(403, "policy_denied", "用户已拉黑");
+        }
+        return PrivateMessagePolicyDecision.allow();
     }
 
     private UserMessagingPolicyEntry toUserPolicyEntry(UserModerationStateView state, Instant now) {

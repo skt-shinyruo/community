@@ -8,6 +8,7 @@ import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.core.application.PrivateMessageApplicationService;
 import com.nowcoder.community.im.core.application.RoomMessageApplicationService;
 import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
+import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -77,6 +78,9 @@ public class CommandConsumers {
                         "community.error_class", errorClass(e),
                         "community.error_message", rejectionMessage(e)
                 );
+                if (e instanceof PrivateMessagePolicyVerifier.PrivateMessagePolicyRejectedException) {
+                    return;
+                }
             } else {
                 warnProcessingFailure("im_private_command_process", cmd.fromUserId(), "conversation", cmd.conversationId(), cmd.clientMsgId(), cmd.requestId(), e);
             }
@@ -195,6 +199,9 @@ public class CommandConsumers {
     }
 
     private int rejectionCode(RuntimeException e) {
+        if (e instanceof PrivateMessagePolicyVerifier.PrivateMessagePolicyRejectedException policyRejection) {
+            return policyRejection.code();
+        }
         if (e instanceof IllegalArgumentException) {
             return 400;
         }
@@ -205,6 +212,9 @@ public class CommandConsumers {
     }
 
     private String rejectionReasonCode(RuntimeException e) {
+        if (e instanceof PrivateMessagePolicyVerifier.PrivateMessagePolicyRejectedException policyRejection) {
+            return policyRejection.reasonCode();
+        }
         if (e instanceof IllegalArgumentException) {
             return "invalid_command";
         }

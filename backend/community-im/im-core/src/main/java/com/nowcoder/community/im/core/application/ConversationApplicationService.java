@@ -1,18 +1,16 @@
 package com.nowcoder.community.im.core.application;
 
-import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.im.core.application.result.ConversationResults;
-import com.nowcoder.community.im.core.repository.ConversationReadStateRepository;
-import com.nowcoder.community.im.core.repository.ConversationRepository;
-import com.nowcoder.community.im.core.repository.PrivateMessageRepository;
+import com.nowcoder.community.im.core.domain.repository.ConversationReadStateRepository;
+import com.nowcoder.community.im.core.domain.repository.ConversationRepository;
+import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository;
 import com.nowcoder.community.im.core.support.ConversationIdSupport;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,81 +20,41 @@ public class ConversationApplicationService {
     private final PrivateMessageRepository privateMessageRepository;
     private final ConversationReadStateRepository readStateRepository;
     private final ConversationRepository conversationRepository;
-    private final JdbcTemplate jdbcTemplate;
 
     public ConversationApplicationService(
             PrivateMessageRepository privateMessageRepository,
             ConversationReadStateRepository readStateRepository,
-            ConversationRepository conversationRepository,
-            JdbcTemplate jdbcTemplate
+            ConversationRepository conversationRepository
     ) {
         this.privateMessageRepository = privateMessageRepository;
         this.readStateRepository = readStateRepository;
         this.conversationRepository = conversationRepository;
-        this.jdbcTemplate = jdbcTemplate;
     }
 
+    @Transactional(readOnly = true)
     public List<ConversationResults.ListItem> listConversations(UUID viewerId, int page, int size) {
-        byte[] viewerIdBytes = BinaryUuidCodec.toBytes(viewerId);
         int s = Math.min(Math.max(1, size), 200);
         int p = Math.max(0, page);
-        long offset = (long) p * (long) s;
-        List<ConversationResults.ListItem> items = jdbcTemplate.query(
-                "select c.conversation_id, c.user_a, c.user_b, c.last_seq, " +
-                        "coalesce(r.last_read_seq, 0) as last_read_seq, " +
-                        "m.message_id as last_message_id, m.from_user_id as last_from_user_id, m.to_user_id as last_to_user_id, " +
-                        "m.content as last_content, m.created_at as last_created_at " +
-                        "from im_conversation c " +
-                        "left join im_conversation_read_state r on r.conversation_id = c.conversation_id and r.user_id = ? " +
-                        "left join im_private_message m on m.conversation_id = c.conversation_id and m.seq = c.last_seq " +
-                        "where c.user_a = ? or c.user_b = ? " +
-                        "order by c.updated_at desc " +
-                        "limit ? offset ?",
-                (rs, rowNum) -> {
-                    String conversationId = rs.getString("conversation_id");
-                    UUID userA = BinaryUuidCodec.fromBytes(rs.getBytes("user_a"));
-                    UUID userB = BinaryUuidCodec.fromBytes(rs.getBytes("user_b"));
-                    UUID otherUserId = viewerId.equals(userA) ? userB : userA;
-
-                    long lastSeq = rs.getLong("last_seq");
-                    long lastReadSeq = rs.getLong("last_read_seq");
-                    long unread = Math.max(0L, lastSeq - lastReadSeq);
-
-                    UUID lastMessageId = BinaryUuidCodec.fromBytes(rs.getBytes("last_message_id"));
-                    ConversationResults.LastMessage lastMessage = null;
-                    if (lastMessageId != null) {
-                        UUID fromUserId = BinaryUuidCodec.fromBytes(rs.getBytes("last_from_user_id"));
-                        UUID toUserId = BinaryUuidCodec.fromBytes(rs.getBytes("last_to_user_id"));
-                        String content = rs.getString("last_content");
-                        Timestamp ts = rs.getTimestamp("last_created_at");
-                        long createdAtEpochMs = ts == null ? 0L : ts.toInstant().toEpochMilli();
-                        lastMessage = new ConversationResults.LastMessage(
-                                lastMessageId,
-                                fromUserId,
-                                toUserId,
-                                content,
-                                createdAtEpochMs
-                        );
-                    }
-
-                    return new ConversationResults.ListItem(
-                            conversationId,
-                            otherUserId,
-                            lastSeq,
-                            lastReadSeq,
-                            unread,
-                            lastMessage
-                    );
-                },
-                viewerIdBytes,
-                viewerIdBytes,
-                viewerIdBytes,
-                s,
-                offset
-        );
-        return items == null ? List.of() : items;
+        long offset = Math.multiplyExact((long) p, (long) s);
+        return conversationRepository.listByUser(viewerId, s, offset).stream()
+                .map(item -> new ConversationResults.ListItem(
+                        item.conversationId(),
+                        item.otherUserId(),
+                        item.lastSeq(),
+                        item.lastReadSeq(),
+                        item.unreadCount(),
+                        item.lastMessage() == null ? null : new ConversationResults.LastMessage(
+                                item.lastMessage().messageId(),
+                                item.lastMessage().fromUserId(),
+                                item.lastMessage().toUserId(),
+                                item.lastMessage().content(),
+                                item.lastMessage().createdAt() == null ? 0L : item.lastMessage().createdAt().toEpochMilli()
+                        )
+                ))
+                .toList();
     }
 
+    @Transactional(readOnly = true)
     public ConversationResults.Messages listMessages(
             UUID viewerId,
             String conversationId,
@@ -134,6 +92,7 @@ public class ConversationApplicationService {
         return new ConversationResults.Messages(canonicalConversationId, items, nextAfterSeq, lastReadSeq);
     }
 
+    @Transactional
     public void markRead(UUID viewerId, String conversationId, long requestedLastReadSeq) {
         ParsedConversationId parsed = parseConversationId(conversationId);
         if (parsed == null) {

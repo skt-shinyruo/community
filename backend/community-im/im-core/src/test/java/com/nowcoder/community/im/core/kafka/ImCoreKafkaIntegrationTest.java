@@ -5,18 +5,24 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
+import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
 import com.nowcoder.community.im.core.application.RoomApplicationService;
-import com.nowcoder.community.im.core.repository.PrivateMessageRepository;
-import com.nowcoder.community.im.core.repository.RoomMessageRepository;
+import com.nowcoder.community.im.core.domain.model.PrivateMessageRecord;
+import com.nowcoder.community.im.core.domain.model.RoomMessageRecord;
+import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository;
+import com.nowcoder.community.im.core.domain.repository.RoomMessageRepository;
+import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
@@ -33,6 +39,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -77,7 +85,16 @@ class ImCoreKafkaIntegrationTest {
     @Autowired
     private PrivateMessageRepository privateMessageRepository;
 
+    @MockBean
+    private PrivateMessagePolicyVerifier privateMessagePolicyVerifier;
+
     private Consumer<String, String> consumer;
+
+    @BeforeEach
+    void setUp() {
+        when(privateMessagePolicyVerifier.verify(any(UUID.class), any(UUID.class)))
+                .thenReturn(PrivateMessagePolicyDecision.allow());
+    }
 
     @AfterEach
     void tearDown() {
@@ -116,7 +133,7 @@ class ImCoreKafkaIntegrationTest {
         assertThat(eventJson.path("clientMsgId").asText("")).isEqualTo("c1");
         assertThat(eventJson.hasNonNull("content")).isFalse();
 
-        List<RoomMessageRepository.RoomMessageRow> rows = roomMessageRepository.listAfterSeq(roomId, 0, 10);
+        List<RoomMessageRecord> rows = roomMessageRepository.listAfterSeq(roomId, 0, 10);
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).content()).isEqualTo("hi");
     }
@@ -148,7 +165,7 @@ class ImCoreKafkaIntegrationTest {
         assertThat(eventJson.path("requestId").asText("")).isEqualTo("req-1");
         assertThat(eventJson.path("clientMsgId").asText("")).isEqualTo("c1");
 
-        List<PrivateMessageRepository.PrivateMessageRow> rows = privateMessageRepository.listAfterSeq(conversationId, 0, 10);
+        List<PrivateMessageRecord> rows = privateMessageRepository.listAfterSeq(conversationId, 0, 10);
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).content()).isEqualTo("hello");
     }

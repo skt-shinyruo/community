@@ -1,20 +1,22 @@
 package com.nowcoder.community.im.core.application;
 
 import com.nowcoder.community.im.core.application.result.UnreadSummaryResult;
-import com.nowcoder.community.im.core.service.UnreadService;
+import com.nowcoder.community.im.core.domain.service.UnreadDomainService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
 @Service
 public class UnreadApplicationService {
 
-    private final UnreadService unreadService;
+    private final UnreadDomainService unreadService;
 
-    public UnreadApplicationService(UnreadService unreadService) {
+    public UnreadApplicationService(UnreadDomainService unreadService) {
         this.unreadService = unreadService;
     }
 
+    @Transactional(readOnly = true)
     public UnreadSummaryResult summary(UUID viewerId, int limit) {
         int l = Math.min(Math.max(1, limit), 5000);
         return new UnreadSummaryResult(

@@ -1,0 +1,67 @@
+spring:
+  config:
+    import: []
+  application:
+    name: im-core
+  cloud:
+    discovery:
+      enabled: false
+    nacos:
+      config:
+        enabled: false
+        import-check:
+          enabled: false
+      discovery:
+        enabled: false
+  kafka:
+    consumer:
+      group-id: im-core-test
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.nowcoder.community.im.common.*
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: true
+
+server:
+  port: 0
+
+community:
+  logging:
+    service-version: test
+  observability:
+    runtime-logging:
+      enabled: false
+
+events:
+  outbox:
+    batch-size: 50
+    processing-lease: 30s
+    max-retries: 50
+    base-backoff: 5s
+    max-backoff: 10m
+    worker-fixed-delay-ms: 1000
+
+security:
+  jwt:
+    hmac-secret: im-core-test-jwt-secret-at-least-32b
+    issuer: community-auth
+
+im:
+  policy:
+    community-service-id: community-app
+    internal-scope: im.realtime.internal
+    request-timeout: 500ms
+    rejection-cache-ttl: 0ms
+    rejection-cache-max-entries: 100000
+  kafka:
+    command:
+      concurrency: 3
+  room:
+    max-members: 10000
+  room-member-change:
+    publisher: kafka

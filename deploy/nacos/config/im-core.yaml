@@ -15,6 +15,12 @@ events:
     worker-fixed-delay-ms: 1000
 
 im:
+  policy:
+    community-service-id: ${IM_POLICY_COMMUNITY_SERVICE_ID:community-app}
+    internal-scope: ${IM_INTERNAL_SCOPE:im.realtime.internal}
+    request-timeout: ${IM_POLICY_REQUEST_TIMEOUT:500ms}
+    rejection-cache-ttl: ${IM_POLICY_REJECTION_CACHE_TTL:500ms}
+    rejection-cache-max-entries: ${IM_POLICY_REJECTION_CACHE_MAX_ENTRIES:100000}
   kafka:
     consumer:
       group-id: im-core

@@ -10,6 +10,7 @@ import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
+import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
 import com.nowcoder.community.im.common.projection.RoomMembershipSnapshot;
 import com.nowcoder.community.im.common.projection.UserBlockRelationEntry;
@@ -364,6 +365,22 @@ class JsonContractsTest {
 
         assertEquals(snapshot, back);
         assertFalse(back.hasMore());
+    }
+
+    @Test
+    void shouldRoundTripPrivateMessagePolicyDecision() throws Exception {
+        PrivateMessagePolicyDecision decision = new PrivateMessagePolicyDecision(
+                false,
+                403,
+                "policy_denied",
+                "用户已拉黑",
+                1_712_345_678_910L
+        );
+
+        PrivateMessagePolicyDecision back = roundTrip(decision, PrivateMessagePolicyDecision.class);
+
+        assertEquals(decision, back);
+        assertFalse(back.allowed());
     }
 
     @Test

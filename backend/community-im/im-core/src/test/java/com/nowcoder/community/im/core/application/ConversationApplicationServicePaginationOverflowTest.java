@@ -1,16 +1,18 @@
 package com.nowcoder.community.im.core.application;
 
+import com.nowcoder.community.im.core.domain.repository.ConversationReadStateRepository;
+import com.nowcoder.community.im.core.domain.repository.ConversationRepository;
+import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository;
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -18,20 +20,19 @@ class ConversationApplicationServicePaginationOverflowTest {
 
     @Test
     void listConversationsShouldNotPassNegativeOffsetWhenPageIsHuge() {
-        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        ConversationRepository conversationRepository = mock(ConversationRepository.class);
 
-        List<Object[]> capturedArgs = new ArrayList<>();
-        when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any()))
+        AtomicLong capturedOffset = new AtomicLong(-1L);
+        when(conversationRepository.listByUser(any(UUID.class), anyInt(), anyLong()))
                 .thenAnswer(invocation -> {
-                    capturedArgs.add(invocation.getArguments());
+                    capturedOffset.set(invocation.getArgument(2, Long.class));
                     return List.of();
                 });
 
         ConversationApplicationService applicationService = new ConversationApplicationService(
-                mock(com.nowcoder.community.im.core.repository.PrivateMessageRepository.class),
-                mock(com.nowcoder.community.im.core.repository.ConversationReadStateRepository.class),
-                mock(com.nowcoder.community.im.core.repository.ConversationRepository.class),
-                jdbcTemplate
+                mock(PrivateMessageRepository.class),
+                mock(ConversationReadStateRepository.class),
+                conversationRepository
         );
 
         applicationService.listConversations(
@@ -40,10 +41,6 @@ class ConversationApplicationServicePaginationOverflowTest {
                 200
         );
 
-        assertThat(capturedArgs).hasSize(1);
-        Object[] args = capturedArgs.get(0);
-        assertThat(args).hasSize(7);
-        assertThat(args[6]).isInstanceOf(Number.class);
-        assertThat(((Number) args[6]).longValue()).isGreaterThanOrEqualTo(0L);
+        assertThat(capturedOffset.get()).isGreaterThanOrEqualTo(0L);
     }
 }

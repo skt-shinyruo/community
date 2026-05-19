@@ -185,6 +185,8 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - WebSocket accepted 不等于 persisted。
 - 在线推送是优化路径，正确性依赖 HTTP backfill。
 - 私信用 `clientMsgId` 做 `(conversationId, fromUserId, clientMsgId)` 幂等。
+- 私信持久化前由 `im-core` 通过 internal owner decision API 回源 `community-app`，最终校验发送方/接收方存在性、处罚状态和双向拉黑关系；`im-realtime` 的本地 policy projection 只用于连接层快速拒绝。
+- `im-core` 不缓存允许裁决，只短 TTL 缓存拒绝裁决（默认 500ms，带容量上限），避免被禁言或拉黑用户高频发送时每条消息都打到 owner，同时不让旧 allow 造成最终写入漏洞。
 - 群聊用 `clientMsgId` 做 `(roomId, fromUserId, clientMsgId)` 幂等。
 - 群聊在线推送是 state-only update，不直接把完整消息当唯一交付方式。
 - `im-realtime` 通过 internal scope JWT 从 `im-core` 和 `community-app` 拉取 membership / policy snapshot。

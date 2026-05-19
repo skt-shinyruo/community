@@ -391,12 +391,14 @@ Owner / SSOT：
 - social 域 owns block relation。
 - user 域 owns punishment state。
 - IM realtime 持有本地 policy projection，用于连接层快速判定。
+- `im-core` 是消息事实 owner。私信命中已落库幂等记录时返回既有消息事实；新私信入权威表前必须回源 `community-app` owner decision 做最终校验。
 
 Entry：
 
 - `/api/blocks/**`
 - `/internal/im/realtime/projections/block-relations`
 - `/internal/im/realtime/projections/user-policies`
+- `/internal/im/realtime/projections/private-message-decision`
 
 Main path：
 
@@ -410,6 +412,7 @@ Main path：
 8. Kafka topic 是 `im.event.user-block-relation-changed`，key 是 blocker userId。
 9. `im-realtime` 消费事件，刷新本地 policy projection。
 10. `im-realtime` 发送私信前用本地 projection 判断拉黑、处罚、目标用户状态。
+11. 即使 projection 滞后放过 command，`im-core` 对未落库的新消息仍在持久化前调用 `private-message-decision` 回源 user/social owner API，最终拒绝不合规私信。
 
 Main path: user punishment：
 
@@ -420,11 +423,14 @@ Main path: user punishment：
 5. Kafka topic 是 `im.event.user-messaging-policy-changed`，key 是 userId。
 6. `im-realtime` 消费事件，刷新本地 policy projection。
 7. `im-realtime` 发送私信前用本地 projection 判断拉黑、处罚、目标用户状态。
+8. `im-core` 对未落库的新消息在持久化前再次调用 owner decision；禁言/封禁导致的业务拒绝发布 `im.event.private-rejected`，不进入系统失败/DLQ。
 
 Snapshot：
 
 - `community-app` 暴露 block relations / user policies snapshot。
-- `im-realtime` 用 internal scope JWT 拉取。
+- `community-app` 暴露 private message decision，用 user / social owner API 同步组装当前裁决。
+- `im-realtime` 和 `im-core` 用 internal scope JWT 拉取。
+- `im-core` 的最终校验不缓存允许裁决；只短 TTL 缓存拒绝裁决（默认 500ms，容量上限），降低违规用户高频发送时的 owner API 压力。
 - 浏览器不能访问这些 internal projection 入口。
 
 Failure：
@@ -515,15 +521,21 @@ Main path：
 8. `im-realtime` 确认连接已鉴权。
 9. 本地 `PolicyProjectionService` 判定拉黑、处罚、目标用户存在性。
 10. 判定通过后写 `im.command.private-text`。
-11. `im-core` 消费 command，校验并按 `(conversationId, fromUserId, clientMsgId)` 幂等。
-12. `im-core` 分配 seq、落库、更新会话状态。
-13. `im-core` 发布 `im.event.private-persisted`。
-14. `im-realtime` 消费 persisted event 并在线推送。
-15. 客户端断线或错过推送时，通过 HTTP history API 补拉。
+11. `im-core` 消费 command，先按 `(conversationId, fromUserId, clientMsgId)` 查幂等。
+12. 如果已存在，`im-core` 返回既有消息事实并发布当前 request 的 `im.event.private-persisted`。
+13. 如果不存在，`im-core` 调用 `community-app` internal owner decision 做最终校验。
+14. 如果 owner decision 拒绝，`im-core` 发布 `im.event.private-rejected`，不写 `im_private_message`，Kafka command 视为业务完成。
+15. 如果通过，`im-core` 分配 seq、落库、更新会话状态。
+16. `im-core` 发布 `im.event.private-persisted`。
+17. `im-realtime` 消费 persisted event 并在线推送。
+18. 客户端断线或错过推送时，通过 HTTP history API 补拉。
 
 Semantics：
 
 - `sendAccepted` 不等于已落库。
+- realtime projection 只做快速拒绝，不能作为持久化授权依据。
+- `clientMsgId` 幂等命中代表消息事实已经存在，后续处罚或拉黑不能把该重放命令改判为 rejected。
+- `im-core` 对 owner decision 的允许结果不做缓存；拒绝结果可短 TTL 缓存，用于削峰但不放宽最终一致性。
 - 私信正确性依赖 `im-core` history，不依赖在线推送必达。
 - 已读水位由 `im-core` 维护。
 

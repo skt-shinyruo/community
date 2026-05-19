@@ -48,11 +48,13 @@
 7. realtime 可向发送端返回 accepted/ack，表示 command 已接收。
 8. im-core 消费 command。
 9. im-core 计算 conversationId。
-10. im-core 按 `(conversationId, fromUserId, clientMsgId)` 做幂等。
-11. im-core 分配 conversation seq，写消息和会话状态。
-12. im-core 发布 persisted 或 rejected event。
-13. realtime 消费 persisted event，推送给收发双方在线连接。
-14. 离线或未收到推送的客户端通过 HTTP history 补拉。
+10. im-core 先按 `(conversationId, fromUserId, clientMsgId)` 查幂等；命中时返回既有消息事实并发布 persisted event。
+11. 幂等未命中时，im-core 回源 `community-app` owner decision 做最终校验。
+12. owner decision 拒绝时发布 rejected event，不写私信表，Kafka command 视为业务完成。
+13. owner decision 允许时，im-core 分配 conversation seq，写消息和会话状态。
+14. im-core 发布 persisted event。
+15. realtime 消费 persisted event，推送给收发双方在线连接。
+16. 离线或未收到推送的客户端通过 HTTP history 补拉。
 
 ## 群聊发送
 

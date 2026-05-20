@@ -4,6 +4,11 @@ import java.net.URI;
 
 public record RealtimeWorkerEndpoint(
         String workerId,
-        URI uri
+        URI uri,
+        Integer roomFanoutInboxSlot
 ) {
+
+    public RealtimeWorkerEndpoint(String workerId, URI uri) {
+        this(workerId, uri, null);
+    }
 }

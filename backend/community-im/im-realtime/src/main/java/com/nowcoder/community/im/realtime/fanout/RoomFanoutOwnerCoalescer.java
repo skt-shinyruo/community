@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.realtime.fanout;
 
+import com.nowcoder.community.im.common.command.RoomFanoutCommand;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +55,47 @@ public class RoomFanoutOwnerCoalescer implements DisposableBean {
         );
         if (enqueuedRoomIds.add(event.roomId())) {
             pendingRoomIds.add(event.roomId());
+        }
+    }
+
+    void routeAndDispatchNow(RoomMessagePersistedEvent event) {
+        if (event == null || event.roomId() == null || event.seq() <= 0) {
+            return;
+        }
+        PendingRoomEvent pending = PendingRoomEvent.from(event);
+        List<RoomFanoutRoute> routes;
+        try {
+            routes = routingService.routesFor(event.roomId(), pending.lastSeq());
+        } catch (RuntimeException ex) {
+            metrics.routeFailed();
+            log.warn(
+                    "[room-fanout-owner] route planning failed: roomId={}, seq={}, error={}",
+                    event.roomId(),
+                    pending.lastSeq(),
+                    ex.toString()
+            );
+            throw ex;
+        }
+        if (routes.isEmpty()) {
+            metrics.emptyTargetSet();
+            return;
+        }
+        metrics.routesPlanned(routes.size());
+        RuntimeException firstFailure = null;
+        for (RoomFanoutRoute route : routes) {
+            try {
+                dispatchOrThrow(route, pending);
+            } catch (RuntimeException ex) {
+                if (firstFailure == null) {
+                    firstFailure = ex;
+                }
+            }
+        }
+        if (firstFailure != null) {
+            throw new IllegalStateException(
+                    "room fanout routed dispatch failed: roomId=" + event.roomId() + ", seq=" + pending.lastSeq(),
+                    firstFailure
+            );
         }
     }
 
@@ -112,6 +154,15 @@ public class RoomFanoutOwnerCoalescer implements DisposableBean {
 
     private boolean dispatch(RoomFanoutRoute route, PendingRoomEvent pending) {
         try {
+            dispatchOrThrow(route, pending);
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private void dispatchOrThrow(RoomFanoutRoute route, PendingRoomEvent pending) {
+        try {
             dispatcher.dispatch(new RoomFanoutCommand(
                     route.targetWorkerId(),
                     route.roomId(),
@@ -120,7 +171,6 @@ public class RoomFanoutOwnerCoalescer implements DisposableBean {
                     pending.createdAtEpochMs()
             ));
             metrics.commandSent();
-            return true;
         } catch (RuntimeException ex) {
             metrics.routeFailed();
             log.warn(
@@ -130,7 +180,7 @@ public class RoomFanoutOwnerCoalescer implements DisposableBean {
                     route.lastSeq(),
                     ex.toString()
             );
-            return false;
+            throw ex;
         }
     }
 

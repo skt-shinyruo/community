@@ -33,6 +33,24 @@ class RealtimeWorkerDirectoryTest {
     }
 
     @Test
+    void resolvesRoomFanoutInboxSlotFromDiscoveryMetadata() {
+        RoomFanoutProperties properties = new RoomFanoutProperties();
+        properties.setWorkerDirectoryCacheTtl(Duration.ZERO);
+        properties.setRoutedCommandPartitions(16);
+        ImSessionProperties sessionProperties = new ImSessionProperties();
+        sessionProperties.setWorkerIdMetadataKey("workerId");
+        DefaultServiceInstance instance = instance("worker-a", "10.0.0.8", 18081);
+        instance.getMetadata().put("roomFanoutInboxSlot", "5");
+        RealtimeWorkerDirectory directory = new RealtimeWorkerDirectory(
+                () -> List.of(instance),
+                sessionProperties,
+                properties
+        );
+
+        assertThat(directory.find("worker-a").orElseThrow().roomFanoutInboxSlot()).isEqualTo(5);
+    }
+
+    @Test
     void duplicateWorkerIdsFailClosed() {
         RoomFanoutProperties properties = new RoomFanoutProperties();
         properties.setWorkerDirectoryCacheTtl(Duration.ZERO);
@@ -50,6 +68,28 @@ class RealtimeWorkerDirectoryTest {
         assertThatThrownBy(() -> directory.find("worker-a"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Duplicate realtime worker id");
+    }
+
+    @Test
+    void duplicateRoomFanoutInboxSlotsFailClosed() {
+        RoomFanoutProperties properties = new RoomFanoutProperties();
+        properties.setWorkerDirectoryCacheTtl(Duration.ZERO);
+        properties.setRoutedCommandPartitions(16);
+        ImSessionProperties sessionProperties = new ImSessionProperties();
+        sessionProperties.setWorkerIdMetadataKey("workerId");
+        DefaultServiceInstance workerA = instance("worker-a", "10.0.0.8", 18081);
+        workerA.getMetadata().put("roomFanoutInboxSlot", "5");
+        DefaultServiceInstance workerB = instance("worker-b", "10.0.0.9", 18082);
+        workerB.getMetadata().put("roomFanoutInboxSlot", "5");
+        RealtimeWorkerDirectory directory = new RealtimeWorkerDirectory(
+                () -> List.of(workerA, workerB),
+                sessionProperties,
+                properties
+        );
+
+        assertThatThrownBy(() -> directory.find("worker-a"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Duplicate room fanout inbox slot");
     }
 
     private static DefaultServiceInstance instance(String workerId, String host, int port) {

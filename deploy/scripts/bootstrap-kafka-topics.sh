@@ -15,6 +15,7 @@ done
 echo "[kafka-init] creating topics (if not exists)..."
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.private-text --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.room-text --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.room-fanout-routed --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 64
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.private-persisted --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.room-persisted --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.private-committed --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
@@ -26,4 +27,5 @@ kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-e
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.user-block-relation-changed --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.private-text.dlq --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.room-text.dlq --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.room-fanout-routed.dlq --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 64
 echo "[kafka-init] done."

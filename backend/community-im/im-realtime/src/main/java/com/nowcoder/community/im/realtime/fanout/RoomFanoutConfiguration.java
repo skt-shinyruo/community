@@ -19,6 +19,11 @@ public class RoomFanoutConfiguration {
         return new RoomFanoutRoutedPresenceGuard(fanoutProperties, roomPresenceDirectoryProvider);
     }
 
+    @Bean
+    RoomFanoutRoutedInboxSlotGuard roomFanoutRoutedInboxSlotGuard(RoomFanoutProperties fanoutProperties) {
+        return new RoomFanoutRoutedInboxSlotGuard(fanoutProperties);
+    }
+
     static final class RoomFanoutRoutedPresenceGuard {
 
         RoomFanoutRoutedPresenceGuard(
@@ -37,6 +42,16 @@ public class RoomFanoutConfiguration {
                                 + "enable im.room-presence.enabled with a Redis-backed RoomPresenceDirectory"
                 );
             }
+        }
+    }
+
+    static final class RoomFanoutRoutedInboxSlotGuard {
+
+        RoomFanoutRoutedInboxSlotGuard(RoomFanoutProperties fanoutProperties) {
+            if (fanoutProperties == null || !fanoutProperties.isRoutedMode() || !fanoutProperties.isKafkaTransport()) {
+                return;
+            }
+            fanoutProperties.normalizedWorkerInboxSlot();
         }
     }
 }

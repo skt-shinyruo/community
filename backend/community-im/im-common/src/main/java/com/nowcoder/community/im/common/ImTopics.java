@@ -12,6 +12,7 @@ public final class ImTopics {
 
     public static final String COMMAND_PRIVATE_TEXT = "im.command.private-text";
     public static final String COMMAND_ROOM_TEXT = "im.command.room-text";
+    public static final String COMMAND_ROOM_FANOUT_ROUTED = "im.command.room-fanout-routed";
 
     public static final String EVENT_PRIVATE_PERSISTED = "im.event.private-persisted";
     public static final String EVENT_ROOM_PERSISTED = "im.event.room-persisted";

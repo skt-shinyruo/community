@@ -39,7 +39,7 @@ public class RoomPersistedOwnerConsumer {
             return;
         }
         if (properties.isRoutedMode()) {
-            ownerCoalescer.markRoomUpdated(event);
+            ownerCoalescer.routeAndDispatchNow(event);
         }
     }
 }

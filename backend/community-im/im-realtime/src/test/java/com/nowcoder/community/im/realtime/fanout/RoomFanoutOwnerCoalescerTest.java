@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.realtime.fanout;
 
+import com.nowcoder.community.im.common.command.RoomFanoutCommand;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.realtime.presence.RoomPresenceDirectory;
 import org.junit.jupiter.api.AfterEach;
@@ -16,6 +17,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RoomFanoutOwnerCoalescerTest {
 
@@ -136,6 +138,64 @@ class RoomFanoutOwnerCoalescerTest {
         assertThat(dispatcher.commands)
                 .extracting(RoomFanoutCommand::sourceEventId)
                 .containsExactly("evt-route-retry");
+    }
+
+    @Test
+    void routedOwnerConsumerPropagatesTargetDispatchFailureForKafkaRetry() {
+        UUID roomId = uuid(8);
+        RecordingPresenceDirectory presenceDirectory = new RecordingPresenceDirectory();
+        presenceDirectory.activate(roomId, "worker-a");
+        presenceDirectory.activate(roomId, "worker-b");
+        FailingDispatcher dispatcher = new FailingDispatcher("worker-a");
+        RoomFanoutProperties properties = new RoomFanoutProperties();
+        properties.setMode("routed");
+        properties.setOwnerFlushInterval(Duration.ofMinutes(10));
+        coalescer = new RoomFanoutOwnerCoalescer(
+                new RoomFanoutRoutingService(presenceDirectory, new RoomFanoutPlanner()),
+                dispatcher,
+                properties,
+                RoomFanoutMetrics.noop()
+        );
+        RoomPersistedOwnerConsumer consumer = new RoomPersistedOwnerConsumer(
+                coalescer,
+                RoomFanoutMetrics.noop(),
+                properties
+        );
+
+        assertThatThrownBy(() -> consumer.onRoomPersisted(event("evt-routed-retry", roomId, 17L)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("room fanout routed dispatch failed");
+        assertThat(dispatcher.attemptedWorkerIds).containsExactly("worker-a", "worker-b");
+        assertThat(dispatcher.acceptedCommands)
+                .extracting(RoomFanoutCommand::targetWorkerId)
+                .containsExactly("worker-b");
+    }
+
+    @Test
+    void routedOwnerConsumerPropagatesRouteFailureForKafkaRetry() {
+        UUID roomId = uuid(9);
+        FailingOncePresenceDirectory presenceDirectory = new FailingOncePresenceDirectory();
+        presenceDirectory.activate(roomId, "worker-a");
+        RecordingDispatcher dispatcher = new RecordingDispatcher();
+        RoomFanoutProperties properties = new RoomFanoutProperties();
+        properties.setMode("routed");
+        properties.setOwnerFlushInterval(Duration.ofMinutes(10));
+        coalescer = new RoomFanoutOwnerCoalescer(
+                new RoomFanoutRoutingService(presenceDirectory, new RoomFanoutPlanner()),
+                dispatcher,
+                properties,
+                RoomFanoutMetrics.noop()
+        );
+        RoomPersistedOwnerConsumer consumer = new RoomPersistedOwnerConsumer(
+                coalescer,
+                RoomFanoutMetrics.noop(),
+                properties
+        );
+
+        assertThatThrownBy(() -> consumer.onRoomPersisted(event("evt-routed-route-retry", roomId, 18L)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("planned route failure");
+        assertThat(dispatcher.commands).isEmpty();
     }
 
     private RoomFanoutOwnerCoalescer newCoalescer(

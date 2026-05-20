@@ -3,6 +3,7 @@ package com.nowcoder.community.im.common;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
+import com.nowcoder.community.im.common.command.RoomFanoutCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.event.PrivateMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
@@ -84,6 +85,22 @@ class JsonContractsTest {
         );
 
         SendRoomTextCommand back = roundTrip(cmd, SendRoomTextCommand.class);
+        assertEquals(cmd, back);
+        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+    }
+
+    @Test
+    void command_roundtrip_roomFanout() throws Exception {
+        RoomFanoutCommand cmd = new RoomFanoutCommand(
+                "worker-a",
+                uuid(1001),
+                42L,
+                "evt-1",
+                1700000000001L
+        );
+
+        RoomFanoutCommand back = roundTrip(cmd, RoomFanoutCommand.class);
+
         assertEquals(cmd, back);
         assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
@@ -750,6 +767,7 @@ class JsonContractsTest {
         assertEquals("im.event.room-member-changed", ImTopics.EVENT_ROOM_MEMBER_CHANGED);
         assertEquals("im.event.user-messaging-policy-changed", ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED);
         assertEquals("im.event.user-block-relation-changed", ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED);
+        assertEquals("im.command.room-fanout-routed", ImTopics.COMMAND_ROOM_FANOUT_ROUTED);
     }
 
     @Test

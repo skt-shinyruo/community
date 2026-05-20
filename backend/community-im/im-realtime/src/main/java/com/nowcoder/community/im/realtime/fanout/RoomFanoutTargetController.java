@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.realtime.fanout;
 
+import com.nowcoder.community.im.common.command.RoomFanoutCommand;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;

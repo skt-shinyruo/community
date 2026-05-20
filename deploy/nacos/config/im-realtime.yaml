@@ -13,6 +13,7 @@ spring:
           activeConnectionHint: ${im.realtime.worker.active-connection-hint:0}
           shardGroup: ${im.realtime.worker.shard-group:default}
           capacityWeight: ${im.realtime.worker.capacity-weight:100}
+          roomFanoutInboxSlot: ${im.room-fanout.worker-inbox-slot:0}
   kafka:
     consumer:
       group-id: im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
@@ -40,6 +41,11 @@ im:
     owner-group-id: im-realtime-room-fanout-owner
     owner-concurrency: 3
     owner-flush-interval: PT0.05S
+    transport: kafka
+    routed-command-topic: im.command.room-fanout-routed
+    routed-command-partitions: 64
+    worker-inbox-slot: ${IM_ROOM_FANOUT_WORKER_INBOX_SLOT:0}
+    worker-inbox-slot-metadata-key: roomFanoutInboxSlot
     target-path: /internal/im/realtime/fanout/room
     target-timeout: PT1S
     worker-directory-cache-ttl: PT0.5S

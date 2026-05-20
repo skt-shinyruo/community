@@ -2,6 +2,7 @@ package com.nowcoder.community.im.realtime.fanout;
 
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
+import com.nowcoder.community.im.common.command.RoomFanoutCommand;
 import com.nowcoder.community.im.realtime.client.ImServiceClientProperties;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
 import org.springframework.http.HttpHeaders;
@@ -10,6 +11,7 @@ import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -17,6 +19,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.time.Instant;
 
 @Component
+@ConditionalOnExpression("'${im.room-fanout.transport:kafka}' == 'http'")
 public class HttpRoomFanoutDispatcher implements RoomFanoutDispatcher {
 
     private final RealtimeWorkerDirectory workerDirectory;

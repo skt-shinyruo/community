@@ -36,6 +36,7 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.containsProperty("im.room-presence.enabled")).isTrue();
         assertThat(environment.containsProperty("im.room-fanout.mode")).isTrue();
         assertThat(environment.containsProperty("im.room-fanout.owner-group-id")).isTrue();
+        assertThat(environment.containsProperty("im.room-fanout.routed-command-topic")).isTrue();
         assertThat(environment.containsProperty("im.kafka.event.concurrency")).isTrue();
         assertThat(environment.containsProperty("im.ws.room-flush-interval-ms")).isTrue();
         assertThat(environment.containsProperty("im.ws.max-inbound-chars")).isTrue();
@@ -49,6 +50,10 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.getProperty("im.room-presence.ttl")).isEqualTo("PT30S");
         assertThat(environment.getProperty("im.room-fanout.mode")).isEqualTo("legacy");
         assertThat(environment.getProperty("im.room-fanout.owner-group-id")).isEqualTo("im-realtime-room-fanout-owner");
+        assertThat(environment.getProperty("im.room-fanout.transport")).isEqualTo("kafka");
+        assertThat(environment.getProperty("im.room-fanout.routed-command-topic")).isEqualTo("im.command.room-fanout-routed");
+        assertThat(environment.getProperty("im.room-fanout.routed-command-partitions", Integer.class)).isEqualTo(64);
+        assertThat(environment.getProperty("im.room-fanout.worker-inbox-slot", Integer.class)).isZero();
         assertThat(environment.getProperty("im.room-fanout.target-path")).isEqualTo("/internal/im/realtime/fanout/room");
         assertThat(environment.getProperty("im.cors.allowed-origins[2]")).isEqualTo("http://localhost:12881");
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.draining", Boolean.class)).isFalse();
@@ -56,6 +61,8 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.activeConnectionHint", Integer.class)).isZero();
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.shardGroup")).isEqualTo("default");
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.capacityWeight", Integer.class)).isEqualTo(100);
+        assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.roomFanoutInboxSlot", Integer.class))
+                .isZero();
         assertThat(rawProperty(environment, "im-realtime.yaml", "spring.kafka.consumer.group-id"))
                 .isEqualTo("im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}");
         assertThat(environment.getProperty("spring.kafka.consumer.group-id")).startsWith("im-realtime-");

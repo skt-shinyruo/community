@@ -105,21 +105,21 @@ targetWorkerId, roomId, lastSeq, sourceEventId, createdAtEpochMs
 
 The target worker validates that `targetWorkerId` equals its local worker id, then calls local `RoomFanoutCoalescer.markRoomUpdated(roomId, lastSeq)`. The existing `RoomUpdateCoalescer` still batches by connection and sends `roomUpdatedBatch`.
 
-The recommended durable long-term transport is a fixed-shard worker inbox topic:
+The implemented default transport is a fixed-shard worker inbox topic:
 
 ```text
-im.event.room-fanout-routed
+im.command.room-fanout-routed
 ```
 
-Workers consume only their assigned inbox shard or static worker slot. The owner publishes to the target worker slot. This avoids every worker consuming every routed command.
+Workers consume only their assigned inbox shard or static worker slot. The owner publishes to the target worker slot and waits for the broker ack before the original room persisted listener can return. This avoids every worker consuming every routed command and removes the owner process memory retry window.
 
-The implemented first transport is an internal HTTP command endpoint:
+An internal HTTP command endpoint remains available as an explicit fallback transport:
 
 ```text
 POST /internal/im/realtime/fanout/room
 ```
 
-It is protected with `SCOPE_im.realtime.internal`, resolves target worker endpoints from discovery metadata, short-circuits local self-dispatch, validates `targetWorkerId` on the receiver, and calls only the receiver's local `RoomFanoutCoalescer`. A later step can replace this transport with the fixed-shard Kafka inbox without changing planner, presence, target validation, or local fanout semantics.
+It is protected with `SCOPE_im.realtime.internal`, resolves target worker endpoints from discovery metadata, validates `targetWorkerId` on the receiver, and calls only the receiver's local `RoomFanoutCoalescer`.
 
 ## Why Not The Alternatives
 
@@ -212,16 +212,19 @@ For very large public rooms, `A(room)` may approach `W`. That is unavoidable if 
    - last local connection removes it,
    - heartbeat refreshes worker-room liveness keys,
    - route lookup filters stale members.
-3. Done: add routed fanout target endpoint and internal HTTP transport:
+3. Done: add routed fanout target endpoint and transport:
+   - default Kafka fixed-partition worker inbox transport,
+   - optional internal HTTP transport,
    - protected by `SCOPE_im.realtime.internal`,
    - validates `targetWorkerId`,
    - requires and de-duplicates `sourceEventId` per target worker with a bounded in-memory recent-event set,
    - invokes local `RoomFanoutCoalescer`.
 4. Done: harden routed rollout reliability:
    - `routed` startup fails fast when the bound `RoomPresenceDirectory` is `NoopRoomPresenceDirectory`,
-   - owner route planning failures keep the latest room update pending for the next flush,
-   - owner target dispatch failures do not block other workers and keep the latest room update pending for retry,
-   - target idempotency turns retried commands for already-successful workers into no-op `202 Accepted` responses.
+   - Kafka transport startup fails fast when the local fixed inbox slot is outside the configured partition range,
+   - owner route planning failures throw back to the original room persisted Kafka listener,
+   - owner target command publish failures do not block other target workers, then throw back to the original room persisted Kafka listener,
+   - target idempotency turns retried commands for already-successful workers into no-op accepted results.
 5. Ready to run in deployment: enable shadow mode:
    - keep legacy per-worker room persisted consumers,
    - compute routed target sets and metrics,
@@ -230,24 +233,22 @@ For very large public rooms, `A(room)` may approach `W`. That is unavoidable if 
    - set room fanout mode to `routed`,
    - set room persisted listener group to shared owner group,
    - keep rollback property to restore legacy per-worker group.
-7. Optional optimization: replace HTTP transport with fixed-shard Kafka worker inbox if load tests show HTTP owner fanout is the bottleneck:
-   - assign stable worker inbox slots through discovery metadata,
-   - publish routed commands to target slot,
-   - workers manually consume assigned slots, not all slots.
-
 ## Implemented Runtime Controls
 
 - `im.room-presence.enabled=false` by default. Set it to `true` only after Redis is available to every realtime worker. `routed` mode requires a Redis-backed distributed `RoomPresenceDirectory`; startup fails fast if `routed` is combined with the noop presence directory.
 - `im.room-fanout.mode=legacy` by default. This remains an explicit rollout gate. `legacy` keeps per-worker room persisted fanout. `shadow` keeps legacy delivery and computes owner routes without dispatching target commands. `routed` disables legacy room persisted consumption and dispatches through the shared owner group.
+- `im.room-fanout.transport=kafka` by default. `kafka` publishes durable routed commands to `im.command.room-fanout-routed`; `http` keeps the internal HTTP target endpoint available as an explicit fallback transport.
+- `im.room-fanout.routed-command-partitions=64` defines the fixed worker inbox slot range. `im.room-fanout.worker-inbox-slot` must be unique per active realtime worker and is published through discovery metadata key `roomFanoutInboxSlot`.
 - `im.room-fanout.owner-group-id=im-realtime-room-fanout-owner` bounds the original room persisted event consumption by the owner group instead of realtime worker count.
 - `im.room-fanout.target-path=/internal/im/realtime/fanout/room` controls the internal HTTP target endpoint.
 - `im.room-fanout.worker-directory-cache-ttl` bounds discovery lookups while allowing worker topology changes to converge.
 
 ## Routed Reliability Semantics
 
-- The routed owner keeps only the latest pending update per room. If route planning throws or any target dispatch fails, the owner records `routeFailed`, finishes attempting the remaining target workers for that room, and requeues the room's latest pending update for a later owner flush.
+- In `shadow`, the owner keeps only the latest pending update per room for route observation and never dispatches target commands.
+- In `routed` with Kafka transport, the owner performs route planning and synchronous Kafka routed-command publication inside the room persisted Kafka listener call stack. If route planning throws or any target command publish fails, the owner records `routeFailed`, finishes attempting the remaining target workers for that room, then throws back to the Kafka listener error handler so the original room persisted event is retried or sent to DLQ instead of being lost from process memory.
 - Empty target sets are not retried. They mean distributed presence currently reports no active worker for the room.
-- HTTP target dispatch is at-least-once while the owner process is alive. A process crash can lose the in-memory pending retry; this is the intentionally minimal reliability step before a durable outbox or worker inbox.
+- A process crash before the routed listener completes leaves the original room persisted event uncommitted and replayable by Kafka. If some routed commands were already persisted or accepted before a retry, target-side `sourceEventId` dedupe makes replay idempotent.
 - Target workers require non-blank `sourceEventId` and keep a bounded in-memory recent-event set. A repeated `sourceEventId` returns a duplicate result to the service layer and the controller still responds `202 Accepted`, without re-triggering local fanout. Room update payloads remain state-only and clients still use room message `seq` / history backfill for end-to-end duplicate tolerance.
 
 ## Rollout Sequence

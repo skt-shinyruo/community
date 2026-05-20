@@ -80,8 +80,29 @@ public class RealtimeWorkerDirectory {
             if (previous != null) {
                 throw new IllegalStateException("Duplicate realtime worker id: " + endpoint.get().workerId());
             }
+            failOnDuplicateInboxSlot(endpoints, endpoint.get());
         }
         return Map.copyOf(endpoints);
+    }
+
+    private void failOnDuplicateInboxSlot(
+            Map<String, RealtimeWorkerEndpoint> endpoints,
+            RealtimeWorkerEndpoint endpoint
+    ) {
+        if (endpoint.roomFanoutInboxSlot() == null) {
+            return;
+        }
+        for (RealtimeWorkerEndpoint existing : endpoints.values()) {
+            if (endpoint.workerId().equals(existing.workerId()) || existing.roomFanoutInboxSlot() == null) {
+                continue;
+            }
+            if (endpoint.roomFanoutInboxSlot().equals(existing.roomFanoutInboxSlot())) {
+                throw new IllegalStateException(
+                        "Duplicate room fanout inbox slot: " + endpoint.roomFanoutInboxSlot()
+                                + " for workers " + existing.workerId() + " and " + endpoint.workerId()
+                );
+            }
+        }
     }
 
     private Optional<RealtimeWorkerEndpoint> endpointFrom(ServiceInstance instance) {
@@ -111,9 +132,29 @@ public class RealtimeWorkerDirectory {
                     null,
                     null
             );
-            return Optional.of(new RealtimeWorkerEndpoint(workerId.trim(), uri));
+            Integer inboxSlot = inboxSlot(metadata);
+            return Optional.of(new RealtimeWorkerEndpoint(workerId.trim(), uri, inboxSlot));
         } catch (IllegalArgumentException | URISyntaxException ex) {
             return Optional.empty();
+        }
+    }
+
+    private Integer inboxSlot(Map<String, String> metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        String raw = metadata.get(fanoutProperties.normalizedWorkerInboxSlotMetadataKey());
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        try {
+            int value = Integer.parseInt(raw.trim());
+            if (value < 0 || value >= fanoutProperties.normalizedRoutedCommandPartitions()) {
+                return null;
+            }
+            return value;
+        } catch (NumberFormatException ex) {
+            return null;
         }
     }
 }

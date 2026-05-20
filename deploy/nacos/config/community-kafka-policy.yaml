@@ -34,6 +34,7 @@ im:
     topics:
       command-private-text: im.command.private-text
       command-room-text: im.command.room-text
+      command-room-fanout-routed: im.command.room-fanout-routed
       event-private-persisted: im.event.private-persisted
       event-room-persisted: im.event.room-persisted
       event-private-rejected: im.event.private-rejected

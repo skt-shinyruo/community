@@ -42,6 +42,25 @@ class RoomFanoutConfigurationTest {
                 });
     }
 
+    @Test
+    void routedKafkaModeFailsFastWhenWorkerInboxSlotIsOutsidePartitionRange() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(RedisPresenceConfiguration.class)
+                .withPropertyValues(
+                        "im.room-fanout.mode=routed",
+                        "im.room-fanout.transport=kafka",
+                        "im.room-fanout.routed-command-partitions=4",
+                        "im.room-fanout.worker-inbox-slot=4"
+                )
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(IllegalStateException.class)
+                            .rootCause()
+                            .hasMessageContaining("worker-inbox-slot");
+                });
+    }
+
     @Configuration(proxyBeanMethods = false)
     @Import(RoomFanoutConfiguration.class)
     static class NoopPresenceConfiguration {

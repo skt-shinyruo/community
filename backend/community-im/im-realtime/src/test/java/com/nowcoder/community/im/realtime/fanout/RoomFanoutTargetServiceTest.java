@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.realtime.fanout;
 
+import com.nowcoder.community.im.common.command.RoomFanoutCommand;
 import com.nowcoder.community.im.realtime.push.RoomFanoutCoalescer;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
 import org.junit.jupiter.api.Test;

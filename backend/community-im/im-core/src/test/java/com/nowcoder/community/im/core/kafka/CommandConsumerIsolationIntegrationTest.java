@@ -9,14 +9,19 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.mapping.AbstractJavaTypeMapper;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
@@ -26,11 +31,13 @@ import org.springframework.test.context.TestPropertySource;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -149,6 +156,51 @@ class CommandConsumerIsolationIntegrationTest {
         assertThat(committedJson.path("clientMsgId").asText("")).isEqualTo(okClientMsgId);
     }
 
+    @Test
+    void futureSchemaVersionRoomCommand_shouldGoToDlq_andNotWriteProjectionState() throws Exception {
+        jdbcTemplate.update("delete from outbox_event");
+        UUID sender = uuid(2);
+        UUID roomId = roomApplicationService.createRoom(sender, "room-future-schema").roomId();
+        String badClientMsgId = "c-future-schema-" + UUID.randomUUID();
+        String dlqTopic = ImTopics.COMMAND_ROOM_TEXT + ".dlq";
+
+        consumer = newStringConsumer("im-core-it-future-schema");
+        consumer.subscribe(List.of(dlqTopic, ImTopics.EVENT_ROOM_PERSISTED, ImTopics.EVENT_ROOM_COMMITTED, ImTopics.EVENT_ROOM_REJECTED));
+        consumer.poll(Duration.ofMillis(200));
+
+        KafkaTemplate<String, String> stringTemplate = newStringKafkaTemplate();
+        ProducerRecord<String, String> record = new ProducerRecord<>(
+                ImTopics.COMMAND_ROOM_TEXT,
+                String.valueOf(roomId),
+                """
+                        {
+                          "schemaVersion": 2,
+                          "requestId": "req-future-schema",
+                          "clientMsgId": "%s",
+                          "fromUserId": "%s",
+                          "roomId": "%s",
+                          "content": "hi from the future",
+                          "clientSentAtEpochMs": 1700000000001
+                        }
+                        """.formatted(badClientMsgId, sender, roomId)
+        );
+        record.headers().add(
+                AbstractJavaTypeMapper.DEFAULT_CLASSID_FIELD_NAME,
+                SendRoomTextCommand.class.getName().getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        );
+        stringTemplate.send(record).get(5, TimeUnit.SECONDS);
+
+        ConsumerRecord<String, String> dlqRecord = pollForSingleRecord(consumer, dlqTopic, Duration.ofSeconds(10));
+        JsonNode dlqJson = dlqPayloadJson(dlqRecord.value());
+        assertThat(dlqJson.path("schemaVersion").asInt()).isEqualTo(2);
+        assertThat(dlqJson.path("clientMsgId").asText("")).isEqualTo(badClientMsgId);
+
+        ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(1));
+        assertThat(records.records(ImTopics.EVENT_ROOM_PERSISTED)).isEmpty();
+        assertThat(records.records(ImTopics.EVENT_ROOM_COMMITTED)).isEmpty();
+        assertThat(records.records(ImTopics.EVENT_ROOM_REJECTED)).isEmpty();
+    }
+
     private Consumer<String, String> newStringConsumer(String groupId) {
         Map<String, Object> props = KafkaTestUtils.consumerProps(groupId, "true", embeddedKafka);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
@@ -156,6 +208,30 @@ class CommandConsumerIsolationIntegrationTest {
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         DefaultKafkaConsumerFactory<String, String> cf = new DefaultKafkaConsumerFactory<>(props);
         return cf.createConsumer();
+    }
+
+    private KafkaTemplate<String, String> newStringKafkaTemplate() {
+        Map<String, Object> props = KafkaTestUtils.producerProps(embeddedKafka);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(props));
+    }
+
+    private JsonNode dlqPayloadJson(String value) throws Exception {
+        JsonNode node = objectMapper.readTree(value);
+        if (node.isTextual()) {
+            byte[] raw = Base64.getDecoder().decode(node.asText());
+            return objectMapper.readTree(raw);
+        }
+        return node;
+    }
+
+    private static ConsumerRecord<String, String> pollForSingleRecord(
+            Consumer<String, String> consumer,
+            String topic,
+            Duration timeout
+    ) {
+        return pollForTopics(consumer, Set.of(topic), timeout).get(topic);
     }
 
     private static Map<String, ConsumerRecord<String, String>> pollForTopics(

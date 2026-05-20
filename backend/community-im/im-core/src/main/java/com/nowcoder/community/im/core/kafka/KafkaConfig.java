@@ -19,6 +19,7 @@ import org.springframework.kafka.listener.CompositeRecordInterceptor;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.RecordInterceptor;
+import org.springframework.kafka.support.serializer.DeserializationException;
 import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.ArrayList;
@@ -75,7 +76,11 @@ public class KafkaConfig {
         DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
 
         // Treat common validation errors as non-retryable.
-        handler.addNotRetryableExceptions(IllegalArgumentException.class, SecurityException.class);
+        handler.addNotRetryableExceptions(
+                DeserializationException.class,
+                IllegalArgumentException.class,
+                SecurityException.class
+        );
         return handler;
     }
 

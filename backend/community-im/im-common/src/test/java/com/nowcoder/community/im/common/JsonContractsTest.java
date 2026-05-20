@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.common;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.event.PrivateMessageCommittedEvent;
@@ -23,6 +24,7 @@ import com.nowcoder.community.im.common.session.OpenImSessionResponse;
 import com.nowcoder.community.im.common.ws.AckFrame;
 import com.nowcoder.community.im.common.ws.CommittedFrame;
 import com.nowcoder.community.im.common.ws.ConnectFrame;
+import com.nowcoder.community.im.common.ws.ConnectedFrame;
 import com.nowcoder.community.im.common.ws.PingFrame;
 import com.nowcoder.community.im.common.ws.PongFrame;
 import com.nowcoder.community.im.common.ws.PrivateMessageFrame;
@@ -42,6 +44,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JsonContractsTest {
@@ -757,28 +760,249 @@ class JsonContractsTest {
     }
 
     @Test
-    void shouldWriteExplicitSchemaVersionWhenVersionIsNotCurrent() throws Exception {
-        SendRoomTextCommand command = new SendRoomTextCommand(
-                "req-v2",
-                "cmsg-v2",
-                uuid(12),
-                uuid(1001),
-                "hello v2",
-                1700000000001L,
-                2
-        );
+    void shouldReadNonPositiveSchemaVersionAsCurrentVersion() throws Exception {
+        SendRoomTextCommand zeroVersionCommand = objectMapper.readValue("""
+                {
+                  "schemaVersion": 0,
+                  "requestId": "req-zero-version",
+                  "clientMsgId": "cmsg-zero-version",
+                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
+                  "roomId": "00000000-0000-7000-8000-0000000003e9",
+                  "content": "hello zero",
+                  "clientSentAtEpochMs": 1700000000001
+                }
+                """, SendRoomTextCommand.class);
+        assertEquals(1, recordComponentValue(zeroVersionCommand, "schemaVersion"));
 
-        String json = objectMapper.writeValueAsString(command);
-        SendRoomTextCommand back = objectMapper.readValue(json, SendRoomTextCommand.class);
+        RoomMessagePersistedEvent negativeVersionEvent = objectMapper.readValue("""
+                {
+                  "schemaVersion": -1,
+                  "eventId": "evt-negative-version",
+                  "roomId": "00000000-0000-7000-8000-0000000003e9",
+                  "seq": 11,
+                  "messageId": "00000000-0000-7000-8000-000000004e21",
+                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
+                  "createdAtEpochMs": 1700000002000
+                }
+                """, RoomMessagePersistedEvent.class);
+        assertEquals(1, recordComponentValue(negativeVersionEvent, "schemaVersion"));
 
-        assertTrue(json.contains("\"schemaVersion\":2"));
-        assertEquals(2, recordComponentValue(back, "schemaVersion"));
-        assertEquals("hello v2", back.content());
+        PingFrame zeroVersionFrame = objectMapper.readValue("""
+                {
+                  "schemaVersion": 0,
+                  "type": "ping",
+                  "sentAtEpochMillis": 1712345678903
+                }
+                """, PingFrame.class);
+        assertEquals(1, recordComponentValue(zeroVersionFrame, "schemaVersion"));
+
+        RoomMembershipEntry negativeVersionProjection = objectMapper.readValue("""
+                {
+                  "schemaVersion": -1,
+                  "roomId": "00000000-0000-7000-8000-00000000000a",
+                  "userId": "00000000-0000-7000-8000-000000000001",
+                  "version": 1712345678904,
+                  "occurredAtEpochMillis": 1712345678903
+                }
+                """, RoomMembershipEntry.class);
+        assertEquals(1, recordComponentValue(negativeVersionProjection, "schemaVersion"));
+    }
+
+    @Test
+    void shouldRejectUnsupportedFutureSchemaVersionAcrossContractAreas() {
+        assertUnsupportedVersion("""
+                {
+                  "schemaVersion": 2,
+                  "requestId": "req-future-version",
+                  "clientMsgId": "cmsg-future-version",
+                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
+                  "roomId": "00000000-0000-7000-8000-0000000003e9",
+                  "content": "hello v2",
+                  "clientSentAtEpochMs": 1700000000001
+                }
+                """, SendRoomTextCommand.class);
+        assertUnsupportedVersion("""
+                {
+                  "schemaVersion": 2,
+                  "eventId": "evt-future-version",
+                  "roomId": "00000000-0000-7000-8000-0000000003e9",
+                  "seq": 11,
+                  "messageId": "00000000-0000-7000-8000-000000004e21",
+                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
+                  "createdAtEpochMs": 1700000002000
+                }
+                """, RoomMessagePersistedEvent.class);
+        assertUnsupportedVersion("""
+                {
+                  "schemaVersion": 2,
+                  "type": "sendPrivateText",
+                  "clientMsgId": "cmsg-future-frame",
+                  "toUserId": "00000000-0000-7000-8000-000000000015",
+                  "content": "future frame hello"
+                }
+                """, SendPrivateTextFrame.class);
+        assertUnsupportedVersion("""
+                {
+                  "schemaVersion": 2,
+                  "entries": [
+                    {
+                      "roomId": "00000000-0000-7000-8000-00000000000a",
+                      "userId": "00000000-0000-7000-8000-000000000001",
+                      "version": 1712345678904,
+                      "occurredAtEpochMillis": 1712345678903
+                    }
+                  ],
+                  "nextRoomId": null,
+                  "nextUserId": null,
+                  "hasMore": false,
+                  "snapshotHighWatermark": 1712345678904
+                }
+                """, RoomMembershipSnapshot.class);
+        assertUnsupportedVersion("""
+                {
+                  "schemaVersion": 2,
+                  "roomId": "00000000-0000-7000-8000-00000000000a",
+                  "userId": "00000000-0000-7000-8000-000000000001",
+                  "version": 1712345678904,
+                  "occurredAtEpochMillis": 1712345678903
+                }
+                """, RoomMembershipEntry.class);
+    }
+
+    @Test
+    void shouldRejectUnsupportedFutureSchemaVersionForEveryVersionedRecord() {
+        for (Class<?> contractType : List.of(
+                SendPrivateTextCommand.class,
+                SendRoomTextCommand.class,
+                PrivateMessagePersistedEvent.class,
+                RoomMessagePersistedEvent.class,
+                PrivateMessageCommittedEvent.class,
+                RoomMessageCommittedEvent.class,
+                PrivateMessageRejectedEvent.class,
+                RoomMessageRejectedEvent.class,
+                RoomMemberChanged.class,
+                UserMessagingPolicyChanged.class,
+                UserBlockRelationChanged.class,
+                RoomMembershipSnapshot.class,
+                RoomMembershipEntry.class,
+                UserMessagingPolicySnapshot.class,
+                UserMessagingPolicyEntry.class,
+                UserBlockRelationSnapshot.class,
+                UserBlockRelationEntry.class,
+                ConnectFrame.class,
+                ConnectedFrame.class,
+                SendPrivateTextFrame.class,
+                SendRoomTextFrame.class,
+                AckFrame.class,
+                RejectFrame.class,
+                CommittedFrame.class,
+                PrivateMessageFrame.class,
+                RoomMessageFrame.class,
+                PingFrame.class,
+                PongFrame.class
+        )) {
+            assertUnsupportedVersion(genericJsonWithFutureSchemaVersion(contractType), contractType);
+        }
     }
 
     private <T> T roundTrip(T value, Class<T> type) throws Exception {
         String json = objectMapper.writeValueAsString(value);
         return objectMapper.readValue(json, type);
+    }
+
+    private <T> void assertUnsupportedVersion(String json, Class<T> type) {
+        JsonMappingException exception = assertThrows(
+                JsonMappingException.class,
+                () -> objectMapper.readValue(json, type)
+        );
+        assertTrue(rootMessage(exception).contains("unsupported IM schemaVersion"));
+    }
+
+    private static String rootMessage(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current.getMessage();
+    }
+
+    private String genericJsonWithFutureSchemaVersion(Class<?> recordType) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        for (RecordComponent component : recordType.getRecordComponents()) {
+            values.put(component.getName(), genericJsonValue(recordType, component));
+        }
+        try {
+            return objectMapper.writeValueAsString(values);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to build test JSON for " + recordType.getSimpleName(), e);
+        }
+    }
+
+    private static Object genericJsonValue(Class<?> recordType, RecordComponent component) {
+        if ("schemaVersion".equals(component.getName())) {
+            return ImContractVersions.CURRENT_SCHEMA_VERSION + 1;
+        }
+        if ("type".equals(component.getName())) {
+            return expectedFrameType(recordType);
+        }
+        Class<?> type = component.getType();
+        if (type == String.class) {
+            return component.getName() + "-value";
+        }
+        if (type == UUID.class) {
+            return uuid(1);
+        }
+        if (type == int.class || type == Integer.class) {
+            return 400;
+        }
+        if (type == long.class || type == Long.class) {
+            return 1L;
+        }
+        if (type == boolean.class || type == Boolean.class) {
+            return true;
+        }
+        if (type == List.class) {
+            return List.of();
+        }
+        throw new AssertionError("Unsupported test JSON component type: "
+                + recordType.getSimpleName() + "." + component.getName() + " " + type.getName());
+    }
+
+    private static String expectedFrameType(Class<?> recordType) {
+        if (recordType == AckFrame.class) {
+            return "ack";
+        }
+        if (recordType == CommittedFrame.class) {
+            return "committed";
+        }
+        if (recordType == ConnectFrame.class) {
+            return "connect";
+        }
+        if (recordType == ConnectedFrame.class) {
+            return "connected";
+        }
+        if (recordType == PingFrame.class) {
+            return "ping";
+        }
+        if (recordType == PongFrame.class) {
+            return "pong";
+        }
+        if (recordType == PrivateMessageFrame.class) {
+            return "privateMessage";
+        }
+        if (recordType == RejectFrame.class) {
+            return "reject";
+        }
+        if (recordType == RoomMessageFrame.class) {
+            return "roomMessage";
+        }
+        if (recordType == SendPrivateTextFrame.class) {
+            return "sendPrivateText";
+        }
+        if (recordType == SendRoomTextFrame.class) {
+            return "sendRoomText";
+        }
+        throw new AssertionError("No frame type test value for " + recordType.getSimpleName());
     }
 
     private static Map<String, Object> userMessagingPolicyEntryValues(

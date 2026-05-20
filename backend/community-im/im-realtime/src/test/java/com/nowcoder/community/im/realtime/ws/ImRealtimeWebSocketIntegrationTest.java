@@ -266,6 +266,52 @@ class ImRealtimeWebSocketIntegrationTest {
         }
     }
 
+    @Test
+    void websocket_shouldRejectUnsupportedFutureSchemaVersionAsProtocolError() throws Exception {
+        UUID userId = uuid(301);
+        MEMBERSHIP_ENTRIES.set(List.of());
+        POLICY_ENTRIES.set(List.of(policy(userId, true), policy(uuid(302), true)));
+        BLOCK_ENTRIES.set(List.of());
+
+        projectionSyncCoordinator.refreshNow().block(Duration.ofSeconds(5));
+
+        OpenSessionData sessionData = newSession(userId, WORKER_ID);
+        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
+        Sinks.Empty<Void> done = Sinks.empty();
+        CountDownLatch connected = new CountDownLatch(1);
+
+        Disposable websocket = openWebSocket(sessionData.wsUrl(), received, outbound, done, connected);
+        try {
+            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+
+            outbound.tryEmitNext(json(new ConnectFrame("connect", sessionData.ticket())));
+            assertThat(awaitType(received, "connected", Duration.ofSeconds(5))
+                    .path("sessionId").asText("")).isEqualTo(sessionData.sessionId());
+
+            outbound.tryEmitNext("""
+                    {
+                      "type": "sendPrivateText",
+                      "schemaVersion": 2,
+                      "clientMsgId": "c-future-frame",
+                      "toUserId": "00000000-0000-7000-8000-00000000012e",
+                      "content": "hi from the future"
+                    }
+                    """);
+
+            JsonNode rejectFrame = awaitType(received, "reject", Duration.ofSeconds(5));
+            assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("protocol");
+            assertThat(rejectFrame.path("code").asInt()).isEqualTo(400);
+            assertThat(rejectFrame.path("reasonCode").asText("")).isEqualTo("unsupported_schema_version");
+        } finally {
+            done.tryEmitEmpty();
+            outbound.tryEmitComplete();
+            if (websocket != null) {
+                websocket.dispose();
+            }
+        }
+    }
+
     private Disposable openWebSocket(
             String wsUrl,
             LinkedBlockingQueue<String> received,

@@ -159,15 +159,16 @@ Versioning and schema evolution：
 
 - IM JSON contracts use `schemaVersion` with current value `1` from `ImContractVersions`.
 - Missing or non-positive `schemaVersion` is read as version `1`. This is the compatibility path for payloads produced before the version field existed.
-- Version `1` is not written by default so a newly upgraded producer does not break an old consumer during the same rolling upgrade. Future non-current versions are written explicitly.
+- Version `1` is not written by default so a newly upgraded producer does not break an old consumer during the same rolling upgrade. Positive versions greater than the current supported version are unsupported and must fail before business handling.
 - All `im-common` command / event / frame / projection records ignore unknown JSON properties. Consumers must preserve known field semantics and ignore additive metadata they do not understand.
 - Adding an optional field is allowed only when the consumer can apply a deterministic default if the field is missing. Valid defaults must be documented with the field.
 - Adding a required field to an existing topic or frame type is not allowed. Use a new optional field plus fallback first, then enforce it only after all producers are known to send it.
 - Renaming or deleting a field is a breaking change. Keep the old field readable and mark it deprecated in docs/code until all deployables and persisted/replayed payloads no longer need it.
 - Changing the meaning, unit, key semantics, idempotency semantics, or type of an existing field is breaking even if JSON still parses.
-- Unknown `schemaVersion` values must not silently reinterpret payloads. If the consumer cannot safely process the known fields, fail the Kafka record into retry/DLQ or reject the WS frame with a protocol error.
+- Unsupported future `schemaVersion` values must not silently reinterpret payloads. Kafka command/event consumers route the record through the configured deserialization error path and DLQ/non-retryable handling; WebSocket consumers return a protocol reject with `unsupported_schema_version`; projection snapshot refresh fails and must not write the unknown-version state into realtime projection.
 - Kafka topic names stay stable for compatible v1 additive changes. Incompatible command/event changes require a new topic or a new event/frame type, with a dual-write/dual-read migration window.
 - WebSocket `type` stays stable for compatible v1 additive changes. Incompatible browser-visible behavior requires a new frame `type` or an explicitly negotiated non-v1 frame version.
+- `OpenImSessionResponse` and `PrivateMessagePolicyDecision` are synchronous HTTP response helper models, not command / event / WebSocket frame / projection snapshot contracts. They do not carry `schemaVersion` in the current contract scope.
 
 语义：
 

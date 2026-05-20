@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.logging.EventLogFields;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
+import com.nowcoder.community.im.common.ImUnsupportedSchemaVersionException;
 import com.nowcoder.community.im.common.ws.ConnectFrame;
 import com.nowcoder.community.im.common.ws.ConnectedFrame;
 import com.nowcoder.community.im.common.ws.PingFrame;
@@ -196,6 +197,8 @@ public class ImWebSocketHandler implements WebSocketHandler {
             );
         } catch (ResponseStatusException e) {
             rejectAndClose(conn, "connect", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
+        } catch (ImUnsupportedSchemaVersionException e) {
+            rejectAndClose(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
         } catch (RuntimeException e) {
             warnEvent(
                     CATEGORY_SECURITY,
@@ -219,6 +222,9 @@ public class ImWebSocketHandler implements WebSocketHandler {
             frame = frameCodec.read(node, SendPrivateTextFrame.class);
         } catch (ResponseStatusException e) {
             sendReject(conn, "sendPrivateText", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
+            return Mono.empty();
+        } catch (ImUnsupportedSchemaVersionException e) {
+            sendReject(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
             return Mono.empty();
         } catch (RuntimeException e) {
             sendReject(conn, "sendPrivateText", "", "", 400, "invalid_frame", "invalid sendPrivateText");
@@ -259,6 +265,9 @@ public class ImWebSocketHandler implements WebSocketHandler {
         } catch (ResponseStatusException e) {
             sendReject(conn, "sendRoomText", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
             return Mono.empty();
+        } catch (ImUnsupportedSchemaVersionException e) {
+            sendReject(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
+            return Mono.empty();
         } catch (RuntimeException e) {
             sendReject(conn, "sendRoomText", "", "", 400, "invalid_frame", "invalid sendRoomText");
             return Mono.empty();
@@ -285,6 +294,9 @@ public class ImWebSocketHandler implements WebSocketHandler {
         try {
             PingFrame frame = frameCodec.read(node, PingFrame.class);
             sentAtEpochMillis = frame.sentAtEpochMillis();
+        } catch (ImUnsupportedSchemaVersionException e) {
+            sendReject(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
+            return Mono.empty();
         } catch (RuntimeException e) {
             sentAtEpochMillis = System.currentTimeMillis();
         }

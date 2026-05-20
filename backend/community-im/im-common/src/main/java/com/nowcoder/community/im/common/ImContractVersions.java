@@ -12,6 +12,12 @@ public final class ImContractVersions {
     }
 
     public static int schemaVersionOrCurrent(int schemaVersion) {
-        return schemaVersion <= 0 ? CURRENT_SCHEMA_VERSION : schemaVersion;
+        if (schemaVersion <= 0) {
+            return CURRENT_SCHEMA_VERSION;
+        }
+        if (schemaVersion > CURRENT_SCHEMA_VERSION) {
+            throw new ImUnsupportedSchemaVersionException(schemaVersion, CURRENT_SCHEMA_VERSION);
+        }
+        return schemaVersion;
     }
 }

@@ -49,8 +49,9 @@ spring:
       group-id: ${IM_REALTIME_CONSUMER_GROUP:${im.kafka.consumer.group-id:im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}}}
       auto-offset-reset: ${IM_REALTIME_KAFKA_CONSUMER_AUTO_OFFSET_RESET:${im.kafka.consumer.auto-offset-reset:latest}}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
         spring.json.trusted.packages: com.nowcoder.community.im.common.*
     producer:
       acks: ${community.kafka-policy.producer.acks:all}

@@ -7,6 +7,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.listener.RecordInterceptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -30,6 +31,7 @@ class KafkaConfigTest {
         ConcurrentKafkaListenerContainerFactory<Object, Object> factory = config.kafkaListenerContainerFactory(
                 mock(ConcurrentKafkaListenerContainerFactoryConfigurer.class),
                 mock(ConsumerFactory.class),
+                mock(DefaultErrorHandler.class),
                 objectProvider(customInterceptor)
         );
         @SuppressWarnings("unchecked")

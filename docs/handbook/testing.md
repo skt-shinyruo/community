@@ -9,6 +9,7 @@
 | 后端单元 / slice / 集成测试 | 验证 domain、application、adapter、controller、infra 行为。 | `backend/**/src/test/java/**/*.java` |
 | 架构守卫 | 防止 DDD 分层、事务边界、DTO / domain / infra 依赖退化。 | `backend/community-app/src/test/java/com/nowcoder/community/app/arch` |
 | 前端单元 / 组件测试 | 验证路由、session、HTTP interceptor、状态纯函数、Vue 组件交互。 | `frontend/src/**/*.test.js` |
+| 压测套件结构测试 | 验证 k6 profile、运行器、共享库、场景和文档入口。 | `tests/k6/tests/*.test.mjs` |
 | 工具测试 | 验证本地工具的 env、API contract、job、planner、batch delete。 | `tools/**/test/*.mjs` |
 | 构建验证 | 确认 Maven / Vite 可编译和打包。 | `mvn package`、`npm run build` |
 | 文档变更验证 | 捕获 Markdown 中尾随空白、坏 patch、明显格式问题。 | `git diff --check -- docs README.md frontend/README.md backend/README.md deploy/README.md tools` |
@@ -23,6 +24,7 @@
 | 幂等 / outbox / scheduler / saga | 定向可靠性测试 | `cd backend && mvn test`，必要时本地 compose 演练 |
 | 前端路由 / session / HTTP / store / 页面状态 | 定向 Vitest 文件 | `cd frontend && npm test` |
 | 前端构建相关 | `cd frontend && npm run build` | `cd frontend && npm test && npm run build` |
+| tests/k6 压测脚本 | `cd tests/k6 && npm test` | 在本地 cluster 启动后运行 `npm run smoke`，再按目标运行 profile。 |
 | tools/mock-data-studio | 定向 `npm --prefix tools/mock-data-studio test -- <files>` | 全量 mock-data-studio 测试 |
 
 ## 后端测试

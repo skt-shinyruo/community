@@ -17,8 +17,9 @@
 
 1. [local-development.md](local-development.md)：single / cluster 启动、端口、dev-only 账号、Mock Data Studio。
 2. [operations.md](operations.md)：observability、Kibana、压测、scheduler、outbox worker 排障。
-3. [security.md](security.md)：JWT、refresh cookie、CORS / OriginGuard、授权矩阵、internal token。
-4. [testing.md](testing.md)：后端、前端、架构守卫、可靠性和工具测试的运行策略。
+3. [performance-testing.md](performance-testing.md)：k6 压测套件、profile、阈值、观测点和安全注意事项。
+4. [security.md](security.md)：JWT、refresh cookie、CORS / OriginGuard、授权矩阵、internal token。
+5. [testing.md](testing.md)：后端、前端、架构守卫、可靠性和工具测试的运行策略。
 
 ### 改业务或查实现链路
 

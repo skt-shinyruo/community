@@ -1,0 +1,19 @@
+{
+  "name": "community-k6-load-tests",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "smoke": "node scripts/run-k6.mjs smoke",
+    "api-mix": "node scripts/run-k6.mjs api-mix",
+    "write-paths": "node scripts/run-k6.mjs write-paths",
+    "im-ws": "node scripts/run-k6.mjs im-ws",
+    "soak": "node scripts/run-k6.mjs soak",
+    "stress": "node scripts/run-k6.mjs stress",
+    "spike": "node scripts/run-k6.mjs spike"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

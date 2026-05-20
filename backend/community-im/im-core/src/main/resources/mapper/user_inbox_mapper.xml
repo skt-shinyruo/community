@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.im.core.infrastructure.persistence.mapper.UserInboxMapper">
+
+    <resultMap id="conversationInboxResultMap"
+               type="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.ConversationInboxDataObject">
+        <id property="conversationId" column="conversation_id"/>
+        <result property="peerUserId" column="peer_user_id" jdbcType="BINARY"/>
+        <result property="lastSeq" column="last_seq"/>
+        <result property="lastReadSeq" column="last_read_seq"/>
+        <result property="unreadCount" column="unread_count"/>
+        <result property="lastMessageId" column="last_message_id" jdbcType="BINARY"/>
+        <result property="lastFromUserId" column="last_from_user_id" jdbcType="BINARY"/>
+        <result property="lastToUserId" column="last_to_user_id" jdbcType="BINARY"/>
+        <result property="lastContent" column="last_content"/>
+        <result property="lastMessageCreatedAt" column="last_message_created_at"/>
+    </resultMap>
+
+    <resultMap id="roomLastMessageResultMap"
+               type="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.RoomLastMessageDataObject">
+        <id property="messageId" column="message_id" jdbcType="BINARY"/>
+        <result property="fromUserId" column="from_user_id" jdbcType="BINARY"/>
+        <result property="content" column="content"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="roomUnreadResultMap"
+               type="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.RoomUnreadDataObject">
+        <id property="roomId" column="room_id" jdbcType="BINARY"/>
+        <result property="lastSeq" column="last_seq"/>
+        <result property="lastReadSeq" column="last_read_seq"/>
+        <result property="unreadCount" column="unread_count"/>
+    </resultMap>
+
+    <resultMap id="conversationUnreadResultMap"
+               type="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.ConversationUnreadDataObject">
+        <id property="conversationId" column="conversation_id"/>
+        <result property="lastSeq" column="last_seq"/>
+        <result property="lastReadSeq" column="last_read_seq"/>
+        <result property="unreadCount" column="unread_count"/>
+    </resultMap>
+
+    <insert id="insertMissingRoomInboxRows">
+        insert into im_user_room_inbox(
+          user_id, room_id, last_seq, last_message_id, last_from_user_id, last_content,
+          last_message_created_at, last_read_seq, unread_count, sort_at
+        )
+        select m.user_id,
+               m.room_id,
+               #{seq},
+               #{messageId, jdbcType=BINARY},
+               #{fromUserId, jdbcType=BINARY},
+               #{content},
+               #{createdAt},
+               case when m.user_id = #{fromUserId, jdbcType=BINARY} then #{seq} else coalesce(s.last_read_seq, 0) end,
+               case when m.user_id = #{fromUserId, jdbcType=BINARY} then 0 else greatest(0, #{seq} - coalesce(s.last_read_seq, 0)) end,
+               #{createdAt}
+        from im_room_member m
+        left join im_room_read_state s on s.room_id = m.room_id and s.user_id = m.user_id
+        where m.room_id = #{roomId, jdbcType=BINARY}
+          and not exists (
+            select 1
+            from im_user_room_inbox i
+            where i.user_id = m.user_id and i.room_id = m.room_id
+          )
+    </insert>
+
+    <update id="applyRoomMessage">
+        update im_user_room_inbox
+        set unread_count = case
+              when user_id = #{fromUserId, jdbcType=BINARY} then 0
+              else greatest(0, unread_count + (#{seq} - last_seq))
+            end,
+            last_read_seq = case when user_id = #{fromUserId, jdbcType=BINARY} then greatest(last_read_seq, #{seq}) else last_read_seq end,
+            last_seq = #{seq},
+            last_message_id = #{messageId, jdbcType=BINARY},
+            last_from_user_id = #{fromUserId, jdbcType=BINARY},
+            last_content = #{content},
+            last_message_created_at = #{createdAt},
+            sort_at = #{createdAt},
+            updated_at = current_timestamp
+        where room_id = #{roomId, jdbcType=BINARY}
+          and #{seq} &gt; last_seq
+    </update>
+
+    <select id="selectRoomLastSeq" resultType="long">
+        select last_seq
+        from im_room
+        where room_id = #{roomId, jdbcType=BINARY}
+    </select>
+
+    <select id="selectRoomLastMessage" resultMap="roomLastMessageResultMap">
+        select message_id, from_user_id, content, created_at
+        from im_room_message
+        where room_id = #{roomId, jdbcType=BINARY}
+          and seq = #{seq}
+    </select>
+
+    <select id="selectRoomReadSeq" resultType="long">
+        select last_read_seq
+        from im_room_read_state
+        where room_id = #{roomId, jdbcType=BINARY}
+          and user_id = #{userId, jdbcType=BINARY}
+    </select>
+
+    <insert id="insertRoomInbox">
+        insert into im_user_room_inbox(
+          user_id, room_id, last_seq, last_message_id, last_from_user_id, last_content,
+          last_message_created_at, last_read_seq, unread_count, sort_at
+        )
+        values (
+          #{userId, jdbcType=BINARY},
+          #{roomId, jdbcType=BINARY},
+          #{lastSeq},
+          #{lastMessageId, jdbcType=BINARY},
+          #{lastFromUserId, jdbcType=BINARY},
+          #{lastContent},
+          #{lastMessageCreatedAt},
+          #{lastReadSeq},
+          #{unreadCount},
+          #{sortAt}
+        )
+    </insert>
+
+    <update id="refreshRoomInboxOnDuplicate">
+        update im_user_room_inbox
+        set last_seq = greatest(last_seq, #{lastSeq}),
+            last_read_seq = greatest(last_read_seq, #{lastReadSeq}),
+            unread_count = greatest(0, greatest(last_seq, #{lastSeq}) - greatest(last_read_seq, #{lastReadSeq})),
+            updated_at = current_timestamp
+        where user_id = #{userId, jdbcType=BINARY}
+          and room_id = #{roomId, jdbcType=BINARY}
+    </update>
+
+    <delete id="deleteRoomInbox">
+        delete from im_user_room_inbox
+        where user_id = #{userId, jdbcType=BINARY}
+          and room_id = #{roomId, jdbcType=BINARY}
+    </delete>
+
+    <update id="markConversationRead">
+        update im_user_conversation_inbox
+        set last_read_seq = greatest(last_read_seq, #{lastReadSeq}),
+            unread_count = greatest(0, last_seq - greatest(last_read_seq, #{lastReadSeq})),
+            updated_at = current_timestamp
+        where user_id = #{userId, jdbcType=BINARY}
+          and conversation_id = #{conversationId}
+    </update>
+
+    <update id="markRoomRead">
+        update im_user_room_inbox
+        set last_read_seq = greatest(last_read_seq, #{lastReadSeq}),
+            unread_count = greatest(0, last_seq - greatest(last_read_seq, #{lastReadSeq})),
+            updated_at = current_timestamp
+        where user_id = #{userId, jdbcType=BINARY}
+          and room_id = #{roomId, jdbcType=BINARY}
+    </update>
+
+    <select id="selectConversations" resultMap="conversationInboxResultMap">
+        select conversation_id, peer_user_id, last_seq, last_read_seq, unread_count,
+               last_message_id, last_from_user_id, last_to_user_id, last_content, last_message_created_at
+        from im_user_conversation_inbox
+        where user_id = #{userId, jdbcType=BINARY}
+        order by sort_at desc, conversation_id asc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="selectRoomUnread" resultMap="roomUnreadResultMap">
+        select room_id, last_seq, last_read_seq, unread_count
+        from im_user_room_inbox
+        where user_id = #{userId, jdbcType=BINARY}
+        order by sort_at desc, room_id asc
+        limit #{limit}
+    </select>
+
+    <select id="selectConversationUnread" resultMap="conversationUnreadResultMap">
+        select conversation_id, last_seq, last_read_seq, unread_count
+        from im_user_conversation_inbox
+        where user_id = #{userId, jdbcType=BINARY}
+        order by sort_at desc, conversation_id asc
+        limit #{limit}
+    </select>
+
+    <select id="selectConversationReadSeq" resultType="long">
+        select last_read_seq
+        from im_conversation_read_state
+        where conversation_id = #{conversationId}
+          and user_id = #{userId, jdbcType=BINARY}
+    </select>
+
+    <insert id="insertConversationInbox">
+        insert into im_user_conversation_inbox(
+          user_id, conversation_id, peer_user_id, last_seq,
+          last_message_id, last_from_user_id, last_to_user_id, last_content, last_message_created_at,
+          last_read_seq, unread_count, sort_at
+        )
+        values (
+          #{userId, jdbcType=BINARY},
+          #{conversationId},
+          #{peerUserId, jdbcType=BINARY},
+          #{seq},
+          #{messageId, jdbcType=BINARY},
+          #{fromUserId, jdbcType=BINARY},
+          #{toUserId, jdbcType=BINARY},
+          #{content},
+          #{createdAt},
+          #{lastReadSeq},
+          #{unreadCount},
+          #{createdAt}
+        )
+    </insert>
+
+    <update id="updateConversationInbox">
+        update im_user_conversation_inbox
+        set peer_user_id = #{peerUserId, jdbcType=BINARY},
+            last_seq = greatest(last_seq, #{seq}),
+            last_message_id = case when #{seq} &gt;= last_seq then #{messageId, jdbcType=BINARY} else last_message_id end,
+            last_from_user_id = case when #{seq} &gt;= last_seq then #{fromUserId, jdbcType=BINARY} else last_from_user_id end,
+            last_to_user_id = case when #{seq} &gt;= last_seq then #{toUserId, jdbcType=BINARY} else last_to_user_id end,
+            last_content = case when #{seq} &gt;= last_seq then #{content} else last_content end,
+            last_message_created_at = case when #{seq} &gt;= last_seq then #{createdAt} else last_message_created_at end,
+            last_read_seq = greatest(last_read_seq, #{lastReadSeq}),
+            unread_count = case
+              when #{seq} &lt;= last_seq then unread_count
+              when #{senderRow} then 0
+              else greatest(0, unread_count + (#{seq} - last_seq))
+            end,
+            sort_at = case when #{seq} &gt;= last_seq then #{createdAt} else sort_at end,
+            updated_at = current_timestamp
+        where user_id = #{userId, jdbcType=BINARY}
+          and conversation_id = #{conversationId}
+    </update>
+
+</mapper>

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.im.core.infrastructure.persistence.mapper.RoomMemberMapper">
+
+    <resultMap id="membershipEntryResultMap" type="com.nowcoder.community.im.common.projection.RoomMembershipEntry">
+        <constructor>
+            <arg column="room_id" javaType="java.util.UUID" jdbcType="BINARY"/>
+            <arg column="user_id" javaType="java.util.UUID" jdbcType="BINARY"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="occurred_at_epoch_millis" javaType="java.lang.Long"/>
+        </constructor>
+    </resultMap>
+
+    <select id="countMembership" resultType="int">
+        select count(1)
+        from im_room_member
+        where room_id = #{roomId, jdbcType=BINARY}
+          and user_id = #{userId, jdbcType=BINARY}
+    </select>
+
+    <select id="countMembers" resultType="int">
+        select count(1)
+        from im_room_member
+        where room_id = #{roomId, jdbcType=BINARY}
+    </select>
+
+    <insert id="insertMember">
+        insert into im_room_member(room_id, user_id, role, version)
+        values (#{roomId, jdbcType=BINARY}, #{userId, jdbcType=BINARY}, #{role}, #{version})
+    </insert>
+
+    <delete id="deleteMember">
+        delete from im_room_member
+        where room_id = #{roomId, jdbcType=BINARY}
+          and user_id = #{userId, jdbcType=BINARY}
+    </delete>
+
+    <select id="selectRoomIdsByUser" resultType="java.util.UUID">
+        select room_id
+        from im_room_member
+        where user_id = #{userId, jdbcType=BINARY}
+        <if test="cursorRoomIdExclusive != null">
+          and room_id &gt; #{cursorRoomIdExclusive, jdbcType=BINARY}
+        </if>
+        order by room_id asc
+        limit #{limit}
+    </select>
+
+    <select id="scanMemberships" resultMap="membershipEntryResultMap">
+        select room_id,
+               user_id,
+               version,
+               null as occurred_at_epoch_millis
+        from im_room_member
+        where (room_id &gt; #{roomCursor, jdbcType=BINARY})
+           or (room_id = #{roomCursor, jdbcType=BINARY} and user_id &gt; #{userCursor, jdbcType=BINARY})
+        order by room_id asc, user_id asc
+        limit #{limit}
+    </select>
+
+    <select id="selectCurrentMembershipProjectionVersion" resultType="long">
+        select coalesce(max(current_version), 0)
+        from im_membership_version_counter
+        where id = #{id}
+    </select>
+
+    <insert id="insertMembershipVersionCounter">
+        insert into im_membership_version_counter(id, current_version)
+        values (#{id}, 0)
+    </insert>
+
+    <select id="selectMembershipVersionForUpdate" resultType="long">
+        select current_version
+        from im_membership_version_counter
+        where id = #{id}
+        for update
+    </select>
+
+    <update id="updateMembershipVersion">
+        update im_membership_version_counter
+        set current_version = #{currentVersion}
+        where id = #{id}
+    </update>
+
+    <insert id="insertMembershipVersionLog">
+        insert into im_membership_version_log(version, room_id, user_id, active)
+        values (#{version}, #{roomId, jdbcType=BINARY}, #{userId, jdbcType=BINARY}, #{active})
+    </insert>
+
+</mapper>

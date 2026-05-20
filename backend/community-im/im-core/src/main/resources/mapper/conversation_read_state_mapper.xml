@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.im.core.infrastructure.persistence.mapper.ConversationReadStateMapper">
+
+    <select id="selectLastReadSeq" resultType="long">
+        select last_read_seq
+        from im_conversation_read_state
+        where conversation_id = #{conversationId}
+          and user_id = #{userId, jdbcType=BINARY}
+    </select>
+
+    <update id="updateLastReadSeqMax">
+        update im_conversation_read_state
+        set last_read_seq = greatest(last_read_seq, #{lastReadSeq}),
+            updated_at = current_timestamp
+        where conversation_id = #{conversationId}
+          and user_id = #{userId, jdbcType=BINARY}
+    </update>
+
+    <insert id="insert">
+        insert into im_conversation_read_state(conversation_id, user_id, last_read_seq)
+        values (#{conversationId}, #{userId, jdbcType=BINARY}, #{lastReadSeq})
+    </insert>
+
+</mapper>

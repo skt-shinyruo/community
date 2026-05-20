@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.im.core.infrastructure.persistence.mapper.ConversationMapper">
+
+    <select id="countByConversationId" resultType="int">
+        select count(1)
+        from im_conversation
+        where conversation_id = #{conversationId}
+    </select>
+
+    <insert id="insertConversation">
+        insert into im_conversation(conversation_id, user_a, user_b, last_seq)
+        values (#{conversationId}, #{userA, jdbcType=BINARY}, #{userB, jdbcType=BINARY}, 0)
+    </insert>
+
+    <select id="selectLastSeqForUpdate" resultType="long">
+        select last_seq
+        from im_conversation
+        where conversation_id = #{conversationId}
+        for update
+    </select>
+
+    <update id="updateLastSeq">
+        update im_conversation
+        set last_seq = #{lastSeq},
+            updated_at = current_timestamp
+        where conversation_id = #{conversationId}
+    </update>
+
+</mapper>

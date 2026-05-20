@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.im.core.infrastructure.persistence.mapper.RoomMapper">
+
+    <select id="countByRoomId" resultType="int">
+        select count(1)
+        from im_room
+        where room_id = #{roomId, jdbcType=BINARY}
+    </select>
+
+    <insert id="insertRoom">
+        insert into im_room(room_id, name, last_seq)
+        values (#{roomId, jdbcType=BINARY}, #{name}, 0)
+    </insert>
+
+    <select id="selectLastSeqForUpdate" resultType="long">
+        select last_seq
+        from im_room
+        where room_id = #{roomId, jdbcType=BINARY}
+        for update
+    </select>
+
+    <update id="updateLastSeq">
+        update im_room
+        set last_seq = #{lastSeq},
+            updated_at = current_timestamp
+        where room_id = #{roomId, jdbcType=BINARY}
+    </update>
+
+</mapper>

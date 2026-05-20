@@ -8,15 +8,31 @@ import java.util.UUID;
 
 public interface BlockRepository {
 
-    boolean block(UUID userId, UUID targetUserId);
+    boolean block(UUID userId, UUID targetUserId, long version);
 
-    boolean unblock(UUID userId, UUID targetUserId);
+    boolean unblock(UUID userId, UUID targetUserId, long version);
+
+    default boolean block(UUID userId, UUID targetUserId) {
+        return block(userId, targetUserId, nextBlockProjectionVersion());
+    }
+
+    default boolean unblock(UUID userId, UUID targetUserId) {
+        return unblock(userId, targetUserId, nextBlockProjectionVersion());
+    }
 
     boolean hasBlocked(UUID userId, UUID targetUserId);
 
     List<UUID> listBlockedUserIds(UUID userId);
 
     List<BlockRelation> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit);
+
+    default long nextBlockProjectionVersion() {
+        return 0L;
+    }
+
+    default long currentBlockProjectionVersion() {
+        return 0L;
+    }
 
     default boolean requiresExplicitCompensation() {
         return false;

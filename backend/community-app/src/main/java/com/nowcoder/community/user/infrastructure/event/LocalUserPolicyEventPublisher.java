@@ -31,12 +31,12 @@ public class LocalUserPolicyEventPublisher implements UserPolicyEventPublisher {
     }
 
     @Override
-    public void publishUserPolicyChanged(UUID userId, boolean userExists, Instant occurredAt) {
+    public void publishUserPolicyChanged(UUID userId, boolean userExists, Instant occurredAt, long version) {
         Instant occurrence = occurredAt == null ? Instant.now() : occurredAt;
         applicationEventPublisher.publishEvent(new UserContractEvent(
                 UUID.randomUUID().toString(),
                 UserEventTypes.USER_POLICY_CHANGED,
-                toPayload(userId, userExists, null, null, occurrence)
+                toPayload(userId, userExists, null, null, occurrence, version)
         ));
     }
 
@@ -48,7 +48,8 @@ public class LocalUserPolicyEventPublisher implements UserPolicyEventPublisher {
                 status != null && status.userId() != null,
                 muteUntil,
                 banUntil,
-                occurrence
+                occurrence,
+                status == null ? 0L : status.version()
         );
     }
 
@@ -57,7 +58,8 @@ public class LocalUserPolicyEventPublisher implements UserPolicyEventPublisher {
             boolean userExists,
             Long muteUntil,
             Long banUntil,
-            Instant occurrence
+            Instant occurrence,
+            long version
     ) {
         boolean suspended = banUntil != null && Instant.ofEpochMilli(banUntil).isAfter(occurrence);
         boolean muted = muteUntil != null && Instant.ofEpochMilli(muteUntil).isAfter(occurrence);
@@ -71,6 +73,7 @@ public class LocalUserPolicyEventPublisher implements UserPolicyEventPublisher {
         payload.setBanUntil(banUntil);
         payload.setCanSendPrivate(payload.isUserExists() && !suspended && !muted);
         payload.setOccurredAtEpochMillis(occurrence.toEpochMilli());
+        payload.setVersion(version);
         return payload;
     }
 }

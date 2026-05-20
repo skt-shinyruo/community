@@ -39,10 +39,15 @@ public class UserModerationApiAdapter implements UserModerationActionApi, UserMo
                 .toList();
     }
 
+    @Override
+    public long currentModerationProjectionVersion() {
+        return applicationService.currentModerationProjectionVersion();
+    }
+
     private UserModerationStateView toView(UserModerationStatus status) {
         if (status == null) {
             return null;
         }
-        return new UserModerationStateView(status.userId(), status.muteUntil(), status.banUntil());
+        return new UserModerationStateView(status.userId(), status.muteUntil(), status.banUntil(), status.version());
     }
 }

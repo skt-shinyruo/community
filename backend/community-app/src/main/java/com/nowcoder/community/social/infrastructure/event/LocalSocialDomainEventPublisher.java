@@ -54,6 +54,7 @@ public class LocalSocialDomainEventPublisher implements SocialDomainEventPublish
         payload.setBlockerUserId(event.blockerUserId());
         payload.setBlockedUserId(event.blockedUserId());
         payload.setBlocked(event.blocked());
+        payload.setVersion(event.version());
         publish(SocialEventTypes.BLOCK_RELATION_CHANGED, payload);
     }
 

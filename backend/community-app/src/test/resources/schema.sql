@@ -10,9 +10,19 @@ create table if not exists user (
   create_time timestamp default current_timestamp,
   mute_until timestamp,
   ban_until timestamp,
+  policy_version bigint not null default 0,
   constraint uk_user_username unique (username),
   constraint uk_user_email unique (email)
 );
+
+create table if not exists user_policy_version_counter (
+  id int primary key,
+  current_version bigint not null default 0
+);
+
+merge into user_policy_version_counter(id, current_version)
+key(id)
+values (1, 0);
 
 create table if not exists wallet_account (
   account_id binary(16) primary key,
@@ -508,7 +518,25 @@ create table if not exists social_block (
   user_id binary(16) not null,
   target_user_id binary(16) not null,
   created_at timestamp null default current_timestamp,
+  version bigint not null default 0,
   primary key (user_id, target_user_id)
+);
+
+create table if not exists social_block_version_counter (
+  id int primary key,
+  current_version bigint not null default 0
+);
+
+merge into social_block_version_counter(id, current_version)
+key(id)
+values (1, 0);
+
+create table if not exists social_block_version_log (
+  version bigint primary key,
+  user_id binary(16) not null,
+  target_user_id binary(16) not null,
+  active boolean not null,
+  occurred_at timestamp null default current_timestamp
 );
 
 create table if not exists notice_record (

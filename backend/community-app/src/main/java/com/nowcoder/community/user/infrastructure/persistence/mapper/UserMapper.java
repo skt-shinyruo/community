@@ -28,12 +28,20 @@ public interface UserMapper {
 
     int updateType(@Param("id") UUID id, @Param("type") int type);
 
-    int updateModerationUntil(UUID id, java.util.Date muteUntil, java.util.Date banUntil);
+    int updateModerationUntil(UUID id, java.util.Date muteUntil, java.util.Date banUntil, long policyVersion);
 
     /**
      * internal 扫描接口使用：按主键游标向后扫描用户的治理状态（用于投影回填/纠偏）。
      */
     List<UserDataObject> selectModerationUsersAfterId(@Param("afterId") UUID afterId, @Param("limit") int limit);
+
+    int upsertPolicyVersionCounter(@Param("id") int id);
+
+    long selectPolicyVersionCounterForUpdate(@Param("id") int id);
+
+    int updatePolicyVersionCounter(@Param("id") int id, @Param("version") long version);
+
+    long selectPolicyVersionCounter(@Param("id") int id);
 
     /**
      * internal 批量用户摘要：用于下游聚合接口避免 N+1 模块调用。

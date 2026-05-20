@@ -13,6 +13,9 @@ import java.util.UUID;
 @Repository
 public class JdbcRoomMemberRepository implements RoomMemberRepository {
 
+    private static final int MEMBERSHIP_VERSION_COUNTER_ID = 1;
+    private static final int LEGACY_COMPATIBLE_LOGICAL_BITS = 12;
+
     private final JdbcTemplate jdbcTemplate;
 
     public JdbcRoomMemberRepository(JdbcTemplate jdbcTemplate) {
@@ -41,26 +44,39 @@ public class JdbcRoomMemberRepository implements RoomMemberRepository {
     }
 
     @Override
-    public void addMember(UUID roomId, UUID userId, int role) {
+    public long addMember(UUID roomId, UUID userId, int role) {
+        long version = nextMembershipProjectionVersion();
         try {
-            jdbcTemplate.update(
-                    "insert into im_room_member(room_id, user_id, role) values (?,?,?)",
+            int inserted = jdbcTemplate.update(
+                    "insert into im_room_member(room_id, user_id, role, version) values (?,?,?,?)",
                     BinaryUuidCodec.toBytes(roomId),
                     BinaryUuidCodec.toBytes(userId),
-                    role
+                    role,
+                    version
             );
+            if (inserted > 0) {
+                insertMembershipVersionLog(version, roomId, userId, true);
+                return version;
+            }
         } catch (DuplicateKeyException ignore) {
             // idempotent join
         }
+        return 0L;
     }
 
     @Override
-    public void removeMember(UUID roomId, UUID userId) {
-        jdbcTemplate.update(
+    public long removeMember(UUID roomId, UUID userId) {
+        long version = nextMembershipProjectionVersion();
+        int deleted = jdbcTemplate.update(
                 "delete from im_room_member where room_id = ? and user_id = ?",
                 BinaryUuidCodec.toBytes(roomId),
                 BinaryUuidCodec.toBytes(userId)
         );
+        if (deleted > 0) {
+            insertMembershipVersionLog(version, roomId, userId, false);
+            return version;
+        }
+        return 0L;
     }
 
     @Override
@@ -90,7 +106,7 @@ public class JdbcRoomMemberRepository implements RoomMemberRepository {
         int l = Math.min(501, Math.max(1, limit));
         return jdbcTemplate.query(
                 """
-                        select room_id, user_id
+                        select room_id, user_id, version
                         from im_room_member
                         where (room_id > ?) or (room_id = ? and user_id > ?)
                         order by room_id asc, user_id asc
@@ -98,12 +114,69 @@ public class JdbcRoomMemberRepository implements RoomMemberRepository {
                         """,
                 (rs, rowNum) -> new RoomMembershipEntry(
                         BinaryUuidCodec.fromBytes(rs.getBytes("room_id")),
-                        BinaryUuidCodec.fromBytes(rs.getBytes("user_id"))
+                        BinaryUuidCodec.fromBytes(rs.getBytes("user_id")),
+                        rs.getLong("version"),
+                        null
                 ),
                 BinaryUuidCodec.toBytes(roomCursor),
                 BinaryUuidCodec.toBytes(roomCursor),
                 BinaryUuidCodec.toBytes(userCursor),
                 l
         );
+    }
+
+    @Override
+    public long currentMembershipProjectionVersion() {
+        Long value = jdbcTemplate.queryForObject(
+                "select coalesce(max(current_version), 0) from im_membership_version_counter where id = ?",
+                Long.class,
+                MEMBERSHIP_VERSION_COUNTER_ID
+        );
+        return value == null ? 0L : value;
+    }
+
+    private long nextMembershipProjectionVersion() {
+        ensureMembershipVersionCounter();
+        Long current = jdbcTemplate.queryForObject(
+                "select current_version from im_membership_version_counter where id = ? for update",
+                Long.class,
+                MEMBERSHIP_VERSION_COUNTER_ID
+        );
+        long next = Math.max((current == null ? 0L : current) + 1L, legacyCompatibleVersionFloor());
+        jdbcTemplate.update(
+                "update im_membership_version_counter set current_version = ? where id = ?",
+                next,
+                MEMBERSHIP_VERSION_COUNTER_ID
+        );
+        return next;
+    }
+
+    private void ensureMembershipVersionCounter() {
+        try {
+            jdbcTemplate.update(
+                    "insert into im_membership_version_counter(id, current_version) values (?, 0)",
+                    MEMBERSHIP_VERSION_COUNTER_ID
+            );
+        } catch (DuplicateKeyException ignored) {
+            // already initialized
+        }
+    }
+
+    private void insertMembershipVersionLog(long version, UUID roomId, UUID userId, boolean active) {
+        jdbcTemplate.update(
+                """
+                        insert into im_membership_version_log(version, room_id, user_id, active)
+                        values (?, ?, ?, ?)
+                        """,
+                version,
+                BinaryUuidCodec.toBytes(roomId),
+                BinaryUuidCodec.toBytes(userId),
+                active
+        );
+    }
+
+    private static long legacyCompatibleVersionFloor() {
+        long epochMillis = System.currentTimeMillis();
+        return epochMillis <= 0L ? 1L : epochMillis << LEGACY_COMPATIBLE_LOGICAL_BITS;
     }
 }

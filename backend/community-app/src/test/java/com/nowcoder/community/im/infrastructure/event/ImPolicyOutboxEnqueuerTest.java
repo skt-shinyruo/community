@@ -34,10 +34,11 @@ class ImPolicyOutboxEnqueuerTest {
         payload.setBlockerUserId(uuid(1));
         payload.setBlockedUserId(uuid(2));
         payload.setBlocked(Boolean.TRUE);
+        payload.setVersion(1234L);
 
         enqueuer.onSocialEvent(new SocialContractEvent("evt-social-1", SocialEventTypes.BLOCK_RELATION_CHANGED, payload));
 
-        verify(changePublisher).publishBlockRelationChanged(uuid(1), uuid(2), true);
+        verify(changePublisher).publishBlockRelationChanged(uuid(1), uuid(2), true, 1234L);
     }
 
     @Test
@@ -50,6 +51,7 @@ class ImPolicyOutboxEnqueuerTest {
         payload.setUserExists(true);
         payload.setCanSendPrivate(true);
         payload.setOccurredAtEpochMillis(1712345678901L);
+        payload.setVersion(777L);
 
         enqueuer.onUserEvent(new UserContractEvent("evt-user-1", UserEventTypes.USER_POLICY_CHANGED, payload));
 
@@ -57,5 +59,6 @@ class ImPolicyOutboxEnqueuerTest {
         verify(changePublisher).publishUserPolicyChanged(payloadCaptor.capture());
         assertThat(payloadCaptor.getValue().getUserId()).isEqualTo(uuid(7));
         assertThat(payloadCaptor.getValue().isUserExists()).isTrue();
+        assertThat(payloadCaptor.getValue().getVersion()).isEqualTo(777L);
     }
 }

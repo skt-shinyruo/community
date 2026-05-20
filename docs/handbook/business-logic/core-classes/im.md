@@ -84,3 +84,4 @@
 - realtime 的 policy / membership 只是快速判定，不是权威事实。
 - private / room 消息都靠 clientMsgId 做消息级幂等；发送结果回执按 requestId + clientMsgId + fromUserId 区分尝试。
 - room 推送是 state-only update，历史仍要靠 HTTP 拉。
+- policy / membership projection 的 `version` 必须来自 owner 事实侧持久逻辑时钟：user 用 `user_policy_version_counter` + `user.policy_version`，social block 用 `social_block_version_counter` + `social_block.version` / 删除日志，room membership 用 `im_membership_version_counter` + `im_room_member.version` / 删除日志。

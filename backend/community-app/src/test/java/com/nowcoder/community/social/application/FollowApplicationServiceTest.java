@@ -309,12 +309,12 @@ class FollowApplicationServiceTest {
         private final ConcurrentHashMap<UUID, Set<UUID>> blocks = new ConcurrentHashMap<>();
 
         @Override
-        public boolean block(UUID userId, UUID targetUserId) {
+        public boolean block(UUID userId, UUID targetUserId, long version) {
             return blocks.computeIfAbsent(userId, ignored -> ConcurrentHashMap.newKeySet()).add(targetUserId);
         }
 
         @Override
-        public boolean unblock(UUID userId, UUID targetUserId) {
+        public boolean unblock(UUID userId, UUID targetUserId, long version) {
             Set<UUID> set = blocks.get(userId);
             return set != null && set.remove(targetUserId);
         }

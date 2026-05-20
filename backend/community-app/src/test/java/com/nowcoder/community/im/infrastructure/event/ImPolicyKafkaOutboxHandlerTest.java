@@ -73,7 +73,7 @@ class ImPolicyKafkaOutboxHandlerTest {
                 "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
                         + "\",\"userExists\":true,\"suspended\":false,\"muted\":true,\"muteUntil\":" + muteUntil.toEpochMilli()
                         + ",\"banUntil\":" + expiredBanUntil.toEpochMilli()
-                        + ",\"canSendPrivate\":false,\"occurredAtEpochMillis\":1712345678901}",
+                        + ",\"canSendPrivate\":false,\"occurredAtEpochMillis\":1712345678901,\"version\":7007}",
                 "PENDING",
                 0,
                 null,
@@ -104,7 +104,7 @@ class ImPolicyKafkaOutboxHandlerTest {
         assertThat(published.suspended()).isFalse();
         assertThat(recordComponentValue(published, "muteUntil")).isEqualTo(muteUntil.toEpochMilli());
         assertThat(recordComponentValue(published, "banUntil")).isEqualTo(expiredBanUntil.toEpochMilli());
-        assertThat(published.version()).isNotNull().isPositive();
+        assertThat(published.version()).isEqualTo(7007L);
         assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACEPARENT))
                 .isEqualTo(snapshot.traceparent());
     }
@@ -130,7 +130,7 @@ class ImPolicyKafkaOutboxHandlerTest {
                 uuid(7).toString(),
                 "{\"kind\":\"BLOCK\",\"primaryUserId\":\"" + uuid(7)
                         + "\",\"secondaryUserId\":\"" + uuid(8)
-                        + "\",\"active\":true,\"occurredAtEpochMillis\":1712345678902}",
+                        + "\",\"active\":true,\"occurredAtEpochMillis\":1712345678902,\"version\":8008}",
                 "PENDING",
                 0,
                 null,
@@ -146,7 +146,7 @@ class ImPolicyKafkaOutboxHandlerTest {
         assertThat(record.key()).isEqualTo(uuid(7).toString());
         assertThat(record.value()).isInstanceOf(UserBlockRelationChanged.class);
         UserBlockRelationChanged published = (UserBlockRelationChanged) record.value();
-        assertThat(published.version()).isNotNull().isPositive();
+        assertThat(published.version()).isEqualTo(8008L);
     }
 
     @Test

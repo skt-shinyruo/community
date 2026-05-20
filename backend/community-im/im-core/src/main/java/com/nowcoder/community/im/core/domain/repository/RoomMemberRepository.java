@@ -11,11 +11,13 @@ public interface RoomMemberRepository {
 
     int countMembers(UUID roomId);
 
-    void addMember(UUID roomId, UUID userId, int role);
+    long addMember(UUID roomId, UUID userId, int role);
 
-    void removeMember(UUID roomId, UUID userId);
+    long removeMember(UUID roomId, UUID userId);
 
     List<UUID> listRoomIdsByUser(UUID userId, UUID cursorRoomIdExclusive, int limit);
 
     List<RoomMembershipEntry> scanMemberships(UUID afterRoomId, UUID afterUserId, int limit);
+
+    long currentMembershipProjectionVersion();
 }

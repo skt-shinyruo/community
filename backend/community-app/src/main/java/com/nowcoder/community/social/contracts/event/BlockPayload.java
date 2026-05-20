@@ -12,6 +12,7 @@ public class BlockPayload {
     private UUID blockerUserId;
     private UUID blockedUserId;
     private Boolean blocked;
+    private Long version;
 
     public UUID getBlockerUserId() {
         return blockerUserId;
@@ -35,5 +36,13 @@ public class BlockPayload {
 
     public void setBlocked(Boolean blocked) {
         this.blocked = blocked;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

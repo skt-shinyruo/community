@@ -8,6 +8,7 @@ import com.nowcoder.community.im.core.domain.repository.RoomMessageRepository;
 import com.nowcoder.community.im.core.domain.repository.RoomReadStateRepository;
 import com.nowcoder.community.im.core.domain.repository.UserInboxRepository;
 import com.nowcoder.community.im.core.domain.service.RoomMembershipDomainService;
+import com.nowcoder.community.im.core.domain.service.RoomMembershipDomainService.MembershipChange;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,26 +41,28 @@ public class RoomApplicationService {
 
     @Transactional
     public RoomResults.Created createRoom(UUID creatorUserId, String name) {
-        UUID roomId = membershipService.createRoom(creatorUserId, name);
-        userInboxRepository.ensureRoomMemberInbox(roomId, creatorUserId);
-        AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishJoined(roomId, creatorUserId));
-        return new RoomResults.Created(roomId);
+        MembershipChange change = membershipService.createRoom(creatorUserId, name);
+        userInboxRepository.ensureRoomMemberInbox(change.roomId(), creatorUserId);
+        AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishJoined(change.roomId(), creatorUserId, change.version()));
+        return new RoomResults.Created(change.roomId());
     }
 
     @Transactional
     public void joinRoom(UUID userId, UUID roomId) {
-        boolean joined = membershipService.joinRoom(userId, roomId);
-        if (joined) {
+        MembershipChange change = membershipService.joinRoom(userId, roomId);
+        if (change.changed()) {
             userInboxRepository.ensureRoomMemberInbox(roomId, userId);
-            AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishJoined(roomId, userId));
+            AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishJoined(roomId, userId, change.version()));
         }
     }
 
     @Transactional
     public void leaveRoom(UUID userId, UUID roomId) {
-        membershipService.leaveRoom(userId, roomId);
+        MembershipChange change = membershipService.leaveRoom(userId, roomId);
         userInboxRepository.removeRoomMemberInbox(roomId, userId);
-        AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishLeft(roomId, userId));
+        if (change.changed()) {
+            AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishLeft(roomId, userId, change.version()));
+        }
     }
 
     @Transactional(readOnly = true)

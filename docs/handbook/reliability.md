@@ -270,7 +270,7 @@ worker 不保证 exactly-once，handler 必须自己保证幂等。
 当前做法：
 
 - 搜索投影 handler 不信任事件中的旧快照，而是回源 content owner 当前状态，再 upsert/delete ES。这样乱序事件不会让已删除帖子复活。
-- IM policy projection 先写 `projection.im.policy` outbox，再由 handler 发布 Kafka 增量事件。`USER_POLICY` 使用 userId 覆盖用户消息权限；`BLOCK` 使用 blocker / blocked 覆盖拉黑关系，重复投递不会产生累计副作用。
+- IM policy projection 先写 `projection.im.policy` outbox，再由 handler 发布 Kafka 增量事件。`USER_POLICY` 使用 user owner 持久版本覆盖 userId 的消息权限；`BLOCK` 使用 social owner 持久版本覆盖 blocker / blocked 拉黑关系，重复或乱序投递不会产生累计副作用。
 - IM 私信持久化不信任 realtime 本地 projection；`im-core` 在写权威消息表前回源 `community-app` owner decision。业务拒绝发布 `im.event.private-rejected` 并提交 offset，不进入 DLQ；owner API 不可用等系统失败仍按 Kafka retry / DLQ 处理。
 - IM 消息事实 event 和发送结果 event 使用不同 outbox event id 空间。重复 `clientMsgId` 不会重复创建或发布消息事实；不同 `requestId` 的发送尝试会生成各自的 committed / rejected 回执事件。
 - IM policy handler 对坏 JSON、缺少必需时间字段或 Kafka 发布失败会抛异常，交给 outbox retry / DEAD；缺少 userId 或 block 双方 id 的 payload 当前会被跳过。

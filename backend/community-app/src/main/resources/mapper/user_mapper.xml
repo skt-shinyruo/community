@@ -6,11 +6,11 @@
 <mapper namespace="com.nowcoder.community.user.infrastructure.persistence.mapper.UserMapper">
 
     <sql id="insertFields">
-        id, username, password, salt, email, type, status, header_url, create_time
+        id, username, password, salt, email, type, status, header_url, create_time, policy_version
     </sql>
 
     <sql id="selectFields">
-        id, username, password, salt, email, type, status, header_url, create_time, mute_until, ban_until
+        id, username, password, salt, email, type, status, header_url, create_time, mute_until, ban_until, policy_version
     </sql>
 
     <select id="selectById" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
@@ -37,7 +37,7 @@
     <insert id="insertUser" parameterType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
         insert into user (<include refid="insertFields"></include>)
         values(#{id, jdbcType=BINARY}, #{username}, #{password}, #{salt}, #{email}, #{type}, #{status}, #{headerUrl},
-        #{createTime})
+        #{createTime}, #{policyVersion})
     </insert>
 
     <update id="updateStatus">
@@ -59,16 +59,42 @@
     <update id="updateModerationUntil">
         update user
         set mute_until = #{muteUntil},
-            ban_until = #{banUntil}
+            ban_until = #{banUntil},
+            policy_version = #{policyVersion}
         where id = #{id, jdbcType=BINARY}
     </update>
 
     <select id="selectModerationUsersAfterId" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
-        select id, mute_until, ban_until
+        select id, mute_until, ban_until, policy_version
         from user
         where id &gt; #{afterId, jdbcType=BINARY}
         order by id asc
         limit #{limit}
+    </select>
+
+    <insert id="upsertPolicyVersionCounter">
+        insert into user_policy_version_counter(id, current_version)
+        values(#{id}, 0)
+        on duplicate key update current_version = current_version
+    </insert>
+
+    <select id="selectPolicyVersionCounterForUpdate" resultType="long">
+        select current_version
+        from user_policy_version_counter
+        where id = #{id}
+        for update
+    </select>
+
+    <update id="updatePolicyVersionCounter">
+        update user_policy_version_counter
+        set current_version = #{version}
+        where id = #{id}
+    </update>
+
+    <select id="selectPolicyVersionCounter" resultType="long">
+        select coalesce(max(current_version), 0)
+        from user_policy_version_counter
+        where id = #{id}
     </select>
 
     <select id="selectUserSummariesByIds" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">

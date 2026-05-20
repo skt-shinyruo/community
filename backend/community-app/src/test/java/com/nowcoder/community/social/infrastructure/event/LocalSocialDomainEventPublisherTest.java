@@ -81,7 +81,7 @@ class LocalSocialDomainEventPublisherTest {
         ApplicationEventPublisher springPublisher = mock(ApplicationEventPublisher.class);
         LocalSocialDomainEventPublisher publisher = new LocalSocialDomainEventPublisher(springPublisher);
 
-        publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(uuid(1), uuid(2), true));
+        publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(uuid(1), uuid(2), true, 81L));
 
         SocialContractEvent event = captureEvent(springPublisher);
         assertThat(event.type()).isEqualTo(SocialEventTypes.BLOCK_RELATION_CHANGED);
@@ -90,6 +90,7 @@ class LocalSocialDomainEventPublisherTest {
         assertThat(payload.getBlockerUserId()).isEqualTo(uuid(1));
         assertThat(payload.getBlockedUserId()).isEqualTo(uuid(2));
         assertThat(payload.getBlocked()).isTrue();
+        assertThat(payload.getVersion()).isEqualTo(81L);
     }
 
     private SocialContractEvent captureEvent(ApplicationEventPublisher springPublisher) {

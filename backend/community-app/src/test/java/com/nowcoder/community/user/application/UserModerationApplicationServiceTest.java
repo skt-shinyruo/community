@@ -26,6 +26,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -57,6 +58,7 @@ class UserModerationApplicationServiceTest {
         assertThat(status.userId()).isEqualTo(USER_ID_7);
         assertThat(status.muteUntil()).isEqualTo(EXISTING_MUTE);
         assertThat(status.banUntil()).isEqualTo(EXISTING_BAN);
+        assertThat(status.version()).isEqualTo(100L);
         verifyNoInteractions(userPolicyEventPublisher);
     }
 
@@ -65,9 +67,9 @@ class UserModerationApplicationServiceTest {
         UserModerationApplicationService service = service();
         when(userRepository.scanModerationStatesAfterId(ZERO_UUID, 500)).thenReturn(Arrays.asList(
                 null,
-                new UserModerationStatus(null, null, null),
-                new UserModerationStatus(USER_ID_3, EXISTING_MUTE, null),
-                new UserModerationStatus(USER_ID_4, null, null)
+                new UserModerationStatus(null, null, null, 0L),
+                new UserModerationStatus(USER_ID_3, EXISTING_MUTE, null, 301L),
+                new UserModerationStatus(USER_ID_4, null, null, 302L)
         ));
 
         List<UserModerationStatus> statuses = service.scanModerationStatesAfterId(null, 999);
@@ -76,7 +78,9 @@ class UserModerationApplicationServiceTest {
                 .extracting(UserModerationStatus::userId)
                 .containsExactly(USER_ID_3, USER_ID_4);
         assertThat(statuses.get(0).muteUntil()).isEqualTo(EXISTING_MUTE);
+        assertThat(statuses.get(0).version()).isEqualTo(301L);
         assertThat(statuses.get(1).muteUntil()).isNull();
+        assertThat(statuses.get(1).version()).isEqualTo(302L);
         verify(userRepository).scanModerationStatesAfterId(ZERO_UUID, 500);
     }
 
@@ -84,6 +88,7 @@ class UserModerationApplicationServiceTest {
     void applyModerationShouldMuteUserPersistStatusAndPublishPolicyEvent() {
         UserModerationApplicationService service = service();
         when(userRepository.findById(USER_ID_7)).thenReturn(Optional.of(account(USER_ID_7, null, EXISTING_BAN)));
+        when(userRepository.nextUserPolicyVersion(USER_ID_7)).thenReturn(101L);
 
         Instant before = Instant.now();
         UserModerationStatus status = service.applyModeration(new ApplyUserModerationCommand(USER_ID_7, " mute ", 120));
@@ -92,7 +97,9 @@ class UserModerationApplicationServiceTest {
         assertThat(status.userId()).isEqualTo(USER_ID_7);
         assertThat(status.muteUntil()).isBetween(before.plusSeconds(120), after.plusSeconds(120));
         assertThat(status.banUntil()).isEqualTo(EXISTING_BAN);
-        verify(userRepository).updateModerationUntil(USER_ID_7, status.muteUntil(), EXISTING_BAN);
+        assertThat(status.version()).isEqualTo(101L);
+        verify(userRepository).nextUserPolicyVersion(USER_ID_7);
+        verify(userRepository).updateModerationUntil(USER_ID_7, status.muteUntil(), EXISTING_BAN, 101L);
 
         ArgumentCaptor<UserModerationStatus> statusCaptor = ArgumentCaptor.forClass(UserModerationStatus.class);
         ArgumentCaptor<Instant> occurredAtCaptor = ArgumentCaptor.forClass(Instant.class);
@@ -126,7 +133,7 @@ class UserModerationApplicationServiceTest {
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
         assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
-        verify(userRepository, never()).updateModerationUntil(eq(USER_ID_7), eq(EXISTING_MUTE), eq(EXISTING_BAN));
+        verify(userRepository, never()).updateModerationUntil(eq(USER_ID_7), eq(EXISTING_MUTE), eq(EXISTING_BAN), anyLong());
         verifyNoInteractions(userPolicyEventPublisher);
     }
 
@@ -150,7 +157,8 @@ class UserModerationApplicationServiceTest {
                 "h",
                 Date.from(Instant.now().minus(Duration.ofMinutes(1))),
                 muteUntil,
-                banUntil
+                banUntil,
+                100L
         );
     }
 }

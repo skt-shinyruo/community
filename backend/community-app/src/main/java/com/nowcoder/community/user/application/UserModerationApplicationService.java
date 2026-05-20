@@ -53,6 +53,10 @@ public class UserModerationApplicationService {
                 .toList();
     }
 
+    public long currentModerationProjectionVersion() {
+        return userRepository.currentUserPolicyVersion();
+    }
+
     @Transactional
     public UserModerationStatus applyModeration(ApplyUserModerationCommand command) {
         if (command == null) {
@@ -72,12 +76,19 @@ public class UserModerationApplicationService {
                 command.durationSeconds(),
                 Instant.now()
         );
-        userRepository.updateModerationUntil(userId, next.muteUntil(), next.banUntil());
-        userPolicyEventPublisher.publishUserPolicyChanged(next, Instant.now());
-        return next;
+        long version = userRepository.nextUserPolicyVersion(userId);
+        UserModerationStatus versionedNext = new UserModerationStatus(
+                next.userId(),
+                next.muteUntil(),
+                next.banUntil(),
+                version
+        );
+        userRepository.updateModerationUntil(userId, versionedNext.muteUntil(), versionedNext.banUntil(), version);
+        userPolicyEventPublisher.publishUserPolicyChanged(versionedNext, Instant.now());
+        return versionedNext;
     }
 
     private UserModerationStatus toStatus(UserAccount user) {
-        return new UserModerationStatus(user.id(), user.muteUntil(), user.banUntil());
+        return new UserModerationStatus(user.id(), user.muteUntil(), user.banUntil(), user.policyVersion());
     }
 }

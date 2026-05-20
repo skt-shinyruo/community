@@ -64,6 +64,41 @@ class RoomApplicationServiceTest {
         assertThat(roomInboxCount(member, roomId)).isZero();
     }
 
+    @Test
+    void roomMembershipProjectionVersionShouldAdvanceWithOwnerMembershipFacts() {
+        UUID owner = uuid(21);
+        UUID member = uuid(22);
+        UUID roomId = roomApplicationService.createRoom(owner, "room").roomId();
+
+        long ownerVersion = roomApplicationService.membershipSnapshot(null, null, 10)
+                .entries()
+                .stream()
+                .filter(entry -> entry.roomId().equals(roomId) && entry.userId().equals(owner))
+                .findFirst()
+                .orElseThrow()
+                .version();
+        long initialWatermark = roomApplicationService.membershipSnapshot(null, null, 10).snapshotHighWatermark();
+
+        roomApplicationService.joinRoom(member, roomId);
+        long joinedVersion = roomApplicationService.membershipSnapshot(null, null, 10)
+                .entries()
+                .stream()
+                .filter(entry -> entry.roomId().equals(roomId) && entry.userId().equals(member))
+                .findFirst()
+                .orElseThrow()
+                .version();
+        long joinedWatermark = roomApplicationService.membershipSnapshot(null, null, 10).snapshotHighWatermark();
+
+        roomApplicationService.leaveRoom(member, roomId);
+        long leftWatermark = roomApplicationService.membershipSnapshot(null, null, 10).snapshotHighWatermark();
+
+        assertThat(ownerVersion).isPositive();
+        assertThat(initialWatermark).isGreaterThanOrEqualTo(ownerVersion);
+        assertThat(joinedVersion).isGreaterThan(initialWatermark);
+        assertThat(joinedWatermark).isEqualTo(joinedVersion);
+        assertThat(leftWatermark).isGreaterThan(joinedVersion);
+    }
+
     private int roomInboxCount(UUID userId, UUID roomId) {
         List<Integer> counts = jdbcTemplate.query(
                 "select count(*) from im_user_room_inbox where user_id = ? and room_id = ?",

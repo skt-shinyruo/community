@@ -20,7 +20,7 @@ class KafkaRoomMemberChangePublisherTest {
         UUID roomId = uuid(1);
         UUID userId = uuid(2);
 
-        publisher.publishJoined(roomId, userId);
+        publisher.publishJoined(roomId, userId, 42L);
 
         ArgumentCaptor<RoomMemberChanged> eventCaptor = ArgumentCaptor.forClass(RoomMemberChanged.class);
         verify(outboxEnqueuer).enqueueRoomMemberChanged(eventCaptor.capture());
@@ -31,7 +31,7 @@ class KafkaRoomMemberChangePublisherTest {
         assertThat(event.userId()).isEqualTo(userId);
         assertThat(event.action()).isEqualTo("JOINED");
         assertThat(event.occurredAtEpochMillis()).isPositive();
-        assertThat(event.version()).isNotNull().isPositive();
+        assertThat(event.version()).isEqualTo(42L);
     }
 
     private static UUID uuid(long suffix) {

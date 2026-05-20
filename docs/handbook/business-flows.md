@@ -432,6 +432,7 @@ Snapshot：
 - `im-realtime` 和 `im-core` 用 internal scope JWT 拉取。
 - `im-core` 的最终校验不缓存允许裁决；只短 TTL 缓存拒绝裁决（默认 500ms，容量上限），降低违规用户高频发送时的 owner API 压力。
 - 浏览器不能访问这些 internal projection 入口。
+- user policy snapshot 的 entry version 和 high-watermark 来自 user owner 的 `user.policy_version` / `user_policy_version_counter`；block snapshot 的 entry version 和 high-watermark 来自 social owner 的 `social_block.version` / `social_block_version_counter`。二者都不能用 snapshot time 或 IM bridge 本地 counter 生成。
 
 Failure：
 

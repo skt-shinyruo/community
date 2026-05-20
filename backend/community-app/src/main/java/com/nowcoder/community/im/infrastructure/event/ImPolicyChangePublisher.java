@@ -4,14 +4,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
-import com.nowcoder.community.im.common.projection.ProjectionVersions;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 @ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "true")
@@ -21,7 +19,6 @@ public class ImPolicyChangePublisher {
     private final ObjectMapper objectMapper;
     private final String topic;
     private final UuidV7Generator idGenerator = new UuidV7Generator();
-    private final AtomicLong lastVersion = new AtomicLong();
 
     public ImPolicyChangePublisher(
             JdbcOutboxEventStore store,
@@ -50,11 +47,11 @@ public class ImPolicyChangePublisher {
                 payload.getBanUntil(),
                 payload.isCanSendPrivate(),
                 occurredAtEpochMillis,
-                ProjectionVersions.nextEventVersion(lastVersion, occurredAtEpochMillis)
+                payload.getVersion() == null ? 0L : payload.getVersion()
         ));
     }
 
-    public void publishBlockRelationChanged(UUID blockerUserId, UUID blockedUserId, boolean active) {
+    public void publishBlockRelationChanged(UUID blockerUserId, UUID blockedUserId, boolean active, long version) {
         long occurredAtEpochMillis = System.currentTimeMillis();
         enqueue(new Payload(
                 "BLOCK",
@@ -68,7 +65,7 @@ public class ImPolicyChangePublisher {
                 null,
                 false,
                 occurredAtEpochMillis,
-                ProjectionVersions.nextEventVersion(lastVersion, occurredAtEpochMillis)
+                version
         ));
     }
 

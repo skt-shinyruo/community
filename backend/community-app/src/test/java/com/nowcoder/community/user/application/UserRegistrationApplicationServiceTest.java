@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -64,7 +65,7 @@ class UserRegistrationApplicationServiceTest {
         assertThat(new BCryptPasswordEncoder().matches("secret12", prepared.encodedPassword())).isTrue();
         assertThat(prepared.headerUrl()).startsWith("http://images.nowcoder.com/head/");
         verify(userRepository, never()).insertUser(any());
-        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class));
+        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class), anyLong());
     }
 
     @Test
@@ -92,7 +93,9 @@ class UserRegistrationApplicationServiceTest {
         assertThat(inserted.type()).isEqualTo(0);
         assertThat(result.userId()).isEqualTo(userId);
         assertThat(result.status()).isEqualTo(1);
-        verify(userPolicyEventPublisher).publishUserPolicyChanged(eq(userId), eq(true), any(Instant.class));
+        verify(userRepository).nextUserPolicyVersion(userId);
+        verify(userRepository).updateModerationUntil(eq(userId), eq(null), eq(null), anyLong());
+        verify(userPolicyEventPublisher).publishUserPolicyChanged(eq(userId), eq(true), any(Instant.class), anyLong());
     }
 
     @Test
@@ -112,7 +115,7 @@ class UserRegistrationApplicationServiceTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(UserErrorCode.EMAIL_ALREADY_EXISTS);
 
-        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class));
+        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class), anyLong());
     }
 
     @Test
@@ -131,7 +134,7 @@ class UserRegistrationApplicationServiceTest {
                 .isEqualTo(INVALID_ARGUMENT);
 
         verify(userRepository, never()).insertUser(any());
-        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class));
+        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class), anyLong());
     }
 
     @Test
@@ -157,7 +160,7 @@ class UserRegistrationApplicationServiceTest {
                 .isEqualTo(UserErrorCode.USER_ALREADY_EXISTS);
 
         verify(userRepository, never()).insertUser(any());
-        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class));
+        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class), anyLong());
     }
 
     @Test
@@ -171,7 +174,7 @@ class UserRegistrationApplicationServiceTest {
                 .isEqualTo(UserErrorCode.EMAIL_ALREADY_EXISTS);
 
         verify(userRepository, never()).insertUser(any());
-        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class));
+        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class), anyLong());
     }
 
     private UserRegistrationApplicationService service() {

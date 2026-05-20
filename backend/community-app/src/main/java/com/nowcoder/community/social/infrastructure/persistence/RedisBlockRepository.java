@@ -24,13 +24,13 @@ public class RedisBlockRepository implements BlockRepository {
     }
 
     @Override
-    public boolean block(UUID userId, UUID targetUserId) {
+    public boolean block(UUID userId, UUID targetUserId, long version) {
         Long added = redisTemplate.opsForSet().add(key(userId), String.valueOf(targetUserId));
         return added != null && added > 0;
     }
 
     @Override
-    public boolean unblock(UUID userId, UUID targetUserId) {
+    public boolean unblock(UUID userId, UUID targetUserId, long version) {
         Long removed = redisTemplate.opsForSet().remove(key(userId), String.valueOf(targetUserId));
         return removed != null && removed > 0;
     }
@@ -61,6 +61,16 @@ public class RedisBlockRepository implements BlockRepository {
     @Override
     public List<BlockRelation> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit) {
         throw new UnsupportedOperationException("Redis-backed block projection snapshots are not supported; use social.storage=db");
+    }
+
+    @Override
+    public long nextBlockProjectionVersion() {
+        throw new UnsupportedOperationException("Redis-backed block projection versions are not supported; use social.storage=db");
+    }
+
+    @Override
+    public long currentBlockProjectionVersion() {
+        throw new UnsupportedOperationException("Redis-backed block projection versions are not supported; use social.storage=db");
     }
 
     @Override

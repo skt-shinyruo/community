@@ -36,7 +36,12 @@ public final class SocialBlockQueryApiAdapter implements SocialBlockQueryApi {
                 .toList();
     }
 
+    @Override
+    public long currentBlockProjectionVersion() {
+        return delegate.currentBlockProjectionVersion();
+    }
+
     private SocialBlockRelationView toView(BlockRelationResult result) {
-        return new SocialBlockRelationView(result.blockerUserId(), result.blockedUserId());
+        return new SocialBlockRelationView(result.blockerUserId(), result.blockedUserId(), result.version());
     }
 }

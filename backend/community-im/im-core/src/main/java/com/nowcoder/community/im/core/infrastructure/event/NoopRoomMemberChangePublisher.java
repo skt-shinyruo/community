@@ -11,10 +11,10 @@ import java.util.UUID;
 public class NoopRoomMemberChangePublisher implements RoomMemberChangePublisher {
 
     @Override
-    public void publishJoined(UUID roomId, UUID userId) {
+    public void publishJoined(UUID roomId, UUID userId, long version) {
     }
 
     @Override
-    public void publishLeft(UUID roomId, UUID userId) {
+    public void publishLeft(UUID roomId, UUID userId, long version) {
     }
 }

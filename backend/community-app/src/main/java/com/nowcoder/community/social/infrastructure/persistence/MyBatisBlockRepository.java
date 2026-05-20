@@ -19,6 +19,8 @@ import java.util.UUID;
 public class MyBatisBlockRepository implements BlockRepository {
 
     private static final UUID ZERO_UUID = new UUID(0L, 0L);
+    private static final int BLOCK_VERSION_COUNTER_ID = 1;
+    private static final int LEGACY_COMPATIBLE_LOGICAL_BITS = 12;
 
     private final BlockMapper mapper;
 
@@ -27,9 +29,13 @@ public class MyBatisBlockRepository implements BlockRepository {
     }
 
     @Override
-    public boolean block(UUID userId, UUID targetUserId) {
+    public boolean block(UUID userId, UUID targetUserId, long version) {
         try {
-            return mapper.insertBlock(userId, targetUserId) > 0;
+            boolean changed = mapper.insertBlock(userId, targetUserId, version) > 0;
+            if (changed) {
+                mapper.insertVersionLog(version, userId, targetUserId, true);
+            }
+            return changed;
         } catch (DuplicateKeyException ignored) {
             // 幂等：重复拉黑视为 false
             return false;
@@ -37,8 +43,12 @@ public class MyBatisBlockRepository implements BlockRepository {
     }
 
     @Override
-    public boolean unblock(UUID userId, UUID targetUserId) {
-        return mapper.deleteBlock(userId, targetUserId) > 0;
+    public boolean unblock(UUID userId, UUID targetUserId, long version) {
+        boolean changed = mapper.deleteBlock(userId, targetUserId) > 0;
+        if (changed) {
+            mapper.insertVersionLog(version, userId, targetUserId, false);
+        }
+        return changed;
     }
 
     @Override
@@ -62,7 +72,27 @@ public class MyBatisBlockRepository implements BlockRepository {
             return List.of();
         }
         return rows.stream()
-                .map(row -> new BlockRelation(row.getUserId(), row.getTargetUserId()))
+                .map(row -> new BlockRelation(row.getUserId(), row.getTargetUserId(), row.getVersion()))
                 .toList();
+    }
+
+    @Override
+    public long nextBlockProjectionVersion() {
+        mapper.upsertVersionCounter(BLOCK_VERSION_COUNTER_ID);
+        long current = mapper.selectVersionCounterForUpdate(BLOCK_VERSION_COUNTER_ID);
+        long next = Math.max(current + 1L, legacyCompatibleVersionFloor());
+        mapper.updateVersionCounter(BLOCK_VERSION_COUNTER_ID, next);
+        return next;
+    }
+
+    @Override
+    public long currentBlockProjectionVersion() {
+        mapper.upsertVersionCounter(BLOCK_VERSION_COUNTER_ID);
+        return mapper.selectVersionCounter(BLOCK_VERSION_COUNTER_ID);
+    }
+
+    private static long legacyCompatibleVersionFloor() {
+        long epochMillis = System.currentTimeMillis();
+        return epochMillis <= 0L ? 1L : epochMillis << LEGACY_COMPATIBLE_LOGICAL_BITS;
     }
 }

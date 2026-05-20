@@ -31,7 +31,7 @@ class LocalUserPolicyEventPublisherTest {
         Instant occurredAt = Instant.parse("2026-04-28T01:00:00Z");
         Instant muteUntil = occurredAt.plusSeconds(60);
 
-        publisher.publishUserPolicyChanged(new UserModerationStatus(USER_ID, muteUntil, null), occurredAt);
+        publisher.publishUserPolicyChanged(new UserModerationStatus(USER_ID, muteUntil, null, 42L), occurredAt);
 
         ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);
         verify(applicationEventPublisher).publishEvent(eventCaptor.capture());
@@ -50,5 +50,6 @@ class LocalUserPolicyEventPublisherTest {
         assertThat(payload.getBanUntil()).isNull();
         assertThat(payload.isCanSendPrivate()).isFalse();
         assertThat(payload.getOccurredAtEpochMillis()).isEqualTo(occurredAt.toEpochMilli());
+        assertThat(payload.getVersion()).isEqualTo(42L);
     }
 }

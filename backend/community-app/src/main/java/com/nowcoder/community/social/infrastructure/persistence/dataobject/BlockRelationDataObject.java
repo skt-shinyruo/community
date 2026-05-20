@@ -9,6 +9,7 @@ public class BlockRelationDataObject {
 
     private UUID userId;
     private UUID targetUserId;
+    private long version;
 
     public UUID getUserId() {
         return userId;
@@ -24,5 +25,13 @@ public class BlockRelationDataObject {
 
     public void setTargetUserId(UUID targetUserId) {
         this.targetUserId = targetUserId;
+    }
+
+    public long getVersion() {
+        return version;
+    }
+
+    public void setVersion(long version) {
+        this.version = version;
     }
 }

@@ -4,7 +4,7 @@ import java.util.UUID;
 
 public interface RoomMemberChangePublisher {
 
-    void publishJoined(UUID roomId, UUID userId);
+    void publishJoined(UUID roomId, UUID userId, long version);
 
-    void publishLeft(UUID roomId, UUID userId);
+    void publishLeft(UUID roomId, UUID userId, long version);
 }

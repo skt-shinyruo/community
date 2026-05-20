@@ -60,9 +60,49 @@ create table if not exists social_block (
   user_id binary(16) not null,
   target_user_id binary(16) not null,
   created_at timestamp not null default current_timestamp,
+  version bigint not null default 0,
   primary key (user_id, target_user_id),
   index idx_block_user_created (user_id, created_at)
 );
 
+set @col_social_block_version := (
+  select count(*)
+  from information_schema.columns
+  where table_schema = database()
+    and table_name = 'social_block'
+    and column_name = 'version'
+);
+set @sql := if(@col_social_block_version = 0, 'alter table social_block add column version bigint not null default 0 after created_at', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @social_block_seed_version := cast(floor(unix_timestamp(current_timestamp(3)) * 1000) * 4096 as unsigned);
+update social_block
+set version = @social_block_seed_version
+where version = 0;
+
+create table if not exists social_block_version_counter (
+  id int primary key,
+  current_version bigint not null default 0
+);
+
+set @social_block_current_version := greatest(
+  @social_block_seed_version,
+  (select coalesce(max(version), 0) from social_block)
+);
+
+insert into social_block_version_counter(id, current_version)
+values (1, @social_block_current_version)
+on duplicate key update current_version = greatest(current_version, values(current_version));
+
+create table if not exists social_block_version_log (
+  version bigint primary key,
+  user_id binary(16) not null,
+  target_user_id binary(16) not null,
+  active tinyint(1) not null,
+  occurred_at timestamp not null default current_timestamp,
+  index idx_social_block_version_pair (user_id, target_user_id, version)
+);
 
 -- --------------------------------------------------------------------

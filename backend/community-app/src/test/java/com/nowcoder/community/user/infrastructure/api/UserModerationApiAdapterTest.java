@@ -41,13 +41,14 @@ class UserModerationApiAdapterTest {
     void applyModerationShouldDelegateUsingCommandAndMapView() {
         UserModerationApiAdapter adapter = new UserModerationApiAdapter(applicationService);
         when(applicationService.applyModeration(new ApplyUserModerationCommand(USER_ID, "mute", 60)))
-                .thenReturn(new UserModerationStatus(USER_ID, MUTE_UNTIL, BAN_UNTIL));
+                .thenReturn(new UserModerationStatus(USER_ID, MUTE_UNTIL, BAN_UNTIL, 43L));
 
         UserModerationStateView view = adapter.applyModeration(USER_ID, "mute", 60);
 
         assertThat(view.userId()).isEqualTo(USER_ID);
         assertThat(view.muteUntil()).isEqualTo(MUTE_UNTIL);
         assertThat(view.banUntil()).isEqualTo(BAN_UNTIL);
+        assertThat(view.version()).isEqualTo(43L);
         verify(applicationService).applyModeration(new ApplyUserModerationCommand(USER_ID, "mute", 60));
     }
 
@@ -55,9 +56,9 @@ class UserModerationApiAdapterTest {
     void queryMethodsShouldDelegateAndMapViews() {
         UserModerationApiAdapter adapter = new UserModerationApiAdapter(applicationService);
         when(applicationService.getModerationState(USER_ID))
-                .thenReturn(new UserModerationStatus(USER_ID, MUTE_UNTIL, BAN_UNTIL));
+                .thenReturn(new UserModerationStatus(USER_ID, MUTE_UNTIL, BAN_UNTIL, 44L));
         when(applicationService.scanModerationStatesAfterId(USER_ID, 10))
-                .thenReturn(List.of(new UserModerationStatus(USER_ID, MUTE_UNTIL, BAN_UNTIL)));
+                .thenReturn(List.of(new UserModerationStatus(USER_ID, MUTE_UNTIL, BAN_UNTIL, 45L)));
 
         UserModerationStateView single = adapter.getModerationState(USER_ID);
         List<UserModerationStateView> scanned = adapter.scanModerationStatesAfterId(USER_ID, 10);
@@ -65,8 +66,10 @@ class UserModerationApiAdapterTest {
         assertThat(single.userId()).isEqualTo(USER_ID);
         assertThat(single.muteUntil()).isEqualTo(MUTE_UNTIL);
         assertThat(single.banUntil()).isEqualTo(BAN_UNTIL);
+        assertThat(single.version()).isEqualTo(44L);
         assertThat(scanned).hasSize(1);
         assertThat(scanned.get(0).userId()).isEqualTo(USER_ID);
+        assertThat(scanned.get(0).version()).isEqualTo(45L);
         verify(applicationService).getModerationState(USER_ID);
         verify(applicationService).scanModerationStatesAfterId(USER_ID, 10);
     }

@@ -185,6 +185,7 @@ Membership projection：
 - `RoomMemberChanged` 事件增量更新 realtime 本地 `MembershipProjectionService` 和 `RoomLocalIndex`。
 - `RoomLocalIndex` 只保存当前 worker 进程内的 roomId -> connectionId 集合，用于房间在线 fanout 和 room 连接数指标；它不是 membership 权威状态。
 - membership snapshot 带 `snapshotHighWatermark`，entry / delta 带 `version` 和 `occurredAtEpochMillis`。realtime 只接受同一 `(roomId,userId)` 上版本更大的状态；旧 snapshot 或乱序 `RoomMemberChanged` 不会回滚 membership 或本机 room index。
+- membership `version` 是 im-core owner 的持久逻辑时钟：`im_membership_version_counter` 分配版本，active fact 写入 `im_room_member.version`，离开房间写入 `im_membership_version_log` 并推进 counter；snapshot entry、`RoomMemberChanged.version` 和 `snapshotHighWatermark` 都来自这个同一版本域。
 - 房间 fanout 默认保持 `legacy`，这是 routed rollout gate。`shadow` 继续 legacy 投递并只计算 owner route；`routed` 使用共享 owner consumer group 读取 room persisted event，再按分布式 room presence 将 state-only update dispatch 到持有本房间连接的 worker。
 - `routed` 必须绑定 Redis-backed distributed room presence；如果 presence 是 `NoopRoomPresenceDirectory`，realtime 启动期 fail-fast。
 - routed owner 对 route planning / HTTP target dispatch 使用进程内 pending retry：失败时继续尝试其它目标 worker，并把该 room 最新 update 留到后续 flush 重试。空 target set 不重试，表示 presence 当前没有报告活跃 worker。
@@ -197,6 +198,9 @@ Policy projection：
 - user moderation change 和 social block change 通过 Kafka 增量事件更新 realtime。
 - realtime 发私信前使用本地 policy projection 做快速判定。
 - user policy 以 `userId` 为 projection key，block relation 以 `(blockerUserId,blockedUserId)` 为 projection key。snapshot / delta 同样使用 `version`、`occurredAtEpochMillis` 和 `snapshotHighWatermark`，refresh 与 Kafka delta 并发时按 key 版本决胜。
+- user policy `version` 是 user owner 的持久逻辑时钟：`user_policy_version_counter` 分配版本，`user.policy_version` 保存当前用户治理事实版本，`UserPolicyChangedPayload.version` 和 user policy snapshot entry / high-watermark 使用同一 counter 域。
+- block relation `version` 是 social owner 的持久逻辑时钟：`social_block_version_counter` 分配版本，active fact 写入 `social_block.version`，取消拉黑写入 `social_block_version_log` 并推进 counter；`BlockPayload.version`、block snapshot entry 和 high-watermark 使用同一 counter 域。
+- MySQL 迁移会把既有 active facts 和 counter 一次性 seed 到兼容旧 timestamp-derived 版本的高水位；之后版本只由 owner 持久 counter 单调推进，不能再用 snapshot time 或 bridge-local counter 生成。
 
 projection 不是权威事实；启动和异常恢复依赖 snapshot 重新构建。
 

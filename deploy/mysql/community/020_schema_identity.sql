@@ -19,9 +19,27 @@ create table if not exists user (
   create_time timestamp null default current_timestamp,
   mute_until timestamp null default null,
   ban_until timestamp null default null,
+  policy_version bigint not null default 0,
   unique key uk_user_username (username),
   unique key uk_user_email (email)
 );
+
+set @col_user_policy_version := (
+  select count(*)
+  from information_schema.columns
+  where table_schema = database()
+    and table_name = 'user'
+    and column_name = 'policy_version'
+);
+set @sql := if(@col_user_policy_version = 0, 'alter table user add column policy_version bigint not null default 0 after ban_until', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @user_policy_seed_version := cast(floor(unix_timestamp(current_timestamp(3)) * 1000) * 4096 as unsigned);
+update user
+set policy_version = @user_policy_seed_version
+where policy_version = 0;
 
 set @has_user_score_col := (
   select count(*)
@@ -61,6 +79,20 @@ create table if not exists user_consumed_event (
   unique key uk_user_consumed_event_id (event_id),
   index idx_user_consumed_event_at (consumed_at)
 );
+
+create table if not exists user_policy_version_counter (
+  id int primary key,
+  current_version bigint not null default 0
+);
+
+set @user_policy_current_version := greatest(
+  @user_policy_seed_version,
+  (select coalesce(max(policy_version), 0) from user)
+);
+
+insert into user_policy_version_counter(id, current_version)
+values (1, @user_policy_current_version)
+on duplicate key update current_version = greatest(current_version, values(current_version));
 
 
 -- --------------------------------------------------------------------

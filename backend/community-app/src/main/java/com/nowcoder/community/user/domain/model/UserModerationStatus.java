@@ -6,6 +6,11 @@ import java.util.UUID;
 public record UserModerationStatus(
         UUID userId,
         Instant muteUntil,
-        Instant banUntil
+        Instant banUntil,
+        long version
 ) {
+
+    public UserModerationStatus(UUID userId, Instant muteUntil, Instant banUntil) {
+        this(userId, muteUntil, banUntil, 0L);
+    }
 }

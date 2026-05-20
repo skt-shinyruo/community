@@ -79,7 +79,7 @@ class BlockApplicationServiceTest {
         UUID userId = uuid(1);
         UUID sameUserDifferentInstance = UUID.fromString(userId.toString());
 
-        repo.block(userId, sameUserDifferentInstance);
+        repo.block(userId, sameUserDifferentInstance, 1L);
 
         assertThat(service.isEitherBlocked(userId, sameUserDifferentInstance)).isFalse();
     }
@@ -89,7 +89,8 @@ class BlockApplicationServiceTest {
         BlockRepository repository = mock(BlockRepository.class);
         FollowRepository followRepository = mock(FollowRepository.class);
         SocialDomainEventPublisher eventPublisher = mock(SocialDomainEventPublisher.class);
-        when(repository.block(USER_ID_1, USER_ID_2)).thenReturn(true);
+        when(repository.nextBlockProjectionVersion()).thenReturn(81L);
+        when(repository.block(USER_ID_1, USER_ID_2, 81L)).thenReturn(true);
 
         BlockApplicationService service = new BlockApplicationService(repository, followRepository, new BlockDomainService(), eventPublisher);
 
@@ -101,6 +102,7 @@ class BlockApplicationServiceTest {
         assertThat(event.blockerUserId()).isEqualTo(USER_ID_1);
         assertThat(event.blockedUserId()).isEqualTo(USER_ID_2);
         assertThat(event.blocked()).isTrue();
+        assertThat(event.version()).isEqualTo(81L);
     }
 
     @Test
@@ -134,7 +136,7 @@ class BlockApplicationServiceTest {
                 new BlockDomainService(),
                 new RecordingSocialDomainEventPublisher()
         );
-        blockRepository.block(USER_ID_1, USER_ID_2);
+        blockRepository.block(USER_ID_1, USER_ID_2, 1L);
         followRepository.follow(USER_ID_1, USER, USER_ID_2, 1000L);
         followRepository.follow(USER_ID_2, USER, USER_ID_1, 1001L);
 
@@ -149,14 +151,19 @@ class BlockApplicationServiceTest {
         private final ConcurrentHashMap<UUID, Set<UUID>> blocks = new ConcurrentHashMap<>();
 
         @Override
-        public boolean block(UUID userId, UUID targetUserId) {
+        public boolean block(UUID userId, UUID targetUserId, long version) {
             return blocks.computeIfAbsent(userId, ignored -> ConcurrentHashMap.newKeySet()).add(targetUserId);
         }
 
         @Override
-        public boolean unblock(UUID userId, UUID targetUserId) {
+        public boolean unblock(UUID userId, UUID targetUserId, long version) {
             Set<UUID> set = blocks.get(userId);
             return set != null && set.remove(targetUserId);
+        }
+
+        @Override
+        public long nextBlockProjectionVersion() {
+            return 1L;
         }
 
         @Override

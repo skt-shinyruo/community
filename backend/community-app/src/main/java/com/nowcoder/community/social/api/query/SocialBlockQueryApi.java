@@ -12,4 +12,8 @@ public interface SocialBlockQueryApi {
     boolean isEitherBlocked(UUID userIdA, UUID userIdB);
 
     List<SocialBlockRelationView> scanBlockRelationsAfter(UUID afterBlockerUserId, UUID afterBlockedUserId, int limit);
+
+    default long currentBlockProjectionVersion() {
+        return 0L;
+    }
 }

@@ -4,7 +4,6 @@ import com.nowcoder.community.im.common.projection.UserBlockRelationEntry;
 import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicyEntry;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicySnapshot;
-import com.nowcoder.community.im.common.projection.ProjectionVersions;
 import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
 import com.nowcoder.community.social.api.model.SocialBlockRelationView;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
@@ -37,10 +36,10 @@ public class ImPolicySnapshotApplicationService {
     public UserMessagingPolicySnapshot userPolicies(UUID afterUserId, int limit) {
         int normalizedLimit = normalizeLimit(limit);
         Instant now = Instant.now();
-        long snapshotHighWatermark = ProjectionVersions.snapshotHighWatermarkFromEpochMillis(now.toEpochMilli());
+        long snapshotHighWatermark = userModerationQueryApi.currentModerationProjectionVersion();
         List<UserModerationStateView> states = userModerationQueryApi.scanModerationStatesAfterId(afterUserId, normalizedLimit);
         List<UserMessagingPolicyEntry> entries = states.stream()
-                .map(state -> toUserPolicyEntry(state, now, snapshotHighWatermark))
+                .map(state -> toUserPolicyEntry(state, now))
                 .toList();
 
         UUID nextUserId = entries.isEmpty() ? null : entries.get(entries.size() - 1).userId();
@@ -54,11 +53,11 @@ public class ImPolicySnapshotApplicationService {
     public UserBlockRelationSnapshot blockRelations(UUID afterBlockerUserId, UUID afterBlockedUserId, int limit) {
         int normalizedLimit = normalizeLimit(limit);
         long occurredAtEpochMillis = System.currentTimeMillis();
-        long snapshotHighWatermark = ProjectionVersions.snapshotHighWatermarkFromEpochMillis(occurredAtEpochMillis);
+        long snapshotHighWatermark = socialBlockQueryApi.currentBlockProjectionVersion();
         List<SocialBlockRelationView> views =
                 socialBlockQueryApi.scanBlockRelationsAfter(afterBlockerUserId, afterBlockedUserId, normalizedLimit);
         List<UserBlockRelationEntry> entries = views.stream()
-                .map(view -> toBlockRelationEntry(view, snapshotHighWatermark, occurredAtEpochMillis))
+                .map(view -> toBlockRelationEntry(view, occurredAtEpochMillis))
                 .toList();
 
         UUID nextBlockerUserId = entries.isEmpty() ? null : entries.get(entries.size() - 1).blockerUserId();
@@ -85,16 +84,14 @@ public class ImPolicySnapshotApplicationService {
         Instant now = Instant.now();
         UserMessagingPolicyEntry fromPolicy = toUserPolicyEntry(
                 userModerationQueryApi.getModerationState(fromUserId),
-                now,
-                ProjectionVersions.snapshotHighWatermarkFromEpochMillis(now.toEpochMilli())
+                now
         );
         if (fromPolicy.suspended() || fromPolicy.muted() || !fromPolicy.canSendPrivate()) {
             return PrivateMessagePolicyDecision.deny(403, "policy_denied", "发送方无权限发送私信");
         }
         UserMessagingPolicyEntry toPolicy = toUserPolicyEntry(
                 userModerationQueryApi.getModerationState(toUserId),
-                now,
-                ProjectionVersions.snapshotHighWatermarkFromEpochMillis(now.toEpochMilli())
+                now
         );
         if (!toPolicy.canSendPrivate()) {
             return PrivateMessagePolicyDecision.deny(403, "policy_denied", "接收方不允许私信");
@@ -106,7 +103,7 @@ public class ImPolicySnapshotApplicationService {
         return PrivateMessagePolicyDecision.allow();
     }
 
-    private UserMessagingPolicyEntry toUserPolicyEntry(UserModerationStateView state, Instant now, long snapshotHighWatermark) {
+    private UserMessagingPolicyEntry toUserPolicyEntry(UserModerationStateView state, Instant now) {
         boolean suspended = state != null && state.banUntil() != null && state.banUntil().isAfter(now);
         boolean muted = state != null && state.muteUntil() != null && state.muteUntil().isAfter(now);
         boolean canSendPrivate = state != null && state.userId() != null && !suspended && !muted;
@@ -118,21 +115,20 @@ public class ImPolicySnapshotApplicationService {
                 toEpochMillis(state == null ? null : state.muteUntil()),
                 toEpochMillis(state == null ? null : state.banUntil()),
                 canSendPrivate,
-                snapshotHighWatermark,
+                state == null ? 0L : state.version(),
                 now.toEpochMilli()
         );
     }
 
     private UserBlockRelationEntry toBlockRelationEntry(
             SocialBlockRelationView view,
-            long snapshotHighWatermark,
             long occurredAtEpochMillis
     ) {
         return new UserBlockRelationEntry(
                 view.blockerUserId(),
                 view.blockedUserId(),
                 true,
-                snapshotHighWatermark,
+                view.version(),
                 occurredAtEpochMillis
         );
     }

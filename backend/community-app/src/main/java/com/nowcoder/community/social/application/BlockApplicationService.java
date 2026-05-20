@@ -47,7 +47,8 @@ public class BlockApplicationService {
     @Transactional
     public void block(BlockCommand command) {
         blockDomainService.validateBlock(command.actorUserId(), command.targetUserId());
-        boolean changed = blockRepository.block(command.actorUserId(), command.targetUserId());
+        long version = blockRepository.nextBlockProjectionVersion();
+        boolean changed = blockRepository.block(command.actorUserId(), command.targetUserId(), version);
         boolean removedForwardFollow = followRepository.unfollow(command.actorUserId(), USER, command.targetUserId());
         boolean removedReverseFollow = followRepository.unfollow(command.targetUserId(), USER, command.actorUserId());
         if (!changed) {
@@ -64,7 +65,7 @@ public class BlockApplicationService {
             }
         };
         publishChangedWithCompensation(
-                blockDomainService.blockChangedEvent(command.actorUserId(), command.targetUserId(), true),
+                new BlockRelationChangedDomainEvent(command.actorUserId(), command.targetUserId(), true, version),
                 rollback
         );
     }
@@ -72,12 +73,13 @@ public class BlockApplicationService {
     @Transactional
     public void unblock(UnblockCommand command) {
         blockDomainService.validateUnblock(command.actorUserId(), command.targetUserId());
-        boolean changed = blockRepository.unblock(command.actorUserId(), command.targetUserId());
+        long version = blockRepository.nextBlockProjectionVersion();
+        boolean changed = blockRepository.unblock(command.actorUserId(), command.targetUserId(), version);
         if (!changed) {
             return;
         }
         publishChangedWithCompensation(
-                blockDomainService.blockChangedEvent(command.actorUserId(), command.targetUserId(), false),
+                new BlockRelationChangedDomainEvent(command.actorUserId(), command.targetUserId(), false, version),
                 () -> blockRepository.block(command.actorUserId(), command.targetUserId())
         );
     }
@@ -110,6 +112,10 @@ public class BlockApplicationService {
                 .toList();
     }
 
+    public long currentBlockProjectionVersion() {
+        return blockRepository.currentBlockProjectionVersion();
+    }
+
     private void publishChangedWithCompensation(BlockRelationChangedDomainEvent event, Runnable rollback) {
         boolean needsExplicitCompensation = blockRepository.requiresExplicitCompensation()
                 || followRepository.requiresExplicitCompensation();
@@ -127,7 +133,7 @@ public class BlockApplicationService {
     }
 
     private BlockRelationResult toResult(BlockRelation relation) {
-        return new BlockRelationResult(relation.blockerUserId(), relation.blockedUserId());
+        return new BlockRelationResult(relation.blockerUserId(), relation.blockedUserId(), relation.version());
     }
 
     private void registerRollbackIfTxRolledBack(Runnable rollback) {

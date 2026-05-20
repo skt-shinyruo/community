@@ -34,7 +34,8 @@ public class ImPolicyOutboxEnqueuer {
         imPolicyChangePublisher.publishBlockRelationChanged(
                 payload.getBlockerUserId(),
                 payload.getBlockedUserId(),
-                payload.getBlocked()
+                payload.getBlocked(),
+                payload.getVersion() == null ? 0L : payload.getVersion()
         );
     }
 

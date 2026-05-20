@@ -33,12 +33,12 @@ class SocialBlockQueryApiAdapterTest {
     void scanBlockRelationsAfterShouldMapApplicationResultsToApiModel() {
         BlockApplicationService blockApplicationService = mock(BlockApplicationService.class);
         when(blockApplicationService.scanBlockRelationsAfter(uuid(1), uuid(2), 10))
-                .thenReturn(List.of(new BlockRelationResult(uuid(3), uuid(4))));
+                .thenReturn(List.of(new BlockRelationResult(uuid(3), uuid(4), 901L)));
         SocialBlockQueryApiAdapter adapter = new SocialBlockQueryApiAdapter(blockApplicationService);
 
         List<SocialBlockRelationView> relations = adapter.scanBlockRelationsAfter(uuid(1), uuid(2), 10);
 
-        assertThat(relations).containsExactly(new SocialBlockRelationView(uuid(3), uuid(4)));
+        assertThat(relations).containsExactly(new SocialBlockRelationView(uuid(3), uuid(4), 901L));
         verify(blockApplicationService).scanBlockRelationsAfter(uuid(1), uuid(2), 10);
     }
 }

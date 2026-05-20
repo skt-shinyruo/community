@@ -83,7 +83,48 @@ create table if not exists im_room_member (
   user_id binary(16) not null,
   role tinyint not null default 0,
   joined_at timestamp null default current_timestamp,
+  version bigint not null default 0,
   primary key (room_id, user_id)
+);
+
+set @col_im_room_member_version := (
+  select count(*)
+  from information_schema.columns
+  where table_schema = database()
+    and table_name = 'im_room_member'
+    and column_name = 'version'
+);
+set @sql := if(@col_im_room_member_version = 0, 'alter table im_room_member add column version bigint not null default 0 after joined_at', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @im_membership_seed_version := cast(floor(unix_timestamp(current_timestamp(3)) * 1000) * 4096 as unsigned);
+update im_room_member
+set version = @im_membership_seed_version
+where version = 0;
+
+create table if not exists im_membership_version_counter (
+  id int primary key,
+  current_version bigint not null default 0
+);
+
+set @im_membership_current_version := greatest(
+  @im_membership_seed_version,
+  (select coalesce(max(version), 0) from im_room_member)
+);
+
+insert into im_membership_version_counter(id, current_version)
+values (1, @im_membership_current_version)
+on duplicate key update current_version = greatest(current_version, values(current_version));
+
+create table if not exists im_membership_version_log (
+  version bigint primary key,
+  room_id binary(16) not null,
+  user_id binary(16) not null,
+  active tinyint(1) not null,
+  occurred_at timestamp not null default current_timestamp,
+  index idx_im_membership_version_pair (room_id, user_id, version)
 );
 
 set @idx_im_room_member_user := (

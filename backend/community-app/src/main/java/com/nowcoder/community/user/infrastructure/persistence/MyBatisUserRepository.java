@@ -24,6 +24,9 @@ import java.util.UUID;
 @Repository
 public class MyBatisUserRepository implements UserRepository {
 
+    private static final int USER_POLICY_VERSION_COUNTER_ID = 1;
+    private static final int LEGACY_COMPATIBLE_LOGICAL_BITS = 12;
+
     private final UserMapper userMapper;
 
     public MyBatisUserRepository(UserMapper userMapper) {
@@ -119,11 +122,12 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
-    public void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil) {
+    public void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil, long policyVersion) {
         int updated = userMapper.updateModerationUntil(
                 userId,
                 muteUntil == null ? null : Date.from(muteUntil),
-                banUntil == null ? null : Date.from(banUntil)
+                banUntil == null ? null : Date.from(banUntil),
+                policyVersion
         );
         if (updated <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新处罚状态失败");
@@ -146,10 +150,26 @@ public class MyBatisUserRepository implements UserRepository {
             statuses.add(new UserModerationStatus(
                     row.getId(),
                     toInstant(row.getMuteUntil()),
-                    toInstant(row.getBanUntil())
+                    toInstant(row.getBanUntil()),
+                    row.getPolicyVersion()
             ));
         }
         return statuses;
+    }
+
+    @Override
+    public long nextUserPolicyVersion(UUID userId) {
+        userMapper.upsertPolicyVersionCounter(USER_POLICY_VERSION_COUNTER_ID);
+        long current = userMapper.selectPolicyVersionCounterForUpdate(USER_POLICY_VERSION_COUNTER_ID);
+        long next = Math.max(current + 1L, legacyCompatibleVersionFloor());
+        userMapper.updatePolicyVersionCounter(USER_POLICY_VERSION_COUNTER_ID, next);
+        return next;
+    }
+
+    @Override
+    public long currentUserPolicyVersion() {
+        userMapper.upsertPolicyVersionCounter(USER_POLICY_VERSION_COUNTER_ID);
+        return userMapper.selectPolicyVersionCounter(USER_POLICY_VERSION_COUNTER_ID);
     }
 
     @Override
@@ -175,7 +195,8 @@ public class MyBatisUserRepository implements UserRepository {
                 row.getHeaderUrl(),
                 row.getCreateTime(),
                 toInstant(row.getMuteUntil()),
-                toInstant(row.getBanUntil())
+                toInstant(row.getBanUntil()),
+                row.getPolicyVersion()
         );
     }
 
@@ -192,6 +213,7 @@ public class MyBatisUserRepository implements UserRepository {
         row.setCreateTime(user.createTime());
         row.setMuteUntil(user.muteUntil() == null ? null : Date.from(user.muteUntil()));
         row.setBanUntil(user.banUntil() == null ? null : Date.from(user.banUntil()));
+        row.setPolicyVersion(user.policyVersion());
         return row;
     }
 
@@ -218,5 +240,10 @@ public class MyBatisUserRepository implements UserRepository {
 
     private Instant toInstant(Date value) {
         return value == null ? null : value.toInstant();
+    }
+
+    private static long legacyCompatibleVersionFloor() {
+        long epochMillis = System.currentTimeMillis();
+        return epochMillis <= 0L ? 1L : epochMillis << LEGACY_COMPATIBLE_LOGICAL_BITS;
     }
 }

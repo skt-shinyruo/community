@@ -1,7 +1,6 @@
 package com.nowcoder.community.im.core.kafka;
 
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
-import com.nowcoder.community.im.common.projection.ProjectionVersions;
 import com.nowcoder.community.im.core.domain.event.RoomMemberChangePublisher;
 import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -9,21 +8,19 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 @ConditionalOnProperty(prefix = "im.room-member-change", name = "publisher", havingValue = "kafka")
 public class KafkaRoomMemberChangePublisher implements RoomMemberChangePublisher {
 
     private final ImMessageOutboxEnqueuer outboxEnqueuer;
-    private final AtomicLong lastVersion = new AtomicLong();
 
     public KafkaRoomMemberChangePublisher(ImMessageOutboxEnqueuer outboxEnqueuer) {
         this.outboxEnqueuer = outboxEnqueuer;
     }
 
     @Override
-    public void publishJoined(UUID roomId, UUID userId) {
+    public void publishJoined(UUID roomId, UUID userId, long version) {
         Instant now = Instant.now();
         outboxEnqueuer.enqueueRoomMemberChanged(new RoomMemberChanged(
                 newEventId(),
@@ -31,12 +28,12 @@ public class KafkaRoomMemberChangePublisher implements RoomMemberChangePublisher
                 userId,
                 "JOINED",
                 now.toEpochMilli(),
-                ProjectionVersions.nextEventVersion(lastVersion, now.toEpochMilli())
+                version
         ));
     }
 
     @Override
-    public void publishLeft(UUID roomId, UUID userId) {
+    public void publishLeft(UUID roomId, UUID userId, long version) {
         Instant now = Instant.now();
         outboxEnqueuer.enqueueRoomMemberChanged(new RoomMemberChanged(
                 newEventId(),
@@ -44,7 +41,7 @@ public class KafkaRoomMemberChangePublisher implements RoomMemberChangePublisher
                 userId,
                 "LEFT",
                 now.toEpochMilli(),
-                ProjectionVersions.nextEventVersion(lastVersion, now.toEpochMilli())
+                version
         ));
     }
 

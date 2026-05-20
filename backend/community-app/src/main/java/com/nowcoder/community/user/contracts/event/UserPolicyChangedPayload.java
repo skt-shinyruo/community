@@ -12,6 +12,7 @@ public class UserPolicyChangedPayload {
     private Long banUntil;
     private boolean canSendPrivate;
     private long occurredAtEpochMillis;
+    private Long version;
 
     public UUID getUserId() {
         return userId;
@@ -75,5 +76,13 @@ public class UserPolicyChangedPayload {
 
     public void setOccurredAtEpochMillis(long occurredAtEpochMillis) {
         this.occurredAtEpochMillis = occurredAtEpochMillis;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

@@ -30,9 +30,17 @@ public interface UserRepository {
 
     void updatePassword(UUID userId, String encodedPassword);
 
-    void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil);
+    void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil, long policyVersion);
+
+    default void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil) {
+        updateModerationUntil(userId, muteUntil, banUntil, nextUserPolicyVersion(userId));
+    }
 
     List<UserModerationStatus> scanModerationStatesAfterId(UUID afterUserId, int limit);
+
+    long nextUserPolicyVersion(UUID userId);
+
+    long currentUserPolicyVersion();
 
     void insertUser(UserAccount user);
 }

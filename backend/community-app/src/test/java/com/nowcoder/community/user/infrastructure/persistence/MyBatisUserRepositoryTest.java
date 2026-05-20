@@ -109,7 +109,8 @@ class MyBatisUserRepositoryTest {
         userRepository.updateHeaderUrl(ALICE_ID, "new-header");
         userRepository.updateRole(ALICE_ID, 2);
         userRepository.updatePassword(ALICE_ID, "new-password");
-        userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil);
+        long policyVersion = userRepository.nextUserPolicyVersion(ALICE_ID);
+        userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, policyVersion);
 
         UserAccount updated = userRepository.findById(ALICE_ID).orElseThrow();
         assertThat(updated.headerUrl()).isEqualTo("new-header");
@@ -117,6 +118,7 @@ class MyBatisUserRepositoryTest {
         assertThat(updated.encodedPassword()).isEqualTo("new-password");
         assertThat(updated.muteUntil()).isEqualTo(muteUntil);
         assertThat(updated.banUntil()).isEqualTo(banUntil);
+        assertThat(updated.policyVersion()).isEqualTo(policyVersion);
     }
 
     @Test
@@ -140,8 +142,29 @@ class MyBatisUserRepositoryTest {
         assertThat(statuses).extracting(UserModerationStatus::userId).containsExactly(ALICE_ID, BOB_ID);
         assertThat(statuses.get(0).muteUntil()).isEqualTo(aliceMute);
         assertThat(statuses.get(0).banUntil()).isNull();
+        assertThat(statuses.get(0).version()).isZero();
         assertThat(statuses.get(1).muteUntil()).isNull();
         assertThat(statuses.get(1).banUntil()).isEqualTo(bobBan);
+        assertThat(statuses.get(1).version()).isZero();
+    }
+
+    @Test
+    void userPolicyVersionShouldMonotonicallyIncreaseAndPersistOnRows() {
+        Date createTime = Date.from(Instant.parse("2026-04-27T10:15:30Z"));
+        Instant muteUntil = Instant.parse("2026-04-28T10:15:30Z");
+        Instant banUntil = Instant.parse("2026-04-29T10:15:30Z");
+        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "h7", createTime, null, null);
+
+        long first = userRepository.nextUserPolicyVersion(ALICE_ID);
+        userRepository.updateModerationUntil(ALICE_ID, muteUntil, null, first);
+        long second = userRepository.nextUserPolicyVersion(ALICE_ID);
+        userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, second);
+
+        assertThat(second).isGreaterThan(first);
+        assertThat(userRepository.findById(ALICE_ID).orElseThrow().policyVersion()).isEqualTo(second);
+        assertThat(userRepository.scanModerationStatesAfterId(new UUID(0L, 0L), 20).get(0).version())
+                .isEqualTo(second);
+        assertThat(userRepository.currentUserPolicyVersion()).isEqualTo(second);
     }
 
     private void insertUser(

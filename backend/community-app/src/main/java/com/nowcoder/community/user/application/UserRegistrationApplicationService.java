@@ -111,7 +111,9 @@ public class UserRegistrationApplicationService {
         } catch (DataIntegrityViolationException ex) {
             translateDuplicateInsert(user.username(), user.email(), ex);
         }
-        publishUserPolicyChanged(user.id(), true);
+        long version = userRepository.nextUserPolicyVersion(user.id());
+        userRepository.updateModerationUntil(user.id(), user.muteUntil(), user.banUntil(), version);
+        publishUserPolicyChanged(user.id(), true, version);
         return toCredentialResult(user, 1);
     }
 
@@ -135,9 +137,9 @@ public class UserRegistrationApplicationService {
         return new UserCredentialResult(user.id(), user.username(), status, user.type(), user.headerUrl());
     }
 
-    private void publishUserPolicyChanged(UUID userId, boolean userExists) {
+    private void publishUserPolicyChanged(UUID userId, boolean userExists, long version) {
         if (userId != null) {
-            userPolicyEventPublisher.publishUserPolicyChanged(userId, userExists, Instant.now());
+            userPolicyEventPublisher.publishUserPolicyChanged(userId, userExists, Instant.now(), version);
         }
     }
 

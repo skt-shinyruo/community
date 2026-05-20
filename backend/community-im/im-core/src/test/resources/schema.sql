@@ -11,7 +11,25 @@ create table if not exists im_room_member (
   user_id binary(16) not null,
   role tinyint not null default 0,
   joined_at timestamp null default current_timestamp,
+  version bigint not null default 0,
   primary key (room_id, user_id)
+);
+
+create table if not exists im_membership_version_counter (
+  id int primary key,
+  current_version bigint not null default 0
+);
+
+merge into im_membership_version_counter(id, current_version)
+key(id)
+values (1, 0);
+
+create table if not exists im_membership_version_log (
+  version bigint primary key,
+  room_id binary(16) not null,
+  user_id binary(16) not null,
+  active boolean not null,
+  occurred_at timestamp null default current_timestamp
 );
 
 create table if not exists im_room_message (

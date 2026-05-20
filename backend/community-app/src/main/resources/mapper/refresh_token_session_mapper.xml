@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.user.infrastructure.persistence.mapper.RefreshTokenSessionMapper">
+
+    <sql id="fields">
+        token_hash, user_id, family_id, expires_at, revoked_at
+    </sql>
+
+    <resultMap id="refreshTokenSessionResultMap"
+               type="com.nowcoder.community.user.infrastructure.persistence.dataobject.RefreshTokenSessionDataObject">
+        <id property="tokenHash" column="token_hash"/>
+        <result property="userId" column="user_id" jdbcType="BINARY"/>
+        <result property="familyId" column="family_id"/>
+        <result property="expiresAt" column="expires_at"/>
+        <result property="revokedAt" column="revoked_at"/>
+    </resultMap>
+
+    <insert id="storeIfFamilyActive">
+        insert into auth_refresh_token(token_hash, user_id, family_id, expires_at, revoked_at)
+        select #{tokenHash}, #{userId, jdbcType=BINARY}, #{familyId}, #{expiresAt}, null
+        where not exists (
+            select 1 from auth_refresh_token_family_revocation where family_id = #{familyId}
+        )
+        on duplicate key update
+            user_id = values(user_id),
+            family_id = values(family_id),
+            expires_at = values(expires_at),
+            revoked_at = null
+    </insert>
+
+    <select id="selectByTokenHash" resultMap="refreshTokenSessionResultMap">
+        select <include refid="fields"/>
+        from auth_refresh_token
+        where token_hash = #{tokenHash}
+    </select>
+
+    <update id="consumeActive">
+        update auth_refresh_token
+        set revoked_at = #{now}
+        where token_hash = #{tokenHash}
+          and revoked_at is null
+          and expires_at &gt; #{now}
+    </update>
+
+    <update id="revoke">
+        update auth_refresh_token
+        set revoked_at = now()
+        where token_hash = #{tokenHash}
+          and revoked_at is null
+    </update>
+
+    <insert id="upsertFamilyRevocation">
+        insert into auth_refresh_token_family_revocation(family_id, revoked_at)
+        values (#{familyId}, now())
+        on duplicate key update revoked_at = values(revoked_at)
+    </insert>
+
+    <update id="revokeFamilyTokens">
+        update auth_refresh_token
+        set revoked_at = now()
+        where family_id = #{familyId}
+          and revoked_at is null
+    </update>
+
+    <insert id="upsertUserFamilyRevocations">
+        insert into auth_refresh_token_family_revocation(family_id, revoked_at)
+        select distinct family_id, now()
+        from auth_refresh_token
+        where user_id = #{userId, jdbcType=BINARY}
+        on duplicate key update revoked_at = values(revoked_at)
+    </insert>
+
+    <update id="revokeUserTokens">
+        update auth_refresh_token
+        set revoked_at = now()
+        where user_id = #{userId, jdbcType=BINARY}
+          and revoked_at is null
+    </update>
+
+    <delete id="deleteExpiredBefore">
+        delete from auth_refresh_token
+        where expires_at &lt;= #{cutoff}
+    </delete>
+
+</mapper>

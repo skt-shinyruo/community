@@ -1,13 +1,11 @@
 package com.nowcoder.community.user.infrastructure.persistence;
 
-import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.user.domain.model.RefreshTokenSession;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.nowcoder.community.user.infrastructure.persistence.dataobject.RefreshTokenSessionDataObject;
+import com.nowcoder.community.user.infrastructure.persistence.mapper.RefreshTokenSessionMapper;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
-import java.sql.ResultSet;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -19,10 +17,10 @@ import java.util.UUID;
 @Repository
 public class MyBatisRefreshTokenSessionRepository implements com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final RefreshTokenSessionMapper mapper;
 
-    public MyBatisRefreshTokenSessionRepository(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public MyBatisRefreshTokenSessionRepository(RefreshTokenSessionMapper mapper) {
+        this.mapper = mapper;
     }
 
     @Override
@@ -31,25 +29,7 @@ public class MyBatisRefreshTokenSessionRepository implements com.nowcoder.commun
             return;
         }
         String family = familyId.trim();
-        int updated = jdbcTemplate.update(
-                """
-                        insert into auth_refresh_token(token_hash, user_id, family_id, expires_at, revoked_at)
-                        select ?, ?, ?, ?, null
-                        where not exists (
-                          select 1 from auth_refresh_token_family_revocation where family_id = ?
-                        )
-                        on duplicate key update
-                          user_id = values(user_id),
-                          family_id = values(family_id),
-                          expires_at = values(expires_at),
-                          revoked_at = null
-                """,
-                tokenHash.trim(),
-                BinaryUuidCodec.toBytes(userId),
-                family,
-                Timestamp.from(expiresAt),
-                family
-        );
+        int updated = mapper.storeIfFamilyActive(tokenHash.trim(), userId, family, expiresAt);
         if (updated <= 0) {
             throw new IllegalStateException("refresh token family 已被撤销");
         }
@@ -60,17 +40,8 @@ public class MyBatisRefreshTokenSessionRepository implements com.nowcoder.commun
         if (!StringUtils.hasText(tokenHash)) {
             return null;
         }
-        return jdbcTemplate.query(
-                """
-                        select token_hash, user_id, family_id, expires_at, revoked_at
-                        from auth_refresh_token
-                        where token_hash = ?
-                        """,
-                rs -> {
-                    return mapOneOrNull(rs);
-                },
-                tokenHash.trim()
-        );
+        RefreshTokenSessionDataObject row = mapper.selectByTokenHash(tokenHash.trim());
+        return row == null ? null : row.toDomain();
     }
 
     public RefreshTokenSession consumeActive(String tokenHash, Instant now) {
@@ -81,18 +52,7 @@ public class MyBatisRefreshTokenSessionRepository implements com.nowcoder.commun
         if (record == null || record.revokedAt() != null || record.expiresAt() == null || !record.expiresAt().isAfter(now)) {
             return null;
         }
-        int updated = jdbcTemplate.update(
-                """
-                        update auth_refresh_token
-                        set revoked_at = ?
-                        where token_hash = ?
-                          and revoked_at is null
-                          and expires_at > ?
-                        """,
-                Timestamp.from(now),
-                tokenHash.trim(),
-                Timestamp.from(now)
-        );
+        int updated = mapper.consumeActive(tokenHash.trim(), now);
         if (updated <= 0) {
             return null;
         }
@@ -109,15 +69,7 @@ public class MyBatisRefreshTokenSessionRepository implements com.nowcoder.commun
         if (!StringUtils.hasText(tokenHash)) {
             return;
         }
-        jdbcTemplate.update(
-                """
-                        update auth_refresh_token
-                        set revoked_at = now()
-                        where token_hash = ?
-                          and revoked_at is null
-                        """,
-                tokenHash.trim()
-        );
+        mapper.revoke(tokenHash.trim());
     }
 
     @Override
@@ -126,23 +78,8 @@ public class MyBatisRefreshTokenSessionRepository implements com.nowcoder.commun
             return 0;
         }
         String family = familyId.trim();
-        jdbcTemplate.update(
-                """
-                        insert into auth_refresh_token_family_revocation(family_id, revoked_at)
-                        values (?, now())
-                        on duplicate key update revoked_at = values(revoked_at)
-                        """,
-                family
-        );
-        return jdbcTemplate.update(
-                """
-                        update auth_refresh_token
-                        set revoked_at = now()
-                        where family_id = ?
-                          and revoked_at is null
-                        """,
-                family
-        );
+        mapper.upsertFamilyRevocation(family);
+        return mapper.revokeFamilyTokens(family);
     }
 
     @Override
@@ -150,25 +87,8 @@ public class MyBatisRefreshTokenSessionRepository implements com.nowcoder.commun
         if (userId == null) {
             return 0;
         }
-        jdbcTemplate.update(
-                """
-                        insert into auth_refresh_token_family_revocation(family_id, revoked_at)
-                        select distinct family_id, now()
-                        from auth_refresh_token
-                        where user_id = ?
-                        on duplicate key update revoked_at = values(revoked_at)
-                        """,
-                BinaryUuidCodec.toBytes(userId)
-        );
-        return jdbcTemplate.update(
-                """
-                        update auth_refresh_token
-                        set revoked_at = now()
-                        where user_id = ?
-                          and revoked_at is null
-                        """,
-                BinaryUuidCodec.toBytes(userId)
-        );
+        mapper.upsertUserFamilyRevocations(userId);
+        return mapper.revokeUserTokens(userId);
     }
 
     @Override
@@ -176,28 +96,7 @@ public class MyBatisRefreshTokenSessionRepository implements com.nowcoder.commun
         if (cutoff == null) {
             return 0;
         }
-        return jdbcTemplate.update(
-                "delete from auth_refresh_token where expires_at <= ?",
-                Timestamp.from(cutoff)
-        );
-    }
-
-    private RefreshTokenSession mapOneOrNull(ResultSet rs) throws java.sql.SQLException {
-        if (rs == null || !rs.next()) {
-            return null;
-        }
-        String tokenHash = rs.getString("token_hash");
-        UUID userId = BinaryUuidCodec.fromBytes(rs.getBytes("user_id"));
-        String familyId = rs.getString("family_id");
-        Timestamp expiresAt = rs.getTimestamp("expires_at");
-        Timestamp revokedAt = rs.getTimestamp("revoked_at");
-        return new RefreshTokenSession(
-                tokenHash,
-                userId,
-                familyId,
-                expiresAt == null ? null : expiresAt.toInstant(),
-                revokedAt == null ? null : revokedAt.toInstant()
-        );
+        return mapper.deleteExpiredBefore(cutoff);
     }
 
 }

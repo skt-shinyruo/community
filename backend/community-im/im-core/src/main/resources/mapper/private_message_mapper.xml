@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.im.core.infrastructure.persistence.mapper.PrivateMessageMapper">
+
+    <sql id="fields">
+        conversation_id, seq, message_id, from_user_id, to_user_id, content, client_msg_id, created_at
+    </sql>
+
+    <resultMap id="privateMessageResultMap"
+               type="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.PrivateMessageDataObject">
+        <id property="conversationId" column="conversation_id"/>
+        <id property="seq" column="seq"/>
+        <result property="messageId" column="message_id" jdbcType="BINARY"/>
+        <result property="fromUserId" column="from_user_id" jdbcType="BINARY"/>
+        <result property="toUserId" column="to_user_id" jdbcType="BINARY"/>
+        <result property="content" column="content"/>
+        <result property="clientMsgId" column="client_msg_id"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectByIdempotency" resultMap="privateMessageResultMap">
+        select <include refid="fields"/>
+        from im_private_message
+        where conversation_id = #{conversationId}
+          and from_user_id = #{fromUserId, jdbcType=BINARY}
+          and client_msg_id = #{clientMsgId}
+    </select>
+
+    <insert id="insert" parameterType="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.PrivateMessageDataObject">
+        insert into im_private_message(
+            conversation_id, seq, message_id, from_user_id, to_user_id, content, client_msg_id, created_at
+        )
+        values (
+            #{conversationId},
+            #{seq},
+            #{messageId, jdbcType=BINARY},
+            #{fromUserId, jdbcType=BINARY},
+            #{toUserId, jdbcType=BINARY},
+            #{content},
+            #{clientMsgId},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectAfterSeq" resultMap="privateMessageResultMap">
+        select <include refid="fields"/>
+        from im_private_message
+        where conversation_id = #{conversationId}
+          and seq &gt; #{afterSeqExclusive}
+        order by seq asc
+        limit #{limit}
+    </select>
+
+</mapper>

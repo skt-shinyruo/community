@@ -74,6 +74,27 @@ class ImCoreControllerBoundaryTest {
                 .isEmpty();
     }
 
+    @Test
+    void productionPersistenceRepositoriesShouldNotUseJdbcTemplateDirectly() throws IOException {
+        Path sourceRoot = Path.of("src/main/java/com/nowcoder/community/im/core").toAbsolutePath().normalize();
+        List<String> violations;
+        try (var files = Files.walk(sourceRoot)) {
+            violations = files
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith("Repository.java"))
+                    .filter(path -> path.toString().contains("/infrastructure/persistence/"))
+                    .filter(path -> importsJdbcTemplate(path) || declaresJdbcRepository(path))
+                    .map(sourceRoot::relativize)
+                    .map(Path::toString)
+                    .sorted()
+                    .toList();
+        }
+
+        assertThat(violations)
+                .as("production IM persistence repositories should use MyBatis mappers, not JdbcTemplate")
+                .isEmpty();
+    }
+
     private static List<Class<?>> dependenciesOf(Class<?> controller) {
         List<Class<?>> fieldTypes = Arrays.stream(controller.getDeclaredFields())
                 .map(Field::getType)
@@ -103,5 +124,24 @@ class ImCoreControllerBoundaryTest {
                 || packageName.equals("com.nowcoder.community.im.core.service")
                 || packageName.equals("com.nowcoder.community.im.core.repository")
                 || packageName.startsWith("com.nowcoder.community.im.core.infrastructure.");
+    }
+
+    private static boolean importsJdbcTemplate(Path path) {
+        return read(path).contains("org.springframework.jdbc.core.JdbcTemplate");
+    }
+
+    private static boolean declaresJdbcRepository(Path path) {
+        if (!path.getFileName().toString().startsWith("Jdbc")) {
+            return false;
+        }
+        return read(path).contains("@Repository");
+    }
+
+    private static String read(Path path) {
+        try {
+            return Files.readString(path);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to read " + path, e);
+        }
     }
 }

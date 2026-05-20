@@ -31,6 +31,12 @@ spring:
 server:
   port: 0
 
+mybatis:
+  mapper-locations: classpath*:mapper/*.xml
+  type-handlers-package: com.nowcoder.community.im.core.infrastructure.persistence.typehandler
+  configuration:
+    map-underscore-to-camel-case: true
+
 community:
   logging:
     service-version: test

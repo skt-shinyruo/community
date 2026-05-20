@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.im.core.infrastructure.persistence.mapper.RoomMessageMapper">
+
+    <sql id="fields">
+        room_id, seq, message_id, from_user_id, content, client_msg_id, created_at
+    </sql>
+
+    <resultMap id="roomMessageResultMap"
+               type="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.RoomMessageDataObject">
+        <id property="roomId" column="room_id" jdbcType="BINARY"/>
+        <id property="seq" column="seq"/>
+        <result property="messageId" column="message_id" jdbcType="BINARY"/>
+        <result property="fromUserId" column="from_user_id" jdbcType="BINARY"/>
+        <result property="content" column="content"/>
+        <result property="clientMsgId" column="client_msg_id"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectByIdempotency" resultMap="roomMessageResultMap">
+        select <include refid="fields"/>
+        from im_room_message
+        where room_id = #{roomId, jdbcType=BINARY}
+          and from_user_id = #{fromUserId, jdbcType=BINARY}
+          and client_msg_id = #{clientMsgId}
+    </select>
+
+    <insert id="insert" parameterType="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.RoomMessageDataObject">
+        insert into im_room_message(room_id, seq, message_id, from_user_id, content, client_msg_id, created_at)
+        values (
+            #{roomId, jdbcType=BINARY},
+            #{seq},
+            #{messageId, jdbcType=BINARY},
+            #{fromUserId, jdbcType=BINARY},
+            #{content},
+            #{clientMsgId},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectAfterSeq" resultMap="roomMessageResultMap">
+        select <include refid="fields"/>
+        from im_room_message
+        where room_id = #{roomId, jdbcType=BINARY}
+          and seq &gt; #{afterSeqExclusive}
+        order by seq asc
+        limit #{limit}
+    </select>
+
+</mapper>

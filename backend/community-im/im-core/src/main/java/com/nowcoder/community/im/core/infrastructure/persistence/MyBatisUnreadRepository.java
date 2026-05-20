@@ -10,11 +10,11 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public class JdbcUnreadRepository implements UnreadRepository {
+public class MyBatisUnreadRepository implements UnreadRepository {
 
     private final UserInboxRepository userInboxRepository;
 
-    public JdbcUnreadRepository(UserInboxRepository userInboxRepository) {
+    public MyBatisUnreadRepository(UserInboxRepository userInboxRepository) {
         this.userInboxRepository = userInboxRepository;
     }
 

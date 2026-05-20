@@ -31,6 +31,31 @@ AuthController
 - auth domain 不直接依赖 user owner、Spring Web、MyBatis、Redis 或 HTTP DTO。
 - access token 不落库；refresh token 明文不落库。
 
+## Token 内容
+
+access token 是短期 JWT，由 `JwtTokenService.createAccessToken(...)` 签发，使用 HS256 和 `security.jwt.hmac-secret` 签名。客户端可以解码看到 payload，但不能伪造或修改。当前 claims：
+
+| Claim | 内容 |
+| --- | --- |
+| `iss` | `security.jwt.issuer`，默认 `community-auth` |
+| `iat` | 签发时间 |
+| `exp` | 过期时间，默认 `iat + 900s` |
+| `sub` | `userId` 字符串 |
+| `username` | 用户名 |
+| `authorities` | 当前用户权限 / 角色列表 |
+
+refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`username` 或权限。它是 opaque token：`AuthSecretGenerator.opaqueToken()` 生成 32 字节 `SecureRandom` 随机数，再使用 base64url 无填充编码，通常约 43 个字符。服务端把明文 refresh token 写入 `refresh_token` HttpOnly cookie；默认 DB store 只保存该明文的 SHA-256 hex hash。
+
+默认 DB refresh session 记录的是 refresh token 的服务端状态，而不是 token 本身的内容：
+
+| 字段 | 说明 |
+| --- | --- |
+| `token_hash` | refresh token 明文的 SHA-256 hex |
+| `user_id` | token 所属用户 |
+| `family_id` | 同一登录 / rotation 链路的 token family |
+| `expires_at` | refresh token 过期时间，默认 7 天 |
+| `revoked_at` | 被消费、登出、复用检测或统一撤销时写入 |
+
 ## HTTP 入口
 
 `CommunitySecurityConfig` 对 `/api/**` 和 `/internal/**` 使用 stateless session，禁用 CSRF，并通过 Spring Security resource server 验证 JWT。`AuthSecurityRules` 放行 auth 公开入口，其余接口默认要求认证。

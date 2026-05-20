@@ -60,6 +60,9 @@ tools/**/node_modules/
 .playwright-mcp/
 .vite/
 
+### Load testing ###
+temp/k6-results/
+
 ### Playwright single E2E ###
 tests/playwright-single/node_modules/
 tests/playwright-single/.auth/

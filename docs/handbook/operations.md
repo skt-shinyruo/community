@@ -1,6 +1,6 @@
 # 运行与排障
 
-本文档覆盖本地 observability、Kibana、IM 压测、XXL-Job、outbox worker、scheduler 和常见故障检查。本地启动命令见 [local-development.md](local-development.md)，可靠性机制见 [reliability.md](reliability.md)。
+本文档覆盖本地 observability、Kibana、XXL-Job、outbox worker、scheduler 和常见故障检查。本地启动命令见 [local-development.md](local-development.md)，压测套件见 [performance-testing.md](performance-testing.md)，可靠性机制见 [reliability.md](reliability.md)。
 
 ## Observability
 

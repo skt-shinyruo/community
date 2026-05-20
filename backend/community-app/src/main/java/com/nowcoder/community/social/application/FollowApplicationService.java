@@ -98,41 +98,24 @@ public class FollowApplicationService {
     }
 
     public boolean hasFollowed(UUID actorUserId, int entityType, UUID entityId) {
-        if (actorUserId == null || entityType <= 0 || entityId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "参数错误");
-        }
-        if (entityType != USER) {
-            return false;
-        }
+        validateFollowRelationQuery(actorUserId, entityType, entityId);
         return followRepository.hasFollowed(actorUserId, entityType, entityId);
     }
 
     public long followeeCount(UUID userId, int entityType) {
-        if (userId == null || entityType <= 0) {
-            throw new BusinessException(INVALID_ARGUMENT, "参数错误");
-        }
-        if (entityType != USER) {
-            return 0;
-        }
+        validateFollowUserQuery(userId, entityType);
         return followRepository.countFolloweesExcludingBlocked(userId, entityType, blockRepository);
     }
 
     public long followerCount(int entityType, UUID entityId) {
-        if (entityType <= 0 || entityId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "参数错误");
-        }
-        if (entityType != USER) {
-            return 0;
-        }
+        validateFollowTargetQuery(entityType, entityId);
         return followRepository.countFollowersExcludingBlocked(entityType, entityId, blockRepository);
     }
 
     public List<FollowRelationResult> listFollowees(UUID userId, int entityType, int page, int size) {
+        validateFollowUserQuery(userId, entityType);
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
-        if (entityType != USER) {
-            return List.of();
-        }
         return followRepository.listFolloweesExcludingBlocked(userId, entityType, blockRepository, Pagination.safeOffset(p, s), s)
                 .stream()
                 .map(this::toResult)
@@ -140,15 +123,40 @@ public class FollowApplicationService {
     }
 
     public List<FollowRelationResult> listFollowers(int entityType, UUID entityId, int page, int size) {
+        validateFollowTargetQuery(entityType, entityId);
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
-        if (entityType != USER) {
-            return List.of();
-        }
         return followRepository.listFollowersExcludingBlocked(entityType, entityId, blockRepository, Pagination.safeOffset(p, s), s)
                 .stream()
                 .map(this::toResult)
                 .toList();
+    }
+
+    private void validateFollowRelationQuery(UUID actorUserId, int entityType, UUID entityId) {
+        if (actorUserId == null || entityType <= 0 || entityId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "参数错误");
+        }
+        validateUserOnlyEntityType(entityType);
+    }
+
+    private void validateFollowUserQuery(UUID userId, int entityType) {
+        if (userId == null || entityType <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "参数错误");
+        }
+        validateUserOnlyEntityType(entityType);
+    }
+
+    private void validateFollowTargetQuery(int entityType, UUID entityId) {
+        if (entityType <= 0 || entityId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "参数错误");
+        }
+        validateUserOnlyEntityType(entityType);
+    }
+
+    private void validateUserOnlyEntityType(int entityType) {
+        if (entityType != USER) {
+            throw new BusinessException(INVALID_ARGUMENT, "follow 仅支持 USER");
+        }
     }
 
     private FollowRelationResult toResult(FollowRelation relation) {

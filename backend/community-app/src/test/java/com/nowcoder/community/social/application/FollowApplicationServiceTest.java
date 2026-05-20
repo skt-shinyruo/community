@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static com.nowcoder.community.common.constants.EntityTypes.POST;
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,6 +58,36 @@ class FollowApplicationServiceTest {
 
         assertThat(service.hasFollowed(actorUserId, USER, targetUserId)).isFalse();
         assertThat(publisher.snapshot()).isEmpty();
+    }
+
+    @Test
+    void followUseCasesShouldRejectNonUserEntityTypeAtApplicationBoundary() {
+        StatefulFollowRepository repo = new StatefulFollowRepository();
+        FollowApplicationService service = newService(repo, new StatefulBlockRepository(), new RecordingSocialDomainEventPublisher());
+        UUID actorUserId = uuid(1);
+        UUID targetUserId = uuid(2);
+
+        assertThatThrownBy(() -> service.follow(new FollowCommand(actorUserId, POST, targetUserId)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.unfollow(new UnfollowCommand(actorUserId, POST, targetUserId)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.hasFollowed(actorUserId, POST, targetUserId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.followeeCount(actorUserId, POST))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.followerCount(POST, targetUserId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.listFollowees(actorUserId, POST, 0, 10))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.listFollowers(POST, targetUserId, 0, 10))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
     }
 
     @Test

@@ -336,6 +336,7 @@ MarketWalletActionProcessorHandler
 
 - processor 成功调用 wallet 后崩溃，恢复任务通过已有 `wallet_txn_id` 继续推进订单状态并标记 action succeeded。
 - 订单处于资金 pending 状态但缺少 command 时，恢复任务会补写对应 escrow / release / refund command。
+- pending 订单应补写哪一种资金 command 由 `MarketOrder.pendingWalletActionType()` 判断，避免恢复任务维护一份独立订单状态映射。
 - escrow 还没落账就取消时，escrow action 可变成 `CANCELLED` + `NOOP`，订单无退款取消，并恢复 market 侧库存。
 - escrow 已落账但订单已接受取消时，saga 会把订单转成 refund pending 并补写 refund command。
 - release / refund 遇到可恢复钱包错误会回到 retrying；不会把订单静默推进为完成。

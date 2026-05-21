@@ -57,11 +57,13 @@
 
 市场域的数据流的核心是“订单状态”和“资金 saga”分离：
 
-1. 下单：`MarketOrderApplicationService` 先校验 listing、库存、地址和总额，再创建订单并把状态置为 `ESCROW_PENDING`。如果是有限库存或预加载虚拟库存，库存会先被锁定或扣减。
+1. 下单：`MarketOrderApplicationService` 先校验 listing、库存、地址和总额，再通过 `MarketOrder.place(...)` 创建订单，订单初始进入 `ESCROW_PENDING`。如果是有限库存或预加载虚拟库存，库存会先被锁定或扣减。
 2. 托管：市场本地只写 `market_wallet_action(ESCROW, PENDING)` 作为 durable command，不直接碰 wallet 账本。`request_id` 由订单和动作派生，保证重复 enqueue 语义一致。
 3. processor：`MarketWalletActionProcessorHandler` 轮询 due action，claim 后在 market 事务外调用 `WalletMarketActionApi`。wallet 成功后返回 `wallet_txn_id`，market 再把订单推进到 `ESCROWED`、`RELEASE_PENDING`、`REFUND_PENDING` 或完成态。
-4. 确认 / 取消 / 争议：卖家交付、买家确认、买家取消和管理员裁决都只是改变 market 侧状态并追加 release/refund action；真正放款或退款仍由 wallet owner 完成。
-5. 恢复：`MarketWalletActionRecoveryHandler` 负责恢复过期 lease、补齐漏写 command、把已有 `wallet_txn_id` 重新应用到 saga 状态，避免钱包和订单长期分叉。
+4. 确认 / 取消 / 争议：卖家交付、买家确认、买家取消和管理员裁决先由 `MarketOrder` 判断角色、商品类型、状态和流转意图，再由 application service 持久化 market 侧状态并追加 release/refund action；真正放款或退款仍由 wallet owner 完成。
+5. 恢复：`MarketWalletActionRecoveryHandler` 负责恢复过期 lease、补齐漏写 command、把已有 `wallet_txn_id` 重新应用到 saga 状态。恢复服务通过 `MarketOrder` 判断 pending 状态对应的资金动作，避免钱包和订单长期分叉。
+
+`MarketOrder` 拥有订单创建快照、重放参数兼容性、买卖双方角色校验、状态谓词、自动确认到期判断和订单状态 transition intent。application service 保留事务边界、仓储锁定、库存写入、交付/发货记录、wallet action enqueue 和结果组装。
 
 ## 商品和库存
 
@@ -147,8 +149,8 @@
 7. 校验购买数量、库存和订单总额上限。
 8. 预加载虚拟商品锁定指定数量的 available inventory units。
 9. 实物商品校验 active 地址并保存地址快照。
-10. 创建订单，初始状态 `ESCROW_PENDING`。
-11. 有限库存扣减 listing 可用库存；扣到 0 时 listing 变 `SOLD_OUT`。
+10. 通过 `MarketOrder.place(...)` 创建订单，领域模型保存商品、交付、库存、地址快照并给出初始 `ESCROW_PENDING` 状态。
+11. 有限库存扣减 listing 可用库存；扣到 0 时 listing 状态由 `MarketListing` 库存 helper 计算为 `SOLD_OUT`。
 12. 预加载库存绑定到订单。
 13. 写 `market_wallet_action` 的 ESCROW durable command。
 14. 返回重新加载后的订单结果。
@@ -160,18 +162,18 @@
 虚拟手动交付：
 
 1. 卖家操作。
-2. 订单必须属于该卖家。
-3. goodsType 必须是 `VIRTUAL`。
-4. 状态必须是 `ESCROWED`。
-5. deliveryMode 必须是 `MANUAL`。
+2. `MarketOrder` 校验订单必须属于该卖家。
+3. `MarketOrder` 校验 goodsType 必须是 `VIRTUAL`。
+4. `MarketOrder` 校验状态必须是 `ESCROWED`。
+5. `MarketOrder` 校验 deliveryMode 必须是 `MANUAL`。
 6. 写 `MarketDelivery`。
 7. 标记订单 `DELIVERED`，并设置自动确认时间。
 
 实物发货：
 
 1. 卖家操作。
-2. goodsType 必须是 `PHYSICAL`。
-3. 状态必须是 `ESCROWED`。
+2. `MarketOrder` 校验 goodsType 必须是 `PHYSICAL`。
+3. `MarketOrder` 校验状态必须是 `ESCROWED`。
 4. carrierName 和 trackingNo 必须非空。
 5. 写 shipment。
 6. 标记订单 `SHIPPED`，并设置自动确认时间。
@@ -179,8 +181,8 @@
 买家确认：
 
 1. 买家操作。
-2. 状态必须是 `DELIVERED` 或 `SHIPPED`。
-3. 将订单标记为 `RELEASE_PENDING`。
+2. `MarketOrder` 校验状态必须是 `DELIVERED` 或 `SHIPPED`。
+3. 通过 `MarketOrder.requestRelease()` 请求把订单标记为 `RELEASE_PENDING`。
 4. 写 RELEASE wallet action。
 
 买家取消：

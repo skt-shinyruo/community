@@ -46,6 +46,17 @@ class MarketOrderTest {
     }
 
     @Test
+    void assertReplayMatchesShouldRejectFallbackSnapshotWithDifferentAddressId() {
+        MarketOrder order = MarketOrder.place(physicalPlacement());
+        order.setAddressIdSnapshot(null);
+
+        assertThatThrownBy(() -> order.assertReplayMatches(uuid(4), uuid(2), 1, uuid(5), addressSnapshot(uuid(6))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(MarketErrorCode.REQUEST_REPLAY_CONFLICT));
+    }
+
+    @Test
     void assertBuyerAndSellerShouldRejectWrongActor() {
         MarketOrder order = MarketOrder.place(physicalPlacement());
 
@@ -110,6 +121,15 @@ class MarketOrderTest {
         assertThat(order.isAutoConfirmDue(now)).isFalse();
     }
 
+    @Test
+    void autoConfirmShouldReturnFalseWhenNowIsNull() {
+        MarketOrder order = MarketOrder.place(physicalPlacement());
+        order.setStatus("DELIVERED");
+        order.setAutoConfirmAt(new Date(500L));
+
+        assertThat(order.isAutoConfirmDue(null)).isFalse();
+    }
+
     private static MarketOrderPlacement physicalPlacement() {
         return new MarketOrderPlacement(
                 uuid(1),
@@ -123,16 +143,20 @@ class MarketOrderTest {
                 12_900L,
                 MarketDeliveryMode.MANUAL,
                 "Used keyboard",
-                new MarketAddressSnapshot(
-                        uuid(5),
-                        "Buyer",
-                        "13800000000",
-                        "Zhejiang",
-                        "Hangzhou",
-                        "Xihu",
-                        "Wensan Road 1",
-                        "310000"
-                )
+                addressSnapshot(uuid(5))
+        );
+    }
+
+    private static MarketAddressSnapshot addressSnapshot(UUID addressId) {
+        return new MarketAddressSnapshot(
+                addressId,
+                "Buyer",
+                "13800000000",
+                "Zhejiang",
+                "Hangzhou",
+                "Xihu",
+                "Wensan Road 1",
+                "310000"
         );
     }
 

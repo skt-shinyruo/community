@@ -24,6 +24,8 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -39,6 +41,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 public class LikeApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(LikeApplicationService.class);
+    private static final int MAX_BATCH_ENTITY_IDS = 200;
 
     private final LikeRepository likeRepository;
     private final BlockRepository blockRepository;
@@ -127,42 +130,43 @@ public class LikeApplicationService {
     }
 
     public boolean isLiked(UUID actorUserId, int entityType, UUID entityId) {
-        if (actorUserId == null || entityType <= 0 || entityId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "参数错误");
+        if (actorUserId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
         }
+        validateLikeEntity(entityType, entityId);
         return likeRepository.isLiked(actorUserId, entityType, entityId);
     }
 
     public long count(int entityType, UUID entityId) {
-        if (entityType <= 0 || entityId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "参数错误");
-        }
+        validateLikeEntity(entityType, entityId);
         return likeRepository.countEntityLikes(entityType, entityId);
     }
 
     @Transactional
     public long cleanupEntityLikes(int entityType, UUID entityId) {
-        if (entityType <= 0 || entityId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "参数错误");
-        }
+        validateLikeEntity(entityType, entityId);
         return likeRepository.deleteLikesByEntity(entityType, entityId);
     }
 
     public Map<UUID, Long> counts(int entityType, List<UUID> entityIds) {
-        if (entityType <= 0) {
-            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
+        validateLikeEntityType(entityType);
+        List<UUID> ids = normalizeBatchEntityIds(entityIds);
+        if (ids.isEmpty()) {
+            return Map.of();
         }
-        return likeRepository.countEntityLikesBatch(entityType, entityIds);
+        return likeRepository.countEntityLikesBatch(entityType, ids);
     }
 
     public Map<UUID, Boolean> statuses(UUID actorUserId, int entityType, List<UUID> entityIds) {
         if (actorUserId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
         }
-        if (entityType <= 0) {
-            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
+        validateLikeEntityType(entityType);
+        List<UUID> ids = normalizeBatchEntityIds(entityIds);
+        if (ids.isEmpty()) {
+            return Map.of();
         }
-        return likeRepository.likedStatusesBatch(actorUserId, entityType, entityIds);
+        return likeRepository.likedStatusesBatch(actorUserId, entityType, ids);
     }
 
     public long userLikeCount(UUID userId) {
@@ -170,6 +174,36 @@ public class LikeApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         return likeRepository.getUserLikeCount(userId);
+    }
+
+    private void validateLikeEntity(int entityType, UUID entityId) {
+        validateLikeEntityType(entityType);
+        if (entityId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "entityId 非法");
+        }
+    }
+
+    private void validateLikeEntityType(int entityType) {
+        if (entityType != USER && entityType != POST && entityType != COMMENT) {
+            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
+        }
+    }
+
+    private List<UUID> normalizeBatchEntityIds(List<UUID> entityIds) {
+        if (entityIds == null || entityIds.isEmpty()) {
+            return List.of();
+        }
+        if (entityIds.size() > MAX_BATCH_ENTITY_IDS) {
+            throw new BusinessException(INVALID_ARGUMENT, "entityIds 不能超过200");
+        }
+        LinkedHashSet<UUID> uniqueIds = new LinkedHashSet<>();
+        for (UUID entityId : entityIds) {
+            if (entityId == null) {
+                throw new BusinessException(INVALID_ARGUMENT, "entityIds 非法");
+            }
+            uniqueIds.add(entityId);
+        }
+        return new ArrayList<>(uniqueIds);
     }
 
     private ResolvedSocialEntity resolveEntity(int entityType, UUID entityId) {

@@ -17,14 +17,6 @@ import java.util.UUID;
 @Service
 public class MarketOrderSagaApplicationService {
 
-    private static final String GOODS_TYPE_PHYSICAL = "PHYSICAL";
-    private static final String STOCK_MODE_FINITE = "FINITE";
-    private static final String STATUS_ACTIVE = "ACTIVE";
-    private static final String STATUS_SOLD_OUT = "SOLD_OUT";
-    private static final String STATUS_ESCROW_PENDING = "ESCROW_PENDING";
-    private static final String STATUS_ESCROW_CANCEL_PENDING = "ESCROW_CANCEL_PENDING";
-    private static final String DELIVERY_MODE_PRELOADED = "PRELOADED";
-
     private final MarketOrderRepository marketOrderRepository;
     private final MarketListingRepository marketListingRepository;
     private final MarketInventoryRepository marketInventoryRepository;
@@ -41,7 +33,7 @@ public class MarketOrderSagaApplicationService {
     @Transactional(readOnly = true)
     public boolean canApplyEscrow(UUID orderId) {
         MarketOrder order = marketOrderRepository.findById(orderId);
-        return order != null && STATUS_ESCROW_PENDING.equals(order.getStatus());
+        return order != null && order.isEscrowPending();
     }
 
     @Transactional
@@ -76,7 +68,7 @@ public class MarketOrderSagaApplicationService {
             return;
         }
         int updated = marketOrderRepository.markEscrowFailed(orderId);
-        if (updated != 1 && STATUS_ESCROW_CANCEL_PENDING.equals(order.getStatus())) {
+        if (updated != 1 && order.isEscrowCancelPending()) {
             updated = marketOrderRepository.markCancelledNoRefund(orderId);
         }
         if (updated == 1) {
@@ -107,7 +99,7 @@ public class MarketOrderSagaApplicationService {
     }
 
     private void deliverPreloadedInventoryIfNeeded(MarketOrder order) {
-        if (order == null || !DELIVERY_MODE_PRELOADED.equals(order.getDeliveryModeSnapshot())) {
+        if (order == null || !order.isPreloadedDelivery()) {
             return;
         }
         Date deliveredAt = new Date();
@@ -120,25 +112,17 @@ public class MarketOrderSagaApplicationService {
             return;
         }
         MarketListing listing = marketListingRepository.lockById(order.getListingId());
-        if (listing != null && isFiniteStock(listing)) {
-            int nextAvailable = listing.getStockAvailable() + order.getQuantity();
-            String nextStatus = STATUS_SOLD_OUT.equals(listing.getStatus()) && nextAvailable > 0
-                    ? STATUS_ACTIVE
-                    : listing.getStatus();
+        if (listing != null && listing.isFiniteStock()) {
             marketListingRepository.adjustStock(
                     listing.getListingId(),
                     listing.getSellerUserId(),
                     0,
                     order.getQuantity(),
-                    nextStatus
+                    listing.statusAfterStockRestoredBy(order.getQuantity())
             );
         }
-        if (DELIVERY_MODE_PRELOADED.equals(order.getDeliveryModeSnapshot())) {
+        if (order.isPreloadedDelivery()) {
             marketInventoryRepository.releaseReservedByOrderIfNeeded(order.getOrderId());
         }
-    }
-
-    private boolean isFiniteStock(MarketListing listing) {
-        return GOODS_TYPE_PHYSICAL.equals(listing.getGoodsType()) || STOCK_MODE_FINITE.equals(listing.getStockMode());
     }
 }

@@ -7,6 +7,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MarketListingTest {
 
     @Test
+    void listingStatusShouldResolvePersistedCodes() {
+        assertThat(MarketListingStatus.fromCode("ACTIVE")).isEqualTo(MarketListingStatus.ACTIVE);
+        assertThat(MarketListingStatus.fromCode("SOLD_OUT")).isEqualTo(MarketListingStatus.SOLD_OUT);
+        assertThat(MarketListingStatus.fromCode("PAUSED")).isEqualTo(MarketListingStatus.PAUSED);
+        assertThat(MarketListingStatus.fromCode("CLOSED")).isEqualTo(MarketListingStatus.CLOSED);
+    }
+
+    @Test
     void physicalListingShouldUseFiniteStockEvenWhenStockModeIsUnlimited() {
         MarketListing listing = listing("PHYSICAL", "MANUAL", "UNLIMITED", 5, "ACTIVE");
 
@@ -14,6 +22,14 @@ class MarketListingTest {
         assertThat(listing.deliveryMode()).isEqualTo(MarketDeliveryMode.MANUAL);
         assertThat(listing.stockMode()).isEqualTo(MarketStockMode.UNLIMITED);
         assertThat(listing.isActive()).isTrue();
+        assertThat(listing.isFiniteStock()).isTrue();
+    }
+
+    @Test
+    void physicalListingShouldTreatNullDeliveryAsNotPreloaded() {
+        MarketListing listing = listing("PHYSICAL", null, "UNLIMITED", 5, "ACTIVE");
+
+        assertThat(listing.isPreloadedDelivery()).isFalse();
         assertThat(listing.isFiniteStock()).isTrue();
     }
 
@@ -33,10 +49,24 @@ class MarketListingTest {
     }
 
     @Test
+    void stockDecreaseShouldPreserveCurrentStatusWhenNextAvailableIsPositive() {
+        MarketListing listing = listing("VIRTUAL", "MANUAL", "FINITE", 2, "ACTIVE");
+
+        assertThat(listing.statusAfterStockDecreasedBy(1)).isEqualTo("ACTIVE");
+    }
+
+    @Test
     void stockRestoreShouldReactivateSoldOutListingWhenAvailableBecomesPositive() {
         MarketListing listing = listing("VIRTUAL", "MANUAL", "FINITE", 0, "SOLD_OUT");
 
         assertThat(listing.statusAfterStockRestoredBy(1)).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void stockRestoreShouldPreserveCurrentStatusWhenListingIsNotSoldOut() {
+        MarketListing listing = listing("VIRTUAL", "MANUAL", "FINITE", 1, "PAUSED");
+
+        assertThat(listing.statusAfterStockRestoredBy(1)).isEqualTo("PAUSED");
     }
 
     private MarketListing listing(

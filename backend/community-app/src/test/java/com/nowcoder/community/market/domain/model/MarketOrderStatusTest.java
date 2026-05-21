@@ -50,4 +50,15 @@ class MarketOrderStatusTest {
                 .isEqualTo(MarketWalletActionType.REFUND);
         assertThat(MarketOrderStatus.COMPLETED.pendingWalletActionType()).isNull();
     }
+
+    @Test
+    void lifecyclePredicatesShouldOnlyMatchDeliveredAndShipped() {
+        assertThat(MarketOrderStatus.DELIVERED.isConfirmable()).isTrue();
+        assertThat(MarketOrderStatus.DELIVERED.isDisputable()).isTrue();
+        assertThat(MarketOrderStatus.SHIPPED.isConfirmable()).isTrue();
+        assertThat(MarketOrderStatus.SHIPPED.isDisputable()).isTrue();
+
+        assertThat(MarketOrderStatus.ESCROW_PENDING.isConfirmable()).isFalse();
+        assertThat(MarketOrderStatus.ESCROW_PENDING.isDisputable()).isFalse();
+    }
 }

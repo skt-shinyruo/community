@@ -9,11 +9,13 @@ import com.nowcoder.community.infra.idempotency.RequestFingerprint;
 import com.nowcoder.community.market.application.command.CreateMarketOrderCommand;
 import com.nowcoder.community.market.application.result.MarketOrderResult;
 import com.nowcoder.community.market.domain.model.MarketAddress;
+import com.nowcoder.community.market.domain.model.MarketAddressSnapshot;
 import com.nowcoder.community.market.domain.model.MarketDelivery;
+import com.nowcoder.community.market.domain.model.MarketDeliveryMode;
 import com.nowcoder.community.market.domain.model.MarketInventoryUnit;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
-import com.nowcoder.community.market.exception.MarketErrorCode;
+import com.nowcoder.community.market.domain.model.MarketOrderPlacement;
 import com.nowcoder.community.market.domain.repository.MarketAddressRepository;
 import com.nowcoder.community.market.domain.repository.MarketDeliveryRepository;
 import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
@@ -40,17 +42,10 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 @Service
 public class MarketOrderApplicationService {
 
-    private static final String GOODS_TYPE_PHYSICAL = "PHYSICAL";
-    private static final String GOODS_TYPE_VIRTUAL = "VIRTUAL";
-    private static final String STATUS_ACTIVE = "ACTIVE";
-    private static final String STATUS_ESCROW_PENDING = "ESCROW_PENDING";
     private static final String STATUS_ESCROWED = "ESCROWED";
     private static final String STATUS_DELIVERED = "DELIVERED";
     private static final String STATUS_SHIPPED = "SHIPPED";
-    private static final String STATUS_SOLD_OUT = "SOLD_OUT";
-    private static final String STOCK_MODE_FINITE = "FINITE";
     private static final String DELIVERY_MODE_MANUAL = "MANUAL";
-    private static final String DELIVERY_MODE_PRELOADED = "PRELOADED";
     private static final String DELIVERY_TYPE_MANUAL_TEXT = "MANUAL_TEXT";
     private static final String DELIVERY_STATUS_DELIVERED = "DELIVERED";
     private static final long MAX_ORDER_TOTAL_AMOUNT = 100_000_000L;
@@ -161,14 +156,16 @@ public class MarketOrderApplicationService {
         validateCreateOrderRequest(requestId, buyerUserId, listingId, quantity);
         MarketOrder existing = marketOrderRepository.findByBuyerUserIdAndRequestId(buyerUserId, requestId);
         if (existing != null) {
-            ensureReplayMatches(existing, buyerUserId, listingId, quantity, addressId);
+            existing.assertReplayMatches(buyerUserId, listingId, quantity, addressId,
+                    replayAddressSnapshot(existing, buyerUserId, addressId));
             return MarketOrderResult.from(existing);
         }
 
         MarketListing listing = requireListingForUpdate(listingId);
         existing = marketOrderRepository.lockByBuyerUserIdAndRequestId(buyerUserId, requestId);
         if (existing != null) {
-            ensureReplayMatches(existing, buyerUserId, listingId, quantity, addressId);
+            existing.assertReplayMatches(buyerUserId, listingId, quantity, addressId,
+                    replayAddressSnapshot(existing, buyerUserId, addressId));
             return MarketOrderResult.from(existing);
         }
 
@@ -178,39 +175,39 @@ public class MarketOrderApplicationService {
         List<MarketInventoryUnit> reservedUnits = reserveInventoryIfNeeded(listing, quantity);
 
         UUID orderId = idGenerator.next();
-
-        MarketOrder order = new MarketOrder();
-        order.setOrderId(orderId);
-        order.setRequestId(requestId);
-        order.setListingId(listing.getListingId());
-        order.setGoodsType(listing.getGoodsType());
-        order.setSellerUserId(listing.getSellerUserId());
-        order.setBuyerUserId(buyerUserId);
-        order.setQuantity(quantity);
-        order.setUnitPriceSnapshot(listing.getUnitPrice());
-        order.setTotalAmount(totalAmount);
-        order.setDeliveryModeSnapshot(listing.getDeliveryMode());
-        order.setListingTitleSnapshot(listing.getTitle());
-        order.setStatus(STATUS_ESCROW_PENDING);
-        order.setEscrowTxnId(null);
-        if (GOODS_TYPE_PHYSICAL.equals(listing.getGoodsType())) {
-            MarketAddress address = requireActiveAddress(addressId, buyerUserId);
-            order.setAddressIdSnapshot(address.getAddressId());
-            snapshotAddress(order, address);
+        MarketAddressSnapshot addressSnapshot = null;
+        if (listing.goodsType().isPhysical()) {
+            addressSnapshot = MarketAddressSnapshot.from(requireActiveAddress(addressId, buyerUserId));
         }
+
+        MarketOrder order = MarketOrder.place(new MarketOrderPlacement(
+                orderId,
+                requestId,
+                listing.getListingId(),
+                listing.goodsType(),
+                listing.getSellerUserId(),
+                buyerUserId,
+                quantity,
+                listing.getUnitPrice(),
+                totalAmount,
+                deliveryModeSnapshot(listing),
+                listing.getTitle(),
+                addressSnapshot
+        ));
         try {
             marketOrderRepository.save(order);
         } catch (DataIntegrityViolationException ex) {
             MarketOrder duplicated = marketOrderRepository.lockByBuyerUserIdAndRequestId(buyerUserId, requestId);
             if (duplicated != null) {
-                ensureReplayMatches(duplicated, buyerUserId, listingId, quantity, addressId);
+                duplicated.assertReplayMatches(buyerUserId, listingId, quantity, addressId,
+                        replayAddressSnapshot(duplicated, buyerUserId, addressId));
                 return MarketOrderResult.from(duplicated);
             }
             throw ex;
         }
 
         adjustFiniteStockAfterOrder(listing, quantity);
-        if (DELIVERY_MODE_PRELOADED.equals(listing.getDeliveryMode())) {
+        if (listing.isPreloadedDelivery()) {
             reserveUnitsForOrder(order.getOrderId(), reservedUnits);
         }
         marketWalletActionService.enqueueEscrow(
@@ -230,7 +227,7 @@ public class MarketOrderApplicationService {
         }
         MarketOrder order = requireOrderForUpdate(orderId);
         requireSeller(order, sellerUserId);
-        requireGoodsType(order, GOODS_TYPE_VIRTUAL);
+        requireGoodsType(order, "VIRTUAL");
         requireStatus(order, STATUS_ESCROWED);
         if (!DELIVERY_MODE_MANUAL.equals(order.getDeliveryModeSnapshot())) {
             throw new BusinessException(INVALID_ARGUMENT, "order is not MANUAL delivery: orderId=" + orderId);
@@ -281,7 +278,7 @@ public class MarketOrderApplicationService {
         }
         MarketOrder order = requireOrderForUpdate(orderId);
         requireSeller(order, sellerUserId);
-        requireGoodsType(order, GOODS_TYPE_PHYSICAL);
+        requireGoodsType(order, "PHYSICAL");
         requireStatus(order, STATUS_ESCROWED);
 
         var shipment = new com.nowcoder.community.market.domain.model.MarketShipment();
@@ -309,7 +306,7 @@ public class MarketOrderApplicationService {
             }
             return MarketOrderResult.from(reloadOrder(orderId));
         }
-        if (STATUS_ESCROW_PENDING.equals(order.getStatus())) {
+        if ("ESCROW_PENDING".equals(order.getStatus())) {
             int updated = marketOrderRepository.markEscrowCancelPending(orderId);
             if (updated == 1 && marketWalletActionService.cancelPendingEscrowIfPossible(orderId)) {
                 marketOrderSagaService.completeEscrowNoop(orderId);
@@ -343,7 +340,7 @@ public class MarketOrderApplicationService {
     }
 
     private void requireActiveListing(MarketListing listing) {
-        if (!STATUS_ACTIVE.equals(listing.getStatus())) {
+        if (!listing.isActive()) {
             throw new BusinessException(INVALID_ARGUMENT, "market listing is not active: listingId=" + listing.getListingId());
         }
     }
@@ -353,18 +350,13 @@ public class MarketOrderApplicationService {
         if (quantity < listing.getMinPurchaseQuantity() || quantity > listing.getMaxPurchaseQuantity()) {
             throw new BusinessException(INVALID_ARGUMENT, "quantity is outside listing purchase limits: listingId=" + listing.getListingId());
         }
-        boolean finiteStock = GOODS_TYPE_PHYSICAL.equals(listing.getGoodsType()) || STOCK_MODE_FINITE.equals(listing.getStockMode());
-        if (finiteStock && listing.getStockAvailable() < quantity) {
+        if (listing.isFiniteStock() && listing.getStockAvailable() < quantity) {
             throw new BusinessException(INVALID_ARGUMENT, "listing stock is insufficient: listingId=" + listing.getListingId());
         }
     }
 
-    private boolean isFiniteStock(MarketListing listing) {
-        return GOODS_TYPE_PHYSICAL.equals(listing.getGoodsType()) || STOCK_MODE_FINITE.equals(listing.getStockMode());
-    }
-
     private List<MarketInventoryUnit> reserveInventoryIfNeeded(MarketListing listing, int quantity) {
-        if (!GOODS_TYPE_VIRTUAL.equals(listing.getGoodsType()) || !DELIVERY_MODE_PRELOADED.equals(listing.getDeliveryMode())) {
+        if (!listing.goodsType().isVirtual() || !listing.isPreloadedDelivery()) {
             return List.of();
         }
         List<MarketInventoryUnit> units = marketInventoryRepository.lockAvailable(listing.getListingId(), quantity);
@@ -388,13 +380,16 @@ public class MarketOrderApplicationService {
     }
 
     private void adjustFiniteStockAfterOrder(MarketListing listing, int quantity) {
-        boolean finiteStock = isFiniteStock(listing);
-        if (!finiteStock) {
+        if (!listing.isFiniteStock()) {
             return;
         }
-        int nextAvailable = listing.getStockAvailable() - quantity;
-        String nextStatus = nextAvailable <= 0 ? STATUS_SOLD_OUT : listing.getStatus();
-        marketListingRepository.adjustStock(listing.getListingId(), listing.getSellerUserId(), 0, -quantity, nextStatus);
+        marketListingRepository.adjustStock(
+                listing.getListingId(),
+                listing.getSellerUserId(),
+                0,
+                -quantity,
+                listing.statusAfterStockDecreasedBy(quantity)
+        );
     }
 
     private void reserveUnitsForOrder(UUID orderId, List<MarketInventoryUnit> units) {
@@ -420,48 +415,22 @@ public class MarketOrderApplicationService {
         return address;
     }
 
-    private void ensureReplayMatches(MarketOrder order, UUID buyerUserId, UUID listingId, int quantity, UUID addressId) {
-        if (!Objects.equals(order.getBuyerUserId(), buyerUserId)
-                || !Objects.equals(order.getListingId(), listingId)
-                || order.getQuantity() != quantity
-                || !addressMatchesReplay(order, buyerUserId, addressId)) {
-            throw new BusinessException(
-                    MarketErrorCode.REQUEST_REPLAY_CONFLICT,
-                    "requestId replay conflict: requestId=" + order.getRequestId()
-            );
-        }
-    }
-
-    private boolean addressMatchesReplay(MarketOrder order, UUID buyerUserId, UUID addressId) {
-        if (!GOODS_TYPE_PHYSICAL.equals(order.getGoodsType())) {
-            return true;
-        }
-        if (order.getAddressIdSnapshot() != null) {
-            return Objects.equals(order.getAddressIdSnapshot(), addressId);
-        }
-        if (addressId == null) {
-            return false;
+    private MarketAddressSnapshot replayAddressSnapshot(MarketOrder order, UUID buyerUserId, UUID addressId) {
+        if (!order.goodsType().isPhysical() || order.getAddressIdSnapshot() != null || addressId == null) {
+            return null;
         }
         MarketAddress address = marketAddressRepository.findById(addressId);
-        return address != null
-                && Objects.equals(address.getUserId(), buyerUserId)
-                && Objects.equals(address.getReceiverName(), order.getReceiverNameSnapshot())
-                && Objects.equals(address.getReceiverPhone(), order.getReceiverPhoneSnapshot())
-                && Objects.equals(address.getProvince(), order.getProvinceSnapshot())
-                && Objects.equals(address.getCity(), order.getCitySnapshot())
-                && Objects.equals(address.getDistrict(), order.getDistrictSnapshot())
-                && Objects.equals(address.getDetailAddress(), order.getDetailAddressSnapshot())
-                && Objects.equals(address.getPostalCode(), order.getPostalCodeSnapshot());
+        if (address == null || !Objects.equals(address.getUserId(), buyerUserId)) {
+            return null;
+        }
+        return MarketAddressSnapshot.from(address);
     }
 
-    private void snapshotAddress(MarketOrder order, MarketAddress address) {
-        order.setReceiverNameSnapshot(address.getReceiverName());
-        order.setReceiverPhoneSnapshot(address.getReceiverPhone());
-        order.setProvinceSnapshot(address.getProvince());
-        order.setCitySnapshot(address.getCity());
-        order.setDistrictSnapshot(address.getDistrict());
-        order.setDetailAddressSnapshot(address.getDetailAddress());
-        order.setPostalCodeSnapshot(address.getPostalCode());
+    private MarketDeliveryMode deliveryModeSnapshot(MarketListing listing) {
+        if (!StringUtils.hasText(listing.getDeliveryMode())) {
+            return null;
+        }
+        return listing.deliveryMode();
     }
 
     private MarketOrder reloadOrder(UUID orderId) {

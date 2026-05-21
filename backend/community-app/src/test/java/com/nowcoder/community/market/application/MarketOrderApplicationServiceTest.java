@@ -131,6 +131,29 @@ class MarketOrderApplicationServiceTest {
     }
 
     @Test
+    void createPhysicalOrderShouldPersistNullDeliveryModeSnapshotWhenListingDeliveryModeIsNull() {
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        UUID listingId = seedPhysicalListing(sellerUserId);
+        UUID addressId = seedAddress(buyerUserId, true);
+        seedBuyerBalance(buyerUserId, 20_000L);
+
+        MarketOrderResult created = marketOrderService.createOrder(
+                "physical:req-null-delivery-mode",
+                buyerUserId,
+                listingId,
+                1,
+                addressId
+        );
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select delivery_mode_snapshot from market_order where order_id = ?",
+                String.class,
+                created.orderId()
+        )).isNull();
+    }
+
+    @Test
     void buyerAndSellerQueriesShouldReturnUnifiedMixedOrderSnapshots() {
         UUID firstSellerUserId = uuid(7);
         UUID secondSellerUserId = uuid(8);

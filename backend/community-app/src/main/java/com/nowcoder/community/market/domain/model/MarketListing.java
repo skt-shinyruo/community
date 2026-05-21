@@ -46,7 +46,7 @@ public class MarketListing {
     }
 
     public boolean isPreloadedDelivery() {
-        return deliveryMode().isPreloaded();
+        return MarketDeliveryMode.PRELOADED.code().equals(deliveryMode);
     }
 
     public String statusAfterStockDecreasedBy(int quantity) {

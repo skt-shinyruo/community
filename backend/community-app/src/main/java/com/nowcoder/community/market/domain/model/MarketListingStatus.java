@@ -4,7 +4,9 @@ import java.util.Arrays;
 
 public enum MarketListingStatus implements MarketCodeEnum {
     ACTIVE("ACTIVE"),
-    SOLD_OUT("SOLD_OUT");
+    SOLD_OUT("SOLD_OUT"),
+    PAUSED("PAUSED"),
+    CLOSED("CLOSED");
 
     private final String code;
 

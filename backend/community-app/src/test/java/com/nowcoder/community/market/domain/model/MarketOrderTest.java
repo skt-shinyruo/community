@@ -158,6 +158,14 @@ class MarketOrderTest {
     }
 
     @Test
+    void virtualPlacementShouldRejectAddressSnapshot() {
+        assertThatThrownBy(() -> placement("market:req-virtual", 1, 12_900L, 12_900L,
+                MarketGoodsType.VIRTUAL, addressSnapshot(uuid(5))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("addressSnapshot must be null for virtual goods");
+    }
+
+    @Test
     void transitionShouldRejectMissingExpectedStatuses() {
         assertThatThrownBy(() -> new MarketOrderTransition(
                 uuid(1),

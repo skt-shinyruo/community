@@ -39,5 +39,8 @@ public record MarketOrderPlacement(
         if (goodsType.isPhysical() && addressSnapshot == null) {
             throw new IllegalArgumentException("addressSnapshot must not be null for physical goods");
         }
+        if (goodsType.isVirtual() && addressSnapshot != null) {
+            throw new IllegalArgumentException("addressSnapshot must be null for virtual goods");
+        }
     }
 }

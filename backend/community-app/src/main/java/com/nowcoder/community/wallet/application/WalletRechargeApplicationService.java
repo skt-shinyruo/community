@@ -80,15 +80,15 @@ public class WalletRechargeApplicationService {
 
         RechargeOrder existing = rechargeOrderRepository.findByUserIdAndRequestId(userId, requestId);
         if (existing != null) {
-            ensureReplayMatches(existing, userId, amount);
-            if ("PAID".equals(existing.getStatus())) {
+            existing.assertReplayMatches(userId, amount);
+            if (existing.isPaid()) {
                 return RechargeOrderResult.from(existing);
             }
         }
 
         RechargeOrder order = existing == null ? createOrLoad(requestId, userId, amount) : existing;
-        ensureReplayMatches(order, userId, amount);
-        if ("PAID".equals(order.getStatus())) {
+        order.assertReplayMatches(userId, amount);
+        if (order.isPaid()) {
             return RechargeOrderResult.from(order);
         }
 
@@ -102,7 +102,7 @@ public class WalletRechargeApplicationService {
                         WalletPosting.credit(accountService.ensureUserWallet(userId), amount)
                 )
         ));
-        rechargeOrderRepository.updateStatus(userId, requestId, "CREATED", "PAID");
+        rechargeOrderRepository.applyTransition(order.pay());
         return RechargeOrderResult.from(requireOrder(userId, requestId));
     }
 
@@ -114,12 +114,7 @@ public class WalletRechargeApplicationService {
     }
 
     private RechargeOrder createOrLoad(String requestId, UUID userId, long amount) {
-        RechargeOrder order = new RechargeOrder();
-        order.setOrderId(idGenerator.next());
-        order.setRequestId(requestId);
-        order.setUserId(userId);
-        order.setAmount(amount);
-        order.setStatus("CREATED");
+        RechargeOrder order = RechargeOrder.create(idGenerator.next(), requestId, userId, amount);
         try {
             rechargeOrderRepository.insert(order);
             return order;
@@ -138,14 +133,5 @@ public class WalletRechargeApplicationService {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "recharge order not found: requestId=" + requestId);
         }
         return order;
-    }
-
-    private void ensureReplayMatches(RechargeOrder order, UUID userId, long amount) {
-        if (!userId.equals(order.getUserId()) || order.getAmount() != amount) {
-            throw new BusinessException(
-                    WalletErrorCode.REQUEST_REPLAY_CONFLICT,
-                    "requestId replay conflict: requestId=" + order.getRequestId()
-            );
-        }
     }
 }

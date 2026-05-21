@@ -6,7 +6,11 @@ import com.nowcoder.community.market.application.command.AddMarketInventoryBatch
 import com.nowcoder.community.market.application.command.CreateMarketListingCommand;
 import com.nowcoder.community.market.application.command.UpdateMarketListingCommand;
 import com.nowcoder.community.market.application.result.MarketListingResult;
+import com.nowcoder.community.market.domain.model.MarketDeliveryMode;
+import com.nowcoder.community.market.domain.model.MarketGoodsType;
 import com.nowcoder.community.market.domain.model.MarketListing;
+import com.nowcoder.community.market.domain.model.MarketListingStatus;
+import com.nowcoder.community.market.domain.model.MarketStockMode;
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
 import com.nowcoder.community.market.domain.service.MarketListingDomainService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
@@ -24,17 +27,6 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service
 public class MarketListingApplicationService {
-
-    private static final String GOODS_TYPE_VIRTUAL = "VIRTUAL";
-    private static final String GOODS_TYPE_PHYSICAL = "PHYSICAL";
-    private static final String DELIVERY_MODE_PRELOADED = "PRELOADED";
-    private static final String DELIVERY_MODE_MANUAL = "MANUAL";
-    private static final String STOCK_MODE_FINITE = "FINITE";
-    private static final String STOCK_MODE_UNLIMITED = "UNLIMITED";
-    private static final String STATUS_ACTIVE = "ACTIVE";
-    private static final String STATUS_PAUSED = "PAUSED";
-    private static final String STATUS_SOLD_OUT = "SOLD_OUT";
-    private static final String STATUS_CLOSED = "CLOSED";
 
     private final MarketListingRepository marketListingRepository;
     private final MarketInventoryApplicationService marketInventoryService;
@@ -76,7 +68,7 @@ public class MarketListingApplicationService {
         listing.setStatus(initialStatus(command));
         marketListingRepository.save(listing);
 
-        if (GOODS_TYPE_VIRTUAL.equals(listing.getGoodsType()) && DELIVERY_MODE_PRELOADED.equals(listing.getDeliveryMode())) {
+        if (listing.goodsType().isVirtual() && listing.isPreloadedDelivery()) {
             AddMarketInventoryBatchCommand inventory = command.inventory();
             marketInventoryService.appendInventory(new AddMarketInventoryBatchCommand(
                     listing.getListingId(),
@@ -105,22 +97,22 @@ public class MarketListingApplicationService {
 
     @Transactional
     public MarketListingResult pauseListing(UUID sellerUserId, UUID listingId) {
-        return transitionStatus(sellerUserId, listingId, STATUS_PAUSED);
+        return transitionStatus(sellerUserId, listingId, MarketListingStatus.PAUSED.code());
     }
 
     @Transactional
     public MarketListingResult resumeListing(UUID sellerUserId, UUID listingId) {
         MarketListing listing = requireOwnedListing(listingId, sellerUserId);
-        String nextStatus = STOCK_MODE_FINITE.equals(listing.getStockMode()) && listing.getStockAvailable() <= 0
-                ? STATUS_SOLD_OUT
-                : STATUS_ACTIVE;
+        String nextStatus = MarketStockMode.FINITE.code().equals(listing.getStockMode()) && listing.getStockAvailable() <= 0
+                ? MarketListingStatus.SOLD_OUT.code()
+                : MarketListingStatus.ACTIVE.code();
         marketListingRepository.changeStatus(listingId, sellerUserId, nextStatus);
         return MarketListingResult.from(requireOwnedListing(listingId, sellerUserId));
     }
 
     @Transactional
     public MarketListingResult closeListing(UUID sellerUserId, UUID listingId) {
-        return transitionStatus(sellerUserId, listingId, STATUS_CLOSED);
+        return transitionStatus(sellerUserId, listingId, MarketListingStatus.CLOSED.code());
     }
 
     private MarketListingResult transitionStatus(UUID sellerUserId, UUID listingId, String nextStatus) {
@@ -136,21 +128,15 @@ public class MarketListingApplicationService {
         }
         validateCommonFields(command.title(), command.description(), command.unitPrice(),
                 command.minPurchaseQuantity(), command.maxPurchaseQuantity());
-        String goodsType = normalizeRequired(command.goodsType(), "goodsType");
-        if (GOODS_TYPE_VIRTUAL.equals(goodsType)) {
-            String deliveryMode = normalizeRequired(command.deliveryMode(), "deliveryMode");
-            String stockMode = normalizeRequired(command.stockMode(), "stockMode");
-            if (!Set.of(DELIVERY_MODE_PRELOADED, DELIVERY_MODE_MANUAL).contains(deliveryMode)) {
-                throw new BusinessException(INVALID_ARGUMENT, "invalid deliveryMode: " + deliveryMode);
-            }
-            if (!Set.of(STOCK_MODE_FINITE, STOCK_MODE_UNLIMITED).contains(stockMode)) {
-                throw new BusinessException(INVALID_ARGUMENT, "invalid stockMode: " + stockMode);
-            }
+        MarketGoodsType goodsType = marketGoodsType(command.goodsType());
+        if (goodsType.isVirtual()) {
+            MarketDeliveryMode deliveryMode = marketDeliveryMode(command.deliveryMode());
+            MarketStockMode stockMode = marketStockMode(command.stockMode());
             if (command.stockTotal() == null || command.stockTotal() < 0) {
                 throw new BusinessException(INVALID_ARGUMENT, "virtual listing stockTotal must be non-negative");
             }
-            if (DELIVERY_MODE_PRELOADED.equals(deliveryMode)) {
-                if (!STOCK_MODE_FINITE.equals(stockMode)) {
+            if (deliveryMode.isPreloaded()) {
+                if (!stockMode.isFinite()) {
                     throw new BusinessException(INVALID_ARGUMENT, "PRELOADED listing must use FINITE stock");
                 }
                 if (command.inventory() == null || command.inventory().payloads() == null || command.inventory().payloads().isEmpty()) {
@@ -160,15 +146,12 @@ public class MarketListingApplicationService {
                     throw new BusinessException(INVALID_ARGUMENT, "PRELOADED listing stockTotal must equal inventory payload count");
                 }
             }
-            if (DELIVERY_MODE_MANUAL.equals(deliveryMode) && STOCK_MODE_FINITE.equals(stockMode) && command.stockTotal() <= 0) {
+            if (deliveryMode.isManual() && stockMode.isFinite() && command.stockTotal() <= 0) {
                 throw new BusinessException(INVALID_ARGUMENT, "FINITE MANUAL listing stockTotal must be positive");
             }
             return;
         }
 
-        if (!GOODS_TYPE_PHYSICAL.equals(goodsType)) {
-            throw new BusinessException(INVALID_ARGUMENT, "invalid goodsType: " + goodsType);
-        }
         if (command.stockTotal() == null || command.stockTotal() <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "physical listing stockTotal must be positive");
         }
@@ -220,34 +203,70 @@ public class MarketListingApplicationService {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    private MarketGoodsType marketGoodsType(String value) {
+        String code = normalizeRequired(value, "goodsType");
+        try {
+            return MarketGoodsType.fromCode(code);
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException(INVALID_ARGUMENT, "invalid goodsType: " + code);
+        }
+    }
+
+    private MarketDeliveryMode marketDeliveryMode(String value) {
+        String code = normalizeRequired(value, "deliveryMode");
+        try {
+            return MarketDeliveryMode.fromCode(code);
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException(INVALID_ARGUMENT, "invalid deliveryMode: " + code);
+        }
+    }
+
+    private MarketStockMode marketStockMode(String value) {
+        String code = normalizeRequired(value, "stockMode");
+        try {
+            return MarketStockMode.fromCode(code);
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException(INVALID_ARGUMENT, "invalid stockMode: " + code);
+        }
+    }
+
     private int initialStockTotal(CreateMarketListingCommand command) {
-        if (GOODS_TYPE_PHYSICAL.equals(command.goodsType().trim())) {
+        MarketGoodsType goodsType = marketGoodsType(command.goodsType());
+        if (goodsType.isPhysical()) {
             return command.stockTotal();
         }
-        return DELIVERY_MODE_PRELOADED.equals(command.deliveryMode().trim())
+        MarketDeliveryMode deliveryMode = marketDeliveryMode(command.deliveryMode());
+        MarketStockMode stockMode = marketStockMode(command.stockMode());
+        return deliveryMode.isPreloaded()
                 ? 0
-                : (STOCK_MODE_UNLIMITED.equals(command.stockMode().trim()) ? 0 : command.stockTotal());
+                : (!stockMode.isFinite() ? 0 : command.stockTotal());
     }
 
     private int initialStockAvailable(CreateMarketListingCommand command) {
-        if (GOODS_TYPE_PHYSICAL.equals(command.goodsType().trim())) {
+        MarketGoodsType goodsType = marketGoodsType(command.goodsType());
+        if (goodsType.isPhysical()) {
             return command.stockTotal();
         }
-        return DELIVERY_MODE_PRELOADED.equals(command.deliveryMode().trim())
+        MarketDeliveryMode deliveryMode = marketDeliveryMode(command.deliveryMode());
+        MarketStockMode stockMode = marketStockMode(command.stockMode());
+        return deliveryMode.isPreloaded()
                 ? 0
-                : (STOCK_MODE_UNLIMITED.equals(command.stockMode().trim()) ? 0 : command.stockTotal());
+                : (!stockMode.isFinite() ? 0 : command.stockTotal());
     }
 
     private String initialStatus(CreateMarketListingCommand command) {
-        if (GOODS_TYPE_PHYSICAL.equals(command.goodsType().trim())) {
-            return command.stockTotal() <= 0 ? STATUS_SOLD_OUT : STATUS_ACTIVE;
+        MarketGoodsType goodsType = marketGoodsType(command.goodsType());
+        if (goodsType.isPhysical()) {
+            return command.stockTotal() <= 0 ? MarketListingStatus.SOLD_OUT.code() : MarketListingStatus.ACTIVE.code();
         }
-        if (STOCK_MODE_FINITE.equals(command.stockMode().trim())
-                && DELIVERY_MODE_MANUAL.equals(command.deliveryMode().trim())
+        MarketDeliveryMode deliveryMode = marketDeliveryMode(command.deliveryMode());
+        MarketStockMode stockMode = marketStockMode(command.stockMode());
+        if (stockMode.isFinite()
+                && deliveryMode.isManual()
                 && command.stockTotal() == 0) {
-            return STATUS_SOLD_OUT;
+            return MarketListingStatus.SOLD_OUT.code();
         }
-        return STATUS_ACTIVE;
+        return MarketListingStatus.ACTIVE.code();
     }
 
     private MarketListing requireOwnedListing(UUID listingId, UUID sellerUserId) {

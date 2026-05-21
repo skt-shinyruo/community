@@ -1,6 +1,7 @@
 package com.nowcoder.community.wallet.infrastructure.persistence;
 
 import com.nowcoder.community.wallet.domain.model.RechargeOrder;
+import com.nowcoder.community.wallet.domain.model.RechargeOrderTransition;
 import com.nowcoder.community.wallet.domain.repository.RechargeOrderRepository;
 import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.RechargeOrderDataObject;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.RechargeOrderMapper;
@@ -35,5 +36,15 @@ public class MyBatisRechargeOrderRepository implements RechargeOrderRepository {
     @Override
     public int updateStatus(UUID userId, String requestId, String fromStatus, String toStatus) {
         return mapper.updateStatus(userId, requestId, fromStatus, toStatus);
+    }
+
+    @Override
+    public int applyTransition(RechargeOrderTransition transition) {
+        return updateStatus(
+                transition.userId(),
+                transition.requestId(),
+                transition.fromStatus().code(),
+                transition.toStatus().code()
+        );
     }
 }

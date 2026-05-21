@@ -149,7 +149,13 @@ class WalletRechargeApplicationServiceTest {
         verify(mockedLedgerService).post(commandCaptor.capture());
         assertThat(commandCaptor.getValue().requestId()).isEqualTo("wallet:recharge:" + orderId);
         assertThat(commandCaptor.getValue().bizId()).isEqualTo(orderId.toString());
-        verify(repository).updateStatus(userId, "recharge:req-race", "CREATED", "PAID");
+        org.mockito.ArgumentCaptor<com.nowcoder.community.wallet.domain.model.RechargeOrderTransition> transitionCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.nowcoder.community.wallet.domain.model.RechargeOrderTransition.class);
+        verify(repository).applyTransition(transitionCaptor.capture());
+        assertThat(transitionCaptor.getValue().userId()).isEqualTo(userId);
+        assertThat(transitionCaptor.getValue().requestId()).isEqualTo("recharge:req-race");
+        assertThat(transitionCaptor.getValue().fromStatus().code()).isEqualTo("CREATED");
+        assertThat(transitionCaptor.getValue().toStatus().code()).isEqualTo("PAID");
     }
 
     private RechargeOrder order(UUID orderId, String requestId, UUID userId, long amount, String status) {

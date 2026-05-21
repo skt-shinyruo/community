@@ -74,6 +74,8 @@
 关键语义：
 
 - 服务端解析 `entityUserId` 和 `postId`，不信任客户端传入。
+- 点赞支持 `USER`、`POST` 和 `COMMENT` 实体类型；其他 `entityType` 由 `LikeApplicationService` / `LikeDomainService` 拒绝。
+- 批量点赞查询严格处理 `entityIds`：非法 UUID、空 token、超过 200 个 ID 都返回参数错误；重复 ID 在应用层按首次出现顺序去重。
 - 自己给自己点赞不会带来奖励收益。
 - 被删内容的点赞清理由 content 提交后调用 social action。
 - `cleanupEntityLikes(...)` 是 owner action，不是普通用户接口。
@@ -94,6 +96,11 @@
 - 校验参数。
 - 删除关注关系。
 - 当前不发布 `FollowRemoved` contract event。
+
+关键语义：
+
+- 关注只支持 `USER` 关系；写入、状态、列表和计数查询对非 `USER` `entityType` 都返回参数错误。
+- Controller 只做 HTTP 绑定、认证提取和 DTO 转换，是否支持某个 `entityType` 由 `FollowApplicationService` / `FollowDomainService` 决定。
 
 查询能力：
 

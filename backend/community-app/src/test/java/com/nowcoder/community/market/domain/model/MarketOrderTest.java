@@ -158,6 +158,36 @@ class MarketOrderTest {
     }
 
     @Test
+    void physicalPlacementShouldAllowNullDeliveryModeSnapshot() {
+        MarketOrder order = MarketOrder.place(placement(
+                "market:req-physical",
+                1,
+                12_900L,
+                12_900L,
+                MarketGoodsType.PHYSICAL,
+                null,
+                addressSnapshot(uuid(5))
+        ));
+
+        assertThat(order.getDeliveryModeSnapshot()).isNull();
+    }
+
+    @Test
+    void virtualPlacementShouldRejectNullDeliveryModeSnapshot() {
+        assertThatThrownBy(() -> placement(
+                "market:req-virtual",
+                1,
+                12_900L,
+                12_900L,
+                MarketGoodsType.VIRTUAL,
+                null,
+                null
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("deliveryModeSnapshot");
+    }
+
+    @Test
     void virtualPlacementShouldRejectAddressSnapshot() {
         assertThatThrownBy(() -> placement("market:req-virtual", 1, 12_900L, 12_900L,
                 MarketGoodsType.VIRTUAL, addressSnapshot(uuid(5))))
@@ -225,6 +255,26 @@ class MarketOrderTest {
             MarketGoodsType goodsType,
             MarketAddressSnapshot addressSnapshot
     ) {
+        return placement(
+                requestId,
+                quantity,
+                unitPriceSnapshot,
+                totalAmount,
+                goodsType,
+                MarketDeliveryMode.MANUAL,
+                addressSnapshot
+        );
+    }
+
+    private static MarketOrderPlacement placement(
+            String requestId,
+            int quantity,
+            long unitPriceSnapshot,
+            long totalAmount,
+            MarketGoodsType goodsType,
+            MarketDeliveryMode deliveryModeSnapshot,
+            MarketAddressSnapshot addressSnapshot
+    ) {
         return new MarketOrderPlacement(
                 uuid(1),
                 requestId,
@@ -235,7 +285,7 @@ class MarketOrderTest {
                 quantity,
                 unitPriceSnapshot,
                 totalAmount,
-                MarketDeliveryMode.MANUAL,
+                deliveryModeSnapshot,
                 "Used keyboard",
                 addressSnapshot
         );

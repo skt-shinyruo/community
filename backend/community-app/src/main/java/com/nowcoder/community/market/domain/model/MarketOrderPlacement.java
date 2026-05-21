@@ -35,9 +35,11 @@ public record MarketOrderPlacement(
         if (totalAmount < 0) {
             throw new IllegalArgumentException("totalAmount must not be negative");
         }
-        Objects.requireNonNull(deliveryModeSnapshot, "deliveryModeSnapshot must not be null");
         if (goodsType.isPhysical() && addressSnapshot == null) {
             throw new IllegalArgumentException("addressSnapshot must not be null for physical goods");
+        }
+        if (goodsType.isVirtual() && deliveryModeSnapshot == null) {
+            throw new IllegalArgumentException("deliveryModeSnapshot must not be null for virtual goods");
         }
         if (goodsType.isVirtual() && addressSnapshot != null) {
             throw new IllegalArgumentException("addressSnapshot must be null for virtual goods");

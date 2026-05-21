@@ -2,7 +2,6 @@ package com.nowcoder.community.social.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.constants.EntityTypes;
-import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.social.application.FollowApplicationService;
 import com.nowcoder.community.social.application.command.FollowCommand;
@@ -24,8 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
-import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
-
 @RestController
 @RequestMapping("/api/follows")
 public class FollowController {
@@ -41,9 +38,6 @@ public class FollowController {
     @PostMapping
     public Result<Void> follow(Authentication authentication, @Valid @RequestBody FollowRequest request) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        if (request.getEntityType() != ENTITY_TYPE_USER) {
-            throw new BusinessException(INVALID_ARGUMENT, "follow 仅支持 USER");
-        }
         followApplicationService.follow(new FollowCommand(userId, request.getEntityType(), request.getEntityId()));
         return Result.ok();
     }
@@ -51,9 +45,6 @@ public class FollowController {
     @DeleteMapping
     public Result<Void> unfollow(Authentication authentication, @RequestParam int entityType, @RequestParam UUID entityId) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        if (entityType != ENTITY_TYPE_USER) {
-            throw new BusinessException(INVALID_ARGUMENT, "unfollow 仅支持 USER");
-        }
         followApplicationService.unfollow(new UnfollowCommand(userId, entityType, entityId));
         return Result.ok();
     }
@@ -61,9 +52,6 @@ public class FollowController {
     @GetMapping("/status")
     public Result<Boolean> status(Authentication authentication, @RequestParam int entityType, @RequestParam UUID entityId) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        if (entityType != ENTITY_TYPE_USER) {
-            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
-        }
         return Result.ok(followApplicationService.hasFollowed(userId, entityType, entityId));
     }
 
@@ -75,9 +63,6 @@ public class FollowController {
             @RequestParam(required = false) Integer size
     ) {
         int t = entityType == null ? ENTITY_TYPE_USER : entityType;
-        if (!EntityTypes.isValid(t)) {
-            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
-        }
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
         return Result.ok(followApplicationService.listFollowees(userId, t, p, s)
@@ -94,9 +79,6 @@ public class FollowController {
             @RequestParam(required = false) Integer size
     ) {
         int t = entityType == null ? ENTITY_TYPE_USER : entityType;
-        if (!EntityTypes.isValid(t)) {
-            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
-        }
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
         return Result.ok(followApplicationService.listFollowers(t, userId, p, s)
@@ -108,18 +90,12 @@ public class FollowController {
     @GetMapping("/{userId}/followees/count")
     public Result<Long> followeeCount(@PathVariable UUID userId, @RequestParam(required = false) Integer entityType) {
         int t = entityType == null ? ENTITY_TYPE_USER : entityType;
-        if (!EntityTypes.isValid(t)) {
-            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
-        }
         return Result.ok(followApplicationService.followeeCount(userId, t));
     }
 
     @GetMapping("/{userId}/followers/count")
     public Result<Long> followerCount(@PathVariable UUID userId, @RequestParam(required = false) Integer entityType) {
         int t = entityType == null ? ENTITY_TYPE_USER : entityType;
-        if (!EntityTypes.isValid(t)) {
-            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
-        }
         return Result.ok(followApplicationService.followerCount(t, userId));
     }
 

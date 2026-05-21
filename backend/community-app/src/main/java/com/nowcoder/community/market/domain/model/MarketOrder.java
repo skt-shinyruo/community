@@ -143,8 +143,7 @@ public class MarketOrder {
     }
 
     public boolean isAutoConfirmDue(Date now) {
-        Objects.requireNonNull(now, "now must not be null");
-        return isConfirmable() && autoConfirmAt != null && !autoConfirmAt.after(now);
+        return now != null && isConfirmable() && autoConfirmAt != null && !autoConfirmAt.after(now);
     }
 
     public MarketOrderTransition markDelivered(Date autoConfirmAt) {
@@ -223,7 +222,8 @@ public class MarketOrder {
         if (suppliedAddressSnapshot == null) {
             return false;
         }
-        return Objects.equals(receiverNameSnapshot, suppliedAddressSnapshot.receiverName())
+        return Objects.equals(addressId, suppliedAddressSnapshot.addressId())
+                && Objects.equals(receiverNameSnapshot, suppliedAddressSnapshot.receiverName())
                 && Objects.equals(receiverPhoneSnapshot, suppliedAddressSnapshot.receiverPhone())
                 && Objects.equals(provinceSnapshot, suppliedAddressSnapshot.province())
                 && Objects.equals(citySnapshot, suppliedAddressSnapshot.city())

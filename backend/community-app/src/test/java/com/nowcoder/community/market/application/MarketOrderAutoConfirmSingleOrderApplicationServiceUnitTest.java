@@ -69,6 +69,28 @@ class MarketOrderAutoConfirmSingleOrderApplicationServiceUnitTest {
         );
     }
 
+    @Test
+    void confirmOneDueOrderShouldSkipWhenAutoConfirmTimeIsMissing() {
+        UUID orderId = uuid(1);
+        Date now = new Date();
+        MarketOrder order = order(orderId, uuid(2), uuid(3), "DELIVERED", null);
+        when(marketOrderRepository.lockById(orderId)).thenReturn(order);
+
+        boolean confirmed = new MarketOrderAutoConfirmSingleOrderApplicationService(
+                marketOrderRepository,
+                marketWalletActionService
+        ).confirmOneDueOrder(orderId, now);
+
+        assertThat(confirmed).isFalse();
+        verify(marketOrderRepository, never()).markReleasePending(orderId);
+        verify(marketWalletActionService, never()).enqueueRelease(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyLong()
+        );
+    }
+
     private MarketOrder order(UUID orderId, UUID sellerUserId, UUID buyerUserId, String status, Date autoConfirmAt) {
         MarketOrder order = new MarketOrder();
         order.setOrderId(orderId);

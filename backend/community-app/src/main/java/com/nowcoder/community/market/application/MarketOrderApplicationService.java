@@ -15,6 +15,8 @@ import com.nowcoder.community.market.domain.model.MarketDeliveryMode;
 import com.nowcoder.community.market.domain.model.MarketInventoryUnit;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
+import com.nowcoder.community.market.domain.model.MarketOrderStatus;
+import com.nowcoder.community.market.domain.model.MarketOrderTransition;
 import com.nowcoder.community.market.domain.model.MarketOrderPlacement;
 import com.nowcoder.community.market.domain.repository.MarketAddressRepository;
 import com.nowcoder.community.market.domain.repository.MarketDeliveryRepository;
@@ -42,10 +44,6 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 @Service
 public class MarketOrderApplicationService {
 
-    private static final String STATUS_ESCROWED = "ESCROWED";
-    private static final String STATUS_DELIVERED = "DELIVERED";
-    private static final String STATUS_SHIPPED = "SHIPPED";
-    private static final String DELIVERY_MODE_MANUAL = "MANUAL";
     private static final String DELIVERY_TYPE_MANUAL_TEXT = "MANUAL_TEXT";
     private static final String DELIVERY_STATUS_DELIVERED = "DELIVERED";
     private static final long MAX_ORDER_TOTAL_AMOUNT = 100_000_000L;
@@ -226,12 +224,10 @@ public class MarketOrderApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "deliveryContent must not be blank");
         }
         MarketOrder order = requireOrderForUpdate(orderId);
-        requireSeller(order, sellerUserId);
-        requireGoodsType(order, "VIRTUAL");
-        requireStatus(order, STATUS_ESCROWED);
-        if (!DELIVERY_MODE_MANUAL.equals(order.getDeliveryModeSnapshot())) {
-            throw new BusinessException(INVALID_ARGUMENT, "order is not MANUAL delivery: orderId=" + orderId);
-        }
+        order.assertSeller(sellerUserId);
+        order.assertVirtual();
+        order.assertEscrowed();
+        order.assertManualDelivery();
 
         MarketDelivery delivery = new MarketDelivery();
         delivery.setDeliveryId(idGenerator.next());
@@ -243,22 +239,21 @@ public class MarketOrderApplicationService {
         delivery.setDeliveredAt(new Date());
         marketDeliveryRepository.save(delivery);
 
-        marketOrderRepository.markDelivered(orderId, Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
+        MarketOrderTransition transition = order.markDelivered(Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
+        marketOrderRepository.markDelivered(transition.orderId(), transition.autoConfirmAt());
         return MarketOrderResult.from(reloadOrder(orderId));
     }
 
     @Transactional
     public MarketOrderResult confirmOrder(UUID orderId, UUID buyerUserId) {
         MarketOrder order = requireOrderForUpdate(orderId);
-        requireBuyer(order, buyerUserId);
-        if (!STATUS_DELIVERED.equals(order.getStatus()) && !STATUS_SHIPPED.equals(order.getStatus())) {
-            throw new BusinessException(INVALID_ARGUMENT, "order is not confirmable: orderId=" + orderId);
-        }
+        order.assertBuyer(buyerUserId);
+        MarketOrderTransition transition = order.requestRelease();
 
-        int updated = marketOrderRepository.markReleasePending(orderId);
+        int updated = marketOrderRepository.markReleasePending(transition.orderId());
         if (updated == 1) {
             marketWalletActionService.enqueueRelease(
-                    orderId,
+                    transition.orderId(),
                     order.getSellerUserId(),
                     order.getBuyerUserId(),
                     order.getTotalAmount()
@@ -277,9 +272,9 @@ public class MarketOrderApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "carrierName and trackingNo must not be blank");
         }
         MarketOrder order = requireOrderForUpdate(orderId);
-        requireSeller(order, sellerUserId);
-        requireGoodsType(order, "PHYSICAL");
-        requireStatus(order, STATUS_ESCROWED);
+        order.assertSeller(sellerUserId);
+        order.assertPhysical();
+        order.assertEscrowed();
 
         var shipment = new com.nowcoder.community.market.domain.model.MarketShipment();
         shipment.setShipmentId(idGenerator.next());
@@ -291,23 +286,26 @@ public class MarketOrderApplicationService {
         shipment.setShippedAt(new Date());
         marketShipmentRepository.save(shipment);
 
-        marketOrderRepository.markShipped(orderId, Date.from(Instant.now().plus(7, ChronoUnit.DAYS)));
+        MarketOrderTransition transition = order.markShipped(Date.from(Instant.now().plus(7, ChronoUnit.DAYS)));
+        marketOrderRepository.markShipped(transition.orderId(), transition.autoConfirmAt());
         return MarketOrderResult.from(reloadOrder(orderId));
     }
 
     @Transactional
     public MarketOrderResult cancelOrder(UUID orderId, UUID buyerUserId) {
         MarketOrder order = requireOrderForUpdate(orderId);
-        requireBuyer(order, buyerUserId);
-        if (STATUS_ESCROWED.equals(order.getStatus())) {
-            int updated = marketOrderRepository.markRefundPending(orderId);
+        order.assertBuyer(buyerUserId);
+        if (order.status() == MarketOrderStatus.ESCROWED) {
+            MarketOrderTransition transition = order.requestRefund();
+            int updated = marketOrderRepository.markRefundPending(transition.orderId());
             if (updated == 1) {
                 marketWalletActionService.enqueueRefund(orderId, buyerUserId, order.getSellerUserId(), order.getTotalAmount());
             }
             return MarketOrderResult.from(reloadOrder(orderId));
         }
-        if ("ESCROW_PENDING".equals(order.getStatus())) {
-            int updated = marketOrderRepository.markEscrowCancelPending(orderId);
+        if (order.status() == MarketOrderStatus.ESCROW_PENDING) {
+            MarketOrderTransition transition = order.requestEscrowCancel();
+            int updated = marketOrderRepository.markEscrowCancelPending(transition.orderId());
             if (updated == 1 && marketWalletActionService.cancelPendingEscrowIfPossible(orderId)) {
                 marketOrderSagaService.completeEscrowNoop(orderId);
             }
@@ -449,23 +447,4 @@ public class MarketOrderApplicationService {
         return order;
     }
 
-    private void requireSeller(MarketOrder order, UUID sellerUserId) {
-        orderDomainService.validateSellerAction(sellerUserId, order.getSellerUserId());
-    }
-
-    private void requireBuyer(MarketOrder order, UUID buyerUserId) {
-        orderDomainService.validateBuyerAction(buyerUserId, order.getBuyerUserId());
-    }
-
-    private void requireGoodsType(MarketOrder order, String goodsType) {
-        if (!goodsType.equals(order.getGoodsType())) {
-            throw new BusinessException(INVALID_ARGUMENT, "order goodsType mismatch: orderId=" + order.getOrderId());
-        }
-    }
-
-    private void requireStatus(MarketOrder order, String status) {
-        if (!status.equals(order.getStatus())) {
-            throw new BusinessException(INVALID_ARGUMENT, "order status mismatch: orderId=" + order.getOrderId());
-        }
-    }
 }

@@ -6,14 +6,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class MarketOrderAutoConfirmSingleOrderApplicationService {
-
-    private static final String STATUS_DELIVERED = "DELIVERED";
-    private static final String STATUS_SHIPPED = "SHIPPED";
 
     private final MarketOrderRepository marketOrderRepository;
     private final MarketWalletActionApplicationService marketWalletActionService;
@@ -29,13 +25,10 @@ public class MarketOrderAutoConfirmSingleOrderApplicationService {
     @Transactional
     public boolean confirmOneDueOrder(UUID orderId, Date now) {
         MarketOrder locked = marketOrderRepository.lockById(orderId);
-        if (locked == null
-                || !Set.of(STATUS_DELIVERED, STATUS_SHIPPED).contains(locked.getStatus())
-                || locked.getAutoConfirmAt() == null
-                || locked.getAutoConfirmAt().after(now)) {
+        if (locked == null || !locked.isAutoConfirmDue(now)) {
             return false;
         }
-        int updated = marketOrderRepository.markReleasePending(locked.getOrderId());
+        int updated = marketOrderRepository.markReleasePending(locked.requestRelease().orderId());
         if (updated != 1) {
             return false;
         }

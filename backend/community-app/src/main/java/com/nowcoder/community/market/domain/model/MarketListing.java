@@ -21,6 +21,44 @@ public class MarketListing {
     private Date createTime;
     private Date updateTime;
 
+    public MarketGoodsType goodsType() {
+        return MarketGoodsType.fromCode(goodsType);
+    }
+
+    public MarketDeliveryMode deliveryMode() {
+        return MarketDeliveryMode.fromCode(deliveryMode);
+    }
+
+    public MarketStockMode stockMode() {
+        return MarketStockMode.fromCode(stockMode);
+    }
+
+    public boolean isActive() {
+        return MarketListingStatus.ACTIVE.code().equals(status);
+    }
+
+    public boolean isSoldOut() {
+        return MarketListingStatus.SOLD_OUT.code().equals(status);
+    }
+
+    public boolean isFiniteStock() {
+        return goodsType().isPhysical() || stockMode().isFinite();
+    }
+
+    public boolean isPreloadedDelivery() {
+        return deliveryMode().isPreloaded();
+    }
+
+    public String statusAfterStockDecreasedBy(int quantity) {
+        int nextAvailable = stockAvailable - quantity;
+        return nextAvailable <= 0 ? MarketListingStatus.SOLD_OUT.code() : status;
+    }
+
+    public String statusAfterStockRestoredBy(int quantity) {
+        int nextAvailable = stockAvailable + quantity;
+        return isSoldOut() && nextAvailable > 0 ? MarketListingStatus.ACTIVE.code() : status;
+    }
+
     public UUID getListingId() {
         return listingId;
     }

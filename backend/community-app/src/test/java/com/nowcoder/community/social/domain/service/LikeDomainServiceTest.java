@@ -2,14 +2,19 @@ package com.nowcoder.community.social.domain.service;
 
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.domain.model.ResolvedSocialEntity;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 
+import static com.nowcoder.community.common.constants.EntityTypes.COMMENT;
+import static com.nowcoder.community.common.constants.EntityTypes.POST;
+import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LikeDomainServiceTest {
@@ -40,6 +45,23 @@ class LikeDomainServiceTest {
                 .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.validateLike(uuid(1), EntityTypes.POST, null))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void validateLikeShouldAcceptOnlySupportedEntityTypes() {
+        LikeDomainService service = new LikeDomainService();
+
+        assertThatCode(() -> service.validateLike(uuid(1), USER, uuid(2)))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> service.validateLike(uuid(1), POST, uuid(2)))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> service.validateLike(uuid(1), COMMENT, uuid(2)))
+                .doesNotThrowAnyException();
+
+        assertThatThrownBy(() -> service.validateLike(uuid(1), 999, uuid(2)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
     }
 
     @Test

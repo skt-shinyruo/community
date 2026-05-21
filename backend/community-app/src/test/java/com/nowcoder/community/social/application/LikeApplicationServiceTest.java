@@ -32,6 +32,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.IntStream;
 
 import static com.nowcoder.community.common.constants.EntityTypes.POST;
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -43,6 +44,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class LikeApplicationServiceTest {
 
@@ -313,6 +316,150 @@ class LikeApplicationServiceTest {
         assertThat(repo.isLiked(uuid(1), POST, uuid(100))).isFalse();
         assertThat(repo.countEntityLikes(POST, uuid(100))).isEqualTo(0);
         verify(taskProgressTriggerService, never()).triggerLikeCreated(any(GrowthLikeTaskProgressRequest.class));
+    }
+
+    @Test
+    void setLikeShouldRejectUnsupportedEntityTypeBeforeCollaborators() {
+        LikeRepository repo = mock(LikeRepository.class);
+        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                mock(SocialDomainEventPublisher.class),
+                resolver,
+                null,
+                null
+        );
+
+        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(uuid(1), 999, uuid(100), true)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+
+        verifyNoInteractions(repo, resolver);
+    }
+
+    @Test
+    void likeQueriesShouldRejectUnsupportedEntityTypeBeforeRepository() {
+        LikeRepository repo = mock(LikeRepository.class);
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                mock(SocialDomainEventPublisher.class),
+                mock(ContentEntityResolver.class),
+                null,
+                null
+        );
+
+        assertThatThrownBy(() -> service.isLiked(uuid(1), 999, uuid(100)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.count(999, uuid(100)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.cleanupEntityLikes(999, uuid(100)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.counts(999, List.of(uuid(100))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.statuses(uuid(1), 999, List.of(uuid(100))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+
+        verifyNoInteractions(repo);
+    }
+
+    @Test
+    void likeBatchQueriesShouldNormalizeIdsBeforeRepository() {
+        LikeRepository repo = mock(LikeRepository.class);
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                mock(SocialDomainEventPublisher.class),
+                mock(ContentEntityResolver.class),
+                null,
+                null
+        );
+        UUID actorUserId = uuid(1);
+        UUID firstEntityId = uuid(100);
+        UUID secondEntityId = uuid(101);
+
+        when(repo.countEntityLikesBatch(POST, List.of(firstEntityId, secondEntityId)))
+                .thenReturn(Map.of(firstEntityId, 2L, secondEntityId, 3L));
+        when(repo.likedStatusesBatch(actorUserId, POST, List.of(firstEntityId, secondEntityId)))
+                .thenReturn(Map.of(firstEntityId, true, secondEntityId, false));
+
+        assertThat(service.counts(POST, List.of(firstEntityId, secondEntityId, firstEntityId)))
+                .containsEntry(firstEntityId, 2L)
+                .containsEntry(secondEntityId, 3L);
+        assertThat(service.statuses(actorUserId, POST, List.of(firstEntityId, secondEntityId, firstEntityId)))
+                .containsEntry(firstEntityId, true)
+                .containsEntry(secondEntityId, false);
+
+        verify(repo).countEntityLikesBatch(POST, List.of(firstEntityId, secondEntityId));
+        verify(repo).likedStatusesBatch(actorUserId, POST, List.of(firstEntityId, secondEntityId));
+    }
+
+    @Test
+    void likeBatchQueriesShouldReturnEmptyMapsForEmptyIdsWithoutRepository() {
+        LikeRepository repo = mock(LikeRepository.class);
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                mock(SocialDomainEventPublisher.class),
+                mock(ContentEntityResolver.class),
+                null,
+                null
+        );
+
+        assertThat(service.counts(POST, null)).isEmpty();
+        assertThat(service.counts(POST, List.of())).isEmpty();
+        assertThat(service.statuses(uuid(1), POST, null)).isEmpty();
+        assertThat(service.statuses(uuid(1), POST, List.of())).isEmpty();
+
+        verifyNoInteractions(repo);
+    }
+
+    @Test
+    void likeBatchQueriesShouldRejectNullAndOverLimitIdsBeforeRepository() {
+        LikeRepository repo = mock(LikeRepository.class);
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                mock(SocialDomainEventPublisher.class),
+                mock(ContentEntityResolver.class),
+                null,
+                null
+        );
+        UUID actorUserId = uuid(1);
+        List<UUID> overLimitIds = IntStream.rangeClosed(1, 201)
+                .mapToObj(com.nowcoder.community.support.TestUuids::uuid)
+                .toList();
+
+        assertThatThrownBy(() -> service.counts(POST, java.util.Arrays.asList(uuid(100), null)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.statuses(actorUserId, POST, java.util.Arrays.asList(uuid(100), null)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.counts(POST, overLimitIds))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.statuses(actorUserId, POST, overLimitIds))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+
+        verifyNoInteractions(repo);
     }
 
     private LikeApplicationService newService(

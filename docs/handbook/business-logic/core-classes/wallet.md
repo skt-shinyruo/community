@@ -4,12 +4,11 @@
 
 ## 先读顺序
 
-1. `WalletApplicationService`
+1. `WalletAccountApplicationService`
 2. `WalletLedgerApplicationService`
-3. `WalletAccountApplicationService`
-4. `WalletRechargeApplicationService` / `WalletWithdrawApplicationService` / `WalletTransferApplicationService`
-5. `WalletMarketApplicationService` / `WalletRewardApplicationService`
-6. `WalletAdminOpsApplicationService`
+3. `WalletRechargeApplicationService` / `WalletWithdrawApplicationService` / `WalletTransferApplicationService`
+4. `WalletMarketApplicationService` / `WalletRewardApplicationService`
+5. `WalletAdminOpsApplicationService`
 
 ## 入口适配器
 
@@ -22,12 +21,11 @@
 
 | 类 | 核心职责 | 读代码时重点看什么 |
 | --- | --- | --- |
-| `wallet.application.WalletApplicationService` | controller 聚合入口和 HTTP 幂等包装。 | 看 Idempotency-Key 如何统一到各业务动作。 |
 | `wallet.application.WalletAccountApplicationService` | 账户创建、余额、状态、version 条件更新。 | 看余额和状态如何通过条件更新收敛。 |
 | `wallet.application.WalletLedgerApplicationService` | 总账交易、双分录、requestId replay 校验。 | 看双分录 balance 和 replay 语义。 |
-| `wallet.application.WalletRechargeApplicationService` | 充值订单和 RECHARGE 总账。 | 看订单和账本如何一起推进。 |
-| `wallet.application.WalletWithdrawApplicationService` | 提现订单、两段 WITHDRAW 总账。 | 看提现申请和出账确认如何拆开。 |
-| `wallet.application.WalletTransferApplicationService` | 转账订单和 TRANSFER 总账。 | 看转账 from/to 约束和幂等键。 |
+| `wallet.application.WalletRechargeApplicationService` | 充值 HTTP 幂等、订单和 RECHARGE 总账。 | 看 Idempotency-Key、订单和账本如何一起推进。 |
+| `wallet.application.WalletWithdrawApplicationService` | 提现 HTTP 幂等、订单、两段 WITHDRAW 总账。 | 看提现申请和出账确认如何拆开。 |
+| `wallet.application.WalletTransferApplicationService` | 转账 HTTP 幂等、订单和 TRANSFER 总账。 | 看转账 from/to 约束和幂等键。 |
 | `wallet.application.WalletMarketApplicationService` | market escrow / release / refund owner action。 | 看 market 与 wallet 的资金协作接口。 |
 | `wallet.application.WalletRewardApplicationService` | growth / reward 入账 owner action。 | 看奖励发放如何由 requestId 保护。 |
 | `wallet.application.WalletAdminOpsApplicationService` | freeze / reverse 管理操作和审计。 | 看治理操作如何保持可追溯。 |
@@ -57,4 +55,3 @@
 - 双分录 balance 是资金事实的底线。
 - market / growth / admin 都只是 wallet 的不同调用方。
 - 冲正本身也是新的总账交易，不是简单回滚。
-

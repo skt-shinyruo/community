@@ -13,7 +13,6 @@
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
 | `auth.controller.AuthController` | `/api/auth/**` HTTP binding | [Auth 认证业务逻辑](business-logic/auth.md) | IndexOnly |
-| `auth.application.AuthApplicationService` | me / session 聚合入口 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.LoginApplicationService` | 登录、验证码要求、JWT / refresh token 签发 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.RefreshTokenApplicationService` | refresh / logout / refresh family reuse 处理 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.RegistrationApplicationService` | Verify-First registration start; creates registration draft and code after user-domain preparation | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
@@ -205,14 +204,12 @@
 | --- | --- | --- | --- |
 | `market.controller.MarketController` | market buyer/seller HTTP binding | [Market 市场业务逻辑](business-logic/market.md) | IndexOnly |
 | `market.controller.AdminMarketController` | market admin HTTP binding | [Market 市场业务逻辑](business-logic/market.md) | IndexOnly |
-| `market.application.MarketApplicationService` | market controller 聚合入口 | [Market 市场业务逻辑](business-logic/market.md) | IndexOnly |
 | `market.application.MarketQueryApplicationService` | listing / order 查询、订单详情交付内容装配 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketListingApplicationService` | listing 创建、更新、暂停、恢复、关闭 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketInventoryApplicationService` | 预加载虚拟库存追加、查询、失效和 listing 库存联动 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketAddressApplicationService` | 收货地址簿 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketOrderApplicationService` | 下单、取消、交付、发货、确认 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketDisputeApplicationService` | 买家争议、卖家处理、管理员裁决 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
-| `market.application.AdminMarketApplicationService` | admin dispute 聚合入口 | [Market 市场业务逻辑](business-logic/market.md) | IndexOnly |
 | `market.application.MarketWalletActionApplicationService` | escrow / release / refund durable command 写入 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketWalletActionProcessorApplicationService` | due action claim、调用 wallet、推进 saga | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketWalletActionRecoveryApplicationService` | lease 恢复、缺失 command 补写、已有 wallet 结果应用 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
@@ -230,7 +227,6 @@
 | --- | --- | --- | --- |
 | `wallet.controller.WalletController` | wallet HTTP binding | [Wallet 钱包业务逻辑](business-logic/wallet.md) | IndexOnly |
 | `wallet.controller.AdminWalletController` | wallet admin HTTP binding | [Wallet 钱包业务逻辑](business-logic/wallet.md) | IndexOnly |
-| `wallet.application.WalletApplicationService` | wallet controller 聚合入口和 HTTP 幂等包装 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.application.WalletAccountApplicationService` | 钱包账户创建、余额、状态、version 条件更新 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.application.WalletLedgerApplicationService` | 总账交易、双分录、requestId replay 校验 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.application.WalletRechargeApplicationService` | 充值订单和 RECHARGE 总账 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
@@ -239,7 +235,6 @@
 | `wallet.application.WalletMarketApplicationService` | market escrow / release / refund owner action | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.application.WalletRewardApplicationService` | growth / reward 入账 owner action | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.application.WalletAdminOpsApplicationService` | freeze / reverse 管理操作和审计 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
-| `wallet.application.AdminWalletApplicationService` | admin wallet controller 聚合入口 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | IndexOnly |
 | `wallet.domain.service.WalletAccountDomainService` | 账户类型、冻结状态和分录方向规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletLedgerDomainService` | 双分录平衡、金额上限和交易创建规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletOrderDomainService` | 充值 / 提现 / 转账订单金额和转账规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |

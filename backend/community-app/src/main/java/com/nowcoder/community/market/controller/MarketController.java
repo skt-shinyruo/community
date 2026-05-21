@@ -3,7 +3,12 @@ package com.nowcoder.community.market.controller;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.market.application.MarketApplicationService;
+import com.nowcoder.community.market.application.MarketAddressApplicationService;
+import com.nowcoder.community.market.application.MarketDisputeApplicationService;
+import com.nowcoder.community.market.application.MarketInventoryApplicationService;
+import com.nowcoder.community.market.application.MarketListingApplicationService;
+import com.nowcoder.community.market.application.MarketOrderApplicationService;
+import com.nowcoder.community.market.application.MarketQueryApplicationService;
 import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
 import com.nowcoder.community.market.application.command.CreateMarketAddressCommand;
 import com.nowcoder.community.market.application.command.CreateMarketDisputeCommand;
@@ -55,10 +60,27 @@ import java.util.UUID;
 @RequestMapping("/api/market")
 public class MarketController {
 
-    private final MarketApplicationService marketApplicationService;
+    private final MarketListingApplicationService marketListingService;
+    private final MarketInventoryApplicationService marketInventoryService;
+    private final MarketQueryApplicationService marketQueryService;
+    private final MarketOrderApplicationService marketOrderService;
+    private final MarketDisputeApplicationService marketDisputeService;
+    private final MarketAddressApplicationService marketAddressService;
 
-    public MarketController(MarketApplicationService marketApplicationService) {
-        this.marketApplicationService = marketApplicationService;
+    public MarketController(
+            MarketListingApplicationService marketListingService,
+            MarketInventoryApplicationService marketInventoryService,
+            MarketQueryApplicationService marketQueryService,
+            MarketOrderApplicationService marketOrderService,
+            MarketDisputeApplicationService marketDisputeService,
+            MarketAddressApplicationService marketAddressService
+    ) {
+        this.marketListingService = marketListingService;
+        this.marketInventoryService = marketInventoryService;
+        this.marketQueryService = marketQueryService;
+        this.marketOrderService = marketOrderService;
+        this.marketDisputeService = marketDisputeService;
+        this.marketAddressService = marketAddressService;
     }
 
     private static List<MarketOrderResponse> toOrderResponses(List<MarketOrderResult> orders) {
@@ -98,25 +120,25 @@ public class MarketController {
 
     @GetMapping("/listings")
     public Result<List<MarketListingResponse>> listPublicListings() {
-        return Result.ok(toListingResponses(marketApplicationService.listPublicListings()));
+        return Result.ok(toListingResponses(marketQueryService.listPublicListings()));
     }
 
     @GetMapping("/listings/{listingId}")
     public Result<MarketListingDetailResponse> getListingDetail(@PathVariable UUID listingId) {
-        return Result.ok(MarketListingDetailResponse.from(marketApplicationService.getListingDetail(listingId)));
+        return Result.ok(MarketListingDetailResponse.from(marketQueryService.getListingDetail(listingId)));
     }
 
     @GetMapping("/my-listings")
     public Result<List<MarketListingResponse>> listSellerListings(Authentication authentication) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toListingResponses(marketApplicationService.listSellerListings(sellerUserId)));
+        return Result.ok(toListingResponses(marketQueryService.listSellerListings(sellerUserId)));
     }
 
     @PostMapping("/listings")
     public Result<MarketListingResponse> createListing(Authentication authentication,
                                                        @RequestBody @Valid CreateMarketListingRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketListingResponse.from(marketApplicationService.createListing(new CreateMarketListingCommand(
+        return Result.ok(MarketListingResponse.from(marketListingService.createListing(new CreateMarketListingCommand(
                 sellerUserId,
                 request.getGoodsType(),
                 request.getTitle(),
@@ -136,7 +158,7 @@ public class MarketController {
                                                        @PathVariable UUID listingId,
                                                        @RequestBody @Valid UpdateMarketListingRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketListingResponse.from(marketApplicationService.updateListing(new UpdateMarketListingCommand(
+        return Result.ok(MarketListingResponse.from(marketListingService.updateListing(new UpdateMarketListingCommand(
                 sellerUserId,
                 listingId,
                 request.getTitle(),
@@ -150,25 +172,25 @@ public class MarketController {
     @PostMapping("/listings/{listingId}/pause")
     public Result<MarketListingResponse> pauseListing(Authentication authentication, @PathVariable UUID listingId) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketListingResponse.from(marketApplicationService.pauseListing(sellerUserId, listingId)));
+        return Result.ok(MarketListingResponse.from(marketListingService.pauseListing(sellerUserId, listingId)));
     }
 
     @PostMapping("/listings/{listingId}/resume")
     public Result<MarketListingResponse> resumeListing(Authentication authentication, @PathVariable UUID listingId) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketListingResponse.from(marketApplicationService.resumeListing(sellerUserId, listingId)));
+        return Result.ok(MarketListingResponse.from(marketListingService.resumeListing(sellerUserId, listingId)));
     }
 
     @PostMapping("/listings/{listingId}/close")
     public Result<MarketListingResponse> closeListing(Authentication authentication, @PathVariable UUID listingId) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketListingResponse.from(marketApplicationService.closeListing(sellerUserId, listingId)));
+        return Result.ok(MarketListingResponse.from(marketListingService.closeListing(sellerUserId, listingId)));
     }
 
     @GetMapping("/listings/{listingId}/inventory")
     public Result<List<MarketInventoryUnitResponse>> listInventory(Authentication authentication, @PathVariable UUID listingId) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toInventoryResponses(marketApplicationService.listInventory(listingId, sellerUserId)));
+        return Result.ok(toInventoryResponses(marketInventoryService.listInventory(listingId, sellerUserId)));
     }
 
     @PostMapping("/listings/{listingId}/inventory")
@@ -176,28 +198,28 @@ public class MarketController {
                                      @PathVariable UUID listingId,
                                      @RequestBody @Valid AddMarketInventoryBatchRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        marketApplicationService.addInventory(toCommand(listingId, sellerUserId, request));
+        marketInventoryService.appendInventory(toCommand(listingId, sellerUserId, request));
         return Result.ok();
     }
 
     @PostMapping("/inventory/{inventoryUnitId}/invalidate")
     public Result<Void> invalidateInventory(Authentication authentication, @PathVariable UUID inventoryUnitId) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        marketApplicationService.invalidateInventory(inventoryUnitId, sellerUserId);
+        marketInventoryService.invalidateInventory(inventoryUnitId, sellerUserId);
         return Result.ok();
     }
 
     @GetMapping("/addresses")
     public Result<List<MarketAddressResponse>> listAddresses(Authentication authentication) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toAddressResponses(marketApplicationService.listAddresses(userId)));
+        return Result.ok(toAddressResponses(marketAddressService.listAddresses(userId)));
     }
 
     @PostMapping("/addresses")
     public Result<MarketAddressResponse> createAddress(Authentication authentication,
                                                        @RequestBody @Valid CreateMarketAddressRequest request) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketAddressResponse.from(marketApplicationService.createAddress(new CreateMarketAddressCommand(
+        return Result.ok(MarketAddressResponse.from(marketAddressService.createAddress(new CreateMarketAddressCommand(
                 userId,
                 request.getReceiverName(),
                 request.getReceiverPhone(),
@@ -215,7 +237,7 @@ public class MarketController {
                                                        @PathVariable UUID addressId,
                                                        @RequestBody @Valid UpdateMarketAddressRequest request) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketAddressResponse.from(marketApplicationService.updateAddress(new UpdateMarketAddressCommand(
+        return Result.ok(MarketAddressResponse.from(marketAddressService.updateAddress(new UpdateMarketAddressCommand(
                 userId,
                 addressId,
                 request.getReceiverName(),
@@ -232,7 +254,7 @@ public class MarketController {
     @DeleteMapping("/addresses/{addressId}")
     public Result<Void> deleteAddress(Authentication authentication, @PathVariable UUID addressId) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        marketApplicationService.deleteAddress(userId, addressId);
+        marketAddressService.deleteAddress(userId, addressId);
         return Result.ok();
     }
 
@@ -241,7 +263,7 @@ public class MarketController {
                                                    @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
                                                    @RequestBody @Valid CreateMarketOrderRequest request) {
         UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketOrderResponse.from(marketApplicationService.createOrder(new CreateMarketOrderCommand(
+        return Result.ok(MarketOrderResponse.from(marketOrderService.createOrder(new CreateMarketOrderCommand(
                 buyerUserId,
                 request.getListingId(),
                 request.getQuantity(),
@@ -253,19 +275,19 @@ public class MarketController {
     @GetMapping("/orders/buying")
     public Result<List<MarketOrderResponse>> listBuyingOrders(Authentication authentication) {
         UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toOrderResponses(marketApplicationService.listBuyingOrders(buyerUserId)));
+        return Result.ok(toOrderResponses(marketQueryService.listBuyingOrders(buyerUserId)));
     }
 
     @GetMapping("/orders/selling")
     public Result<List<MarketOrderResponse>> listSellingOrders(Authentication authentication) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toOrderResponses(marketApplicationService.listSellingOrders(sellerUserId)));
+        return Result.ok(toOrderResponses(marketQueryService.listSellingOrders(sellerUserId)));
     }
 
     @GetMapping("/orders/{orderId}")
     public Result<MarketOrderDetailResponse> getOrderDetail(Authentication authentication, @PathVariable UUID orderId) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketOrderDetailResponse.from(marketApplicationService.getOrderDetail(orderId, actorUserId)));
+        return Result.ok(MarketOrderDetailResponse.from(marketQueryService.getOrderDetail(orderId, actorUserId)));
     }
 
     @PostMapping("/orders/{orderId}/deliver")
@@ -273,11 +295,16 @@ public class MarketController {
                                                     @PathVariable UUID orderId,
                                                     @RequestBody @Valid DeliverMarketOrderRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketOrderResponse.from(marketApplicationService.deliverOrder(new DeliverMarketOrderCommand(
+        DeliverMarketOrderCommand command = new DeliverMarketOrderCommand(
                 orderId,
                 sellerUserId,
                 request.getDeliveryContent()
-        ))));
+        );
+        return Result.ok(MarketOrderResponse.from(marketOrderService.deliverVirtualOrder(
+                command.orderId(),
+                command.sellerUserId(),
+                command.deliveryContent()
+        )));
     }
 
     @PostMapping("/orders/{orderId}/ship")
@@ -285,25 +312,32 @@ public class MarketController {
                                                  @PathVariable UUID orderId,
                                                  @RequestBody @Valid ShipMarketOrderRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketOrderResponse.from(marketApplicationService.shipOrder(new ShipMarketOrderCommand(
+        ShipMarketOrderCommand command = new ShipMarketOrderCommand(
                 orderId,
                 sellerUserId,
                 request.getCarrierName(),
                 request.getTrackingNo(),
                 request.getShippingRemark()
-        ))));
+        );
+        return Result.ok(MarketOrderResponse.from(marketOrderService.shipPhysicalOrder(
+                command.orderId(),
+                command.sellerUserId(),
+                command.carrierName(),
+                command.trackingNo(),
+                command.shippingRemark()
+        )));
     }
 
     @PostMapping("/orders/{orderId}/confirm")
     public Result<MarketOrderResponse> confirmOrder(Authentication authentication, @PathVariable UUID orderId) {
         UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketOrderResponse.from(marketApplicationService.confirmOrder(orderId, buyerUserId)));
+        return Result.ok(MarketOrderResponse.from(marketOrderService.confirmOrder(orderId, buyerUserId)));
     }
 
     @PostMapping("/orders/{orderId}/cancel")
     public Result<MarketOrderResponse> cancelOrder(Authentication authentication, @PathVariable UUID orderId) {
         UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketOrderResponse.from(marketApplicationService.cancelOrder(orderId, buyerUserId)));
+        return Result.ok(MarketOrderResponse.from(marketOrderService.cancelOrder(orderId, buyerUserId)));
     }
 
     @PostMapping("/orders/{orderId}/disputes")
@@ -311,12 +345,18 @@ public class MarketController {
                                                      @PathVariable UUID orderId,
                                                      @RequestBody @Valid CreateMarketDisputeRequest request) {
         UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
-        MarketDisputeResult dispute = marketApplicationService.openDispute(new CreateMarketDisputeCommand(
+        CreateMarketDisputeCommand command = new CreateMarketDisputeCommand(
                 orderId,
                 buyerUserId,
                 request.getReason(),
                 request.getBuyerNote()
-        ));
+        );
+        MarketDisputeResult dispute = marketDisputeService.openDispute(
+                command.orderId(),
+                command.buyerUserId(),
+                command.reason(),
+                command.buyerNote()
+        );
         return Result.ok(MarketDisputeResponse.from(dispute));
     }
 
@@ -325,11 +365,16 @@ public class MarketController {
                                                       @PathVariable UUID disputeId,
                                                       @RequestBody @Valid SellerDisputeDecisionRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketDisputeResponse.from(marketApplicationService.sellerAccept(new SellerDisputeDecisionCommand(
+        SellerDisputeDecisionCommand command = new SellerDisputeDecisionCommand(
                 disputeId,
                 sellerUserId,
                 request.getNote()
-        ))));
+        );
+        return Result.ok(MarketDisputeResponse.from(marketDisputeService.sellerAcceptRefund(
+                command.disputeId(),
+                command.sellerUserId(),
+                command.note()
+        )));
     }
 
     @PostMapping("/disputes/{disputeId}/seller-reject")
@@ -337,10 +382,15 @@ public class MarketController {
                                                       @PathVariable UUID disputeId,
                                                       @RequestBody @Valid SellerDisputeDecisionRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketDisputeResponse.from(marketApplicationService.sellerReject(new SellerDisputeDecisionCommand(
+        SellerDisputeDecisionCommand command = new SellerDisputeDecisionCommand(
                 disputeId,
                 sellerUserId,
                 request.getNote()
-        ))));
+        );
+        return Result.ok(MarketDisputeResponse.from(marketDisputeService.sellerRejectRefund(
+                command.disputeId(),
+                command.sellerUserId(),
+                command.note()
+        )));
     }
 }

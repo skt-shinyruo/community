@@ -5,7 +5,7 @@ import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.market.controller.dto.AdminResolveMarketDisputeRequest;
 import com.nowcoder.community.market.controller.dto.MarketDisputeResponse;
 import com.nowcoder.community.market.application.result.MarketDisputeResult;
-import com.nowcoder.community.market.application.AdminMarketApplicationService;
+import com.nowcoder.community.market.application.MarketDisputeApplicationService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,10 +22,10 @@ import java.util.UUID;
 @RequestMapping("/api/admin/market/disputes")
 public class AdminMarketController {
 
-    private final AdminMarketApplicationService adminMarketApplicationService;
+    private final MarketDisputeApplicationService marketDisputeApplicationService;
 
-    public AdminMarketController(AdminMarketApplicationService adminMarketApplicationService) {
-        this.adminMarketApplicationService = adminMarketApplicationService;
+    public AdminMarketController(MarketDisputeApplicationService marketDisputeApplicationService) {
+        this.marketDisputeApplicationService = marketDisputeApplicationService;
     }
 
     private static List<MarketDisputeResponse> toDisputeResponses(List<MarketDisputeResult> disputes) {
@@ -37,7 +37,7 @@ public class AdminMarketController {
     @GetMapping
     public Result<List<MarketDisputeResponse>> list(Authentication authentication) {
         CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toDisputeResponses(adminMarketApplicationService.listOpenDisputes()));
+        return Result.ok(toDisputeResponses(marketDisputeApplicationService.listOpenDisputes()));
     }
 
     @PostMapping("/{disputeId}/resolve-refund")
@@ -45,7 +45,7 @@ public class AdminMarketController {
                                                        @PathVariable UUID disputeId,
                                                        @RequestBody @Valid AdminResolveMarketDisputeRequest request) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketDisputeResponse.from(adminMarketApplicationService.resolveRefund(disputeId, actorUserId, request.getNote())));
+        return Result.ok(MarketDisputeResponse.from(marketDisputeApplicationService.adminResolveRefund(disputeId, actorUserId, request.getNote())));
     }
 
     @PostMapping("/{disputeId}/resolve-release")
@@ -53,6 +53,6 @@ public class AdminMarketController {
                                                         @PathVariable UUID disputeId,
                                                         @RequestBody @Valid AdminResolveMarketDisputeRequest request) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketDisputeResponse.from(adminMarketApplicationService.resolveRelease(disputeId, actorUserId, request.getNote())));
+        return Result.ok(MarketDisputeResponse.from(marketDisputeApplicationService.adminResolveRelease(disputeId, actorUserId, request.getNote())));
     }
 }

@@ -4,12 +4,11 @@
 
 ## 先读顺序
 
-1. `AuthApplicationService`
-2. `LoginApplicationService`
-3. `RegistrationApplicationService` / `RegistrationVerificationApplicationService`
-4. `RefreshTokenApplicationService`
-5. `PasswordResetApplicationService`
-6. `CaptchaApplicationService` / `LoginRateLimitApplicationService`
+1. `LoginApplicationService`
+2. `RegistrationApplicationService` / `RegistrationVerificationApplicationService`
+3. `RefreshTokenApplicationService`
+4. `PasswordResetApplicationService`
+5. `CaptchaApplicationService` / `LoginRateLimitApplicationService`
 
 ## 入口适配器
 
@@ -21,7 +20,6 @@
 
 | 类 | 核心职责 | 读代码时重点看什么 |
 | --- | --- | --- |
-| `auth.application.AuthApplicationService` | auth 域总入口，把 me / session / 登录 / 注册 / 重置等流程收束到一致的应用边界。 | 先看它如何把 controller 级请求路由到更细的 use case。 |
 | `auth.application.LoginApplicationService` | 登录主路径，串起风控、验证码、凭据校验、JWT 签发、refresh token 写入和安全/分析副作用。 | 看它如何 fail-closed，以及成功后如何 reset 风控状态。 |
 | `auth.application.RefreshTokenApplicationService` | refresh、logout、token family 旋转和 reuse detection。 | 看 family 级撤销如何传播到当前 token 和整个 family。 |
 | `auth.application.RegistrationApplicationService` | Verify-First 注册起点，先准备 draft 和验证码，再等待验证。 | 看它如何先回源 user 准备注册材料，再落 auth 自己的临时态。 |

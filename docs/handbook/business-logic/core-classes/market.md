@@ -18,8 +18,6 @@
 | --- | --- | --- |
 | `market.controller.MarketController` | controller | buyer / seller HTTP 入口。 |
 | `market.controller.AdminMarketController` | controller | 市场治理 HTTP 入口。 |
-| `market.application.MarketApplicationService` | application | market controller 的聚合入口。 |
-| `market.application.AdminMarketApplicationService` | application | admin dispute 的聚合入口。 |
 
 ## 应用服务
 
@@ -63,4 +61,3 @@
 - wallet 只是 market 的资金执行者，market 决定订单语义。
 - recovery 任务是 saga 的一部分，不是补锅脚本。
 - 自动确认必须和订单状态机一起看。
-

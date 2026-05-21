@@ -2,6 +2,7 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.wallet.application.result.WalletSummaryResult;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository;
@@ -63,6 +64,10 @@ public class WalletAccountApplicationService {
                 WalletAccountDomainService.ACCOUNT_TYPE_USER_WALLET
         );
         return account == null ? 0L : account.getBalance();
+    }
+
+    public WalletSummaryResult summary(UUID userId) {
+        return new WalletSummaryResult(userId, balanceOfUser(userId), statusOfUser(userId));
     }
 
     public String statusOfUser(UUID userId) {

@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @ActiveProfiles("test")
-class AdminWalletApplicationServiceTest {
+class WalletAdminOpsApplicationServiceTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

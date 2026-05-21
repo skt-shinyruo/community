@@ -2,6 +2,11 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.infra.idempotency.EffectiveIdempotencyKey;
+import com.nowcoder.community.infra.idempotency.IdempotencyKeyResolver;
+import com.nowcoder.community.infra.idempotency.RequestFingerprint;
+import com.nowcoder.community.wallet.application.command.CreateTransferCommand;
 import com.nowcoder.community.wallet.application.result.TransferOrderResult;
 import com.nowcoder.community.wallet.domain.model.TransferOrder;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
@@ -24,26 +29,57 @@ public class WalletTransferApplicationService {
     private final TransferOrderRepository transferOrderRepository;
     private final WalletAccountApplicationService accountService;
     private final WalletLedgerApplicationService ledgerService;
+    private final IdempotencyGuard idempotencyGuard;
     private final WalletOrderDomainService orderDomainService;
     private final UuidV7Generator idGenerator;
 
     @Autowired
     public WalletTransferApplicationService(TransferOrderRepository transferOrderRepository,
                                             WalletAccountApplicationService accountService,
-                                            WalletLedgerApplicationService ledgerService) {
-        this(transferOrderRepository, accountService, ledgerService, new WalletOrderDomainService(), new UuidV7Generator());
+                                            WalletLedgerApplicationService ledgerService,
+                                            IdempotencyGuard idempotencyGuard) {
+        this(transferOrderRepository, accountService, ledgerService, idempotencyGuard, new WalletOrderDomainService(), new UuidV7Generator());
     }
 
     WalletTransferApplicationService(TransferOrderRepository transferOrderRepository,
                                      WalletAccountApplicationService accountService,
                                      WalletLedgerApplicationService ledgerService,
+                                     IdempotencyGuard idempotencyGuard,
                                      WalletOrderDomainService orderDomainService,
                                      UuidV7Generator idGenerator) {
         this.transferOrderRepository = transferOrderRepository;
         this.accountService = accountService;
         this.ledgerService = ledgerService;
+        this.idempotencyGuard = idempotencyGuard;
         this.orderDomainService = orderDomainService;
         this.idGenerator = idGenerator;
+    }
+
+    WalletTransferApplicationService(TransferOrderRepository transferOrderRepository,
+                                     WalletAccountApplicationService accountService,
+                                     WalletLedgerApplicationService ledgerService) {
+        this(transferOrderRepository, accountService, ledgerService, null, new WalletOrderDomainService(), new UuidV7Generator());
+    }
+
+    public TransferOrderResult transfer(CreateTransferCommand command) {
+        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
+        String requestHash = RequestFingerprint.sha256(
+                "wallet:transfer|toUserId=" + command.toUserId() + "|amount=" + command.amount()
+        );
+        return idempotencyGuard.executeRequired(
+                "wallet:transfer",
+                command.fromUserId(),
+                effective.value(),
+                requestHash,
+                WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                TransferOrderResult.class,
+                () -> create(
+                        effective.value(),
+                        command.fromUserId(),
+                        command.toUserId(),
+                        command.amount()
+                )
+        );
     }
 
     @Transactional

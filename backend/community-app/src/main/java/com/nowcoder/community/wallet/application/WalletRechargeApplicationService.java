@@ -2,6 +2,11 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.infra.idempotency.EffectiveIdempotencyKey;
+import com.nowcoder.community.infra.idempotency.IdempotencyKeyResolver;
+import com.nowcoder.community.infra.idempotency.RequestFingerprint;
+import com.nowcoder.community.wallet.application.command.CreateRechargeCommand;
 import com.nowcoder.community.wallet.domain.model.RechargeOrder;
 import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
@@ -24,26 +29,49 @@ public class WalletRechargeApplicationService {
     private final RechargeOrderRepository rechargeOrderRepository;
     private final WalletAccountApplicationService accountService;
     private final WalletLedgerApplicationService ledgerService;
+    private final IdempotencyGuard idempotencyGuard;
     private final WalletOrderDomainService orderDomainService;
     private final UuidV7Generator idGenerator;
 
     @Autowired
     public WalletRechargeApplicationService(RechargeOrderRepository rechargeOrderRepository,
                                             WalletAccountApplicationService accountService,
-                                            WalletLedgerApplicationService ledgerService) {
-        this(rechargeOrderRepository, accountService, ledgerService, new WalletOrderDomainService(), new UuidV7Generator());
+                                            WalletLedgerApplicationService ledgerService,
+                                            IdempotencyGuard idempotencyGuard) {
+        this(rechargeOrderRepository, accountService, ledgerService, idempotencyGuard, new WalletOrderDomainService(), new UuidV7Generator());
     }
 
     WalletRechargeApplicationService(RechargeOrderRepository rechargeOrderRepository,
                                      WalletAccountApplicationService accountService,
                                      WalletLedgerApplicationService ledgerService,
+                                     IdempotencyGuard idempotencyGuard,
                                      WalletOrderDomainService orderDomainService,
                                      UuidV7Generator idGenerator) {
         this.rechargeOrderRepository = rechargeOrderRepository;
         this.accountService = accountService;
         this.ledgerService = ledgerService;
+        this.idempotencyGuard = idempotencyGuard;
         this.orderDomainService = orderDomainService;
         this.idGenerator = idGenerator;
+    }
+
+    WalletRechargeApplicationService(RechargeOrderRepository rechargeOrderRepository,
+                                     WalletAccountApplicationService accountService,
+                                     WalletLedgerApplicationService ledgerService) {
+        this(rechargeOrderRepository, accountService, ledgerService, null, new WalletOrderDomainService(), new UuidV7Generator());
+    }
+
+    public RechargeOrderResult recharge(CreateRechargeCommand command) {
+        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
+        return idempotencyGuard.executeRequired(
+                "wallet:recharge",
+                command.userId(),
+                effective.value(),
+                RequestFingerprint.sha256("wallet:recharge|amount=" + command.amount()),
+                WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                RechargeOrderResult.class,
+                () -> complete(effective.value(), command.userId(), command.amount())
+        );
     }
 
     @Transactional

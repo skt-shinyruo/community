@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @ActiveProfiles("test")
-class WalletApplicationServiceTransferTest {
+class WalletTransferApplicationServiceTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

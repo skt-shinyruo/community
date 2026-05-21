@@ -1,6 +1,10 @@
 package com.nowcoder.community.auth.controller;
 
-import com.nowcoder.community.auth.application.AuthApplicationService;
+import com.nowcoder.community.auth.application.CaptchaApplicationService;
+import com.nowcoder.community.auth.application.LoginApplicationService;
+import com.nowcoder.community.auth.application.PasswordResetApplicationService;
+import com.nowcoder.community.auth.application.RegistrationApplicationService;
+import com.nowcoder.community.auth.application.RegistrationVerificationApplicationService;
 import com.nowcoder.community.auth.application.command.IssueCaptchaCommand;
 import com.nowcoder.community.auth.application.command.LoginCommand;
 import com.nowcoder.community.auth.application.command.LogoutCommand;
@@ -54,7 +58,19 @@ import static org.mockito.Mockito.when;
 class AuthControllerUnitTest {
 
     @Mock
-    private AuthApplicationService authApplicationService;
+    private LoginApplicationService loginApplicationService;
+
+    @Mock
+    private RegistrationApplicationService registrationApplicationService;
+
+    @Mock
+    private RegistrationVerificationApplicationService registrationVerificationApplicationService;
+
+    @Mock
+    private CaptchaApplicationService captchaApplicationService;
+
+    @Mock
+    private PasswordResetApplicationService passwordResetApplicationService;
 
     @Mock
     private ClientIpResolver clientIpResolver;
@@ -63,9 +79,16 @@ class AuthControllerUnitTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(authApplicationService.refreshCookieName()).thenReturn("refresh_token");
+        lenient().when(loginApplicationService.refreshCookieName()).thenReturn("refresh_token");
         lenient().when(clientIpResolver.resolve(any())).thenReturn(new ClientIpResolver.ResolvedClientIp("127.0.0.1", ClientIpResolver.SOURCE_REMOTE));
-        controller = new AuthController(authApplicationService, clientIpResolver);
+        controller = new AuthController(
+                loginApplicationService,
+                registrationApplicationService,
+                registrationVerificationApplicationService,
+                captchaApplicationService,
+                passwordResetApplicationService,
+                clientIpResolver
+        );
     }
 
     @Test
@@ -76,7 +99,7 @@ class AuthControllerUnitTest {
 
         RefreshCookieSpec refreshCookie = issuedCookie("rt", true);
 
-        when(authApplicationService.login(any(LoginCommand.class)))
+        when(loginApplicationService.login(any(LoginCommand.class)))
                 .thenReturn(new LoginResult("at", refreshCookie));
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
@@ -89,14 +112,14 @@ class AuthControllerUnitTest {
 
         String setCookie = httpResponse.getHeader(HttpHeaders.SET_COOKIE);
         assertIssuedRefreshCookie(setCookie, "rt", true);
-        verify(authApplicationService).login(new LoginCommand("u", "p", null, null, "127.0.0.1", ClientIpResolver.SOURCE_REMOTE));
+        verify(loginApplicationService).login(new LoginCommand("u", "p", null, null, "127.0.0.1", ClientIpResolver.SOURCE_REMOTE));
     }
 
     @Test
     void refreshShouldSetRefreshCookieAndReturnAccessToken() {
         RefreshCookieSpec refreshCookie = issuedCookie("rt2");
 
-        when(authApplicationService.refresh(any(RefreshCommand.class)))
+        when(loginApplicationService.refresh(any(RefreshCommand.class)))
                 .thenReturn(new RefreshResult("at2", refreshCookie));
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
@@ -110,17 +133,16 @@ class AuthControllerUnitTest {
 
         String setCookie = httpResponse.getHeader(HttpHeaders.SET_COOKIE);
         assertIssuedRefreshCookie(setCookie, "rt2", false);
-        verify(authApplicationService).refresh(new RefreshCommand("presented-token"));
+        verify(loginApplicationService).refresh(new RefreshCommand("presented-token"));
     }
 
     @Test
     void refreshShouldClearRefreshCookieWhenTokenIsInvalid() {
         RefreshCookieSpec clearCookie = clearedCookie();
 
-        when(authApplicationService.refresh(any(RefreshCommand.class)))
+        when(loginApplicationService.refresh(any(RefreshCommand.class)))
                 .thenThrow(new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID));
-        when(authApplicationService.shouldClearRefreshCookie(any(BusinessException.class))).thenReturn(true);
-        when(authApplicationService.clearRefreshCookie()).thenReturn(clearCookie);
+        when(loginApplicationService.clearRefreshCookie()).thenReturn(clearCookie);
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();
@@ -128,7 +150,7 @@ class AuthControllerUnitTest {
         Throwable thrown = catchThrowable(() -> controller.refresh(httpRequest, httpResponse));
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
-        verify(authApplicationService).clearRefreshCookie();
+        verify(loginApplicationService).clearRefreshCookie();
         assertClearedRefreshCookie(httpResponse.getHeader(HttpHeaders.SET_COOKIE));
     }
 
@@ -136,10 +158,9 @@ class AuthControllerUnitTest {
     void refreshShouldClearRefreshCookieWhenUserIsDisabled() {
         RefreshCookieSpec clearCookie = clearedCookie();
 
-        when(authApplicationService.refresh(any(RefreshCommand.class)))
+        when(loginApplicationService.refresh(any(RefreshCommand.class)))
                 .thenThrow(new BusinessException(AuthErrorCode.USER_DISABLED));
-        when(authApplicationService.shouldClearRefreshCookie(any(BusinessException.class))).thenReturn(true);
-        when(authApplicationService.clearRefreshCookie()).thenReturn(clearCookie);
+        when(loginApplicationService.clearRefreshCookie()).thenReturn(clearCookie);
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();
@@ -147,7 +168,7 @@ class AuthControllerUnitTest {
         Throwable thrown = catchThrowable(() -> controller.refresh(httpRequest, httpResponse));
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
-        verify(authApplicationService).clearRefreshCookie();
+        verify(loginApplicationService).clearRefreshCookie();
         assertClearedRefreshCookie(httpResponse.getHeader(HttpHeaders.SET_COOKIE));
     }
 
@@ -155,7 +176,7 @@ class AuthControllerUnitTest {
     void logoutShouldClearRefreshCookie() {
         RefreshCookieSpec clearCookie = clearedCookie();
 
-        when(authApplicationService.clearRefreshCookie()).thenReturn(clearCookie);
+        when(loginApplicationService.clearRefreshCookie()).thenReturn(clearCookie);
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
         httpRequest.setCookies(new Cookie("refresh_token", "logout-token"));
@@ -163,7 +184,7 @@ class AuthControllerUnitTest {
 
         controller.logout(httpRequest, httpResponse);
 
-        verify(authApplicationService).logout(new LogoutCommand("logout-token"));
+        verify(loginApplicationService).logout(new LogoutCommand("logout-token"));
         assertClearedRefreshCookie(httpResponse.getHeader(HttpHeaders.SET_COOKIE));
     }
 
@@ -192,7 +213,7 @@ class AuthControllerUnitTest {
 
     @Test
     void captchaShouldSetNoCacheHeaders() {
-        when(authApplicationService.captcha(any(IssueCaptchaCommand.class))).thenReturn(new CaptchaIssueResult("cid", "img", 60));
+        when(captchaApplicationService.issue(any(IssueCaptchaCommand.class))).thenReturn(new CaptchaIssueResult("cid", "img", 60));
 
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();
         Result<CaptchaIssueResponse> resp = controller.captcha(httpResponse);
@@ -214,7 +235,7 @@ class AuthControllerUnitTest {
         request.setCaptchaId("cid");
         request.setCaptchaCode("abcd");
 
-        when(authApplicationService.register(any(RegisterCommand.class))).thenReturn(new RegisterResult(
+        when(registrationApplicationService.register(any(RegisterCommand.class))).thenReturn(new RegisterResult(
                 userId,
                 "0123456789abcdef0123456789abcdef",
                 true,
@@ -240,7 +261,7 @@ class AuthControllerUnitTest {
         request.setCaptchaId("cid");
         request.setCaptchaCode("abcd");
 
-        when(authApplicationService.resendRegisterCode(any(ResendRegisterCodeCommand.class)))
+        when(registrationVerificationApplicationService.resendCode(any(ResendRegisterCodeCommand.class)))
                 .thenReturn(new RegisterCodeResendResult(true, "a***@example.com", "123456"));
 
         Result<RegisterCodeResendResponse> response = controller.resendRegisterCode(request);
@@ -260,7 +281,7 @@ class AuthControllerUnitTest {
 
         RefreshCookieSpec refreshCookie = issuedCookie("rt3");
 
-        when(authApplicationService.verifyRegisterCode(any(VerifyRegisterCodeCommand.class)))
+        when(registrationVerificationApplicationService.verifyAndLogin(any(VerifyRegisterCodeCommand.class)))
                 .thenReturn(new LoginResult("at3", refreshCookie));
 
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();

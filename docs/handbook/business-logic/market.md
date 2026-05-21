@@ -292,7 +292,6 @@ saga 状态推进：
 
 - `market.controller.MarketController`
 - `market.controller.AdminMarketController`
-- `market.application.MarketApplicationService`
 - `market.application.MarketQueryApplicationService`
 - `market.application.MarketListingApplicationService`
 - `market.application.MarketInventoryApplicationService`

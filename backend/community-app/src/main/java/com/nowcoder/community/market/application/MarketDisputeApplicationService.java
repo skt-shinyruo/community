@@ -4,6 +4,7 @@ import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.domain.model.MarketDispute;
 import com.nowcoder.community.market.domain.model.MarketOrder;
+import com.nowcoder.community.market.domain.model.MarketOrderTransition;
 import com.nowcoder.community.market.domain.repository.MarketDisputeRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import com.nowcoder.community.market.domain.service.MarketDisputeDomainService;
@@ -16,7 +17,6 @@ import org.springframework.util.StringUtils;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -29,9 +29,6 @@ public class MarketDisputeApplicationService {
     private static final String DISPUTE_STATUS_SELLER_ACCEPTED = "SELLER_ACCEPTED";
     private static final String DISPUTE_STATUS_SELLER_REJECTED = "SELLER_REJECTED";
     private static final String DISPUTE_STATUS_ADMIN_RESOLVED = "ADMIN_RESOLVED";
-    private static final String ORDER_STATUS_DELIVERED = "DELIVERED";
-    private static final String ORDER_STATUS_SHIPPED = "SHIPPED";
-    private static final String ORDER_STATUS_DISPUTED = "DISPUTED";
     private static final String RESOLUTION_REFUND = "REFUND";
     private static final String RESOLUTION_RELEASE = "RELEASE";
 
@@ -64,9 +61,7 @@ public class MarketDisputeApplicationService {
         validateText(buyerNote, "buyerNote");
         MarketOrder order = requireOrderForUpdate(orderId);
         disputeDomainService.validateBuyerCanOpen(buyerUserId, order.getBuyerUserId());
-        if (!Set.of(ORDER_STATUS_DELIVERED, ORDER_STATUS_SHIPPED).contains(order.getStatus())) {
-            throw new BusinessException(INVALID_ARGUMENT, "order is not disputable: orderId=" + orderId);
-        }
+        MarketOrderTransition transition = order.openDispute();
         boolean activeExists = marketDisputeRepository.findByOrderId(orderId).stream().anyMatch(this::isActiveDispute);
         if (activeExists) {
             throw new BusinessException(INVALID_ARGUMENT, "order already has active dispute: orderId=" + orderId);
@@ -82,7 +77,7 @@ public class MarketDisputeApplicationService {
         dispute.setReason(reason.trim());
         dispute.setBuyerNote(buyerNote.trim());
         marketDisputeRepository.save(dispute);
-        marketOrderRepository.markDisputed(orderId);
+        marketOrderRepository.markDisputed(transition.orderId());
         return MarketDisputeResult.from(reloadDispute(dispute.getDisputeId()));
     }
 
@@ -97,7 +92,7 @@ public class MarketDisputeApplicationService {
         dispute.setResolutionType(RESOLUTION_REFUND);
         dispute.setResolvedAt(new Date());
         marketDisputeRepository.saveChanges(dispute);
-        marketOrderRepository.markDisputeRefundPending(order.getOrderId());
+        marketOrderRepository.markDisputeRefundPending(order.requestDisputeRefund().orderId());
         marketWalletActionService.enqueueDisputeRefund(
                 order.getOrderId(),
                 disputeId,
@@ -131,7 +126,7 @@ public class MarketDisputeApplicationService {
         dispute.setResolvedBy(adminUserId);
         dispute.setResolvedAt(new Date());
         marketDisputeRepository.saveChanges(dispute);
-        marketOrderRepository.markDisputeRefundPending(order.getOrderId());
+        marketOrderRepository.markDisputeRefundPending(order.requestDisputeRefund().orderId());
         marketWalletActionService.enqueueDisputeRefund(
                 order.getOrderId(),
                 disputeId,
@@ -155,7 +150,7 @@ public class MarketDisputeApplicationService {
         dispute.setResolvedBy(adminUserId);
         dispute.setResolvedAt(new Date());
         marketDisputeRepository.saveChanges(dispute);
-        marketOrderRepository.markDisputeReleasePending(order.getOrderId());
+        marketOrderRepository.markDisputeReleasePending(order.requestDisputeRelease().orderId());
         marketWalletActionService.enqueueDisputeRelease(
                 order.getOrderId(),
                 disputeId,
@@ -191,9 +186,7 @@ public class MarketDisputeApplicationService {
 
     private MarketOrder requireDisputedOrderForUpdate(UUID orderId) {
         MarketOrder order = requireOrderForUpdate(orderId);
-        if (!ORDER_STATUS_DISPUTED.equals(order.getStatus())) {
-            throw new BusinessException(INVALID_ARGUMENT, "order is not disputed: orderId=" + orderId);
-        }
+        order.assertDisputed();
         return order;
     }
 

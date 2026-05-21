@@ -23,12 +23,6 @@ import java.util.UUID;
 @Service
 public class MarketWalletActionRecoveryApplicationService {
 
-    private static final String STATUS_ESCROW_PENDING = "ESCROW_PENDING";
-    private static final String STATUS_ESCROW_CANCEL_PENDING = "ESCROW_CANCEL_PENDING";
-    private static final String STATUS_RELEASE_PENDING = "RELEASE_PENDING";
-    private static final String STATUS_REFUND_PENDING = "REFUND_PENDING";
-    private static final String STATUS_DISPUTE_RELEASE_PENDING = "DISPUTE_RELEASE_PENDING";
-    private static final String STATUS_DISPUTE_REFUND_PENDING = "DISPUTE_REFUND_PENDING";
     private static final Set<String> RECOVERABLE_RELEASE_REFUND_FAILURE_CODES = Set.of(
             String.valueOf(WalletErrorCodes.ACCOUNT_UPDATE_CONFLICT),
             String.valueOf(WalletErrorCodes.ACCOUNT_BALANCE_INSUFFICIENT)
@@ -113,7 +107,7 @@ public class MarketWalletActionRecoveryApplicationService {
     }
 
     private boolean reconcilePendingOrder(MarketOrder order) {
-        String actionType = actionTypeFor(order.getStatus());
+        String actionType = order.pendingWalletActionType();
         if (actionType == null) {
             return false;
         }
@@ -133,7 +127,7 @@ public class MarketWalletActionRecoveryApplicationService {
             );
             return true;
         }
-        if (STATUS_ESCROW_CANCEL_PENDING.equals(order.getStatus())
+        if (order.isEscrowCancelPending()
                 && MarketWalletActionType.ESCROW.equals(action.getActionType())
                 && MarketWalletActionStatus.CANCELLED.equals(action.getStatus())
                 && MarketWalletActionResultType.NOOP.equals(action.getResultType())) {
@@ -198,7 +192,7 @@ public class MarketWalletActionRecoveryApplicationService {
 
     private boolean enqueueMissingAction(MarketOrder order, String actionType) {
         if (MarketWalletActionType.ESCROW.equals(actionType)) {
-            if (STATUS_ESCROW_CANCEL_PENDING.equals(order.getStatus())) {
+            if (order.isEscrowCancelPending()) {
                 sagaService.completeEscrowNoop(order.getOrderId());
                 return true;
             }
@@ -229,18 +223,5 @@ public class MarketWalletActionRecoveryApplicationService {
             return true;
         }
         return false;
-    }
-
-    private String actionTypeFor(String orderStatus) {
-        if (STATUS_ESCROW_PENDING.equals(orderStatus) || STATUS_ESCROW_CANCEL_PENDING.equals(orderStatus)) {
-            return MarketWalletActionType.ESCROW;
-        }
-        if (STATUS_RELEASE_PENDING.equals(orderStatus) || STATUS_DISPUTE_RELEASE_PENDING.equals(orderStatus)) {
-            return MarketWalletActionType.RELEASE;
-        }
-        if (STATUS_REFUND_PENDING.equals(orderStatus) || STATUS_DISPUTE_REFUND_PENDING.equals(orderStatus)) {
-            return MarketWalletActionType.REFUND;
-        }
-        return null;
     }
 }

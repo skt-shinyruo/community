@@ -18,10 +18,10 @@
 2. `MarketOrderApplicationService.createOrder(CreateMarketOrderCommand)` 计算 request fingerprint。
 3. `IdempotencyGuard.executeRequired(...)` 包住下单动作。
 4. `MarketOrderApplicationService.createOrder(requestId, ...)` 校验买家、商品、数量和地址。
-5. 如果同一买家和幂等键已有关联订单，校验 replay 参数一致后返回已有结果。
+5. 如果同一买家和幂等键已有关联订单，由 `MarketOrder.assertReplayMatches(...)` 校验 replay 参数一致后返回已有结果。
 6. market 锁定商品并校验库存、状态和购买约束。
 7. 如果商品需要地址，market 保存地址快照。
-8. market 写订单。
+8. market 通过 `MarketOrder.place(...)` 生成订单快照并写订单。
 9. finite stock 商品扣减库存；preloaded delivery 商品预留发货单元。
 10. market 写入或 enqueue escrow 资金动作。
 11. 返回订单当前状态。
@@ -36,7 +36,7 @@ HTTP 成功表示订单主事实和资金动作命令已按设计接单，不等
 2. wallet owner 执行资金托管入账。
 3. 订单进入可发货或待交付状态。
 4. 卖家发货或系统交付后，订单进入 shipped / delivered。
-5. 买家确认收货时，market 标记 release pending。
+5. 买家确认收货时，market 通过 `MarketOrder.requestRelease()` 标记 release pending。
 6. market enqueue release action。
 7. wallet 将托管资金释放给卖家。
 8. action 成功后，market 条件推进订单状态。
@@ -45,11 +45,13 @@ HTTP 成功表示订单主事实和资金动作命令已按设计接单，不等
 
 退款或纠纷不应该直接改钱包余额。
 
-1. market 判断订单、角色、时限和纠纷状态。
+1. market 通过 `MarketOrder` 判断订单、角色、时限和纠纷状态。
 2. market 写退款或纠纷主事实。
 3. market 生成 refund / cancel / release 等资金 action。
 4. wallet 根据 action 入账。
-5. market 根据 action 结果推进订单或纠纷状态。
+5. market 根据 action 结果通过订单领域 transition intent 条件推进订单或纠纷状态。
+
+市场侧订单状态流转由 `MarketOrder` 表达，仓储用条件更新持久化 transition。wallet action 仍是 market-owned durable command，资金入账仍只通过 wallet owner action 完成。
 
 ## 钱包账本口径
 

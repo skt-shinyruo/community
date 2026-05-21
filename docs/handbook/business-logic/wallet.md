@@ -30,7 +30,7 @@ owner API：
 
 钱包域的数据流全部收敛到总账和账户两个层面：
 
-1. 充值 / 提现 / 转账：HTTP 写入口先做 `Idempotency-Key` 归一化，再进入对应的 application service。每个业务先按 `userId + requestId` 查找或创建订单，再调用 `WalletLedgerApplicationService.post(...)` 写双分录总账，最后更新订单状态。
+1. 充值 / 提现 / 转账：HTTP 写入口先做 `Idempotency-Key` 归一化，再进入对应的 application service。每个业务先按 `userId + requestId` 查找或创建订单，订单领域模型负责重放校验和自身状态流转意图，再调用 `WalletLedgerApplicationService.post(...)` 写双分录总账，最后通过仓储条件更新订单状态。
 2. 余额事实：`wallet_account` 不是随意读写的缓存，而是由总账分录和条件更新共同维护。所有借贷动作都要先锁定账户，再按 transaction 指纹保证幂等。
 3. 市场协作：market 只通过 `WalletMarketActionApi` 提交 escrow / release / refund，不直接写余额。钱包返回 `wallet_txn_id` 后，market 再推进自己的 saga 状态。
 4. 奖励协作：growth 或 user reward 发放奖励时只传稳定 requestId，钱包以 requestId 作为总账幂等键，重复发放或撤销不会重复记账。
@@ -95,10 +95,10 @@ HTTP `WalletRechargeApplicationService.recharge(...)`：
 
 1. 从 `Idempotency-Key` 解析 HTTP 幂等键；body `requestId` 按未知字段返回参数错误。
 2. 用 `wallet:recharge + userId + key + amount fingerprint` 做 HTTP 幂等。
-3. `WalletRechargeApplicationService.complete(...)` 创建或复用充值订单。
-4. 确保用户钱包和系统账户。
-5. 写 RECHARGE 总账。
-6. 返回充值订单结果。
+3. `WalletRechargeApplicationService.complete(...)` 加载已有订单，或通过 `RechargeOrder.create(...)` 创建充值订单。
+4. `RechargeOrder` 负责重放参数校验和 `CREATED -> PAID` 状态流转意图。
+5. application service 确保用户钱包和系统账户，并写 RECHARGE 总账。
+6. 仓储按领域 transition 条件更新订单状态；已支付订单重放直接返回订单结果。
 
 当前实现是同步完成型充值，不包含真实第三方支付回调。
 

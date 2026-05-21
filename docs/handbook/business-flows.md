@@ -800,9 +800,11 @@ Order path：
 5. 物理商品必须提供 active 收货地址，订单保存地址快照。
 6. 有限库存或实物商品创建订单时扣减 listing 可用库存。
 7. 预加载虚拟库存会先锁定库存单元并绑定订单。
-8. 创建订单，初始状态为 `ESCROW_PENDING`。
+8. 通过 `MarketOrder.place(...)` 创建订单，领域模型保存订单快照并给出初始 `ESCROW_PENDING` 状态。
 9. 在 market 本地事务内写入 `market_wallet_action(ESCROW, PENDING)`，不在该事务里直接写 wallet ledger。
 10. 对外幂等 key 与钱包账本 requestId 解耦；钱包侧使用服务端派生 id，例如 `market-order:<orderId>:<action>`。
+
+`MarketOrder` 负责订单重放参数兼容性、商品/交付/库存快照、买卖双方角色校验、状态谓词、自动确认到期判断和订单状态流转意图。application service 负责事务、锁、仓储、库存、wallet action enqueue 和结果组装。
 
 Market wallet action saga：
 
@@ -814,7 +816,7 @@ Market wallet action saga：
 6. wallet 成功后，processor 记录 `wallet_txn_id` 并通过 `MarketOrderSagaApplicationService` 条件推进订单 / 争议状态。
 7. release / refund 的可恢复钱包错误进入 `RETRYING` 并带 backoff。
 8. escrow 的业务失败会进入失败路径并恢复 market 侧库存 / 预加载库存。
-9. `MarketWalletActionRecoveryHandler` 负责恢复过期 processing lease、补齐缺失 command、把已有 `wallet_txn_id` 重新应用到 saga 状态。
+9. `MarketWalletActionRecoveryHandler` 负责恢复过期 processing lease、补齐缺失 command、把已有 `wallet_txn_id` 重新应用到 saga 状态；pending 订单应补哪个 command 由 `MarketOrder.pendingWalletActionType()` 判断。
 
 Order states：
 
@@ -916,10 +918,10 @@ Recharge：
 
 1. `POST /api/wallet/recharges` 进入 `WalletRechargeApplicationService.recharge(...)`。
 2. 应用层解析 effective idempotency key，包裹 `wallet:recharge` HTTP 幂等。
-3. `WalletRechargeApplicationService.complete(...)` 按 `userId + requestId` 查找或创建 `recharge_order`。
-4. 重放必须匹配 `userId` 和 `amount`，否则返回 `REQUEST_REPLAY_CONFLICT`。
+3. `WalletRechargeApplicationService.complete(...)` 加载已有订单，或通过 `RechargeOrder.create(...)` 创建 `recharge_order`。
+4. `RechargeOrder` 校验重放必须匹配 `userId` 和 `amount`，否则返回 `REQUEST_REPLAY_CONFLICT`。
 5. 未支付订单通过总账写入 `RECHARGE`：借记系统 `PLATFORM_CASH`，贷记用户钱包。
-6. 账本成功后订单从 `CREATED` 更新为 `PAID`。
+6. 账本成功后，仓储按 `RechargeOrder.pay(...)` 给出的 transition 条件把订单从 `CREATED` 更新为 `PAID`。
 
 Withdraw：
 

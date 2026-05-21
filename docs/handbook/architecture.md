@@ -96,6 +96,7 @@ com.nowcoder.community.<domain>
 - 负责事务边界、幂等、actor/viewer 转换、command/result 装配、领域调用、领域事件发布和 foreign-domain `api.*` 调用。
 - `application.command` / `application.result` / application-owned ports only express application semantics. They must not expose HTTP transport types such as `ResponseEntity`, `ResponseCookie`, `Resource`, `MediaType`, Servlet request/response types, or Spring Web upload types such as `MultipartFile`.
 - 不直接依赖 MyBatis mapper 或 dataobject；持久化只通过 domain repository interface 或明确的 infrastructure port。
+- 不新增以域名命名的聚合入口门面，例如 `AuthApplicationService`、`WalletApplicationService`、`MarketApplicationService`、`AdminWalletApplicationService`、`AdminMarketApplicationService` 这类只路由到同域多个更细 `*ApplicationService` 的类。controller / admin controller 应直接进入拥有该用例事务、幂等、审计和跨域协作语义的具体同域 `*ApplicationService`。
 
 ### Domain
 
@@ -154,11 +155,13 @@ owner domain event
 - `Controller -> raw Service`
 - `Controller -> UseCase`
 - `Controller -> same-domain api.*`
+- `Controller -> same-domain domain-named aggregate ApplicationService facade`
 - `ApplicationService -> MyBatis mapper`
 - `Domain -> infrastructure`
 - `Domain -> api.*`
 - `UseCase + ApplicationService` 两套 competing entry style
 - `CommandService`、`ActionService`、`FacadeService` 作为应用入口命名
+- `AuthApplicationService` / `WalletApplicationService` 这类绕过 `FacadeService` 命名但实际只转发到同域多个应用服务的聚合入口
 - `app/query`、`app/command` 或新的 `*UseCase` 包
 
 旧 `service`、`entity`、`mapper`、`app` 包只能作为迁移表面。触碰相关代码时，应继续把业务规则迁向 `domain`，把 MyBatis 细节迁向 `infrastructure.persistence`，把同域入口迁向 `application.*ApplicationService`。

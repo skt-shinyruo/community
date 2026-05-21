@@ -13,7 +13,6 @@ import com.nowcoder.community.market.exception.MarketErrorCode;
 import com.nowcoder.community.market.application.result.MarketOrderDetailResult;
 import com.nowcoder.community.market.application.result.MarketOrderResult;
 import com.nowcoder.community.market.security.MarketSecurityRules;
-import com.nowcoder.community.market.application.MarketApplicationService;
 import com.nowcoder.community.market.application.MarketAddressApplicationService;
 import com.nowcoder.community.market.application.MarketDisputeApplicationService;
 import com.nowcoder.community.market.application.MarketInventoryApplicationService;
@@ -33,16 +32,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -54,7 +49,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(MarketController.class)
 @Import({
         MarketController.class,
-        MarketApplicationService.class,
         MarketSecurityRules.class,
         CommunitySecurityConfig.class,
         SecurityExceptionHandler.class,
@@ -84,21 +78,11 @@ class MarketControllerTest {
     private MarketAddressApplicationService marketAddressService;
 
     @MockBean
-    private IdempotencyGuard idempotencyGuard;
-
-    @MockBean
     private JwtDecoder jwtDecoder;
 
     @SpringBootConfiguration
     @EnableAutoConfiguration
     static class TestApplication {
-    }
-
-    @org.junit.jupiter.api.BeforeEach
-    void setUpIdempotencyGuard() {
-        doAnswer(invocation -> ((Supplier<?>) invocation.getArgument(6)).get())
-                .when(idempotencyGuard)
-                .executeRequired(anyString(), any(UUID.class), anyString(), anyString(), any(), any(), any());
     }
 
     @Test
@@ -322,7 +306,7 @@ class MarketControllerTest {
         UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000051");
         UUID escrowTxnId = UUID.fromString("00000000-0000-7000-8000-000000000701");
 
-        when(marketOrderService.createOrder("market:header-api-1", buyerUserId, listingId, 1, null))
+        when(marketOrderService.createOrder(any()))
                 .thenReturn(new MarketOrderResult(
                         orderId,
                         "market:header-api-1",
@@ -427,7 +411,7 @@ class MarketControllerTest {
         UUID buyerUserId = uuid(9);
         UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000011");
         UUID addressId = UUID.fromString("00000000-0000-7000-8000-000000000041");
-        when(marketOrderService.createOrder("market:req-replay-conflict", buyerUserId, listingId, 1, addressId))
+        when(marketOrderService.createOrder(any()))
                 .thenThrow(new BusinessException(
                         MarketErrorCode.REQUEST_REPLAY_CONFLICT,
                         "requestId replay conflict: requestId=market:req-replay-conflict"

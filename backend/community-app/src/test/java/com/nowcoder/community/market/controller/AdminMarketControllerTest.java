@@ -5,7 +5,6 @@ import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.market.application.result.MarketDisputeResult;
 import com.nowcoder.community.market.security.MarketSecurityRules;
-import com.nowcoder.community.market.application.AdminMarketApplicationService;
 import com.nowcoder.community.market.application.MarketDisputeApplicationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +32,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(AdminMarketController.class)
 @Import({
         AdminMarketController.class,
-        AdminMarketApplicationService.class,
         MarketSecurityRules.class,
         CommunitySecurityConfig.class,
         SecurityExceptionHandler.class,

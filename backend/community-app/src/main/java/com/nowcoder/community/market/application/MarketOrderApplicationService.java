@@ -2,6 +2,11 @@ package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.infra.idempotency.EffectiveIdempotencyKey;
+import com.nowcoder.community.infra.idempotency.IdempotencyKeyResolver;
+import com.nowcoder.community.infra.idempotency.RequestFingerprint;
+import com.nowcoder.community.market.application.command.CreateMarketOrderCommand;
 import com.nowcoder.community.market.application.result.MarketOrderResult;
 import com.nowcoder.community.market.domain.model.MarketAddress;
 import com.nowcoder.community.market.domain.model.MarketDelivery;
@@ -58,6 +63,7 @@ public class MarketOrderApplicationService {
     private final MarketShipmentRepository marketShipmentRepository;
     private final MarketWalletActionApplicationService marketWalletActionService;
     private final MarketOrderSagaApplicationService marketOrderSagaService;
+    private final IdempotencyGuard idempotencyGuard;
     private final UuidV7Generator idGenerator;
     private final MarketOrderDomainService orderDomainService = new MarketOrderDomainService();
 
@@ -69,7 +75,8 @@ public class MarketOrderApplicationService {
                               MarketDeliveryRepository marketDeliveryRepository,
                               MarketShipmentRepository marketShipmentRepository,
                               MarketWalletActionApplicationService marketWalletActionService,
-                              MarketOrderSagaApplicationService marketOrderSagaService) {
+                              MarketOrderSagaApplicationService marketOrderSagaService,
+                              IdempotencyGuard idempotencyGuard) {
         this(marketListingRepository,
                 marketInventoryRepository,
                 marketOrderRepository,
@@ -78,6 +85,7 @@ public class MarketOrderApplicationService {
                 marketShipmentRepository,
                 marketWalletActionService,
                 marketOrderSagaService,
+                idempotencyGuard,
                 new UuidV7Generator());
     }
 
@@ -89,6 +97,7 @@ public class MarketOrderApplicationService {
                        MarketShipmentRepository marketShipmentRepository,
                        MarketWalletActionApplicationService marketWalletActionService,
                        MarketOrderSagaApplicationService marketOrderSagaService,
+                       IdempotencyGuard idempotencyGuard,
                        UuidV7Generator idGenerator) {
         this.marketListingRepository = marketListingRepository;
         this.marketInventoryRepository = marketInventoryRepository;
@@ -98,7 +107,53 @@ public class MarketOrderApplicationService {
         this.marketShipmentRepository = marketShipmentRepository;
         this.marketWalletActionService = marketWalletActionService;
         this.marketOrderSagaService = marketOrderSagaService;
+        this.idempotencyGuard = idempotencyGuard;
         this.idGenerator = idGenerator;
+    }
+
+    MarketOrderApplicationService(MarketListingRepository marketListingRepository,
+                       MarketInventoryRepository marketInventoryRepository,
+                       MarketOrderRepository marketOrderRepository,
+                       MarketAddressRepository marketAddressRepository,
+                       MarketDeliveryRepository marketDeliveryRepository,
+                       MarketShipmentRepository marketShipmentRepository,
+                       MarketWalletActionApplicationService marketWalletActionService,
+                       MarketOrderSagaApplicationService marketOrderSagaService,
+                       UuidV7Generator idGenerator) {
+        this(marketListingRepository,
+                marketInventoryRepository,
+                marketOrderRepository,
+                marketAddressRepository,
+                marketDeliveryRepository,
+                marketShipmentRepository,
+                marketWalletActionService,
+                marketOrderSagaService,
+                null,
+                idGenerator);
+    }
+
+    public MarketOrderResult createOrder(CreateMarketOrderCommand command) {
+        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
+        String requestHash = RequestFingerprint.sha256(
+                "market:create_order|listingId=" + command.listingId()
+                        + "|quantity=" + command.quantity()
+                        + "|addressId=" + (command.addressId() == null ? "" : command.addressId())
+        );
+        return idempotencyGuard.executeRequired(
+                "market:create_order",
+                command.buyerUserId(),
+                effective.value(),
+                requestHash,
+                MarketErrorCode.REQUEST_REPLAY_CONFLICT,
+                MarketOrderResult.class,
+                () -> createOrder(
+                        effective.value(),
+                        command.buyerUserId(),
+                        command.listingId(),
+                        command.quantity(),
+                        command.addressId()
+                )
+        );
     }
 
     @Transactional

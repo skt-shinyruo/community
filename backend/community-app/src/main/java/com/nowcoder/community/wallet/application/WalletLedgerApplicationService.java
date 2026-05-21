@@ -2,6 +2,7 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.wallet.application.command.ListWalletTransactionsCommand;
 import com.nowcoder.community.wallet.application.result.WalletTransactionResult;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletEntry;
@@ -88,6 +89,17 @@ public class WalletLedgerApplicationService {
                 .toList();
     }
 
+    public List<WalletTransactionResult> recentTransactions(ListWalletTransactionsCommand command) {
+        if (command == null || command.userId() == null) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "userId must not be null");
+        }
+        WalletAccount account = walletAccountService.findUserWallet(command.userId());
+        if (account == null) {
+            return List.of();
+        }
+        return recentTransactions(account, normalizeLimit(command.limit()));
+    }
+
     @Transactional
     public WalletTxnResult post(String requestId, WalletTxnType txnType, List<WalletPosting> postings) {
         return post(new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), requestId, postings));
@@ -154,6 +166,13 @@ public class WalletLedgerApplicationService {
 
     private long amountOf(List<WalletPosting> postings) {
         return domainService.balancedAmountOf(postings);
+    }
+
+    private int normalizeLimit(Integer limit) {
+        if (limit == null) {
+            return 12;
+        }
+        return Math.min(50, Math.max(1, limit));
     }
 
     private long signedAmount(WalletAccount userAccount, WalletLedgerItem item) {

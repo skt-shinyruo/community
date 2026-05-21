@@ -25,19 +25,16 @@ import static org.assertj.core.api.Assertions.assertThat;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @ActiveProfiles("test")
-class WalletApplicationServiceTransactionHistoryTest {
+class WalletLedgerApplicationServiceTransactionHistoryTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private WalletApplicationService walletApplicationService;
+    private WalletLedgerApplicationService ledgerService;
 
     @Autowired
     private WalletAccountApplicationService accountService;
-
-    @Autowired
-    private WalletLedgerApplicationService ledgerService;
 
     @MockBean
     private ClientIpResolver clientIpResolver;
@@ -56,7 +53,7 @@ class WalletApplicationServiceTransactionHistoryTest {
     void recentTransactionsShouldReturnEmptyWithoutCreatingWalletAccount() {
         UUID userId = uuid(901);
 
-        List<WalletTransactionResult> rows = walletApplicationService.recentTransactions(new ListWalletTransactionsCommand(userId, 12));
+        List<WalletTransactionResult> rows = ledgerService.recentTransactions(new ListWalletTransactionsCommand(userId, 12));
 
         assertThat(rows).isEmpty();
         assertThat(countRows("wallet_account")).isZero();
@@ -79,8 +76,8 @@ class WalletApplicationServiceTransactionHistoryTest {
                 )
         );
 
-        List<WalletTransactionResult> senderRows = walletApplicationService.recentTransactions(new ListWalletTransactionsCommand(senderUserId, 12));
-        List<WalletTransactionResult> receiverRows = walletApplicationService.recentTransactions(new ListWalletTransactionsCommand(receiverUserId, 12));
+        List<WalletTransactionResult> senderRows = ledgerService.recentTransactions(new ListWalletTransactionsCommand(senderUserId, 12));
+        List<WalletTransactionResult> receiverRows = ledgerService.recentTransactions(new ListWalletTransactionsCommand(receiverUserId, 12));
 
         assertThat(senderRows).hasSize(1);
         assertThat(senderRows.get(0).txnRef()).isEqualTo("wallet:transfer:history");
@@ -123,7 +120,7 @@ class WalletApplicationServiceTransactionHistoryTest {
                 )
         );
 
-        List<WalletTransactionResult> rows = walletApplicationService.recentTransactions(new ListWalletTransactionsCommand(userId, 12));
+        List<WalletTransactionResult> rows = ledgerService.recentTransactions(new ListWalletTransactionsCommand(userId, 12));
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).txnRef()).isEqualTo("wallet:withdraw:history:request");
@@ -148,7 +145,7 @@ class WalletApplicationServiceTransactionHistoryTest {
             );
         }
 
-        List<WalletTransactionResult> rows = walletApplicationService.recentTransactions(new ListWalletTransactionsCommand(userId, 999));
+        List<WalletTransactionResult> rows = ledgerService.recentTransactions(new ListWalletTransactionsCommand(userId, 999));
 
         assertThat(rows).hasSize(50);
         assertThat(rows.get(0).txnRef()).isEqualTo("wallet:reward:history:55");

@@ -93,8 +93,12 @@ Security：
 
 Key code：
 
-- `auth.application.AuthApplicationService`
-- `auth.application.*ApplicationService`
+- `auth.application.LoginApplicationService`
+- `auth.application.RegistrationApplicationService`
+- `auth.application.RegistrationVerificationApplicationService`
+- `auth.application.CaptchaApplicationService`
+- `auth.application.PasswordResetApplicationService`
+- `auth.application.RefreshTokenApplicationService`
 - `user.application.RefreshTokenSessionApplicationService`
 - `auth.infrastructure.web.AuthOriginGuardFilter`
 - `auth.config.AuthStartupValidator`
@@ -910,7 +914,7 @@ HTTP writes：
 
 Recharge：
 
-1. `POST /api/wallet/recharges` 进入 `WalletApplicationService.recharge(...)`。
+1. `POST /api/wallet/recharges` 进入 `WalletRechargeApplicationService.recharge(...)`。
 2. 应用层解析 effective idempotency key，包裹 `wallet:recharge` HTTP 幂等。
 3. `WalletRechargeApplicationService.complete(...)` 按 `userId + requestId` 查找或创建 `recharge_order`。
 4. 重放必须匹配 `userId` 和 `amount`，否则返回 `REQUEST_REPLAY_CONFLICT`。
@@ -919,7 +923,7 @@ Recharge：
 
 Withdraw：
 
-1. `POST /api/wallet/withdrawals` 进入 `WalletApplicationService.withdraw(...)`。
+1. `POST /api/wallet/withdrawals` 进入 `WalletWithdrawApplicationService.withdraw(...)`。
 2. 只有 active 用户钱包可主动提现。
 3. 按 `userId + requestId` 查找或创建 `withdraw_order`，重放必须匹配 `userId` 和 `amount`。
 4. 新请求会先检查系统 `PLATFORM_CASH` 余额，余额不足且没有既有订单时返回 `PLATFORM_CASH_INSUFFICIENT`。
@@ -929,7 +933,7 @@ Withdraw：
 
 Transfer：
 
-1. `POST /api/wallet/transfers` 进入 `WalletApplicationService.transfer(...)`。
+1. `POST /api/wallet/transfers` 进入 `WalletTransferApplicationService.transfer(...)`。
 2. 转出用户和转入用户必须合法，不能自转；金额必须为正。
 3. 只有 active 转出方钱包可主动转账。
 4. 按 `fromUserId + requestId` 查找或创建 `transfer_order`，重放必须匹配 `fromUserId`、`toUserId` 和 `amount`。
@@ -971,7 +975,6 @@ Failure：
 Key code：
 
 - `wallet.controller.*`
-- `wallet.application.WalletApplicationService`
 - `wallet.application.WalletRechargeApplicationService`
 - `wallet.application.WalletWithdrawApplicationService`
 - `wallet.application.WalletTransferApplicationService`

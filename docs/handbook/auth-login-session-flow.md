@@ -15,12 +15,11 @@
 
 ```text
 AuthController
-  -> AuthApplicationService
-      -> LoginApplicationService / RegistrationVerificationApplicationService
-          -> auth domain service / auth repository interface
-          -> user api.query / api.action
-          -> analytics api.action
-              -> auth infrastructure / user infrastructure
+  -> LoginApplicationService / RegistrationApplicationService / RegistrationVerificationApplicationService
+      -> auth domain service / auth repository interface
+      -> user api.query / api.action
+      -> analytics api.action
+          -> auth infrastructure / user infrastructure
 ```
 
 边界原则：
@@ -109,7 +108,7 @@ controller 职责：
 
 1. 校验并解析 `LoginRequest`。
 2. 用 `ClientIpResolver` 解析客户端 IP 和来源。
-3. 创建 `LoginCommand`，调用 `AuthApplicationService.login(...)`。
+3. 创建 `LoginCommand`，调用 `LoginApplicationService.login(...)`。
 4. 将 `LoginResult.refreshCookie()` 转为 `Set-Cookie`。
 5. 响应体只返回 `LoginResponse.accessToken`。
 
@@ -143,7 +142,6 @@ application 主流程：
 
 ```text
 AuthController.verifyRegisterCode(...)
-  -> AuthApplicationService.verifyRegisterCode(...)
   -> RegistrationVerificationApplicationService.verifyAndLogin(...)
       -> RegistrationCodeRepository.verifyAndConsume(...)
       -> UserRegistrationActionApi.createVerifiedRegistrationUser(...)
@@ -376,7 +374,6 @@ auth:
 | `CommunitySecurityConfig` | `/api/**` stateless JWT 安全配置 | [CommunitySecurityConfig.java](../../backend/community-app/src/main/java/com/nowcoder/community/app/security/CommunitySecurityConfig.java) |
 | `AuthSecurityRules` | 放行 auth public endpoint | [AuthSecurityRules.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/security/AuthSecurityRules.java) |
 | `AuthOriginGuardFilter` | login / refresh / logout Origin 防护 | [AuthOriginGuardFilter.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/web/AuthOriginGuardFilter.java) |
-| `AuthApplicationService` | auth 应用入口门面 | [AuthApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/AuthApplicationService.java) |
 | `LoginApplicationService` | login / refresh / logout 编排 | [LoginApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/LoginApplicationService.java) |
 | `RegistrationVerificationApplicationService` | 注册邮箱验证码验证和自动登录 | [RegistrationVerificationApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/RegistrationVerificationApplicationService.java) |
 | `PasswordResetApplicationService` | 密码重置和 refresh sessions 撤销入口 | [PasswordResetApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/PasswordResetApplicationService.java) |

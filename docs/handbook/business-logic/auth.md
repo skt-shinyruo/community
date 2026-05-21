@@ -30,7 +30,7 @@ HTTP 入口位于 `AuthController`：
 
 ## 应用层入口
 
-`AuthApplicationService` 是 controller 面向 auth 域的聚合入口，内部转发到更细的应用服务：
+`AuthController` 直接进入具体 auth 用例应用服务，不再经过总入口式聚合门面：
 
 - `LoginApplicationService`：登录、refresh、logout、token 签发。
 - `RegistrationApplicationService`：注册开始、生成 draft 和验证码。
@@ -56,7 +56,7 @@ auth 不直接写 user 表或 refresh session 表；这些状态变化都通过 
 当前注册采用 Verify-First 流程，核心目标是高并发下避免先创建大量未激活用户行。
 
 1. `AuthController.register(...)` 解析请求和客户端 IP。
-2. controller 组装 `RegisterCommand`，调用 `AuthApplicationService.register(...)`。
+2. controller 组装 `RegisterCommand`，调用 `RegistrationApplicationService.register(...)`。
 3. `RegistrationApplicationService.register(...)` 校验验证码、用户名、密码、邮箱和邮件配置。
 4. auth 域通过 `UserRegistrationActionApi.prepareRegistrationUser(...)` 进入 user owner。
 5. user owner 规范化用户名和邮箱，先检查用户名/邮箱是否已存在，再生成预备用户 ID、计算 BCrypt 密码、准备默认头像，但不插入 `user` row。
@@ -184,13 +184,12 @@ logout：
 ## 关键代码
 
 - `auth.controller.AuthController`
-- `auth.application.AuthApplicationService`
 - `auth.application.LoginApplicationService`
-- `auth.application.RefreshTokenApplicationService`
 - `auth.application.RegistrationApplicationService`
 - `auth.application.RegistrationVerificationApplicationService`
 - `auth.application.CaptchaApplicationService`
 - `auth.application.PasswordResetApplicationService`
+- `auth.application.RefreshTokenApplicationService`
 - `auth.application.LoginRateLimitApplicationService`
 - `auth.domain.service.*`
 - `auth.infrastructure.jwt.JwtTokenService`

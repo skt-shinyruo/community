@@ -1,6 +1,7 @@
 package com.nowcoder.community.app.arch;
 
 import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -176,6 +177,14 @@ class DddLayeringArchTest {
             noClasses()
                     .should().haveSimpleNameEndingWith("UseCase")
                     .because("ApplicationService is the use-case entry; do not add a parallel UseCase layer");
+
+    @ArchTest
+    static final ArchRule domain_named_application_services_must_not_be_facade_entries =
+            classes()
+                    .that().resideInAnyPackage("..application..")
+                    .and().haveSimpleNameEndingWith("ApplicationService")
+                    .should(notBeDomainNamedApplicationFacade())
+                    .because("domain-named ApplicationService classes obscure which concrete use case owns transactions, idempotency, audit, and cross-domain collaboration");
 
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_domain_or_infrastructure =
@@ -525,6 +534,51 @@ class DddLayeringArchTest {
                 }
             }
         };
+    }
+
+    private static ArchCondition<JavaClass> notBeDomainNamedApplicationFacade() {
+        return new ArchCondition<>("not be a domain-named facade over same-domain application services") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                String domain = ArchitectureRulesSupport.domainOf(item);
+                if (domain.isBlank()) {
+                    return;
+                }
+                String simpleName = item.getSimpleName();
+                String domainName = toUpperCamel(domain);
+                boolean domainEntryName = simpleName.equals(domainName + "ApplicationService")
+                        || simpleName.equals("Admin" + domainName + "ApplicationService");
+                if (!domainEntryName) {
+                    return;
+                }
+                for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dependency.getTargetClass();
+                    if (!domain.equals(ArchitectureRulesSupport.domainOf(target))) {
+                        continue;
+                    }
+                    if (!target.getPackageName().endsWith(".application")) {
+                        continue;
+                    }
+                    if (!target.getSimpleName().endsWith("ApplicationService")) {
+                        continue;
+                    }
+                    if (target.getFullName().equals(item.getFullName())) {
+                        continue;
+                    }
+                    events.add(SimpleConditionEvent.violated(
+                            dependency,
+                            dependency.getDescription()
+                    ));
+                }
+            }
+        };
+    }
+
+    private static String toUpperCamel(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return Character.toUpperCase(value.charAt(0)) + value.substring(1);
     }
 
     private static ArchCondition<JavaClass> notDeclareMethodsStartingWith(String... forbiddenPrefixes) {

@@ -2,6 +2,11 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.infra.idempotency.EffectiveIdempotencyKey;
+import com.nowcoder.community.infra.idempotency.IdempotencyKeyResolver;
+import com.nowcoder.community.infra.idempotency.RequestFingerprint;
+import com.nowcoder.community.wallet.application.command.CreateWithdrawCommand;
 import com.nowcoder.community.wallet.application.result.WithdrawOrderResult;
 import com.nowcoder.community.wallet.domain.model.WithdrawOrder;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
@@ -24,26 +29,49 @@ public class WalletWithdrawApplicationService {
     private final WithdrawOrderRepository withdrawOrderRepository;
     private final WalletAccountApplicationService accountService;
     private final WalletLedgerApplicationService ledgerService;
+    private final IdempotencyGuard idempotencyGuard;
     private final WalletOrderDomainService orderDomainService;
     private final UuidV7Generator idGenerator;
 
     @Autowired
     public WalletWithdrawApplicationService(WithdrawOrderRepository withdrawOrderRepository,
                                             WalletAccountApplicationService accountService,
-                                            WalletLedgerApplicationService ledgerService) {
-        this(withdrawOrderRepository, accountService, ledgerService, new WalletOrderDomainService(), new UuidV7Generator());
+                                            WalletLedgerApplicationService ledgerService,
+                                            IdempotencyGuard idempotencyGuard) {
+        this(withdrawOrderRepository, accountService, ledgerService, idempotencyGuard, new WalletOrderDomainService(), new UuidV7Generator());
     }
 
     WalletWithdrawApplicationService(WithdrawOrderRepository withdrawOrderRepository,
                                      WalletAccountApplicationService accountService,
                                      WalletLedgerApplicationService ledgerService,
+                                     IdempotencyGuard idempotencyGuard,
                                      WalletOrderDomainService orderDomainService,
                                      UuidV7Generator idGenerator) {
         this.withdrawOrderRepository = withdrawOrderRepository;
         this.accountService = accountService;
         this.ledgerService = ledgerService;
+        this.idempotencyGuard = idempotencyGuard;
         this.orderDomainService = orderDomainService;
         this.idGenerator = idGenerator;
+    }
+
+    WalletWithdrawApplicationService(WithdrawOrderRepository withdrawOrderRepository,
+                                     WalletAccountApplicationService accountService,
+                                     WalletLedgerApplicationService ledgerService) {
+        this(withdrawOrderRepository, accountService, ledgerService, null, new WalletOrderDomainService(), new UuidV7Generator());
+    }
+
+    public WithdrawOrderResult withdraw(CreateWithdrawCommand command) {
+        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
+        return idempotencyGuard.executeRequired(
+                "wallet:withdraw",
+                command.userId(),
+                effective.value(),
+                RequestFingerprint.sha256("wallet:withdraw|amount=" + command.amount()),
+                WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                WithdrawOrderResult.class,
+                () -> request(effective.value(), command.userId(), command.amount())
+        );
     }
 
     @Transactional

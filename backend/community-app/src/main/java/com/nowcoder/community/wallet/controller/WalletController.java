@@ -3,7 +3,11 @@ package com.nowcoder.community.wallet.controller;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.wallet.application.WalletApplicationService;
+import com.nowcoder.community.wallet.application.WalletAccountApplicationService;
+import com.nowcoder.community.wallet.application.WalletLedgerApplicationService;
+import com.nowcoder.community.wallet.application.WalletRechargeApplicationService;
+import com.nowcoder.community.wallet.application.WalletTransferApplicationService;
+import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService;
 import com.nowcoder.community.wallet.application.command.CreateRechargeCommand;
 import com.nowcoder.community.wallet.application.command.CreateTransferCommand;
 import com.nowcoder.community.wallet.application.command.CreateWithdrawCommand;
@@ -33,16 +37,30 @@ import java.util.UUID;
 @RequestMapping("/api/wallet")
 public class WalletController {
 
-    private final WalletApplicationService walletApplicationService;
+    private final WalletAccountApplicationService accountService;
+    private final WalletLedgerApplicationService ledgerService;
+    private final WalletRechargeApplicationService rechargeService;
+    private final WalletWithdrawApplicationService withdrawService;
+    private final WalletTransferApplicationService transferService;
 
-    public WalletController(WalletApplicationService walletApplicationService) {
-        this.walletApplicationService = walletApplicationService;
+    public WalletController(
+            WalletAccountApplicationService accountService,
+            WalletLedgerApplicationService ledgerService,
+            WalletRechargeApplicationService rechargeService,
+            WalletWithdrawApplicationService withdrawService,
+            WalletTransferApplicationService transferService
+    ) {
+        this.accountService = accountService;
+        this.ledgerService = ledgerService;
+        this.rechargeService = rechargeService;
+        this.withdrawService = withdrawService;
+        this.transferService = transferService;
     }
 
     @GetMapping("/summary")
     public Result<WalletSummaryResponse> summary(Authentication authentication) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(WalletSummaryResponse.from(walletApplicationService.summary(userId)));
+        return Result.ok(WalletSummaryResponse.from(accountService.summary(userId)));
     }
 
     @GetMapping("/transactions")
@@ -51,7 +69,7 @@ public class WalletController {
             @RequestParam(required = false) Integer limit
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(walletApplicationService.recentTransactions(new ListWalletTransactionsCommand(userId, limit))
+        return Result.ok(ledgerService.recentTransactions(new ListWalletTransactionsCommand(userId, limit))
                 .stream()
                 .map(WalletTransactionResponse::from)
                 .toList());
@@ -64,7 +82,7 @@ public class WalletController {
             @RequestBody @Valid CreateRechargeRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(CreateRechargeResponse.from(walletApplicationService.recharge(
+        return Result.ok(CreateRechargeResponse.from(rechargeService.recharge(
                 new CreateRechargeCommand(userId, request.getAmount(), idempotencyKey)
         )));
     }
@@ -76,7 +94,7 @@ public class WalletController {
             @RequestBody @Valid CreateWithdrawRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(CreateWithdrawResponse.from(walletApplicationService.withdraw(
+        return Result.ok(CreateWithdrawResponse.from(withdrawService.withdraw(
                 new CreateWithdrawCommand(userId, request.getAmount(), idempotencyKey)
         )));
     }
@@ -88,7 +106,7 @@ public class WalletController {
             @RequestBody @Valid CreateTransferRequest request
     ) {
         UUID fromUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(CreateTransferResponse.from(walletApplicationService.transfer(
+        return Result.ok(CreateTransferResponse.from(transferService.transfer(
                 new CreateTransferCommand(fromUserId, request.getToUserId(), request.getAmount(), idempotencyKey)
         )));
     }

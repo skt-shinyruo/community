@@ -51,7 +51,9 @@ public class MarketOrder {
         order.quantity = placement.quantity();
         order.unitPriceSnapshot = placement.unitPriceSnapshot();
         order.totalAmount = placement.totalAmount();
-        order.deliveryModeSnapshot = placement.deliveryModeSnapshot().code();
+        order.deliveryModeSnapshot = placement.deliveryModeSnapshot() == null
+                ? null
+                : placement.deliveryModeSnapshot().code();
         order.listingTitleSnapshot = placement.listingTitleSnapshot();
         order.status = MarketOrderStatus.ESCROW_PENDING.code();
         order.applyAddressSnapshot(placement.addressSnapshot());

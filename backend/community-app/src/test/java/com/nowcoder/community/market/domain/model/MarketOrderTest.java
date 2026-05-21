@@ -5,6 +5,7 @@ import com.nowcoder.community.market.exception.MarketErrorCode;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -130,20 +131,105 @@ class MarketOrderTest {
         assertThat(order.isAutoConfirmDue(null)).isFalse();
     }
 
-    private static MarketOrderPlacement physicalPlacement() {
-        return new MarketOrderPlacement(
+    @Test
+    void placementShouldRejectInvalidRequestIdQuantityAndAmounts() {
+        assertThatThrownBy(() -> placement(" ", 1, 12_900L, 12_900L, MarketGoodsType.PHYSICAL, addressSnapshot(uuid(5))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requestId must not be blank");
+        assertThatThrownBy(() -> placement("market:req-physical", 0, 12_900L, 12_900L,
+                MarketGoodsType.PHYSICAL, addressSnapshot(uuid(5))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("quantity must be positive");
+        assertThatThrownBy(() -> placement("market:req-physical", 1, -1L, 12_900L,
+                MarketGoodsType.PHYSICAL, addressSnapshot(uuid(5))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unitPriceSnapshot must not be negative");
+        assertThatThrownBy(() -> placement("market:req-physical", 1, 12_900L, -1L,
+                MarketGoodsType.PHYSICAL, addressSnapshot(uuid(5))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("totalAmount must not be negative");
+    }
+
+    @Test
+    void physicalPlacementShouldRejectMissingAddressSnapshot() {
+        assertThatThrownBy(() -> placement("market:req-physical", 1, 12_900L, 12_900L, MarketGoodsType.PHYSICAL, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("addressSnapshot must not be null for physical goods");
+    }
+
+    @Test
+    void transitionShouldRejectMissingExpectedStatuses() {
+        assertThatThrownBy(() -> new MarketOrderTransition(
                 uuid(1),
+                null,
+                MarketOrderStatus.DELIVERED,
+                null,
+                null,
+                null,
+                null
+        ))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("expectedStatuses must not be null");
+        assertThatThrownBy(() -> new MarketOrderTransition(
+                uuid(1),
+                Set.of(),
+                MarketOrderStatus.DELIVERED,
+                null,
+                null,
+                null,
+                null
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("expectedStatuses must not be empty");
+    }
+
+    @Test
+    void transitionShouldDefensivelyCopyAutoConfirmAt() {
+        Date autoConfirmAt = new Date(1_000L);
+        MarketOrderTransition transition = MarketOrderTransition.delivered(uuid(1), autoConfirmAt);
+
+        autoConfirmAt.setTime(2_000L);
+
+        assertThat(transition.autoConfirmAt()).hasTime(1_000L);
+
+        Date returnedAutoConfirmAt = transition.autoConfirmAt();
+        returnedAutoConfirmAt.setTime(3_000L);
+
+        assertThat(transition.autoConfirmAt()).hasTime(1_000L);
+    }
+
+    private static MarketOrderPlacement physicalPlacement() {
+        return placement(
                 "market:req-physical",
-                uuid(2),
-                MarketGoodsType.PHYSICAL,
-                uuid(3),
-                uuid(4),
                 1,
                 12_900L,
                 12_900L,
+                MarketGoodsType.PHYSICAL,
+                addressSnapshot(uuid(5))
+        );
+    }
+
+    private static MarketOrderPlacement placement(
+            String requestId,
+            int quantity,
+            long unitPriceSnapshot,
+            long totalAmount,
+            MarketGoodsType goodsType,
+            MarketAddressSnapshot addressSnapshot
+    ) {
+        return new MarketOrderPlacement(
+                uuid(1),
+                requestId,
+                uuid(2),
+                goodsType,
+                uuid(3),
+                uuid(4),
+                quantity,
+                unitPriceSnapshot,
+                totalAmount,
                 MarketDeliveryMode.MANUAL,
                 "Used keyboard",
-                addressSnapshot(uuid(5))
+                addressSnapshot
         );
     }
 

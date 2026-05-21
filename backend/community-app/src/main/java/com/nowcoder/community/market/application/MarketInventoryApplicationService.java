@@ -24,10 +24,6 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 @Service
 public class MarketInventoryApplicationService {
 
-    private static final String GOODS_TYPE_VIRTUAL = "VIRTUAL";
-    private static final String DELIVERY_MODE_PRELOADED = "PRELOADED";
-    private static final String STATUS_ACTIVE = "ACTIVE";
-    private static final String STATUS_SOLD_OUT = "SOLD_OUT";
     private static final String INVENTORY_STATUS_AVAILABLE = "AVAILABLE";
     private static final String INVENTORY_STATUS_INVALID = "INVALID";
 
@@ -66,8 +62,8 @@ public class MarketInventoryApplicationService {
             marketInventoryRepository.save(unit);
         }
 
-        String nextStatus = STATUS_SOLD_OUT.equals(listing.getStatus()) ? STATUS_ACTIVE : listing.getStatus();
         int delta = command.payloads().size();
+        String nextStatus = listing.statusAfterStockRestoredBy(delta);
         marketListingRepository.adjustStock(command.listingId(), command.sellerUserId(), delta, delta, nextStatus);
     }
 
@@ -96,7 +92,7 @@ public class MarketInventoryApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "market inventory invalidation failed: inventoryUnitId=" + inventoryUnitId);
         }
 
-        String nextStatus = listing.getStockAvailable() - 1 <= 0 ? STATUS_SOLD_OUT : listing.getStatus();
+        String nextStatus = listing.statusAfterStockDecreasedBy(1);
         marketListingRepository.adjustStock(listing.getListingId(), sellerUserId, -1, -1, nextStatus);
     }
 
@@ -139,7 +135,7 @@ public class MarketInventoryApplicationService {
     }
 
     private void ensurePreloadedListing(MarketListing listing) {
-        if (!GOODS_TYPE_VIRTUAL.equals(listing.getGoodsType()) || !DELIVERY_MODE_PRELOADED.equals(listing.getDeliveryMode())) {
+        if (!listing.goodsType().isVirtual() || !listing.isPreloadedDelivery()) {
             throw new BusinessException(INVALID_ARGUMENT, "market listing is not PRELOADED virtual: listingId=" + listing.getListingId());
         }
     }

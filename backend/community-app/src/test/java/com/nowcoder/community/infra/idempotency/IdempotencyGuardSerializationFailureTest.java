@@ -1,7 +1,7 @@
 package com.nowcoder.community.common.idempotency;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -20,15 +20,14 @@ class IdempotencyGuardSerializationFailureTest {
 
     @Test
     void executeRequired_shouldNotThrow_whenResponseSerializationFails_afterSupplierSucceeded() throws Exception {
-        ObjectMapper objectMapper = mock(ObjectMapper.class);
-        when(objectMapper.writeValueAsString(any())).thenThrow(new JsonProcessingException("boom") {
-        });
+        JsonCodec jsonCodec = mock(JsonCodec.class);
+        when(jsonCodec.toJson(any())).thenThrow(new JsonCodecException("boom", new RuntimeException("boom")));
         UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000001");
 
         IdempotencyStore store = mock(IdempotencyStore.class);
         when(store.tryAcquireProcessing(anyString(), any(UUID.class), anyString(), any(Duration.class))).thenReturn(true);
 
-        IdempotencyGuard guard = new IdempotencyGuard(objectMapper, store, null, new IdempotencyProperties());
+        IdempotencyGuard guard = new IdempotencyGuard(jsonCodec, store, null, new IdempotencyProperties());
 
         Object result = new Object();
         Object returned = guard.executeRequired("op", userId, "k1", Object.class, () -> result);

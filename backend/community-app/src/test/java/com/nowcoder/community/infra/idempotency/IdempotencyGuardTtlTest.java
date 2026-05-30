@@ -1,6 +1,8 @@
 package com.nowcoder.community.common.idempotency;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -19,6 +21,10 @@ import static org.mockito.Mockito.when;
 
 class IdempotencyGuardTtlTest {
 
+    private static JsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JsonMappers.standard());
+    }
+
     @Test
     void executeRequiredShouldUseConfiguredTtl() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -36,7 +42,7 @@ class IdempotencyGuardTtlTest {
         properties.setSuccessTtl(Duration.ofMinutes(10));
 
         IdempotencyGuard guard = new IdempotencyGuard(
-                new ObjectMapper(),
+                jsonCodec(),
                 new RedisIdempotencyStore(redisTemplate),
                 meterRegistryProvider,
                 properties

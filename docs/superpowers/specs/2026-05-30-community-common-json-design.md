@@ -48,8 +48,9 @@ Jackson annotations where they define external JSON shape.
 
 JSON usage is spread across multiple modules:
 
-- `community-common/common-core` depends on Jackson for
-  `EventEnvelopeParser` and the `@JsonInclude` annotation on `EventEnvelope`.
+- `community-common/common-core` owns the Jackson-free `EventEnvelope` contract.
+- `community-common/common-json` owns `EventEnvelopeJsonParser` and envelope
+  null-omission behavior through a Jackson mix-in.
 - `community-common/common-web` owns `CommonJacksonConfig`, which disables
   timestamp-style date serialization for Spring MVC.
 - `community-common/common-webflux` and `common-web` inject Spring

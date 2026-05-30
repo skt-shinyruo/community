@@ -626,7 +626,7 @@ cd backend
 mvn test -pl :community-common-core -am
 ```
 
-Expected: compilation fails because `EventEnvelope` imports `JsonInclude` and `EventEnvelopeParser` imports Jackson classes.
+Expected: compilation fails because `EventEnvelope` imports `JsonInclude` and the legacy parser imports Jackson classes.
 
 - [ ] **Step 3: Make `EventEnvelope` Jackson-free**
 

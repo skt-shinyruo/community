@@ -1,8 +1,8 @@
 package com.nowcoder.community.auth.infrastructure.persistence;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -38,11 +38,11 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
     }
 
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
 
-    public RedisRefreshTokenRepository(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
+    public RedisRefreshTokenRepository(StringRedisTemplate redisTemplate, JsonCodec jsonCodec) {
         this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
     }
 
     @Override
@@ -58,7 +58,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
 
         StoredRefreshToken record = new StoredRefreshToken(token, userId, family, expiresAt);
         try {
-            String json = objectMapper.writeValueAsString(record);
+            String json = jsonCodec.toJson(record);
             long ttlSeconds = Math.max(1, expiresAt.getEpochSecond() - Instant.now().getEpochSecond());
             Long stored = redisTemplate.execute(
                     STORE_SCRIPT,
@@ -74,7 +74,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
             if (stored == null || stored <= 0) {
                 throw new IllegalStateException("refresh token family 已被撤销");
             }
-        } catch (JsonProcessingException e) {
+        } catch (JsonCodecException e) {
             throw new IllegalStateException("refresh token 序列化失败", e);
         }
     }
@@ -137,10 +137,10 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
             return;
         }
         try {
-            String json = objectMapper.writeValueAsString(new Tombstone(record.userId(), record.familyId(), record.expiresAt(), revokedAt));
+            String json = jsonCodec.toJson(new Tombstone(record.userId(), record.familyId(), record.expiresAt(), revokedAt));
             long ttlSeconds = Math.max(1, record.expiresAt().getEpochSecond() - now.getEpochSecond());
             redisTemplate.opsForValue().set(KEY_PREFIX_TOKEN_REVOKED + record.refreshToken().trim(), json, ttlSeconds, TimeUnit.SECONDS);
-        } catch (JsonProcessingException ignored) {
+        } catch (JsonCodecException ignored) {
         }
     }
 
@@ -149,9 +149,9 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
             return null;
         }
         try {
-            Tombstone tombstone = objectMapper.readValue(json, Tombstone.class);
+            Tombstone tombstone = jsonCodec.fromJson(json, Tombstone.class);
             return new RevokedRefreshToken(refreshToken, tombstone.userId(), tombstone.familyId(), tombstone.expiresAt(), tombstone.revokedAt());
-        } catch (JsonProcessingException e) {
+        } catch (JsonCodecException e) {
             return null;
         }
     }
@@ -161,8 +161,8 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
             return null;
         }
         try {
-            return objectMapper.readValue(json, StoredRefreshToken.class);
-        } catch (JsonProcessingException e) {
+            return jsonCodec.fromJson(json, StoredRefreshToken.class);
+        } catch (JsonCodecException e) {
             return null;
         }
     }

@@ -1,7 +1,8 @@
 package com.nowcoder.community.auth.infrastructure.persistence;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.SetOperations;
@@ -31,8 +32,8 @@ import static org.mockito.Mockito.when;
 
 class RedisRefreshTokenRepositoryTest {
 
-    private static ObjectMapper objectMapper() {
-        return new ObjectMapper().findAndRegisterModules();
+    private static JacksonJsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JsonMappers.standard());
     }
 
     @Test
@@ -50,7 +51,7 @@ class RedisRefreshTokenRepositoryTest {
         when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString(), anyString(), anyString()))
                 .thenReturn(1L);
 
-        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, objectMapper());
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
         store.store("t1", userId, "f1", Instant.now().plusSeconds(120));
 
         ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
@@ -88,7 +89,7 @@ class RedisRefreshTokenRepositoryTest {
         when(redisTemplate.getExpire(eq("auth:refresh:family:f1"), eq(TimeUnit.SECONDS))).thenReturn(120L);
         when(setOps.members(eq("auth:refresh:family:f1"))).thenReturn(Set.of("t1", "t2"));
 
-        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, objectMapper());
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
         store.revokeFamily("f1");
 
         verify(valueOps).set(eq("auth:refresh:family:revoked:f1"), eq("1"), anyLong(), eq(TimeUnit.SECONDS));
@@ -109,12 +110,12 @@ class RedisRefreshTokenRepositoryTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(redisTemplate.opsForSet()).thenReturn(setOps);
 
-        String json = objectMapper().writeValueAsString(
+        String json = jsonCodec().toJson(
                 new RefreshTokenRepository.StoredRefreshToken("t1", userId, "f1", Instant.now().plusSeconds(60))
         );
         when(valueOps.getAndDelete(eq("auth:refresh:t1"))).thenReturn(json);
 
-        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, objectMapper());
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
         RefreshTokenRepository.StoredRefreshToken found = store.consume("  t1  ");
 
         assertThat(found).isNotNull();
@@ -139,11 +140,11 @@ class RedisRefreshTokenRepositoryTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(redisTemplate.opsForSet()).thenReturn(setOps);
 
-        ObjectMapper mapper = objectMapper();
-        String activeJson = mapper.writeValueAsString(
+        JacksonJsonCodec codec = jsonCodec();
+        String activeJson = codec.toJson(
                 new RefreshTokenRepository.StoredRefreshToken("t1", userId, "f1", expiresAt)
         );
-        String tombstoneJson = mapper.writeValueAsString(Map.of(
+        String tombstoneJson = codec.toJson(Map.of(
                 "userId", userId,
                 "familyId", "f1",
                 "expiresAt", expiresAt,
@@ -154,7 +155,7 @@ class RedisRefreshTokenRepositoryTest {
         when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString(), anyString(), anyString()))
                 .thenReturn(0L);
 
-        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, mapper);
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, codec);
 
         assertThat(store.consume("t1")).isNotNull();
         assertThat(store.consume("t1")).isNull();
@@ -184,7 +185,7 @@ class RedisRefreshTokenRepositoryTest {
         when(redisTemplate.opsForSet()).thenReturn(setOps);
         when(valueOps.getAndDelete(eq("auth:refresh:t1"))).thenReturn(null);
 
-        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, objectMapper());
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
 
         assertThat(store.consume("t1")).isNull();
 
@@ -205,17 +206,43 @@ class RedisRefreshTokenRepositoryTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(redisTemplate.opsForSet()).thenReturn(setOps);
 
-        String json = objectMapper().writeValueAsString(
+        String json = jsonCodec().toJson(
                 new RefreshTokenRepository.StoredRefreshToken("t1", userId, "f1", Instant.now().plusSeconds(60))
         );
         when(valueOps.get(eq("auth:refresh:t1"))).thenReturn(json);
 
-        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, objectMapper());
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
         store.revoke("  t1  ");
 
         verify(redisTemplate).delete(eq("auth:refresh:t1"));
         verify(setOps).remove(eq("auth:refresh:family:f1"), eq("t1"));
         verify(valueOps).set(eq("auth:refresh:revoked:t1"), anyString(), anyLong(), eq(TimeUnit.SECONDS));
+    }
+
+    @Test
+    void findShouldReturnNullForMalformedStoredJson() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("auth:refresh:t1")).thenReturn("{bad");
+
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
+
+        assertThat(store.find("t1")).isNull();
+    }
+
+    @Test
+    void findRevokedShouldReturnNullForMalformedTombstoneJson() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("auth:refresh:revoked:t1")).thenReturn("{bad");
+
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
+
+        assertThat(store.findRevoked("t1")).isNull();
     }
 
 }

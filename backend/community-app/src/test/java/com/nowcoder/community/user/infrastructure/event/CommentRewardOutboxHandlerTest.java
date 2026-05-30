@@ -1,6 +1,8 @@
 package com.nowcoder.community.user.infrastructure.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.user.application.UserRewardApplicationService;
@@ -21,10 +23,11 @@ class CommentRewardOutboxHandlerTest {
 
     @Test
     void handlerShouldAwardCommentRewardThroughUserApplicationService() throws Exception {
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = JsonMappers.standard();
         WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
         UserRewardApplicationService applicationService = new UserRewardApplicationService(walletRewardActionApi);
-        CommentRewardOutboxHandler handler = new CommentRewardOutboxHandler(objectMapper, applicationService, TOPIC);
+        CommentRewardOutboxHandler handler =
+                new CommentRewardOutboxHandler(new JacksonJsonCodec(JsonMappers.standard()), applicationService, TOPIC);
         UUID commentId = uuid(200);
         UUID userId = uuid(3);
 
@@ -40,10 +43,10 @@ class CommentRewardOutboxHandlerTest {
 
     @Test
     void handlerShouldIgnoreBlankPayload() {
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
         UserRewardApplicationService applicationService = new UserRewardApplicationService(walletRewardActionApi);
-        CommentRewardOutboxHandler handler = new CommentRewardOutboxHandler(objectMapper, applicationService, TOPIC);
+        CommentRewardOutboxHandler handler =
+                new CommentRewardOutboxHandler(new JacksonJsonCodec(JsonMappers.standard()), applicationService, TOPIC);
 
         handler.handle(new OutboxEvent(
                 UUID.fromString("01965429-b34a-7000-8000-000000000031"),

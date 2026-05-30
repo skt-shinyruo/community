@@ -1,7 +1,8 @@
 package com.nowcoder.community.auth.infrastructure.persistence;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -27,8 +28,7 @@ class RedisRegistrationDraftRepositoryTest {
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
-        RedisRegistrationDraftRepository repository = new RedisRegistrationDraftRepository(redisTemplate, mapper);
+        RedisRegistrationDraftRepository repository = new RedisRegistrationDraftRepository(redisTemplate, jsonCodec());
         PreparedRegistrationDraft draft = draft();
         when(valueOps.setIfAbsent(
                 eq("auth:regdraft:token-123"),
@@ -62,7 +62,7 @@ class RedisRegistrationDraftRepositoryTest {
                 eq(Duration.ofMinutes(30))))
                 .thenReturn(Boolean.FALSE);
         RedisRegistrationDraftRepository repository =
-                new RedisRegistrationDraftRepository(redisTemplate, new ObjectMapper().findAndRegisterModules());
+                new RedisRegistrationDraftRepository(redisTemplate, jsonCodec());
 
         boolean stored = repository.store("token-123", draft(), Duration.ofMinutes(30));
 
@@ -78,7 +78,7 @@ class RedisRegistrationDraftRepositoryTest {
         when(valueOps.get("auth:regdraft:token")).thenReturn("{bad");
 
         RedisRegistrationDraftRepository repository =
-                new RedisRegistrationDraftRepository(redisTemplate, new ObjectMapper().findAndRegisterModules());
+                new RedisRegistrationDraftRepository(redisTemplate, jsonCodec());
 
         assertThat(repository.find("token")).isEmpty();
         verify(redisTemplate).delete("auth:regdraft:token");
@@ -94,7 +94,7 @@ class RedisRegistrationDraftRepositoryTest {
         doThrow(new RuntimeException("redis unavailable"))
                 .when(redisTemplate).delete("auth:regdraft:token");
         RedisRegistrationDraftRepository repository =
-                new RedisRegistrationDraftRepository(redisTemplate, new ObjectMapper().findAndRegisterModules());
+                new RedisRegistrationDraftRepository(redisTemplate, jsonCodec());
 
         assertThat(repository.find("token")).isEmpty();
     }
@@ -103,11 +103,15 @@ class RedisRegistrationDraftRepositoryTest {
     void deleteShouldTrimToken() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         RedisRegistrationDraftRepository repository =
-                new RedisRegistrationDraftRepository(redisTemplate, new ObjectMapper().findAndRegisterModules());
+                new RedisRegistrationDraftRepository(redisTemplate, jsonCodec());
 
         repository.delete(" token ");
 
         verify(redisTemplate).delete("auth:regdraft:token");
+    }
+
+    private static JacksonJsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JsonMappers.standard());
     }
 
     private static PreparedRegistrationDraft draft() {

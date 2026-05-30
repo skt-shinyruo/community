@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.infrastructure.event;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
@@ -14,16 +15,16 @@ import org.springframework.util.StringUtils;
 @ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "true")
 public class CommentRewardOutboxHandler implements OutboxHandler {
 
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
     private final UserRewardApplicationService applicationService;
     private final String topic;
 
     public CommentRewardOutboxHandler(
-            ObjectMapper objectMapper,
+            JsonCodec jsonCodec,
             UserRewardApplicationService applicationService,
             @Value("${user.reward.outbox.comment-topic:projection.user.reward.comment}") String topic
     ) {
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
         this.applicationService = applicationService;
         this.topic = topic;
     }
@@ -41,8 +42,8 @@ public class CommentRewardOutboxHandler implements OutboxHandler {
 
         CommentPayload payload;
         try {
-            payload = objectMapper.readValue(event.payload(), CommentPayload.class);
-        } catch (Exception e) {
+            payload = jsonCodec.fromJson(event.payload(), CommentPayload.class);
+        } catch (JsonCodecException e) {
             throw new IllegalStateException("user reward comment outbox payload 反序列化失败", e);
         }
 

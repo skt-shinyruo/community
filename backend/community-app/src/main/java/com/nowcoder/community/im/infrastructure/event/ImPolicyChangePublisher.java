@@ -1,8 +1,8 @@
 package com.nowcoder.community.im.infrastructure.event;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,17 +16,17 @@ import java.util.UUID;
 public class ImPolicyChangePublisher {
 
     private final JdbcOutboxEventStore store;
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
     private final String topic;
     private final UuidV7Generator idGenerator = new UuidV7Generator();
 
     public ImPolicyChangePublisher(
             JdbcOutboxEventStore store,
-            ObjectMapper objectMapper,
+            JsonCodec jsonCodec,
             @Value("${im.policy.outbox.topic:projection.im.policy}") String topic
     ) {
         this.store = store;
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
         this.topic = topic;
     }
 
@@ -74,10 +74,10 @@ public class ImPolicyChangePublisher {
             return;
         }
         try {
-            String json = objectMapper.writeValueAsString(payload);
+            String json = jsonCodec.toJson(payload);
             String eventId = buildEventId(payload);
             store.enqueue(eventId, topic, String.valueOf(payload.primaryUserId()), json);
-        } catch (JsonProcessingException e) {
+        } catch (JsonCodecException e) {
             throw new IllegalStateException("im policy outbox payload 序列化失败", e);
         }
     }

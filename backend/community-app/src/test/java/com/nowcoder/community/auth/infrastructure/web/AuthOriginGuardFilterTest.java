@@ -1,7 +1,8 @@
 package com.nowcoder.community.auth.infrastructure.web;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -26,7 +27,7 @@ class AuthOriginGuardFilterTest {
         OriginGuardProperties props = new OriginGuardProperties();
         props.setAllowedOrigins(List.of("http://allowed.example"));
 
-        AuthOriginGuardFilter filter = new AuthOriginGuardFilter(props, new ObjectMapper());
+        AuthOriginGuardFilter filter = new AuthOriginGuardFilter(props, jsonCodec());
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setMethod("POST");
@@ -65,7 +66,7 @@ class AuthOriginGuardFilterTest {
         OriginGuardProperties props = new OriginGuardProperties();
         props.setAllowedOrigins(List.of("http://allowed.example"));
 
-        AuthOriginGuardFilter filter = new AuthOriginGuardFilter(props, new ObjectMapper());
+        AuthOriginGuardFilter filter = new AuthOriginGuardFilter(props, jsonCodec());
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setMethod("POST");
@@ -91,7 +92,7 @@ class AuthOriginGuardFilterTest {
         props.setFailOpenWhenAllowlistEmpty(false);
         props.setAllowedOrigins(List.of());
 
-        AuthOriginGuardFilter filter = new AuthOriginGuardFilter(props, new ObjectMapper());
+        AuthOriginGuardFilter filter = new AuthOriginGuardFilter(props, jsonCodec());
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setMethod("POST");
@@ -119,7 +120,7 @@ class AuthOriginGuardFilterTest {
         OriginGuardProperties props = new OriginGuardProperties();
         props.setAllowedOrigins(List.of("http://127.0.0.1:12881"));
 
-        AuthOriginGuardFilter filter = new AuthOriginGuardFilter(props, new ObjectMapper());
+        AuthOriginGuardFilter filter = new AuthOriginGuardFilter(props, jsonCodec());
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setMethod("POST");
@@ -144,7 +145,7 @@ class AuthOriginGuardFilterTest {
         props.setFailOpenWhenAllowlistEmpty(true);
         props.setAllowedOrigins(List.of());
 
-        AuthOriginGuardFilter filter = new AuthOriginGuardFilter(props, new ObjectMapper());
+        AuthOriginGuardFilter filter = new AuthOriginGuardFilter(props, jsonCodec());
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setMethod("POST");
@@ -165,5 +166,9 @@ class AuthOriginGuardFilterTest {
                 .contains("community.reason_code=allowlist_empty_fail_open")
                 .contains("origin=http://evil.example")
                 .contains("path=/api/auth/login");
+    }
+
+    private static JacksonJsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JsonMappers.standard());
     }
 }

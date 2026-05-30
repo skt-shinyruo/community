@@ -1,6 +1,7 @@
 package com.nowcoder.community.search.infrastructure.event;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.search.application.SearchPostProjectionApplicationService;
@@ -21,16 +22,16 @@ import java.util.UUID;
 @ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "true")
 public class PostOutboxHandler implements OutboxHandler {
 
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
     private final SearchPostProjectionApplicationService projectionApplicationService;
     private final String topic;
 
     public PostOutboxHandler(
-            ObjectMapper objectMapper,
+            JsonCodec jsonCodec,
             SearchPostProjectionApplicationService projectionApplicationService,
             @Value("${search.outbox.post-topic:projection.search.post}") String topic
     ) {
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
         this.projectionApplicationService = projectionApplicationService;
         this.topic = topic;
     }
@@ -47,8 +48,8 @@ public class PostOutboxHandler implements OutboxHandler {
         }
         PostOutboxPayload payload;
         try {
-            payload = objectMapper.readValue(event.payload(), PostOutboxPayload.class);
-        } catch (Exception e) {
+            payload = jsonCodec.fromJson(event.payload(), PostOutboxPayload.class);
+        } catch (JsonCodecException e) {
             throw new IllegalStateException("search outbox payload 反序列化失败", e);
         }
 

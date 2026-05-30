@@ -2,6 +2,8 @@ package com.nowcoder.community.search.infrastructure.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
@@ -21,14 +23,14 @@ class PostOutboxEnqueuerTest {
 
     @Test
     void postUpdatedShouldEnqueueSearchProjection() throws Exception {
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = JsonMappers.standard();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         when(store.enqueue(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(true);
         UUID postId = uuid(101);
         String topic = "custom.projection.search.post";
 
-        PostOutboxEnqueuer enqueuer = new PostOutboxEnqueuer(objectMapper, store, topic);
+        PostOutboxEnqueuer enqueuer = new PostOutboxEnqueuer(new JacksonJsonCodec(JsonMappers.standard()), store, topic);
 
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);

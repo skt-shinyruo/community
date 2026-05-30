@@ -1,7 +1,7 @@
 package com.nowcoder.community.growth.infrastructure.event;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
@@ -18,16 +18,16 @@ public class CommentTaskProgressOutboxEnqueuer {
 
     private static final String OUTBOX_EVENT_SUFFIX = ":growth_task";
 
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
     private final JdbcOutboxEventStore store;
     private final String topic;
 
     public CommentTaskProgressOutboxEnqueuer(
-            ObjectMapper objectMapper,
+            JsonCodec jsonCodec,
             JdbcOutboxEventStore store,
             @Value("${growth.task.outbox.comment-topic:projection.growth.task.comment}") String topic
     ) {
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
         this.store = store;
         this.topic = topic;
     }
@@ -45,8 +45,8 @@ public class CommentTaskProgressOutboxEnqueuer {
 
         String payloadJson;
         try {
-            payloadJson = objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException e) {
+            payloadJson = jsonCodec.toJson(payload);
+        } catch (JsonCodecException e) {
             throw new IllegalStateException("growth task comment outbox payload 序列化失败", e);
         }
 

@@ -1,7 +1,7 @@
 package com.nowcoder.community.notice.application;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
@@ -29,31 +29,31 @@ public class NoticeProjectionApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(NoticeProjectionApplicationService.class);
 
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
     private final NoticeApplicationService noticeApplicationService;
     private final NoticeProjectionDomainService noticeProjectionDomainService;
     private final NoticePolicyProperties noticePolicyProperties;
 
     @Autowired
     public NoticeProjectionApplicationService(
-            ObjectMapper objectMapper,
+            JsonCodec jsonCodec,
             NoticeApplicationService noticeApplicationService,
             NoticePolicyProperties noticePolicyProperties
     ) {
-        this(objectMapper, noticeApplicationService, new NoticeProjectionDomainService(), noticePolicyProperties);
+        this(jsonCodec, noticeApplicationService, new NoticeProjectionDomainService(), noticePolicyProperties);
     }
 
-    public NoticeProjectionApplicationService(ObjectMapper objectMapper, NoticeApplicationService noticeApplicationService) {
-        this(objectMapper, noticeApplicationService, new NoticeProjectionDomainService(), new NoticePolicyProperties());
+    public NoticeProjectionApplicationService(JsonCodec jsonCodec, NoticeApplicationService noticeApplicationService) {
+        this(jsonCodec, noticeApplicationService, new NoticeProjectionDomainService(), new NoticePolicyProperties());
     }
 
     NoticeProjectionApplicationService(
-            ObjectMapper objectMapper,
+            JsonCodec jsonCodec,
             NoticeApplicationService noticeApplicationService,
             NoticeProjectionDomainService noticeProjectionDomainService,
             NoticePolicyProperties noticePolicyProperties
     ) {
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
         this.noticeApplicationService = noticeApplicationService;
         this.noticeProjectionDomainService = noticeProjectionDomainService;
         this.noticePolicyProperties = noticePolicyProperties == null ? new NoticePolicyProperties() : noticePolicyProperties;
@@ -125,13 +125,13 @@ public class NoticeProjectionApplicationService {
             return;
         }
         try {
-            String contentJson = objectMapper.writeValueAsString(Map.of(
+            String contentJson = jsonCodec.toJson(Map.of(
                     "eventId", projection.sourceEventId(),
                     "type", projection.sourceEventType(),
                     "payload", projection.payload()
             ));
             noticeApplicationService.createNotice(new CreateNoticeCommand(projection.toUserId(), projection.topic(), contentJson));
-        } catch (JsonProcessingException e) {
+        } catch (JsonCodecException e) {
             throw new IllegalStateException("notice payload serialization failed: " + projection.sourceEventType(), e);
         }
     }
@@ -140,6 +140,6 @@ public class NoticeProjectionApplicationService {
         if (toUserId == null) {
             return null;
         }
-        return new NoticeProjection(toUserId, topic, eventId, eventType, objectMapper.valueToTree(payload));
+        return new NoticeProjection(toUserId, topic, eventId, eventType, payload);
     }
 }

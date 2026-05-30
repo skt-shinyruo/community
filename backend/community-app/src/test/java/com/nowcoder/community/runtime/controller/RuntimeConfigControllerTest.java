@@ -6,6 +6,7 @@ import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.runtime.application.RuntimeConfigApplicationService;
 import com.nowcoder.community.runtime.application.result.RuntimeConfigResult;
 import com.nowcoder.community.runtime.security.RuntimeSecurityRules;
+import com.nowcoder.community.support.WebMvcSliceJsonCodecTestConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -29,6 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         RuntimeConfigController.class,
         RuntimeSecurityRules.class,
         CommunitySecurityConfig.class,
+        WebMvcSliceJsonCodecTestConfig.class,
         SecurityExceptionHandler.class,
         GlobalExceptionHandler.class
 })

@@ -3,6 +3,8 @@ package com.nowcoder.community.common.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import io.opentelemetry.api.trace.Span;
@@ -32,7 +34,7 @@ class SecurityExceptionHandlerTest {
 
     @Test
     void commence_shouldWriteResultJsonAndTraceHeaders() throws Exception {
-        SecurityExceptionHandler handler = new SecurityExceptionHandler(objectMapper);
+        SecurityExceptionHandler handler = new SecurityExceptionHandler(jsonCodec());
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -53,7 +55,7 @@ class SecurityExceptionHandlerTest {
 
     @Test
     void handle_shouldWriteForbiddenResult() throws Exception {
-        SecurityExceptionHandler handler = new SecurityExceptionHandler(objectMapper);
+        SecurityExceptionHandler handler = new SecurityExceptionHandler(jsonCodec());
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -80,5 +82,9 @@ class SecurityExceptionHandlerTest {
                 TraceState.getDefault()
         );
         return Span.wrap(spanContext).makeCurrent();
+    }
+
+    private JsonCodec jsonCodec() {
+        return new JacksonJsonCodec(objectMapper);
     }
 }

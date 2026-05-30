@@ -3,6 +3,8 @@ package com.nowcoder.community.common.webflux;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
@@ -24,7 +26,7 @@ class SecurityExceptionHandlerTest {
 
     @Test
     void commence_shouldWriteUnifiedUnauthorizedResult() {
-        SecurityExceptionHandler handler = new SecurityExceptionHandler(objectMapper);
+        SecurityExceptionHandler handler = new SecurityExceptionHandler(jsonCodec());
         String traceparent = traceparent("abcdefabcdefabcdefabcdefabcdefab");
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/secure")
                 .header(TraceHeaders.HEADER_TRACEPARENT, traceparent)
@@ -46,7 +48,7 @@ class SecurityExceptionHandlerTest {
 
     @Test
     void handle_shouldWriteUnifiedForbiddenResult() {
-        SecurityExceptionHandler handler = new SecurityExceptionHandler(objectMapper);
+        SecurityExceptionHandler handler = new SecurityExceptionHandler(jsonCodec());
         String traceparent = traceparent("abcdefabcdefabcdefabcdefabcdefab");
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/secure")
                 .header(TraceHeaders.HEADER_TRACEPARENT, traceparent)
@@ -72,7 +74,7 @@ class SecurityExceptionHandlerTest {
 
     @Test
     void commenceShouldPreserveRequestTraceparentWhenNoActiveOtelSpan() {
-        SecurityExceptionHandler handler = new SecurityExceptionHandler(objectMapper);
+        SecurityExceptionHandler handler = new SecurityExceptionHandler(jsonCodec());
         String traceparent = traceparent("abcdefabcdefabcdefabcdefabcdefab");
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/secure")
                 .header(TraceHeaders.HEADER_TRACEPARENT, traceparent)
@@ -94,6 +96,10 @@ class SecurityExceptionHandlerTest {
                 TraceState.getDefault()
         );
         return Span.wrap(spanContext).makeCurrent();
+    }
+
+    private JsonCodec jsonCodec() {
+        return new JacksonJsonCodec(objectMapper);
     }
 
     private JsonNode readBody(MockServerWebExchange exchange) {

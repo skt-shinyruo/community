@@ -19,6 +19,7 @@ import com.nowcoder.community.market.application.MarketInventoryApplicationServi
 import com.nowcoder.community.market.application.MarketListingApplicationService;
 import com.nowcoder.community.market.application.MarketOrderApplicationService;
 import com.nowcoder.community.market.application.MarketQueryApplicationService;
+import com.nowcoder.community.support.WebMvcSliceJsonCodecTestConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -51,6 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         MarketController.class,
         MarketSecurityRules.class,
         CommunitySecurityConfig.class,
+        WebMvcSliceJsonCodecTestConfig.class,
         SecurityExceptionHandler.class,
         GlobalExceptionHandler.class
 })

@@ -1,9 +1,9 @@
 package com.nowcoder.community.auth.infrastructure.persistence;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -20,15 +20,15 @@ public class RedisRegistrationDraftRepository implements RegistrationDraftReposi
     private static final String KEY_PREFIX = "auth:regdraft:";
 
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
 
     @Autowired
     public RedisRegistrationDraftRepository(
             StringRedisTemplate redisTemplate,
-            ObjectMapper objectMapper
+            JsonCodec jsonCodec
     ) {
         this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
     }
 
     @Override
@@ -38,8 +38,8 @@ public class RedisRegistrationDraftRepository implements RegistrationDraftReposi
         }
         String json;
         try {
-            json = objectMapper.writeValueAsString(draft);
-        } catch (JsonProcessingException ex) {
+            json = jsonCodec.toJson(draft);
+        } catch (JsonCodecException ex) {
             throw new IllegalStateException("registration draft serialization failed", ex);
         }
 
@@ -57,8 +57,8 @@ public class RedisRegistrationDraftRepository implements RegistrationDraftReposi
             return Optional.empty();
         }
         try {
-            return Optional.of(objectMapper.readValue(raw, PreparedRegistrationDraft.class));
-        } catch (JsonProcessingException ex) {
+            return Optional.of(jsonCodec.fromJson(raw, PreparedRegistrationDraft.class));
+        } catch (JsonCodecException ex) {
             delete(token);
             return Optional.empty();
         }

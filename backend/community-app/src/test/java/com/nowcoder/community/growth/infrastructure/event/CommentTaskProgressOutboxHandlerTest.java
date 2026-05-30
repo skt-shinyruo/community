@@ -1,6 +1,8 @@
 package com.nowcoder.community.growth.infrastructure.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService;
@@ -21,9 +23,10 @@ class CommentTaskProgressOutboxHandlerTest {
 
     @Test
     void handlerShouldTriggerCommentTaskProgressThroughGrowthApplicationService() throws Exception {
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = JsonMappers.standard();
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
-        CommentTaskProgressOutboxHandler handler = new CommentTaskProgressOutboxHandler(objectMapper, applicationService, TOPIC);
+        CommentTaskProgressOutboxHandler handler =
+                new CommentTaskProgressOutboxHandler(new JacksonJsonCodec(JsonMappers.standard()), applicationService, TOPIC);
         UUID commentId = uuid(200);
         UUID userId = uuid(3);
         Instant createTime = Instant.parse("2026-05-18T09:30:00Z");
@@ -35,9 +38,9 @@ class CommentTaskProgressOutboxHandlerTest {
 
     @Test
     void handlerShouldIgnoreBlankPayload() {
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
-        CommentTaskProgressOutboxHandler handler = new CommentTaskProgressOutboxHandler(objectMapper, applicationService, TOPIC);
+        CommentTaskProgressOutboxHandler handler =
+                new CommentTaskProgressOutboxHandler(new JacksonJsonCodec(JsonMappers.standard()), applicationService, TOPIC);
 
         handler.handle(new OutboxEvent(
                 UUID.fromString("01965429-b34a-7000-8000-000000000041"),

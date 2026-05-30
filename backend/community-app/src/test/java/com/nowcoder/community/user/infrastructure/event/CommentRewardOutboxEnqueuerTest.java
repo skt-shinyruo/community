@@ -2,7 +2,8 @@ package com.nowcoder.community.user.infrastructure.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
@@ -24,9 +25,7 @@ class CommentRewardOutboxEnqueuerTest {
 
     @Test
     void commentCreatedShouldEnqueueUserRewardProjectionWithStableEventId() throws Exception {
-        ObjectMapper objectMapper = new ObjectMapper()
-                .findAndRegisterModules()
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        ObjectMapper objectMapper = JsonMappers.standard();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         when(store.enqueue(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(true);
@@ -35,7 +34,8 @@ class CommentRewardOutboxEnqueuerTest {
         UUID userId = uuid(3);
         Instant createTime = Instant.parse("2026-05-18T09:30:00Z");
 
-        CommentRewardOutboxEnqueuer enqueuer = new CommentRewardOutboxEnqueuer(objectMapper, store, topic);
+        CommentRewardOutboxEnqueuer enqueuer =
+                new CommentRewardOutboxEnqueuer(new JacksonJsonCodec(JsonMappers.standard()), store, topic);
         enqueuer.onContentEvent(new ContentContractEvent("random-local-event-id", ContentEventTypes.COMMENT_CREATED,
                 commentPayload(commentId, userId, createTime)));
 

@@ -1,7 +1,8 @@
 package com.nowcoder.community.im.infrastructure.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.kafka.trace.TraceKafkaSender;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
@@ -22,20 +23,20 @@ import java.util.concurrent.CompletionException;
 @ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "true")
 public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
 
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final String outboxTopic;
     private final String userMessagingPolicyChangedTopic;
     private final String userBlockRelationChangedTopic;
 
     public ImPolicyKafkaOutboxHandler(
-            ObjectMapper objectMapper,
+            JsonCodec jsonCodec,
             KafkaTemplate<String, Object> kafkaTemplate,
             @Value("${im.policy.outbox.topic:projection.im.policy}") String outboxTopic,
             @Value("${im.kafka.topics.event-user-messaging-policy-changed:im.event.user-messaging-policy-changed}") String userMessagingPolicyChangedTopic,
             @Value("${im.kafka.topics.event-user-block-relation-changed:im.event.user-block-relation-changed}") String userBlockRelationChangedTopic
     ) {
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
         this.kafkaTemplate = kafkaTemplate;
         this.outboxTopic = outboxTopic;
         this.userMessagingPolicyChangedTopic = userMessagingPolicyChangedTopic;
@@ -55,8 +56,8 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
 
         JsonNode payload;
         try {
-            payload = objectMapper.readTree(event.payload());
-        } catch (Exception e) {
+            payload = jsonCodec.readTree(event.payload());
+        } catch (JsonCodecException e) {
             throw new IllegalStateException("im policy outbox payload 反序列化失败", e);
         }
 

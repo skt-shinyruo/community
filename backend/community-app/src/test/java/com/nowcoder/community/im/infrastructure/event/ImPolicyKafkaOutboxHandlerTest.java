@@ -1,6 +1,8 @@
 package com.nowcoder.community.im.infrastructure.event;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.kafka.trace.TraceKafkaHeaders;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.trace.OtelTraceContext;
@@ -34,14 +36,14 @@ class ImPolicyKafkaOutboxHandlerTest {
     private static final String USER_POLICY_TOPIC = "custom.im.event.user-policy";
     private static final String BLOCK_TOPIC = "custom.im.event.block";
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
 
     @Test
     void handlerShouldOnlyExposeOwnerDomainQueryApiConstructor() {
         assertThat(ImPolicyKafkaOutboxHandler.class.getDeclaredConstructors())
                 .singleElement()
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
-                        ObjectMapper.class,
+                        JsonCodec.class,
                         KafkaTemplate.class,
                         String.class,
                         String.class,
@@ -58,7 +60,7 @@ class ImPolicyKafkaOutboxHandlerTest {
                 .thenReturn(completedSend());
 
         ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
-                objectMapper,
+                jsonCodec,
                 kafkaTemplate,
                 OUTBOX_TOPIC,
                 USER_POLICY_TOPIC,
@@ -116,7 +118,7 @@ class ImPolicyKafkaOutboxHandlerTest {
                 .thenReturn(completedSend());
 
         ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
-                objectMapper,
+                jsonCodec,
                 kafkaTemplate,
                 OUTBOX_TOPIC,
                 USER_POLICY_TOPIC,
@@ -156,7 +158,7 @@ class ImPolicyKafkaOutboxHandlerTest {
                 .thenReturn(failedSend());
 
         ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
-                objectMapper,
+                jsonCodec,
                 kafkaTemplate,
                 OUTBOX_TOPIC,
                 USER_POLICY_TOPIC,

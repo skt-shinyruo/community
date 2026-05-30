@@ -1,10 +1,9 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.PostContentBlockDataObject;
@@ -25,21 +24,18 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_E
 @Repository
 public class MyBatisPostContentBlockRepository implements PostContentBlockRepository {
 
-    private static final TypeReference<Map<String, Object>> METADATA_TYPE = new TypeReference<>() {
-    };
-
     private final PostContentBlockMapper mapper;
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
     private final UuidV7Generator idGenerator;
 
     @Autowired
-    public MyBatisPostContentBlockRepository(PostContentBlockMapper mapper, ObjectMapper objectMapper) {
-        this(mapper, objectMapper, new UuidV7Generator());
+    public MyBatisPostContentBlockRepository(PostContentBlockMapper mapper, JsonCodec jsonCodec) {
+        this(mapper, jsonCodec, new UuidV7Generator());
     }
 
-    MyBatisPostContentBlockRepository(PostContentBlockMapper mapper, ObjectMapper objectMapper, UuidV7Generator idGenerator) {
+    MyBatisPostContentBlockRepository(PostContentBlockMapper mapper, JsonCodec jsonCodec, UuidV7Generator idGenerator) {
         this.mapper = mapper;
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
         this.idGenerator = idGenerator;
     }
 
@@ -124,8 +120,8 @@ public class MyBatisPostContentBlockRepository implements PostContentBlockReposi
             return null;
         }
         try {
-            return objectMapper.writeValueAsString(safeMetadata);
-        } catch (JsonProcessingException e) {
+            return jsonCodec.toJson(safeMetadata);
+        } catch (JsonCodecException e) {
             throw new BusinessException(INTERNAL_ERROR, "内容块元数据序列化失败", e);
         }
     }
@@ -135,9 +131,18 @@ public class MyBatisPostContentBlockRepository implements PostContentBlockReposi
             return Map.of();
         }
         try {
-            Map<String, Object> metadata = objectMapper.readValue(metadataJson, METADATA_TYPE);
-            return metadata == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(metadata));
-        } catch (JsonProcessingException e) {
+            Map<?, ?> raw = jsonCodec.fromJson(metadataJson, Map.class);
+            if (raw == null || raw.isEmpty()) {
+                return Map.of();
+            }
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            raw.forEach((key, value) -> {
+                if (key instanceof String s) {
+                    metadata.put(s, value);
+                }
+            });
+            return Collections.unmodifiableMap(metadata);
+        } catch (JsonCodecException e) {
             throw new BusinessException(INTERNAL_ERROR, "内容块元数据反序列化失败", e);
         }
     }

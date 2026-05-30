@@ -1,11 +1,11 @@
 package com.nowcoder.community.search.infrastructure.event;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
-import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -21,16 +21,16 @@ public class PostOutboxEnqueuer {
 
     private static final String OUTBOX_EVENT_SUFFIX = ":search_post";
 
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
     private final JdbcOutboxEventStore store;
     private final String topic;
 
     public PostOutboxEnqueuer(
-            ObjectMapper objectMapper,
+            JsonCodec jsonCodec,
             JdbcOutboxEventStore store,
             @Value("${search.outbox.post-topic:projection.search.post}") String topic
     ) {
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
         this.store = store;
         this.topic = topic;
     }
@@ -57,8 +57,8 @@ public class PostOutboxEnqueuer {
 
         String payloadJson;
         try {
-            payloadJson = objectMapper.writeValueAsString(outboxPayload);
-        } catch (JsonProcessingException e) {
+            payloadJson = jsonCodec.toJson(outboxPayload);
+        } catch (JsonCodecException e) {
             throw new IllegalStateException("search outbox payload 序列化失败: " + event.type(), e);
         }
 

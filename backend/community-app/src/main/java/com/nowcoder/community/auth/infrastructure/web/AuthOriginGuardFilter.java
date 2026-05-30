@@ -1,10 +1,10 @@
 package com.nowcoder.community.auth.infrastructure.web;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
-import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,12 +39,12 @@ public class AuthOriginGuardFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(AuthOriginGuardFilter.class);
 
     private final OriginGuardProperties properties;
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
     private final AtomicBoolean warnedEmptyAllowlist = new AtomicBoolean(false);
 
-    public AuthOriginGuardFilter(OriginGuardProperties properties, ObjectMapper objectMapper) {
+    public AuthOriginGuardFilter(OriginGuardProperties properties, JsonCodec jsonCodec) {
         this.properties = properties;
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
     }
 
     @Override
@@ -150,7 +150,7 @@ public class AuthOriginGuardFilter extends OncePerRequestFilter {
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         Result<?> body = Result.error(CommonErrorCode.FORBIDDEN.getCode(), message);
-        response.getWriter().write(objectMapper.writeValueAsString(body));
+        response.getWriter().write(jsonCodec.toJson(body));
     }
 
     private void logSecurityEvent(String outcome, String reason, HttpServletRequest request, String origin) {

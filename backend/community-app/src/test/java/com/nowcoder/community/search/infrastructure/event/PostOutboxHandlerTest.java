@@ -1,6 +1,8 @@
 package com.nowcoder.community.search.infrastructure.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.search.application.SearchPostProjectionApplicationService;
 import com.nowcoder.community.search.application.command.ProjectPostOutboxCommand;
@@ -23,12 +25,12 @@ class PostOutboxHandlerTest {
 
     @Test
     void handlerShouldDeserializePayloadAndDelegateToApplication() throws Exception {
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = JsonMappers.standard();
         SearchPostProjectionApplicationService projectionApplicationService =
                 mock(SearchPostProjectionApplicationService.class);
         UUID postId = uuid(101);
 
-        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, projectionApplicationService, TOPIC);
+        PostOutboxHandler handler = new PostOutboxHandler(new JacksonJsonCodec(JsonMappers.standard()), projectionApplicationService, TOPIC);
 
         handler.handle(outboxEvent(objectMapper, postId, "src-s1", "PostUpdated"));
 
@@ -41,10 +43,9 @@ class PostOutboxHandlerTest {
 
     @Test
     void handlerShouldIgnoreBlankPayload() {
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         SearchPostProjectionApplicationService projectionApplicationService =
                 mock(SearchPostProjectionApplicationService.class);
-        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, projectionApplicationService, TOPIC);
+        PostOutboxHandler handler = new PostOutboxHandler(new JacksonJsonCodec(JsonMappers.standard()), projectionApplicationService, TOPIC);
 
         handler.handle(new OutboxEvent(
                 UUID.fromString("01965429-b34a-7000-8000-000000000021"),
@@ -65,10 +66,9 @@ class PostOutboxHandlerTest {
 
     @Test
     void handlerShouldFailInvalidPayload() {
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         SearchPostProjectionApplicationService projectionApplicationService =
                 mock(SearchPostProjectionApplicationService.class);
-        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, projectionApplicationService, TOPIC);
+        PostOutboxHandler handler = new PostOutboxHandler(new JacksonJsonCodec(JsonMappers.standard()), projectionApplicationService, TOPIC);
 
         Throwable thrown = catchThrowable(() -> handler.handle(new OutboxEvent(
                 UUID.fromString("01965429-b34a-7000-8000-000000000021"),

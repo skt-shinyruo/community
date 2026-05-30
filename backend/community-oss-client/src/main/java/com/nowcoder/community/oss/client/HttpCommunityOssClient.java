@@ -1,31 +1,32 @@
 package com.nowcoder.community.oss.client;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.nowcoder.community.oss.client.model.OssMetadataResponse;
-import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.oss.client.model.OssAccessDecisionResponse;
 import com.nowcoder.community.oss.client.model.OssBindReferenceRequest;
+import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
 import com.nowcoder.community.oss.client.model.OssGrantObjectAccessRequest;
 import com.nowcoder.community.oss.client.model.OssLifecycleResponse;
-import com.nowcoder.community.oss.client.model.OssSignedUrlResponse;
+import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssPublicFileResponse;
 import com.nowcoder.community.oss.client.model.OssReferenceResponse;
+import com.nowcoder.community.oss.client.model.OssSignedUrlResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-import org.springframework.core.io.InputStreamResource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.http.ResponseEntity;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,9 +35,7 @@ import java.util.UUID;
 
 public class HttpCommunityOssClient implements CommunityOssClient {
 
-    private static final ObjectMapper OBJECT_MAPPER = JsonMapper.builder()
-            .findAndAddModules()
-            .build();
+    private static final JsonCodec JSON = new JacksonJsonCodec(JsonMappers.standard());
 
     private final RestClient restClient;
 
@@ -190,7 +189,7 @@ public class HttpCommunityOssClient implements CommunityOssClient {
             return null;
         }
         try {
-            JsonNode root = OBJECT_MAPPER.readTree(responseBody);
+            JsonNode root = JSON.readTree(responseBody);
             if (!root.has("code") || !root.has("data")) {
                 throw new IllegalStateException("OSS response is not a Result envelope");
             }
@@ -202,8 +201,8 @@ public class HttpCommunityOssClient implements CommunityOssClient {
             if (payload == null || payload.isNull()) {
                 return null;
             }
-            return OBJECT_MAPPER.treeToValue(payload, responseType);
-        } catch (JsonProcessingException e) {
+            return JSON.treeToValue(payload, responseType);
+        } catch (JsonCodecException e) {
             throw new IllegalStateException("failed to parse OSS response", e);
         }
     }

@@ -1,5 +1,6 @@
 package com.nowcoder.community.oss.client;
 
+import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
@@ -20,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class HttpCommunityOssClientTest {
 
@@ -117,6 +119,36 @@ class HttpCommunityOssClientTest {
             assertThat(response.contentLength()).isEqualTo(12);
             assertThat(response.checksumSha256()).isEmpty();
             assertThat(response.publicUrl()).isNull();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void prepareUploadShouldWrapJsonCodecParseFailures() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        CountDownLatch requestReceived = new CountDownLatch(1);
+        HttpServer server = startUploadSessionServer(authorization, requestReceived, "{");
+        try {
+            HttpCommunityOssClient client = new HttpCommunityOssClient("http://127.0.0.1:" + server.getAddress().getPort());
+
+            assertThatThrownBy(() -> client.prepareUpload(new OssUploadSessionRequest(
+                    "DRIVE_FILE",
+                    "community-app",
+                    "drive",
+                    "drive-upload",
+                    "7",
+                    "PRIVATE",
+                    "note.txt",
+                    "text/plain",
+                    2,
+                    "",
+                    "7"
+            )))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("failed to parse OSS response")
+                    .hasCauseInstanceOf(JsonCodecException.class);
+            assertThat(requestReceived.await(2, TimeUnit.SECONDS)).isTrue();
         } finally {
             server.stop(0);
         }

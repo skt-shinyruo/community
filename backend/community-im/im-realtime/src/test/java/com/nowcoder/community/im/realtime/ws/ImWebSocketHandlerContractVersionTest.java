@@ -2,6 +2,8 @@ package com.nowcoder.community.im.realtime.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
@@ -64,7 +66,7 @@ class ImWebSocketHandlerContractVersionTest {
         doNothing().when(projectionSyncCoordinator).requireReady();
 
         ImWebSocketHandler handler = new ImWebSocketHandler(
-                new ImFrameCodec(OBJECT_MAPPER),
+                new ImFrameCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 ticketCodec,
                 sessionProperties,
                 projectionSyncCoordinator,

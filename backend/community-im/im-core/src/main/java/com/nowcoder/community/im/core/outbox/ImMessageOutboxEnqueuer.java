@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.core.outbox;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.im.common.event.ImEventIds;
 import com.nowcoder.community.im.common.event.PrivateMessageCommittedEvent;
@@ -20,7 +20,7 @@ import org.springframework.util.StringUtils;
 public class ImMessageOutboxEnqueuer {
 
     private final JdbcOutboxEventStore store;
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
     private final String privatePersistedTopic;
     private final String roomPersistedTopic;
     private final String privateCommittedTopic;
@@ -31,7 +31,7 @@ public class ImMessageOutboxEnqueuer {
 
     public ImMessageOutboxEnqueuer(
             JdbcOutboxEventStore store,
-            ObjectMapper objectMapper,
+            JsonCodec jsonCodec,
             @Value("${im.kafka.topics.event-private-persisted:im.event.private-persisted}") String privatePersistedTopic,
             @Value("${im.kafka.topics.event-room-persisted:im.event.room-persisted}") String roomPersistedTopic,
             @Value("${im.kafka.topics.event-private-committed:im.event.private-committed}") String privateCommittedTopic,
@@ -41,7 +41,7 @@ public class ImMessageOutboxEnqueuer {
             @Value("${im.kafka.topics.event-room-member-changed:im.event.room-member-changed}") String roomMemberChangedTopic
     ) {
         this.store = store;
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
         this.privatePersistedTopic = privatePersistedTopic;
         this.roomPersistedTopic = roomPersistedTopic;
         this.privateCommittedTopic = privateCommittedTopic;
@@ -148,8 +148,8 @@ public class ImMessageOutboxEnqueuer {
 
     private void enqueue(String eventId, String topic, String eventKey, Object payload) {
         try {
-            store.enqueue(eventId, topic, eventKey, objectMapper.writeValueAsString(payload));
-        } catch (JsonProcessingException e) {
+            store.enqueue(eventId, topic, eventKey, jsonCodec.toJson(payload));
+        } catch (JsonCodecException e) {
             throw new IllegalStateException("IM outbox payload serialization failed: " + eventId, e);
         }
     }

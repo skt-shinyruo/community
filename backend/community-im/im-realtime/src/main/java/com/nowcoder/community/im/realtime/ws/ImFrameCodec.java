@@ -1,46 +1,43 @@
 package com.nowcoder.community.im.realtime.ws;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.im.common.ImUnsupportedSchemaVersionException;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ImFrameCodec {
 
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
 
-    public ImFrameCodec(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
+    public ImFrameCodec(JsonCodec jsonCodec) {
+        this.jsonCodec = jsonCodec;
     }
 
     public JsonNode readTree(String text) {
         try {
-            return objectMapper.readTree(text);
-        } catch (JsonProcessingException e) {
+            return jsonCodec.readTree(text);
+        } catch (JsonCodecException e) {
             throw new IllegalArgumentException("invalid websocket frame json", e);
         }
     }
 
     public <T> T read(JsonNode node, Class<T> type) {
         try {
-            return objectMapper.treeToValue(node, type);
-        } catch (JsonMappingException e) {
+            return jsonCodec.treeToValue(node, type);
+        } catch (JsonCodecException e) {
             if (hasUnsupportedSchemaVersion(e)) {
                 throw new ImUnsupportedSchemaVersionException(unsupportedSchemaVersion(e), supportedSchemaVersion(e));
             }
-            throw new IllegalArgumentException("invalid websocket frame payload", e);
-        } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("invalid websocket frame payload", e);
         }
     }
 
     public String write(Object value) {
         try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
+            return jsonCodec.toJson(value);
+        } catch (JsonCodecException e) {
             throw new IllegalArgumentException("failed to encode websocket frame", e);
         }
     }

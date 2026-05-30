@@ -2,6 +2,8 @@ package com.nowcoder.community.im.realtime.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.realtime.kafka.CommandProducer;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
@@ -29,7 +31,7 @@ class MessageCommandIngressServiceTest {
         CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
         Mockito.when(commandProducer.sendPrivateText(any(SendPrivateTextCommand.class))).thenReturn(future);
 
-        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer, new ImFrameCodec(objectMapper));
+        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer, new ImFrameCodec(jsonCodec()));
         WsConnection connection = newConnection(uuid(1));
 
         service.sendPrivate(connection, uuid(2), "c1", "hello").block(Duration.ofSeconds(1));
@@ -51,7 +53,7 @@ class MessageCommandIngressServiceTest {
         CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
         Mockito.when(commandProducer.sendPrivateText(any(SendPrivateTextCommand.class))).thenReturn(future);
 
-        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer, new ImFrameCodec(objectMapper));
+        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer, new ImFrameCodec(jsonCodec()));
         WsConnection connection = newConnection(uuid(1));
 
         service.sendPrivate(connection, uuid(2), "c2", "hello").block(Duration.ofSeconds(1));
@@ -73,7 +75,7 @@ class MessageCommandIngressServiceTest {
 
         MessageCommandIngressService service = new MessageCommandIngressService(
                 commandProducer,
-                new ImFrameCodec(objectMapper),
+                new ImFrameCodec(jsonCodec()),
                 10L
         );
         WsConnection connection = newConnection(uuid(1));
@@ -102,5 +104,9 @@ class MessageCommandIngressServiceTest {
 
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+
+    private static JacksonJsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JsonMappers.standard());
     }
 }

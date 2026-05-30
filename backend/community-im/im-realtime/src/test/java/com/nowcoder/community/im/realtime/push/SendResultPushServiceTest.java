@@ -2,6 +2,8 @@ package com.nowcoder.community.im.realtime.push;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.im.common.event.PrivateMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageCommittedEvent;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
@@ -23,7 +25,7 @@ class SendResultPushServiceTest {
     private final ConnectionRegistry connectionRegistry = new ConnectionRegistry();
     private final SendResultPushService service = new SendResultPushService(
             connectionRegistry,
-            new ImFrameCodec(objectMapper)
+            new ImFrameCodec(new JacksonJsonCodec(JsonMappers.standard()))
     );
 
     @Test

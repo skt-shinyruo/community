@@ -3,6 +3,7 @@ package com.nowcoder.community.wallet.controller;
 import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
+import com.nowcoder.community.support.WebMvcSliceJsonCodecTestConfig;
 import com.nowcoder.community.wallet.application.WalletAdminOpsApplicationService;
 import com.nowcoder.community.wallet.security.WalletSecurityRules;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         AdminWalletController.class,
         WalletSecurityRules.class,
         CommunitySecurityConfig.class,
+        WebMvcSliceJsonCodecTestConfig.class,
         SecurityExceptionHandler.class,
         GlobalExceptionHandler.class
 })

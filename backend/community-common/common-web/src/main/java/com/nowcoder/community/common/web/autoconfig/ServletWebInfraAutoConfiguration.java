@@ -1,6 +1,8 @@
 package com.nowcoder.community.common.web.autoconfig;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.web.AuditLogFilter;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.ResultTraceIdAdvice;
@@ -46,8 +48,14 @@ public class ServletWebInfraAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SecurityExceptionHandler securityExceptionHandler(ObjectMapper objectMapper) {
-        return new SecurityExceptionHandler(objectMapper);
+    public JsonCodec jsonCodec(ObjectMapper objectMapper) {
+        return new JacksonJsonCodec(objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityExceptionHandler securityExceptionHandler(JsonCodec jsonCodec) {
+        return new SecurityExceptionHandler(jsonCodec);
     }
 
     @Bean

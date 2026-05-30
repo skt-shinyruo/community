@@ -15,6 +15,7 @@ import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
 import com.nowcoder.community.wallet.application.result.TransferOrderResult;
 import com.nowcoder.community.wallet.application.result.WalletTransactionResult;
 import com.nowcoder.community.wallet.application.result.WithdrawOrderResult;
+import com.nowcoder.community.support.WebMvcSliceJsonCodecTestConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -42,6 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({
         WalletController.class,
         CommunitySecurityConfig.class,
+        WebMvcSliceJsonCodecTestConfig.class,
         SecurityExceptionHandler.class,
         GlobalExceptionHandler.class
 })

@@ -14,6 +14,7 @@ import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.application.result.DriveShareResult;
 import com.nowcoder.community.drive.application.result.DriveUploadSessionResult;
 import com.nowcoder.community.drive.security.DriveSecurityRules;
+import com.nowcoder.community.support.WebMvcSliceJsonCodecTestConfig;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         DriveController.class,
         DriveSecurityRules.class,
         CommunitySecurityConfig.class,
+        WebMvcSliceJsonCodecTestConfig.class,
         SecurityExceptionHandler.class,
         GlobalExceptionHandler.class
 })

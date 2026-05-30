@@ -1,6 +1,6 @@
 package com.nowcoder.community.common.web;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.security.response.SecurityResponseSupport;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceId;
@@ -18,10 +18,10 @@ import java.nio.charset.StandardCharsets;
 @Component
 public class SecurityExceptionHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
 
-    public SecurityExceptionHandler(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
+    public SecurityExceptionHandler(JsonCodec jsonCodec) {
+        this.jsonCodec = jsonCodec;
     }
 
     @Override
@@ -47,6 +47,6 @@ public class SecurityExceptionHandler implements AuthenticationEntryPoint, Acces
         response.setStatus(body.getHttpStatus());
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8");
-        response.getWriter().write(objectMapper.writeValueAsString(body));
+        response.getWriter().write(jsonCodec.toJson(body));
     }
 }

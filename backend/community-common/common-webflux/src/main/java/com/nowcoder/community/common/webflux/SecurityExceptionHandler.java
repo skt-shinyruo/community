@@ -1,6 +1,6 @@
 package com.nowcoder.community.common.webflux;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.security.response.SecurityResponseSupport;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.web.Result;
@@ -17,10 +17,10 @@ import java.nio.charset.StandardCharsets;
 
 public class SecurityExceptionHandler implements ServerAuthenticationEntryPoint, ServerAccessDeniedHandler {
 
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
 
-    public SecurityExceptionHandler(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
+    public SecurityExceptionHandler(JsonCodec jsonCodec) {
+        this.jsonCodec = jsonCodec;
     }
 
     @Override
@@ -58,7 +58,7 @@ public class SecurityExceptionHandler implements ServerAuthenticationEntryPoint,
 
         byte[] bytes;
         try {
-            bytes = objectMapper.writeValueAsString(body).getBytes(StandardCharsets.UTF_8);
+            bytes = jsonCodec.toJson(body).getBytes(StandardCharsets.UTF_8);
         } catch (Exception ex) {
             bytes = "{\"code\":500,\"message\":\"serialization failure\",\"httpStatus\":500}".getBytes(StandardCharsets.UTF_8);
         }

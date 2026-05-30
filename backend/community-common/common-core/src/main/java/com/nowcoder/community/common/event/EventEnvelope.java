@@ -1,12 +1,10 @@
 package com.nowcoder.community.common.event;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.nowcoder.community.common.trace.TraceIdCodec;
 
 import java.time.Instant;
 import java.util.UUID;
 
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class EventEnvelope<T> {
 
     private String eventId;

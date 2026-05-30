@@ -177,7 +177,7 @@ IM 消息事实和发送结果使用不同 outbox event id 空间：私信事实
 通用事件协议：
 
 - `backend/community-common/common-core/src/main/java/com/nowcoder/community/common/event/EventEnvelope.java`
-- `backend/community-common/common-core/src/main/java/com/nowcoder/community/common/event/EventEnvelopeParser.java`
+- `backend/community-common/common-json/src/main/java/com/nowcoder/community/common/json/EventEnvelopeJsonParser.java`
 - `backend/community-common/common-core/src/main/java/com/nowcoder/community/common/event/UnknownEventAction.java`
 - `backend/community-common/common-core/src/main/java/com/nowcoder/community/common/event/EventTopicConventions.java`
 

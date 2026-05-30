@@ -1,11 +1,11 @@
 package com.nowcoder.community.common.idempotency;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.ErrorCode;
 import com.nowcoder.community.common.exception.SimpleErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.beans.factory.ObjectProvider;
@@ -29,18 +29,18 @@ public class IdempotencyGuard {
 
     private static final String METRIC = "http_idempotency_total";
 
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
     private final IdempotencyStore store;
     private final ObjectProvider<MeterRegistry> meterRegistryProvider;
     private final IdempotencyProperties properties;
 
     public IdempotencyGuard(
-            ObjectMapper objectMapper,
+            JsonCodec jsonCodec,
             IdempotencyStore store,
             ObjectProvider<MeterRegistry> meterRegistryProvider,
             IdempotencyProperties properties
     ) {
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
         if (store == null) {
             throw new IllegalStateException("idempotency store is null");
         }
@@ -201,8 +201,8 @@ public class IdempotencyGuard {
             return "null";
         }
         try {
-            return objectMapper == null ? String.valueOf(value) : objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
+            return jsonCodec == null ? String.valueOf(value) : jsonCodec.toJson(value);
+        } catch (JsonCodecException e) {
             throw new IllegalStateException("serialize idempotency response failed", e);
         }
     }
@@ -215,11 +215,11 @@ public class IdempotencyGuard {
             return null;
         }
         try {
-            if (objectMapper == null) {
-                throw new IllegalStateException("objectMapper is null");
+            if (jsonCodec == null) {
+                throw new IllegalStateException("jsonCodec is null");
             }
-            return objectMapper.readValue(json, type);
-        } catch (JsonProcessingException e) {
+            return jsonCodec.fromJson(json, type);
+        } catch (JsonCodecException e) {
             throw new IllegalStateException("deserialize idempotency response failed", e);
         }
     }

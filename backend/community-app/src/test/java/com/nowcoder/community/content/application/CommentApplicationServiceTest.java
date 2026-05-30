@@ -1,12 +1,14 @@
 package com.nowcoder.community.content.application;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.idempotency.IdempotencyProperties;
 import com.nowcoder.community.common.idempotency.IdempotencyStore;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.command.CreateCommentCommand;
 import com.nowcoder.community.content.application.command.UpdateCommentCommand;
 import com.nowcoder.community.content.application.ContentSanitizer;
@@ -66,6 +68,10 @@ class CommentApplicationServiceTest {
     private PostWriteSideEffectScheduler postWriteSideEffectScheduler;
     private PlatformTransactionManager transactionManager;
     private CommentApplicationService service;
+
+    private static JsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JsonMappers.standard());
+    }
 
     @BeforeEach
     void setUp() {
@@ -205,7 +211,7 @@ class CommentApplicationServiceTest {
         UUID postAuthorId = uuid(2);
         UUID commentId = uuid(200);
         IdempotencyStore store = mock(IdempotencyStore.class);
-        IdempotencyGuard realGuard = new IdempotencyGuard(new ObjectMapper(), store, null, new IdempotencyProperties());
+        IdempotencyGuard realGuard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
         PlatformTransactionManager realTransactionManager = mock(PlatformTransactionManager.class);
         SimpleTransactionStatus transactionStatus = new SimpleTransactionStatus();
         when(realTransactionManager.getTransaction(any(TransactionDefinition.class))).thenReturn(transactionStatus);

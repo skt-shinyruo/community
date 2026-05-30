@@ -1,8 +1,10 @@
 package com.nowcoder.community.common.idempotency;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.SimpleErrorCode;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -25,6 +27,10 @@ class IdempotencyGuardStoreFailureTest {
 
     private static final UUID USER_ID = UUID.fromString("01966f76-9d81-7f10-8d11-223344556677");
 
+    private static JsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JsonMappers.standard());
+    }
+
     @Test
     void executeRequiredShouldExtendProcessingAndReturnConflictWhenSaveSuccessFails() {
         IdempotencyStore store = mock(IdempotencyStore.class);
@@ -35,7 +41,7 @@ class IdempotencyGuardStoreFailureTest {
         IdempotencyProperties properties = new IdempotencyProperties();
         properties.setSuccessTtl(Duration.ofMinutes(10));
 
-        IdempotencyGuard guard = new IdempotencyGuard(new ObjectMapper(), store, null, properties);
+        IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, properties);
         AtomicInteger supplierCalls = new AtomicInteger();
 
         assertThatThrownBy(() -> guard.executeRequired("op", USER_ID, "k1", String.class, () -> {
@@ -61,7 +67,7 @@ class IdempotencyGuardStoreFailureTest {
         when(store.get("wallet:recharge", USER_ID, "k1"))
                 .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.SUCCESS, "\"OK\"", "hash-a"));
 
-        IdempotencyGuard guard = new IdempotencyGuard(new ObjectMapper(), store, null, new IdempotencyProperties());
+        IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
         AtomicInteger supplierCalls = new AtomicInteger();
 
         assertThatThrownBy(() -> guard.executeRequired(
@@ -92,7 +98,7 @@ class IdempotencyGuardStoreFailureTest {
         when(store.get("wallet:recharge", USER_ID, "k1"))
                 .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.SUCCESS, "\"OK\"", "hash-a"));
 
-        IdempotencyGuard guard = new IdempotencyGuard(new ObjectMapper(), store, null, new IdempotencyProperties());
+        IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
 
         String result = guard.executeRequired(
                 "wallet:recharge",

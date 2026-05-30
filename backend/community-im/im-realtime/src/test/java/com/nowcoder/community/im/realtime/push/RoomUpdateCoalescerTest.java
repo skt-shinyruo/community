@@ -2,6 +2,8 @@ package com.nowcoder.community.im.realtime.push;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
 import org.junit.jupiter.api.AfterEach;
@@ -31,7 +33,7 @@ class RoomUpdateCoalescerTest {
 
     @Test
     void shouldCoalesceToLatestSeqPerRoomPerConnection() throws Exception {
-        coalescer = new RoomUpdateCoalescer(connectionRegistry, objectMapper, 20);
+        coalescer = new RoomUpdateCoalescer(connectionRegistry, new JacksonJsonCodec(JsonMappers.standard()), 20);
 
         WebSocketSession session = Mockito.mock(WebSocketSession.class);
         Mockito.when(session.close()).thenReturn(Mono.empty());

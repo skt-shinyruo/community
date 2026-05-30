@@ -1,6 +1,10 @@
 package com.nowcoder.community.im.core.outbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.kafka.trace.TraceKafkaHeaders;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxEventStatus;
@@ -27,7 +31,7 @@ import static org.mockito.Mockito.when;
 
 class ImKafkaOutboxHandlerTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JsonMappers.standard();
 
     @Test
     void handleSendsDeserializedPayloadToKafkaAndWaitsForSuccess() throws Exception {
@@ -48,7 +52,7 @@ class ImKafkaOutboxHandlerTest {
         ImKafkaOutboxHandler<PrivateMessagePersistedEvent> handler = new ImKafkaOutboxHandler<>(
                 ImTopics.EVENT_PRIVATE_PERSISTED,
                 PrivateMessagePersistedEvent.class,
-                objectMapper,
+                new JacksonJsonCodec(JsonMappers.standard()),
                 kafkaTemplate
         );
 
@@ -100,7 +104,7 @@ class ImKafkaOutboxHandlerTest {
         ImKafkaOutboxHandler<PrivateMessagePersistedEvent> handler = new ImKafkaOutboxHandler<>(
                 ImTopics.EVENT_PRIVATE_PERSISTED,
                 PrivateMessagePersistedEvent.class,
-                objectMapper,
+                new JacksonJsonCodec(JsonMappers.standard()),
                 kafkaTemplate
         );
 
@@ -113,6 +117,32 @@ class ImKafkaOutboxHandlerTest {
         )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("IM outbox kafka publish failed");
+    }
+
+    @Test
+    void handleWrapsJsonCodecDeserializationFailure() {
+        @SuppressWarnings("unchecked")
+        KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
+        JsonCodec jsonCodec = mock(JsonCodec.class);
+        when(jsonCodec.fromJson(any(String.class), any(Class.class)))
+                .thenThrow(new JsonCodecException("deserialize json failed", new IllegalArgumentException("bad payload")));
+        ImKafkaOutboxHandler<PrivateMessagePersistedEvent> handler = new ImKafkaOutboxHandler<>(
+                ImTopics.EVENT_PRIVATE_PERSISTED,
+                PrivateMessagePersistedEvent.class,
+                jsonCodec,
+                kafkaTemplate
+        );
+
+        assertThatThrownBy(() -> handler.handle(outboxEvent(
+                "im:pf:" + uuid(8),
+                "conv-1",
+                "{",
+                null,
+                null
+        )))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("IM outbox payload deserialization failed: " + ImTopics.EVENT_PRIVATE_PERSISTED)
+                .hasCauseInstanceOf(JsonCodecException.class);
     }
 
     private OutboxEvent outboxEvent(String eventId, String eventKey, String payload, String traceId, String traceparent) {

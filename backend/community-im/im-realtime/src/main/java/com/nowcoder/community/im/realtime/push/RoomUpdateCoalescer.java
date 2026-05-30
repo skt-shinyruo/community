@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.realtime.push;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
 import org.slf4j.Logger;
@@ -25,7 +25,7 @@ public class RoomUpdateCoalescer implements DisposableBean {
     private static final Logger log = LoggerFactory.getLogger(RoomUpdateCoalescer.class);
 
     private final ConnectionRegistry connectionRegistry;
-    private final ObjectMapper objectMapper;
+    private final JsonCodec jsonCodec;
     private final Duration flushInterval;
 
     private final ConcurrentLinkedQueue<String> pendingConnectionIds = new ConcurrentLinkedQueue<>();
@@ -33,11 +33,11 @@ public class RoomUpdateCoalescer implements DisposableBean {
 
     public RoomUpdateCoalescer(
             ConnectionRegistry connectionRegistry,
-            ObjectMapper objectMapper,
+            JsonCodec jsonCodec,
             @Value("${im.ws.room-flush-interval-ms:50}") long flushIntervalMs
     ) {
         this.connectionRegistry = connectionRegistry;
-        this.objectMapper = objectMapper;
+        this.jsonCodec = jsonCodec;
         long ms = Math.min(Math.max(10L, flushIntervalMs), 1000L);
         this.flushInterval = Duration.ofMillis(ms);
         this.ticker = Flux.interval(this.flushInterval)
@@ -91,8 +91,8 @@ public class RoomUpdateCoalescer implements DisposableBean {
 
             String json;
             try {
-                json = objectMapper.writeValueAsString(new RoomUpdatedBatch(items));
-            } catch (JsonProcessingException e) {
+                json = jsonCodec.toJson(new RoomUpdatedBatch(items));
+            } catch (JsonCodecException e) {
                 continue;
             }
             conn.trySendText(json);

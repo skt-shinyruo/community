@@ -154,3 +154,13 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
 - Kibana：`http://localhost:12889`
 
 日志路径是 backend JSON stdout -> Docker container logs -> EDOT collector -> Elasticsearch / Kibana。更多说明见 `docs/handbook/operations.md`。
+
+### Optional Method Profiler Agent
+
+Backend images include a generic JVM method profiler agent at `/otel/method-profiler-agent.jar`. It is disabled by default. Enable it for a diagnostic run with:
+
+```bash
+METHOD_PROFILER_ENABLED=true METHOD_PROFILER_INCLUDES='com.nowcoder.community.*' ./deploy/deployment.sh up --topology single
+```
+
+The agent emits `event.category=method` logs to the same stdout -> EDOT -> Elasticsearch path as other backend logs.

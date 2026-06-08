@@ -19,15 +19,15 @@ public final class ProfilerConfigLoader {
 
     static ProfilerConfig load(String agentArgs, Map<String, String> systemProperties, Map<String, String> environment) {
         Map<String, String> values = new LinkedHashMap<>();
-        values.put("enabled", first(systemProperties.get("method.profiler.enabled"), environment.get("METHOD_PROFILER_ENABLED"), "false"));
-        values.put("includes", first(systemProperties.get("method.profiler.includes"), environment.get("METHOD_PROFILER_INCLUDES"), "*"));
-        values.put("excludes", first(systemProperties.get("method.profiler.excludes"), environment.get("METHOD_PROFILER_EXCLUDES"), ""));
-        values.put("slowThresholdMs", first(systemProperties.get("method.profiler.slowThresholdMs"), environment.get("METHOD_PROFILER_SLOW_THRESHOLD_MS"), "100"));
-        values.put("summaryInterval", first(systemProperties.get("method.profiler.summaryInterval"), environment.get("METHOD_PROFILER_SUMMARY_INTERVAL"), "60s"));
-        values.put("topN", first(systemProperties.get("method.profiler.topN"), environment.get("METHOD_PROFILER_TOP_N"), "50"));
-        values.put("sampleRate", first(systemProperties.get("method.profiler.sampleRate"), environment.get("METHOD_PROFILER_SAMPLE_RATE"), "1.0"));
-        values.put("maxEventsPerSecond", first(systemProperties.get("method.profiler.maxEventsPerSecond"), environment.get("METHOD_PROFILER_MAX_EVENTS_PER_SECOND"), "20"));
-        values.put("maxTrackedMethods", first(systemProperties.get("method.profiler.maxTrackedMethods"), environment.get("METHOD_PROFILER_MAX_TRACKED_METHODS"), "10000"));
+        values.put("enabled", configured(systemProperties, environment, "enabled", "METHOD_PROFILER_ENABLED", "false"));
+        values.put("includes", configured(systemProperties, environment, "includes", "METHOD_PROFILER_INCLUDES", "*"));
+        values.put("excludes", configured(systemProperties, environment, "excludes", "METHOD_PROFILER_EXCLUDES", ""));
+        values.put("slowThresholdMs", configured(systemProperties, environment, "slowThresholdMs", "METHOD_PROFILER_SLOW_THRESHOLD_MS", "100"));
+        values.put("summaryInterval", configured(systemProperties, environment, "summaryInterval", "METHOD_PROFILER_SUMMARY_INTERVAL", "60s"));
+        values.put("topN", configured(systemProperties, environment, "topN", "METHOD_PROFILER_TOP_N", "50"));
+        values.put("sampleRate", configured(systemProperties, environment, "sampleRate", "METHOD_PROFILER_SAMPLE_RATE", "1.0"));
+        values.put("maxEventsPerSecond", configured(systemProperties, environment, "maxEventsPerSecond", "METHOD_PROFILER_MAX_EVENTS_PER_SECOND", "20"));
+        values.put("maxTrackedMethods", configured(systemProperties, environment, "maxTrackedMethods", "METHOD_PROFILER_MAX_TRACKED_METHODS", "10000"));
         parseAgentArgs(agentArgs).forEach(values::put);
 
         return new ProfilerConfig(
@@ -48,18 +48,44 @@ public final class ProfilerConfigLoader {
         if (agentArgs == null || agentArgs.isBlank()) {
             return result;
         }
+        String currentKey = null;
         for (String pair : agentArgs.split(",")) {
             int index = pair.indexOf('=');
             if (index <= 0) {
+                if (currentKey != null && acceptsCsvContinuation(currentKey) && !pair.isBlank()) {
+                    result.compute(currentKey, (key, value) -> value == null || value.isBlank()
+                            ? pair.trim()
+                            : value + "," + pair.trim());
+                }
                 continue;
             }
-            String key = pair.substring(0, index).trim();
+            String key = normalizeKey(pair.substring(0, index).trim());
             String value = pair.substring(index + 1).trim();
             if (!key.isEmpty()) {
                 result.put(key, value);
+                currentKey = key;
             }
         }
         return result;
+    }
+
+    private static boolean acceptsCsvContinuation(String key) {
+        return "includes".equals(key) || "excludes".equals(key);
+    }
+
+    private static String normalizeKey(String key) {
+        return switch (key) {
+            case "enabled", "method.profiler.enabled", "METHOD_PROFILER_ENABLED" -> "enabled";
+            case "includes", "method.profiler.includes", "METHOD_PROFILER_INCLUDES" -> "includes";
+            case "excludes", "method.profiler.excludes", "METHOD_PROFILER_EXCLUDES" -> "excludes";
+            case "slowThresholdMs", "method.profiler.slowThresholdMs", "METHOD_PROFILER_SLOW_THRESHOLD_MS" -> "slowThresholdMs";
+            case "summaryInterval", "method.profiler.summaryInterval", "METHOD_PROFILER_SUMMARY_INTERVAL" -> "summaryInterval";
+            case "topN", "method.profiler.topN", "METHOD_PROFILER_TOP_N" -> "topN";
+            case "sampleRate", "method.profiler.sampleRate", "METHOD_PROFILER_SAMPLE_RATE" -> "sampleRate";
+            case "maxEventsPerSecond", "method.profiler.maxEventsPerSecond", "METHOD_PROFILER_MAX_EVENTS_PER_SECOND" -> "maxEventsPerSecond";
+            case "maxTrackedMethods", "method.profiler.maxTrackedMethods", "METHOD_PROFILER_MAX_TRACKED_METHODS" -> "maxTrackedMethods";
+            default -> key;
+        };
     }
 
     private static List<String> csv(String value) {
@@ -72,14 +98,28 @@ public final class ProfilerConfigLoader {
                 .toList();
     }
 
-    private static String first(String first, String second, String fallback) {
-        if (first != null && !first.isBlank()) {
-            return first;
+    private static String configured(
+            Map<String, String> systemProperties,
+            Map<String, String> environment,
+            String propertyName,
+            String environmentName,
+            String fallback
+    ) {
+        return first(
+                systemProperties.get("method.profiler." + propertyName),
+                systemProperties.get(environmentName),
+                environment.get(environmentName),
+                fallback
+        );
+    }
+
+    private static String first(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
         }
-        if (second != null && !second.isBlank()) {
-            return second;
-        }
-        return fallback;
+        return "";
     }
 
     private static long parseLong(String value, long fallback) {

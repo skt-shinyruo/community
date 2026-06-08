@@ -66,4 +66,31 @@ class ProfilerConfigLoaderTest {
         assertThat(config.maxEventsPerSecond()).isEqualTo(2);
         assertThat(config.maxTrackedMethods()).isEqualTo(10);
     }
+
+    @Test
+    void systemPropertiesSupportEnvironmentStyleNames() {
+        ProfilerConfig config = ProfilerConfigLoader.load("", Map.of(
+                "METHOD_PROFILER_ENABLED", "true",
+                "METHOD_PROFILER_INCLUDES", "com.system.*",
+                "METHOD_PROFILER_TOP_N", "9"
+        ), Map.of("METHOD_PROFILER_ENABLED", "false", "METHOD_PROFILER_INCLUDES", "com.env.*"));
+
+        assertThat(config.enabled()).isTrue();
+        assertThat(config.includes()).containsExactly("com.system.*");
+        assertThat(config.topN()).isEqualTo(9);
+    }
+
+    @Test
+    void agentArgsSupportEnvironmentStyleNamesAndCsvPatterns() {
+        ProfilerConfig config = ProfilerConfigLoader.load(
+                "METHOD_PROFILER_ENABLED=true,METHOD_PROFILER_INCLUDES=com.agent.*,org.demo.Service,METHOD_PROFILER_EXCLUDES=com.agent.internal.*,METHOD_PROFILER_SLOW_THRESHOLD_MS=333",
+                Map.of(),
+                Map.of("METHOD_PROFILER_ENABLED", "false", "METHOD_PROFILER_INCLUDES", "com.env.*")
+        );
+
+        assertThat(config.enabled()).isTrue();
+        assertThat(config.includes()).containsExactly("com.agent.*", "org.demo.Service");
+        assertThat(config.excludes()).containsExactly("com.agent.internal.*");
+        assertThat(config.slowThresholdMs()).isEqualTo(333);
+    }
 }

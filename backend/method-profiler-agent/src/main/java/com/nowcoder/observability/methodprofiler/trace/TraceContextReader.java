@@ -17,10 +17,10 @@ public class TraceContextReader {
 
     private void readOtel(Map<String, String> fields) {
         try {
-            Class<?> spanClass = Class.forName("io.opentelemetry.api.trace.Span");
+            Class<?> spanClass = loadClass("io.opentelemetry.api.trace.Span");
             Object span = spanClass.getMethod("current").invoke(null);
             Object spanContext = spanClass.getMethod("getSpanContext").invoke(span);
-            Class<?> spanContextClass = Class.forName("io.opentelemetry.api.trace.SpanContext");
+            Class<?> spanContextClass = loadClass("io.opentelemetry.api.trace.SpanContext");
             boolean valid = (Boolean) spanContextClass.getMethod("isValid").invoke(spanContext);
             if (!valid) {
                 return;
@@ -33,7 +33,7 @@ public class TraceContextReader {
 
     private void readMdc(Map<String, String> fields) {
         try {
-            Class<?> mdcClass = Class.forName("org.slf4j.MDC");
+            Class<?> mdcClass = loadClass("org.slf4j.MDC");
             Method get = mdcClass.getMethod("get", String.class);
             Object traceId = get.invoke(null, "trace.id");
             Object spanId = get.invoke(null, "span.id");
@@ -45,5 +45,16 @@ public class TraceContextReader {
             }
         } catch (ReflectiveOperationException | LinkageError ignored) {
         }
+    }
+
+    private Class<?> loadClass(String className) throws ClassNotFoundException {
+        ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+        if (contextClassLoader != null) {
+            try {
+                return Class.forName(className, false, contextClassLoader);
+            } catch (ClassNotFoundException ignored) {
+            }
+        }
+        return Class.forName(className);
     }
 }

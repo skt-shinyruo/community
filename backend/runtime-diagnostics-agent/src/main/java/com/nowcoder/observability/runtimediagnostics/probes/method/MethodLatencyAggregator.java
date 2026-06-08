@@ -1,7 +1,4 @@
-package com.nowcoder.observability.methodprofiler.stats;
-
-import com.nowcoder.observability.methodprofiler.model.MethodKey;
-import com.nowcoder.observability.methodprofiler.model.MethodSnapshot;
+package com.nowcoder.observability.runtimediagnostics.probes.method;
 
 import java.util.Comparator;
 import java.util.List;

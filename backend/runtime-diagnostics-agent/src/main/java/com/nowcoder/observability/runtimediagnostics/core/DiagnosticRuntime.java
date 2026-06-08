@@ -1,10 +1,9 @@
-package com.nowcoder.observability.methodprofiler.instrument;
+package com.nowcoder.observability.runtimediagnostics.core;
 
-import com.nowcoder.observability.methodprofiler.config.ProfilerConfig;
-import com.nowcoder.observability.methodprofiler.log.ProfilerEventLogger;
-import com.nowcoder.observability.methodprofiler.model.MethodKey;
-import com.nowcoder.observability.methodprofiler.rate.TokenBucketRateLimiter;
-import com.nowcoder.observability.methodprofiler.stats.MethodLatencyAggregator;
+import com.nowcoder.observability.runtimediagnostics.config.DiagnosticsConfig;
+import com.nowcoder.observability.runtimediagnostics.probes.method.MethodKey;
+import com.nowcoder.observability.runtimediagnostics.probes.method.MethodLatencyAggregator;
+import com.nowcoder.observability.runtimediagnostics.rate.TokenBucketRateLimiter;
 import com.nowcoder.observability.runtimediagnostics.trace.TraceContextReader;
 
 import java.util.Map;
@@ -13,57 +12,74 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
-public final class ProfilerRuntime {
+public final class DiagnosticRuntime {
 
     private static final int SLOW_EVENT_QUEUE_CAPACITY = 1024;
 
-    private static volatile ProfilerConfig config;
+    private static volatile DiagnosticsConfig config;
     private static volatile MethodLatencyAggregator aggregator;
-    private static volatile ProfilerEventLogger logger;
+    private static volatile DiagnosticEventLogger logger;
     private static volatile TraceContextReader traceReader;
     private static volatile TokenBucketRateLimiter slowCallLimiter;
     private static volatile BlockingQueue<SlowCallEvent> slowCallEvents;
     private static volatile ConcurrentHashMap<String, MethodKey> methodKeyCache;
     private static volatile Thread slowCallReporter;
 
-    private ProfilerRuntime() {
+    private DiagnosticRuntime() {
     }
 
-    public static void initialize(ProfilerConfig profilerConfig, MethodLatencyAggregator latencyAggregator) {
+    public static void initialize(
+            DiagnosticsConfig diagnosticsConfig,
+            MethodLatencyAggregator latencyAggregator,
+            DiagnosticEventLogger eventLogger
+    ) {
         interruptSlowCallReporter();
-        config = profilerConfig;
+        config = diagnosticsConfig;
         aggregator = latencyAggregator;
-        logger = new ProfilerEventLogger();
+        logger = eventLogger;
         traceReader = new TraceContextReader();
-        slowCallLimiter = new TokenBucketRateLimiter(profilerConfig.maxEventsPerSecond(), System::nanoTime);
+        slowCallLimiter = diagnosticsConfig == null
+                ? null
+                : new TokenBucketRateLimiter(diagnosticsConfig.maxEventsPerSecond(), System::nanoTime);
         slowCallEvents = new ArrayBlockingQueue<>(SLOW_EVENT_QUEUE_CAPACITY);
         methodKeyCache = new ConcurrentHashMap<>();
-        startSlowCallReporter(slowCallEvents, logger);
+        if (eventLogger != null) {
+            startSlowCallReporter(slowCallEvents, eventLogger);
+        }
     }
 
-    public static void record(String className, String methodName, String descriptor, long durationMs) {
-        ProfilerConfig currentConfig = config;
+    public static void recordMethod(String className, String methodName, String descriptor, long durationMs) {
+        DiagnosticsConfig currentConfig = config;
         MethodLatencyAggregator currentAggregator = aggregator;
-        if (currentConfig == null || currentAggregator == null || className == null || methodName == null) {
+        if (currentConfig == null
+                || currentAggregator == null
+                || !currentConfig.enabled()
+                || !currentConfig.probeEnabled("method")
+                || className == null
+                || methodName == null) {
             return;
         }
         if (!sample(currentConfig.sampleRate())) {
             return;
         }
-        MethodKey key = methodKey(className, methodName, descriptor, currentConfig.maxTrackedMethods());
+        MethodKey key = methodKey(className, methodName, descriptor, currentConfig.maxTrackedKeys());
         currentAggregator.record(key, durationMs);
-        if (key != null && durationMs >= currentConfig.slowThresholdMs()) {
-            ProfilerEventLogger currentLogger = logger;
+        if (key != null && durationMs >= currentConfig.methodSlowThresholdMs()) {
             TraceContextReader currentTraceReader = traceReader;
             TokenBucketRateLimiter limiter = slowCallLimiter;
             BlockingQueue<SlowCallEvent> events = slowCallEvents;
-            if (currentLogger != null && currentTraceReader != null && limiter != null && events != null && limiter.tryAcquire()) {
-                events.offer(new SlowCallEvent(key, durationMs, currentConfig.slowThresholdMs(), currentTraceReader.currentTraceFields()));
+            if (currentTraceReader != null && limiter != null && events != null && limiter.tryAcquire()) {
+                events.offer(new SlowCallEvent(
+                        key,
+                        durationMs,
+                        currentConfig.methodSlowThresholdMs(),
+                        currentTraceReader.currentTraceFields()
+                ));
             }
         }
     }
 
-    static void resetForTests() {
+    public static void resetForTests() {
         interruptSlowCallReporter();
         config = null;
         aggregator = null;
@@ -84,7 +100,7 @@ public final class ProfilerRuntime {
         return ThreadLocalRandom.current().nextDouble() < sampleRate;
     }
 
-    private static MethodKey methodKey(String className, String methodName, String descriptor, int maxTrackedMethods) {
+    private static MethodKey methodKey(String className, String methodName, String descriptor, int maxTrackedKeys) {
         ConcurrentHashMap<String, MethodKey> cache = methodKeyCache;
         if (cache == null) {
             return MethodKey.from(className, methodName, descriptor);
@@ -94,7 +110,7 @@ public final class ProfilerRuntime {
         if (existing != null) {
             return existing;
         }
-        if (cache.size() >= Math.max(1, maxTrackedMethods)) {
+        if (cache.size() >= Math.max(1, maxTrackedKeys)) {
             return null;
         }
         MethodKey created = MethodKey.from(className, methodName, descriptor);
@@ -102,18 +118,25 @@ public final class ProfilerRuntime {
         return raced == null ? created : raced;
     }
 
-    private static void startSlowCallReporter(BlockingQueue<SlowCallEvent> events, ProfilerEventLogger eventLogger) {
+    private static void startSlowCallReporter(BlockingQueue<SlowCallEvent> events, DiagnosticEventLogger eventLogger) {
         Thread reporter = new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     SlowCallEvent event = events.take();
-                    eventLogger.logSlowCall(event.key(), event.durationMs(), event.thresholdMs(), event.traceFields());
+                    eventLogger.log(DiagnosticEvent.builder("method_slow_call", "threshold", "method")
+                            .put("method.class", event.key().className())
+                            .put("method.name", event.key().methodName())
+                            .put("method.signature.hash", event.key().signatureHash())
+                            .put("duration.ms", event.durationMs())
+                            .put("threshold.ms", event.thresholdMs())
+                            .putTraceFields(event.traceFields())
+                            .build());
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                 } catch (RuntimeException ignored) {
                 }
             }
-        }, "method-profiler-slow-calls");
+        }, "runtime-diagnostics-method-slow-calls");
         reporter.setDaemon(true);
         reporter.start();
         slowCallReporter = reporter;

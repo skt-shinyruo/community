@@ -1,4 +1,4 @@
-package com.nowcoder.observability.methodprofiler.model;
+package com.nowcoder.observability.runtimediagnostics.probes.method;
 
 import org.junit.jupiter.api.Test;
 
@@ -12,7 +12,8 @@ class MethodKeyTest {
         MethodKey sameFirstKey = MethodKey.from(Sample.class, "work", String.class, new Class<?>[]{String.class});
         MethodKey secondKey = MethodKey.from(Sample.class, "work", String.class, new Class<?>[]{Integer.class});
 
-        assertThat(firstKey.className()).isEqualTo("com.nowcoder.observability.methodprofiler.model.MethodKeyTest$Sample");
+        assertThat(firstKey.className()).isEqualTo(
+                "com.nowcoder.observability.runtimediagnostics.probes.method.MethodKeyTest$Sample");
         assertThat(firstKey.methodName()).isEqualTo("work");
         assertThat(firstKey.signatureHash()).isEqualTo(sameFirstKey.signatureHash());
         assertThat(firstKey.signatureHash()).isNotEqualTo(secondKey.signatureHash());

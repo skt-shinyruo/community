@@ -1,8 +1,6 @@
-package com.nowcoder.observability.methodprofiler.schedule;
+package com.nowcoder.observability.runtimediagnostics.probes.method;
 
-import com.nowcoder.observability.methodprofiler.log.ProfilerEventLogger;
-import com.nowcoder.observability.methodprofiler.model.MethodKey;
-import com.nowcoder.observability.methodprofiler.stats.MethodLatencyAggregator;
+import com.nowcoder.observability.runtimediagnostics.core.DiagnosticEventLogger;
 import com.nowcoder.observability.runtimediagnostics.trace.TraceContextReader;
 import org.junit.jupiter.api.Test;
 
@@ -12,16 +10,16 @@ import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class SummaryReporterTest {
+class MethodSummaryReporterTest {
 
     @Test
     void reportsTopSnapshots() {
         MethodLatencyAggregator aggregator = new MethodLatencyAggregator(10);
         aggregator.record(new MethodKey("com.example.Service", "work", "abcdef1234567890"), 42);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        SummaryReporter reporter = new SummaryReporter(
+        MethodSummaryReporter reporter = new MethodSummaryReporter(
                 aggregator,
-                new ProfilerEventLogger(new PrintStream(out, true, StandardCharsets.UTF_8)),
+                new DiagnosticEventLogger(new PrintStream(out, true, StandardCharsets.UTF_8), "test"),
                 new TraceContextReader(),
                 5
         );

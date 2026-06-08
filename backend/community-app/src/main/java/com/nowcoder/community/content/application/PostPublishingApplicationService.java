@@ -22,7 +22,6 @@ import com.nowcoder.community.content.domain.repository.PostRepository;
 import com.nowcoder.community.content.domain.repository.PostTagRepository;
 import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
-import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import com.nowcoder.community.user.api.action.UserRewardActionApi;
 import org.springframework.stereotype.Service;
@@ -64,7 +63,6 @@ public class PostPublishingApplicationService {
     private final PostWriteSideEffectScheduler postWriteSideEffectScheduler;
     private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private final UserRewardActionApi rewardActionApi;
-    private final GrowthTaskProgressActionApi taskProgressTriggerService;
 
     public PostPublishingApplicationService(
             ContentSanitizer sensitiveFilter,
@@ -83,8 +81,7 @@ public class PostPublishingApplicationService {
             PostDomainEventPublisher domainEventPublisher,
             PostWriteSideEffectScheduler postWriteSideEffectScheduler,
             SocialLikeCleanupActionApi socialLikeCleanupActionApi,
-            UserRewardActionApi rewardActionApi,
-            GrowthTaskProgressActionApi taskProgressTriggerService
+            UserRewardActionApi rewardActionApi
     ) {
         this.sensitiveFilter = sensitiveFilter;
         this.idempotencyGuard = idempotencyGuard;
@@ -103,7 +100,6 @@ public class PostPublishingApplicationService {
         this.postWriteSideEffectScheduler = postWriteSideEffectScheduler;
         this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
         this.rewardActionApi = rewardActionApi;
-        this.taskProgressTriggerService = taskProgressTriggerService;
     }
 
     @Transactional
@@ -122,7 +118,6 @@ public class PostPublishingApplicationService {
             postContentBlockRepository.replaceBlocks(postId, toDomainBlocks(postId, blocks));
             postTagRepository.bindTagsToPost(postId, command.tags());
             rewardActionApi.awardPostPublished(postId, userId);
-            taskProgressTriggerService.triggerPostPublished(postId, userId, draft.createTime().toInstant());
             domainEventPublisher.postPublished(postId);
             postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
             postBusinessEventLogger.postCreate(userId, command.categoryId(), postId);

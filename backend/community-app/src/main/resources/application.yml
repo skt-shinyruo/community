@@ -49,6 +49,13 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    consumer:
+      group-id: ${growth.task.kafka.consumer.group-id:growth-task-progress}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.nowcoder.community.*"
+        spring.json.use.type.headers: true
     producer:
       acks: ${community.kafka-policy.producer.acks:all}
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -245,6 +252,21 @@ social:
   storage: db
   events:
     publisher: local
+
+growth:
+  task:
+    outbox:
+      post-topic: ${GROWTH_TASK_OUTBOX_POST_TOPIC:projection.growth.task.post}
+      comment-topic: ${GROWTH_TASK_OUTBOX_COMMENT_TOPIC:projection.growth.task.comment}
+      like-topic: ${GROWTH_TASK_OUTBOX_LIKE_TOPIC:projection.growth.task.like}
+    kafka:
+      consumer:
+        group-id: ${GROWTH_TASK_KAFKA_CONSUMER_GROUP_ID:growth-task-progress}
+        concurrency: ${GROWTH_TASK_KAFKA_CONSUMER_CONCURRENCY:3}
+      topics:
+        post-published: ${GROWTH_TASK_KAFKA_TOPIC_POST_PUBLISHED:growth.task.post-published}
+        comment-created: ${GROWTH_TASK_KAFKA_TOPIC_COMMENT_CREATED:growth.task.comment-created}
+        like-created: ${GROWTH_TASK_KAFKA_TOPIC_LIKE_CREATED:growth.task.like-created}
 
 oss:
   client:

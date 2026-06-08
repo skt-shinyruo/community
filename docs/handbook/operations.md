@@ -131,6 +131,33 @@ COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_CPU_LOAD_THRESHOLD_PERCENT=85
 COMMUNITY_OBSERVABILITY_RUNTIME_HTTP_SLOW_REQUEST_THRESHOLD_MS=1000
 ```
 
+### JVM 方法级诊断
+
+后端镜像包含通用 `method-profiler-agent`，但默认不启用。需要临时定位 JVM 内部慢方法时，可在启动前设置：
+
+```text
+METHOD_PROFILER_ENABLED=true
+METHOD_PROFILER_INCLUDES=com.nowcoder.community.*
+METHOD_PROFILER_SLOW_THRESHOLD_MS=100
+METHOD_PROFILER_SUMMARY_INTERVAL=60s
+```
+
+该 agent 通过第二个 `-javaagent` 加载，可与 OTel Java Agent 并存。它只记录方法名、类名、签名 hash、聚合耗时和慢调用阈值事件，不记录参数、返回值、请求体、SQL bind、token 或业务载荷。
+
+Kibana 查询：
+
+```text
+event.category : method and event.action : method_latency_summary
+```
+
+按链路排查时增加：
+
+```text
+trace.id : "<trace id>"
+```
+
+不建议在生产长期打开 `METHOD_PROFILER_INCLUDES=*`。如需扩大范围，先提高阈值、降低 `METHOD_PROFILER_SAMPLE_RATE`，并保持 `METHOD_PROFILER_MAX_EVENTS_PER_SECOND` 有界。
+
 ## IM 压测
 
 IM 的正确性设计是 “WebSocket best-effort 推送 + HTTP 断线补拉”。压测流量推荐统一通过 gateway：

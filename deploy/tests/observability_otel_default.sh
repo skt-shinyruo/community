@@ -58,6 +58,26 @@ if ! rg -n 'OTEL_LOGS_COLLECTION[=: ]+"?stdout"?|OTEL_LOGS_COLLECTION=stdout' "$
   exit 1
 fi
 
+if ! rg -n 'METHOD_PROFILER_ENABLED[=: ]+"?false"?|METHOD_PROFILER_ENABLED=false' "${single_config}" >/dev/null; then
+  echo "expected single config to keep method profiler disabled by default" >&2
+  exit 1
+fi
+
+if ! rg -n 'METHOD_PROFILER_ENABLED[=: ]+"?false"?|METHOD_PROFILER_ENABLED=false' "${cluster_config}" >/dev/null; then
+  echo "expected cluster config to keep method profiler disabled by default" >&2
+  exit 1
+fi
+
+if ! rg -n 'METHOD_PROFILER_INCLUDES[=: ]+"?com.nowcoder.community.\*"?|METHOD_PROFILER_INCLUDES=com.nowcoder.community.\*' "${single_config}" >/dev/null; then
+  echo "expected single config to use conservative community profiler includes" >&2
+  exit 1
+fi
+
+if ! rg -n 'METHOD_PROFILER_INCLUDES[=: ]+"?com.nowcoder.community.\*"?|METHOD_PROFILER_INCLUDES=com.nowcoder.community.\*' "${cluster_config}" >/dev/null; then
+  echo "expected cluster config to use conservative community profiler includes" >&2
+  exit 1
+fi
+
 OTEL_ENABLED=false ./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example >"${override_config}"
 
 if ! rg -n 'OTEL_ENABLED[=: ]+"?false"?|OTEL_ENABLED=false' "${override_config}" >/dev/null; then

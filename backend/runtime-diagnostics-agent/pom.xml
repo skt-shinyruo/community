@@ -10,9 +10,9 @@
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>method-profiler-agent</artifactId>
-    <name>method-profiler-agent</name>
-    <description>Generic JVM method latency profiler Java agent</description>
+    <artifactId>runtime-diagnostics-agent</artifactId>
+    <name>runtime-diagnostics-agent</name>
+    <description>Generic JVM runtime diagnostics Java agent</description>
     <packaging>jar</packaging>
 
     <properties>
@@ -52,7 +52,7 @@
                 <configuration combine.self="override">
                     <archive>
                         <manifestEntries>
-                            <Premain-Class>com.nowcoder.observability.methodprofiler.MethodProfilerAgent</Premain-Class>
+                            <Premain-Class>com.nowcoder.observability.runtimediagnostics.RuntimeDiagnosticsAgent</Premain-Class>
                             <Can-Redefine-Classes>false</Can-Redefine-Classes>
                             <Can-Retransform-Classes>false</Can-Retransform-Classes>
                         </manifestEntries>
@@ -73,7 +73,7 @@
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
-                                        <Premain-Class>com.nowcoder.observability.methodprofiler.MethodProfilerAgent</Premain-Class>
+                                        <Premain-Class>com.nowcoder.observability.runtimediagnostics.RuntimeDiagnosticsAgent</Premain-Class>
                                         <Can-Redefine-Classes>false</Can-Redefine-Classes>
                                         <Can-Retransform-Classes>false</Can-Retransform-Classes>
                                     </manifestEntries>
@@ -83,7 +83,7 @@
                             <relocations>
                                 <relocation>
                                     <pattern>net.bytebuddy</pattern>
-                                    <shadedPattern>com.nowcoder.observability.methodprofiler.shaded.net.bytebuddy</shadedPattern>
+                                    <shadedPattern>com.nowcoder.observability.runtimediagnostics.shaded.net.bytebuddy</shadedPattern>
                                 </relocation>
                             </relocations>
                         </configuration>

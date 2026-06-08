@@ -2,7 +2,7 @@ package com.nowcoder.observability.methodprofiler.schedule;
 
 import com.nowcoder.observability.methodprofiler.log.ProfilerEventLogger;
 import com.nowcoder.observability.methodprofiler.stats.MethodLatencyAggregator;
-import com.nowcoder.observability.methodprofiler.trace.TraceContextReader;
+import com.nowcoder.observability.runtimediagnostics.trace.TraceContextReader;
 
 import java.time.Duration;
 

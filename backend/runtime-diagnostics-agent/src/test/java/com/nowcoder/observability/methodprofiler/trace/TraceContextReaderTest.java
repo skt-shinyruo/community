@@ -1,5 +1,6 @@
 package com.nowcoder.observability.methodprofiler.trace;
 
+import com.nowcoder.observability.runtimediagnostics.trace.TraceContextReader;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;

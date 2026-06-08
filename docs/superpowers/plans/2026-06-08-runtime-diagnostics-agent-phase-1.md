@@ -602,7 +602,7 @@ git commit -m "feat: add runtime diagnostics config"
 - Test: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/core/DiagnosticEventLoggerTest.java`
 - Test: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/core/ProbeRegistryTest.java`
 
-- [ ] **Step 1: Write core tests**
+- [x] **Step 1: Write core tests**
 
 Create `DiagnosticEventLoggerTest.java`:
 
@@ -705,7 +705,7 @@ class ProbeRegistryTest {
 }
 ```
 
-- [ ] **Step 2: Run core tests and verify they fail**
+- [x] **Step 2: Run core tests and verify they fail**
 
 Run:
 
@@ -716,7 +716,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=DiagnosticEventLoggerTest,Prob
 
 Expected: FAIL because core classes do not exist yet.
 
-- [ ] **Step 3: Implement `DiagnosticEvent` and `DiagnosticEventLogger`**
+- [x] **Step 3: Implement `DiagnosticEvent` and `DiagnosticEventLogger`**
 
 Create `DiagnosticEvent.java` with:
 
@@ -879,7 +879,7 @@ public class DiagnosticEventLogger {
 }
 ```
 
-- [ ] **Step 4: Implement probe framework classes**
+- [x] **Step 4: Implement probe framework classes**
 
 Create `Probe.java`:
 
@@ -956,7 +956,7 @@ public class ProbeRegistry {
 }
 ```
 
-- [ ] **Step 5: Move trace reader to the new package**
+- [x] **Step 5: Move trace reader to the new package**
 
 Move the existing `TraceContextReader` implementation to:
 
@@ -972,7 +972,7 @@ package com.nowcoder.observability.runtimediagnostics.trace;
 
 Keep the existing reflection lookup behavior.
 
-- [ ] **Step 6: Run core tests**
+- [x] **Step 6: Run core tests**
 
 Run:
 
@@ -983,7 +983,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=DiagnosticEventLoggerTest,Prob
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit core framework**
+- [x] **Step 7: Commit core framework**
 
 Run:
 

@@ -1,4 +1,4 @@
-package com.nowcoder.observability.methodprofiler.trace;
+package com.nowcoder.observability.runtimediagnostics.trace;
 
 import java.lang.reflect.Method;
 import java.util.LinkedHashMap;

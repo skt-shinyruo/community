@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/root/.m2/repository,sharing=locked \
       echo "[docker-build] ERROR: build-arg MODULE is required (Maven artifactId, e.g. community-app)."; \
       exit 1; \
     fi; \
-    build_one() { mvn -q -DskipTests -pl ":${MODULE}" -am package; }; \
+    build_one() { mvn -q -DskipTests -pl ":${MODULE},:method-profiler-agent" -am package; }; \
     if ! build_one; then \
       echo "[docker-build] Maven build failed. Cleaning /root/.m2/repository cache and retrying once..."; \
       rm -rf /root/.m2/repository/*; \
@@ -50,7 +50,13 @@ RUN --mount=type=cache,target=/root/.m2/repository,sharing=locked \
       exit 1; \
     fi; \
     echo "[docker-build] Using jar: ${jar_path}"; \
-    cp "${jar_path}" /workspace/app.jar
+    cp "${jar_path}" /workspace/app.jar; \
+    profiler_agent_path="$(find ./method-profiler-agent/target -maxdepth 1 -type f -name "method-profiler-agent-*.jar" ! -name "original-*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" ! -name "*-tests.jar" -print | sort | head -n 1)"; \
+    if [ -z "${profiler_agent_path}" ]; then \
+      echo "[docker-build] ERROR: Cannot find built method profiler agent jar." >&2; \
+      exit 1; \
+    fi; \
+    cp "${profiler_agent_path}" /workspace/method-profiler-agent.jar
 
 FROM eclipse-temurin:17-jre-jammy
 
@@ -67,6 +73,7 @@ RUN set -eu; \
     printf '%s  %s\n' "$(cat /tmp/opentelemetry-javaagent.jar.sha256)" "/otel/opentelemetry-javaagent.jar" | sha256sum -c -; \
     rm -f /tmp/opentelemetry-javaagent.jar.sha256
 COPY --from=build /workspace/app.jar /app/app.jar
+COPY --from=build /workspace/method-profiler-agent.jar /otel/method-profiler-agent.jar
 COPY scripts/run-backend-service.sh /opt/community/run-backend-service.sh
 RUN chmod 0755 /opt/community/run-backend-service.sh
 

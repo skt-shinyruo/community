@@ -203,7 +203,7 @@ git commit -m "refactor: rename runtime diagnostics agent module"
 - Create: `backend/runtime-diagnostics-agent/src/main/java/com/nowcoder/observability/runtimediagnostics/config/DiagnosticsConfigLoader.java`
 - Test: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/config/DiagnosticsConfigLoaderTest.java`
 
-- [ ] **Step 1: Write config loader tests**
+- [x] **Step 1: Write config loader tests**
 
 Create `DiagnosticsConfigLoaderTest.java`:
 
@@ -315,7 +315,7 @@ class DiagnosticsConfigLoaderTest {
 }
 ```
 
-- [ ] **Step 2: Run config tests and verify they fail**
+- [x] **Step 2: Run config tests and verify they fail**
 
 Run:
 
@@ -326,7 +326,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=DiagnosticsConfigLoaderTest
 
 Expected: FAIL because `DiagnosticsConfig` and `DiagnosticsConfigLoader` do not exist yet.
 
-- [ ] **Step 3: Implement `DiagnosticsConfig`**
+- [x] **Step 3: Implement `DiagnosticsConfig`**
 
 Create `DiagnosticsConfig.java`:
 
@@ -377,7 +377,7 @@ public record DiagnosticsConfig(
 }
 ```
 
-- [ ] **Step 4: Implement `DiagnosticsConfigLoader`**
+- [x] **Step 4: Implement `DiagnosticsConfigLoader`**
 
 Create `DiagnosticsConfigLoader.java` by adapting the existing config loader and using only the new names:
 
@@ -570,7 +570,7 @@ public final class DiagnosticsConfigLoader {
 }
 ```
 
-- [ ] **Step 5: Run config tests**
+- [x] **Step 5: Run config tests**
 
 Run:
 
@@ -581,7 +581,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=DiagnosticsConfigLoaderTest
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit config**
+- [x] **Step 6: Commit config**
 
 Run:
 

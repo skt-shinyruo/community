@@ -1,4 +1,4 @@
-package com.nowcoder.observability.methodprofiler.model;
+package com.nowcoder.observability.runtimediagnostics.probes.method;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

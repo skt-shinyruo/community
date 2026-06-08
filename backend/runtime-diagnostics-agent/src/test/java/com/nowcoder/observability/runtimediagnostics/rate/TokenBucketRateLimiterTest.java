@@ -1,4 +1,4 @@
-package com.nowcoder.observability.methodprofiler.rate;
+package com.nowcoder.observability.runtimediagnostics.rate;
 
 import org.junit.jupiter.api.Test;
 

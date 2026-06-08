@@ -1,8 +1,9 @@
-package com.nowcoder.observability.methodprofiler.instrument;
+package com.nowcoder.observability.runtimediagnostics.probes.method;
 
+import com.nowcoder.observability.runtimediagnostics.core.DiagnosticRuntime;
 import net.bytebuddy.asm.Advice;
 
-public class ProfilingAdvice {
+public class MethodTimingAdvice {
 
     @Advice.OnMethodEnter(suppress = Throwable.class)
     static long onEnter() {
@@ -17,6 +18,6 @@ public class ProfilingAdvice {
             @Advice.Enter long startedAtNanos
     ) {
         long durationMs = Math.max(0, (System.nanoTime() - startedAtNanos) / 1_000_000L);
-        ProfilerRuntime.record(className, methodName, descriptor, durationMs);
+        DiagnosticRuntime.recordMethod(className, methodName, descriptor, durationMs);
     }
 }

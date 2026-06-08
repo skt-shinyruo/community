@@ -1,7 +1,7 @@
 package com.nowcoder.observability.methodprofiler.log;
 
-import com.nowcoder.observability.methodprofiler.model.MethodKey;
-import com.nowcoder.observability.methodprofiler.model.MethodSnapshot;
+import com.nowcoder.observability.runtimediagnostics.probes.method.MethodKey;
+import com.nowcoder.observability.runtimediagnostics.probes.method.MethodSnapshot;
 
 import java.io.PrintStream;
 import java.time.Instant;

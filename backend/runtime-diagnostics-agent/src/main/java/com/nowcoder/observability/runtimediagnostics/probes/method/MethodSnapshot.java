@@ -1,4 +1,4 @@
-package com.nowcoder.observability.methodprofiler.model;
+package com.nowcoder.observability.runtimediagnostics.probes.method;
 
 public record MethodSnapshot(
         MethodKey key,

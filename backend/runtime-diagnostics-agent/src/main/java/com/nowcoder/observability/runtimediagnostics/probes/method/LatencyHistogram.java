@@ -1,4 +1,4 @@
-package com.nowcoder.observability.methodprofiler.stats;
+package com.nowcoder.observability.runtimediagnostics.probes.method;
 
 import java.util.concurrent.atomic.AtomicLongArray;
 

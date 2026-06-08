@@ -1010,7 +1010,7 @@ git commit -m "feat: add runtime diagnostics probe framework"
 - Test: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/match/DiagnosticsMatcherTest.java`
 - Test: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/core/DiagnosticRuntimeTest.java`
 
-- [ ] **Step 1: Move method support classes into `probes/method` and `rate`**
+- [x] **Step 1: Move method support classes into `probes/method` and `rate`**
 
 Use `git mv` for the existing model, stats, schedule, instrument, and rate files so history is preserved. Update package declarations to:
 
@@ -1026,7 +1026,7 @@ package com.nowcoder.observability.runtimediagnostics.rate;
 
 for `TokenBucketRateLimiter`.
 
-- [ ] **Step 2: Write matcher test for new hard excludes**
+- [x] **Step 2: Write matcher test for new hard excludes**
 
 Create `DiagnosticsMatcherTest.java`:
 
@@ -1067,7 +1067,7 @@ class DiagnosticsMatcherTest {
 }
 ```
 
-- [ ] **Step 3: Implement `DiagnosticsMatcher`**
+- [x] **Step 3: Implement `DiagnosticsMatcher`**
 
 Create `DiagnosticsMatcher.java` by adapting the existing matcher. The hard excludes must include:
 
@@ -1087,7 +1087,7 @@ private static final List<String> HARD_EXCLUDES = List.of(
 
 Keep `shouldInstrumentClass`, `shouldInstrumentMethod`, and the existing glob matching behavior.
 
-- [ ] **Step 4: Write runtime method recording test**
+- [x] **Step 4: Write runtime method recording test**
 
 Create or update `DiagnosticRuntimeTest.java`:
 
@@ -1141,7 +1141,7 @@ class DiagnosticRuntimeTest {
 }
 ```
 
-- [ ] **Step 5: Implement method runtime and logger events**
+- [x] **Step 5: Implement method runtime and logger events**
 
 Adapt the existing `ProfilerRuntime` into `DiagnosticRuntime` with these public methods:
 
@@ -1176,7 +1176,7 @@ The slow-call reporter thread name should be:
 runtime-diagnostics-method-slow-calls
 ```
 
-- [ ] **Step 6: Update method summary reporter**
+- [x] **Step 6: Update method summary reporter**
 
 `MethodSummaryReporter.reportOnce()` must emit one event per method snapshot:
 
@@ -1202,7 +1202,7 @@ The summary thread name should be:
 runtime-diagnostics-method-summary
 ```
 
-- [ ] **Step 7: Add `MethodDiagnosticsProbe`**
+- [x] **Step 7: Add `MethodDiagnosticsProbe`**
 
 Create `MethodDiagnosticsProbe.java`:
 
@@ -1233,7 +1233,7 @@ public class MethodDiagnosticsProbe implements Probe {
 }
 ```
 
-- [ ] **Step 8: Update method advice**
+- [x] **Step 8: Update method advice**
 
 Rename `ProfilingAdvice` to `MethodTimingAdvice` and call:
 
@@ -1243,7 +1243,7 @@ DiagnosticRuntime.recordMethod(className, methodName, descriptor, durationMs);
 
 Keep `@Advice.OnMethodEnter(suppress = Throwable.class)` and `@Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class)`.
 
-- [ ] **Step 9: Run method probe tests**
+- [x] **Step 9: Run method probe tests**
 
 Run:
 
@@ -1254,7 +1254,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=DiagnosticsMatcherTest,Diagnos
 
 Expected: PASS.
 
-- [ ] **Step 10: Commit method probe migration**
+- [x] **Step 10: Commit method probe migration**
 
 Run:
 

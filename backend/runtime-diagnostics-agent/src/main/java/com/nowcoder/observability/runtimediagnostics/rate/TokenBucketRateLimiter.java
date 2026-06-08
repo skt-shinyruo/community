@@ -1,4 +1,4 @@
-package com.nowcoder.observability.methodprofiler.rate;
+package com.nowcoder.observability.runtimediagnostics.rate;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;

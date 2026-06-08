@@ -4,7 +4,6 @@ import com.nowcoder.observability.methodprofiler.model.MethodKey;
 import com.nowcoder.observability.methodprofiler.model.MethodSnapshot;
 
 import java.io.PrintStream;
-import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,22 +11,20 @@ import java.util.Map;
 
 public class ProfilerEventLogger {
 
-    private final PrintStream fallback;
-    private final Object slf4jLogger;
-    private final Method slf4jInfo;
+    private final PrintStream output;
+    private final String serviceName;
 
     public ProfilerEventLogger() {
-        this(System.err, Slf4jBinding.tryCreate());
+        this(System.out);
     }
 
-    public ProfilerEventLogger(PrintStream fallback) {
-        this(fallback, null);
+    public ProfilerEventLogger(PrintStream output) {
+        this(output, resolveServiceName());
     }
 
-    private ProfilerEventLogger(PrintStream fallback, Slf4jBinding binding) {
-        this.fallback = fallback;
-        this.slf4jLogger = binding == null ? null : binding.logger();
-        this.slf4jInfo = binding == null ? null : binding.infoMethod();
+    ProfilerEventLogger(PrintStream output, String serviceName) {
+        this.output = output;
+        this.serviceName = serviceName == null || serviceName.isBlank() ? "unknown" : serviceName;
     }
 
     public void logSummary(List<MethodSnapshot> snapshots, long droppedMethodKeys, Map<String, String> traceFields) {
@@ -56,6 +53,7 @@ public class ProfilerEventLogger {
     private Map<String, Object> base(String action, String outcome, Map<String, String> traceFields) {
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("@timestamp", Instant.now().toString());
+        fields.put("service.name", serviceName);
         fields.put("event.category", "method");
         fields.put("event.action", action);
         fields.put("event.outcome", outcome);
@@ -77,13 +75,8 @@ public class ProfilerEventLogger {
 
     private void write(Map<String, Object> fields) {
         try {
-            String json = toJson(fields);
-            if (slf4jLogger != null && slf4jInfo != null) {
-                slf4jInfo.invoke(slf4jLogger, json);
-            } else {
-                fallback.println(json);
-            }
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            output.println(toJson(fields));
+        } catch (RuntimeException ignored) {
         }
     }
 
@@ -107,22 +100,46 @@ public class ProfilerEventLogger {
     }
 
     private String escape(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
-    private record Slf4jBinding(Object logger, Method infoMethod) {
-
-        static Slf4jBinding tryCreate() {
-            try {
-                Class<?> loggerFactoryClass = Class.forName("org.slf4j.LoggerFactory");
-                Object logger = loggerFactoryClass.getMethod("getLogger", String.class)
-                        .invoke(null, "method-profiler");
-                Class<?> loggerClass = Class.forName("org.slf4j.Logger");
-                Method info = loggerClass.getMethod("info", String.class);
-                return new Slf4jBinding(logger, info);
-            } catch (ReflectiveOperationException | LinkageError ignored) {
-                return null;
+        StringBuilder escaped = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            switch (ch) {
+                case '\\' -> escaped.append("\\\\");
+                case '"' -> escaped.append("\\\"");
+                case '\b' -> escaped.append("\\b");
+                case '\f' -> escaped.append("\\f");
+                case '\n' -> escaped.append("\\n");
+                case '\r' -> escaped.append("\\r");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (ch < 0x20) {
+                        escaped.append(String.format("\\u%04x", (int) ch));
+                    } else {
+                        escaped.append(ch);
+                    }
+                }
             }
         }
+        return escaped.toString();
+    }
+
+    private static String resolveServiceName() {
+        String property = System.getProperty("method.profiler.service.name");
+        if (property != null && !property.isBlank()) {
+            return property;
+        }
+        property = System.getProperty("otel.service.name");
+        if (property != null && !property.isBlank()) {
+            return property;
+        }
+        String environment = System.getenv("OTEL_SERVICE_NAME");
+        if (environment != null && !environment.isBlank()) {
+            return environment;
+        }
+        environment = System.getenv("SERVICE_NAME");
+        if (environment != null && !environment.isBlank()) {
+            return environment;
+        }
+        return "unknown";
     }
 }

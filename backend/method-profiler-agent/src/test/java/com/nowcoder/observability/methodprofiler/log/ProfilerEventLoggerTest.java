@@ -30,6 +30,7 @@ class ProfilerEventLoggerTest {
 
         String json = out.toString(StandardCharsets.UTF_8);
         assertThat(json)
+                .contains("\"service.name\":")
                 .contains("\"event.category\":\"method\"")
                 .contains("\"event.action\":\"method_latency_summary\"")
                 .contains("\"method.class\":\"com.example.SecretService\"")
@@ -51,5 +52,16 @@ class ProfilerEventLoggerTest {
                 .contains("\"event.action\":\"method_slow_call\"")
                 .contains("\"duration.ms\":123")
                 .contains("\"threshold.ms\":100");
+    }
+
+    @Test
+    void escapesJsonControlCharacters() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ProfilerEventLogger logger = new ProfilerEventLogger(new PrintStream(out, true, StandardCharsets.UTF_8));
+
+        logger.logSlowCall(new MethodKey("com.example.Service", "line\nbreak", "abcdef1234567890"), 123, 100, Map.of());
+
+        assertThat(out.toString(StandardCharsets.UTF_8))
+                .contains("\"method.name\":\"line\\nbreak\"");
     }
 }

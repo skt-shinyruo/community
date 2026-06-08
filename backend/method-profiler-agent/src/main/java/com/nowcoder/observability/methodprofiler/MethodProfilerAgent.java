@@ -30,6 +30,15 @@ public final class MethodProfilerAgent {
     }
 
     public static void premain(String agentArgs, Instrumentation instrumentation) {
+        try {
+            install(agentArgs, instrumentation);
+        } catch (Throwable ex) {
+            System.err.println("[method-profiler-agent] disabled after startup failure: "
+                    + ex.getClass().getName() + ": " + String.valueOf(ex.getMessage()));
+        }
+    }
+
+    private static void install(String agentArgs, Instrumentation instrumentation) {
         ProfilerConfig config = ProfilerConfigLoader.load(agentArgs);
         if (!config.enabled() || instrumentation == null) {
             return;

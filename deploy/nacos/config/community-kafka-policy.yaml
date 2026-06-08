@@ -1,5 +1,9 @@
 spring:
   kafka:
+    consumer:
+      properties:
+        spring.json.trusted.packages: "com.nowcoder.community.*"
+        spring.json.use.type.headers: true
     producer:
       acks: all
       properties:
@@ -45,6 +49,21 @@ im:
   policy:
     outbox:
       topic: projection.im.policy
+
+growth:
+  task:
+    outbox:
+      post-topic: projection.growth.task.post
+      comment-topic: projection.growth.task.comment
+      like-topic: projection.growth.task.like
+    kafka:
+      consumer:
+        group-id: growth-task-progress
+        concurrency: 3
+      topics:
+        post-published: growth.task.post-published
+        comment-created: growth.task.comment-created
+        like-created: growth.task.like-created
 
 search:
   outbox:

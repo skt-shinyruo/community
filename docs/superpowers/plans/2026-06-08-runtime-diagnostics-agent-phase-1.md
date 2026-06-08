@@ -58,7 +58,7 @@ Phase 1 does not implement HTTP, JDBC/MyBatis, Redis, or Kafka dependency probes
 - Move: `backend/runtime-diagnostics-agent/src/main/java/com/nowcoder/observability/methodprofiler/MethodProfilerAgent.java` to `backend/runtime-diagnostics-agent/src/main/java/com/nowcoder/observability/runtimediagnostics/RuntimeDiagnosticsAgent.java`
 - Move: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/methodprofiler/MethodProfilerAgentSmokeTest.java` to `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/RuntimeDiagnosticsAgentSmokeTest.java`
 
-- [ ] **Step 1: Move the module directory**
+- [x] **Step 1: Move the module directory**
 
 Run:
 
@@ -68,7 +68,7 @@ git mv backend/method-profiler-agent backend/runtime-diagnostics-agent
 
 Expected: `git status --short` shows a module rename and no deleted source tree left behind.
 
-- [ ] **Step 2: Replace the backend reactor module**
+- [x] **Step 2: Replace the backend reactor module**
 
 In `backend/pom.xml`, replace:
 
@@ -82,7 +82,7 @@ with:
 <module>runtime-diagnostics-agent</module>
 ```
 
-- [ ] **Step 3: Update the agent module POM identity**
+- [x] **Step 3: Update the agent module POM identity**
 
 In `backend/runtime-diagnostics-agent/pom.xml`, replace artifact metadata and manifest entries so these lines exist:
 
@@ -104,7 +104,7 @@ The shade relocation should use:
 <shadedPattern>com.nowcoder.observability.runtimediagnostics.shaded.net.bytebuddy</shadedPattern>
 ```
 
-- [ ] **Step 4: Rename the premain class and smoke test packages**
+- [x] **Step 4: Rename the premain class and smoke test packages**
 
 Move the class file to:
 
@@ -159,7 +159,7 @@ class RuntimeDiagnosticsAgentSmokeTest {
 }
 ```
 
-- [ ] **Step 5: Run the rename smoke test**
+- [x] **Step 5: Run the rename smoke test**
 
 Run:
 
@@ -170,7 +170,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=RuntimeDiagnosticsAgentSmokeTe
 
 Expected: PASS.
 
-- [ ] **Step 6: Verify the renamed shaded jar manifest**
+- [x] **Step 6: Verify the renamed shaded jar manifest**
 
 Run:
 
@@ -187,7 +187,7 @@ rm -rf "${tmp_manifest}"
 
 Expected: `grep` prints the `Premain-Class` line.
 
-- [ ] **Step 7: Commit the rename skeleton**
+- [x] **Step 7: Commit the rename skeleton**
 
 Run:
 

@@ -5,7 +5,7 @@ import com.nowcoder.observability.methodprofiler.log.ProfilerEventLogger;
 import com.nowcoder.observability.methodprofiler.model.MethodKey;
 import com.nowcoder.observability.methodprofiler.rate.TokenBucketRateLimiter;
 import com.nowcoder.observability.methodprofiler.stats.MethodLatencyAggregator;
-import com.nowcoder.observability.methodprofiler.trace.TraceContextReader;
+import com.nowcoder.observability.runtimediagnostics.trace.TraceContextReader;
 
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;

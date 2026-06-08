@@ -79,6 +79,33 @@ public final class DiagnosticRuntime {
         }
     }
 
+    public static void recordException(String className, String methodName, String descriptor, Throwable throwable) {
+        DiagnosticsConfig currentConfig = config;
+        DiagnosticEventLogger currentLogger = logger;
+        if (currentConfig == null
+                || currentLogger == null
+                || throwable == null
+                || !currentConfig.enabled()
+                || !currentConfig.probeEnabled("exception")) {
+            return;
+        }
+        if (!sample(currentConfig.sampleRate())) {
+            return;
+        }
+        MethodKey key = methodKey(className, methodName, descriptor, currentConfig.maxTrackedKeys());
+        if (key == null) {
+            return;
+        }
+        TraceContextReader currentTraceReader = traceReader;
+        currentLogger.log(DiagnosticEvent.builder("exception_observed", "error", "exception")
+                .put("exception.type", throwable.getClass().getName())
+                .put("method.class", key.className())
+                .put("method.name", key.methodName())
+                .put("method.signature.hash", key.signatureHash())
+                .putTraceFields(currentTraceReader == null ? Map.of() : currentTraceReader.currentTraceFields())
+                .build());
+    }
+
     public static void resetForTests() {
         interruptSlowCallReporter();
         config = null;

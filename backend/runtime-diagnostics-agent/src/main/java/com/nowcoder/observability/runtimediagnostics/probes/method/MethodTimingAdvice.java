@@ -15,9 +15,13 @@ public class MethodTimingAdvice {
             @Advice.Origin("#t") String className,
             @Advice.Origin("#m") String methodName,
             @Advice.Origin("#d") String descriptor,
-            @Advice.Enter long startedAtNanos
+            @Advice.Enter long startedAtNanos,
+            @Advice.Thrown Throwable thrown
     ) {
         long durationMs = Math.max(0, (System.nanoTime() - startedAtNanos) / 1_000_000L);
         DiagnosticRuntime.recordMethod(className, methodName, descriptor, durationMs);
+        if (thrown != null) {
+            DiagnosticRuntime.recordException(className, methodName, descriptor, thrown);
+        }
     }
 }

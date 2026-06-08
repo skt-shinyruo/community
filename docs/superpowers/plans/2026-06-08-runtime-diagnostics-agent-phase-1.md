@@ -1272,7 +1272,7 @@ git commit -m "feat: migrate method diagnostics probe"
 - Test: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/probes/exception/ExceptionDiagnosticsProbeTest.java`
 - Test: update forked JVM integration target later in Task 7
 
-- [ ] **Step 1: Write exception event test**
+- [x] **Step 1: Write exception event test**
 
 Create `ExceptionDiagnosticsProbeTest.java`:
 
@@ -1331,7 +1331,7 @@ class ExceptionDiagnosticsProbeTest {
 }
 ```
 
-- [ ] **Step 2: Run exception test and verify it fails**
+- [x] **Step 2: Run exception test and verify it fails**
 
 Run:
 
@@ -1342,7 +1342,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=ExceptionDiagnosticsProbeTest
 
 Expected: FAIL because `recordException` does not exist.
 
-- [ ] **Step 3: Add `recordException` to `DiagnosticRuntime`**
+- [x] **Step 3: Add `recordException` to `DiagnosticRuntime`**
 
 Add this public method:
 
@@ -1372,7 +1372,7 @@ public static void recordException(String className, String methodName, String d
 
 Use the existing `methodKey` cache and `sample` helper. Do not log `throwable.getMessage()` or stack traces.
 
-- [ ] **Step 4: Add exception probe marker**
+- [x] **Step 4: Add exception probe marker**
 
 Create `ExceptionDiagnosticsProbe.java`:
 
@@ -1396,7 +1396,7 @@ public class ExceptionDiagnosticsProbe implements Probe {
 }
 ```
 
-- [ ] **Step 5: Capture thrown exceptions in method advice**
+- [x] **Step 5: Capture thrown exceptions in method advice**
 
 Update `MethodTimingAdvice.onExit` signature:
 
@@ -1417,7 +1417,7 @@ static void onExit(
 }
 ```
 
-- [ ] **Step 6: Run exception tests**
+- [x] **Step 6: Run exception tests**
 
 Run:
 
@@ -1428,7 +1428,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=ExceptionDiagnosticsProbeTest,
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit exception probe**
+- [x] **Step 7: Commit exception probe**
 
 Run:
 

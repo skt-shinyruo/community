@@ -22,7 +22,20 @@ public final class DiagnosticsConfigLoader {
             Map.entry("maxTrackedKeys", "10000"),
             Map.entry("methodSlowThresholdMs", "100"),
             Map.entry("threadSnapshotInterval", "60s"),
-            Map.entry("jvmSummaryInterval", "60s")
+            Map.entry("jvmSummaryInterval", "60s"),
+            Map.entry("httpSlowThresholdMs", "500"),
+            Map.entry("jdbcSlowThresholdMs", "200"),
+            Map.entry("redisSlowThresholdMs", "100"),
+            Map.entry("kafkaSlowThresholdMs", "500"),
+            Map.entry("httpSampleRate", "1.0"),
+            Map.entry("jdbcSampleRate", "1.0"),
+            Map.entry("redisSampleRate", "1.0"),
+            Map.entry("kafkaSampleRate", "1.0"),
+            Map.entry("httpMaxEventsPerSecond", "20"),
+            Map.entry("jdbcMaxEventsPerSecond", "20"),
+            Map.entry("redisMaxEventsPerSecond", "20"),
+            Map.entry("kafkaMaxEventsPerSecond", "20"),
+            Map.entry("kafkaTopicNamesEnabled", "false")
     );
 
     private DiagnosticsConfigLoader() {
@@ -54,7 +67,20 @@ public final class DiagnosticsConfigLoader {
                 parseInt(values.get("maxTrackedKeys"), 10_000),
                 parseLong(values.get("methodSlowThresholdMs"), 100),
                 parseDuration(values.get("threadSnapshotInterval"), Duration.ofSeconds(60)),
-                parseDuration(values.get("jvmSummaryInterval"), Duration.ofSeconds(60))
+                parseDuration(values.get("jvmSummaryInterval"), Duration.ofSeconds(60)),
+                parseLong(values.get("httpSlowThresholdMs"), 500),
+                parseLong(values.get("jdbcSlowThresholdMs"), 200),
+                parseLong(values.get("redisSlowThresholdMs"), 100),
+                parseLong(values.get("kafkaSlowThresholdMs"), 500),
+                parseDouble(values.get("httpSampleRate"), 1.0),
+                parseDouble(values.get("jdbcSampleRate"), 1.0),
+                parseDouble(values.get("redisSampleRate"), 1.0),
+                parseDouble(values.get("kafkaSampleRate"), 1.0),
+                parseInt(values.get("httpMaxEventsPerSecond"), 20),
+                parseInt(values.get("jdbcMaxEventsPerSecond"), 20),
+                parseInt(values.get("redisMaxEventsPerSecond"), 20),
+                parseInt(values.get("kafkaMaxEventsPerSecond"), 20),
+                Boolean.parseBoolean(values.get("kafkaTopicNamesEnabled"))
         );
     }
 
@@ -133,6 +159,19 @@ public final class DiagnosticsConfigLoader {
             case "methodslowthresholdms" -> "methodSlowThresholdMs";
             case "threadsnapshotinterval" -> "threadSnapshotInterval";
             case "jvmsummaryinterval" -> "jvmSummaryInterval";
+            case "httpslowthresholdms" -> "httpSlowThresholdMs";
+            case "jdbcslowthresholdms" -> "jdbcSlowThresholdMs";
+            case "redisslowthresholdms" -> "redisSlowThresholdMs";
+            case "kafkaslowthresholdms" -> "kafkaSlowThresholdMs";
+            case "httpsamplerate" -> "httpSampleRate";
+            case "jdbcsamplerate" -> "jdbcSampleRate";
+            case "redissamplerate" -> "redisSampleRate";
+            case "kafkasamplerate" -> "kafkaSampleRate";
+            case "httpmaxeventspersecond" -> "httpMaxEventsPerSecond";
+            case "jdbcmaxeventspersecond" -> "jdbcMaxEventsPerSecond";
+            case "redismaxeventspersecond" -> "redisMaxEventsPerSecond";
+            case "kafkamaxeventspersecond" -> "kafkaMaxEventsPerSecond";
+            case "kafkatopicnamesenabled" -> "kafkaTopicNamesEnabled";
             default -> "";
         };
     }

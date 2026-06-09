@@ -57,7 +57,7 @@ Phase 2 does not change Community DDD business code. It only changes the generic
 - Modify: `backend/runtime-diagnostics-agent/src/main/java/com/nowcoder/observability/runtimediagnostics/config/DiagnosticsConfigLoader.java`
 - Modify: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/config/DiagnosticsConfigLoaderTest.java`
 
-- [ ] **Step 1: Add failing dependency config tests**
+- [x] **Step 1: Add failing dependency config tests**
 
 Add this test to `DiagnosticsConfigLoaderTest`:
 
@@ -98,7 +98,7 @@ void dependencyProbeSettingsAreLoadedFromEnvironment() {
 }
 ```
 
-- [ ] **Step 2: Run config test and verify it fails**
+- [x] **Step 2: Run config test and verify it fails**
 
 Run:
 
@@ -109,7 +109,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=DiagnosticsConfigLoaderTest
 
 Expected: FAIL because dependency config accessors do not exist.
 
-- [ ] **Step 3: Extend `DiagnosticsConfig`**
+- [x] **Step 3: Extend `DiagnosticsConfig`**
 
 Add these record components after the Phase 1 interval fields:
 
@@ -155,7 +155,7 @@ Update all existing `new DiagnosticsConfig(...)` calls in tests to pass:
 false
 ```
 
-- [ ] **Step 4: Extend `DiagnosticsConfigLoader`**
+- [x] **Step 4: Extend `DiagnosticsConfigLoader`**
 
 Add default values:
 
@@ -177,7 +177,7 @@ values.put("kafkaTopicNamesEnabled", configured(systemProperties, environment, "
 
 Add normalized keys for each property using the same `runtime.diagnostics.*` and env-style names.
 
-- [ ] **Step 5: Run config tests**
+- [x] **Step 5: Run config tests**
 
 Run:
 
@@ -188,7 +188,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=DiagnosticsConfigLoaderTest
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit dependency config**
+- [x] **Step 6: Commit dependency config**
 
 Run:
 

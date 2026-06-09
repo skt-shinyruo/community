@@ -58,23 +58,29 @@ if ! rg -n 'OTEL_LOGS_COLLECTION[=: ]+"?stdout"?|OTEL_LOGS_COLLECTION=stdout' "$
   exit 1
 fi
 
-if ! rg -n 'METHOD_PROFILER_ENABLED[=: ]+"?false"?|METHOD_PROFILER_ENABLED=false' "${single_config}" >/dev/null; then
-  echo "expected single config to keep method profiler disabled by default" >&2
+if ! rg -n 'RUNTIME_DIAGNOSTICS_ENABLED[=: ]+"?false"?|RUNTIME_DIAGNOSTICS_ENABLED=false' "${single_config}" >/dev/null; then
+  echo "expected single config to keep runtime diagnostics disabled by default" >&2
   exit 1
 fi
 
-if ! rg -n 'METHOD_PROFILER_ENABLED[=: ]+"?false"?|METHOD_PROFILER_ENABLED=false' "${cluster_config}" >/dev/null; then
-  echo "expected cluster config to keep method profiler disabled by default" >&2
+if ! rg -n 'RUNTIME_DIAGNOSTICS_ENABLED[=: ]+"?false"?|RUNTIME_DIAGNOSTICS_ENABLED=false' "${cluster_config}" >/dev/null; then
+  echo "expected cluster config to keep runtime diagnostics disabled by default" >&2
   exit 1
 fi
 
-if ! rg -n 'METHOD_PROFILER_INCLUDES[=: ]+"?com.nowcoder.community.\*"?|METHOD_PROFILER_INCLUDES=com.nowcoder.community.\*' "${single_config}" >/dev/null; then
-  echo "expected single config to use conservative community profiler includes" >&2
+if ! rg -n 'RUNTIME_DIAGNOSTICS_INCLUDES[=: ]+"?com.nowcoder.community.\*"?|RUNTIME_DIAGNOSTICS_INCLUDES=com.nowcoder.community.\*' "${single_config}" >/dev/null; then
+  echo "expected single config to use conservative community diagnostics includes" >&2
   exit 1
 fi
 
-if ! rg -n 'METHOD_PROFILER_INCLUDES[=: ]+"?com.nowcoder.community.\*"?|METHOD_PROFILER_INCLUDES=com.nowcoder.community.\*' "${cluster_config}" >/dev/null; then
-  echo "expected cluster config to use conservative community profiler includes" >&2
+if ! rg -n 'RUNTIME_DIAGNOSTICS_INCLUDES[=: ]+"?com.nowcoder.community.\*"?|RUNTIME_DIAGNOSTICS_INCLUDES=com.nowcoder.community.\*' "${cluster_config}" >/dev/null; then
+  echo "expected cluster config to use conservative community diagnostics includes" >&2
+  exit 1
+fi
+
+old_profiler_prefix='METHOD''_PROFILER_'
+if rg -n "${old_profiler_prefix}" "${single_config}" "${cluster_config}" >/dev/null; then
+  echo "expected rendered configs to remove old profiler settings" >&2
   exit 1
 fi
 

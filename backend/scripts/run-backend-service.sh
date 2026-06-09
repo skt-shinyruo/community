@@ -4,13 +4,13 @@ set -eu
 # Operator note:
 # - JAVA_OPTS supports standard space-separated JVM flags only.
 # - Shell quoting inside JAVA_OPTS is not parsed by this script.
-# - METHOD_PROFILER_ENABLED=true enables the optional method profiler Java agent.
+# - RUNTIME_DIAGNOSTICS_ENABLED=true enables the optional runtime diagnostics Java agent.
 java_opts="${JAVA_OPTS:-}"
 service_version="${SERVICE_VERSION:-unknown}"
 otel_enabled="${OTEL_ENABLED:-false}"
 otel_service_name="${OTEL_SERVICE_NAME:-}"
 otel_resource_attributes="${OTEL_RESOURCE_ATTRIBUTES:-}"
-method_profiler_enabled="${METHOD_PROFILER_ENABLED:-false}"
+runtime_diagnostics_enabled="${RUNTIME_DIAGNOSTICS_ENABLED:-false}"
 
 export SERVICE_VERSION="${service_version}"
 
@@ -35,12 +35,12 @@ if [ "${otel_enabled}" = "true" ]; then
   java_opts="${java_opts:+${java_opts} }-javaagent:/otel/opentelemetry-javaagent.jar"
 fi
 
-if [ "${method_profiler_enabled}" = "true" ]; then
-  if [ ! -f /otel/method-profiler-agent.jar ]; then
-    echo "[backend-runtime] missing method profiler agent at /otel/method-profiler-agent.jar" >&2
+if [ "${runtime_diagnostics_enabled}" = "true" ]; then
+  if [ ! -f /otel/runtime-diagnostics-agent.jar ]; then
+    echo "[backend-runtime] missing runtime diagnostics agent at /otel/runtime-diagnostics-agent.jar" >&2
     exit 1
   fi
-  java_opts="${java_opts:+${java_opts} }-javaagent:/otel/method-profiler-agent.jar"
+  java_opts="${java_opts:+${java_opts} }-javaagent:/otel/runtime-diagnostics-agent.jar"
 fi
 
 export OTEL_SERVICE_NAME="${otel_service_name}"

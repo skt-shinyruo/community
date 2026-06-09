@@ -10,6 +10,9 @@ import com.nowcoder.observability.runtimediagnostics.core.ProbeRegistry;
 import com.nowcoder.observability.runtimediagnostics.match.DiagnosticsMatcher;
 import com.nowcoder.observability.runtimediagnostics.probes.exception.ExceptionDiagnosticsProbe;
 import com.nowcoder.observability.runtimediagnostics.probes.jvm.JvmDiagnosticsProbe;
+import com.nowcoder.observability.runtimediagnostics.probes.dependency.DependencyDiagnosticsRuntime;
+import com.nowcoder.observability.runtimediagnostics.probes.jdbc.JdbcDiagnosticsProbe;
+import com.nowcoder.observability.runtimediagnostics.probes.jdbc.JdbcStatementAdvice;
 import com.nowcoder.observability.runtimediagnostics.probes.method.MethodDiagnosticsProbe;
 import com.nowcoder.observability.runtimediagnostics.probes.method.MethodLatencyAggregator;
 import com.nowcoder.observability.runtimediagnostics.probes.method.MethodTimingAdvice;
@@ -30,6 +33,9 @@ import static net.bytebuddy.matcher.ElementMatchers.isConstructor;
 import static net.bytebuddy.matcher.ElementMatchers.isNative;
 import static net.bytebuddy.matcher.ElementMatchers.isSynthetic;
 import static net.bytebuddy.matcher.ElementMatchers.isTypeInitializer;
+import static net.bytebuddy.matcher.ElementMatchers.hasSuperType;
+import static net.bytebuddy.matcher.ElementMatchers.nameStartsWith;
+import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.not;
 
 public final class RuntimeDiagnosticsAgent {
@@ -59,11 +65,12 @@ public final class RuntimeDiagnosticsAgent {
         StartupHooks hooks = startupHooks;
         List<Probe> probes = hooks.probes(methodAggregator);
 
-        ResettableClassFileTransformer transformer = new AgentBuilder.Default()
+        AgentBuilder agentBuilder = new AgentBuilder.Default()
                 .ignore(new ElementMatcher.Junction.AbstractBase<>() {
                     @Override
                     public boolean matches(TypeDescription target) {
-                        return !matcher.shouldInstrumentClass(target.getName());
+                        return !matcher.shouldInstrumentClass(target.getName())
+                                && !dependencyTarget(config, target);
                     }
                 })
                 .type(new ElementMatcher.Junction.AbstractBase<>() {
@@ -78,12 +85,19 @@ public final class RuntimeDiagnosticsAgent {
                                 .and(not(isAbstract()))
                                 .and(not(isNative()))
                                 .and(not(isBridge()))
-                                .and(not(isSynthetic())))))
-                .installOn(instrumentation);
+                                .and(not(isSynthetic())))));
+        if (config.probeEnabled("jdbc")) {
+            agentBuilder = agentBuilder
+                    .type(jdbcStatementTypes())
+                    .transform((builder, typeDescription, classLoader, module, protectionDomain) ->
+                            builder.visit(Advice.to(JdbcStatementAdvice.class).on(jdbcStatementMethods())));
+        }
+        ResettableClassFileTransformer transformer = agentBuilder.installOn(instrumentation);
         ProbeRegistry registry = new ProbeRegistry(probes);
 
         try {
             DiagnosticRuntime.initialize(config, methodAggregator, logger);
+            DependencyDiagnosticsRuntime.initialize(config, logger);
             hooks.afterRuntimeInitialized();
             ProbeContext context = new ProbeContext(config, logger, traceReader);
             registry.startEnabled(config, context);
@@ -91,6 +105,7 @@ public final class RuntimeDiagnosticsAgent {
         } catch (Throwable ex) {
             registry.stopStarted();
             DiagnosticRuntime.disable();
+            DependencyDiagnosticsRuntime.resetForTests();
             try {
                 transformer.reset(instrumentation, AgentBuilder.RedefinitionStrategy.DISABLED);
             } catch (Throwable ignored) {
@@ -108,6 +123,7 @@ public final class RuntimeDiagnosticsAgent {
             return List.of(
                     new MethodDiagnosticsProbe(methodAggregator),
                     new ExceptionDiagnosticsProbe(),
+                    new JdbcDiagnosticsProbe(),
                     new ThreadDiagnosticsProbe(),
                     new JvmDiagnosticsProbe()
             );
@@ -118,5 +134,24 @@ public final class RuntimeDiagnosticsAgent {
 
         void afterProbesStarted() {
         }
+    }
+
+    private static boolean dependencyTarget(DiagnosticsConfig config, TypeDescription target) {
+        return config.probeEnabled("jdbc") && jdbcStatementTypes().matches(target);
+    }
+
+    private static ElementMatcher.Junction<TypeDescription> jdbcStatementTypes() {
+        return not(nameStartsWith("java."))
+                .and(not(nameStartsWith("javax.")))
+                .and(not(nameStartsWith("sun.")))
+                .and(hasSuperType(named("java.sql.Statement")));
+    }
+
+    private static ElementMatcher.Junction<net.bytebuddy.description.method.MethodDescription> jdbcStatementMethods() {
+        return named("execute")
+                .or(named("executeQuery"))
+                .or(named("executeUpdate"))
+                .or(named("executeLargeUpdate"))
+                .or(named("executeBatch"));
     }
 }

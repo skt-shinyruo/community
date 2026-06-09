@@ -491,7 +491,7 @@ git commit -m "feat: add dependency diagnostics runtime"
 - Test: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/probes/jdbc/JdbcStatementAdviceTest.java`
 - Modify: `backend/runtime-diagnostics-agent/src/main/java/com/nowcoder/observability/runtimediagnostics/RuntimeDiagnosticsAgent.java`
 
-- [ ] **Step 1: Add JDBC advice test**
+- [x] **Step 1: Add JDBC advice test**
 
 Create `JdbcStatementAdviceTest.java`:
 
@@ -523,7 +523,7 @@ class JdbcStatementAdviceTest {
 }
 ```
 
-- [ ] **Step 2: Run JDBC test and verify it fails**
+- [x] **Step 2: Run JDBC test and verify it fails**
 
 Run:
 
@@ -534,7 +534,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=JdbcStatementAdviceTest
 
 Expected: FAIL because JDBC advice does not exist.
 
-- [ ] **Step 3: Implement JDBC advice**
+- [x] **Step 3: Implement JDBC advice**
 
 Create `JdbcStatementAdvice.java` with static helpers and Byte Buddy advice. The helper must use SHA-256 and expose only a 16-character hex prefix:
 
@@ -581,7 +581,7 @@ DependencyDiagnosticsRuntime.recordCall(
 
 If the executed method has no SQL string argument, pass `null` to `describeSql`.
 
-- [ ] **Step 4: Add JDBC probe registration**
+- [x] **Step 4: Add JDBC probe registration**
 
 Create `JdbcDiagnosticsProbe.java`:
 
@@ -615,7 +615,7 @@ executeLargeUpdate
 executeBatch
 ```
 
-- [ ] **Step 5: Run JDBC tests**
+- [x] **Step 5: Run JDBC tests**
 
 Run:
 
@@ -626,7 +626,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=JdbcStatementAdviceTest,Depend
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit JDBC probe**
+- [x] **Step 6: Commit JDBC probe**
 
 Run:
 

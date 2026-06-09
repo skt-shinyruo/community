@@ -21,6 +21,14 @@ market:
     recovery-batch-size: 100
     processing-lease: 60s
 
+drive:
+  upload:
+    recovery:
+      enabled: true
+      batch-size: 100
+      stale-seconds: 300
+      delay-ms: 60000
+
 analytics:
   max-days-range: 31
   ingest:

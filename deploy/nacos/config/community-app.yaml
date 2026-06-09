@@ -15,6 +15,20 @@ spring:
     multipart:
       max-file-size: 10GB
       max-request-size: 10GB
+  mail:
+    host: mailhog
+    port: 1025
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
+management:
+  health:
+    elasticsearch:
+      enabled: true
 
 security:
   jwt:

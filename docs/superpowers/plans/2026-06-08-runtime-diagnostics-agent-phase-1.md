@@ -1974,7 +1974,7 @@ rg -n 'METHOD_PROFILER|method-profiler-agent|method profiler' backend/runtime-di
 
 Expected: no output.
 
-- [ ] **Step 9: Commit deployment wiring**
+- [x] **Step 9: Commit deployment wiring**
 
 Run:
 
@@ -2066,7 +2066,7 @@ git commit -m "docs: document runtime diagnostics agent"
 **Files:**
 - Verify all files touched by Tasks 1-9.
 
-- [ ] **Step 1: Run full agent verification**
+- [x] **Step 1: Run full agent verification**
 
 Run:
 
@@ -2077,7 +2077,7 @@ mvn -q -pl :runtime-diagnostics-agent verify
 
 Expected: PASS.
 
-- [ ] **Step 2: Run deployment render verification**
+- [x] **Step 2: Run deployment render verification**
 
 Run:
 
@@ -2087,7 +2087,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 3: Check old names in active code and deployment surfaces**
+- [x] **Step 3: Check old names in active code and deployment surfaces**
 
 Run:
 
@@ -2097,7 +2097,7 @@ rg -n 'METHOD_PROFILER|method-profiler-agent|com\.nowcoder\.observability\.metho
 
 Expected: no output.
 
-- [ ] **Step 4: Check new names exist**
+- [x] **Step 4: Check new names exist**
 
 Run:
 
@@ -2107,7 +2107,7 @@ rg -n 'runtime-diagnostics-agent|RUNTIME_DIAGNOSTICS_|runtime_diagnostics|com\.n
 
 Expected: output includes the renamed module, deployment wiring, docs, and runtime diagnostics event category.
 
-- [ ] **Step 5: Review git status**
+- [x] **Step 5: Review git status**
 
 Run:
 

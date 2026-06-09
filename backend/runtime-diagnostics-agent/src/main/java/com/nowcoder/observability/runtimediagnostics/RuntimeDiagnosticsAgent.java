@@ -11,6 +11,8 @@ import com.nowcoder.observability.runtimediagnostics.match.DiagnosticsMatcher;
 import com.nowcoder.observability.runtimediagnostics.probes.exception.ExceptionDiagnosticsProbe;
 import com.nowcoder.observability.runtimediagnostics.probes.jvm.JvmDiagnosticsProbe;
 import com.nowcoder.observability.runtimediagnostics.probes.dependency.DependencyDiagnosticsRuntime;
+import com.nowcoder.observability.runtimediagnostics.probes.http.HttpDiagnosticsProbe;
+import com.nowcoder.observability.runtimediagnostics.probes.http.HttpExchangeAdvice;
 import com.nowcoder.observability.runtimediagnostics.probes.jdbc.JdbcDiagnosticsProbe;
 import com.nowcoder.observability.runtimediagnostics.probes.jdbc.JdbcStatementAdvice;
 import com.nowcoder.observability.runtimediagnostics.probes.method.MethodDiagnosticsProbe;
@@ -92,6 +94,12 @@ public final class RuntimeDiagnosticsAgent {
                     .transform((builder, typeDescription, classLoader, module, protectionDomain) ->
                             builder.visit(Advice.to(JdbcStatementAdvice.class).on(jdbcStatementMethods())));
         }
+        if (config.probeEnabled("http")) {
+            agentBuilder = agentBuilder
+                    .type(httpExchangeFunctionTypes())
+                    .transform((builder, typeDescription, classLoader, module, protectionDomain) ->
+                            builder.visit(Advice.to(HttpExchangeAdvice.class).on(named("exchange"))));
+        }
         ResettableClassFileTransformer transformer = agentBuilder.installOn(instrumentation);
         ProbeRegistry registry = new ProbeRegistry(probes);
 
@@ -123,6 +131,7 @@ public final class RuntimeDiagnosticsAgent {
             return List.of(
                     new MethodDiagnosticsProbe(methodAggregator),
                     new ExceptionDiagnosticsProbe(),
+                    new HttpDiagnosticsProbe(),
                     new JdbcDiagnosticsProbe(),
                     new ThreadDiagnosticsProbe(),
                     new JvmDiagnosticsProbe()
@@ -137,7 +146,12 @@ public final class RuntimeDiagnosticsAgent {
     }
 
     private static boolean dependencyTarget(DiagnosticsConfig config, TypeDescription target) {
-        return config.probeEnabled("jdbc") && jdbcStatementTypes().matches(target);
+        return (config.probeEnabled("jdbc") && jdbcStatementTypes().matches(target))
+                || (config.probeEnabled("http") && httpExchangeFunctionTypes().matches(target));
+    }
+
+    private static ElementMatcher.Junction<TypeDescription> httpExchangeFunctionTypes() {
+        return hasSuperType(named("org.springframework.web.reactive.function.client.ExchangeFunction"));
     }
 
     private static ElementMatcher.Junction<TypeDescription> jdbcStatementTypes() {

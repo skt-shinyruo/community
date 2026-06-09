@@ -643,7 +643,7 @@ git commit -m "feat: add jdbc diagnostics probe"
 - Test: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/probes/http/HttpExchangeAdviceTest.java`
 - Modify: `backend/runtime-diagnostics-agent/src/main/java/com/nowcoder/observability/runtimediagnostics/RuntimeDiagnosticsAgent.java`
 
-- [ ] **Step 1: Add HTTP advice test**
+- [x] **Step 1: Add HTTP advice test**
 
 Create `HttpExchangeAdviceTest.java`:
 
@@ -672,7 +672,7 @@ class HttpExchangeAdviceTest {
 }
 ```
 
-- [ ] **Step 2: Run HTTP test and verify it fails**
+- [x] **Step 2: Run HTTP test and verify it fails**
 
 Run:
 
@@ -683,7 +683,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=HttpExchangeAdviceTest
 
 Expected: FAIL because HTTP advice does not exist.
 
-- [ ] **Step 3: Implement HTTP advice helpers and event recording**
+- [x] **Step 3: Implement HTTP advice helpers and event recording**
 
 Create `HttpExchangeAdvice.java` with helpers:
 
@@ -719,7 +719,7 @@ network.peer.name.hash=<hash16 host>
 
 Do not record raw URL, query string, headers, body, cookies, or authorization data.
 
-- [ ] **Step 4: Add HTTP probe registration**
+- [x] **Step 4: Add HTTP probe registration**
 
 Create `HttpDiagnosticsProbe.java` with `name()` returning `http`.
 
@@ -737,7 +737,7 @@ exchange
 
 The advice measures method execution time and records an `http_slow_call` when duration crosses `config.httpSlowThresholdMs()`.
 
-- [ ] **Step 5: Run HTTP tests**
+- [x] **Step 5: Run HTTP tests**
 
 Run:
 
@@ -748,7 +748,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=HttpExchangeAdviceTest,Depende
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit HTTP probe**
+- [x] **Step 6: Commit HTTP probe**
 
 Run:
 

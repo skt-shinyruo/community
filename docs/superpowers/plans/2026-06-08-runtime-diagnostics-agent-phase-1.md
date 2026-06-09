@@ -1828,7 +1828,7 @@ git commit -m "feat: wire runtime diagnostics agent startup"
 - Modify: `deploy/.env.cluster.example`
 - Modify: `deploy/tests/observability_otel_default.sh`
 
-- [ ] **Step 1: Update deployment test expectations**
+- [x] **Step 1: Update deployment test expectations**
 
 In `deploy/tests/observability_otel_default.sh`, replace method profiler assertions with runtime diagnostics assertions:
 
@@ -1859,7 +1859,7 @@ if rg -n 'METHOD_PROFILER_' "${single_config}" "${cluster_config}" >/dev/null; t
 fi
 ```
 
-- [ ] **Step 2: Run deployment test and verify it fails**
+- [x] **Step 2: Run deployment test and verify it fails**
 
 Run:
 
@@ -1869,7 +1869,7 @@ Run:
 
 Expected: FAIL until compose files and env examples are updated.
 
-- [ ] **Step 3: Update Dockerfile build and copy**
+- [x] **Step 3: Update Dockerfile build and copy**
 
 In `deploy/Dockerfile.backend-service`, replace build module and jar copy references:
 
@@ -1895,7 +1895,7 @@ Final image copy:
 COPY --from=build /workspace/runtime-diagnostics-agent.jar /otel/runtime-diagnostics-agent.jar
 ```
 
-- [ ] **Step 4: Update startup script**
+- [x] **Step 4: Update startup script**
 
 In `backend/scripts/run-backend-service.sh`, replace the operator note and old variable with:
 
@@ -1916,7 +1916,7 @@ if [ "${runtime_diagnostics_enabled}" = "true" ]; then
 fi
 ```
 
-- [ ] **Step 5: Replace compose env names**
+- [x] **Step 5: Replace compose env names**
 
 In `deploy/compose.runtime.services.single.yml` and `deploy/compose.runtime.services.cluster.yml`, replace each old block with:
 
@@ -1935,7 +1935,7 @@ In `deploy/compose.runtime.services.single.yml` and `deploy/compose.runtime.serv
 - RUNTIME_DIAGNOSTICS_MAX_TRACKED_KEYS=${RUNTIME_DIAGNOSTICS_MAX_TRACKED_KEYS:-10000}
 ```
 
-- [ ] **Step 6: Update env examples**
+- [x] **Step 6: Update env examples**
 
 In both env example files, replace old method profiler variables with:
 
@@ -1954,7 +1954,7 @@ RUNTIME_DIAGNOSTICS_MAX_EVENTS_PER_SECOND=20
 RUNTIME_DIAGNOSTICS_MAX_TRACKED_KEYS=10000
 ```
 
-- [ ] **Step 7: Run deployment render test**
+- [x] **Step 7: Run deployment render test**
 
 Run:
 
@@ -1964,7 +1964,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 8: Verify old deployment names are removed from active deployment files**
+- [x] **Step 8: Verify old deployment names are removed from active deployment files**
 
 Run:
 

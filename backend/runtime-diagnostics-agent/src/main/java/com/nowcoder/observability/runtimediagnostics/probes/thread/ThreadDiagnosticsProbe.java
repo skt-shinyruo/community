@@ -15,6 +15,7 @@ import java.util.Map;
 public class ThreadDiagnosticsProbe implements Probe {
 
     private final ThreadMXBean threadMxBean;
+    private volatile Thread thread;
 
     public ThreadDiagnosticsProbe() {
         this(ManagementFactory.getThreadMXBean());
@@ -31,11 +32,20 @@ public class ThreadDiagnosticsProbe implements Probe {
 
     @Override
     public void start(ProbeContext context) {
-        ScheduledProbeSupport.startDaemon(
+        thread = ScheduledProbeSupport.startDaemon(
                 "runtime-diagnostics-thread-snapshot",
                 context.config().threadSnapshotInterval(),
                 () -> reportOnce(context.logger())
         );
+    }
+
+    @Override
+    public void stop() {
+        Thread current = thread;
+        if (current != null) {
+            current.interrupt();
+        }
+        thread = null;
     }
 
     public void reportOnce(DiagnosticEventLogger logger) {

@@ -1,4 +1,4 @@
-package com.example.methodprofiler.integration;
+package com.example.runtimediagnostics.integration;
 
 public class AgentTargetService {
 
@@ -12,6 +12,6 @@ public class AgentTargetService {
     }
 
     public void throwingWork() {
-        throw new IllegalStateException("target failure");
+        throw new IllegalStateException("target failure password=secret");
     }
 }

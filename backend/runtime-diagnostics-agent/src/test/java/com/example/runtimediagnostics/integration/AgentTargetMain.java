@@ -1,4 +1,4 @@
-package com.example.methodprofiler.integration;
+package com.example.runtimediagnostics.integration;
 
 public class AgentTargetMain {
 
@@ -11,7 +11,7 @@ public class AgentTargetMain {
             System.err.println("target exception propagated");
         }
         try {
-            Thread.sleep(1200);
+            Thread.sleep(3000);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }

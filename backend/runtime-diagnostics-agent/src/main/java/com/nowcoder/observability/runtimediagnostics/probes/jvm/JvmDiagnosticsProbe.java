@@ -22,6 +22,7 @@ public class JvmDiagnosticsProbe implements Probe {
     private final List<GarbageCollectorMXBean> garbageCollectorMxBeans;
     private final ClassLoadingMXBean classLoadingMxBean;
     private final ThreadMXBean threadMxBean;
+    private volatile Thread thread;
 
     public JvmDiagnosticsProbe() {
         this(
@@ -56,11 +57,20 @@ public class JvmDiagnosticsProbe implements Probe {
 
     @Override
     public void start(ProbeContext context) {
-        ScheduledProbeSupport.startDaemon(
+        thread = ScheduledProbeSupport.startDaemon(
                 "runtime-diagnostics-jvm-summary",
                 context.config().jvmSummaryInterval(),
                 () -> reportOnce(context.logger())
         );
+    }
+
+    @Override
+    public void stop() {
+        Thread current = thread;
+        if (current != null) {
+            current.interrupt();
+        }
+        thread = null;
     }
 
     public void reportOnce(DiagnosticEventLogger logger) {

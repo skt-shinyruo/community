@@ -1653,7 +1653,7 @@ git commit -m "feat: add thread and jvm diagnostics probes"
 - Move: `backend/runtime-diagnostics-agent/src/test/java/com/example/methodprofiler/integration` to `backend/runtime-diagnostics-agent/src/test/java/com/example/runtimediagnostics/integration`
 - Modify: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/integration/RuntimeDiagnosticsAgentIT.java`
 
-- [ ] **Step 1: Update forked JVM integration target package**
+- [x] **Step 1: Update forked JVM integration target package**
 
 Move integration sample classes into:
 
@@ -1669,7 +1669,7 @@ package com.example.runtimediagnostics.integration;
 
 Keep the target service methods `slowWork()` and `throwingWork()`.
 
-- [ ] **Step 2: Update integration test**
+- [x] **Step 2: Update integration test**
 
 Rename `MethodProfilerAgentIT` to `RuntimeDiagnosticsAgentIT` and use:
 
@@ -1722,7 +1722,7 @@ class RuntimeDiagnosticsAgentIT {
 }
 ```
 
-- [ ] **Step 3: Run integration test and verify it fails before startup wiring**
+- [x] **Step 3: Run integration test and verify it fails before startup wiring**
 
 Run:
 
@@ -1734,7 +1734,7 @@ mvn -q -pl :runtime-diagnostics-agent -Dtest=RuntimeDiagnosticsAgentIT verify
 
 Expected: FAIL until `RuntimeDiagnosticsAgent` installs the transformer and starts probes.
 
-- [ ] **Step 4: Wire `RuntimeDiagnosticsAgent`**
+- [x] **Step 4: Wire `RuntimeDiagnosticsAgent`**
 
 Update `RuntimeDiagnosticsAgent.install` to:
 
@@ -1785,7 +1785,7 @@ The startup failure message should use:
 [runtime-diagnostics-agent] disabled after startup failure:
 ```
 
-- [ ] **Step 5: Run integration test**
+- [x] **Step 5: Run integration test**
 
 Run:
 
@@ -1797,7 +1797,7 @@ mvn -q -pl :runtime-diagnostics-agent -Dtest=RuntimeDiagnosticsAgentIT verify
 
 Expected: PASS.
 
-- [ ] **Step 6: Run full agent module tests**
+- [x] **Step 6: Run full agent module tests**
 
 Run:
 
@@ -1808,7 +1808,7 @@ mvn -q -pl :runtime-diagnostics-agent verify
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit startup wiring**
+- [x] **Step 7: Commit startup wiring**
 
 Run:
 

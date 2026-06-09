@@ -207,7 +207,7 @@ git commit -m "feat: add dependency diagnostics config"
 - Create: `backend/runtime-diagnostics-agent/src/main/java/com/nowcoder/observability/runtimediagnostics/probes/dependency/DependencyDiagnosticsRuntime.java`
 - Test: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/probes/dependency/DependencyDiagnosticsRuntimeTest.java`
 
-- [ ] **Step 1: Write dependency runtime tests**
+- [x] **Step 1: Write dependency runtime tests**
 
 Create `DependencyDiagnosticsRuntimeTest.java`:
 
@@ -292,7 +292,7 @@ class DependencyDiagnosticsRuntimeTest {
 }
 ```
 
-- [ ] **Step 2: Run dependency runtime tests and verify they fail**
+- [x] **Step 2: Run dependency runtime tests and verify they fail**
 
 Run:
 
@@ -303,7 +303,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=DependencyDiagnosticsRuntimeTe
 
 Expected: FAIL because dependency runtime classes do not exist.
 
-- [ ] **Step 3: Implement dependency text sanitizer, key, and snapshot**
+- [x] **Step 3: Implement dependency text sanitizer, key, and snapshot**
 
 Create `DependencyTextSanitizer.java`:
 
@@ -380,7 +380,7 @@ public record DependencyCallSnapshot(
 }
 ```
 
-- [ ] **Step 4: Implement aggregator**
+- [x] **Step 4: Implement aggregator**
 
 Create `DependencyCallAggregator.java` using the existing method latency stats pattern. It should expose:
 
@@ -394,7 +394,7 @@ public long droppedKeys()
 
 Ranking is by `duration.max.ms` descending, then `key.toString()` ascending.
 
-- [ ] **Step 5: Implement runtime**
+- [x] **Step 5: Implement runtime**
 
 Create `DependencyDiagnosticsRuntime.java` with:
 
@@ -463,7 +463,7 @@ DiagnosticEvent.builder(summaryAction, "success", probe)
 
 and then copy `snapshot.key().dimensions()` into the event.
 
-- [ ] **Step 6: Run dependency runtime tests**
+- [x] **Step 6: Run dependency runtime tests**
 
 Run:
 
@@ -474,7 +474,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=DependencyDiagnosticsRuntimeTe
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit shared dependency runtime**
+- [x] **Step 7: Commit shared dependency runtime**
 
 Run:
 

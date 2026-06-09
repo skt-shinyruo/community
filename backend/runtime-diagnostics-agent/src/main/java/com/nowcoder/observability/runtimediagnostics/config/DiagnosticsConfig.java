@@ -16,7 +16,20 @@ public record DiagnosticsConfig(
         int maxTrackedKeys,
         long methodSlowThresholdMs,
         Duration threadSnapshotInterval,
-        Duration jvmSummaryInterval
+        Duration jvmSummaryInterval,
+        long httpSlowThresholdMs,
+        long jdbcSlowThresholdMs,
+        long redisSlowThresholdMs,
+        long kafkaSlowThresholdMs,
+        double httpSampleRate,
+        double jdbcSampleRate,
+        double redisSampleRate,
+        double kafkaSampleRate,
+        int httpMaxEventsPerSecond,
+        int jdbcMaxEventsPerSecond,
+        int redisMaxEventsPerSecond,
+        int kafkaMaxEventsPerSecond,
+        boolean kafkaTopicNamesEnabled
 ) {
 
     private static final List<String> DEFAULT_PROBES = List.of("method", "exception", "thread", "jvm");
@@ -26,7 +39,7 @@ public record DiagnosticsConfig(
         probes = normalizeProbes(probes);
         includes = normalizePatterns(includes, List.of("*"));
         excludes = normalizePatterns(excludes, List.of());
-        sampleRate = Double.isFinite(sampleRate) ? Math.max(0.0, Math.min(1.0, sampleRate)) : 1.0;
+        sampleRate = clampSampleRate(sampleRate);
         maxEventsPerSecond = Math.max(0, maxEventsPerSecond);
         summaryInterval = positiveOrDefault(summaryInterval);
         topN = Math.max(1, topN);
@@ -34,6 +47,18 @@ public record DiagnosticsConfig(
         methodSlowThresholdMs = Math.max(0, methodSlowThresholdMs);
         threadSnapshotInterval = positiveOrDefault(threadSnapshotInterval);
         jvmSummaryInterval = positiveOrDefault(jvmSummaryInterval);
+        httpSlowThresholdMs = Math.max(0, httpSlowThresholdMs);
+        jdbcSlowThresholdMs = Math.max(0, jdbcSlowThresholdMs);
+        redisSlowThresholdMs = Math.max(0, redisSlowThresholdMs);
+        kafkaSlowThresholdMs = Math.max(0, kafkaSlowThresholdMs);
+        httpSampleRate = clampSampleRate(httpSampleRate);
+        jdbcSampleRate = clampSampleRate(jdbcSampleRate);
+        redisSampleRate = clampSampleRate(redisSampleRate);
+        kafkaSampleRate = clampSampleRate(kafkaSampleRate);
+        httpMaxEventsPerSecond = Math.max(0, httpMaxEventsPerSecond);
+        jdbcMaxEventsPerSecond = Math.max(0, jdbcMaxEventsPerSecond);
+        redisMaxEventsPerSecond = Math.max(0, redisMaxEventsPerSecond);
+        kafkaMaxEventsPerSecond = Math.max(0, kafkaMaxEventsPerSecond);
     }
 
     public boolean probeEnabled(String probe) {
@@ -65,5 +90,9 @@ public record DiagnosticsConfig(
 
     private static Duration positiveOrDefault(Duration value) {
         return value == null || value.isZero() || value.isNegative() ? DEFAULT_INTERVAL : value;
+    }
+
+    private static double clampSampleRate(double value) {
+        return Double.isFinite(value) ? Math.max(0.0, Math.min(1.0, value)) : 1.0;
     }
 }

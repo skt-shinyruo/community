@@ -30,6 +30,10 @@ class DiagnosticsMatcherTest {
 
     private static DiagnosticsConfig config(List<String> includes, List<String> excludes) {
         return new DiagnosticsConfig(true, List.of("method"), includes, excludes, 1.0, 20,
-                Duration.ofSeconds(60), 50, 10_000, 100, Duration.ofSeconds(60), Duration.ofSeconds(60));
+                Duration.ofSeconds(60), 50, 10_000, 100, Duration.ofSeconds(60), Duration.ofSeconds(60),
+                500, 200, 100, 500,
+                1.0, 1.0, 1.0, 1.0,
+                20, 20, 20, 20,
+                false);
     }
 }

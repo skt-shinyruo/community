@@ -49,6 +49,10 @@ class ExceptionDiagnosticsProbeTest {
 
     private static DiagnosticsConfig config() {
         return new DiagnosticsConfig(true, List.of("exception"), List.of("*"), List.of(), 1.0, 20,
-                Duration.ofSeconds(60), 50, 10, 100, Duration.ofSeconds(60), Duration.ofSeconds(60));
+                Duration.ofSeconds(60), 50, 10, 100, Duration.ofSeconds(60), Duration.ofSeconds(60),
+                500, 200, 100, 500,
+                1.0, 1.0, 1.0, 1.0,
+                20, 20, 20, 20,
+                false);
     }
 }

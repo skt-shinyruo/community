@@ -42,6 +42,10 @@ class DiagnosticRuntimeLegacyTest {
 
     private static DiagnosticsConfig config(double sampleRate) {
         return new DiagnosticsConfig(true, List.of("method"), List.of("*"), List.of(), sampleRate, 20,
-                Duration.ofSeconds(60), 50, 10, 1_000, Duration.ofSeconds(60), Duration.ofSeconds(60));
+                Duration.ofSeconds(60), 50, 10, 1_000, Duration.ofSeconds(60), Duration.ofSeconds(60),
+                500, 200, 100, 500,
+                1.0, 1.0, 1.0, 1.0,
+                20, 20, 20, 20,
+                false);
     }
 }

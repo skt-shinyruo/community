@@ -43,7 +43,11 @@ class ProbeRegistryTest {
 
     private static DiagnosticsConfig config(List<String> probes) {
         return new DiagnosticsConfig(true, probes, List.of("*"), List.of(), 1.0, 20,
-                Duration.ofSeconds(60), 50, 10_000, 100, Duration.ofSeconds(60), Duration.ofSeconds(60));
+                Duration.ofSeconds(60), 50, 10_000, 100, Duration.ofSeconds(60), Duration.ofSeconds(60),
+                500, 200, 100, 500,
+                1.0, 1.0, 1.0, 1.0,
+                20, 20, 20, 20,
+                false);
     }
 
     private record RecordingProbe(String name, List<String> started, List<String> stopped, boolean fail) implements Probe {

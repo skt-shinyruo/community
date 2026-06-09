@@ -61,6 +61,41 @@ class DiagnosticsConfigLoaderTest {
     }
 
     @Test
+    void dependencyProbeSettingsAreLoadedFromEnvironment() {
+        DiagnosticsConfig config = DiagnosticsConfigLoader.load("", Map.of(), Map.ofEntries(
+                Map.entry("RUNTIME_DIAGNOSTICS_PROBES", "method,http,jdbc,redis,kafka"),
+                Map.entry("RUNTIME_DIAGNOSTICS_HTTP_SLOW_THRESHOLD_MS", "501"),
+                Map.entry("RUNTIME_DIAGNOSTICS_JDBC_SLOW_THRESHOLD_MS", "202"),
+                Map.entry("RUNTIME_DIAGNOSTICS_REDIS_SLOW_THRESHOLD_MS", "103"),
+                Map.entry("RUNTIME_DIAGNOSTICS_KAFKA_SLOW_THRESHOLD_MS", "504"),
+                Map.entry("RUNTIME_DIAGNOSTICS_HTTP_SAMPLE_RATE", "0.5"),
+                Map.entry("RUNTIME_DIAGNOSTICS_JDBC_SAMPLE_RATE", "0.25"),
+                Map.entry("RUNTIME_DIAGNOSTICS_REDIS_SAMPLE_RATE", "0.75"),
+                Map.entry("RUNTIME_DIAGNOSTICS_KAFKA_SAMPLE_RATE", "0.6"),
+                Map.entry("RUNTIME_DIAGNOSTICS_HTTP_MAX_EVENTS_PER_SECOND", "11"),
+                Map.entry("RUNTIME_DIAGNOSTICS_JDBC_MAX_EVENTS_PER_SECOND", "12"),
+                Map.entry("RUNTIME_DIAGNOSTICS_REDIS_MAX_EVENTS_PER_SECOND", "13"),
+                Map.entry("RUNTIME_DIAGNOSTICS_KAFKA_MAX_EVENTS_PER_SECOND", "14"),
+                Map.entry("RUNTIME_DIAGNOSTICS_KAFKA_TOPIC_NAMES_ENABLED", "true")
+        ));
+
+        assertThat(config.probes()).containsExactly("method", "http", "jdbc", "redis", "kafka");
+        assertThat(config.httpSlowThresholdMs()).isEqualTo(501);
+        assertThat(config.jdbcSlowThresholdMs()).isEqualTo(202);
+        assertThat(config.redisSlowThresholdMs()).isEqualTo(103);
+        assertThat(config.kafkaSlowThresholdMs()).isEqualTo(504);
+        assertThat(config.httpSampleRate()).isEqualTo(0.5);
+        assertThat(config.jdbcSampleRate()).isEqualTo(0.25);
+        assertThat(config.redisSampleRate()).isEqualTo(0.75);
+        assertThat(config.kafkaSampleRate()).isEqualTo(0.6);
+        assertThat(config.httpMaxEventsPerSecond()).isEqualTo(11);
+        assertThat(config.jdbcMaxEventsPerSecond()).isEqualTo(12);
+        assertThat(config.redisMaxEventsPerSecond()).isEqualTo(13);
+        assertThat(config.kafkaMaxEventsPerSecond()).isEqualTo(14);
+        assertThat(config.kafkaTopicNamesEnabled()).isTrue();
+    }
+
+    @Test
     void oldMethodProfilerEnvironmentNamesAreIgnored() {
         String oldPrefix = "METHOD" + "_PROFILER_";
         DiagnosticsConfig config = DiagnosticsConfigLoader.load("", Map.of(), Map.of(
@@ -127,6 +162,22 @@ class DiagnosticsConfigLoaderTest {
         ));
 
         assertThat(config.sampleRate()).isEqualTo(1.0);
+    }
+
+    @Test
+    void dependencySampleRatesRejectNonFiniteDirectValues() {
+        DiagnosticsConfig config = new DiagnosticsConfig(true, java.util.List.of("http", "jdbc", "redis", "kafka"),
+                java.util.List.of("*"), java.util.List.of(), 1.0, 20,
+                Duration.ofSeconds(60), 50, 10_000, 100, Duration.ofSeconds(60), Duration.ofSeconds(60),
+                500, 200, 100, 500,
+                Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0.5,
+                20, 20, 20, 20,
+                false);
+
+        assertThat(config.httpSampleRate()).isEqualTo(1.0);
+        assertThat(config.jdbcSampleRate()).isEqualTo(1.0);
+        assertThat(config.redisSampleRate()).isEqualTo(1.0);
+        assertThat(config.kafkaSampleRate()).isEqualTo(0.5);
     }
 
     @Test

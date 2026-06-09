@@ -1446,7 +1446,7 @@ git commit -m "feat: add exception diagnostics events"
 - Test: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/probes/thread/ThreadDiagnosticsProbeTest.java`
 - Test: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/probes/jvm/JvmDiagnosticsProbeTest.java`
 
-- [ ] **Step 1: Write thread probe test**
+- [x] **Step 1: Write thread probe test**
 
 Create `ThreadDiagnosticsProbeTest.java`:
 
@@ -1484,7 +1484,7 @@ class ThreadDiagnosticsProbeTest {
 }
 ```
 
-- [ ] **Step 2: Write JVM probe test**
+- [x] **Step 2: Write JVM probe test**
 
 Create `JvmDiagnosticsProbeTest.java`:
 
@@ -1530,7 +1530,7 @@ class JvmDiagnosticsProbeTest {
 }
 ```
 
-- [ ] **Step 3: Run new probe tests and verify they fail**
+- [x] **Step 3: Run new probe tests and verify they fail**
 
 Run:
 
@@ -1541,7 +1541,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=ThreadDiagnosticsProbeTest,Jvm
 
 Expected: FAIL because thread and JVM probe classes do not exist.
 
-- [ ] **Step 4: Add scheduled probe support**
+- [x] **Step 4: Add scheduled probe support**
 
 Create `ScheduledProbeSupport.java`:
 
@@ -1575,7 +1575,7 @@ public final class ScheduledProbeSupport {
 }
 ```
 
-- [ ] **Step 5: Implement thread probe**
+- [x] **Step 5: Implement thread probe**
 
 Create `ThreadDiagnosticsProbe.java` with a constructor accepting `ThreadMXBean`, a default constructor using `ManagementFactory.getThreadMXBean()`, and this `reportOnce` behavior:
 
@@ -1600,7 +1600,7 @@ runtime-diagnostics-thread-snapshot
 
 and `context.config().threadSnapshotInterval()`.
 
-- [ ] **Step 6: Implement JVM probe**
+- [x] **Step 6: Implement JVM probe**
 
 Create `JvmDiagnosticsProbe.java` with a default constructor using standard `ManagementFactory` beans and a test constructor accepting the beans. `reportOnce` should emit:
 
@@ -1626,7 +1626,7 @@ runtime-diagnostics-jvm-summary
 
 and `context.config().jvmSummaryInterval()`.
 
-- [ ] **Step 7: Run thread and JVM tests**
+- [x] **Step 7: Run thread and JVM tests**
 
 Run:
 
@@ -1637,7 +1637,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=ThreadDiagnosticsProbeTest,Jvm
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit thread and JVM probes**
+- [x] **Step 8: Commit thread and JVM probes**
 
 Run:
 

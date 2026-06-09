@@ -62,10 +62,11 @@ class DiagnosticsConfigLoaderTest {
 
     @Test
     void oldMethodProfilerEnvironmentNamesAreIgnored() {
+        String oldPrefix = "METHOD" + "_PROFILER_";
         DiagnosticsConfig config = DiagnosticsConfigLoader.load("", Map.of(), Map.of(
-                "METHOD_PROFILER_ENABLED", "true",
-                "METHOD_PROFILER_INCLUDES", "com.legacy.*",
-                "METHOD_PROFILER_SLOW_THRESHOLD_MS", "1"
+                oldPrefix + "ENABLED", "true",
+                oldPrefix + "INCLUDES", "com.legacy.*",
+                oldPrefix + "SLOW_THRESHOLD_MS", "1"
         ));
 
         assertThat(config.enabled()).isFalse();

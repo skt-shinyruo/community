@@ -15,9 +15,13 @@ import com.nowcoder.observability.runtimediagnostics.probes.http.HttpDiagnostics
 import com.nowcoder.observability.runtimediagnostics.probes.http.HttpExchangeAdvice;
 import com.nowcoder.observability.runtimediagnostics.probes.jdbc.JdbcDiagnosticsProbe;
 import com.nowcoder.observability.runtimediagnostics.probes.jdbc.JdbcStatementAdvice;
+import com.nowcoder.observability.runtimediagnostics.probes.kafka.KafkaDiagnosticsProbe;
+import com.nowcoder.observability.runtimediagnostics.probes.kafka.KafkaTemplateAdvice;
 import com.nowcoder.observability.runtimediagnostics.probes.method.MethodDiagnosticsProbe;
 import com.nowcoder.observability.runtimediagnostics.probes.method.MethodLatencyAggregator;
 import com.nowcoder.observability.runtimediagnostics.probes.method.MethodTimingAdvice;
+import com.nowcoder.observability.runtimediagnostics.probes.redis.RedisDiagnosticsProbe;
+import com.nowcoder.observability.runtimediagnostics.probes.redis.RedisTemplateAdvice;
 import com.nowcoder.observability.runtimediagnostics.probes.thread.ThreadDiagnosticsProbe;
 import com.nowcoder.observability.runtimediagnostics.trace.TraceContextReader;
 import net.bytebuddy.agent.builder.AgentBuilder;
@@ -100,6 +104,19 @@ public final class RuntimeDiagnosticsAgent {
                     .transform((builder, typeDescription, classLoader, module, protectionDomain) ->
                             builder.visit(Advice.to(HttpExchangeAdvice.class).on(named("exchange"))));
         }
+        if (config.probeEnabled("redis")) {
+            agentBuilder = agentBuilder
+                    .type(redisTemplateTypes())
+                    .transform((builder, typeDescription, classLoader, module, protectionDomain) ->
+                            builder.visit(Advice.to(RedisTemplateAdvice.class).on(redisTemplateMethods())));
+        }
+        if (config.probeEnabled("kafka")) {
+            KafkaTemplateAdvice.configure(config);
+            agentBuilder = agentBuilder
+                    .type(kafkaTemplateTypes())
+                    .transform((builder, typeDescription, classLoader, module, protectionDomain) ->
+                            builder.visit(Advice.to(KafkaTemplateAdvice.class).on(named("send"))));
+        }
         ResettableClassFileTransformer transformer = agentBuilder.installOn(instrumentation);
         ProbeRegistry registry = new ProbeRegistry(probes);
 
@@ -133,6 +150,8 @@ public final class RuntimeDiagnosticsAgent {
                     new ExceptionDiagnosticsProbe(),
                     new HttpDiagnosticsProbe(),
                     new JdbcDiagnosticsProbe(),
+                    new RedisDiagnosticsProbe(),
+                    new KafkaDiagnosticsProbe(),
                     new ThreadDiagnosticsProbe(),
                     new JvmDiagnosticsProbe()
             );
@@ -147,11 +166,27 @@ public final class RuntimeDiagnosticsAgent {
 
     private static boolean dependencyTarget(DiagnosticsConfig config, TypeDescription target) {
         return (config.probeEnabled("jdbc") && jdbcStatementTypes().matches(target))
-                || (config.probeEnabled("http") && httpExchangeFunctionTypes().matches(target));
+                || (config.probeEnabled("http") && httpExchangeFunctionTypes().matches(target))
+                || (config.probeEnabled("redis") && redisTemplateTypes().matches(target))
+                || (config.probeEnabled("kafka") && kafkaTemplateTypes().matches(target));
     }
 
     private static ElementMatcher.Junction<TypeDescription> httpExchangeFunctionTypes() {
         return hasSuperType(named("org.springframework.web.reactive.function.client.ExchangeFunction"));
+    }
+
+    private static ElementMatcher.Junction<TypeDescription> redisTemplateTypes() {
+        return named("org.springframework.data.redis.core.RedisTemplate");
+    }
+
+    private static ElementMatcher.Junction<net.bytebuddy.description.method.MethodDescription> redisTemplateMethods() {
+        return named("execute")
+                .or(named("executePipelined"))
+                .or(named("executeWithStickyConnection"));
+    }
+
+    private static ElementMatcher.Junction<TypeDescription> kafkaTemplateTypes() {
+        return named("org.springframework.kafka.core.KafkaTemplate");
     }
 
     private static ElementMatcher.Junction<TypeDescription> jdbcStatementTypes() {

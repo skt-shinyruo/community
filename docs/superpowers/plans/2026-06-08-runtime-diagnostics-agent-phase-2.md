@@ -768,7 +768,7 @@ git commit -m "feat: add http diagnostics probe"
 - Test: `backend/runtime-diagnostics-agent/src/test/java/com/nowcoder/observability/runtimediagnostics/probes/kafka/KafkaTemplateAdviceTest.java`
 - Modify: `backend/runtime-diagnostics-agent/src/main/java/com/nowcoder/observability/runtimediagnostics/RuntimeDiagnosticsAgent.java`
 
-- [ ] **Step 1: Add Redis helper test**
+- [x] **Step 1: Add Redis helper test**
 
 Create `RedisTemplateAdviceTest.java`:
 
@@ -796,7 +796,7 @@ class RedisTemplateAdviceTest {
 }
 ```
 
-- [ ] **Step 2: Add Kafka helper test**
+- [x] **Step 2: Add Kafka helper test**
 
 Create `KafkaTemplateAdviceTest.java`:
 
@@ -824,7 +824,7 @@ class KafkaTemplateAdviceTest {
 }
 ```
 
-- [ ] **Step 3: Run Redis and Kafka tests and verify they fail**
+- [x] **Step 3: Run Redis and Kafka tests and verify they fail**
 
 Run:
 
@@ -835,7 +835,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=RedisTemplateAdviceTest,KafkaT
 
 Expected: FAIL because Redis and Kafka advice classes do not exist.
 
-- [ ] **Step 4: Implement Redis advice and probe**
+- [x] **Step 4: Implement Redis advice and probe**
 
 Create `RedisTemplateAdvice.java` with:
 
@@ -876,7 +876,7 @@ executePipelined
 executeWithStickyConnection
 ```
 
-- [ ] **Step 5: Implement Kafka advice and probe**
+- [x] **Step 5: Implement Kafka advice and probe**
 
 Create `KafkaTemplateAdvice.java` with:
 
@@ -912,7 +912,7 @@ method:
 send
 ```
 
-- [ ] **Step 6: Run Redis and Kafka tests**
+- [x] **Step 6: Run Redis and Kafka tests**
 
 Run:
 
@@ -923,7 +923,7 @@ mvn -q -pl :runtime-diagnostics-agent test -Dtest=RedisTemplateAdviceTest,KafkaT
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit Redis and Kafka probes**
+- [x] **Step 7: Commit Redis and Kafka probes**
 
 Run:
 

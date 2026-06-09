@@ -1989,7 +1989,7 @@ git commit -m "chore: wire runtime diagnostics deployment"
 - Modify: `deploy/README.md`
 - Modify: `docs/handbook/operations.md`
 
-- [ ] **Step 1: Update deploy README runtime diagnostics section**
+- [x] **Step 1: Update deploy README runtime diagnostics section**
 
 Replace the optional method profiler section in `deploy/README.md` with:
 
@@ -2005,7 +2005,7 @@ RUNTIME_DIAGNOSTICS_ENABLED=true RUNTIME_DIAGNOSTICS_INCLUDES='com.nowcoder.comm
 The Phase 1 probes are `method`, `exception`, `thread`, and `jvm`. The agent emits `event.category=runtime_diagnostics` logs to the same stdout -> EDOT -> Elasticsearch path as other backend logs. It does not collect method arguments, return values, request bodies, SQL bind values, Redis keys or values, Kafka payloads, JWTs, cookies, or secrets.
 ```
 
-- [ ] **Step 2: Add operations guidance**
+- [x] **Step 2: Add operations guidance**
 
 In `docs/handbook/operations.md`, add a runtime diagnostics section near observability operations:
 
@@ -2042,7 +2042,7 @@ RUNTIME_DIAGNOSTICS_PROBES=method,exception,thread,jvm
 The agent reads existing OTel/MDC trace context when present and does not create a new trace root. It must not be used to collect payload data or secrets.
 ```
 
-- [ ] **Step 3: Scan docs for old active names**
+- [x] **Step 3: Scan docs for old active names**
 
 Run:
 
@@ -2052,7 +2052,7 @@ rg -n 'METHOD_PROFILER|/otel/method-profiler-agent.jar|Optional Method Profiler 
 
 Expected: no output.
 
-- [ ] **Step 4: Commit documentation**
+- [x] **Step 4: Commit documentation**
 
 Run:
 

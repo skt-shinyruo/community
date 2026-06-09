@@ -106,7 +106,7 @@ public final class DiagnosticRuntime {
                 .build());
     }
 
-    public static void resetForTests() {
+    public static void disable() {
         interruptSlowCallReporter();
         config = null;
         aggregator = null;
@@ -115,6 +115,10 @@ public final class DiagnosticRuntime {
         slowCallLimiter = null;
         slowCallEvents = null;
         methodKeyCache = null;
+    }
+
+    public static void resetForTests() {
+        disable();
     }
 
     private static boolean sample(double sampleRate) {

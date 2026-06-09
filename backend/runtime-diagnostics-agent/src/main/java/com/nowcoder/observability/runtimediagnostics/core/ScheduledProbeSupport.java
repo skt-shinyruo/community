@@ -13,6 +13,9 @@ public final class ScheduledProbeSupport {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     Thread.sleep(sleepMillis);
+                    if (Thread.currentThread().isInterrupted()) {
+                        return;
+                    }
                     task.run();
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();

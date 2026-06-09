@@ -12,6 +12,7 @@ public class MethodSummaryReporter {
     private final DiagnosticEventLogger logger;
     private final TraceContextReader traceContextReader;
     private final int topN;
+    private volatile Thread thread;
 
     public MethodSummaryReporter(
             MethodLatencyAggregator aggregator,
@@ -25,10 +26,20 @@ public class MethodSummaryReporter {
         this.topN = topN;
     }
 
-    public void start(Duration interval) {
+    public Thread start(Duration interval) {
         Thread thread = new Thread(() -> runLoop(interval), "runtime-diagnostics-method-summary");
         thread.setDaemon(true);
+        this.thread = thread;
         thread.start();
+        return thread;
+    }
+
+    public void stop() {
+        Thread current = thread;
+        if (current != null) {
+            current.interrupt();
+        }
+        thread = null;
     }
 
     public void reportOnce() {
@@ -56,6 +67,9 @@ public class MethodSummaryReporter {
         while (true) {
             try {
                 Thread.sleep(sleepMillis);
+                if (Thread.currentThread().isInterrupted()) {
+                    return;
+                }
                 reportOnce();
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();

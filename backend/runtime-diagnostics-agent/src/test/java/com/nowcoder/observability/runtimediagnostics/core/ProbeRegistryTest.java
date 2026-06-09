@@ -25,18 +25,43 @@ class ProbeRegistryTest {
         assertThat(registry.disabledProbeNames()).containsExactly("method");
     }
 
+    @Test
+    void stopsStartedProbesInReverseOrder() {
+        List<String> started = new ArrayList<>();
+        List<String> stopped = new ArrayList<>();
+        Probe method = new RecordingProbe("method", started, stopped, false);
+        Probe thread = new RecordingProbe("thread", started, stopped, false);
+        Probe disabled = new RecordingProbe("jvm", started, stopped, false);
+        ProbeRegistry registry = new ProbeRegistry(List.of(method, thread, disabled));
+
+        registry.startEnabled(config(List.of("method", "thread")), ProbeContext.noop());
+        registry.stopStarted();
+
+        assertThat(started).containsExactly("method", "thread");
+        assertThat(stopped).containsExactly("thread", "method");
+    }
+
     private static DiagnosticsConfig config(List<String> probes) {
         return new DiagnosticsConfig(true, probes, List.of("*"), List.of(), 1.0, 20,
                 Duration.ofSeconds(60), 50, 10_000, 100, Duration.ofSeconds(60), Duration.ofSeconds(60));
     }
 
-    private record RecordingProbe(String name, List<String> started, boolean fail) implements Probe {
+    private record RecordingProbe(String name, List<String> started, List<String> stopped, boolean fail) implements Probe {
+        RecordingProbe(String name, List<String> started, boolean fail) {
+            this(name, started, new ArrayList<>(), fail);
+        }
+
         @Override
         public void start(ProbeContext context) {
             started.add(name);
             if (fail) {
                 throw new IllegalStateException("probe failed");
             }
+        }
+
+        @Override
+        public void stop() {
+            stopped.add(name);
         }
     }
 }

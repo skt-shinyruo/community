@@ -131,32 +131,36 @@ COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_CPU_LOAD_THRESHOLD_PERCENT=85
 COMMUNITY_OBSERVABILITY_RUNTIME_HTTP_SLOW_REQUEST_THRESHOLD_MS=1000
 ```
 
-### JVM 方法级诊断
+### Runtime Diagnostics Agent
 
-后端镜像包含通用 `method-profiler-agent`，但默认不启用。需要临时定位 JVM 内部慢方法时，可在启动前设置：
+`runtime-diagnostics-agent` is an optional JVM diagnostic agent for short troubleshooting sessions. It is disabled by default and is enabled per deployment with `RUNTIME_DIAGNOSTICS_ENABLED=true`.
 
-```text
-METHOD_PROFILER_ENABLED=true
-METHOD_PROFILER_INCLUDES=com.nowcoder.community.*
-METHOD_PROFILER_SLOW_THRESHOLD_MS=100
-METHOD_PROFILER_SUMMARY_INTERVAL=60s
-```
+Safe Phase 1 probes:
 
-该 agent 通过第二个 `-javaagent` 加载，可与 OTel Java Agent 并存。它只记录方法名、类名、签名 hash、聚合耗时和慢调用阈值事件，不记录参数、返回值、请求体、SQL bind、token 或业务载荷。
+- `method`: method latency summaries and slow-call events.
+- `exception`: exception type events from instrumented methods without raw messages or stack traces.
+- `thread`: thread state snapshots, deadlock count, and lock-wait count.
+- `jvm`: runtime, heap, non-heap, GC, class loading, and thread count summaries.
 
-Kibana 查询：
+Useful Kibana filters:
 
 ```text
-event.category : method and event.action : method_latency_summary
-```
-
-按链路排查时增加：
-
-```text
+event.category : runtime_diagnostics
+event.action : method_latency_summary
+event.action : exception_observed
+event.action : thread_snapshot
+event.action : jvm_runtime_summary
 trace.id : "<trace id>"
 ```
 
-不建议在生产长期打开 `METHOD_PROFILER_INCLUDES=*`。如需扩大范围，先提高阈值、降低 `METHOD_PROFILER_SAMPLE_RATE`，并保持 `METHOD_PROFILER_MAX_EVENTS_PER_SECOND` 有界。
+Keep includes narrow during diagnostic runs:
+
+```text
+RUNTIME_DIAGNOSTICS_INCLUDES=com.nowcoder.community.*
+RUNTIME_DIAGNOSTICS_PROBES=method,exception,thread,jvm
+```
+
+The agent reads existing OTel/MDC trace context when present and does not create a new trace root. It must not be used to collect payload data or secrets.
 
 ## IM 压测
 

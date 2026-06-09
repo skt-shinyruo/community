@@ -155,12 +155,12 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
 
 日志路径是 backend JSON stdout -> Docker container logs -> EDOT collector -> Elasticsearch / Kibana。更多说明见 `docs/handbook/operations.md`。
 
-### Optional Method Profiler Agent
+### Optional Runtime Diagnostics Agent
 
-Backend images include a generic JVM method profiler agent at `/otel/method-profiler-agent.jar`. It is disabled by default. Enable it for a diagnostic run with:
+Backend images include a generic JVM runtime diagnostics agent at `/otel/runtime-diagnostics-agent.jar`. It is disabled by default. Enable it for a short diagnostic run with:
 
 ```bash
-METHOD_PROFILER_ENABLED=true METHOD_PROFILER_INCLUDES='com.nowcoder.community.*' ./deploy/deployment.sh up --topology single
+RUNTIME_DIAGNOSTICS_ENABLED=true RUNTIME_DIAGNOSTICS_INCLUDES='com.nowcoder.community.*' ./deploy/deployment.sh up --topology single
 ```
 
-The agent emits `event.category=method` logs to the same stdout -> EDOT -> Elasticsearch path as other backend logs.
+The Phase 1 probes are `method`, `exception`, `thread`, and `jvm`. The agent emits `event.category=runtime_diagnostics` logs to the same stdout -> EDOT -> Elasticsearch path as other backend logs. It does not collect method arguments, return values, request bodies, SQL bind values, Redis keys or values, Kafka payloads, JWTs, cookies, or secrets.

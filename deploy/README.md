@@ -164,3 +164,13 @@ RUNTIME_DIAGNOSTICS_ENABLED=true RUNTIME_DIAGNOSTICS_INCLUDES='com.nowcoder.comm
 ```
 
 The Phase 1 probes are `method`, `exception`, `thread`, and `jvm`. The agent emits `event.category=runtime_diagnostics` logs to the same stdout -> EDOT -> Elasticsearch path as other backend logs. It does not collect method arguments, return values, request bodies, SQL bind values, Redis keys or values, Kafka payloads, JWTs, cookies, or secrets.
+
+Enable dependency probes only for focused diagnostic runs:
+
+```bash
+RUNTIME_DIAGNOSTICS_ENABLED=true RUNTIME_DIAGNOSTICS_PROBES='method,exception,thread,jvm,http,jdbc,redis,kafka' ./deploy/deployment.sh up --topology single
+```
+
+Dependency probes emit summaries and slow-call events. They do not record HTTP bodies, SQL bind values, Redis keys or values, Kafka payloads, cookies, JWTs, or authorization headers.
+
+Tune dependency thresholds with `RUNTIME_DIAGNOSTICS_HTTP_SLOW_THRESHOLD_MS`, `RUNTIME_DIAGNOSTICS_JDBC_SLOW_THRESHOLD_MS`, `RUNTIME_DIAGNOSTICS_REDIS_SLOW_THRESHOLD_MS`, and `RUNTIME_DIAGNOSTICS_KAFKA_SLOW_THRESHOLD_MS`. Matching sample and rate-limit settings use the corresponding `RUNTIME_DIAGNOSTICS_HTTP_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_JDBC_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_REDIS_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_KAFKA_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_HTTP_MAX_EVENTS_PER_SECOND`, `RUNTIME_DIAGNOSTICS_JDBC_MAX_EVENTS_PER_SECOND`, `RUNTIME_DIAGNOSTICS_REDIS_MAX_EVENTS_PER_SECOND`, and `RUNTIME_DIAGNOSTICS_KAFKA_MAX_EVENTS_PER_SECOND` variables. Kafka topic names remain hashed unless `RUNTIME_DIAGNOSTICS_KAFKA_TOPIC_NAMES_ENABLED=true` is set explicitly.

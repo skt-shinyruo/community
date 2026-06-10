@@ -153,6 +153,20 @@ event.action : jvm_runtime_summary
 trace.id : "<trace id>"
 ```
 
+Dependency probe filters:
+
+```text
+event.category : runtime_diagnostics
+event.action : jdbc_call_summary
+event.action : redis_call_summary
+event.action : kafka_produce_summary
+event.action : http_call_summary
+diagnostic.probe : jdbc
+trace.id : "<trace id>"
+```
+
+Tune dependency thresholds with `RUNTIME_DIAGNOSTICS_HTTP_SLOW_THRESHOLD_MS`, `RUNTIME_DIAGNOSTICS_JDBC_SLOW_THRESHOLD_MS`, `RUNTIME_DIAGNOSTICS_REDIS_SLOW_THRESHOLD_MS`, and `RUNTIME_DIAGNOSTICS_KAFKA_SLOW_THRESHOLD_MS`. Matching sample and rate-limit settings use the corresponding `RUNTIME_DIAGNOSTICS_HTTP_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_JDBC_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_REDIS_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_KAFKA_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_HTTP_MAX_EVENTS_PER_SECOND`, `RUNTIME_DIAGNOSTICS_JDBC_MAX_EVENTS_PER_SECOND`, `RUNTIME_DIAGNOSTICS_REDIS_MAX_EVENTS_PER_SECOND`, and `RUNTIME_DIAGNOSTICS_KAFKA_MAX_EVENTS_PER_SECOND` variables. Kafka topic names stay hashed unless `RUNTIME_DIAGNOSTICS_KAFKA_TOPIC_NAMES_ENABLED=true` is set explicitly.
+
 Keep includes narrow during diagnostic runs:
 
 ```text

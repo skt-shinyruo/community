@@ -39,14 +39,17 @@ class RedisTemplateAdviceTest {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         DependencyDiagnosticsRuntime.initialize(redisConfig(),
                 new DiagnosticEventLogger(new PrintStream(out, true, StandardCharsets.UTF_8), "test"));
+        String expectedNamespaceHash = RedisTemplateAdvice.hashKeyspace("user");
 
         RedisTemplateAdvice.onExit("execute", new Object[]{"user:token:secret"}, System.nanoTime(), null);
         DependencyDiagnosticsRuntime.reportSummary("redis", "redis_call_summary", 5);
 
         assertThat(out.toString(StandardCharsets.UTF_8))
                 .contains("\"redis.command\":\"EXECUTE\"")
-                .contains("\"redis.namespace.hash\":")
+                .contains("\"redis.namespace.hash\":\"" + expectedNamespaceHash + "\"")
                 .doesNotContain("redis.key")
+                .doesNotContain("user")
+                .doesNotContain("token")
                 .doesNotContain("secret");
     }
 

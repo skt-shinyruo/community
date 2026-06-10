@@ -942,7 +942,7 @@ git commit -m "feat: add redis and kafka diagnostics probes"
 - Modify: `deploy/README.md`
 - Modify: `docs/handbook/operations.md`
 
-- [ ] **Step 1: Add Phase 2 env defaults to compose and env examples**
+- [x] **Step 1: Add Phase 2 env defaults to compose and env examples**
 
 Add these disabled-safe settings next to existing runtime diagnostics settings:
 
@@ -970,7 +970,7 @@ RUNTIME_DIAGNOSTICS_PROBES=method,exception,thread,jvm
 
 Dependency probes remain opt-in.
 
-- [ ] **Step 2: Add docs examples**
+- [x] **Step 2: Add docs examples**
 
 In `deploy/README.md`, add:
 
@@ -978,7 +978,7 @@ In `deploy/README.md`, add:
 Enable dependency probes only for focused diagnostic runs:
 
 ```bash
-RUNTIME_DIAGNOSTICS_ENABLED=true RUNTIME_DIAGNOSTICS_PROBES='method,exception,thread,jvm,jdbc,redis,kafka' ./deploy/deployment.sh up --topology single
+RUNTIME_DIAGNOSTICS_ENABLED=true RUNTIME_DIAGNOSTICS_PROBES='method,exception,thread,jvm,http,jdbc,redis,kafka' ./deploy/deployment.sh up --topology single
 ```
 
 Dependency probes emit summaries and slow-call events. They do not record HTTP bodies, SQL bind values, Redis keys or values, Kafka payloads, cookies, JWTs, or authorization headers.
@@ -996,7 +996,7 @@ diagnostic.probe : jdbc
 trace.id : "<trace id>"
 ```
 
-- [ ] **Step 3: Scan docs and deployment for Phase 2 settings**
+- [x] **Step 3: Scan docs and deployment for Phase 2 settings**
 
 Run:
 
@@ -1006,7 +1006,7 @@ rg -n 'RUNTIME_DIAGNOSTICS_(HTTP|JDBC|REDIS|KAFKA)_' deploy docs/handbook/operat
 
 Expected: output includes compose files, env examples, deploy README, and operations docs.
 
-- [ ] **Step 4: Commit docs and deployment settings**
+- [x] **Step 4: Commit docs and deployment settings**
 
 Run:
 

@@ -855,7 +855,7 @@ Record dimensions:
 
 ```text
 redis.command=<command>
-redis.keyspace.hash=<hash if a safe keyspace can be derived, otherwise unknown>
+redis.namespace.hash=<hash if a safe keyspace can be derived, otherwise unknown>
 ```
 
 Do not record Redis keys, values, serialized payloads, or Lua script text.

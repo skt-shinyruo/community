@@ -40,7 +40,7 @@ public class RedisTemplateAdvice {
                 thrown == null ? "success" : "error",
                 new DependencyCallKey("redis", Map.of(
                         "redis.command", commandName(methodName),
-                        "redis.keyspace.hash", hashKeyspace(safeKeyspace(arguments))
+                        "redis.namespace.hash", hashKeyspace(safeKeyspace(arguments))
                 )),
                 durationMs,
                 DependencyDiagnosticsRuntime.thresholdMs("redis"),

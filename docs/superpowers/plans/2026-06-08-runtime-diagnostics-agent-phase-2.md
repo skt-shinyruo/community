@@ -1020,7 +1020,7 @@ git commit -m "docs: document dependency diagnostics probes"
 **Files:**
 - Verify all files touched by Tasks 1-6.
 
-- [ ] **Step 1: Run full runtime diagnostics agent verification**
+- [x] **Step 1: Run full runtime diagnostics agent verification**
 
 Run:
 
@@ -1031,7 +1031,7 @@ mvn -q -pl :runtime-diagnostics-agent verify
 
 Expected: PASS.
 
-- [ ] **Step 2: Run deployment render verification**
+- [x] **Step 2: Run deployment render verification**
 
 Run:
 
@@ -1041,7 +1041,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 3: Check dependency probe names**
+- [x] **Step 3: Check dependency probe names**
 
 Run:
 
@@ -1051,7 +1051,7 @@ rg -n 'http_call_summary|jdbc_call_summary|redis_call_summary|kafka_produce_summ
 
 Expected: output includes implementation files, tests, deploy settings, and docs.
 
-- [ ] **Step 4: Check sensitive payload words are absent from event field names**
+- [x] **Step 4: Check sensitive payload words are absent from event field names**
 
 Run:
 
@@ -1061,7 +1061,7 @@ rg -n 'request.body|response.body|sql.bind|redis.key|redis.value|kafka.payload|a
 
 Expected: no output.
 
-- [ ] **Step 5: Review git status**
+- [x] **Step 5: Review git status**
 
 Run:
 

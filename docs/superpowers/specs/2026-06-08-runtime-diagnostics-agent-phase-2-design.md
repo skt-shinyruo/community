@@ -164,7 +164,7 @@ Allowed fields:
 ```text
 diagnostic.probe=redis
 redis.command
-redis.keyspace.hash
+redis.namespace.hash
 duration.ms
 threshold.ms
 ```

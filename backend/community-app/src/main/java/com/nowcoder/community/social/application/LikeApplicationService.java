@@ -2,8 +2,6 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.ErrorCode;
-import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
-import com.nowcoder.community.growth.api.model.GrowthLikeTaskProgressRequest;
 import com.nowcoder.community.social.application.command.SetLikeCommand;
 import com.nowcoder.community.social.application.result.LikeResult;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
@@ -50,7 +48,6 @@ public class LikeApplicationService {
     private final ContentEntityResolver contentEntityResolver;
     private final SocialDomainEventPublisher eventPublisher;
     private final UserRewardActionApi rewardActionApi;
-    private final GrowthTaskProgressActionApi taskProgressActionApi;
 
     public LikeApplicationService(
             LikeRepository likeRepository,
@@ -59,8 +56,7 @@ public class LikeApplicationService {
             BlockDomainService blockDomainService,
             ContentEntityResolver contentEntityResolver,
             SocialDomainEventPublisher eventPublisher,
-            UserRewardActionApi rewardActionApi,
-            GrowthTaskProgressActionApi taskProgressActionApi
+            UserRewardActionApi rewardActionApi
     ) {
         this.likeRepository = likeRepository;
         this.blockRepository = blockRepository;
@@ -69,7 +65,6 @@ public class LikeApplicationService {
         this.contentEntityResolver = contentEntityResolver;
         this.eventPublisher = eventPublisher;
         this.rewardActionApi = rewardActionApi;
-        this.taskProgressActionApi = taskProgressActionApi;
     }
 
     @Transactional
@@ -226,15 +221,6 @@ public class LikeApplicationService {
                         sideEffectEventId,
                         event.actorUserId(),
                         event.entityUserId()
-                ));
-            }
-            if (taskProgressActionApi != null) {
-                String growthEventId = ensureSideEffectEventId(null, event, "like-created", true);
-                taskProgressActionApi.triggerLikeCreated(new GrowthLikeTaskProgressRequest(
-                        growthEventId,
-                        event.actorUserId(),
-                        event.entityUserId(),
-                        event.createTime()
                 ));
             }
             return;

@@ -7,6 +7,12 @@ gateway:
     enabled: false
     cidrs: []
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
 community:
   metrics:
     basic-auth:

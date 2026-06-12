@@ -52,9 +52,14 @@ class NacosPolicyBindingTest {
         assertThat(refreshCleanup.getIntervalMs()).isEqualTo(3_600_000L);
         assertThat(environment.getProperty("auth.password-reset.reset-base-url")).isEqualTo("http://localhost:12881");
         assertThat(environment.getProperty("auth.registration.mail.from")).isEqualTo("no-reply@community.local");
+        assertThat(environment.getProperty("spring.mail.host")).isEqualTo("mailhog");
+        assertThat(environment.getProperty("spring.mail.port", Integer.class)).isEqualTo(1025);
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.auth", Boolean.class)).isFalse();
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.starttls.enable", Boolean.class)).isFalse();
         assertThat(environment.getProperty("http.idempotency.store")).isEqualTo("DB");
         assertThat(environment.getProperty("growth.business-zone-id")).isEqualTo("Asia/Shanghai");
         assertThat(environment.getProperty("search.index.initialize", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("management.health.elasticsearch.enabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("analytics.ingest.exclude-paths[2]")).isEqualTo("/api/ops/**");
         assertThat(environment.getProperty("spring.servlet.multipart.max-file-size")).isEqualTo("10GB");
     }
@@ -69,6 +74,8 @@ class NacosPolicyBindingTest {
         assertThat(trustedProxy.isEnabled()).isFalse();
         assertThat(trustedProxy.getCidrs()).isEmpty();
         assertThat(environment.getProperty("community.metrics.basic-auth.username")).isEqualTo("prometheus");
+        assertThat(environment.getProperty("management.endpoints.web.exposure.include"))
+                .isEqualTo("health,info,prometheus");
     }
 
     @Test
@@ -129,9 +136,17 @@ class NacosPolicyBindingTest {
                 .getProperty("im.kafka.topics.event-user-block-relation-changed"))
                 .isEqualTo("im.event.user-block-relation-changed");
         assertThat(environmentFrom("community-kafka-policy.yaml")
+                .getProperty("im.kafka.topics.event-private-committed"))
+                .isEqualTo("im.event.private-committed");
+        assertThat(environmentFrom("community-kafka-policy.yaml")
+                .getProperty("im.kafka.topics.event-room-committed"))
+                .isEqualTo("im.event.room-committed");
+        assertThat(environmentFrom("community-kafka-policy.yaml")
                 .getProperty("search.outbox.post-topic")).isEqualTo("projection.search.post");
         assertThat(environmentFrom("community-kafka-policy.yaml")
                 .getProperty("im.policy.outbox.topic")).isEqualTo("projection.im.policy");
+        assertThat(environmentFrom("community-kafka-policy.yaml")
+                .getProperty("user.reward.outbox.comment-topic")).isEqualTo("projection.user.reward.comment");
     }
 
     @Test
@@ -161,6 +176,10 @@ class NacosPolicyBindingTest {
         assertThat(environment.getProperty("market.wallet-action.process-batch-size", Integer.class)).isEqualTo(50);
         assertThat(environment.getProperty("market.wallet-action.recovery-batch-size", Integer.class)).isEqualTo(100);
         assertThat(environment.getProperty("market.wallet-action.processing-lease")).isEqualTo("60s");
+        assertThat(environment.getProperty("drive.upload.recovery.enabled", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("drive.upload.recovery.batch-size", Integer.class)).isEqualTo(100);
+        assertThat(environment.getProperty("drive.upload.recovery.stale-seconds", Long.class)).isEqualTo(300L);
+        assertThat(environment.getProperty("drive.upload.recovery.delay-ms", Long.class)).isEqualTo(60_000L);
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

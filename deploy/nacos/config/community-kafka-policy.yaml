@@ -1,5 +1,9 @@
 spring:
   kafka:
+    consumer:
+      properties:
+        spring.json.trusted.packages: "com.nowcoder.community.*"
+        spring.json.use.type.headers: true
     producer:
       acks: all
       properties:
@@ -37,6 +41,8 @@ im:
       command-room-fanout-routed: im.command.room-fanout-routed
       event-private-persisted: im.event.private-persisted
       event-room-persisted: im.event.room-persisted
+      event-private-committed: im.event.private-committed
+      event-room-committed: im.event.room-committed
       event-private-rejected: im.event.private-rejected
       event-room-rejected: im.event.room-rejected
       event-room-member-changed: im.event.room-member-changed
@@ -46,6 +52,26 @@ im:
     outbox:
       topic: projection.im.policy
 
+growth:
+  task:
+    outbox:
+      post-topic: projection.growth.task.post
+      comment-topic: projection.growth.task.comment
+      like-topic: projection.growth.task.like
+    kafka:
+      consumer:
+        group-id: growth-task-progress
+        concurrency: 3
+      topics:
+        post-published: growth.task.post-published
+        comment-created: growth.task.comment-created
+        like-created: growth.task.like-created
+
 search:
   outbox:
     post-topic: projection.search.post
+
+user:
+  reward:
+    outbox:
+      comment-topic: projection.user.reward.comment

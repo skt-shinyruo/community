@@ -84,6 +84,188 @@ if rg -n "${old_profiler_prefix}" "${single_config}" "${cluster_config}" >/dev/n
   exit 1
 fi
 
+collector_config="deploy/observability/edot-collector.yml"
+logback_config="backend/community-common/common-observability/src/main/resources/logback/community-observability.xml"
+
+require_pipeline_receiver() {
+  local pipeline="$1"
+  local receiver="$2"
+  local config="$3"
+
+  awk -v pipeline="${pipeline}" -v receiver="${receiver}" '
+    function indent_of(line) {
+      return match(line, /[^[:space:]]/) - 1
+    }
+    function trim(value) {
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      return value
+    }
+    function inline_receivers_contains(line, receiver, values, count, i) {
+      sub(/^[^[]*\[/, "", line)
+      sub(/\].*$/, "", line)
+      count = split(line, values, ",")
+      for (i = 1; i <= count; i++) {
+        if (trim(values[i]) == receiver) {
+          return 1
+        }
+      }
+      return 0
+    }
+    function leave_sections(indent) {
+      if (in_receivers && indent <= receivers_indent) {
+        in_receivers = 0
+      }
+      if (in_pipeline && indent <= pipeline_indent) {
+        in_pipeline = 0
+        in_receivers = 0
+      }
+      if (in_pipelines && indent <= pipelines_indent) {
+        in_pipelines = 0
+        in_pipeline = 0
+        in_receivers = 0
+      }
+      if (in_service && indent <= service_indent) {
+        in_service = 0
+        in_pipelines = 0
+        in_pipeline = 0
+        in_receivers = 0
+      }
+    }
+    /^[[:space:]]*[A-Za-z0-9_\/.-]+:/ {
+      indent = indent_of($0)
+      leave_sections(indent)
+
+      if ($0 ~ /^[[:space:]]*service:[[:space:]]*($|#)/) {
+        in_service = 1
+        service_indent = indent
+      } else if (in_service && $0 ~ /^[[:space:]]*pipelines:[[:space:]]*($|#)/) {
+        in_pipelines = 1
+        pipelines_indent = indent
+      } else if (in_pipelines && $0 ~ "^[[:space:]]*" pipeline ":[[:space:]]*($|#)") {
+        in_pipeline = 1
+        pipeline_indent = indent
+      } else if (in_pipeline && $0 ~ /^[[:space:]]*receivers:[[:space:]]*\[/) {
+        if (inline_receivers_contains($0, receiver)) {
+          found = 1
+        }
+      } else if (in_pipeline && $0 ~ /^[[:space:]]*receivers:[[:space:]]*($|#)/) {
+        in_receivers = 1
+        receivers_indent = indent
+      }
+    }
+    in_receivers && $0 ~ "^[[:space:]]*-[[:space:]]*" receiver "([[:space:]]*(#.*)?)?$" {
+      found = 1
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' "${config}"
+}
+
+require_console_json_content() {
+  local pattern="$1"
+  local config="$2"
+
+  awk -v pattern="${pattern}" '
+    /<appender[[:space:]][^>]*name="CONSOLE_JSON"/ {
+      in_console_json = 1
+      depth = 1
+    }
+    in_console_json {
+      if ($0 ~ pattern) {
+        found = 1
+      }
+      if ($0 ~ /<appender[[:space:]][^>]*name="CONSOLE_JSON"/) {
+        next
+      }
+      if ($0 ~ /<appender([[:space:]>])/) {
+        depth++
+      }
+      if ($0 ~ /<\/appender>/) {
+        depth--
+        if (depth == 0) {
+          in_console_json = 0
+        }
+      }
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' "${config}"
+}
+
+reject_console_json_content() {
+  local pattern="$1"
+  local config="$2"
+
+  if require_console_json_content "${pattern}" "${config}"; then
+    return 1
+  fi
+}
+
+if ! rg -n '^[[:space:]]*filelog/docker_stdout:[[:space:]]*$' "${collector_config}" >/dev/null; then
+  echo "expected collector to read Docker stdout logs through filelog/docker_stdout" >&2
+  exit 1
+fi
+
+if ! require_pipeline_receiver "logs" "filelog/docker_stdout" "${collector_config}"; then
+  echo "expected collector logs pipeline to receive Docker stdout logs" >&2
+  exit 1
+fi
+
+if ! require_pipeline_receiver "traces" "otlp" "${collector_config}" ||
+  ! require_pipeline_receiver "metrics" "otlp" "${collector_config}"; then
+  echo "expected collector traces and metrics pipelines to receive OTLP" >&2
+  exit 1
+fi
+
+if ! rg -n 'logs_index:[[:space:]]*logs-community-default' "${collector_config}" >/dev/null; then
+  echo "expected collector logs exporter to write logs-community-default" >&2
+  exit 1
+fi
+
+if ! awk '
+  /key:[[:space:]]*service\.namespace/ {
+    in_service_namespace = 1
+  }
+  in_service_namespace && /action:[[:space:]]*upsert/ {
+    found = 1
+  }
+  in_service_namespace && /^[[:space:]]*-[[:space:]]*key:/ && $0 !~ /service\.namespace/ {
+    in_service_namespace = 0
+  }
+  END {
+    exit found ? 0 : 1
+  }
+' "${collector_config}"; then
+  echo "expected collector service.namespace processor to use upsert action" >&2
+  exit 1
+fi
+
+if ! rg -n 'appender[[:space:]][^>]*name="CONSOLE_JSON"' "${logback_config}" >/dev/null; then
+  echo "expected shared logback config to define CONSOLE_JSON" >&2
+  exit 1
+fi
+
+if ! require_console_json_content 'service[.]name' "${logback_config}"; then
+  echo "expected shared logback JSON to include service.name" >&2
+  exit 1
+fi
+
+if ! require_console_json_content '<mdc>' "${logback_config}" ||
+  ! require_console_json_content '<excludeMdcKeyName>traceId</excludeMdcKeyName>' "${logback_config}"; then
+  echo "expected shared logback CONSOLE_JSON appender to preserve trace/span MDC correlation" >&2
+  exit 1
+fi
+
+if ! reject_console_json_content '<excludeMdcKeyName>trace[.]id</excludeMdcKeyName>' "${logback_config}" ||
+  ! reject_console_json_content '<excludeMdcKeyName>trace_id</excludeMdcKeyName>' "${logback_config}" ||
+  ! reject_console_json_content '<excludeMdcKeyName>span[.]id</excludeMdcKeyName>' "${logback_config}" ||
+  ! reject_console_json_content '<excludeMdcKeyName>span_id</excludeMdcKeyName>' "${logback_config}"; then
+  echo "expected shared logback CONSOLE_JSON appender not to exclude trace/span correlation MDC keys" >&2
+  exit 1
+fi
+
 OTEL_ENABLED=false ./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example >"${override_config}"
 
 if ! rg -n 'OTEL_ENABLED[=: ]+"?false"?|OTEL_ENABLED=false' "${override_config}" >/dev/null; then

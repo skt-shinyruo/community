@@ -3,8 +3,9 @@ package com.nowcoder.community.common.observability.data;
 import com.nowcoder.community.common.observability.logging.RuntimeLogFields;
 import com.nowcoder.community.common.observability.logging.RuntimeLogTestSupport;
 import com.nowcoder.community.common.observability.logging.RuntimeLoggingProperties;
-import org.apache.ibatis.mapping.BoundSql;
+import org.apache.ibatis.builder.StaticSqlSource;
 import org.apache.ibatis.mapping.MappedStatement;
+import org.apache.ibatis.mapping.SqlCommandType;
 import org.apache.ibatis.plugin.Invocation;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.session.ResultHandler;
@@ -16,8 +17,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class MyBatisSlowQueryInterceptorTest {
 
@@ -29,19 +28,19 @@ class MyBatisSlowQueryInterceptorTest {
             SqlRuntimeLogger logger = new SqlRuntimeLogger(capture.writer(), properties);
             AtomicLong now = new AtomicLong(0);
             MyBatisSlowQueryInterceptor interceptor = new MyBatisSlowQueryInterceptor(logger, () -> now.getAndAdd(2_000_000));
-            MappedStatement statement = mock(MappedStatement.class);
-            when(statement.getId()).thenReturn("com.example.SecretMapper.select");
-            when(statement.getBoundSql("secret-token")).thenReturn(new BoundSql(
-                    new Configuration(),
-                    "select * from users where password = ?",
-                    List.of(),
-                    "secret-token"
-            ));
+            Configuration configuration = new Configuration();
+            MappedStatement statement = new MappedStatement.Builder(
+                    configuration,
+                    "com.example.SecretMapper.select",
+                    new StaticSqlSource(configuration, "select * from users where password = ?", List.of()),
+                    SqlCommandType.SELECT
+            ).build();
             Invocation invocation = new Invocation(new Target(), targetMethod(), new Object[]{
                     statement,
                     "secret-token",
                     RowBounds.DEFAULT,
-                    mock(ResultHandler.class)
+                    (ResultHandler<?>) context -> {
+                    }
             });
 
             assertThat(interceptor.intercept(invocation)).isEqualTo(List.of("a", "b"));

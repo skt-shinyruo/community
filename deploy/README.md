@@ -153,6 +153,28 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
 - Elasticsearch：`http://localhost:12888`
 - Kibana：`http://localhost:12889`
 
+### Observability Smoke
+
+After the stack is up, verify that logs and traces are queryable:
+
+```bash
+./deploy/tests/observability_smoke.sh
+```
+
+The script calls `GET /api/runtime-config`, extracts a `traceId` from the response
+body or `traceparent` header, and checks Elasticsearch for:
+
+- backend JSON logs in `logs-community-default`
+- runtime stability events
+- a matching trace document in `traces-*`
+- request-correlated logs with the same `trace.id`
+
+For a short diagnostics run, start with `RUNTIME_DIAGNOSTICS_ENABLED=true` and set:
+
+```bash
+OBSERVABILITY_EXPECT_DIAGNOSTICS=true ./deploy/tests/observability_smoke.sh
+```
+
 日志路径是 backend JSON stdout -> Docker container logs -> EDOT collector -> Elasticsearch / Kibana。更多说明见 `docs/handbook/operations.md`。
 
 ### Optional Runtime Diagnostics Agent

@@ -84,6 +84,8 @@ if rg -n "${old_profiler_prefix}" "${single_config}" "${cluster_config}" >/dev/n
   exit 1
 fi
 
+bash deploy/tests/observability_contracts.sh
+
 collector_config="deploy/observability/edot-collector.yml"
 logback_config="backend/community-common/common-observability/src/main/resources/logback/community-observability.xml"
 

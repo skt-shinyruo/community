@@ -27,6 +27,9 @@ required_files=(
   "${contract_dir}/allowed-metric-dimensions.txt"
   "${contract_dir}/forbidden-observability-fields.txt"
   "${contract_dir}/manual-span-names.txt"
+  "deploy/observability/production/README.md"
+  "deploy/observability/production/collector-agent.yml"
+  "deploy/observability/production/collector-gateway.yml"
 )
 
 for file in "${required_files[@]}"; do
@@ -34,6 +37,25 @@ for file in "${required_files[@]}"; do
     fail "required file missing or empty: ${file}"
   fi
 done
+
+for file in deploy/observability/production/collector-agent.yml deploy/observability/production/collector-gateway.yml; do
+  for token in receivers processors exporters service; do
+    if ! rg -n "^${token}:" "${file}" >/dev/null; then
+      fail "collector template ${file} missing top-level ${token}"
+    fi
+  done
+  if ! rg -n "^  pipelines:" "${file}" >/dev/null; then
+    fail "collector template ${file} missing service pipelines"
+  fi
+done
+
+if ! rg -n 'tail_sampling:' deploy/observability/production/collector-gateway.yml >/dev/null; then
+  fail "gateway collector template must include tail_sampling"
+fi
+
+if ! rg -n 'attributes/drop_sensitive:' deploy/observability/production/collector-gateway.yml >/dev/null; then
+  fail "gateway collector template must include sensitive attribute deletion"
+fi
 
 require_console_json_content() {
   local needle="$1"

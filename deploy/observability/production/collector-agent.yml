@@ -1,0 +1,49 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  filelog/docker_stdout:
+    include:
+      - /var/lib/docker/containers/*/*.log
+    start_at: end
+    include_file_path: true
+    operators:
+      - type: container
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+  resource/community:
+    attributes:
+      - key: service.namespace
+        value: community
+        action: upsert
+  batch:
+    send_batch_size: 1024
+    timeout: 5s
+
+exporters:
+  otlp/gateway:
+    endpoint: ${env:COMMUNITY_OTEL_GATEWAY_ENDPOINT}
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/community, batch]
+      exporters: [otlp/gateway]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/community, batch]
+      exporters: [otlp/gateway]
+    logs:
+      receivers: [otlp, filelog/docker_stdout]
+      processors: [memory_limiter, resource/community, batch]
+      exporters: [otlp/gateway]

@@ -49,13 +49,19 @@ for file in deploy/observability/production/collector-agent.yml deploy/observabi
   fi
 done
 
-if ! rg -n 'tail_sampling:' deploy/observability/production/collector-gateway.yml >/dev/null; then
+if ! rg -n '^  tail_sampling:' deploy/observability/production/collector-gateway.yml >/dev/null; then
   fail "gateway collector template must include tail_sampling"
 fi
 
-if ! rg -n 'attributes/drop_sensitive:' deploy/observability/production/collector-gateway.yml >/dev/null; then
+if ! rg -n '^  attributes/drop_sensitive:' deploy/observability/production/collector-gateway.yml >/dev/null; then
   fail "gateway collector template must include sensitive attribute deletion"
 fi
+
+for redaction_key in sql.bind kafka.payload objectKey password token secret; do
+  if ! rg -n "^      - key: ${redaction_key}$" deploy/observability/production/collector-gateway.yml >/dev/null; then
+    fail "gateway collector template must delete sensitive attribute: ${redaction_key}"
+  fi
+done
 
 require_console_json_content() {
   local needle="$1"

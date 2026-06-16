@@ -14,10 +14,16 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
-@AutoConfiguration(after = {
-        JdbcIdempotencyAutoConfiguration.class,
-        RedisIdempotencyAutoConfiguration.class
-})
+@AutoConfiguration(
+        after = {
+                JdbcIdempotencyAutoConfiguration.class,
+                RedisIdempotencyAutoConfiguration.class
+        },
+        afterName = {
+                "com.nowcoder.community.common.web.autoconfig.ServletWebInfraAutoConfiguration",
+                "com.nowcoder.community.common.webflux.autoconfig.WebFluxInfraAutoConfiguration"
+        }
+)
 @ConditionalOnProperty(prefix = "http.idempotency", name = "enabled", havingValue = "true")
 @ConditionalOnBean({IdempotencyStore.class, JsonCodec.class})
 @ConditionalOnClass(JsonCodec.class)

@@ -1,0 +1,7 @@
+http <route>
+application <domain>.<usecase>
+kafka publish <eventType>
+kafka consume <eventType>
+outbox publish <eventType>
+job <jobName>
+dependency <system>.<operation>

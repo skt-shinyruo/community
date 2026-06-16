@@ -2,6 +2,8 @@
 
 本文档覆盖本地 observability、Kibana、XXL-Job、outbox worker、scheduler 和常见故障检查。本地启动命令见 [local-development.md](local-development.md)，压测套件见 [performance-testing.md](performance-testing.md)，可靠性机制见 [reliability.md](reliability.md)。
 
+观测模型、SLO/SLI、信号契约、指标维度、trace 命名和告警优先级的 SSOT 是 [observability.md](observability.md)。本文只维护运行和排障入口。
+
 ## Observability
 
 本地观测路径通过共享 overlay 提供：
@@ -23,6 +25,8 @@ observability 默认启用；如需关闭整个 overlay，追加 `--no-observabi
 
 - Elasticsearch：`http://localhost:12888`
 - Kibana：`http://localhost:12889`
+
+先确认用户路径和 SLI，再查询日志或 trace。核心链路和 SLI 目录见 [observability.md#slosli-catalog](observability.md#slosli-catalog)。
 
 日志数据流：
 

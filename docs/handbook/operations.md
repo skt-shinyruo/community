@@ -176,6 +176,146 @@ RUNTIME_DIAGNOSTICS_PROBES=method,exception,thread,jvm
 
 The agent reads existing OTel/MDC trace context when present and does not create a new trace root. It must not be used to collect payload data or secrets.
 
+## Stability Observability Runbooks
+
+Use these runbooks in Kibana with the local observability overlay. Prefer structured fields over message text.
+
+### JVM Or Memory Pressure
+
+Query:
+
+```text
+service.namespace : "community" and event.category : "runtime" and
+event.action : ("jvm_memory_pressure" or "jvm_direct_memory_pressure" or "jvm_gc_pause_threshold")
+```
+
+Inspect: `service.name`, `jvm.memory.area`, `jvm.memory.used.percent`, `jvm.gc.name`, `jvm.gc.pause.ms`, `threshold.percent`, `threshold.ms`.
+
+Interpretation: repeated memory pressure or GC pause threshold events mean the service is under runtime pressure, even if request traces only show downstream latency.
+
+Next action: check `process.cpu.load.percent`, recent deploy version, traffic shape, and whether one service produces most pressure events. Enable `runtime-diagnostics-agent` `thread,jvm` probes only if the standard runtime logs do not show enough detail.
+
+### Thread Pool Or Scheduler Saturation
+
+Query:
+
+```text
+service.namespace : "community" and
+((event.category : "runtime" and event.action : "executor_pressure") or
+ (event.category : "job" and event.action : ("scheduled_job_slow" or "scheduled_job_skipped" or "scheduled_job_error")))
+```
+
+Inspect: `executor.name`, `executor.active`, `executor.pool.size`, `executor.queue.size`, `duration.ms`, `threshold.ms`, `job.name`.
+
+Interpretation: executor pressure means request, Kafka, or scheduled work may be queued before it appears slow in traces.
+
+Next action: identify the executor or job name, then pivot by `service.name` and time range to request traces and downstream dependency events.
+
+### Database Pool Pressure
+
+Query:
+
+```text
+service.namespace : "community" and event.category : "database" and
+event.action : ("hikari_pool_pressure" or "sql_slow_query")
+```
+
+Inspect: for `hikari_pool_pressure`, check `db.pool.name`, `db.pool.active`, `db.pool.idle`, `db.pool.pending`. For `sql_slow_query`, check `db.mybatis.statement`, `db.operation`, `duration.ms`, `threshold.ms`.
+
+Interpretation: Hikari pending count indicates pool wait. Slow SQL events show statement identity without bind values.
+
+Next action: compare with traces for the same time window. Enable diagnostics `jdbc` only for a short run if traces and SQL slow events are not enough.
+
+### Redis Instability Or Slow Operations
+
+Query:
+
+```text
+service.namespace : "community" and event.category : "cache" and
+event.action : ("redis_connection_pressure" or "redis_command_slow" or "cache_hit_ratio_low")
+```
+
+Inspect: `cache.system`, `cache.operation`, `cache.pool.active`, `cache.pool.pending`, `cache.hit.ratio.percent`, `duration.ms`, `threshold.ms`.
+
+Interpretation: Redis slow operations or pool pressure can cause application latency before database metrics change.
+
+Next action: check whether the issue is isolated to one service and compare with request traces. Enable diagnostics `redis` only for a short run; raw keys and values must remain absent.
+
+### Kafka Lag Or Rebalance
+
+Query:
+
+```text
+service.namespace : "community" and event.category : "messaging" and
+event.action : ("kafka_consumer_lag_threshold" or "kafka_rebalance" or "kafka_producer_error")
+```
+
+Inspect: `messaging.destination.name`, `messaging.kafka.consumer.group`, `messaging.kafka.partition`, `messaging.kafka.consumer.lag`, `error.type`.
+
+Interpretation: lag and rebalance events explain delayed projections, IM fanout, and outbox delivery even when HTTP traces look healthy.
+
+Next action: check outbox state and consumer services. Enable diagnostics `kafka` only for short producer/consumer investigation; payloads must remain absent.
+
+### Slow HTTP Requests
+
+Query:
+
+```text
+service.namespace : "community" and event.category : "access" and
+event.action : "http_slow_request"
+```
+
+Inspect: `trace.id`, `service.name`, `http.request.method`, `url.path`, `http.response.status_code`, `duration.ms`, `threshold.ms`.
+
+Interpretation: use `trace.id` to pivot into traces and request-correlated logs.
+
+Next action: if traces identify a dependency, inspect the matching database, cache, messaging, or HTTP client event category for the same time window. Use `event.category : "http_client"` for outbound HTTP client events such as `http_client_slow` and `http_client_error`.
+
+### When To Enable Runtime Diagnostics
+
+Enable diagnostics only after always-on traces and runtime logs do not explain the symptom. Keep includes narrow:
+
+```bash
+RUNTIME_DIAGNOSTICS_ENABLED=true \
+RUNTIME_DIAGNOSTICS_INCLUDES='com.nowcoder.community.*' \
+RUNTIME_DIAGNOSTICS_PROBES='method,exception,thread,jvm' \
+./deploy/deployment.sh up --topology single
+```
+
+Query:
+
+```text
+event.category : runtime_diagnostics and diagnostic.probe : *
+```
+
+Inspect: `diagnostic.probe`, `event.action`, `service.name`, `trace.id`, `duration.ms`, `threshold.ms`.
+
+Interpretation: runtime diagnostics is for focused deep dives; it should explain one unresolved symptom, not replace always-on traces or runtime logs.
+
+Next action: disable diagnostics after the capture window. Use dependency probes only for focused short sessions:
+
+```bash
+RUNTIME_DIAGNOSTICS_ENABLED=true \
+RUNTIME_DIAGNOSTICS_PROBES='method,exception,thread,jvm,http,jdbc,redis,kafka' \
+./deploy/deployment.sh up --topology single
+```
+
+### Production Compatibility
+
+Phase 1 intentionally keeps Elastic/Kibana as the local UI and does not add Prometheus, Grafana, Loki, or Alertmanager. Production alerting can later use the same signal split: traces for timelines, metrics for trends and SLOs, runtime logs for discrete stability events, and runtime diagnostics for short deep dives.
+
+Query:
+
+```text
+service.namespace : "community" and event.category : ("access" or "runtime" or "database" or "cache" or "messaging" or "http_client")
+```
+
+Inspect: `service.name`, `event.category`, `event.action`, `event.outcome`, `duration.ms`, `threshold.ms`, `trace.id`.
+
+Interpretation: production compatibility depends on stable fields and signal categories, not the local Kibana UI.
+
+Next action: candidate SLOs are HTTP availability/latency, Kafka lag, database pool pending, Redis error/slow-operation rate, JVM memory/GC pressure, executor saturation, and outbox backlog or dead-letter rate.
+
 ## IM 压测
 
 IM 的正确性设计是 “WebSocket best-effort 推送 + HTTP 断线补拉”。压测流量推荐统一通过 gateway：

@@ -58,7 +58,33 @@ if ! rg -n '^  attributes/drop_sensitive:' deploy/observability/production/colle
 fi
 
 for redaction_key in sql.bind kafka.payload objectKey password token secret; do
-  if ! rg -n "^      - key: ${redaction_key}$" deploy/observability/production/collector-gateway.yml >/dev/null; then
+  if ! awk -v required_key="${redaction_key}" '
+    /^  attributes\/drop_sensitive:$/ {
+      in_processor = 1
+      next
+    }
+    in_processor && /^  [^[:space:]][^:]*:$/ {
+      exit found ? 0 : 1
+    }
+    in_processor && /^    actions:$/ {
+      in_actions = 1
+      next
+    }
+    in_actions && /^    [^[:space:]][^:]*:$/ {
+      exit found ? 0 : 1
+    }
+    in_actions && /^      - key: / {
+      pending_key = ($0 == "      - key: " required_key)
+      next
+    }
+    in_actions && pending_key && /^        action: delete$/ {
+      found = 1
+      exit 0
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' deploy/observability/production/collector-gateway.yml; then
     fail "gateway collector template must delete sensitive attribute: ${redaction_key}"
   fi
 done

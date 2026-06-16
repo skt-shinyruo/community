@@ -224,6 +224,40 @@ if ! rg -n 'logs_index:[[:space:]]*logs-community-default' "${collector_config}"
   exit 1
 fi
 
+if rg -n 'mode:[[:space:]]*otel' "${collector_config}" >/dev/null; then
+  echo "expected local collector to avoid Elasticsearch OTel mapping mode against the bundled ES 8.12 runtime" >&2
+  exit 1
+fi
+
+if ! rg -n 'mode:[[:space:]]*ecs' "${collector_config}" >/dev/null; then
+  echo "expected local collector traces and metrics to use Elasticsearch ECS mapping mode" >&2
+  exit 1
+fi
+
+if ! rg -U -n '(?s)^    logs/otlp:.*?receivers:[[:space:]]*\[otlp\].*?exporters:[[:space:]]*\[elasticsearch/logs\]' "${collector_config}" >/dev/null; then
+  echo "expected collector to receive OTLP logs in a dedicated logs/otlp pipeline" >&2
+  exit 1
+fi
+
+if ! rg -n '^[[:space:]]*cumulativetodelta:[[:space:]]*$' "${collector_config}" >/dev/null ||
+  ! awk '
+    /metrics:/ {
+      in_metrics = 1
+    }
+    in_metrics && /processors:[[:space:]]*\[/ && /cumulativetodelta/ {
+      found = 1
+    }
+    in_metrics && /^[[:space:]]*logs:/ {
+      in_metrics = 0
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' "${collector_config}"; then
+  echo "expected collector metrics pipeline to convert cumulative metrics before Elasticsearch export" >&2
+  exit 1
+fi
+
 if ! awk '
   /key:[[:space:]]*service\.namespace/ {
     in_service_namespace = 1

@@ -27,8 +27,7 @@ observability 默认启用；如需关闭整个 overlay，追加 `--no-observabi
 日志数据流：
 
 ```text
-backend SLF4J / Logback JSON stdout
-  -> Docker container logs
+backend structured logs (JSON stdout / OTLP logs)
   -> EDOT collector logs pipeline
   -> Elasticsearch
   -> Kibana
@@ -70,7 +69,7 @@ deploy/observability/kibana/README.md
 
 ### 运行态日志
 
-主要后端 deployable 默认启用业务无关运行态日志，包括 `community-app`、`community-oss`、`im-core`、`im-realtime`、`community-gateway` 和 `community-im-gateway`。日志走共享 Logback JSON stdout 配置，由 EDOT Collector 从 Docker container logs 采集。运行态日志只记录启动摘要、阈值事件和慢请求事件，不记录请求 body、cookie、Authorization、SQL bind、Redis key、Kafka payload 或完整 object key。
+主要后端 deployable 默认启用业务无关运行态日志，包括 `community-app`、`community-oss`、`im-core`、`im-realtime`、`community-gateway` 和 `community-im-gateway`。日志以共享 Logback JSON stdout 为 operator 可读入口，同时由 EDOT Collector 的 logs pipeline 接收 stdout 和 OTLP logs，归一化后写入 Elasticsearch。运行态日志只记录启动摘要、阈值事件和慢请求事件，不记录请求 body、cookie、Authorization、SQL bind、Redis key、Kafka payload 或完整 object key。
 
 当前覆盖：
 

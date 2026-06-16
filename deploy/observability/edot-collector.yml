@@ -41,6 +41,7 @@ processors:
   batch:
     send_batch_size: 1024
     timeout: 5s
+  cumulativetodelta:
   batch/metrics:
     send_batch_size: 512
     timeout: 15s
@@ -50,10 +51,12 @@ exporters:
     endpoints:
       - http://elasticsearch:9200
     mapping:
-      mode: otel
+      mode: ecs
   elasticsearch/logs:
     endpoints:
       - http://elasticsearch:9200
+    mapping:
+      mode: ecs
     logs_index: logs-community-default
 
 service:
@@ -64,9 +67,13 @@ service:
       exporters: [elasticsearch/otel]
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, resource/community_service_namespace, batch/metrics]
+      processors: [memory_limiter, resource/community_service_namespace, cumulativetodelta, batch/metrics]
       exporters: [elasticsearch/otel]
     logs:
       receivers: [filelog/docker_stdout]
       processors: [memory_limiter, transform/logs_bodymap, filter/backend_json_logs, resource/community_service_namespace, batch]
+      exporters: [elasticsearch/logs]
+    logs/otlp:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/community_service_namespace, batch]
       exporters: [elasticsearch/logs]

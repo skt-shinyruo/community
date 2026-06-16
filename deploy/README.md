@@ -175,7 +175,7 @@ For a short diagnostics run, start with `RUNTIME_DIAGNOSTICS_ENABLED=true` and s
 OBSERVABILITY_EXPECT_DIAGNOSTICS=true ./deploy/tests/observability_smoke.sh
 ```
 
-日志路径是 backend JSON stdout -> Docker container logs -> EDOT collector -> Elasticsearch / Kibana。更多说明见 `docs/handbook/operations.md`。
+日志路径是 backend JSON stdout / OTLP logs -> EDOT collector logs pipeline -> Elasticsearch / Kibana。更多说明见 `docs/handbook/operations.md`。
 
 ### Optional Runtime Diagnostics Agent
 
@@ -185,7 +185,7 @@ Backend images include a generic JVM runtime diagnostics agent at `/otel/runtime
 RUNTIME_DIAGNOSTICS_ENABLED=true RUNTIME_DIAGNOSTICS_INCLUDES='com.nowcoder.community.*' ./deploy/deployment.sh up --topology single
 ```
 
-The Phase 1 probes are `method`, `exception`, `thread`, and `jvm`. The agent emits `event.category=runtime_diagnostics` logs to the same stdout -> EDOT -> Elasticsearch path as other backend logs. It does not collect method arguments, return values, request bodies, SQL bind values, Redis keys or values, Kafka payloads, JWTs, cookies, or secrets.
+The Phase 1 probes are `method`, `exception`, `thread`, and `jvm`. The agent emits `event.category=runtime_diagnostics` logs to the same observability path as other backend logs. It does not collect method arguments, return values, request bodies, SQL bind values, Redis keys or values, Kafka payloads, JWTs, cookies, or secrets.
 
 Enable dependency probes only for focused diagnostic runs:
 

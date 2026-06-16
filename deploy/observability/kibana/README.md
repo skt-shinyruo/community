@@ -39,6 +39,45 @@ curl -sS -X POST "http://localhost:12889/api/saved_objects/_import?overwrite=tru
   --form file=@deploy/observability/kibana/saved-objects.ndjson
 ```
 
+## Baseline Queries
+
+After importing saved objects, start with these core filters and pivots. They
+should have data after the local stack has emitted logs and the smoke script has
+captured a response trace:
+
+```text
+service.namespace : "community"
+event.category : runtime
+trace.id : "<trace id from response>"
+```
+
+The runtime smoke script also checks the broader stability-event buckets, so
+these filters are useful when the corresponding code path has emitted events:
+
+```text
+event.category : database
+event.category : messaging
+event.action : http_slow_request
+```
+
+Diagnostics queries are expected to return data only after a short diagnostics run:
+
+```text
+event.category : runtime_diagnostics
+diagnostic.probe : method
+diagnostic.probe : thread
+```
+
+If a baseline query is empty, first run:
+
+```bash
+./deploy/tests/observability_smoke.sh
+```
+
+If a conditional filter is still empty after the smoke script, exercise the
+related database, messaging, or slow-request path before treating it as a
+collector or saved-object issue.
+
 ## Notes
 
 - `logs-*` comes from structured JSON backend stdout collected from Docker container logs by the EDOT Collector

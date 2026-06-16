@@ -28,17 +28,29 @@ processors:
         action: delete
       - key: db.statement.parameters
         action: delete
+      - key: sql.bind
+        action: delete
       - key: redis.key
         action: delete
       - key: redis.value
         action: delete
       - key: messaging.message.body
         action: delete
+      - key: kafka.payload
+        action: delete
+      - key: objectKey
+        action: delete
       - key: authorization
         action: delete
       - key: cookie
         action: delete
       - key: jwt
+        action: delete
+      - key: password
+        action: delete
+      - key: token
+        action: delete
+      - key: secret
         action: delete
   tail_sampling:
     decision_wait: 10s

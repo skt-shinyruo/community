@@ -1,0 +1,91 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1024
+    spike_limit_mib: 256
+  resource/community:
+    attributes:
+      - key: service.namespace
+        value: community
+        action: upsert
+  attributes/drop_sensitive:
+    actions:
+      - key: request.body
+        action: delete
+      - key: response.body
+        action: delete
+      - key: http.request.body
+        action: delete
+      - key: http.response.body
+        action: delete
+      - key: db.statement.parameters
+        action: delete
+      - key: redis.key
+        action: delete
+      - key: redis.value
+        action: delete
+      - key: messaging.message.body
+        action: delete
+      - key: authorization
+        action: delete
+      - key: cookie
+        action: delete
+      - key: jwt
+        action: delete
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 50000
+    expected_new_traces_per_sec: 1000
+    policies:
+      - name: retain-errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: retain-slow-requests
+        type: latency
+        latency:
+          threshold_ms: 1000
+      - name: retain-baseline-sample
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 10
+  batch:
+    send_batch_size: 1024
+    timeout: 5s
+
+exporters:
+  otlp/traces:
+    endpoint: ${env:COMMUNITY_TRACES_OTLP_ENDPOINT}
+    tls:
+      insecure: true
+  otlphttp/metrics:
+    endpoint: ${env:COMMUNITY_METRICS_OTLPHTTP_ENDPOINT}
+  elasticsearch/logs:
+    endpoints:
+      - ${env:COMMUNITY_LOGS_ELASTICSEARCH_ENDPOINT}
+    mapping:
+      mode: ecs
+    logs_index: logs-community-default
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/community, attributes/drop_sensitive, tail_sampling, batch]
+      exporters: [otlp/traces]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/community, attributes/drop_sensitive, batch]
+      exporters: [otlphttp/metrics]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/community, attributes/drop_sensitive, batch]
+      exporters: [elasticsearch/logs]

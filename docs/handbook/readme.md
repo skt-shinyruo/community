@@ -16,10 +16,11 @@
 ### 本地启动和联调
 
 1. [local-development.md](local-development.md)：single / cluster 启动、端口、dev-only 账号、Mock Data Studio。
-2. [operations.md](operations.md)：observability、Kibana、压测、scheduler、outbox worker 排障。
-3. [performance-testing.md](performance-testing.md)：k6 压测套件、profile、阈值、观测点和安全注意事项。
-4. [security.md](security.md)：JWT、refresh cookie、CORS / OriginGuard、授权矩阵、internal token。
-5. [testing.md](testing.md)：后端、前端、架构守卫、可靠性和工具测试的运行策略。
+2. [observability.md](observability.md)：SLO/SLI、信号契约、指标维度、trace 命名、告警优先级和观测治理。
+3. [operations.md](operations.md)：observability、Kibana、压测、scheduler、outbox worker 排障。
+4. [performance-testing.md](performance-testing.md)：k6 压测套件、profile、阈值、观测点和安全注意事项。
+5. [security.md](security.md)：JWT、refresh cookie、CORS / OriginGuard、授权矩阵、internal token。
+6. [testing.md](testing.md)：后端、前端、架构守卫、可靠性和工具测试的运行策略。
 
 ### 改业务或查实现链路
 
@@ -44,6 +45,7 @@
 - [integration-contracts.md](integration-contracts.md) 是跨边界协议 SSOT。新增 owner API、HTTP 写契约、IM Kafka contract 和客户端语义以这里为准。
 - [frontend.md](frontend.md) 是浏览器客户端核心逻辑 SSOT。前端路由、session、endpoint、HTTP interceptor、IM realtime client、页面状态和 stores 以这里为准。
 - [data-and-storage.md](data-and-storage.md) 是存储索引 SSOT。新增表、Redis key、Kafka topic、ES alias/index 或本地种子数据时必须同步。
+- [observability.md](observability.md) 是观测模型 SSOT。SLO/SLI、信号契约、指标维度、trace/span 命名、告警优先级和观测治理以这里为准。
 - [operations.md](operations.md) 是运行排障 SSOT。新增 scheduler、XXL job、观测字段或人工恢复步骤时必须同步。
 - [local-development.md](local-development.md) 是本地启动和验证 SSOT。新增本地拓扑、端口、dev-only 控制面或常用命令时必须同步。
 - [testing.md](testing.md) 是测试策略 SSOT。新增测试层级、关键测试套件或验证命令时必须同步。
@@ -62,6 +64,7 @@
 | 新增幂等、outbox、重试、补偿、single-flight 或 pending 状态机 | [reliability.md](reliability.md)、[operations.md](operations.md) |
 | 新增安全规则、internal endpoint、Origin/CORS/JWT/cookie 约束 | [security.md](security.md)、必要时同步 [architecture.md](architecture.md) |
 | 新增本地服务、端口、env、dev-only 能力 | [local-development.md](local-development.md)、[operations.md](operations.md) |
+| 新增观测字段、指标、trace/span 命名、告警规则或 SLO | [observability.md](observability.md)、[operations.md](operations.md)、必要时同步 `deploy/observability/contracts` 和 `deploy/tests` |
 | 新增测试层级、关键测试套件、验证命令或工具测试约定 | [testing.md](testing.md) |
 | 修改 backend 架构规则或包边界 | [architecture.md](architecture.md)、[system-design.md](system-design.md)、严格 DDD spec 和 ArchUnit 测试 |
 

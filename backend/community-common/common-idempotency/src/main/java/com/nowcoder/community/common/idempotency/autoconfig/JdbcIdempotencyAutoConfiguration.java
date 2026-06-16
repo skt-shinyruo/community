@@ -7,10 +7,11 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@AutoConfiguration
+@AutoConfiguration(after = JdbcTemplateAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "http.idempotency", name = "enabled", havingValue = "true")
 @ConditionalOnClass(JdbcTemplate.class)
 public class JdbcIdempotencyAutoConfiguration {

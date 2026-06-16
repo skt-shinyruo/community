@@ -164,7 +164,7 @@ npm --prefix tests/playwright-single run test:known
 状态会变化的用例会创建带时间戳的本地测试数据。当前套件不自动清空
 single 数据库、Redis、对象存储或 Elasticsearch。
 
-### Observability Governance
+## Observability Governance
 
 Run these from the repository root after changing observability docs, contracts, Collector config, Logback JSON fields, or metric dimensions:
 

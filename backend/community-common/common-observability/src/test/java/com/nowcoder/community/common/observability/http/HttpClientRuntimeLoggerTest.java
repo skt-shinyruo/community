@@ -31,6 +31,7 @@ class HttpClientRuntimeLoggerTest {
                     .containsEntry("duration.ms", "301")
                     .containsEntry("threshold.ms", "300");
             assertThat(capture.appender().list.get(1).getMDCPropertyMap())
+                    .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "http_client")
                     .containsEntry(RuntimeLogFields.EVENT_ACTION, "http_client_error")
                     .containsEntry("http.response.status_code", "503")
                     .containsEntry("error.type", IllegalStateException.class.getName());

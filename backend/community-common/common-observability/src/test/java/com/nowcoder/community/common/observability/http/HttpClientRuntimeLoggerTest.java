@@ -22,7 +22,7 @@ class HttpClientRuntimeLoggerTest {
 
             assertThat(capture.appender().list).hasSize(2);
             assertThat(capture.appender().list.get(0).getMDCPropertyMap())
-                    .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "external_http")
+                    .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "http_client")
                     .containsEntry(RuntimeLogFields.EVENT_ACTION, "http_client_slow")
                     .containsEntry("peer.service", "oss")
                     .containsEntry("http.request.method", "GET")

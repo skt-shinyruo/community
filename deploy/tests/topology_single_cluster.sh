@@ -37,6 +37,8 @@ grep -A4 -E '^      nacos:$' "${single_full}" | grep -F 'condition: service_heal
 grep -A6 -E '^      nacos-config-bootstrap:$' "${single_full}" | grep -F 'condition: service_completed_successfully'
 grep -A4 -E '^      community-gateway:$' "${single_full}" | grep -F 'condition: service_healthy'
 grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?1"?' "${single_infra}"
+grep -A80 -E '^  im-realtime:$' "${single_full}" | grep -F 'SPRING_DATA_REDIS_HOST: redis'
+grep -A80 -E '^  im-realtime:$' "${single_full}" | grep -F 'SPRING_DATA_REDIS_PORT: "6379"'
 
 if grep -F 'XXL_JOB_ADMIN_ADDRESSES: http://nginx:8081/xxl-job-admin' "${single_full}" >/dev/null 2>&1; then
   echo "single community-app must use the direct XXL-JOB admin service address, not nginx" >&2
@@ -56,6 +58,9 @@ grep -A4 -E '^      nacos-1:$' "${cluster_full}" | grep -F 'condition: service_h
 grep -A6 -E '^      nacos-config-bootstrap:$' "${cluster_full}" | grep -F 'condition: service_completed_successfully'
 grep -A4 -E '^      community-gateway-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'
 grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?3"?' "${cluster_infra}"
+for worker in 1 2 3; do
+  grep -A80 -E "^  im-realtime-${worker}:$" "${cluster_full}" | grep -F 'SPRING_DATA_REDIS_CLUSTER_NODES: redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379'
+done
 if grep -F 'XXL_JOB_ADMIN_ADDRESSES: http://nginx:8081/xxl-job-admin' "${cluster_full}" >/dev/null 2>&1; then
   echo "cluster community-app must use direct XXL-JOB admin service addresses, not nginx" >&2
   exit 1

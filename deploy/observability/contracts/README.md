@@ -10,5 +10,5 @@ Rules:
 - Lines beginning with `#` are comments.
 - New metrics should use families from `metric-families.txt`.
 - New metric dimensions should use `allowed-metric-dimensions.txt`.
-- Values in `forbidden-observability-fields.txt` must not be used as metric dimensions or log labels.
+- Values in `forbidden-observability-fields.txt` must not be used as metric dimensions; unsafe payload and secret fields from that file must not be used as log labels.
 - Runtime events should use categories from `stable-event-categories.txt`.

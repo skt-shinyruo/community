@@ -21,7 +21,7 @@ public class HttpClientRuntimeLogger {
         if (durationMs < threshold) {
             return false;
         }
-        logWriter.warn(RuntimeLogEvent.builder("external_http", "http_client_slow", "threshold", "http client slow")
+        logWriter.warn(RuntimeLogEvent.builder("http_client", "http_client_slow", "threshold", "http client slow")
                 .field("peer.service", RuntimeLogSanitizer.operation(peerService))
                 .field("http.request.method", RuntimeLogSanitizer.uppercaseOperation(method))
                 .field("url.path", RuntimeLogSanitizer.pathTemplate(uri))
@@ -33,7 +33,7 @@ public class HttpClientRuntimeLogger {
     }
 
     public void logClientError(String peerService, String method, String uri, int statusCode, Throwable throwable) {
-        RuntimeLogEvent.Builder builder = RuntimeLogEvent.builder("external_http", "http_client_error", "failure", "http client error")
+        RuntimeLogEvent.Builder builder = RuntimeLogEvent.builder("http_client", "http_client_error", "failure", "http client error")
                 .field("peer.service", RuntimeLogSanitizer.operation(peerService))
                 .field("http.request.method", RuntimeLogSanitizer.uppercaseOperation(method))
                 .field("url.path", RuntimeLogSanitizer.pathTemplate(uri))

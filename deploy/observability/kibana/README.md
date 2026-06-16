@@ -78,6 +78,23 @@ If a conditional filter is still empty after the smoke script, exercise the
 related database, messaging, or slow-request path before treating it as a
 collector or saved-object issue.
 
+## SLO-Oriented Dashboard Contract
+
+Repository-managed dashboards should expose these sections for each backend service:
+
+- request rate, error rate, and P50/P95/P99 latency
+- JVM heap, non-heap, direct memory, GC count, and GC pause
+- executor active count, queue size, and rejection count
+- DataSource active, idle, pending, and acquisition latency
+- Redis latency and failure rate
+- Kafka producer failures, consumer failures, lag, and rebalance events
+- HTTP client and OSS dependency latency and failure rate
+- recent `service.version` values
+- error event Top N
+- slow trace query links
+
+The SLO/SLI catalog lives in `docs/handbook/observability.md`.
+
 ## Notes
 
 - `logs-*` comes from structured backend logs collected by the EDOT Collector from stdout and OTLP logs

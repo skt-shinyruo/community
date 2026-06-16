@@ -161,6 +161,14 @@ After the stack is up, verify that logs and traces are queryable:
 ./deploy/tests/observability_smoke.sh
 ```
 
+To require specific event categories during a focused scenario run:
+
+```bash
+OBSERVABILITY_EXPECT_EVENT_CATEGORIES=runtime,database,messaging ./deploy/tests/observability_smoke.sh
+```
+
+Only require categories that the scenario has actually exercised. The default smoke keeps category checks broad so a fresh local stack is not forced to emit every subsystem event.
+
 The script calls `GET /api/runtime-config`, extracts a `traceId` from the response
 body or `traceparent` header, and checks Elasticsearch for:
 

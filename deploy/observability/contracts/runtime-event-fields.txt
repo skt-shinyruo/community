@@ -1,0 +1,16 @@
+@timestamp
+service.name
+service.version
+service.namespace
+deployment.environment
+event.category
+event.action
+event.outcome
+trace.id
+span.id
+duration.ms
+threshold.ms
+threshold.percent
+error.type
+error.code
+error.message

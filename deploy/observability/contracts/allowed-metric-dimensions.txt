@@ -1,0 +1,14 @@
+service.name
+deployment.environment
+http.method
+http.route
+http.status_class
+dependency.system
+dependency.operation
+usecase
+result
+error.code
+job.name
+event.type
+pool.name
+consumer.group

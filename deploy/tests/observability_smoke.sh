@@ -84,6 +84,22 @@ require_count() {
   done
 }
 
+require_log_field() {
+  local field="$1"
+
+  require_count "log field ${field}" "logs-community-default" \
+    "{\"bool\":{\"filter\":[{\"exists\":{\"field\":\"${field}\"}},{\"term\":{\"service.namespace\":\"community\"}}]}}"
+}
+
+require_event_category() {
+  local category="$1"
+  local escaped_category
+
+  escaped_category="$(printf '%s' "${category}" | json_escape)"
+  require_count "runtime event category ${category}" "logs-community-default" \
+    "{\"term\":{\"event.category\":\"${escaped_category}\"}}"
+}
+
 request_trace_id() {
   local headers_file
   local body_file
@@ -131,8 +147,26 @@ echo "trace.id=${trace_id}"
 require_count "backend JSON logs" "logs-community-default" \
   '{"bool":{"filter":[{"exists":{"field":"service.name"}},{"term":{"service.namespace":"community"}}]}}'
 
+for field in service.name service.version service.namespace deployment.environment; do
+  require_log_field "${field}"
+done
+
 require_count "runtime stability events" "logs-community-default" \
   '{"bool":{"filter":[{"exists":{"field":"event.category"}},{"terms":{"event.category":["runtime","database","messaging","access","cache","http_client","job","security","logging"]}}]}}'
+
+if [ -n "${OBSERVABILITY_EXPECT_EVENT_CATEGORIES:-}" ]; then
+  old_ifs="${IFS}"
+  IFS=','
+  for category in ${OBSERVABILITY_EXPECT_EVENT_CATEGORIES}; do
+    IFS="${old_ifs}"
+    category="$(printf '%s' "${category}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    if [ -n "${category}" ]; then
+      require_event_category "${category}"
+    fi
+    IFS=','
+  done
+  IFS="${old_ifs}"
+fi
 
 require_count "request trace" "traces-*" \
   "{\"term\":{\"trace.id\":\"${escaped_trace_id}\"}}"

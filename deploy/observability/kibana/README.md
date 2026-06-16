@@ -80,7 +80,7 @@ collector or saved-object issue.
 
 ## Notes
 
-- `logs-*` comes from structured JSON backend stdout collected from Docker container logs by the EDOT Collector
+- `logs-*` comes from structured backend logs collected by the EDOT Collector from stdout and OTLP logs
 - `traces-*` is populated by default when services are started through `deployment.sh`; use `OTEL_ENABLED=false` to keep the overlay but opt out of tracing, or `--no-observability` to disable the overlay
 - Use `trace.id` to pivot between logs and spans; use business `requestId` only for idempotency or message acknowledgement questions
 - The saved objects are intended as a stable troubleshooting starting point, not as a full alerting solution

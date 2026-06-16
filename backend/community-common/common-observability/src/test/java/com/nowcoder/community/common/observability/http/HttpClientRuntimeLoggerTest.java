@@ -33,9 +33,15 @@ class HttpClientRuntimeLoggerTest {
             assertThat(capture.appender().list.get(1).getMDCPropertyMap())
                     .containsEntry(RuntimeLogFields.EVENT_CATEGORY, "http_client")
                     .containsEntry(RuntimeLogFields.EVENT_ACTION, "http_client_error")
+                    .containsEntry("peer.service", "oss")
+                    .containsEntry("http.request.method", "POST")
+                    .containsEntry("url.path", "/api/oss/objects")
                     .containsEntry("http.response.status_code", "503")
                     .containsEntry("error.type", IllegalStateException.class.getName());
             assertThat(capture.appender().list.get(0).getFormattedMessage())
+                    .doesNotContain("token=secret")
+                    .doesNotContain("/api/oss/objects/1");
+            assertThat(capture.appender().list.get(1).getFormattedMessage())
                     .doesNotContain("token=secret")
                     .doesNotContain("/api/oss/objects/1");
         }

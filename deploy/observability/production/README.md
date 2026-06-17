@@ -22,7 +22,7 @@ service OTLP and stdout
 
 Application code must remain independent of Elasticsearch, Kibana, Prometheus, Mimir, Grafana, Loki, Tempo, and Jaeger.
 
-The gateway `attributes/drop_sensitive` processor redacts OTLP resource, span, metric, and log attributes. It does not rewrite forbidden fields embedded inside raw Docker stdout JSON log bodies collected by `filelog/docker_stdout`. Before using these templates in production, keep Docker stdout JSON payloads sanitized by application logging policy, or parse JSON body fields into attributes and apply equivalent redaction before export.
+The gateway `attributes/drop_sensitive` processor redacts span, metric, and log attributes. Resource attribute redaction would require a resource processor if needed. This template does not rewrite forbidden fields embedded inside raw Docker stdout JSON log bodies collected by `filelog/docker_stdout`. Before using these templates in production, keep Docker stdout JSON payloads sanitized by application logging policy, or parse JSON body fields into attributes and apply equivalent redaction before export.
 
 Required environment variables when adapting these templates:
 

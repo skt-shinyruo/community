@@ -18,6 +18,30 @@ processors:
         action: upsert
   attributes/drop_sensitive:
     actions:
+      - key: userId
+        action: delete
+      - key: user.id
+        action: delete
+      - key: orderId
+        action: delete
+      - key: objectKey
+        action: delete
+      - key: redisKey
+        action: delete
+      - key: topic.raw
+        action: delete
+      - key: url.full
+        action: delete
+      - key: url.query
+        action: delete
+      - key: client.ip
+        action: delete
+      - key: exception.stacktrace
+        action: delete
+      - key: uuid
+        action: delete
+      - key: timestamp
+        action: delete
       - key: request.body
         action: delete
       - key: response.body
@@ -32,15 +56,11 @@ processors:
         action: delete
       - key: redis.key
         action: delete
-      - key: redisKey
-        action: delete
       - key: redis.value
         action: delete
       - key: messaging.message.body
         action: delete
       - key: kafka.payload
-        action: delete
-      - key: objectKey
         action: delete
       - key: authorization
         action: delete

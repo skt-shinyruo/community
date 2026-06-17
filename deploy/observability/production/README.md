@@ -8,12 +8,15 @@ Target shape:
 service OTLP and stdout
   -> node or sidecar Collector
       -> memory limiter
-      -> batch
       -> local resource enrichment
+      -> batch
       -> gateway OTLP export
   -> gateway Collector
-      -> trace tail sampling
+      -> memory limiter
+      -> local resource enrichment
       -> sensitive attribute deletion
+      -> trace tail sampling
+      -> batch
       -> routing to logs, metrics, and traces backends
 ```
 

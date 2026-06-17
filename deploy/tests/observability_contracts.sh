@@ -57,7 +57,9 @@ if ! rg -n '^  attributes/drop_sensitive:' deploy/observability/production/colle
   fail "gateway collector template must include sensitive attribute deletion"
 fi
 
-for redaction_key in sql.bind redisKey kafka.payload objectKey password token secret; do
+require_gateway_redaction_delete() {
+  local redaction_key="$1"
+
   if ! awk -v required_key="${redaction_key}" '
     /^  attributes\/drop_sensitive:$/ {
       in_processor = 1
@@ -87,6 +89,19 @@ for redaction_key in sql.bind redisKey kafka.payload objectKey password token se
   ' deploy/observability/production/collector-gateway.yml; then
     fail "gateway collector template must delete sensitive attribute: ${redaction_key}"
   fi
+}
+
+while IFS= read -r redaction_key; do
+  case "${redaction_key}" in
+    '' | '#'* | 'trace.id' | 'span.id')
+      continue
+      ;;
+  esac
+  require_gateway_redaction_delete "${redaction_key}"
+done <"${contract_dir}/forbidden-observability-fields.txt"
+
+for redaction_key in http.request.body http.response.body db.statement.parameters redis.key messaging.message.body; do
+  require_gateway_redaction_delete "${redaction_key}"
 done
 
 require_console_json_content() {

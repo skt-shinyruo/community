@@ -57,7 +57,7 @@ if ! rg -n '^  attributes/drop_sensitive:' deploy/observability/production/colle
   fail "gateway collector template must include sensitive attribute deletion"
 fi
 
-for redaction_key in sql.bind kafka.payload objectKey password token secret; do
+for redaction_key in sql.bind redisKey kafka.payload objectKey password token secret; do
   if ! awk -v required_key="${redaction_key}" '
     /^  attributes\/drop_sensitive:$/ {
       in_processor = 1

@@ -91,6 +91,40 @@ require_gateway_redaction_delete() {
   fi
 }
 
+reject_gateway_redaction_delete() {
+  local redaction_key="$1"
+
+  if awk -v rejected_key="${redaction_key}" '
+    /^  attributes\/drop_sensitive:$/ {
+      in_processor = 1
+      next
+    }
+    in_processor && /^  [^[:space:]][^:]*:$/ {
+      exit found ? 0 : 1
+    }
+    in_processor && /^    actions:$/ {
+      in_actions = 1
+      next
+    }
+    in_actions && /^    [^[:space:]][^:]*:$/ {
+      exit found ? 0 : 1
+    }
+    in_actions && /^      - key: / {
+      pending_key = ($0 == "      - key: " rejected_key)
+      next
+    }
+    in_actions && pending_key && /^        action: delete$/ {
+      found = 1
+      exit 0
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' deploy/observability/production/collector-gateway.yml; then
+    fail "gateway collector template must preserve correlation attribute: ${redaction_key}"
+  fi
+}
+
 while IFS= read -r redaction_key; do
   case "${redaction_key}" in
     '' | '#'* | 'trace.id' | 'span.id')
@@ -102,6 +136,10 @@ done <"${contract_dir}/forbidden-observability-fields.txt"
 
 for redaction_key in http.request.body http.response.body db.statement.parameters redis.key messaging.message.body; do
   require_gateway_redaction_delete "${redaction_key}"
+done
+
+for correlation_key in trace.id span.id; do
+  reject_gateway_redaction_delete "${correlation_key}"
 done
 
 require_console_json_content() {

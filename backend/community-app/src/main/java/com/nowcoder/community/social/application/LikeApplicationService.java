@@ -12,8 +12,6 @@ import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.LikeRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
-import com.nowcoder.community.user.api.action.UserRewardActionApi;
-import com.nowcoder.community.user.api.model.UserLikeRewardRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -47,7 +45,6 @@ public class LikeApplicationService {
     private final BlockDomainService blockDomainService;
     private final ContentEntityResolver contentEntityResolver;
     private final SocialDomainEventPublisher eventPublisher;
-    private final UserRewardActionApi rewardActionApi;
 
     public LikeApplicationService(
             LikeRepository likeRepository,
@@ -55,8 +52,7 @@ public class LikeApplicationService {
             LikeDomainService likeDomainService,
             BlockDomainService blockDomainService,
             ContentEntityResolver contentEntityResolver,
-            SocialDomainEventPublisher eventPublisher,
-            UserRewardActionApi rewardActionApi
+            SocialDomainEventPublisher eventPublisher
     ) {
         this.likeRepository = likeRepository;
         this.blockRepository = blockRepository;
@@ -64,7 +60,6 @@ public class LikeApplicationService {
         this.blockDomainService = blockDomainService;
         this.contentEntityResolver = contentEntityResolver;
         this.eventPublisher = eventPublisher;
-        this.rewardActionApi = rewardActionApi;
     }
 
     @Transactional
@@ -113,7 +108,6 @@ public class LikeApplicationService {
                 createTime
         );
         try {
-            publishSideEffects(event);
             eventPublisher.publishLikeChanged(event);
         } catch (RuntimeException ex) {
             if (needsExplicitCompensation) {
@@ -212,29 +206,6 @@ public class LikeApplicationService {
         throw new BusinessException(INVALID_ARGUMENT, "entityType 不支持");
     }
 
-    private void publishSideEffects(LikeChangedDomainEvent event) {
-        String sideEffectEventId = null;
-        if (event.liked()) {
-            if (rewardActionApi != null) {
-                sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, event, "like-created-reward", false);
-                rewardActionApi.awardLikeCreated(new UserLikeRewardRequest(
-                        sideEffectEventId,
-                        event.actorUserId(),
-                        event.entityUserId()
-                ));
-            }
-            return;
-        }
-        if (rewardActionApi != null) {
-            sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, event, "like-removed-reward", false);
-            rewardActionApi.awardLikeRemoved(new UserLikeRewardRequest(
-                    sideEffectEventId,
-                    event.actorUserId(),
-                    event.entityUserId()
-            ));
-        }
-    }
-
     private ResolvedSocialEntity resolveEntityForExistingRelation(UUID actorUserId, int entityType, UUID entityId, boolean liked) {
         try {
             return resolveEntity(entityType, entityId);
@@ -251,16 +222,6 @@ public class LikeApplicationService {
 
     private boolean isContentNotFound(ErrorCode errorCode) {
         return errorCode == NOT_FOUND || (errorCode != null && errorCode.getHttpStatus() == 404);
-    }
-
-    private String ensureSideEffectEventId(String currentEventId, LikeChangedDomainEvent event, String prefix, boolean deterministic) {
-        if (currentEventId != null) {
-            return currentEventId;
-        }
-        if (!deterministic) {
-            return prefix + ":" + UUID.randomUUID();
-        }
-        return prefix + ":" + event.actorUserId() + ":" + event.entityType() + ":" + event.entityId();
     }
 
     private LikeResult buildResult(UUID actorUserId, int entityType, UUID entityId) {

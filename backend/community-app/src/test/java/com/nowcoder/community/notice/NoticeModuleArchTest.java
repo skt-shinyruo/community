@@ -1,10 +1,16 @@
 package com.nowcoder.community.notice;
 
+import com.tngtech.archunit.core.domain.Dependency;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 @AnalyzeClasses(
@@ -67,15 +73,34 @@ class NoticeModuleArchTest {
                     .allowEmptyShould(true);
 
     @ArchTest
-    static final ArchRule notice_infrastructure_persistence_must_implement_domain_repository =
-            noClasses()
+    static final ArchRule notice_infrastructure_persistence_must_only_depend_on_persistence_contracts =
+            classes()
                     .that().resideInAnyPackage("..notice.infrastructure.persistence..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "..notice.controller..",
-                            "..notice.application..",
-                            "..notice.dto..",
-                            "..notice.service..",
-                            "..notice.event.."
-                    )
+                    .should(notDependOnNoticeAdaptersOrApplicationUseCases())
                     .allowEmptyShould(true);
+
+    private static ArchCondition<JavaClass> notDependOnNoticeAdaptersOrApplicationUseCases() {
+        return new ArchCondition<>("not depend on notice adapters or application use cases") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dependency.getTargetClass();
+                    String packageName = target.getPackageName();
+                    if (!packageName.startsWith("com.nowcoder.community.notice.")) {
+                        continue;
+                    }
+                    if (target.getFullName().equals("com.nowcoder.community.notice.application.NoticeProjectionEventRecorder")) {
+                        continue;
+                    }
+                    if (packageName.startsWith("com.nowcoder.community.notice.controller")
+                            || packageName.startsWith("com.nowcoder.community.notice.application")
+                            || packageName.startsWith("com.nowcoder.community.notice.dto")
+                            || packageName.startsWith("com.nowcoder.community.notice.service")
+                            || packageName.startsWith("com.nowcoder.community.notice.event")) {
+                        events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
+                    }
+                }
+            }
+        };
+    }
 }

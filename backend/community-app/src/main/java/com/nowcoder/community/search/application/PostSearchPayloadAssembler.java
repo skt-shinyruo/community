@@ -7,9 +7,9 @@ import com.nowcoder.community.search.domain.model.PostSearchDocument;
 /**
  * Maps content scan projections onto search application/domain objects.
  */
-public final class PostSearchPayloadMapper {
+public final class PostSearchPayloadAssembler {
 
-    private PostSearchPayloadMapper() {
+    private PostSearchPayloadAssembler() {
     }
 
     public static PostSearchDocument toDocument(PostScanView.PostProjectionView projection) {

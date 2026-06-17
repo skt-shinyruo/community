@@ -3,6 +3,8 @@ package com.nowcoder.community.notice.infrastructure.event;
 import com.nowcoder.community.common.event.BestEffortLocalEventListener;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.notice.application.NoticeProjectionApplicationService;
+import com.nowcoder.community.notice.application.command.ProjectContentNoticeCommand;
+import com.nowcoder.community.notice.application.command.ProjectSocialNoticeCommand;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -20,11 +22,25 @@ public class NoticeProjectionListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
     public void onContentEvent(ContentContractEvent event) {
-        noticeProjectionApplicationService.projectContentEvent(event);
+        if (event == null) {
+            return;
+        }
+        noticeProjectionApplicationService.projectContentEvent(new ProjectContentNoticeCommand(
+                event.eventId(),
+                event.type(),
+                event.payload()
+        ));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
     public void onSocialEvent(SocialContractEvent event) {
-        noticeProjectionApplicationService.projectSocialEvent(event);
+        if (event == null) {
+            return;
+        }
+        noticeProjectionApplicationService.projectSocialEvent(new ProjectSocialNoticeCommand(
+                event.eventId(),
+                event.type(),
+                event.payload()
+        ));
     }
 }

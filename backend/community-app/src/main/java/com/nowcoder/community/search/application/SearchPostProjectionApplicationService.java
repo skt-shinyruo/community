@@ -29,6 +29,6 @@ public class SearchPostProjectionApplicationService {
             searchApplicationService.deletePost(new DeleteIndexedPostCommand(command.postId()));
             return;
         }
-        searchApplicationService.syncPostProjection(PostSearchPayloadMapper.toSyncCommand(projection));
+        searchApplicationService.syncPostProjection(PostSearchPayloadAssembler.toSyncCommand(projection));
     }
 }

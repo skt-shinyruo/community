@@ -23,7 +23,6 @@ import com.nowcoder.community.content.domain.service.PostPublishingDomainService
 import com.nowcoder.community.content.application.ContentTextCodec;
 import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
-import com.nowcoder.community.user.api.action.UserRewardActionApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,7 +64,6 @@ class PostPublishingApplicationServiceTest {
     private PostDomainEventPublisher domainEventPublisher;
     private PostWriteSideEffectScheduler postWriteSideEffectScheduler;
     private SocialLikeCleanupActionApi socialLikeCleanupActionApi;
-    private UserRewardActionApi rewardActionApi;
     private PostPublishingApplicationService service;
 
     @BeforeEach
@@ -84,7 +82,6 @@ class PostPublishingApplicationServiceTest {
         domainEventPublisher = mock(PostDomainEventPublisher.class);
         postWriteSideEffectScheduler = mock(PostWriteSideEffectScheduler.class);
         socialLikeCleanupActionApi = mock(SocialLikeCleanupActionApi.class);
-        rewardActionApi = mock(UserRewardActionApi.class);
         service = new PostPublishingApplicationService(
                 sensitiveFilter,
                 idempotencyGuard,
@@ -101,8 +98,7 @@ class PostPublishingApplicationServiceTest {
                 postTagRepository,
                 domainEventPublisher,
                 postWriteSideEffectScheduler,
-                socialLikeCleanupActionApi,
-                rewardActionApi
+                socialLikeCleanupActionApi
         );
     }
 
@@ -138,7 +134,6 @@ class PostPublishingApplicationServiceTest {
                 postRepository,
                 postContentBlockRepository,
                 postTagRepository,
-                rewardActionApi,
                 domainEventPublisher,
                 postWriteSideEffectScheduler
         );
@@ -148,7 +143,6 @@ class PostPublishingApplicationServiceTest {
         inOrder.verify(postRepository).create(draft);
         inOrder.verify(postContentBlockRepository).replaceBlocks(eq(postId), any());
         inOrder.verify(postTagRepository).bindTagsToPost(postId, List.of("java"));
-        inOrder.verify(rewardActionApi).awardPostPublished(postId, userId);
         inOrder.verify(domainEventPublisher).postPublished(postId);
         inOrder.verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
         assertThat(output.getAll())

@@ -32,6 +32,8 @@ processors:
         action: delete
       - key: redis.key
         action: delete
+      - key: redisKey
+        action: delete
       - key: redis.value
         action: delete
       - key: messaging.message.body

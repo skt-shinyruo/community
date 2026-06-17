@@ -3,7 +3,6 @@ package com.nowcoder.community.notice.application;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
-import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
@@ -14,12 +13,14 @@ import com.nowcoder.community.notice.domain.model.NoticeTopic;
 import com.nowcoder.community.notice.domain.service.NoticeProjectionDomainService;
 import com.nowcoder.community.social.contracts.event.FollowPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
-import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.Map;
 import java.util.UUID;
@@ -33,18 +34,34 @@ public class NoticeProjectionApplicationService {
     private final NoticeApplicationService noticeApplicationService;
     private final NoticeProjectionDomainService noticeProjectionDomainService;
     private final NoticePolicyProperties noticePolicyProperties;
+    private final NoticeProjectionEventRecorder noticeProjectionEventRecorder;
 
     @Autowired
     public NoticeProjectionApplicationService(
             JsonCodec jsonCodec,
             NoticeApplicationService noticeApplicationService,
+            NoticePolicyProperties noticePolicyProperties,
+            ObjectProvider<NoticeProjectionEventRecorder> noticeProjectionEventRecorderProvider
+    ) {
+        this(
+                jsonCodec,
+                noticeApplicationService,
+                new NoticeProjectionDomainService(),
+                noticePolicyProperties,
+                noticeProjectionEventRecorderProvider == null ? null : noticeProjectionEventRecorderProvider.getIfAvailable()
+        );
+    }
+
+    public NoticeProjectionApplicationService(
+            JsonCodec jsonCodec,
+            NoticeApplicationService noticeApplicationService,
             NoticePolicyProperties noticePolicyProperties
     ) {
-        this(jsonCodec, noticeApplicationService, new NoticeProjectionDomainService(), noticePolicyProperties);
+        this(jsonCodec, noticeApplicationService, new NoticeProjectionDomainService(), noticePolicyProperties, null);
     }
 
     public NoticeProjectionApplicationService(JsonCodec jsonCodec, NoticeApplicationService noticeApplicationService) {
-        this(jsonCodec, noticeApplicationService, new NoticeProjectionDomainService(), new NoticePolicyProperties());
+        this(jsonCodec, noticeApplicationService, new NoticeProjectionDomainService(), new NoticePolicyProperties(), null);
     }
 
     NoticeProjectionApplicationService(
@@ -53,77 +70,115 @@ public class NoticeProjectionApplicationService {
             NoticeProjectionDomainService noticeProjectionDomainService,
             NoticePolicyProperties noticePolicyProperties
     ) {
+        this(jsonCodec, noticeApplicationService, noticeProjectionDomainService, noticePolicyProperties, null);
+    }
+
+    NoticeProjectionApplicationService(
+            JsonCodec jsonCodec,
+            NoticeApplicationService noticeApplicationService,
+            NoticeProjectionDomainService noticeProjectionDomainService,
+            NoticePolicyProperties noticePolicyProperties,
+            NoticeProjectionEventRecorder noticeProjectionEventRecorder
+    ) {
         this.jsonCodec = jsonCodec;
         this.noticeApplicationService = noticeApplicationService;
         this.noticeProjectionDomainService = noticeProjectionDomainService;
         this.noticePolicyProperties = noticePolicyProperties == null ? new NoticePolicyProperties() : noticePolicyProperties;
-    }
-
-    public void projectContentEvent(ContentContractEvent event) {
-        projectContentEvent(new ProjectContentNoticeCommand(event));
+        this.noticeProjectionEventRecorder = noticeProjectionEventRecorder;
     }
 
     public void projectContentEvent(ProjectContentNoticeCommand command) {
-        ContentContractEvent event = command == null ? null : command.event();
-        if (event == null) {
+        if (command == null) {
             return;
         }
         try {
-            project(commandForContentEvent(event));
+            project(commandForContentEvent(command));
         } catch (RuntimeException e) {
-            log.warn("[notice] projection failed after commit (eventId={}, type={}): {}", event.eventId(), event.type(), e.toString());
+            log.warn("[notice] projection failed after commit (eventId={}, type={}): {}", command.sourceEventId(), command.eventType(), e.toString());
         }
-    }
-
-    public void projectSocialEvent(SocialContractEvent event) {
-        projectSocialEvent(new ProjectSocialNoticeCommand(event));
     }
 
     public void projectSocialEvent(ProjectSocialNoticeCommand command) {
-        SocialContractEvent event = command == null ? null : command.event();
-        if (event == null) {
+        if (command == null) {
             return;
         }
         try {
-            project(commandForSocialEvent(event));
+            project(commandForSocialEvent(command));
         } catch (RuntimeException e) {
-            log.warn("[notice] projection failed after commit (eventId={}, type={}): {}", event.eventId(), event.type(), e.toString());
+            log.warn("[notice] projection failed after commit (eventId={}, type={}): {}", command.sourceEventId(), command.eventType(), e.toString());
         }
     }
 
-    NoticeProjection commandForContentEvent(ContentContractEvent event) {
-        if (event == null) {
+    @Transactional
+    public void projectContentEventReliably(ProjectContentNoticeCommand command) {
+        if (command == null) {
+            return;
+        }
+        projectReliably(commandForContentEvent(command));
+    }
+
+    @Transactional
+    public void projectSocialEventReliably(ProjectSocialNoticeCommand command) {
+        if (command == null) {
+            return;
+        }
+        projectReliably(commandForSocialEvent(command));
+    }
+
+    NoticeProjection commandForContentEvent(ProjectContentNoticeCommand command) {
+        if (command == null) {
             return null;
         }
-        if (ContentEventTypes.COMMENT_CREATED.equals(event.type()) && event.payload() instanceof CommentPayload payload) {
-            return projection(event.eventId(), event.type(), NoticeTopic.COMMENT, payload.getTargetUserId(), payload);
+        if (ContentEventTypes.COMMENT_CREATED.equals(command.eventType()) && command.payload() instanceof CommentPayload payload) {
+            return projection(command.sourceEventId(), command.eventType(), NoticeTopic.COMMENT, payload.getTargetUserId(), payload);
         }
-        if (ContentEventTypes.MODERATION_ACTION_APPLIED.equals(event.type()) && event.payload() instanceof ModerationPayload payload) {
-            return projection(event.eventId(), event.type(), NoticeTopic.MODERATION, payload.getToUserId(), payload);
+        if (ContentEventTypes.MODERATION_ACTION_APPLIED.equals(command.eventType()) && command.payload() instanceof ModerationPayload payload) {
+            return projection(command.sourceEventId(), command.eventType(), NoticeTopic.MODERATION, payload.getToUserId(), payload);
         }
         return null;
     }
 
-    NoticeProjection commandForSocialEvent(SocialContractEvent event) {
-        if (event == null) {
+    NoticeProjection commandForSocialEvent(ProjectSocialNoticeCommand command) {
+        if (command == null) {
             return null;
         }
-        if (SocialEventTypes.LIKE_CREATED.equals(event.type()) && event.payload() instanceof LikePayload payload) {
-            return projection(event.eventId(), event.type(), NoticeTopic.LIKE, payload.getEntityUserId(), payload);
+        if (SocialEventTypes.LIKE_CREATED.equals(command.eventType()) && command.payload() instanceof LikePayload payload) {
+            return projection(command.sourceEventId(), command.eventType(), NoticeTopic.LIKE, payload.getEntityUserId(), payload);
         }
-        if (SocialEventTypes.FOLLOW_CREATED.equals(event.type()) && event.payload() instanceof FollowPayload payload) {
-            return projection(event.eventId(), event.type(), NoticeTopic.FOLLOW, payload.getEntityUserId(), payload);
+        if (SocialEventTypes.FOLLOW_CREATED.equals(command.eventType()) && command.payload() instanceof FollowPayload payload) {
+            return projection(command.sourceEventId(), command.eventType(), NoticeTopic.FOLLOW, payload.getEntityUserId(), payload);
         }
         return null;
     }
 
     private void project(NoticeProjection projection) {
+        if (!shouldProject(projection)) {
+            return;
+        }
+        createProjectedNotice(projection);
+    }
+
+    private void projectReliably(NoticeProjection projection) {
+        if (!shouldProject(projection)) {
+            return;
+        }
+        if (!StringUtils.hasText(projection.sourceEventId())) {
+            throw new IllegalStateException("notice projection source event id is blank");
+        }
+        if (noticeProjectionEventRecorder != null && !noticeProjectionEventRecorder.tryRecord(projection.sourceEventId())) {
+            return;
+        }
+        createProjectedNotice(projection);
+    }
+
+    private boolean shouldProject(NoticeProjection projection) {
         if (!noticePolicyProperties.getChannels().isInAppEnabled()) {
-            return;
+            return false;
         }
-        if (!noticeProjectionDomainService.shouldProject(projection)) {
-            return;
-        }
+        return noticeProjectionDomainService.shouldProject(projection);
+    }
+
+    private void createProjectedNotice(NoticeProjection projection) {
         try {
             String contentJson = jsonCodec.toJson(Map.of(
                     "eventId", projection.sourceEventId(),

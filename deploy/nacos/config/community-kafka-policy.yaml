@@ -33,6 +33,22 @@ community:
       delivery-timeout-ms: 5000
       max-block-ms: 5000
 
+# Rollback publisher switches:
+# CONTENT_EVENTS_PUBLISHER=local
+# SOCIAL_EVENTS_PUBLISHER=local
+# USER_EVENTS_PUBLISHER=local
+content:
+  events:
+    publisher: ${CONTENT_EVENTS_PUBLISHER:outbox-kafka}
+    outbox-topic: ${CONTENT_EVENTS_OUTBOX_TOPIC:eventbus.content}
+    kafka-topic: ${CONTENT_EVENTS_KAFKA_TOPIC:content.events}
+
+social:
+  events:
+    publisher: ${SOCIAL_EVENTS_PUBLISHER:outbox-kafka}
+    outbox-topic: ${SOCIAL_EVENTS_OUTBOX_TOPIC:eventbus.social}
+    kafka-topic: ${SOCIAL_EVENTS_KAFKA_TOPIC:social.events}
+
 im:
   kafka:
     topics:
@@ -70,8 +86,26 @@ growth:
 search:
   outbox:
     post-topic: projection.search.post
+  kafka:
+    consumer:
+      group-id: ${SEARCH_KAFKA_CONSUMER_GROUP_ID:search-post-projection}
+      concurrency: ${SEARCH_KAFKA_CONSUMER_CONCURRENCY:3}
+
+notice:
+  kafka:
+    consumer:
+      group-id: ${NOTICE_KAFKA_CONSUMER_GROUP_ID:notice-projection}
+      concurrency: ${NOTICE_KAFKA_CONSUMER_CONCURRENCY:3}
 
 user:
+  events:
+    publisher: ${USER_EVENTS_PUBLISHER:outbox-kafka}
+    outbox-topic: ${USER_EVENTS_OUTBOX_TOPIC:eventbus.user}
+    kafka-topic: ${USER_EVENTS_KAFKA_TOPIC:user.events}
   reward:
     outbox:
       comment-topic: projection.user.reward.comment
+    kafka:
+      consumer:
+        group-id: ${USER_REWARD_KAFKA_CONSUMER_GROUP_ID:user-reward-projection}
+        concurrency: ${USER_REWARD_KAFKA_CONSUMER_CONCURRENCY:3}

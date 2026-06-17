@@ -71,9 +71,40 @@ class UserRewardApplicationServiceIntegrationTest {
         assertThat(countRows("wallet_entry")).isEqualTo(2);
     }
 
+    @Test
+    void duplicateLikeRewardShouldCreateOneWalletTxnThroughStableIdempotencyKey() {
+        String sourceEventId = "like-created:" + dashless(uuid(2)) + ":1:" + dashless(uuid(3));
+        UserRewardApplicationService.RewardCommand command = userRewardApplicationService.commandForLikeCreated(
+                sourceEventId,
+                uuid(2),
+                USER_ID
+        );
+
+        userRewardApplicationService.apply(command);
+        userRewardApplicationService.apply(command);
+
+        assertThat(walletAccountService.balanceOfUser(USER_ID)).isEqualTo(1);
+        assertThat(countRows("wallet_txn")).isEqualTo(1);
+        assertThat(countRows("wallet_entry")).isEqualTo(2);
+        assertThat(countRowsByRequestId("wallet-reward:" + sourceEventId)).isEqualTo(1);
+    }
+
     private int countRows(String tableName) {
         Integer count = jdbcTemplate.queryForObject("select count(*) from " + tableName, Integer.class);
         return count == null ? 0 : count;
+    }
+
+    private int countRowsByRequestId(String requestId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "select count(*) from wallet_txn where request_id = ?",
+                Integer.class,
+                requestId
+        );
+        return count == null ? 0 : count;
+    }
+
+    private static String dashless(UUID value) {
+        return value.toString().replace("-", "");
     }
 
 }

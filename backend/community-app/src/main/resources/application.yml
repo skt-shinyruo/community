@@ -232,7 +232,9 @@ xxl:
 content:
   storage: redis
   events:
-    publisher: local
+    publisher: ${CONTENT_EVENTS_PUBLISHER:outbox-kafka}
+    outbox-topic: ${CONTENT_EVENTS_OUTBOX_TOPIC:eventbus.content}
+    kafka-topic: ${CONTENT_EVENTS_KAFKA_TOPIC:content.events}
   score:
     refresh:
       enabled: true
@@ -251,7 +253,15 @@ events:
 social:
   storage: db
   events:
-    publisher: local
+    publisher: ${SOCIAL_EVENTS_PUBLISHER:outbox-kafka}
+    outbox-topic: ${SOCIAL_EVENTS_OUTBOX_TOPIC:eventbus.social}
+    kafka-topic: ${SOCIAL_EVENTS_KAFKA_TOPIC:social.events}
+
+notice:
+  kafka:
+    consumer:
+      group-id: ${NOTICE_KAFKA_CONSUMER_GROUP_ID:notice-projection}
+      concurrency: ${NOTICE_KAFKA_CONSUMER_CONCURRENCY:3}
 
 growth:
   task:
@@ -274,6 +284,10 @@ oss:
 
 search:
   storage: es
+  kafka:
+    consumer:
+      group-id: ${SEARCH_KAFKA_CONSUMER_GROUP_ID:search-post-projection}
+      concurrency: ${SEARCH_KAFKA_CONSUMER_CONCURRENCY:3}
   idempotency:
     cleanup-enabled: true
     retention-days: 7
@@ -297,3 +311,14 @@ analytics:
       - /actuator/**
       - /internal/**
       - /files/**
+
+user:
+  events:
+    publisher: ${USER_EVENTS_PUBLISHER:outbox-kafka}
+    outbox-topic: ${USER_EVENTS_OUTBOX_TOPIC:eventbus.user}
+    kafka-topic: ${USER_EVENTS_KAFKA_TOPIC:user.events}
+  reward:
+    kafka:
+      consumer:
+        group-id: ${USER_REWARD_KAFKA_CONSUMER_GROUP_ID:user-reward-projection}
+        concurrency: ${USER_REWARD_KAFKA_CONSUMER_CONCURRENCY:3}

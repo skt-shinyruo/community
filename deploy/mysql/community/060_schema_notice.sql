@@ -14,6 +14,11 @@ create table if not exists notice_record (
   create_time timestamp null default current_timestamp
 );
 
+create table if not exists notice_projection_event_log (
+  source_event_id varchar(128) not null primary key,
+  create_time datetime not null default current_timestamp
+);
+
 set @idx_notice_record_topic := (
   select count(*)
   from information_schema.statistics

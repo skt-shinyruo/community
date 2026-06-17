@@ -69,7 +69,9 @@ auth:
 content:
   storage: redis
   events:
-    publisher: local
+    publisher: ${CONTENT_EVENTS_PUBLISHER:outbox-kafka}
+    outbox-topic: ${CONTENT_EVENTS_OUTBOX_TOPIC:eventbus.content}
+    kafka-topic: ${CONTENT_EVENTS_KAFKA_TOPIC:content.events}
   score:
     refresh:
       enabled: false
@@ -81,12 +83,35 @@ events:
 social:
   storage: db
   events:
-    publisher: local
+    publisher: ${SOCIAL_EVENTS_PUBLISHER:outbox-kafka}
+    outbox-topic: ${SOCIAL_EVENTS_OUTBOX_TOPIC:eventbus.social}
+    kafka-topic: ${SOCIAL_EVENTS_KAFKA_TOPIC:social.events}
+
+notice:
+  kafka:
+    consumer:
+      group-id: ${NOTICE_KAFKA_CONSUMER_GROUP_ID:notice-projection}
+      concurrency: ${NOTICE_KAFKA_CONSUMER_CONCURRENCY:3}
+
+user:
+  events:
+    publisher: ${USER_EVENTS_PUBLISHER:outbox-kafka}
+    outbox-topic: ${USER_EVENTS_OUTBOX_TOPIC:eventbus.user}
+    kafka-topic: ${USER_EVENTS_KAFKA_TOPIC:user.events}
+  reward:
+    kafka:
+      consumer:
+        group-id: ${USER_REWARD_KAFKA_CONSUMER_GROUP_ID:user-reward-projection}
+        concurrency: ${USER_REWARD_KAFKA_CONSUMER_CONCURRENCY:3}
 
 search:
   storage: es
   index:
     initialize: false
+  kafka:
+    consumer:
+      group-id: ${SEARCH_KAFKA_CONSUMER_GROUP_ID:search-post-projection}
+      concurrency: ${SEARCH_KAFKA_CONSUMER_CONCURRENCY:3}
   idempotency:
     cleanup-enabled: false
     retention-days: 1

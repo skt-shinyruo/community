@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import java.util.UUID;
 
 @Component
-@ConditionalOnProperty(name = "content.events.publisher", havingValue = "local", matchIfMissing = true)
+@ConditionalOnProperty(name = "content.events.publisher", havingValue = "local")
 public class LocalContentEventPublisher implements ContentEventPublisher {
 
     private final ApplicationEventPublisher applicationEventPublisher;

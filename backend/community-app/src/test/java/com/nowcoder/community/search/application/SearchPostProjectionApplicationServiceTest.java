@@ -15,6 +15,7 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -81,5 +82,120 @@ class SearchPostProjectionApplicationServiceTest {
         assertThat(captor.getValue().title()).isEqualTo("title");
         assertThat(captor.getValue().content()).isEqualTo("content");
         assertThat(captor.getValue().status()).isEqualTo(0);
+    }
+
+    @Test
+    void repeatedPostUpdatesShouldSyncLatestContentProjection() {
+        PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
+        SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
+        SearchPostProjectionApplicationService service =
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+
+        when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(201)))
+                .thenReturn(postProjection(uuid(201), "old title", "old content", 1.0))
+                .thenReturn(postProjection(uuid(201), "latest title", "latest content", 2.0));
+
+        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(201), "evt-update-1", "PostUpdated"));
+        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(201), "evt-update-2", "PostUpdated"));
+
+        ArgumentCaptor<SyncPostProjectionCommand> captor = ArgumentCaptor.forClass(SyncPostProjectionCommand.class);
+        verify(searchApplicationService, times(2)).syncPostProjection(captor.capture());
+        verify(searchApplicationService, never()).deletePost(org.mockito.ArgumentMatchers.any());
+        assertThat(captor.getAllValues())
+                .extracting(SyncPostProjectionCommand::title)
+                .containsExactly("old title", "latest title");
+        assertThat(captor.getAllValues().get(1).content()).isEqualTo("latest content");
+        assertThat(captor.getAllValues().get(1).score()).isEqualTo(2.0);
+    }
+
+    @Test
+    void repeatedPostDeletesShouldLeaveIndexDeletedWhenProjectionIsMissing() {
+        PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
+        SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
+        SearchPostProjectionApplicationService service =
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+
+        when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(202))).thenReturn(null);
+
+        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(202), "evt-delete-1", "PostDeleted"));
+        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(202), "evt-delete-2", "PostDeleted"));
+
+        ArgumentCaptor<DeleteIndexedPostCommand> captor = ArgumentCaptor.forClass(DeleteIndexedPostCommand.class);
+        verify(searchApplicationService, times(2)).deletePost(captor.capture());
+        verify(searchApplicationService, never()).syncPostProjection(org.mockito.ArgumentMatchers.any());
+        assertThat(captor.getAllValues())
+                .extracting(DeleteIndexedPostCommand::postId)
+                .containsExactly(uuid(202), uuid(202));
+    }
+
+    @Test
+    void updateThenDeleteShouldEndDeletedWhenContentProjectionDisappears() {
+        PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
+        SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
+        SearchPostProjectionApplicationService service =
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+
+        when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(203)))
+                .thenReturn(postProjection(uuid(203), "visible title", "visible content", 1.0))
+                .thenReturn(null)
+                .thenReturn(null);
+
+        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(203), "evt-update", "PostUpdated"));
+        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(203), "evt-delete-1", "PostDeleted"));
+        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(203), "evt-delete-2", "PostDeleted"));
+
+        ArgumentCaptor<SyncPostProjectionCommand> syncCaptor = ArgumentCaptor.forClass(SyncPostProjectionCommand.class);
+        ArgumentCaptor<DeleteIndexedPostCommand> deleteCaptor = ArgumentCaptor.forClass(DeleteIndexedPostCommand.class);
+        verify(searchApplicationService).syncPostProjection(syncCaptor.capture());
+        verify(searchApplicationService, times(2)).deletePost(deleteCaptor.capture());
+        assertThat(syncCaptor.getValue().postId()).isEqualTo(uuid(203));
+        assertThat(deleteCaptor.getAllValues())
+                .extracting(DeleteIndexedPostCommand::postId)
+                .containsExactly(uuid(203), uuid(203));
+    }
+
+    @Test
+    void deleteThenUpdateShouldEndSyncedWhenContentProjectionExistsAgain() {
+        PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
+        SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
+        SearchPostProjectionApplicationService service =
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+
+        when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(204)))
+                .thenReturn(null)
+                .thenReturn(postProjection(uuid(204), "restored title", "restored content", 3.0))
+                .thenReturn(postProjection(uuid(204), "restored title", "restored content", 3.0));
+
+        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(204), "evt-delete", "PostDeleted"));
+        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(204), "evt-update-1", "PostUpdated"));
+        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(204), "evt-update-2", "PostUpdated"));
+
+        ArgumentCaptor<SyncPostProjectionCommand> syncCaptor = ArgumentCaptor.forClass(SyncPostProjectionCommand.class);
+        verify(searchApplicationService).deletePost(new DeleteIndexedPostCommand(uuid(204)));
+        verify(searchApplicationService, times(2)).syncPostProjection(syncCaptor.capture());
+        assertThat(syncCaptor.getAllValues())
+                .extracting(SyncPostProjectionCommand::title)
+                .containsExactly("restored title", "restored title");
+        assertThat(syncCaptor.getAllValues().get(1).postId()).isEqualTo(uuid(204));
+    }
+
+    private static PostScanView.PostProjectionView postProjection(
+            java.util.UUID postId,
+            String title,
+            String content,
+            double score
+    ) {
+        return new PostScanView.PostProjectionView(
+                postId,
+                uuid(7),
+                uuid(3),
+                List.of("java"),
+                title,
+                content,
+                0,
+                0,
+                Instant.parse("2026-03-28T00:00:00Z"),
+                score
+        );
     }
 }

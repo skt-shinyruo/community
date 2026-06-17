@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 import java.util.UUID;
 
 @Component
-@ConditionalOnProperty(name = "social.events.publisher", havingValue = "local", matchIfMissing = true)
+@ConditionalOnProperty(name = "social.events.publisher", havingValue = "local")
 public class LocalSocialDomainEventPublisher implements SocialDomainEventPublisher {
 
     private final ApplicationEventPublisher applicationEventPublisher;

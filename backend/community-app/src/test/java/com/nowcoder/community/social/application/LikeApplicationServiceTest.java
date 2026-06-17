@@ -15,10 +15,7 @@ import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.LikeRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
-import com.nowcoder.community.user.api.action.UserRewardActionApi;
-import com.nowcoder.community.user.api.model.UserLikeRewardRequest;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
@@ -36,10 +33,8 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -55,7 +50,7 @@ class LikeApplicationServiceTest {
 
         StatefulBlockRepository blockRepository = new StatefulBlockRepository();
         blockRepository.block(uuid(2), uuid(1));
-        LikeApplicationService service = newService(repo, blockRepository, publisher, resolver, null);
+        LikeApplicationService service = newService(repo, blockRepository, publisher, resolver);
 
         assertThatThrownBy(() -> service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true)))
                 .isInstanceOf(BusinessException.class)
@@ -73,7 +68,7 @@ class LikeApplicationServiceTest {
         ContentEntityResolver resolver = mock(ContentEntityResolver.class);
         Mockito.when(resolver.resolve(POST, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
 
-        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver, null);
+        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver);
 
         LikeResult r1 = service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
         assertThat(r1.liked()).isTrue();
@@ -110,7 +105,7 @@ class LikeApplicationServiceTest {
                 .thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)))
                 .thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND, "content not found"));
 
-        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver, null);
+        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver);
 
         service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
         LikeResult result = service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), false));
@@ -129,7 +124,7 @@ class LikeApplicationServiceTest {
                 .thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)))
                 .thenThrow(new BusinessException(ContentErrorCode.POST_NOT_FOUND));
 
-        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver, null);
+        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver);
 
         service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
         LikeResult result = service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), false));
@@ -147,7 +142,7 @@ class LikeApplicationServiceTest {
         Mockito.when(resolver.resolve(POST, uuid(100)))
                 .thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)))
                 .thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND, "content not found"));
-        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver, null);
+        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver);
 
         service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
         assertThat(service.userLikeCount(uuid(2))).isEqualTo(1);
@@ -178,7 +173,7 @@ class LikeApplicationServiceTest {
         Mockito.when(resolver.resolve(POST, uuid(100)))
                 .thenThrow(new BusinessException(ContentErrorCode.POST_NOT_FOUND));
 
-        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver, null);
+        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver);
 
         assertThatThrownBy(() -> service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true)))
                 .isInstanceOf(BusinessException.class)
@@ -197,8 +192,7 @@ class LikeApplicationServiceTest {
                 repo,
                 new StatefulBlockRepository(),
                 new FailingSocialDomainEventPublisher(),
-                resolver,
-                null
+                resolver
         );
 
         assertThatThrownBy(() -> service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true)))
@@ -211,89 +205,6 @@ class LikeApplicationServiceTest {
     }
 
     @Test
-    void likeShouldTriggerLocalSideEffectsBeforePublishingSocialEvent() {
-        StatefulLikeRepository repo = new StatefulLikeRepository();
-        SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
-        Mockito.when(resolver.resolve(POST, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
-        UserRewardActionApi rewardActionApi = mock(UserRewardActionApi.class);
-
-        LikeApplicationService service = newService(
-                repo,
-                new StatefulBlockRepository(),
-                publisher,
-                resolver,
-                rewardActionApi
-        );
-
-        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
-
-        ArgumentCaptor<UserLikeRewardRequest> rewardRequest = ArgumentCaptor.forClass(UserLikeRewardRequest.class);
-        var inOrder = Mockito.inOrder(rewardActionApi, publisher);
-        inOrder.verify(rewardActionApi).awardLikeCreated(rewardRequest.capture());
-        inOrder.verify(publisher).publishLikeChanged(any(LikeChangedDomainEvent.class));
-        assertThat(rewardRequest.getValue().sourceEventId()).startsWith("like-created-reward:");
-        assertThat(rewardRequest.getValue().actorUserId()).isEqualTo(uuid(1));
-        assertThat(rewardRequest.getValue().entityUserId()).isEqualTo(uuid(2));
-    }
-
-    @Test
-    void likeUnlikeRelikeShouldUseDistinctRewardIds() {
-        StatefulLikeRepository repo = new StatefulLikeRepository();
-        SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
-        Mockito.when(resolver.resolve(POST, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
-        UserRewardActionApi rewardActionApi = mock(UserRewardActionApi.class);
-        LikeApplicationService service = newService(
-                repo,
-                new StatefulBlockRepository(),
-                publisher,
-                resolver,
-                rewardActionApi
-        );
-
-        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
-        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), false));
-        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
-
-        ArgumentCaptor<UserLikeRewardRequest> rewardCreateRequests = ArgumentCaptor.forClass(UserLikeRewardRequest.class);
-        ArgumentCaptor<UserLikeRewardRequest> rewardRemoveRequests = ArgumentCaptor.forClass(UserLikeRewardRequest.class);
-        verify(rewardActionApi, times(2)).awardLikeCreated(rewardCreateRequests.capture());
-        verify(rewardActionApi).awardLikeRemoved(rewardRemoveRequests.capture());
-        List<String> rewardCreateIds = rewardCreateRequests.getAllValues().stream()
-                .map(UserLikeRewardRequest::sourceEventId)
-                .toList();
-        assertThat(rewardCreateIds).hasSize(2).doesNotHaveDuplicates();
-        assertThat(rewardCreateIds).allSatisfy(id -> assertThat(id).startsWith("like-created-reward:"));
-        assertThat(rewardRemoveRequests.getValue().sourceEventId()).startsWith("like-removed-reward:");
-        assertThat(rewardRemoveRequests.getValue().sourceEventId()).isNotIn(rewardCreateIds);
-    }
-
-    @Test
-    void likeShouldRollbackStateWhenRewardAwardFailsForCompensatingRepository() {
-        StatefulLikeRepository repo = new StatefulLikeRepository();
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
-        Mockito.when(resolver.resolve(POST, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
-        UserRewardActionApi rewardActionApi = mock(UserRewardActionApi.class);
-        doThrow(new IllegalStateException("award failed")).when(rewardActionApi).awardLikeCreated(any(UserLikeRewardRequest.class));
-
-        LikeApplicationService service = newService(
-                repo,
-                new StatefulBlockRepository(),
-                mock(SocialDomainEventPublisher.class),
-                resolver,
-                rewardActionApi
-        );
-
-        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("award failed");
-
-        assertThat(repo.isLiked(uuid(1), POST, uuid(100))).isFalse();
-        assertThat(repo.countEntityLikes(POST, uuid(100))).isEqualTo(0);
-    }
-
-    @Test
     void setLikeShouldRejectUnsupportedEntityTypeBeforeCollaborators() {
         LikeRepository repo = mock(LikeRepository.class);
         ContentEntityResolver resolver = mock(ContentEntityResolver.class);
@@ -301,8 +212,7 @@ class LikeApplicationServiceTest {
                 repo,
                 new StatefulBlockRepository(),
                 mock(SocialDomainEventPublisher.class),
-                resolver,
-                null
+                resolver
         );
 
         assertThatThrownBy(() -> service.setLike(new SetLikeCommand(uuid(1), 999, uuid(100), true)))
@@ -320,8 +230,7 @@ class LikeApplicationServiceTest {
                 repo,
                 new StatefulBlockRepository(),
                 mock(SocialDomainEventPublisher.class),
-                mock(ContentEntityResolver.class),
-                null
+                mock(ContentEntityResolver.class)
         );
 
         assertThatThrownBy(() -> service.isLiked(uuid(1), 999, uuid(100)))
@@ -355,8 +264,7 @@ class LikeApplicationServiceTest {
                 repo,
                 new StatefulBlockRepository(),
                 mock(SocialDomainEventPublisher.class),
-                mock(ContentEntityResolver.class),
-                null
+                mock(ContentEntityResolver.class)
         );
         UUID actorUserId = uuid(1);
         UUID firstEntityId = uuid(100);
@@ -385,8 +293,7 @@ class LikeApplicationServiceTest {
                 repo,
                 new StatefulBlockRepository(),
                 mock(SocialDomainEventPublisher.class),
-                mock(ContentEntityResolver.class),
-                null
+                mock(ContentEntityResolver.class)
         );
 
         assertThat(service.counts(POST, null)).isEmpty();
@@ -404,8 +311,7 @@ class LikeApplicationServiceTest {
                 repo,
                 new StatefulBlockRepository(),
                 mock(SocialDomainEventPublisher.class),
-                mock(ContentEntityResolver.class),
-                null
+                mock(ContentEntityResolver.class)
         );
         UUID actorUserId = uuid(1);
         List<UUID> overLimitIds = IntStream.rangeClosed(1, 201)
@@ -436,8 +342,7 @@ class LikeApplicationServiceTest {
             LikeRepository likeRepository,
             BlockRepository blockRepository,
             SocialDomainEventPublisher publisher,
-            ContentEntityResolver resolver,
-            UserRewardActionApi rewardActionApi
+            ContentEntityResolver resolver
     ) {
         return new LikeApplicationService(
                 likeRepository,
@@ -445,8 +350,7 @@ class LikeApplicationServiceTest {
                 new LikeDomainService(),
                 new BlockDomainService(),
                 resolver,
-                publisher,
-                rewardActionApi
+                publisher
         );
     }
 

@@ -549,6 +549,11 @@ create table if not exists notice_record (
   create_time timestamp
 );
 
+create table if not exists notice_projection_event_log (
+  source_event_id varchar(128) not null primary key,
+  create_time datetime not null default current_timestamp
+);
+
 create table if not exists http_idempotency (
   id binary(16) primary key,
   operation varchar(64) not null,
@@ -680,6 +685,7 @@ delete from social_like;
 delete from social_user_like_count;
 delete from social_follow;
 delete from social_block;
+delete from notice_projection_event_log;
 delete from notice_record;
 delete from http_idempotency;
 delete from outbox_event;

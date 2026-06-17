@@ -1,209 +1,56 @@
 package com.nowcoder.community.im.infrastructure.event;
 
-import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
-import com.nowcoder.community.common.kafka.trace.TraceKafkaHeaders;
 import com.nowcoder.community.common.outbox.OutboxEvent;
-import com.nowcoder.community.common.trace.OtelTraceContext;
-import com.nowcoder.community.common.trace.TraceContextSnapshot;
-import com.nowcoder.community.common.trace.TraceHeaders;
-import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
-import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
-import io.opentelemetry.api.trace.SpanKind;
-import org.apache.kafka.clients.producer.ProducerRecord;
+import com.nowcoder.community.im.application.ImPolicyEventDispatchApplicationService;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.SendResult;
 
-import java.lang.reflect.RecordComponent;
-import java.time.Instant;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
-import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class ImPolicyKafkaOutboxHandlerTest {
 
     private static final String OUTBOX_TOPIC = "custom.projection.im.policy";
-    private static final String USER_POLICY_TOPIC = "custom.im.event.user-policy";
-    private static final String BLOCK_TOPIC = "custom.im.event.block";
-
-    private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
 
     @Test
-    void handlerShouldOnlyExposeOwnerDomainQueryApiConstructor() {
+    void handlerShouldOnlyExposeApplicationServiceConstructor() {
         assertThat(ImPolicyKafkaOutboxHandler.class.getDeclaredConstructors())
                 .singleElement()
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
-                        JsonCodec.class,
-                        KafkaTemplate.class,
-                        String.class,
-                        String.class,
+                        ImPolicyEventDispatchApplicationService.class,
                         String.class
                 ));
     }
 
     @Test
-    void moderationOutboxShouldPublishCurrentPolicyState() {
-        KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
-        Instant muteUntil = Instant.parse("2026-04-24T09:15:30Z");
-        Instant expiredBanUntil = Instant.parse("2026-04-22T09:15:30Z");
-        when(kafkaTemplate.send(any(ProducerRecord.class)))
-                .thenReturn(completedSend());
+    void topicShouldReturnOutboxTopic() {
+        ImPolicyKafkaOutboxHandler handler =
+                new ImPolicyKafkaOutboxHandler(mock(ImPolicyEventDispatchApplicationService.class), OUTBOX_TOPIC);
 
-        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
-                jsonCodec,
-                kafkaTemplate,
-                OUTBOX_TOPIC,
-                USER_POLICY_TOPIC,
-                BLOCK_TOPIC
-        );
-
-        OutboxEvent outboxEvent = new OutboxEvent(
-                UUID.randomUUID(),
-                "evt-policy-1",
-                OUTBOX_TOPIC,
-                uuid(7).toString(),
-                "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
-                        + "\",\"userExists\":true,\"suspended\":false,\"muted\":true,\"muteUntil\":" + muteUntil.toEpochMilli()
-                        + ",\"banUntil\":" + expiredBanUntil.toEpochMilli()
-                        + ",\"canSendPrivate\":false,\"occurredAtEpochMillis\":1712345678901,\"version\":7007}",
-                "PENDING",
-                0,
-                null,
-                null,
-                "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-                "00-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-00f067aa0ba902b7-01"
-        );
-
-        TraceContextSnapshot snapshot = TraceContextSnapshot.fromStored(outboxEvent.traceId(), outboxEvent.traceparent());
-        try (var ignored = OtelTraceContext.openForInbound(
-                snapshot.traceparent(),
-                "outbox.process " + outboxEvent.topic(),
-                SpanKind.CONSUMER
-        )) {
-            handler.handle(outboxEvent);
-        }
-
-        ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor = ArgumentCaptor.forClass(ProducerRecord.class);
-        verify(kafkaTemplate).send(recordCaptor.capture());
-        ProducerRecord<String, Object> record = recordCaptor.getValue();
-        assertThat(record.topic()).isEqualTo(USER_POLICY_TOPIC);
-        assertThat(record.key()).isEqualTo(uuid(7).toString());
-        assertThat(record.value()).isInstanceOf(UserMessagingPolicyChanged.class);
-        UserMessagingPolicyChanged published = (UserMessagingPolicyChanged) record.value();
-        assertThat(published.userId()).isEqualTo(uuid(7));
-        assertThat(published.userExists()).isTrue();
-        assertThat(published.muted()).isTrue();
-        assertThat(published.suspended()).isFalse();
-        assertThat(recordComponentValue(published, "muteUntil")).isEqualTo(muteUntil.toEpochMilli());
-        assertThat(recordComponentValue(published, "banUntil")).isEqualTo(expiredBanUntil.toEpochMilli());
-        assertThat(published.version()).isEqualTo(7007L);
-        assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACEPARENT))
-                .isEqualTo(snapshot.traceparent());
+        assertThat(handler.topic()).isEqualTo(OUTBOX_TOPIC);
     }
 
     @Test
-    void blockOutboxShouldPublishCurrentBlockState() {
-        KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
-        when(kafkaTemplate.send(any(ProducerRecord.class)))
-                .thenReturn(completedSend());
+    void handleShouldDelegateEventIdKeyAndPayloadToApplicationService() {
+        ImPolicyEventDispatchApplicationService applicationService = mock(ImPolicyEventDispatchApplicationService.class);
+        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(applicationService, OUTBOX_TOPIC);
 
-        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
-                jsonCodec,
-                kafkaTemplate,
-                OUTBOX_TOPIC,
-                USER_POLICY_TOPIC,
-                BLOCK_TOPIC
-        );
+        handler.handle(new OutboxEvent(UUID.randomUUID(), "evt-policy-1", OUTBOX_TOPIC, "key-1", "{\"kind\":\"USER_POLICY\"}",
+                "PENDING", 0, null, null, null, null));
 
-        handler.handle(new OutboxEvent(
-                UUID.randomUUID(),
-                "evt-policy-2",
-                OUTBOX_TOPIC,
-                uuid(7).toString(),
-                "{\"kind\":\"BLOCK\",\"primaryUserId\":\"" + uuid(7)
-                        + "\",\"secondaryUserId\":\"" + uuid(8)
-                        + "\",\"active\":true,\"occurredAtEpochMillis\":1712345678902,\"version\":8008}",
-                "PENDING",
-                0,
-                null,
-                null,
-                null,
-                null
-        ));
-
-        ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor = ArgumentCaptor.forClass(ProducerRecord.class);
-        verify(kafkaTemplate).send(recordCaptor.capture());
-        ProducerRecord<String, Object> record = recordCaptor.getValue();
-        assertThat(record.topic()).isEqualTo(BLOCK_TOPIC);
-        assertThat(record.key()).isEqualTo(uuid(7).toString());
-        assertThat(record.value()).isInstanceOf(UserBlockRelationChanged.class);
-        UserBlockRelationChanged published = (UserBlockRelationChanged) record.value();
-        assertThat(published.version()).isEqualTo(8008L);
+        verify(applicationService).dispatch("evt-policy-1", "key-1", "{\"kind\":\"USER_POLICY\"}");
     }
 
     @Test
-    void kafkaPublishFailureShouldFailOutboxHandlingForRetry() {
-        KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
-        when(kafkaTemplate.send(any(ProducerRecord.class)))
-                .thenReturn(failedSend());
+    void handleShouldIgnoreNullEvent() {
+        ImPolicyEventDispatchApplicationService applicationService = mock(ImPolicyEventDispatchApplicationService.class);
+        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(applicationService, OUTBOX_TOPIC);
 
-        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
-                jsonCodec,
-                kafkaTemplate,
-                OUTBOX_TOPIC,
-                USER_POLICY_TOPIC,
-                BLOCK_TOPIC
-        );
+        handler.handle(null);
 
-        assertThatThrownBy(() -> handler.handle(new OutboxEvent(
-                UUID.randomUUID(),
-                "evt-policy-1",
-                OUTBOX_TOPIC,
-                uuid(7).toString(),
-                "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
-                        + "\",\"userExists\":true,\"suspended\":false,\"muted\":false,\"muteUntil\":null,\"banUntil\":null"
-                        + ",\"canSendPrivate\":true,\"occurredAtEpochMillis\":1712345678903}",
-                "PENDING",
-                0,
-                null,
-                null,
-                null,
-                null
-        )))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("im policy kafka publish failed");
-    }
-
-    private CompletableFuture<SendResult<String, Object>> completedSend() {
-        return CompletableFuture.completedFuture(mock(SendResult.class));
-    }
-
-    private CompletableFuture<SendResult<String, Object>> failedSend() {
-        CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
-        future.completeExceptionally(new RuntimeException("kafka down"));
-        return future;
-    }
-
-    private static Object recordComponentValue(Object record, String componentName) {
-        for (RecordComponent component : record.getClass().getRecordComponents()) {
-            if (component.getName().equals(componentName)) {
-                try {
-                    return component.getAccessor().invoke(record);
-                } catch (ReflectiveOperationException e) {
-                    throw new AssertionError("cannot read component: " + componentName, e);
-                }
-            }
-        }
-        throw new AssertionError(record.getClass().getSimpleName() + " missing component: " + componentName);
+        verifyNoInteractions(applicationService);
     }
 }

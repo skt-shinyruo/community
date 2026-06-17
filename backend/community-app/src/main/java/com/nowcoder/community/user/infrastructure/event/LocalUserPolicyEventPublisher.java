@@ -5,6 +5,7 @@ import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserModerationStatus;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +13,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Component
+@ConditionalOnProperty(name = "user.events.publisher", havingValue = "local")
 public class LocalUserPolicyEventPublisher implements UserPolicyEventPublisher {
 
     private final ApplicationEventPublisher applicationEventPublisher;

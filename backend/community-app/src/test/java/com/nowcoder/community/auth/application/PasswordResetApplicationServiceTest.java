@@ -149,11 +149,37 @@ class PasswordResetApplicationServiceTest {
     }
 
     @Test
-    void requestResetShouldRejectTooManyRequestsBeforeLookingUpUser() {
+    void requestResetShouldNotConsumeEmailQuotaForUnknownEmail() {
         properties.setRequestWindowSeconds(300);
         properties.setMaxRequestsPerEmail(1);
         properties.setMaxRequestsPerIp(20);
         when(captchaService.verify("cid", "1234")).thenReturn(true);
+        when(resetRequestRateLimitRepository.increment("auth:pwdreset:req:ip:203.0.113.10", 300)).thenReturn(1);
+        when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(null);
+
+        PasswordResetRequestResult result = service.requestReset(new RequestPasswordResetCommand(
+                " alice@example.com ",
+                "cid",
+                "1234",
+                "203.0.113.10"
+        ));
+
+        assertThat(result.issued()).isTrue();
+        verify(resetRequestRateLimitRepository).increment("auth:pwdreset:req:ip:203.0.113.10", 300);
+        verify(resetRequestRateLimitRepository, never()).increment("auth:pwdreset:req:email:alice@example.com", 300);
+        verify(tokenStore, never()).store(anyString(), any(UUID.class), any(Duration.class));
+    }
+
+    @Test
+    void requestResetShouldConsumeEmailQuotaOnlyForKnownUsableUser() {
+        UUID userId = uuid(7);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 1L, true, true);
+        properties.setRequestWindowSeconds(300);
+        properties.setMaxRequestsPerEmail(1);
+        properties.setMaxRequestsPerIp(20);
+        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        when(resetRequestRateLimitRepository.increment("auth:pwdreset:req:ip:203.0.113.10", 300)).thenReturn(1);
+        when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(user);
         when(resetRequestRateLimitRepository.increment("auth:pwdreset:req:email:alice@example.com", 300)).thenReturn(2);
 
         assertThatThrownBy(() -> service.requestReset(new RequestPasswordResetCommand(
@@ -166,7 +192,6 @@ class PasswordResetApplicationServiceTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.TOO_MANY_REQUESTS);
 
-        verify(userCredentialQueryApi, never()).findByEmailOrNull(anyString());
         verify(tokenStore, never()).store(anyString(), any(UUID.class), any(Duration.class));
         verify(mailService, never()).sendPasswordResetMail(anyString(), anyString());
     }

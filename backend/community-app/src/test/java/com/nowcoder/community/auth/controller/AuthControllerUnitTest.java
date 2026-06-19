@@ -22,6 +22,8 @@ import com.nowcoder.community.auth.controller.dto.LoginRequest;
 import com.nowcoder.community.auth.controller.dto.LoginResponse;
 import com.nowcoder.community.auth.controller.dto.MeResponse;
 import com.nowcoder.community.auth.controller.dto.CaptchaIssueResponse;
+import com.nowcoder.community.auth.controller.dto.PasswordResetConfirmRequest;
+import com.nowcoder.community.auth.controller.dto.PasswordResetRequestRequest;
 import com.nowcoder.community.auth.controller.dto.RegisterCodeResendRequest;
 import com.nowcoder.community.auth.controller.dto.RegisterCodeResendResponse;
 import com.nowcoder.community.auth.controller.dto.RegisterCodeVerifyRequest;
@@ -297,6 +299,11 @@ class AuthControllerUnitTest {
         assertMaxSize(RegisterCodeResendRequest.class, "captchaCode", ValidationLimits.CAPTCHA_CODE_MAX);
         assertMaxSize(RegisterCodeVerifyRequest.class, "registrationToken", ValidationLimits.REGISTRATION_TOKEN_MAX);
         assertMaxSize(RegisterCodeVerifyRequest.class, "code", ValidationLimits.REGISTRATION_EMAIL_CODE_MAX);
+        assertMaxSize(PasswordResetRequestRequest.class, "captchaId", ValidationLimits.CAPTCHA_ID_MAX);
+        assertMaxSize(PasswordResetRequestRequest.class, "captchaCode", ValidationLimits.CAPTCHA_CODE_MAX);
+        assertMaxSize(PasswordResetConfirmRequest.class, "resetToken", ValidationLimits.TOKEN_MAX);
+        assertMaxSize(PasswordResetConfirmRequest.class, "captchaId", ValidationLimits.CAPTCHA_ID_MAX);
+        assertMaxSize(PasswordResetConfirmRequest.class, "captchaCode", ValidationLimits.CAPTCHA_CODE_MAX);
     }
 
     @Test

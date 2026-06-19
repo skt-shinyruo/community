@@ -14,6 +14,7 @@ public final class ValidationLimits {
     public static final int USERNAME_MAX = 32;
     public static final int PASSWORD_MAX = 64;
     public static final int EMAIL_MAX = 128;
+    public static final int TOKEN_MAX = 256;
     public static final int CAPTCHA_ID_MAX = 64;
     public static final int CAPTCHA_CODE_MAX = 16;
     public static final int REGISTRATION_TOKEN_MAX = 64;

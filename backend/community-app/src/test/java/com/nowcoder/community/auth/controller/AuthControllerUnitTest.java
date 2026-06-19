@@ -28,10 +28,12 @@ import com.nowcoder.community.auth.controller.dto.RegisterCodeVerifyRequest;
 import com.nowcoder.community.auth.controller.dto.RegisterRequest;
 import com.nowcoder.community.auth.controller.dto.RegisterResponse;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
+import com.nowcoder.community.common.constants.ValidationLimits;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import jakarta.servlet.http.Cookie;
+import jakarta.validation.constraints.Size;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,12 +45,14 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -212,17 +216,47 @@ class AuthControllerUnitTest {
     }
 
     @Test
+    void meShouldRejectNonUuidSubject() {
+        Jwt jwt = Jwt.withTokenValue("t")
+                .header("alg", "none")
+                .subject("not-a-uuid")
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(60))
+                .build();
+
+        Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
+        when(authentication.getPrincipal()).thenReturn(jwt);
+
+        assertThatThrownBy(() -> controller.me(authentication))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(AuthErrorCode.TOKEN_INVALID);
+    }
+
+    @Test
     void captchaShouldSetNoCacheHeaders() {
         when(captchaApplicationService.issue(any(IssueCaptchaCommand.class))).thenReturn(new CaptchaIssueResult("cid", "img", 60));
 
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();
-        Result<CaptchaIssueResponse> resp = controller.captcha(httpResponse);
+        Result<CaptchaIssueResponse> resp = controller.captcha(httpRequest, httpResponse);
 
         assertThat(httpResponse.getHeader(HttpHeaders.CACHE_CONTROL)).contains("no-store");
         assertThat(httpResponse.getHeader(HttpHeaders.PRAGMA)).contains("no-cache");
         assertThat(resp.getCode()).isEqualTo(0);
         assertThat(resp.getData()).isNotNull();
         assertThat(resp.getData().getCaptchaId()).isEqualTo("cid");
+    }
+
+    @Test
+    void captchaShouldPassClientIpToApplicationCommand() {
+        when(captchaApplicationService.issue(any(IssueCaptchaCommand.class))).thenReturn(new CaptchaIssueResult("cid", "img", 60));
+
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+        MockHttpServletResponse httpResponse = new MockHttpServletResponse();
+        controller.captcha(httpRequest, httpResponse);
+
+        verify(captchaApplicationService).issue(new IssueCaptchaCommand("127.0.0.1"));
     }
 
     @Test
@@ -252,6 +286,17 @@ class AuthControllerUnitTest {
         assertThat(response.getData().isEmailCodeIssued()).isTrue();
         assertThat(response.getData().getMaskedEmail()).isEqualTo("a***@example.com");
         assertThat(response.getData().getDebugEmailCode()).isEqualTo("123456");
+    }
+
+    @Test
+    void registerDtosShouldUseValidationLimitsForSizedFields() throws Exception {
+        assertMaxSize(RegisterRequest.class, "captchaId", ValidationLimits.CAPTCHA_ID_MAX);
+        assertMaxSize(RegisterRequest.class, "captchaCode", ValidationLimits.CAPTCHA_CODE_MAX);
+        assertMaxSize(RegisterCodeResendRequest.class, "registrationToken", ValidationLimits.REGISTRATION_TOKEN_MAX);
+        assertMaxSize(RegisterCodeResendRequest.class, "captchaId", ValidationLimits.CAPTCHA_ID_MAX);
+        assertMaxSize(RegisterCodeResendRequest.class, "captchaCode", ValidationLimits.CAPTCHA_CODE_MAX);
+        assertMaxSize(RegisterCodeVerifyRequest.class, "registrationToken", ValidationLimits.REGISTRATION_TOKEN_MAX);
+        assertMaxSize(RegisterCodeVerifyRequest.class, "code", ValidationLimits.REGISTRATION_EMAIL_CODE_MAX);
     }
 
     @Test
@@ -347,5 +392,12 @@ class AuthControllerUnitTest {
                 "SameSite=Lax"
         );
         assertThat(setCookie).doesNotContain("Secure");
+    }
+
+    private static void assertMaxSize(Class<?> type, String fieldName, int expected) throws Exception {
+        Field field = type.getDeclaredField(fieldName);
+        Size size = field.getAnnotation(Size.class);
+        assertThat(size).isNotNull();
+        assertThat(size.max()).isEqualTo(expected);
     }
 }

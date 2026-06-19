@@ -122,7 +122,7 @@ public class AuthController {
     public Result<MeResponse> me(Authentication authentication) {
         var jwt = CurrentUser.requireJwt(authentication);
         MeResponse me = new MeResponse();
-        me.setUserId(UUID.fromString(jwt.getSubject()));
+        me.setUserId(parseUserUuidOrThrow(jwt.getSubject()));
         me.setUsername(jwt.getClaimAsString("username"));
         List<String> authorities = jwt.getClaimAsStringList("authorities");
         me.setAuthorities(authorities == null ? List.of() : authorities);
@@ -160,8 +160,11 @@ public class AuthController {
     }
 
     @GetMapping("/captcha")
-    public Result<CaptchaIssueResponse> captcha(HttpServletResponse response) {
-        CaptchaIssueResult result = captchaApplicationService.issue(new IssueCaptchaCommand());
+    public Result<CaptchaIssueResponse> captcha(HttpServletRequest request, HttpServletResponse response) {
+        ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(request);
+        CaptchaIssueResult result = captchaApplicationService.issue(new IssueCaptchaCommand(
+                resolvedIp == null ? null : resolvedIp.ip()
+        ));
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0");
         response.setHeader(HttpHeaders.PRAGMA, "no-cache");
         return Result.ok(new CaptchaIssueResponse(result.captchaId(), result.imageBase64(), result.ttlSeconds()));
@@ -253,5 +256,13 @@ public class AuthController {
         response.setMaskedEmail(result.maskedEmail());
         response.setDebugEmailCode(result.debugEmailCode());
         return response;
+    }
+
+    private UUID parseUserUuidOrThrow(String subject) {
+        try {
+            return UUID.fromString(subject);
+        } catch (RuntimeException ex) {
+            throw new BusinessException(AuthErrorCode.TOKEN_INVALID);
+        }
     }
 }

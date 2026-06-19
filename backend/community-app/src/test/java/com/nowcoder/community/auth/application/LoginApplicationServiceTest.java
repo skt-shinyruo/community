@@ -106,7 +106,7 @@ class LoginApplicationServiceTest {
                 .filter(method -> method.getName().equals("issueLoginResult"))
                 .map(Method::getParameterTypes)
                 .toList())
-                .containsExactly(new Class<?>[]{UserCredentialView.class});
+                .isEmpty();
     }
 
     @Test

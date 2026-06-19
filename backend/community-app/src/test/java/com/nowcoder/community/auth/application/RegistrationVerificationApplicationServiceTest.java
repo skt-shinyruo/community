@@ -14,6 +14,7 @@ import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
@@ -59,7 +60,7 @@ class RegistrationVerificationApplicationServiceTest {
     private CaptchaApplicationService captchaService;
 
     @Mock
-    private LoginApplicationService authService;
+    private LoginTokenIssuer loginTokenIssuer;
 
     @Mock
     private RegistrationDraftRepository registrationDraftRepository;
@@ -79,7 +80,7 @@ class RegistrationVerificationApplicationServiceTest {
                 mailService,
                 captchaService,
                 registrationDraftRepository,
-                authService,
+                loginTokenIssuer,
                 new AuthSecretGenerator(),
                 new RegistrationDomainService()
         );
@@ -130,9 +131,10 @@ class RegistrationVerificationApplicationServiceTest {
         RefreshCookieSpec cookie = issuedCookie("rt");
 
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
-        when(registrationCodeStore.verifyAndConsume(userId, "222222")).thenReturn(RegistrationCodeRepository.VerifyResult.SUCCESS);
+        when(registrationCodeStore.verifyForConsumption(userId, "222222", Duration.ofSeconds(60)))
+                .thenReturn(RegistrationCodeRepository.VerifyResult.PENDING);
         when(userRegistrationActionApi.createVerifiedRegistrationUser(any(VerifiedRegistrationUserCommand.class))).thenReturn(activatedUser);
-        when(authService.issueLoginResult(activatedUser)).thenReturn(new LoginResult("access-token", cookie));
+        when(loginTokenIssuer.issueLoginResult(activatedUser)).thenReturn(new LoginResult("access-token", cookie));
 
         LoginResult result = service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222"));
 
@@ -148,7 +150,8 @@ class RegistrationVerificationApplicationServiceTest {
         assertThat(createCommand.encodedPassword()).isEqualTo(ENCODED_PASSWORD);
         assertThat(createCommand.headerUrl()).isEqualTo("h");
         verify(registrationDraftRepository).delete("token");
-        verify(authService).issueLoginResult(activatedUser);
+        verify(registrationCodeStore).consumePending(userId);
+        verify(loginTokenIssuer).issueLoginResult(activatedUser);
         assertThat(output.getAll())
                 .contains("user.id=" + userId)
                 .contains("username=alice")
@@ -162,9 +165,10 @@ class RegistrationVerificationApplicationServiceTest {
         UserCredentialView activatedUser = new UserCredentialView(userId, "alice", 1, 0, null, 0L);
 
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
-        when(registrationCodeStore.verifyAndConsume(userId, "222222")).thenReturn(RegistrationCodeRepository.VerifyResult.SUCCESS);
+        when(registrationCodeStore.verifyForConsumption(userId, "222222", Duration.ofSeconds(60)))
+                .thenReturn(RegistrationCodeRepository.VerifyResult.PENDING);
         when(userRegistrationActionApi.createVerifiedRegistrationUser(any(VerifiedRegistrationUserCommand.class))).thenReturn(activatedUser);
-        when(authService.issueLoginResult(activatedUser)).thenThrow(new IllegalStateException("token down"));
+        when(loginTokenIssuer.issueLoginResult(activatedUser)).thenThrow(new IllegalStateException("token down"));
 
         assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222")))
                 .isInstanceOf(BusinessException.class)
@@ -172,6 +176,26 @@ class RegistrationVerificationApplicationServiceTest {
                 .isEqualTo(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
 
         verify(registrationDraftRepository).delete("token");
+        verify(registrationCodeStore).consumePending(userId);
+    }
+
+    @Test
+    void verifyAndLoginShouldRestorePendingCodeWhenUserCreationFailsBeforeActivation() {
+        UUID userId = uuid(7);
+        PreparedRegistrationDraft draft = draft(userId);
+        when(registrationDraftRepository.find("reg-token")).thenReturn(Optional.of(draft));
+        when(registrationCodeStore.verifyForConsumption(draft.userId(), "123456", Duration.ofSeconds(60)))
+                .thenReturn(RegistrationCodeRepository.VerifyResult.PENDING);
+        RuntimeException createFailure = new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "用户名或邮箱已存在");
+        when(userRegistrationActionApi.createVerifiedRegistrationUser(any()))
+                .thenThrow(createFailure);
+
+        assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("reg-token", "123456")))
+                .isSameAs(createFailure);
+
+        verify(registrationCodeStore).restorePending(draft.userId());
+        verify(registrationCodeStore, never()).consumePending(draft.userId());
+        verify(registrationDraftRepository, never()).delete("reg-token");
     }
 
     @Test
@@ -179,14 +203,15 @@ class RegistrationVerificationApplicationServiceTest {
         UUID userId = uuid(7);
 
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
-        when(registrationCodeStore.verifyAndConsume(userId, "111111")).thenReturn(RegistrationCodeRepository.VerifyResult.MISMATCH);
+        when(registrationCodeStore.verifyForConsumption(userId, "111111", Duration.ofSeconds(60)))
+                .thenReturn(RegistrationCodeRepository.VerifyResult.MISMATCH);
 
         assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "111111")))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(AuthErrorCode.REGISTRATION_CODE_INVALID);
 
-        verify(authService, never()).issueLoginResult(any(UserCredentialView.class));
+        verify(loginTokenIssuer, never()).issueLoginResult(any(UserCredentialView.class));
         verify(userRegistrationActionApi, never()).createVerifiedRegistrationUser(any());
         verify(registrationDraftRepository, never()).delete(any());
     }
@@ -255,7 +280,7 @@ class RegistrationVerificationApplicationServiceTest {
                 .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
 
         verify(registrationDraftRepository).delete("token");
-        verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailService, authService);
+        verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailService, loginTokenIssuer);
     }
 
     private static UUID uuid(long suffix) {

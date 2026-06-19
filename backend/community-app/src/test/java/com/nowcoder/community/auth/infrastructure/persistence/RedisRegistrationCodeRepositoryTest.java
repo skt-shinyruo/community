@@ -123,17 +123,20 @@ class RedisRegistrationCodeRepositoryTest {
                 eq(List.of("auth:regcode:" + userId)),
                 eq("222222"),
                 any(String.class),
-                eq("3")))
-                .thenReturn("SUCCESS");
+                eq("3"),
+                eq("0")))
+                .thenReturn("PENDING");
         assertThat(store.verifyAndConsume(userId, "222222"))
                 .isEqualTo(RegistrationCodeRepository.VerifyResult.SUCCESS);
+        verify(redisTemplate).delete("auth:regcode:" + userId);
 
         when(redisTemplate.execute(
                 any(RedisScript.class),
                 eq(List.of("auth:regcode:" + userId)),
                 eq("111111"),
                 any(String.class),
-                eq("3")))
+                eq("3"),
+                eq("0")))
                 .thenReturn("MISMATCH");
         assertThat(store.verifyAndConsume(userId, "111111"))
                 .isEqualTo(RegistrationCodeRepository.VerifyResult.MISMATCH);
@@ -143,7 +146,8 @@ class RedisRegistrationCodeRepositoryTest {
                 eq(List.of("auth:regcode:" + userId)),
                 eq("333333"),
                 any(String.class),
-                eq("3")))
+                eq("3"),
+                eq("0")))
                 .thenReturn("TOO_MANY_ATTEMPTS");
         assertThat(store.verifyAndConsume(userId, "333333"))
                 .isEqualTo(RegistrationCodeRepository.VerifyResult.TOO_MANY_ATTEMPTS);
@@ -153,7 +157,8 @@ class RedisRegistrationCodeRepositoryTest {
                 eq(List.of("auth:regcode:" + userId)),
                 eq("222222"),
                 any(String.class),
-                eq("3")))
+                eq("3"),
+                eq("0")))
                 .thenReturn("EXPIRED");
         assertThat(store.verifyAndConsume(userId, "222222"))
                 .isEqualTo(RegistrationCodeRepository.VerifyResult.EXPIRED);
@@ -163,10 +168,49 @@ class RedisRegistrationCodeRepositoryTest {
                 eq(List.of("auth:regcode:" + userId)),
                 eq("222222"),
                 any(String.class),
-                eq("3")))
+                eq("3"),
+                eq("0")))
                 .thenReturn("NOT_FOUND");
         assertThat(store.verifyAndConsume(userId, "222222"))
                 .isEqualTo(RegistrationCodeRepository.VerifyResult.NOT_FOUND);
+    }
+
+    @Test
+    void verifyForConsumptionShouldMarkPendingAndBlockSecondVerifier() {
+        UUID userId = uuid(7);
+        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
+
+        when(redisTemplate.execute(
+                any(RedisScript.class),
+                eq(List.of("auth:regcode:" + userId)),
+                eq("222222"),
+                any(String.class),
+                eq("3"),
+                eq(Long.toString(Duration.ofSeconds(60).toMillis()))))
+                .thenReturn("PENDING")
+                .thenReturn("PENDING_CONFLICT");
+
+        assertThat(store.verifyForConsumption(userId, "222222", Duration.ofSeconds(60)))
+                .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
+        assertThat(store.verifyForConsumption(userId, "222222", Duration.ofSeconds(60)))
+                .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING_CONFLICT);
+    }
+
+    @Test
+    void restorePendingAndConsumePendingShouldUseRedisScripts() {
+        UUID userId = uuid(8);
+        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
+
+        store.restorePending(userId);
+        store.consumePending(userId);
+
+        ArgumentCaptor<RedisScript<Long>> restoreScriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        verify(redisTemplate).execute(restoreScriptCaptor.capture(), eq(List.of("auth:regcode:" + userId)));
+        assertThat(((DefaultRedisScript<?>) restoreScriptCaptor.getValue()).getScriptAsString())
+                .contains("|ACTIVE")
+                .contains("PENDING");
+
+        verify(redisTemplate).delete("auth:regcode:" + userId);
     }
 
     private static UUID uuid(long suffix) {

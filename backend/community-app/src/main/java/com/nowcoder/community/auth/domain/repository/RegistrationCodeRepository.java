@@ -15,6 +15,12 @@ public interface RegistrationCodeRepository {
 
     VerifyResult verifyAndConsume(UUID userId, String code);
 
+    VerifyResult verifyForConsumption(UUID userId, String code, Duration pendingTtl);
+
+    void consumePending(UUID userId);
+
+    void restorePending(UUID userId);
+
     enum IssueResult {
         ISSUED,
         COOLDOWN_ACTIVE
@@ -25,6 +31,8 @@ public interface RegistrationCodeRepository {
         NOT_FOUND,
         EXPIRED,
         MISMATCH,
-        TOO_MANY_ATTEMPTS
+        TOO_MANY_ATTEMPTS,
+        PENDING,
+        PENDING_CONFLICT
     }
 }

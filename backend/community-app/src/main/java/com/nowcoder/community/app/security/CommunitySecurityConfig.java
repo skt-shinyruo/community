@@ -1,5 +1,6 @@
 package com.nowcoder.community.app.security;
 
+import com.nowcoder.community.auth.infrastructure.web.TokenFreshnessFilter;
 import com.nowcoder.community.infra.security.jwt.AuthoritiesConverterFactory;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import org.springframework.context.annotation.Bean;
@@ -10,6 +11,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 
 import java.util.List;
 
@@ -21,7 +23,8 @@ public class CommunitySecurityConfig {
     public SecurityFilterChain apiSecurityFilterChain(
             HttpSecurity http,
             SecurityExceptionHandler securityExceptionHandler,
-            List<ApiSecurityRules> securityRules
+            List<ApiSecurityRules> securityRules,
+            TokenFreshnessFilter tokenFreshnessFilter
     ) throws Exception {
         return http
                 .securityMatcher("/api/**", "/internal/**")
@@ -48,6 +51,7 @@ public class CommunitySecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(AuthoritiesConverterFactory.jwtAuthenticationConverter()))
                 )
+                .addFilterAfter(tokenFreshnessFilter, BearerTokenAuthenticationFilter.class)
                 .build();
     }
 }

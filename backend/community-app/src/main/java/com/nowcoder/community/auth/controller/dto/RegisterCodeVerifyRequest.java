@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 public class RegisterCodeVerifyRequest {
 
     @NotBlank
-    @Size(max = 64)
+    @Size(max = ValidationLimits.REGISTRATION_TOKEN_MAX)
     private String registrationToken;
 
     @NotBlank

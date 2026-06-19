@@ -8,6 +8,7 @@ import com.nowcoder.community.auth.domain.service.CaptchaDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -26,6 +27,7 @@ import java.util.UUID;
 public class CaptchaApplicationService {
 
     private static final SecureRandom random = new SecureRandom();
+    private static final String RATE_LIMIT_IP_KEY_PREFIX = "auth:captcha:issue:ip:";
 
     private final CaptchaProperties properties;
     private final CaptchaRepository captchaStore;
@@ -42,6 +44,7 @@ public class CaptchaApplicationService {
     }
 
     public CaptchaIssueResult issue(IssueCaptchaCommand command) {
+        enforceIssueRateLimit(command == null ? null : command.clientIp());
         IssuedCaptcha issued = issue();
         return new CaptchaIssueResult(issued.captchaId(), issued.imageBase64(), issued.ttlSeconds());
     }
@@ -142,6 +145,28 @@ public class CaptchaApplicationService {
 
     private BusinessException captchaUnavailable(RuntimeException cause) {
         return new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "验证码服务暂时不可用，请稍后重试", cause);
+    }
+
+    private void enforceIssueRateLimit(String clientIp) {
+        if (captchaStore == null || !StringUtils.hasText(clientIp)) {
+            return;
+        }
+        int windowSeconds = Math.max(1, properties.getTtlSeconds());
+        int maxRequestsPerIp = properties.getMaxIssueRequestsPerIp();
+        if (maxRequestsPerIp <= 0) {
+            return;
+        }
+        String ip = clientIp.trim();
+        String rateLimitKey = RATE_LIMIT_IP_KEY_PREFIX + ip;
+        int count;
+        try {
+            count = captchaStore.incrementFailures(rateLimitKey, Duration.ofSeconds(windowSeconds));
+        } catch (RuntimeException e) {
+            throw captchaUnavailable(e);
+        }
+        if (count > maxRequestsPerIp) {
+            throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "验证码获取过于频繁，请稍后再试");
+        }
     }
 
     public record IssuedCaptcha(String captchaId, String imageBase64, int ttlSeconds) {

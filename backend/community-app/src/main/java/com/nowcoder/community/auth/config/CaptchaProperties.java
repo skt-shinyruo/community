@@ -21,6 +21,11 @@ public class CaptchaProperties {
     private int maxFailures = 3;
 
     /**
+     * 单个客户端 IP 在窗口内最多允许发起验证码获取次数，<= 0 表示关闭 IP 维度限流。
+     */
+    private int maxIssueRequestsPerIp = 10;
+
+    /**
      * 测试用途：固定验证码内容（为空表示随机生成）。
      * 生产环境不建议开启。
      */
@@ -48,6 +53,14 @@ public class CaptchaProperties {
 
     public void setMaxFailures(int maxFailures) {
         this.maxFailures = maxFailures;
+    }
+
+    public int getMaxIssueRequestsPerIp() {
+        return maxIssueRequestsPerIp;
+    }
+
+    public void setMaxIssueRequestsPerIp(int maxIssueRequestsPerIp) {
+        this.maxIssueRequestsPerIp = maxIssueRequestsPerIp;
     }
 
     public String getFixedCode() {

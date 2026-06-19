@@ -35,6 +35,7 @@ class CaptchaApplicationServiceTest {
         CaptchaProperties properties = new CaptchaProperties();
         properties.setTtlSeconds(60);
         properties.setMaxFailures(3);
+        properties.setMaxIssueRequestsPerIp(1);
         service = new CaptchaApplicationService(properties, captchaStore, new CaptchaDomainService());
     }
 
@@ -87,5 +88,15 @@ class CaptchaApplicationServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.SERVICE_UNAVAILABLE);
+    }
+
+    @Test
+    void issueShouldRateLimitByClientIp() {
+        when(captchaStore.incrementFailures("auth:captcha:issue:ip:127.0.0.1", Duration.ofSeconds(60))).thenReturn(2);
+
+        assertThatThrownBy(() -> service.issue(new com.nowcoder.community.auth.application.command.IssueCaptchaCommand("127.0.0.1")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(CommonErrorCode.TOO_MANY_REQUESTS);
     }
 }

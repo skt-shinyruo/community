@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 public class RedisRefreshTokenRepository implements RefreshTokenRepository {
 
     private static final DefaultRedisScript<Long> STORE_SCRIPT = new DefaultRedisScript<>();
+    private static final DefaultRedisScript<String> CONSUME_SCRIPT = new DefaultRedisScript<>();
 
     private static final String KEY_PREFIX_TOKEN = "auth:refresh:";
     private static final String KEY_PREFIX_TOKEN_REVOKED = "auth:refresh:revoked:";
@@ -34,6 +35,26 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                         "redis.call('sadd', KEYS[3], ARGV[3]) " +
                         "redis.call('expire', KEYS[3], ARGV[2]) " +
                         "return 1"
+        );
+        CONSUME_SCRIPT.setResultType(String.class);
+        CONSUME_SCRIPT.setScriptText(
+                "local json = redis.call('get', KEYS[1]) " +
+                        "if not json then return nil end " +
+                        "local ok, record = pcall(cjson.decode, json) " +
+                        "if not ok or type(record) ~= 'table' then " +
+                        "redis.call('del', KEYS[1]) " +
+                        "return nil " +
+                        "end " +
+                        "if record.familyId and redis.call('exists', KEYS[3] .. record.familyId) == 1 then return nil end " +
+                        "local ttl = redis.call('pttl', KEYS[1]) " +
+                        "redis.call('del', KEYS[1]) " +
+                        "local revokedAt = ARGV[1] " +
+                        "local tombstone = cjson.encode({userId = record.userId, familyId = record.familyId, expiresAt = record.expiresAt, revokedAt = revokedAt}) " +
+                        "if ttl and ttl > 0 then redis.call('set', KEYS[2], tombstone, 'px', ttl) end " +
+                        "local member = record.refreshToken " +
+                        "if not member or member == '' then member = ARGV[2] end " +
+                        "if record.familyId and member and member ~= '' then redis.call('srem', KEYS[4] .. record.familyId, member) end " +
+                        "return json"
         );
     }
 
@@ -101,19 +122,14 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
         if (token.isEmpty()) {
             return null;
         }
-        String json = redisTemplate.opsForValue().getAndDelete(KEY_PREFIX_TOKEN + token);
-        StoredRefreshToken found = readRecord(json);
-        if (found != null) {
-            writeTombstone(found, Instant.now());
-            String member = StringUtils.hasText(found.refreshToken()) ? found.refreshToken().trim() : token;
-            if (!member.isEmpty()) {
-                try {
-                    redisTemplate.opsForSet().remove(KEY_PREFIX_FAMILY + found.familyId(), member);
-                } catch (RuntimeException ignored) {
-                }
-            }
-        }
-        return found;
+        String revokedKey = KEY_PREFIX_TOKEN_REVOKED + token;
+        String json = redisTemplate.execute(
+                CONSUME_SCRIPT,
+                List.of(KEY_PREFIX_TOKEN + token, revokedKey, KEY_PREFIX_FAMILY_REVOKED, KEY_PREFIX_FAMILY),
+                Instant.now().toString(),
+                token
+        );
+        return readRecord(json);
     }
 
     @Override

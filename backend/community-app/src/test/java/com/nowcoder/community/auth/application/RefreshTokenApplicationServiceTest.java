@@ -3,6 +3,7 @@ package com.nowcoder.community.auth.application;
 import com.nowcoder.community.analytics.api.action.AnalyticsIngestActionApi;
 import com.nowcoder.community.auth.application.command.RefreshCommand;
 import com.nowcoder.community.auth.application.port.AuthTokenPort;
+import com.nowcoder.community.auth.application.port.RefreshTokenSessionPort;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
@@ -12,7 +13,6 @@ import com.nowcoder.community.auth.domain.service.RefreshTokenDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
-import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import org.junit.jupiter.api.Test;
@@ -275,7 +275,7 @@ class RefreshTokenApplicationServiceTest {
                 repository,
                 new RefreshTokenDomainService(),
                 new AuthSecretGenerator(),
-                mock(UserRefreshTokenSessionActionApi.class)
+                mock(RefreshTokenSessionPort.class)
         );
     }
 

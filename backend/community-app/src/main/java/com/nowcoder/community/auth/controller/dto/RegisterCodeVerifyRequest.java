@@ -11,7 +11,7 @@ public class RegisterCodeVerifyRequest {
     private String registrationToken;
 
     @NotBlank
-    @Size(min = ValidationLimits.REGISTRATION_EMAIL_CODE_MIN, max = ValidationLimits.REGISTRATION_EMAIL_CODE_MAX)
+    @Size(min = ValidationLimits.REGISTRATION_EMAIL_CODE_MIN, max = ValidationLimits.REGISTRATION_CODE_MAX)
     private String code;
 
     public String getRegistrationToken() {

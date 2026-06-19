@@ -35,6 +35,8 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import jakarta.servlet.http.Cookie;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import jakarta.validation.constraints.Size;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,6 +64,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AuthControllerUnitTest {
+
+    private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
     @Mock
     private LoginApplicationService loginApplicationService;
@@ -298,12 +302,34 @@ class AuthControllerUnitTest {
         assertMaxSize(RegisterCodeResendRequest.class, "captchaId", ValidationLimits.CAPTCHA_ID_MAX);
         assertMaxSize(RegisterCodeResendRequest.class, "captchaCode", ValidationLimits.CAPTCHA_CODE_MAX);
         assertMaxSize(RegisterCodeVerifyRequest.class, "registrationToken", ValidationLimits.REGISTRATION_TOKEN_MAX);
-        assertMaxSize(RegisterCodeVerifyRequest.class, "code", ValidationLimits.REGISTRATION_EMAIL_CODE_MAX);
+        assertMaxSize(RegisterCodeVerifyRequest.class, "code", ValidationLimits.REGISTRATION_CODE_MAX);
         assertMaxSize(PasswordResetRequestRequest.class, "captchaId", ValidationLimits.CAPTCHA_ID_MAX);
         assertMaxSize(PasswordResetRequestRequest.class, "captchaCode", ValidationLimits.CAPTCHA_CODE_MAX);
         assertMaxSize(PasswordResetConfirmRequest.class, "resetToken", ValidationLimits.TOKEN_MAX);
         assertMaxSize(PasswordResetConfirmRequest.class, "captchaId", ValidationLimits.CAPTCHA_ID_MAX);
         assertMaxSize(PasswordResetConfirmRequest.class, "captchaCode", ValidationLimits.CAPTCHA_CODE_MAX);
+    }
+
+    @Test
+    void registerCodeVerifyRequestShouldRejectOversizedRegistrationToken() {
+        RegisterCodeVerifyRequest request = new RegisterCodeVerifyRequest();
+        request.setRegistrationToken("x".repeat(ValidationLimits.REGISTRATION_TOKEN_MAX + 1));
+        request.setCode("123456");
+
+        assertThat(validator.validate(request))
+                .anySatisfy(violation -> assertThat(violation.getPropertyPath().toString()).isEqualTo("registrationToken"));
+    }
+
+    @Test
+    void registerCodeResendRequestShouldRejectOversizedCaptchaFields() {
+        RegisterCodeResendRequest request = new RegisterCodeResendRequest();
+        request.setRegistrationToken("token");
+        request.setCaptchaId("c".repeat(ValidationLimits.CAPTCHA_ID_MAX + 1));
+        request.setCaptchaCode("9".repeat(ValidationLimits.CAPTCHA_CODE_MAX + 1));
+
+        assertThat(validator.validate(request))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("captchaId", "captchaCode");
     }
 
     @Test

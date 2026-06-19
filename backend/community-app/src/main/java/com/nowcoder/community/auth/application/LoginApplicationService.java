@@ -7,7 +7,6 @@ import com.nowcoder.community.auth.application.command.RefreshCommand;
 import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.RefreshResult;
-import com.nowcoder.community.auth.application.port.AuthTokenPort;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.auth.domain.service.AuthDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
@@ -21,7 +20,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -30,7 +28,7 @@ public class LoginApplicationService {
     private static final Logger log = LoggerFactory.getLogger(LoginApplicationService.class);
 
     private final UserCredentialQueryApi userCredentialQueryApi;
-    private final AuthTokenPort authTokenPort;
+    private final LoginTokenIssuer loginTokenIssuer;
     private final RefreshTokenApplicationService refreshTokenService;
     private final LoginRateLimitApplicationService loginRateLimitService;
     private final CaptchaApplicationService captchaService;
@@ -39,7 +37,7 @@ public class LoginApplicationService {
 
     public LoginApplicationService(
             UserCredentialQueryApi userCredentialQueryApi,
-            AuthTokenPort authTokenPort,
+            LoginTokenIssuer loginTokenIssuer,
             RefreshTokenApplicationService refreshTokenService,
             LoginRateLimitApplicationService loginRateLimitService,
             CaptchaApplicationService captchaService,
@@ -47,7 +45,7 @@ public class LoginApplicationService {
             AnalyticsIngestActionApi analyticsIngestService
     ) {
         this.userCredentialQueryApi = userCredentialQueryApi;
-        this.authTokenPort = authTokenPort;
+        this.loginTokenIssuer = loginTokenIssuer;
         this.refreshTokenService = refreshTokenService;
         this.loginRateLimitService = loginRateLimitService;
         this.captchaService = captchaService;
@@ -123,7 +121,7 @@ public class LoginApplicationService {
         }
 
         loginRateLimitService.reset(username, ip);
-        LoginResult loginResult = issueLoginResult(user);
+        LoginResult loginResult = loginTokenIssuer.issueLoginResult(user);
         SecurityEventLogger.info(log, "login", "success",
                 "user.id", user.userId(),
                 "username", user.username(),
@@ -134,10 +132,7 @@ public class LoginApplicationService {
     }
 
     public LoginResult issueLoginResult(UserCredentialView user) {
-        List<String> authorities = authoritiesOf(user);
-        String accessToken = authTokenPort.createAccessToken(user.userId(), user.username(), authorities);
-        RefreshTokenApplicationService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user.userId());
-        return new LoginResult(accessToken, refreshToken.cookie());
+        return loginTokenIssuer.issueLoginResult(user);
     }
 
     public RefreshResult refresh(RefreshCommand command) {
@@ -158,16 +153,11 @@ public class LoginApplicationService {
             refreshTokenService.revokeFamily(consumed.familyId());
             throw new BusinessException(AuthErrorCode.USER_DISABLED);
         }
-        if (credentialView == null || credentialView.status() == 0) {
+        if (credentialView == null || !credentialView.refreshAllowed()) {
             refreshTokenService.revokeFamily(consumed.familyId());
             throw new BusinessException(AuthErrorCode.USER_DISABLED);
         }
-        List<String> authorities = authoritiesOf(credentialView);
-        String accessToken = authTokenPort.createAccessToken(
-                credentialView.userId(),
-                credentialView.username(),
-                authorities
-        );
+        String accessToken = loginTokenIssuer.issueAccessToken(credentialView);
         RefreshTokenApplicationService.IssuedRefreshToken rotated;
         try {
             rotated = refreshTokenService.issueInFamily(credentialView.userId(), consumed.familyId());
@@ -208,10 +198,6 @@ public class LoginApplicationService {
 
     private UserCredentialView getCredential(UUID userId) {
         return userCredentialQueryApi.getByUserId(userId);
-    }
-
-    private List<String> authoritiesOf(UserCredentialView user) {
-        return userCredentialQueryApi.authoritiesOf(user);
     }
 
 }

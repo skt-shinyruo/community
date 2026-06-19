@@ -80,7 +80,9 @@ public class UserCredentialApiAdapter implements UserCredentialQueryApi, UserCre
                 result.status(),
                 result.type(),
                 result.headerUrl(),
-                result.securityVersion()
+                result.securityVersion(),
+                result.loginAllowed(),
+                result.refreshAllowed()
         );
     }
 
@@ -94,7 +96,9 @@ public class UserCredentialApiAdapter implements UserCredentialQueryApi, UserCre
                 user.status(),
                 user.type(),
                 user.headerUrl(),
-                user.securityVersion()
+                user.securityVersion(),
+                user.loginAllowed(),
+                user.refreshAllowed()
         );
     }
 }

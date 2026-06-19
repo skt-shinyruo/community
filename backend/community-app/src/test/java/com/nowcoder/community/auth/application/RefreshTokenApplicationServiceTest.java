@@ -47,7 +47,7 @@ class RefreshTokenApplicationServiceTest {
                 .singleElement()
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
                         UserCredentialQueryApi.class,
-                        AuthTokenPort.class,
+                        LoginTokenIssuer.class,
                         RefreshTokenApplicationService.class,
                         LoginRateLimitApplicationService.class,
                         CaptchaApplicationService.class,
@@ -242,6 +242,7 @@ class RefreshTokenApplicationServiceTest {
         AuthTokenPort authTokenPort = mock(AuthTokenPort.class);
         LoginRateLimitApplicationService loginRateLimitService = mock(LoginRateLimitApplicationService.class);
         CaptchaApplicationService captchaService = mock(CaptchaApplicationService.class);
+        LoginTokenIssuer loginTokenIssuer = new LoginTokenIssuer(userCredentialQueryApi, authTokenPort, refreshTokenService);
 
         when(userCredentialQueryApi.getByUserId(USER_ID)).thenReturn(credentialView);
         when(userCredentialQueryApi.authoritiesOf(argThat(user ->
@@ -252,11 +253,11 @@ class RefreshTokenApplicationServiceTest {
                         && user.type() == credentialView.type()
                         && user.headerUrl().equals("h1")
         ))).thenReturn(List.of("user"));
-        when(authTokenPort.createAccessToken(USER_ID, "alice", List.of("user"))).thenReturn("access-token");
+        when(authTokenPort.createAccessToken(USER_ID, "alice", List.of("user"), credentialView.securityVersion())).thenReturn("access-token");
 
         return new LoginApplicationService(
                 userCredentialQueryApi,
-                authTokenPort,
+                loginTokenIssuer,
                 refreshTokenService,
                 loginRateLimitService,
                 captchaService,

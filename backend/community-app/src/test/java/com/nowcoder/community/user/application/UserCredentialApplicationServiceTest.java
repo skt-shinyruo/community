@@ -65,6 +65,34 @@ class UserCredentialApplicationServiceTest {
     }
 
     @Test
+    void authenticateShouldRejectActivelyBannedUser() {
+        UserCredentialApplicationService service = service();
+        UserAccount user = new UserAccount(
+                uuid(7),
+                "alice",
+                new BCryptPasswordEncoder().encode("secret12"),
+                "",
+                "alice@example.com",
+                0,
+                1,
+                "h7",
+                Date.from(Instant.now()),
+                null,
+                Instant.now().plusSeconds(600),
+                0L,
+                99L
+        );
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+
+        UserAuthenticationResult result = service.authenticate("alice", "secret12");
+
+        assertThat(result.failure()).isEqualTo(UserAuthenticationResult.Failure.USER_DISABLED);
+        assertThat(result.user().securityVersion()).isEqualTo(99L);
+        assertThat(result.user().loginAllowed()).isFalse();
+        assertThat(result.user().refreshAllowed()).isFalse();
+    }
+
+    @Test
     void authenticateShouldRejectNonBcryptPasswordHash() {
         UserCredentialApplicationService service = service();
         UUID userId = uuid(7);

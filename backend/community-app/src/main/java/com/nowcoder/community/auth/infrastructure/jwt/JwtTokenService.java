@@ -26,7 +26,7 @@ public class JwtTokenService implements AuthTokenPort {
     }
 
     @Override
-    public String createAccessToken(UUID userId, String username, List<String> authorities) {
+    public String createAccessToken(UUID userId, String username, List<String> authorities, long securityVersion) {
         Instant now = Instant.now();
         Instant exp = now.plusSeconds(jwtProperties.getAccessTokenTtlSeconds());
 
@@ -37,6 +37,7 @@ public class JwtTokenService implements AuthTokenPort {
                 .subject(String.valueOf(userId))
                 .claim("username", username)
                 .claim("authorities", authorities)
+                .claim("security_version", securityVersion)
                 .build();
 
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();

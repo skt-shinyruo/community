@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -51,7 +52,7 @@ public class UserCredentialApplicationService {
         if (user == null) {
             return UserAuthenticationResult.invalidCredentials();
         }
-        if (user.status() == 0) {
+        if (user.status() == 0 || activeBan(user)) {
             return UserAuthenticationResult.userDisabled(toCredentialResult(user));
         }
         if (!passwordMatches(user, rawPassword)) {
@@ -122,14 +123,21 @@ public class UserCredentialApplicationService {
         return false;
     }
 
+    private boolean activeBan(UserAccount user) {
+        return user != null && user.banUntil() != null && user.banUntil().isAfter(Instant.now());
+    }
+
     private UserCredentialResult toCredentialResult(UserAccount user) {
+        boolean allowed = user.status() != 0 && !activeBan(user);
         return new UserCredentialResult(
                 user.id(),
                 user.username(),
                 user.status(),
                 user.type(),
                 user.headerUrl(),
-                user.securityVersion()
+                user.securityVersion(),
+                allowed,
+                allowed
         );
     }
 }

@@ -74,8 +74,9 @@ class MyBatisUserRepositoryTest {
                 UserAccount::type,
                 UserAccount::status,
                 UserAccount::headerUrl,
-                UserAccount::createTime
-        ).containsExactly(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 2, 1, "h7", createTime);
+                UserAccount::createTime,
+                UserAccount::securityVersion
+        ).containsExactly(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 2, 1, "h7", createTime, 0L);
     }
 
     @Test
@@ -107,8 +108,15 @@ class MyBatisUserRepositoryTest {
         insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "old", createTime, null, null);
 
         userRepository.updateHeaderUrl(ALICE_ID, "new-header");
+        userRepository.updateStatus(ALICE_ID, 0);
+        long statusSecurityVersion = userRepository.currentUserSecurityVersion();
+        assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(statusSecurityVersion);
         userRepository.updateRole(ALICE_ID, 2);
+        long roleSecurityVersion = userRepository.currentUserSecurityVersion();
+        assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(roleSecurityVersion);
         userRepository.updatePassword(ALICE_ID, "new-password");
+        long passwordSecurityVersion = userRepository.currentUserSecurityVersion();
+        assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(passwordSecurityVersion);
         long policyVersion = userRepository.nextUserPolicyVersion(ALICE_ID);
         userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, policyVersion);
 
@@ -119,6 +127,8 @@ class MyBatisUserRepositoryTest {
         assertThat(updated.muteUntil()).isEqualTo(muteUntil);
         assertThat(updated.banUntil()).isEqualTo(banUntil);
         assertThat(updated.policyVersion()).isEqualTo(policyVersion);
+        assertThat(passwordSecurityVersion).isGreaterThan(roleSecurityVersion);
+        assertThat(updated.securityVersion()).isEqualTo(passwordSecurityVersion);
     }
 
     @Test
@@ -165,6 +175,21 @@ class MyBatisUserRepositoryTest {
         assertThat(userRepository.scanModerationStatesAfterId(new UUID(0L, 0L), 20).get(0).version())
                 .isEqualTo(second);
         assertThat(userRepository.currentUserPolicyVersion()).isEqualTo(second);
+    }
+
+    @Test
+    void userSecurityVersionShouldMonotonicallyIncreaseAndPersistOnRows() {
+        Date createTime = Date.from(Instant.parse("2026-04-27T10:15:30Z"));
+        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "h7", createTime, null, null);
+
+        long first = userRepository.nextUserSecurityVersion(ALICE_ID);
+        userRepository.updateRole(ALICE_ID, 2, first);
+        long second = userRepository.nextUserSecurityVersion(ALICE_ID);
+        userRepository.updatePassword(ALICE_ID, "new-password", second);
+
+        assertThat(second).isGreaterThan(first);
+        assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(second);
+        assertThat(userRepository.currentUserSecurityVersion()).isEqualTo(second);
     }
 
     private void insertUser(

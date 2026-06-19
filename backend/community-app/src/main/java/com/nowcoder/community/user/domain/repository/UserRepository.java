@@ -24,11 +24,23 @@ public interface UserRepository {
 
     void updateHeaderUrl(UUID userId, String headerUrl);
 
-    void updateRole(UUID userId, int type);
+    void updateRole(UUID userId, int type, long securityVersion);
 
-    void updateStatus(UUID userId, int status);
+    default void updateRole(UUID userId, int type) {
+        updateRole(userId, type, nextUserSecurityVersion(userId));
+    }
 
-    void updatePassword(UUID userId, String encodedPassword);
+    void updateStatus(UUID userId, int status, long securityVersion);
+
+    default void updateStatus(UUID userId, int status) {
+        updateStatus(userId, status, nextUserSecurityVersion(userId));
+    }
+
+    void updatePassword(UUID userId, String encodedPassword, long securityVersion);
+
+    default void updatePassword(UUID userId, String encodedPassword) {
+        updatePassword(userId, encodedPassword, nextUserSecurityVersion(userId));
+    }
 
     void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil, long policyVersion);
 
@@ -41,6 +53,10 @@ public interface UserRepository {
     long nextUserPolicyVersion(UUID userId);
 
     long currentUserPolicyVersion();
+
+    long nextUserSecurityVersion(UUID userId);
+
+    long currentUserSecurityVersion();
 
     void insertUser(UserAccount user);
 }

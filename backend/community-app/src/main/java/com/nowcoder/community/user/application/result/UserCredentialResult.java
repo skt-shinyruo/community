@@ -7,6 +7,7 @@ public record UserCredentialResult(
         String username,
         int status,
         int type,
-        String headerUrl
+        String headerUrl,
+        long securityVersion
 ) {
 }

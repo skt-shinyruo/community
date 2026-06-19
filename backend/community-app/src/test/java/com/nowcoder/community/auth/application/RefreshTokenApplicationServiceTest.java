@@ -122,7 +122,7 @@ class RefreshTokenApplicationServiceTest {
         assertThat(issued.cookie().path()).isEqualTo("/api/auth");
         assertThat(issued.cookie().sameSite()).isEqualTo("Lax");
         assertThat(issued.cookie().maxAgeSeconds()).isEqualTo(600);
-        LoginApplicationService authService = authService(refreshTokenService, new UserCredentialView(USER_ID, "alice", 1, 2, "h1"));
+        LoginApplicationService authService = authService(refreshTokenService, new UserCredentialView(USER_ID, "alice", 1, 2, "h1", 0L));
 
         RefreshResult result = authService.refresh(new RefreshCommand(issued.refreshToken()));
 
@@ -234,7 +234,7 @@ class RefreshTokenApplicationServiceTest {
     }
 
     private static LoginApplicationService authService(RefreshTokenApplicationService refreshTokenService) {
-        return authService(refreshTokenService, new UserCredentialView(USER_ID, "alice", 1, 0, "h1"));
+        return authService(refreshTokenService, new UserCredentialView(USER_ID, "alice", 1, 0, "h1", 0L));
     }
 
     private static LoginApplicationService authService(RefreshTokenApplicationService refreshTokenService, UserCredentialView credentialView) {

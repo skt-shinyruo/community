@@ -52,7 +52,8 @@ public class UserRegistrationApiAdapter implements UserRegistrationActionApi {
                 result.username(),
                 result.status(),
                 result.type(),
-                result.headerUrl()
+                result.headerUrl(),
+                result.securityVersion()
         );
     }
 }

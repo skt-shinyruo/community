@@ -25,6 +25,7 @@ import java.util.UUID;
 public class MyBatisUserRepository implements UserRepository {
 
     private static final int USER_POLICY_VERSION_COUNTER_ID = 1;
+    private static final int USER_SECURITY_VERSION_COUNTER_ID = 1;
     private static final int LEGACY_COMPATIBLE_LOGICAL_BITS = 12;
 
     private final UserMapper userMapper;
@@ -98,24 +99,24 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
-    public void updateRole(UUID userId, int type) {
-        int updated = userMapper.updateType(userId, type);
+    public void updateRole(UUID userId, int type, long securityVersion) {
+        int updated = userMapper.updateType(userId, type, securityVersion);
         if (updated <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新用户角色失败");
         }
     }
 
     @Override
-    public void updateStatus(UUID userId, int status) {
-        int updated = userMapper.updateStatus(userId, status);
+    public void updateStatus(UUID userId, int status, long securityVersion) {
+        int updated = userMapper.updateStatus(userId, status, securityVersion);
         if (updated <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新用户状态失败");
         }
     }
 
     @Override
-    public void updatePassword(UUID userId, String encodedPassword) {
-        int updated = userMapper.updatePassword(userId, encodedPassword);
+    public void updatePassword(UUID userId, String encodedPassword, long securityVersion) {
+        int updated = userMapper.updatePassword(userId, encodedPassword, securityVersion);
         if (updated <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新密码失败");
         }
@@ -173,6 +174,21 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
+    public long nextUserSecurityVersion(UUID userId) {
+        userMapper.upsertSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID);
+        long current = userMapper.selectSecurityVersionCounterForUpdate(USER_SECURITY_VERSION_COUNTER_ID);
+        long next = Math.max(current + 1L, legacyCompatibleVersionFloor());
+        userMapper.updateSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID, next);
+        return next;
+    }
+
+    @Override
+    public long currentUserSecurityVersion() {
+        userMapper.upsertSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID);
+        return userMapper.selectSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID);
+    }
+
+    @Override
     public void insertUser(UserAccount user) {
         int inserted = userMapper.insertUser(toDataObject(user));
         if (inserted <= 0) {
@@ -196,7 +212,8 @@ public class MyBatisUserRepository implements UserRepository {
                 row.getCreateTime(),
                 toInstant(row.getMuteUntil()),
                 toInstant(row.getBanUntil()),
-                row.getPolicyVersion()
+                row.getPolicyVersion(),
+                row.getSecurityVersion()
         );
     }
 
@@ -214,6 +231,7 @@ public class MyBatisUserRepository implements UserRepository {
         row.setMuteUntil(user.muteUntil() == null ? null : Date.from(user.muteUntil()));
         row.setBanUntil(user.banUntil() == null ? null : Date.from(user.banUntil()));
         row.setPolicyVersion(user.policyVersion());
+        row.setSecurityVersion(user.securityVersion());
         return row;
     }
 

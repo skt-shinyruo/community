@@ -17,6 +17,7 @@ public class UserDataObject {
     private Date muteUntil;
     private Date banUntil;
     private long policyVersion;
+    private long securityVersion;
 
     public UUID getId() {
         return id;
@@ -112,5 +113,13 @@ public class UserDataObject {
 
     public void setPolicyVersion(long policyVersion) {
         this.policyVersion = policyVersion;
+    }
+
+    public long getSecurityVersion() {
+        return securityVersion;
+    }
+
+    public void setSecurityVersion(long securityVersion) {
+        this.securityVersion = securityVersion;
     }
 }

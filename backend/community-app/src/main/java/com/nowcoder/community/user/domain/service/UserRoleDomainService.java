@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.domain.model.UserRole;
 import com.nowcoder.community.user.domain.model.UserAccount;
 
 import java.util.UUID;
@@ -24,6 +25,7 @@ public class UserRoleDomainService {
         if (targetUserId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "targetUserId 非法");
         }
+        UserRole.requireValid(type);
         return normalizedReason;
     }
 

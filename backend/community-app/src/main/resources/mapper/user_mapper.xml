@@ -6,11 +6,11 @@
 <mapper namespace="com.nowcoder.community.user.infrastructure.persistence.mapper.UserMapper">
 
     <sql id="insertFields">
-        id, username, password, salt, email, type, status, header_url, create_time, policy_version
+        id, username, password, salt, email, type, status, header_url, create_time, policy_version, security_version
     </sql>
 
     <sql id="selectFields">
-        id, username, password, salt, email, type, status, header_url, create_time, mute_until, ban_until, policy_version
+        id, username, password, salt, email, type, status, header_url, create_time, mute_until, ban_until, policy_version, security_version
     </sql>
 
     <select id="selectById" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
@@ -37,11 +37,14 @@
     <insert id="insertUser" parameterType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
         insert into user (<include refid="insertFields"></include>)
         values(#{id, jdbcType=BINARY}, #{username}, #{password}, #{salt}, #{email}, #{type}, #{status}, #{headerUrl},
-        #{createTime}, #{policyVersion})
+        #{createTime}, #{policyVersion}, #{securityVersion})
     </insert>
 
     <update id="updateStatus">
-        update user set status = #{status} where id = #{id, jdbcType=BINARY}
+        update user
+        set status = #{status},
+            security_version = #{securityVersion}
+        where id = #{id, jdbcType=BINARY}
     </update>
 
     <update id="updateHeader">
@@ -49,11 +52,17 @@
     </update>
 
     <update id="updatePassword">
-        update user set password = #{password} where id = #{id, jdbcType=BINARY}
+        update user
+        set password = #{password},
+            security_version = #{securityVersion}
+        where id = #{id, jdbcType=BINARY}
     </update>
 
     <update id="updateType">
-        update user set type = #{type} where id = #{id, jdbcType=BINARY}
+        update user
+        set type = #{type},
+            security_version = #{securityVersion}
+        where id = #{id, jdbcType=BINARY}
     </update>
 
     <update id="updateModerationUntil">
@@ -94,6 +103,31 @@
     <select id="selectPolicyVersionCounter" resultType="long">
         select coalesce(max(current_version), 0)
         from user_policy_version_counter
+        where id = #{id}
+    </select>
+
+    <insert id="upsertSecurityVersionCounter">
+        insert into user_security_version_counter(id, current_version)
+        values(#{id}, 0)
+        on duplicate key update current_version = current_version
+    </insert>
+
+    <select id="selectSecurityVersionCounterForUpdate" resultType="long">
+        select current_version
+        from user_security_version_counter
+        where id = #{id}
+        for update
+    </select>
+
+    <update id="updateSecurityVersionCounter">
+        update user_security_version_counter
+        set current_version = #{version}
+        where id = #{id}
+    </update>
+
+    <select id="selectSecurityVersionCounter" resultType="long">
+        select coalesce(max(current_version), 0)
+        from user_security_version_counter
         where id = #{id}
     </select>
 

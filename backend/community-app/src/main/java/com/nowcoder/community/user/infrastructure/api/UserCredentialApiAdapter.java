@@ -79,7 +79,8 @@ public class UserCredentialApiAdapter implements UserCredentialQueryApi, UserCre
                 result.username(),
                 result.status(),
                 result.type(),
-                result.headerUrl()
+                result.headerUrl(),
+                result.securityVersion()
         );
     }
 
@@ -87,6 +88,13 @@ public class UserCredentialApiAdapter implements UserCredentialQueryApi, UserCre
         if (user == null) {
             return null;
         }
-        return new UserCredentialResult(user.userId(), user.username(), user.status(), user.type(), user.headerUrl());
+        return new UserCredentialResult(
+                user.userId(),
+                user.username(),
+                user.status(),
+                user.type(),
+                user.headerUrl(),
+                user.securityVersion()
+        );
     }
 }

@@ -1,9 +1,7 @@
-package com.nowcoder.community.auth.application;
+package com.nowcoder.community.auth.infrastructure.persistence;
 
+import com.nowcoder.community.auth.application.port.RefreshTokenSessionPort;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
-import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
-import com.nowcoder.community.user.api.model.RefreshTokenSessionView;
-import com.nowcoder.community.user.api.query.UserRefreshTokenSessionQueryApi;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -21,15 +19,10 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "auth.refresh.store", havingValue = "db")
 public class DbRefreshTokenRepository implements RefreshTokenRepository {
 
-    private final UserRefreshTokenSessionActionApi refreshTokenSessionActionApi;
-    private final UserRefreshTokenSessionQueryApi refreshTokenSessionQueryApi;
+    private final RefreshTokenSessionPort refreshTokenSessionPort;
 
-    public DbRefreshTokenRepository(
-            UserRefreshTokenSessionActionApi refreshTokenSessionActionApi,
-            UserRefreshTokenSessionQueryApi refreshTokenSessionQueryApi
-    ) {
-        this.refreshTokenSessionActionApi = refreshTokenSessionActionApi;
-        this.refreshTokenSessionQueryApi = refreshTokenSessionQueryApi;
+    public DbRefreshTokenRepository(RefreshTokenSessionPort refreshTokenSessionPort) {
+        this.refreshTokenSessionPort = refreshTokenSessionPort;
     }
 
     @Override
@@ -37,7 +30,7 @@ public class DbRefreshTokenRepository implements RefreshTokenRepository {
         if (!StringUtils.hasText(refreshToken) || userId == null || !StringUtils.hasText(familyId) || expiresAt == null) {
             return;
         }
-        refreshTokenSessionActionApi.store(sha256Hex(refreshToken), userId, familyId, expiresAt);
+        refreshTokenSessionPort.store(sha256Hex(refreshToken), userId, familyId, expiresAt);
     }
 
     @Override
@@ -45,7 +38,7 @@ public class DbRefreshTokenRepository implements RefreshTokenRepository {
         if (!StringUtils.hasText(refreshToken)) {
             return null;
         }
-        RefreshTokenSessionView record = refreshTokenSessionQueryApi.find(sha256Hex(refreshToken));
+        RefreshTokenSessionPort.RefreshTokenSession record = refreshTokenSessionPort.find(sha256Hex(refreshToken));
         return toStoredRefreshToken(refreshToken, record);
     }
 
@@ -54,7 +47,7 @@ public class DbRefreshTokenRepository implements RefreshTokenRepository {
         if (!StringUtils.hasText(refreshToken)) {
             return null;
         }
-        RefreshTokenSessionView record = refreshTokenSessionActionApi.consume(sha256Hex(refreshToken));
+        RefreshTokenSessionPort.RefreshTokenSession record = refreshTokenSessionPort.consume(sha256Hex(refreshToken));
         return toStoredRefreshToken(refreshToken, record);
     }
 
@@ -63,7 +56,7 @@ public class DbRefreshTokenRepository implements RefreshTokenRepository {
         if (!StringUtils.hasText(refreshToken)) {
             return null;
         }
-        RefreshTokenSessionView record = refreshTokenSessionQueryApi.find(sha256Hex(refreshToken));
+        RefreshTokenSessionPort.RefreshTokenSession record = refreshTokenSessionPort.find(sha256Hex(refreshToken));
         if (record == null || record.revokedAt() == null) {
             return null;
         }
@@ -75,7 +68,7 @@ public class DbRefreshTokenRepository implements RefreshTokenRepository {
         if (!StringUtils.hasText(refreshToken)) {
             return;
         }
-        refreshTokenSessionActionApi.revoke(sha256Hex(refreshToken));
+        refreshTokenSessionPort.revoke(sha256Hex(refreshToken));
     }
 
     @Override
@@ -83,10 +76,10 @@ public class DbRefreshTokenRepository implements RefreshTokenRepository {
         if (!StringUtils.hasText(familyId)) {
             return;
         }
-        refreshTokenSessionActionApi.revokeFamily(familyId.trim());
+        refreshTokenSessionPort.revokeFamily(familyId.trim());
     }
 
-    private StoredRefreshToken toStoredRefreshToken(String refreshToken, RefreshTokenSessionView record) {
+    private StoredRefreshToken toStoredRefreshToken(String refreshToken, RefreshTokenSessionPort.RefreshTokenSession record) {
         if (record == null || record.revokedAt() != null || record.expiresAt() == null) {
             return null;
         }

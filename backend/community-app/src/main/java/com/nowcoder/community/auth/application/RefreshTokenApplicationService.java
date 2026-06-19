@@ -1,11 +1,11 @@
 package com.nowcoder.community.auth.application;
 
+import com.nowcoder.community.auth.application.port.RefreshTokenSessionPort;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.RefreshTokenDomainService;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
-import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -18,20 +18,20 @@ public class RefreshTokenApplicationService {
     private final RefreshTokenRepository refreshTokenStore;
     private final RefreshTokenDomainService refreshTokenDomainService;
     private final AuthSecretGenerator authSecretGenerator;
-    private final UserRefreshTokenSessionActionApi refreshTokenSessionActionApi;
+    private final RefreshTokenSessionPort refreshTokenSessionPort;
 
     public RefreshTokenApplicationService(
             JwtProperties jwtProperties,
             RefreshTokenRepository refreshTokenStore,
             RefreshTokenDomainService refreshTokenDomainService,
             AuthSecretGenerator authSecretGenerator,
-            UserRefreshTokenSessionActionApi refreshTokenSessionActionApi
+            RefreshTokenSessionPort refreshTokenSessionPort
     ) {
         this.jwtProperties = jwtProperties;
         this.refreshTokenStore = refreshTokenStore;
         this.refreshTokenDomainService = refreshTokenDomainService;
         this.authSecretGenerator = authSecretGenerator;
-        this.refreshTokenSessionActionApi = refreshTokenSessionActionApi;
+        this.refreshTokenSessionPort = refreshTokenSessionPort;
     }
 
     public IssuedRefreshToken issue(UUID userId) {
@@ -124,7 +124,7 @@ public class RefreshTokenApplicationService {
     }
 
     public int cleanupExpiredBefore(Instant expiresBefore) {
-        return refreshTokenSessionActionApi.deleteExpiredBefore(expiresBefore);
+        return refreshTokenSessionPort.deleteExpiredBefore(expiresBefore);
     }
 
     private IssuedRefreshToken issue(UUID userId, String familyId) {

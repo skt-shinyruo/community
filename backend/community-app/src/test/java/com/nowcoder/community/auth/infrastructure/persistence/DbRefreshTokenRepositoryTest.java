@@ -1,9 +1,7 @@
-package com.nowcoder.community.auth.application;
+package com.nowcoder.community.auth.infrastructure.persistence;
 
+import com.nowcoder.community.auth.application.port.RefreshTokenSessionPort;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
-import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
-import com.nowcoder.community.user.api.model.RefreshTokenSessionView;
-import com.nowcoder.community.user.api.query.UserRefreshTokenSessionQueryApi;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -24,13 +22,10 @@ class DbRefreshTokenRepositoryTest {
     private static final UUID USER_ID = UUID.fromString("00000000-0000-7000-8000-000000000007");
 
     @Mock
-    private UserRefreshTokenSessionActionApi refreshTokenSessionActionApi;
-
-    @Mock
-    private UserRefreshTokenSessionQueryApi refreshTokenSessionQueryApi;
+    private RefreshTokenSessionPort refreshTokenSessionPort;
 
     private DbRefreshTokenRepository newStore() {
-        return new DbRefreshTokenRepository(refreshTokenSessionActionApi, refreshTokenSessionQueryApi);
+        return new DbRefreshTokenRepository(refreshTokenSessionPort);
     }
 
     @Test
@@ -38,8 +33,8 @@ class DbRefreshTokenRepositoryTest {
         DbRefreshTokenRepository store = newStore();
 
         Instant expiresAt = Instant.now().plusSeconds(300);
-        when(refreshTokenSessionActionApi.consume(anyString())).thenReturn(
-                new RefreshTokenSessionView(
+        when(refreshTokenSessionPort.consume(anyString())).thenReturn(
+                new RefreshTokenSessionPort.RefreshTokenSession(
                         "hash",
                         USER_ID,
                         "family-1",
@@ -58,8 +53,8 @@ class DbRefreshTokenRepositoryTest {
         DbRefreshTokenRepository store = newStore();
 
         Instant now = Instant.now();
-        when(refreshTokenSessionQueryApi.find(anyString())).thenReturn(
-                new RefreshTokenSessionView(
+        when(refreshTokenSessionPort.find(anyString())).thenReturn(
+                new RefreshTokenSessionPort.RefreshTokenSession(
                         "hash",
                         USER_ID,
                         "family-1",
@@ -77,28 +72,28 @@ class DbRefreshTokenRepositoryTest {
                 now.plusSeconds(300),
                 now.minusSeconds(3)
         ));
-        verify(refreshTokenSessionActionApi, never()).revokeFamily(anyString());
+        verify(refreshTokenSessionPort, never()).revokeFamily(anyString());
     }
 
     @Test
     void consumeWhenTokenWasAlreadyRevokedShouldNotDecideReuseOrRevokeFamily() {
         DbRefreshTokenRepository store = newStore();
 
-        when(refreshTokenSessionActionApi.consume(anyString())).thenReturn(null);
+        when(refreshTokenSessionPort.consume(anyString())).thenReturn(null);
 
         RefreshTokenRepository.StoredRefreshToken result = store.consume("rt1");
 
         assertThat(result).isNull();
-        verify(refreshTokenSessionQueryApi, never()).find(anyString());
-        verify(refreshTokenSessionActionApi, never()).revokeFamily(anyString());
+        verify(refreshTokenSessionPort, never()).find(anyString());
+        verify(refreshTokenSessionPort, never()).revokeFamily(anyString());
     }
 
     @Test
     void findRevokedWhenTokenIsActiveShouldReturnNull() {
         DbRefreshTokenRepository store = newStore();
 
-        when(refreshTokenSessionQueryApi.find(anyString())).thenReturn(
-                new RefreshTokenSessionView(
+        when(refreshTokenSessionPort.find(anyString())).thenReturn(
+                new RefreshTokenSessionPort.RefreshTokenSession(
                         "hash",
                         USER_ID,
                         "family-1",

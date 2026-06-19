@@ -99,21 +99,18 @@ class RedisRefreshTokenRepositoryTest {
     }
 
     @Test
-    void consumeShouldTrimTokenForKeyAndFamilyRemoval() throws Exception {
+    void consumeShouldUseAtomicScriptToDeleteTokenWriteTombstoneAndRemoveFamilyMember() throws Exception {
         UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000007");
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
-        @SuppressWarnings("unchecked")
-        SetOperations<String, String> setOps = mock(SetOperations.class);
 
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        when(redisTemplate.opsForSet()).thenReturn(setOps);
 
         String json = jsonCodec().toJson(
                 new RefreshTokenRepository.StoredRefreshToken("t1", userId, "f1", Instant.now().plusSeconds(60))
         );
-        when(valueOps.getAndDelete(eq("auth:refresh:t1"))).thenReturn(json);
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString(), anyString())).thenReturn(json);
 
         RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
         RefreshTokenRepository.StoredRefreshToken found = store.consume("  t1  ");
@@ -122,9 +119,29 @@ class RedisRefreshTokenRepositoryTest {
         assertThat(found.refreshToken()).isEqualTo("t1");
         assertThat(found.userId()).isEqualTo(userId);
         assertThat(found.familyId()).isEqualTo("f1");
-        verify(valueOps).getAndDelete(eq("auth:refresh:t1"));
-        verify(setOps).remove(eq("auth:refresh:family:f1"), eq("t1"));
-        verify(valueOps).set(eq("auth:refresh:revoked:t1"), anyString(), anyLong(), eq(TimeUnit.SECONDS));
+        ArgumentCaptor<RedisScript<String>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        verify(redisTemplate).execute(
+                scriptCaptor.capture(),
+                keysCaptor.capture(),
+                anyString(),
+                eq("t1")
+        );
+        assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);
+        DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
+        assertThat(script.getScriptAsString()).contains("cjson.decode");
+        assertThat(script.getScriptAsString()).contains("redis.call('exists', KEYS[3] .. record.familyId)");
+        assertThat(script.getScriptAsString()).contains("redis.call('del', KEYS[1])");
+        assertThat(script.getScriptAsString()).contains("redis.call('set', KEYS[2], tombstone, 'px', ttl)");
+        assertThat(script.getScriptAsString()).contains("redis.call('srem', KEYS[4] .. record.familyId, member)");
+        assertThat(keysCaptor.getValue()).containsExactly(
+                "auth:refresh:t1",
+                "auth:refresh:revoked:t1",
+                "auth:refresh:family:revoked:",
+                "auth:refresh:family:"
+        );
+        verify(redisTemplate, never()).delete(eq("auth:refresh:family:f1"));
+        verify(valueOps, never()).set(eq("auth:refresh:revoked:t1"), anyString(), anyLong(), eq(TimeUnit.SECONDS));
     }
 
     @Test
@@ -150,10 +167,8 @@ class RedisRefreshTokenRepositoryTest {
                 "expiresAt", expiresAt,
                 "revokedAt", Instant.now().minusSeconds(2)
         ));
-        when(valueOps.getAndDelete(eq("auth:refresh:t1"))).thenReturn(activeJson, (String) null);
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString(), anyString())).thenReturn(activeJson, (String) null);
         when(valueOps.get(eq("auth:refresh:revoked:t1"))).thenReturn(tombstoneJson);
-        when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString(), anyString(), anyString()))
-                .thenReturn(0L);
 
         RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, codec);
 
@@ -168,7 +183,7 @@ class RedisRefreshTokenRepositoryTest {
         assertThat(revoked.refreshToken()).isEqualTo("t1");
         assertThat(revoked.userId()).isEqualTo(userId);
         assertThat(revoked.familyId()).isEqualTo("f1");
-        verify(valueOps).set(eq("auth:refresh:revoked:t1"), anyString(), anyLong(), eq(TimeUnit.SECONDS));
+        verify(valueOps, never()).set(eq("auth:refresh:revoked:t1"), anyString(), anyLong(), eq(TimeUnit.SECONDS));
         verify(valueOps, never()).set(eq("auth:refresh:family:revoked:f1"), eq("1"), anyLong(), eq(TimeUnit.SECONDS));
         verify(redisTemplate, never()).delete(eq("auth:refresh:family:f1"));
     }
@@ -183,7 +198,7 @@ class RedisRefreshTokenRepositoryTest {
 
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(redisTemplate.opsForSet()).thenReturn(setOps);
-        when(valueOps.getAndDelete(eq("auth:refresh:t1"))).thenReturn(null);
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString(), anyString())).thenReturn(null);
 
         RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
 

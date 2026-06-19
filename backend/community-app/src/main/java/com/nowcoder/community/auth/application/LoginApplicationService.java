@@ -131,10 +131,6 @@ public class LoginApplicationService {
         return loginResult;
     }
 
-    public LoginResult issueLoginResult(UserCredentialView user) {
-        return loginTokenIssuer.issueLoginResult(user);
-    }
-
     public RefreshResult refresh(RefreshCommand command) {
         String refreshToken = command == null ? null : command.refreshToken();
         if (!StringUtils.hasText(refreshToken)) {

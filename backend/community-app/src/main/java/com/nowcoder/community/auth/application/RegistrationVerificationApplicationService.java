@@ -25,6 +25,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 
 @Service
 public class RegistrationVerificationApplicationService {
@@ -37,7 +38,7 @@ public class RegistrationVerificationApplicationService {
     private final MailPort mailService;
     private final CaptchaApplicationService captchaService;
     private final RegistrationDraftRepository registrationDraftRepository;
-    private final LoginApplicationService authService;
+    private final LoginTokenIssuer loginTokenIssuer;
     private final AuthSecretGenerator authSecretGenerator;
     private final RegistrationDomainService registrationDomainService;
 
@@ -48,7 +49,7 @@ public class RegistrationVerificationApplicationService {
             MailPort mailService,
             CaptchaApplicationService captchaService,
             RegistrationDraftRepository registrationDraftRepository,
-            LoginApplicationService authService,
+            LoginTokenIssuer loginTokenIssuer,
             AuthSecretGenerator authSecretGenerator,
             RegistrationDomainService registrationDomainService
     ) {
@@ -58,7 +59,7 @@ public class RegistrationVerificationApplicationService {
         this.mailService = mailService;
         this.captchaService = captchaService;
         this.registrationDraftRepository = registrationDraftRepository;
-        this.authService = authService;
+        this.loginTokenIssuer = loginTokenIssuer;
         this.authSecretGenerator = authSecretGenerator;
         this.registrationDomainService = registrationDomainService;
     }
@@ -101,30 +102,40 @@ public class RegistrationVerificationApplicationService {
 
         PreparedRegistrationDraft draft = resolveDraftOrThrow(registrationToken);
 
-        RegistrationCodeRepository.VerifyResult result = registrationCodeStore.verifyAndConsume(draft.userId(), code.trim());
-        if (result == RegistrationCodeRepository.VerifyResult.SUCCESS) {
-            UserCredentialView activatedUser = userRegistrationActionApi.createVerifiedRegistrationUser(
-                    new VerifiedRegistrationUserCommand(
-                            draft.userId(),
-                            draft.username(),
-                            draft.email(),
-                            draft.encodedPassword(),
-                            draft.headerUrl()
-                    )
-            );
-            if (activatedUser == null || activatedUser.userId() == null) {
-                throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
-            }
+        Duration pendingTtl = Duration.ofSeconds(60);
+        RegistrationCodeRepository.VerifyResult result = registrationCodeStore.verifyForConsumption(draft.userId(), code.trim(), pendingTtl);
+        if (result == RegistrationCodeRepository.VerifyResult.PENDING) {
+            boolean activated = false;
             try {
-                LoginResult loginResult = authService.issueLoginResult(activatedUser);
+                UserCredentialView activatedUser = userRegistrationActionApi.createVerifiedRegistrationUser(
+                        new VerifiedRegistrationUserCommand(
+                                draft.userId(),
+                                draft.username(),
+                                draft.email(),
+                                draft.encodedPassword(),
+                                draft.headerUrl()
+                        )
+                );
+                if (activatedUser == null || activatedUser.userId() == null) {
+                    throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
+                }
+                activated = true;
+                LoginResult loginResult = loginTokenIssuer.issueLoginResult(activatedUser);
                 SecurityEventLogger.info(log, "registration_verify", "success",
                         "user.id", activatedUser.userId(),
                         "username", activatedUser.username());
                 return loginResult;
             } catch (RuntimeException ex) {
-                throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED, ex);
+                if (activated) {
+                    throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED, ex);
+                }
+                registrationCodeStore.restorePending(draft.userId());
+                throw ex;
             } finally {
-                deleteDraftQuietly(registrationToken);
+                if (activated) {
+                    consumePendingQuietly(draft.userId());
+                    deleteDraftQuietly(registrationToken);
+                }
             }
         }
         if (result == RegistrationCodeRepository.VerifyResult.EXPIRED) {
@@ -132,6 +143,9 @@ public class RegistrationVerificationApplicationService {
         }
         if (result == RegistrationCodeRepository.VerifyResult.TOO_MANY_ATTEMPTS) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_TOO_MANY_ATTEMPTS);
+        }
+        if (result == RegistrationCodeRepository.VerifyResult.PENDING_CONFLICT) {
+            throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_INVALID);
         }
         throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_INVALID);
     }
@@ -169,6 +183,17 @@ public class RegistrationVerificationApplicationService {
         }
         try {
             registrationDraftRepository.delete(registrationToken.trim());
+        } catch (RuntimeException ignored) {
+            // best-effort cleanup
+        }
+    }
+
+    private void consumePendingQuietly(UUID userId) {
+        if (userId == null || registrationCodeStore == null) {
+            return;
+        }
+        try {
+            registrationCodeStore.consumePending(userId);
         } catch (RuntimeException ignored) {
             // best-effort cleanup
         }

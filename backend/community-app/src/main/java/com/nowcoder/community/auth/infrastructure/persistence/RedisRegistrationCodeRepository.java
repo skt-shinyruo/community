@@ -30,7 +30,10 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
 
                     local raw = redis.call('GET', KEYS[1])
                     if raw and raw ~= '' then
-                      local storedCode, expiresAtMs, failures, issuedAtMs = string.match(raw, '([^|]*)|([^|]*)|([^|]*)|([^|]*)')
+                      local storedCode, expiresAtMs, failures, issuedAtMs, state = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
+                      if not storedCode then
+                        storedCode, expiresAtMs, failures, issuedAtMs = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
+                      end
                       if not storedCode or not expiresAtMs or not failures or not issuedAtMs then
                         redis.call('DEL', KEYS[1])
                         storedCode = nil
@@ -47,23 +50,29 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
                       end
                     end
 
-                    local payload = ARGV[1] .. '|' .. tostring(nowMs + ttlMs) .. '|0|' .. tostring(nowMs)
+                    local payload = ARGV[1] .. '|' .. tostring(nowMs + ttlMs) .. '|0|' .. tostring(nowMs) .. '|ACTIVE'
                     redis.call('SET', KEYS[1], payload, 'PX', ttlMs)
                     return 'ISSUED'
                     """,
             String.class
     );
-    private static final RedisScript<String> VERIFY_SCRIPT = new DefaultRedisScript<>(
+    private static final RedisScript<String> VERIFY_PENDING_SCRIPT = new DefaultRedisScript<>(
             """
                     local raw = redis.call('GET', KEYS[1])
                     if not raw or raw == '' then
                       return 'NOT_FOUND'
                     end
 
-                    local storedCode, expiresAtMs, failures, issuedAtMs = string.match(raw, '([^|]*)|([^|]*)|([^|]*)|([^|]*)')
+                    local storedCode, expiresAtMs, failures, issuedAtMs, state = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
+                    if not storedCode then
+                      storedCode, expiresAtMs, failures, issuedAtMs = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
+                    end
                     if not storedCode or not expiresAtMs or not failures or not issuedAtMs then
                       redis.call('DEL', KEYS[1])
                       return 'NOT_FOUND'
+                    end
+                    if not state or state == '' then
+                      state = 'ACTIVE'
                     end
 
                     local expires = tonumber(expiresAtMs)
@@ -71,7 +80,8 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
                     local issued = tonumber(issuedAtMs)
                     local nowMs = tonumber(ARGV[2])
                     local maxFailures = tonumber(ARGV[3])
-                    if not expires or not failureCount or not issued or not nowMs or not maxFailures then
+                    local pendingTtlMs = tonumber(ARGV[4])
+                    if not expires or not failureCount or not issued or not nowMs or not maxFailures or not pendingTtlMs then
                       redis.call('DEL', KEYS[1])
                       return 'NOT_FOUND'
                     end
@@ -80,10 +90,23 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
                       redis.call('DEL', KEYS[1])
                       return 'EXPIRED'
                     end
+                    if state == 'PENDING' then
+                      return 'PENDING_CONFLICT'
+                    end
 
                     if storedCode == ARGV[1] then
-                      redis.call('DEL', KEYS[1])
-                      return 'SUCCESS'
+                      local ttl = redis.call('PTTL', KEYS[1])
+                      local nextTtl = ttl
+                      if pendingTtlMs > 0 and (not ttl or ttl < 0 or ttl > pendingTtlMs) then
+                        nextTtl = pendingTtlMs
+                      end
+                      local nextRaw = storedCode .. '|' .. expiresAtMs .. '|' .. failures .. '|' .. issuedAtMs .. '|PENDING'
+                      if nextTtl and nextTtl > 0 then
+                        redis.call('SET', KEYS[1], nextRaw, 'PX', nextTtl)
+                      else
+                        redis.call('SET', KEYS[1], nextRaw)
+                      end
+                      return 'PENDING'
                     end
 
                     local nextFailures = failureCount + 1
@@ -93,8 +116,7 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
                     end
 
                     local ttl = redis.call('PTTL', KEYS[1])
-                    local nextIssuedAtMs = issuedAtMs or tostring(nowMs)
-                    local nextRaw = storedCode .. '|' .. expiresAtMs .. '|' .. tostring(nextFailures) .. '|' .. nextIssuedAtMs
+                    local nextRaw = storedCode .. '|' .. expiresAtMs .. '|' .. tostring(nextFailures) .. '|' .. issuedAtMs .. '|ACTIVE'
                     if ttl and ttl > 0 then
                       redis.call('SET', KEYS[1], nextRaw, 'PX', ttl)
                     else
@@ -103,6 +125,36 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
                     return 'MISMATCH'
                     """,
             String.class
+    );
+    private static final RedisScript<Long> RESTORE_PENDING_SCRIPT = new DefaultRedisScript<>(
+            """
+                    local raw = redis.call('GET', KEYS[1])
+                    if not raw or raw == '' then
+                      return 0
+                    end
+
+                    local storedCode, expiresAtMs, failures, issuedAtMs, state = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
+                    if not storedCode then
+                      storedCode, expiresAtMs, failures, issuedAtMs = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
+                    end
+                    if not storedCode or not expiresAtMs or not failures or not issuedAtMs then
+                      redis.call('DEL', KEYS[1])
+                      return 0
+                    end
+                    if state ~= 'PENDING' then
+                      return 0
+                    end
+
+                    local ttl = redis.call('PTTL', KEYS[1])
+                    local nextRaw = storedCode .. '|' .. expiresAtMs .. '|' .. failures .. '|' .. issuedAtMs .. '|ACTIVE'
+                    if ttl and ttl > 0 then
+                      redis.call('SET', KEYS[1], nextRaw, 'PX', ttl)
+                    else
+                      redis.call('SET', KEYS[1], nextRaw)
+                    end
+                    return 1
+                    """,
+            Long.class
     );
 
     private final StringRedisTemplate redisTemplate;
@@ -186,16 +238,28 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
 
     @Override
     public VerifyResult verifyAndConsume(UUID userId, String code) {
+        VerifyResult result = verifyForConsumption(userId, code, Duration.ZERO);
+        if (result == VerifyResult.PENDING) {
+            consumePending(userId);
+            return VerifyResult.SUCCESS;
+        }
+        return result;
+    }
+
+    @Override
+    public VerifyResult verifyForConsumption(UUID userId, String code, Duration pendingTtl) {
         if (userId == null || !StringUtils.hasText(code)) {
             return VerifyResult.NOT_FOUND;
         }
 
+        long pendingTtlMs = pendingTtl == null ? 0 : Math.max(0L, pendingTtl.toMillis());
         String result = redisTemplate.execute(
-                VERIFY_SCRIPT,
+                VERIFY_PENDING_SCRIPT,
                 List.of(key(userId)),
                 code.trim(),
                 Long.toString(System.currentTimeMillis()),
-                Integer.toString(maxFailures)
+                Integer.toString(maxFailures),
+                Long.toString(pendingTtlMs)
         );
         if (!StringUtils.hasText(result)) {
             return VerifyResult.NOT_FOUND;
@@ -208,6 +272,19 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         }
     }
 
+    @Override
+    public void consumePending(UUID userId) {
+        delete(userId);
+    }
+
+    @Override
+    public void restorePending(UUID userId) {
+        if (userId == null) {
+            return;
+        }
+        redisTemplate.execute(RESTORE_PENDING_SCRIPT, List.of(key(userId)));
+    }
+
     private String key(UUID userId) {
         return KEY_PREFIX + userId;
     }
@@ -218,7 +295,7 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         }
 
         String[] parts = raw.split("\\|", -1);
-        if (parts.length != 4) {
+        if (parts.length != 4 && parts.length != 5) {
             return null;
         }
 

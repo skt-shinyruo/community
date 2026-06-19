@@ -133,10 +133,12 @@ class MyBatisUserRepositoryTest {
 
     @Test
     void updateMethodsShouldRaiseInternalErrorWhenNoRowsChanged() {
+        long before = userRepository.currentUserSecurityVersion();
         assertThatThrownBy(() -> userRepository.updateRole(MISSING_ID, 2))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(INTERNAL_ERROR))
                 .hasMessage("更新用户角色失败");
+        assertThat(userRepository.currentUserSecurityVersion()).isEqualTo(before);
     }
 
     @Test

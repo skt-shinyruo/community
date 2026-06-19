@@ -13,7 +13,7 @@ create table if not exists user (
   password varchar(255),
   salt varchar(255),
   email varchar(255),
-  type int default 0,
+  type int not null default 0,
   status int default 0,
   header_url varchar(255),
   create_time timestamp null default current_timestamp,
@@ -50,6 +50,16 @@ prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
 
+set @has_invalid_user_type := (
+  select count(*)
+  from user
+  where type not in (0, 1, 2) or type is null
+);
+set @sql := if(@has_invalid_user_type > 0, 'update user set type = 0 where type not in (0, 1, 2) or type is null', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
 set @ck_user_type := (
   select count(*)
   from information_schema.table_constraints
@@ -62,15 +72,41 @@ prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
 
+set @col_user_type_nullable := (
+  select count(*)
+  from information_schema.columns
+  where table_schema = database()
+    and table_name = 'user'
+    and column_name = 'type'
+    and is_nullable = 'YES'
+);
+set @sql := if(@col_user_type_nullable = 1, 'alter table user modify column type int not null default 0', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
 set @user_policy_seed_version := cast(floor(unix_timestamp(current_timestamp(3)) * 1000) * 4096 as unsigned);
 update user
 set policy_version = @user_policy_seed_version
 where policy_version = 0;
 
 set @user_security_seed_version := cast(floor(unix_timestamp(current_timestamp(3)) * 1000) * 4096 as unsigned);
-update user
-set security_version = @user_security_seed_version
-where security_version = 0;
+set @has_security_seed_column := (
+  select count(*)
+  from information_schema.columns
+  where table_schema = database()
+    and table_name = 'user'
+    and column_name = 'security_version'
+);
+set @should_seed_security_version := (
+  select count(*)
+  from user
+  where security_version = 0
+);
+set @sql := if(@has_security_seed_column = 1 and @col_user_security_version = 0 and @should_seed_security_version > 0, concat('update user set security_version = ', @user_security_seed_version, ' where security_version = 0'), 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
 
 set @has_user_score_col := (
   select count(*)

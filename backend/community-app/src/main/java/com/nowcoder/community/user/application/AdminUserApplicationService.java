@@ -61,7 +61,8 @@ public class AdminUserApplicationService {
             return;
         }
 
-        userRepository.updateRole(command.targetUserId(), toType);
+        long securityVersion = userRepository.nextUserSecurityVersion(command.targetUserId());
+        userRepository.updateRole(command.targetUserId(), toType, securityVersion);
         userAuditLogPort.recordRoleUpdated(command.actorUserId(), command.targetUserId(), fromType, toType, reason);
     }
 

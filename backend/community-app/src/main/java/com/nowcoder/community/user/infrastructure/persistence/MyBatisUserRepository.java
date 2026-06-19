@@ -10,6 +10,7 @@ import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject;
 import com.nowcoder.community.user.infrastructure.persistence.mapper.UserMapper;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -107,6 +108,12 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
+    @Transactional
+    public void updateRole(UUID userId, int type) {
+        updateRole(userId, type, nextUserSecurityVersion(userId));
+    }
+
+    @Override
     public void updateStatus(UUID userId, int status, long securityVersion) {
         int updated = userMapper.updateStatus(userId, status, securityVersion);
         if (updated <= 0) {
@@ -115,11 +122,23 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
+    @Transactional
+    public void updateStatus(UUID userId, int status) {
+        updateStatus(userId, status, nextUserSecurityVersion(userId));
+    }
+
+    @Override
     public void updatePassword(UUID userId, String encodedPassword, long securityVersion) {
         int updated = userMapper.updatePassword(userId, encodedPassword, securityVersion);
         if (updated <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新密码失败");
         }
+    }
+
+    @Override
+    @Transactional
+    public void updatePassword(UUID userId, String encodedPassword) {
+        updatePassword(userId, encodedPassword, nextUserSecurityVersion(userId));
     }
 
     @Override
@@ -174,6 +193,7 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
+    @Transactional
     public long nextUserSecurityVersion(UUID userId) {
         userMapper.upsertSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID);
         long current = userMapper.selectSecurityVersionCounterForUpdate(USER_SECURITY_VERSION_COUNTER_ID);

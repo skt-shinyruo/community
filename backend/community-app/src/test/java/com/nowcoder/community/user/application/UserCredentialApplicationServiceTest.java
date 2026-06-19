@@ -140,11 +140,12 @@ class UserCredentialApplicationServiceTest {
         UserCredentialApplicationService service = service();
         UUID userId = uuid(7);
         when(userRepository.findById(userId)).thenReturn(Optional.of(activeUser(userId, "alice", "encoded", "")));
+        when(userRepository.nextUserSecurityVersion(userId)).thenReturn(123L);
 
         service.updatePassword(userId, "secret12");
 
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
-        verify(userRepository).updatePassword(eq(userId), passwordCaptor.capture());
+        verify(userRepository).updatePassword(eq(userId), passwordCaptor.capture(), eq(123L));
         assertThat(new BCryptPasswordEncoder().matches("secret12", passwordCaptor.getValue())).isTrue();
     }
 
@@ -153,11 +154,12 @@ class UserCredentialApplicationServiceTest {
         UserCredentialApplicationService service = service();
         UUID userId = uuid(7);
         when(userRepository.findById(userId)).thenReturn(Optional.of(activeUser(userId, "alice", "encoded", "")));
+        when(userRepository.nextUserSecurityVersion(userId)).thenReturn(456L);
 
         service.resetPasswordAndRevokeRefreshSessions(userId, "secret12");
 
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
-        verify(userRepository).updatePassword(eq(userId), passwordCaptor.capture());
+        verify(userRepository).updatePassword(eq(userId), passwordCaptor.capture(), eq(456L));
         assertThat(new BCryptPasswordEncoder().matches("secret12", passwordCaptor.getValue())).isTrue();
         verify(refreshTokenSessionRepository).revokeByUserId(userId);
     }

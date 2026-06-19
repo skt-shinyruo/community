@@ -1,7 +1,9 @@
 package com.nowcoder.community.auth.controller.dto;
 
+import com.nowcoder.community.common.constants.ValidationLimits;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public class PasswordResetRequestRequest {
 
@@ -9,8 +11,10 @@ public class PasswordResetRequestRequest {
     @Email
     private String email;
 
+    @Size(max = ValidationLimits.CAPTCHA_ID_MAX)
     private String captchaId;
 
+    @Size(max = ValidationLimits.CAPTCHA_CODE_MAX)
     private String captchaCode;
 
     public String getEmail() {

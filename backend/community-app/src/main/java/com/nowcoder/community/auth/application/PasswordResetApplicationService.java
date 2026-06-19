@@ -81,15 +81,16 @@ public class PasswordResetApplicationService {
         String resetBaseUrl = normalizeResetBaseUrlOrThrow();
 
         String normalizedEmail = email.trim();
-        enforceRequestRateLimit(normalizedEmail, clientIp);
+        enforceIpRequestRateLimit(clientIp);
         UserCredentialView user = userCredentialQueryApi.findByEmailOrNull(normalizedEmail);
-        if (user == null || user.userId() == null || user.status() == 0) {
+        if (user == null || user.userId() == null || !user.loginAllowed()) {
             // 防用户枚举：邮箱不存在/未激活等情况也返回“已发送”（但不实际下发 token/邮件）
             SecurityEventLogger.info(log, "password_reset_request", "skipped",
                     "community.reason_code", "hidden_noop",
                     "masked.email", maskEmail(normalizedEmail));
             return new PasswordResetRequestResult(true, "");
         }
+        enforceEmailRequestRateLimit(normalizedEmail);
 
         String token = newResetToken();
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getTtlSeconds()));
@@ -170,26 +171,32 @@ public class PasswordResetApplicationService {
         return resetBaseUrl + "/#/auth/password/reset?token=" + token;
     }
 
-    private void enforceRequestRateLimit(String normalizedEmail, String clientIp) {
+    private void enforceIpRequestRateLimit(String clientIp) {
         if (resetRequestRateLimitRepository == null) {
             return;
         }
         int windowSeconds = Math.max(1, properties.getRequestWindowSeconds());
-        int maxRequestsPerEmail = properties.getMaxRequestsPerEmail();
-        if (maxRequestsPerEmail > 0 && StringUtils.hasText(normalizedEmail)) {
-            String emailKey = RATE_LIMIT_EMAIL_KEY_PREFIX + normalizedEmail.toLowerCase(Locale.ROOT);
-            int emailCount = resetRequestRateLimitRepository.increment(emailKey, windowSeconds);
-            if (emailCount > maxRequestsPerEmail) {
-                throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "请求过于频繁，请稍后再试");
-            }
-        }
-
         int maxRequestsPerIp = properties.getMaxRequestsPerIp();
         String ip = clientIp == null ? "" : clientIp.trim();
         if (maxRequestsPerIp > 0 && StringUtils.hasText(ip)) {
             String ipKey = RATE_LIMIT_IP_KEY_PREFIX + ip;
             int ipCount = resetRequestRateLimitRepository.increment(ipKey, windowSeconds);
             if (ipCount > maxRequestsPerIp) {
+                throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "请求过于频繁，请稍后再试");
+            }
+        }
+    }
+
+    private void enforceEmailRequestRateLimit(String normalizedEmail) {
+        if (resetRequestRateLimitRepository == null) {
+            return;
+        }
+        int maxRequestsPerEmail = properties.getMaxRequestsPerEmail();
+        if (maxRequestsPerEmail > 0 && StringUtils.hasText(normalizedEmail)) {
+            int windowSeconds = Math.max(1, properties.getRequestWindowSeconds());
+            String emailKey = RATE_LIMIT_EMAIL_KEY_PREFIX + normalizedEmail.toLowerCase(Locale.ROOT);
+            int emailCount = resetRequestRateLimitRepository.increment(emailKey, windowSeconds);
+            if (emailCount > maxRequestsPerEmail) {
                 throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "请求过于频繁，请稍后再试");
             }
         }

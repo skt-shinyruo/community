@@ -7,14 +7,17 @@ import jakarta.validation.constraints.Size;
 public class PasswordResetConfirmRequest {
 
     @NotBlank
+    @Size(max = ValidationLimits.TOKEN_MAX)
     private String resetToken;
 
     @NotBlank
     @Size(min = 8, max = ValidationLimits.PASSWORD_MAX)
     private String newPassword;
 
+    @Size(max = ValidationLimits.CAPTCHA_ID_MAX)
     private String captchaId;
 
+    @Size(max = ValidationLimits.CAPTCHA_CODE_MAX)
     private String captchaCode;
 
     public String getResetToken() {

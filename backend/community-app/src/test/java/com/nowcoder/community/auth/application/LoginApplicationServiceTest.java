@@ -58,6 +58,7 @@ class LoginApplicationServiceTest {
     private final LoginRateLimitApplicationService loginRateLimitService = mock(LoginRateLimitApplicationService.class);
     private final CaptchaApplicationService captchaService = mock(CaptchaApplicationService.class);
     private final AnalyticsIngestActionApi analyticsIngestService = mock(AnalyticsIngestActionApi.class);
+    private final LoginTokenIssuer loginTokenIssuer = new LoginTokenIssuer(userCredentialQueryApi, authTokenPort, refreshTokenService);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final LoggingSystem loggingSystem = LoggingSystem.get(getClass().getClassLoader());
 
@@ -67,7 +68,7 @@ class LoginApplicationServiceTest {
     void setUp() {
         authService = new LoginApplicationService(
                 userCredentialQueryApi,
-                authTokenPort,
+                loginTokenIssuer,
                 refreshTokenService,
                 loginRateLimitService,
                 captchaService,
@@ -87,7 +88,7 @@ class LoginApplicationServiceTest {
                 .singleElement()
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
                         UserCredentialQueryApi.class,
-                        AuthTokenPort.class,
+                        LoginTokenIssuer.class,
                         RefreshTokenApplicationService.class,
                         LoginRateLimitApplicationService.class,
                         CaptchaApplicationService.class,
@@ -155,7 +156,7 @@ class LoginApplicationServiceTest {
 
         RefreshCookieSpec cookie = issuedCookie("rt");
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
-        when(authTokenPort.createAccessToken(eq(userId), eq("alice"), eq(List.of("ROLE_USER")))).thenReturn("access-token");
+        when(authTokenPort.createAccessToken(eq(userId), eq("alice"), eq(List.of("ROLE_USER")), eq(0L))).thenReturn("access-token");
         when(refreshTokenService.issue(userId)).thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("rt", cookie));
 
         LoginResult result = authService.login(loginCommand("alice", "secret", null, null));
@@ -180,7 +181,7 @@ class LoginApplicationServiceTest {
         when(userCredentialQueryApi.authenticate("alice", "pw"))
                 .thenReturn(UserAuthenticationResultView.authenticated(user));
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
-        when(authTokenPort.createAccessToken(eq(userId), eq("alice"), anyList())).thenReturn("access-token");
+        when(authTokenPort.createAccessToken(eq(userId), eq("alice"), anyList(), eq(0L))).thenReturn("access-token");
         when(refreshTokenService.issue(userId)).thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("refresh-token", issuedCookie("refresh-token")));
 
         authService.login(new LoginCommand("alice", "pw", null, null, "1.1.1.1", ClientIpResolver.SOURCE_REMOTE));
@@ -232,7 +233,7 @@ class LoginApplicationServiceTest {
         UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1", 0L);
         when(userCredentialQueryApi.authenticate("alice", "secret")).thenReturn(UserAuthenticationResultView.authenticated(user));
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
-        when(authTokenPort.createAccessToken(eq(userId), eq("alice"), eq(List.of("ROLE_USER")))).thenReturn("access-token");
+        when(authTokenPort.createAccessToken(eq(userId), eq("alice"), eq(List.of("ROLE_USER")), eq(0L))).thenReturn("access-token");
         when(refreshTokenService.issue(userId)).thenThrow(new RuntimeException("issue failed"));
 
         Throwable thrown = catchThrowable(() -> authService.login(loginCommand("alice", "secret", null, null)));
@@ -272,6 +273,23 @@ class LoginApplicationServiceTest {
     }
 
     @Test
+    void refreshShouldRejectBannedUserAndRevokeRefreshFamily() {
+        UUID userId = uuid(21);
+        RefreshTokenRepository.StoredRefreshToken consumed =
+                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-ban", Instant.now().plusSeconds(600));
+        UserCredentialView banned = new UserCredentialView(userId, "alice", 1, 0, "h1", 77L, false, false);
+        when(refreshTokenService.consume("old-refresh")).thenReturn(consumed);
+        when(userCredentialQueryApi.getByUserId(userId)).thenReturn(banned);
+
+        Throwable thrown = catchThrowable(() -> authService.refresh(new RefreshCommand("old-refresh")));
+
+        assertThat(thrown).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(AuthErrorCode.USER_DISABLED);
+        verify(refreshTokenService).revokeFamily("family-ban");
+        verify(refreshTokenService, never()).issueInFamily(any(UUID.class), anyString());
+    }
+
+    @Test
     void refreshShouldMapMissingUserToUserDisabledAndRevokeRefreshFamily() {
         UUID userId = uuid(10);
         RefreshTokenRepository.StoredRefreshToken consumed =
@@ -297,7 +315,7 @@ class LoginApplicationServiceTest {
         when(refreshTokenService.consume("old-refresh")).thenReturn(consumed);
         when(userCredentialQueryApi.getByUserId(userId)).thenReturn(user);
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
-        when(authTokenPort.createAccessToken(userId, "alice", List.of("ROLE_USER"))).thenReturn("access-token");
+        when(authTokenPort.createAccessToken(userId, "alice", List.of("ROLE_USER"), 0L)).thenReturn("access-token");
         when(refreshTokenService.issueInFamily(userId, "family-3"))
                 .thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("new-refresh", cookie));
 

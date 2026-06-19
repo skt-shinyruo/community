@@ -5,6 +5,7 @@ import com.nowcoder.community.user.application.command.ApplyUserModerationComman
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.model.UserModerationStatus;
+import com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserModerationDomainService;
 import com.nowcoder.community.user.exception.UserErrorCode;
@@ -25,8 +26,10 @@ import java.util.UUID;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -47,6 +50,9 @@ class UserModerationApplicationServiceTest {
 
     @Mock
     private UserPolicyEventPublisher userPolicyEventPublisher;
+
+    @Mock
+    private RefreshTokenSessionRepository refreshTokenSessionRepository;
 
     @Test
     void getModerationStateShouldProjectMuteAndBanTimestamps() {
@@ -99,13 +105,38 @@ class UserModerationApplicationServiceTest {
         assertThat(status.banUntil()).isEqualTo(EXISTING_BAN);
         assertThat(status.version()).isEqualTo(101L);
         verify(userRepository).nextUserPolicyVersion(USER_ID_7);
-        verify(userRepository).updateModerationUntil(USER_ID_7, status.muteUntil(), EXISTING_BAN, 101L);
+        verify(userRepository).updateModerationUntil(USER_ID_7, status.muteUntil(), EXISTING_BAN, 101L, 0L);
 
         ArgumentCaptor<UserModerationStatus> statusCaptor = ArgumentCaptor.forClass(UserModerationStatus.class);
         ArgumentCaptor<Instant> occurredAtCaptor = ArgumentCaptor.forClass(Instant.class);
         verify(userPolicyEventPublisher).publishUserPolicyChanged(statusCaptor.capture(), occurredAtCaptor.capture());
         assertThat(statusCaptor.getValue()).isEqualTo(status);
         assertThat(occurredAtCaptor.getValue()).isBetween(before, after);
+    }
+
+    @Test
+    void applyModerationShouldIncrementSecurityVersionPersistAndRevokeSessionsWhenBanBecomesActive() {
+        UserModerationApplicationService service = service();
+        when(userRepository.findById(USER_ID_7)).thenReturn(Optional.of(account(USER_ID_7, null, null)));
+        when(userRepository.nextUserPolicyVersion(USER_ID_7)).thenReturn(101L);
+        when(userRepository.nextUserSecurityVersion(USER_ID_7)).thenReturn(202L);
+
+        Instant before = Instant.now();
+        UserModerationStatus status = service.applyModeration(new ApplyUserModerationCommand(USER_ID_7, "ban", 120));
+        Instant after = Instant.now();
+
+        assertThat(status.userId()).isEqualTo(USER_ID_7);
+        assertThat(status.muteUntil()).isNull();
+        assertThat(status.banUntil()).isBetween(before.plusSeconds(120), after.plusSeconds(120));
+        assertThat(status.version()).isEqualTo(101L);
+
+        var inOrder = inOrder(userRepository, refreshTokenSessionRepository, userPolicyEventPublisher);
+        inOrder.verify(userRepository).findById(USER_ID_7);
+        inOrder.verify(userRepository).nextUserPolicyVersion(USER_ID_7);
+        inOrder.verify(userRepository).nextUserSecurityVersion(USER_ID_7);
+        inOrder.verify(userRepository).updateModerationUntil(USER_ID_7, null, status.banUntil(), 101L, 202L);
+        inOrder.verify(refreshTokenSessionRepository).revokeByUserId(USER_ID_7);
+        inOrder.verify(userPolicyEventPublisher).publishUserPolicyChanged(eq(status), any(Instant.class));
     }
 
     @Test
@@ -133,7 +164,7 @@ class UserModerationApplicationServiceTest {
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
         assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
-        verify(userRepository, never()).updateModerationUntil(eq(USER_ID_7), eq(EXISTING_MUTE), eq(EXISTING_BAN), anyLong());
+        verify(userRepository, never()).updateModerationUntil(eq(USER_ID_7), eq(EXISTING_MUTE), eq(EXISTING_BAN), anyLong(), anyLong());
         verifyNoInteractions(userPolicyEventPublisher);
     }
 
@@ -141,7 +172,8 @@ class UserModerationApplicationServiceTest {
         return new UserModerationApplicationService(
                 userRepository,
                 new UserModerationDomainService(),
-                userPolicyEventPublisher
+                userPolicyEventPublisher,
+                refreshTokenSessionRepository
         );
     }
 

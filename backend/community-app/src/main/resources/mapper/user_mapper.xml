@@ -70,6 +70,9 @@
         set mute_until = #{muteUntil},
             ban_until = #{banUntil},
             policy_version = #{policyVersion}
+            <if test="securityVersion &gt; 0">
+                , security_version = #{securityVersion}
+            </if>
         where id = #{id, jdbcType=BINARY}
     </update>
 

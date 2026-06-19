@@ -42,7 +42,11 @@ public interface UserRepository {
         updatePassword(userId, encodedPassword, nextUserSecurityVersion(userId));
     }
 
-    void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil, long policyVersion);
+    void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil, long policyVersion, long securityVersion);
+
+    default void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil, long policyVersion) {
+        updateModerationUntil(userId, muteUntil, banUntil, policyVersion, 0L);
+    }
 
     default void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil) {
         updateModerationUntil(userId, muteUntil, banUntil, nextUserPolicyVersion(userId));

@@ -121,6 +121,13 @@ public class UserCredentialApplicationService {
     }
 
     private UserCredentialResult toCredentialResult(UserAccount user) {
-        return new UserCredentialResult(user.id(), user.username(), user.status(), user.type(), user.headerUrl());
+        return new UserCredentialResult(
+                user.id(),
+                user.username(),
+                user.status(),
+                user.type(),
+                user.headerUrl(),
+                user.securityVersion()
+        );
     }
 }

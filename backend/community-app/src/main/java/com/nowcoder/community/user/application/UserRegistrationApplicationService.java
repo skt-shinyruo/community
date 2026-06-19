@@ -134,7 +134,7 @@ public class UserRegistrationApplicationService {
     }
 
     private UserCredentialResult toCredentialResult(UserAccount user, int status) {
-        return new UserCredentialResult(user.id(), user.username(), status, user.type(), user.headerUrl());
+        return new UserCredentialResult(user.id(), user.username(), status, user.type(), user.headerUrl(), user.securityVersion());
     }
 
     private void publishUserPolicyChanged(UUID userId, boolean userExists, long version) {

@@ -20,13 +20,13 @@ public interface UserMapper {
 
     int insertUser(UserDataObject user);
 
-    int updateStatus(UUID id, int status);
+    int updateStatus(@Param("id") UUID id, @Param("status") int status, @Param("securityVersion") long securityVersion);
 
     int updateHeader(UUID id, String headerUrl);
 
-    int updatePassword(UUID id, String password);
+    int updatePassword(@Param("id") UUID id, @Param("password") String password, @Param("securityVersion") long securityVersion);
 
-    int updateType(@Param("id") UUID id, @Param("type") int type);
+    int updateType(@Param("id") UUID id, @Param("type") int type, @Param("securityVersion") long securityVersion);
 
     int updateModerationUntil(UUID id, java.util.Date muteUntil, java.util.Date banUntil, long policyVersion);
 
@@ -42,6 +42,14 @@ public interface UserMapper {
     int updatePolicyVersionCounter(@Param("id") int id, @Param("version") long version);
 
     long selectPolicyVersionCounter(@Param("id") int id);
+
+    int upsertSecurityVersionCounter(@Param("id") int id);
+
+    long selectSecurityVersionCounterForUpdate(@Param("id") int id);
+
+    int updateSecurityVersionCounter(@Param("id") int id, @Param("version") long version);
+
+    long selectSecurityVersionCounter(@Param("id") int id);
 
     /**
      * internal 批量用户摘要：用于下游聚合接口避免 N+1 模块调用。

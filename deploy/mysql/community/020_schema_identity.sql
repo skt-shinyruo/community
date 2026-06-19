@@ -20,8 +20,10 @@ create table if not exists user (
   mute_until timestamp null default null,
   ban_until timestamp null default null,
   policy_version bigint not null default 0,
+  security_version bigint not null default 0,
   unique key uk_user_username (username),
-  unique key uk_user_email (email)
+  unique key uk_user_email (email),
+  constraint ck_user_type check (type in (0, 1, 2))
 );
 
 set @col_user_policy_version := (
@@ -36,10 +38,39 @@ prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
 
+set @col_user_security_version := (
+  select count(*)
+  from information_schema.columns
+  where table_schema = database()
+    and table_name = 'user'
+    and column_name = 'security_version'
+);
+set @sql := if(@col_user_security_version = 0, 'alter table user add column security_version bigint not null default 0 after policy_version', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @ck_user_type := (
+  select count(*)
+  from information_schema.table_constraints
+  where table_schema = database()
+    and table_name = 'user'
+    and constraint_name = 'ck_user_type'
+);
+set @sql := if(@ck_user_type = 0, 'alter table user add constraint ck_user_type check (type in (0, 1, 2))', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
 set @user_policy_seed_version := cast(floor(unix_timestamp(current_timestamp(3)) * 1000) * 4096 as unsigned);
 update user
 set policy_version = @user_policy_seed_version
 where policy_version = 0;
+
+set @user_security_seed_version := cast(floor(unix_timestamp(current_timestamp(3)) * 1000) * 4096 as unsigned);
+update user
+set security_version = @user_security_seed_version
+where security_version = 0;
 
 set @has_user_score_col := (
   select count(*)
@@ -92,6 +123,20 @@ set @user_policy_current_version := greatest(
 
 insert into user_policy_version_counter(id, current_version)
 values (1, @user_policy_current_version)
+on duplicate key update current_version = greatest(current_version, values(current_version));
+
+create table if not exists user_security_version_counter (
+  id int primary key,
+  current_version bigint not null default 0
+);
+
+set @user_security_current_version := greatest(
+  @user_security_seed_version,
+  (select coalesce(max(security_version), 0) from user)
+);
+
+insert into user_security_version_counter(id, current_version)
+values (1, @user_security_current_version)
 on duplicate key update current_version = greatest(current_version, values(current_version));
 
 

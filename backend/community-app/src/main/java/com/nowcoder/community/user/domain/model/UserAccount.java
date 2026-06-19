@@ -16,7 +16,8 @@ public record UserAccount(
         Date createTime,
         Instant muteUntil,
         Instant banUntil,
-        long policyVersion
+        long policyVersion,
+        long securityVersion
 ) {
 
     public UserAccount(
@@ -32,6 +33,23 @@ public record UserAccount(
             Instant muteUntil,
             Instant banUntil
     ) {
-        this(id, username, encodedPassword, salt, email, type, status, headerUrl, createTime, muteUntil, banUntil, 0L);
+        this(id, username, encodedPassword, salt, email, type, status, headerUrl, createTime, muteUntil, banUntil, 0L, 0L);
+    }
+
+    public UserAccount(
+            UUID id,
+            String username,
+            String encodedPassword,
+            String salt,
+            String email,
+            int type,
+            int status,
+            String headerUrl,
+            Date createTime,
+            Instant muteUntil,
+            Instant banUntil,
+            long policyVersion
+    ) {
+        this(id, username, encodedPassword, salt, email, type, status, headerUrl, createTime, muteUntil, banUntil, policyVersion, 0L);
     }
 }

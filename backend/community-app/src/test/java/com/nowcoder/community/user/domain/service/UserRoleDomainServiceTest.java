@@ -45,6 +45,20 @@ class UserRoleDomainServiceTest {
     }
 
     @Test
+    void requireValidCommandShouldRejectUnknownRoleType() {
+        Throwable thrown = catchThrowable(() -> domainService.requireValidCommand(
+                true,
+                UUID.fromString("00000000-0000-7000-8000-000000000001"),
+                99,
+                "invalid role",
+                true
+        ));
+
+        assertThat(thrown).isInstanceOf(BusinessException.class)
+                .hasMessage("用户角色类型非法");
+    }
+
+    @Test
     void validateTargetShouldRejectMissingTargetUser() {
         Throwable thrown = catchThrowable(() -> domainService.requireRoleUpdateAllowed(uuid(99), uuid(8), 1, null));
 
@@ -75,7 +89,7 @@ class UserRoleDomainServiceTest {
     }
 
     private static UserAccount user(UUID userId, int type) {
-        return new UserAccount(userId, "admin", "pw", "salt", "admin@example.com", type, 0, "h", new Date(), null, null);
+        return new UserAccount(userId, "admin", "pw", "salt", "admin@example.com", type, 0, "h", new Date(), null, null, 0L);
     }
 
     private static UUID uuid(long suffix) {

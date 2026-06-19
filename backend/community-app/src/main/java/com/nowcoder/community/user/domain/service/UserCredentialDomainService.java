@@ -1,5 +1,7 @@
 package com.nowcoder.community.user.domain.service;
 
+import com.nowcoder.community.user.domain.model.UserRole;
+
 import java.util.List;
 
 public class UserCredentialDomainService {
@@ -14,13 +16,7 @@ public class UserCredentialDomainService {
     }
 
     public List<String> authoritiesForType(int type) {
-        if (type == 1) {
-            return List.of("ROLE_ADMIN");
-        }
-        if (type == 2) {
-            return List.of("ROLE_MODERATOR");
-        }
-        return List.of("ROLE_USER");
+        return UserRole.requireValid(type).authorities();
     }
 
     private boolean hasText(String value) {

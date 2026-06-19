@@ -11,8 +11,10 @@ create table if not exists user (
   mute_until timestamp,
   ban_until timestamp,
   policy_version bigint not null default 0,
+  security_version bigint not null default 0,
   constraint uk_user_username unique (username),
-  constraint uk_user_email unique (email)
+  constraint uk_user_email unique (email),
+  constraint ck_user_type check (type in (0, 1, 2))
 );
 
 create table if not exists user_policy_version_counter (
@@ -21,6 +23,15 @@ create table if not exists user_policy_version_counter (
 );
 
 merge into user_policy_version_counter(id, current_version)
+key(id)
+values (1, 0);
+
+create table if not exists user_security_version_counter (
+  id int primary key,
+  current_version bigint not null default 0
+);
+
+merge into user_security_version_counter(id, current_version)
 key(id)
 values (1, 0);
 

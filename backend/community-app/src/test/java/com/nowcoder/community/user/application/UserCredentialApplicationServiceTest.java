@@ -106,8 +106,9 @@ class UserCredentialApplicationServiceTest {
                 UserCredentialResult::username,
                 UserCredentialResult::status,
                 UserCredentialResult::type,
-                UserCredentialResult::headerUrl
-        ).containsExactly(userId, "alice", 1, 0, "h7");
+                UserCredentialResult::headerUrl,
+                UserCredentialResult::securityVersion
+        ).containsExactly(userId, "alice", 1, 0, "h7", 0L);
     }
 
     @Test
@@ -164,9 +165,9 @@ class UserCredentialApplicationServiceTest {
     @Test
     void authoritiesOfShouldMapUserTypesToExpectedRoles() {
         UserCredentialApplicationService service = service();
-        UserCredentialResult admin = new UserCredentialResult(uuid(1), "admin", 1, 1, "h1");
-        UserCredentialResult moderator = new UserCredentialResult(uuid(2), "mod", 1, 2, "h2");
-        UserCredentialResult regular = new UserCredentialResult(uuid(3), "user", 1, 0, "h3");
+        UserCredentialResult admin = new UserCredentialResult(uuid(1), "admin", 1, 1, "h1", 0L);
+        UserCredentialResult moderator = new UserCredentialResult(uuid(2), "mod", 1, 2, "h2", 0L);
+        UserCredentialResult regular = new UserCredentialResult(uuid(3), "user", 1, 0, "h3", 0L);
 
         assertThat(service.authoritiesOf(null)).isEmpty();
         assertThat(service.authoritiesOf(admin)).isEqualTo(List.of("ROLE_ADMIN"));
@@ -241,7 +242,8 @@ class UserCredentialApplicationServiceTest {
                 "h7",
                 Date.from(Instant.now()),
                 null,
-                null
+                null,
+                0L
         );
     }
 
@@ -258,7 +260,8 @@ class UserCredentialApplicationServiceTest {
                 user.headerUrl(),
                 user.createTime(),
                 user.muteUntil(),
-                user.banUntil()
+                user.banUntil(),
+                user.policyVersion()
         );
     }
 

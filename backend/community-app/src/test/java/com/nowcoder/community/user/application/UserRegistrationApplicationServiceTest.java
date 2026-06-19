@@ -202,7 +202,8 @@ class UserRegistrationApplicationServiceTest {
                 "h",
                 Date.from(NOW),
                 null,
-                null
+                null,
+                0L
         );
     }
 }

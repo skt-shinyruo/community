@@ -123,7 +123,7 @@ class UserReadApplicationServiceTest {
     }
 
     private static UserAccount account(UUID id, String username, String headerUrl, int type) {
-        return new UserAccount(id, username, "encoded", "", username + "@example.com", type, 1, headerUrl, new Date(), null, null);
+        return new UserAccount(id, username, "encoded", "", username + "@example.com", type, 1, headerUrl, new Date(), null, null, 0L);
     }
 
     private static UUID uuid(long suffix) {

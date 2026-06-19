@@ -57,6 +57,7 @@ class LoginApplicationServiceTest {
     private final RefreshTokenApplicationService refreshTokenService = mock(RefreshTokenApplicationService.class);
     private final LoginRateLimitApplicationService loginRateLimitService = mock(LoginRateLimitApplicationService.class);
     private final CaptchaApplicationService captchaService = mock(CaptchaApplicationService.class);
+    private final CaptchaChallengeComponent captchaChallenge = new CaptchaChallengeComponent(captchaService);
     private final AnalyticsIngestActionApi analyticsIngestService = mock(AnalyticsIngestActionApi.class);
     private final LoginTokenIssuer loginTokenIssuer = new LoginTokenIssuer(userCredentialQueryApi, authTokenPort, refreshTokenService);
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -71,7 +72,7 @@ class LoginApplicationServiceTest {
                 loginTokenIssuer,
                 refreshTokenService,
                 loginRateLimitService,
-                captchaService,
+                captchaChallenge,
                 new AuthDomainService(),
                 analyticsIngestService
         );
@@ -91,7 +92,7 @@ class LoginApplicationServiceTest {
                         LoginTokenIssuer.class,
                         RefreshTokenApplicationService.class,
                         LoginRateLimitApplicationService.class,
-                        CaptchaApplicationService.class,
+                        CaptchaChallengeComponent.class,
                         AuthDomainService.class,
                         AnalyticsIngestActionApi.class
                 ));

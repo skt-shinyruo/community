@@ -31,7 +31,7 @@ public class LoginApplicationService {
     private final LoginTokenIssuer loginTokenIssuer;
     private final RefreshTokenApplicationService refreshTokenService;
     private final LoginRateLimitApplicationService loginRateLimitService;
-    private final CaptchaApplicationService captchaService;
+    private final CaptchaChallengeComponent captchaChallenge;
     private final AuthDomainService authDomainService;
     private final AnalyticsIngestActionApi analyticsIngestService;
 
@@ -40,7 +40,7 @@ public class LoginApplicationService {
             LoginTokenIssuer loginTokenIssuer,
             RefreshTokenApplicationService refreshTokenService,
             LoginRateLimitApplicationService loginRateLimitService,
-            CaptchaApplicationService captchaService,
+            CaptchaChallengeComponent captchaChallenge,
             AuthDomainService authDomainService,
             AnalyticsIngestActionApi analyticsIngestService
     ) {
@@ -48,7 +48,7 @@ public class LoginApplicationService {
         this.loginTokenIssuer = loginTokenIssuer;
         this.refreshTokenService = refreshTokenService;
         this.loginRateLimitService = loginRateLimitService;
-        this.captchaService = captchaService;
+        this.captchaChallenge = captchaChallenge;
         this.authDomainService = authDomainService;
         this.analyticsIngestService = analyticsIngestService;
     }
@@ -73,7 +73,7 @@ public class LoginApplicationService {
                         "ip.source", ipSource);
                 throw new BusinessException(AuthErrorCode.CAPTCHA_REQUIRED);
             }
-            boolean ok = captchaService.verify(captchaId, captchaCode);
+            boolean ok = captchaChallenge.verify(captchaId, captchaCode);
             if (!ok) {
                 loginRateLimitService.recordFailure(username, ip, ipSource);
                 SecurityEventLogger.info(log, "login", "denied",

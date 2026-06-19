@@ -38,7 +38,7 @@ public class PasswordResetApplicationService {
     private final UserCredentialQueryApi userCredentialQueryApi;
     private final UserCredentialActionApi userCredentialActionApi;
     private final MailPort mailService;
-    private final CaptchaApplicationService captchaService;
+    private final CaptchaChallengeComponent captchaChallenge;
     private final AuthSecretGenerator authSecretGenerator;
     private final PasswordResetDomainService passwordResetDomainService;
 
@@ -49,7 +49,7 @@ public class PasswordResetApplicationService {
             UserCredentialQueryApi userCredentialQueryApi,
             UserCredentialActionApi userCredentialActionApi,
             MailPort mailService,
-            CaptchaApplicationService captchaService,
+            CaptchaChallengeComponent captchaChallenge,
             AuthSecretGenerator authSecretGenerator,
             PasswordResetDomainService passwordResetDomainService
     ) {
@@ -59,7 +59,7 @@ public class PasswordResetApplicationService {
         this.userCredentialQueryApi = userCredentialQueryApi;
         this.userCredentialActionApi = userCredentialActionApi;
         this.mailService = mailService;
-        this.captchaService = captchaService;
+        this.captchaChallenge = captchaChallenge;
         this.authSecretGenerator = authSecretGenerator;
         this.passwordResetDomainService = passwordResetDomainService;
     }
@@ -70,12 +70,7 @@ public class PasswordResetApplicationService {
         String captchaCode = command == null ? null : command.captchaCode();
         String clientIp = command == null ? null : command.clientIp();
         passwordResetDomainService.requireResetRequestEmail(email);
-        if (!StringUtils.hasText(captchaId) || !StringUtils.hasText(captchaCode)) {
-            throw new BusinessException(AuthErrorCode.CAPTCHA_REQUIRED);
-        }
-        if (!captchaService.verify(captchaId, captchaCode)) {
-            throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
-        }
+        captchaChallenge.requireValidCaptcha(captchaId, captchaCode);
 
         // 先做配置校验：避免“部分邮箱成功/部分失败”导致用户枚举；也避免签发 token 后才发现链接无法生成。
         String resetBaseUrl = normalizeResetBaseUrlOrThrow();
@@ -119,12 +114,7 @@ public class PasswordResetApplicationService {
         String captchaId = command == null ? null : command.captchaId();
         String captchaCode = command == null ? null : command.captchaCode();
         passwordResetDomainService.requireConfirmFields(resetToken, newPassword);
-        if (!StringUtils.hasText(captchaId) || !StringUtils.hasText(captchaCode)) {
-            throw new BusinessException(AuthErrorCode.CAPTCHA_REQUIRED);
-        }
-        if (!captchaService.verify(captchaId, captchaCode)) {
-            throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
-        }
+        captchaChallenge.requireValidCaptcha(captchaId, captchaCode);
 
         userCredentialActionApi.validatePasswordPolicy(newPassword);
         String normalizedToken = resetToken.trim();

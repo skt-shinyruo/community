@@ -28,7 +28,13 @@ public interface UserMapper {
 
     int updateType(@Param("id") UUID id, @Param("type") int type, @Param("securityVersion") long securityVersion);
 
-    int updateModerationUntil(UUID id, java.util.Date muteUntil, java.util.Date banUntil, long policyVersion);
+    int updateModerationUntil(
+            @Param("id") UUID id,
+            @Param("muteUntil") java.util.Date muteUntil,
+            @Param("banUntil") java.util.Date banUntil,
+            @Param("policyVersion") long policyVersion,
+            @Param("securityVersion") long securityVersion
+    );
 
     /**
      * internal 扫描接口使用：按主键游标向后扫描用户的治理状态（用于投影回填/纠偏）。

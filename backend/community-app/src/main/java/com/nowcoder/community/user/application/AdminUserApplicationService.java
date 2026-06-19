@@ -5,6 +5,7 @@ import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
 import com.nowcoder.community.user.application.port.UserAuditLogPort;
 import com.nowcoder.community.user.application.result.AdminUserResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
+import com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserRoleDomainService;
 import org.springframework.stereotype.Service;
@@ -22,15 +23,18 @@ public class AdminUserApplicationService {
     private final UserRepository userRepository;
     private final UserRoleDomainService userRoleDomainService;
     private final UserAuditLogPort userAuditLogPort;
+    private final RefreshTokenSessionRepository refreshTokenSessionRepository;
 
     public AdminUserApplicationService(
             UserRepository userRepository,
             UserRoleDomainService userRoleDomainService,
-            UserAuditLogPort userAuditLogPort
+            UserAuditLogPort userAuditLogPort,
+            RefreshTokenSessionRepository refreshTokenSessionRepository
     ) {
         this.userRepository = userRepository;
         this.userRoleDomainService = userRoleDomainService;
         this.userAuditLogPort = userAuditLogPort;
+        this.refreshTokenSessionRepository = refreshTokenSessionRepository;
     }
 
     public AdminUserResult search(UUID userId, String username, String email) {
@@ -63,6 +67,7 @@ public class AdminUserApplicationService {
 
         long securityVersion = userRepository.nextUserSecurityVersion(command.targetUserId());
         userRepository.updateRole(command.targetUserId(), toType, securityVersion);
+        refreshTokenSessionRepository.revokeByUserId(command.targetUserId());
         userAuditLogPort.recordRoleUpdated(command.actorUserId(), command.targetUserId(), fromType, toType, reason);
     }
 

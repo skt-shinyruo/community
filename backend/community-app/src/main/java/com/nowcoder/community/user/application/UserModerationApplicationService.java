@@ -5,6 +5,7 @@ import com.nowcoder.community.user.application.command.ApplyUserModerationComman
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.model.UserModerationStatus;
+import com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserModerationDomainService;
 import org.springframework.stereotype.Service;
@@ -25,15 +26,18 @@ public class UserModerationApplicationService {
     private final UserRepository userRepository;
     private final UserModerationDomainService userModerationDomainService;
     private final UserPolicyEventPublisher userPolicyEventPublisher;
+    private final RefreshTokenSessionRepository refreshTokenSessionRepository;
 
     public UserModerationApplicationService(
             UserRepository userRepository,
             UserModerationDomainService userModerationDomainService,
-            UserPolicyEventPublisher userPolicyEventPublisher
+            UserPolicyEventPublisher userPolicyEventPublisher,
+            RefreshTokenSessionRepository refreshTokenSessionRepository
     ) {
         this.userRepository = userRepository;
         this.userModerationDomainService = userModerationDomainService;
         this.userPolicyEventPublisher = userPolicyEventPublisher;
+        this.refreshTokenSessionRepository = refreshTokenSessionRepository;
     }
 
     public UserModerationStatus getModerationState(UUID userId) {
@@ -70,25 +74,48 @@ public class UserModerationApplicationService {
         UserAccount user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
 
+        Instant now = Instant.now();
+        boolean wasActivelyBanned = isActiveBan(user.banUntil(), now);
+        Instant previousBanUntil = user.banUntil();
         UserModerationStatus next = userModerationDomainService.applyModeration(
                 toStatus(user),
                 action,
                 command.durationSeconds(),
-                Instant.now()
+                now
         );
         long version = userRepository.nextUserPolicyVersion(userId);
+        boolean isActivelyBanned = isActiveBan(next.banUntil(), now);
+        boolean activeBanChanged = isActivelyBanned && (!wasActivelyBanned || !sameInstant(previousBanUntil, next.banUntil()));
+        long securityVersion = activeBanChanged ? userRepository.nextUserSecurityVersion(userId) : 0L;
         UserModerationStatus versionedNext = new UserModerationStatus(
                 next.userId(),
                 next.muteUntil(),
                 next.banUntil(),
                 version
         );
-        userRepository.updateModerationUntil(userId, versionedNext.muteUntil(), versionedNext.banUntil(), version);
+        userRepository.updateModerationUntil(
+                userId,
+                versionedNext.muteUntil(),
+                versionedNext.banUntil(),
+                version,
+                securityVersion
+        );
+        if (activeBanChanged) {
+            refreshTokenSessionRepository.revokeByUserId(userId);
+        }
         userPolicyEventPublisher.publishUserPolicyChanged(versionedNext, Instant.now());
         return versionedNext;
     }
 
     private UserModerationStatus toStatus(UserAccount user) {
         return new UserModerationStatus(user.id(), user.muteUntil(), user.banUntil(), user.policyVersion());
+    }
+
+    private boolean isActiveBan(Instant banUntil, Instant now) {
+        return banUntil != null && banUntil.isAfter(now);
+    }
+
+    private boolean sameInstant(Instant left, Instant right) {
+        return left == null ? right == null : left.equals(right);
     }
 }

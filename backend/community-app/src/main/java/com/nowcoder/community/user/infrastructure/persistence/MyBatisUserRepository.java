@@ -142,12 +142,19 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
-    public void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil, long policyVersion) {
+    public void updateModerationUntil(
+            UUID userId,
+            Instant muteUntil,
+            Instant banUntil,
+            long policyVersion,
+            long securityVersion
+    ) {
         int updated = userMapper.updateModerationUntil(
                 userId,
                 muteUntil == null ? null : Date.from(muteUntil),
                 banUntil == null ? null : Date.from(banUntil),
-                policyVersion
+                policyVersion,
+                securityVersion
         );
         if (updated <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新处罚状态失败");

@@ -194,6 +194,23 @@ class MyBatisUserRepositoryTest {
         assertThat(userRepository.currentUserSecurityVersion()).isEqualTo(second);
     }
 
+    @Test
+    void updateModerationUntilShouldPersistSecurityVersionWhenProvided() {
+        Date createTime = Date.from(Instant.parse("2026-04-27T10:15:30Z"));
+        Instant banUntil = Instant.parse("2026-04-29T10:15:30Z");
+        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "h7", createTime, null, null);
+
+        long policyVersion = userRepository.nextUserPolicyVersion(ALICE_ID);
+        long securityVersion = userRepository.nextUserSecurityVersion(ALICE_ID);
+
+        userRepository.updateModerationUntil(ALICE_ID, null, banUntil, policyVersion, securityVersion);
+
+        UserAccount updated = userRepository.findById(ALICE_ID).orElseThrow();
+        assertThat(updated.banUntil()).isEqualTo(banUntil);
+        assertThat(updated.policyVersion()).isEqualTo(policyVersion);
+        assertThat(updated.securityVersion()).isEqualTo(securityVersion);
+    }
+
     private void insertUser(
             UUID id,
             String username,

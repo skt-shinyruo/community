@@ -36,7 +36,7 @@ public class RegistrationVerificationApplicationService {
     private final RegistrationProperties properties;
     private final RegistrationCodeRepository registrationCodeStore;
     private final MailPort mailService;
-    private final CaptchaApplicationService captchaService;
+    private final CaptchaChallengeComponent captchaChallenge;
     private final RegistrationDraftRepository registrationDraftRepository;
     private final LoginTokenIssuer loginTokenIssuer;
     private final AuthSecretGenerator authSecretGenerator;
@@ -47,7 +47,7 @@ public class RegistrationVerificationApplicationService {
             RegistrationProperties properties,
             RegistrationCodeRepository registrationCodeStore,
             MailPort mailService,
-            CaptchaApplicationService captchaService,
+            CaptchaChallengeComponent captchaChallenge,
             RegistrationDraftRepository registrationDraftRepository,
             LoginTokenIssuer loginTokenIssuer,
             AuthSecretGenerator authSecretGenerator,
@@ -57,7 +57,7 @@ public class RegistrationVerificationApplicationService {
         this.properties = properties;
         this.registrationCodeStore = registrationCodeStore;
         this.mailService = mailService;
-        this.captchaService = captchaService;
+        this.captchaChallenge = captchaChallenge;
         this.registrationDraftRepository = registrationDraftRepository;
         this.loginTokenIssuer = loginTokenIssuer;
         this.authSecretGenerator = authSecretGenerator;
@@ -68,12 +68,7 @@ public class RegistrationVerificationApplicationService {
         String registrationToken = command == null ? null : command.registrationToken();
         String captchaId = command == null ? null : command.captchaId();
         String captchaCode = command == null ? null : command.captchaCode();
-        if (!StringUtils.hasText(captchaId) || !StringUtils.hasText(captchaCode)) {
-            throw new BusinessException(AuthErrorCode.CAPTCHA_REQUIRED);
-        }
-        if (!captchaService.verify(captchaId, captchaCode)) {
-            throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
-        }
+        captchaChallenge.requireValidCaptcha(captchaId, captchaCode);
 
         PreparedRegistrationDraft draft = resolveDraftOrThrow(registrationToken);
 

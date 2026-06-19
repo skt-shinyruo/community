@@ -50,7 +50,7 @@ class RefreshTokenApplicationServiceTest {
                         LoginTokenIssuer.class,
                         RefreshTokenApplicationService.class,
                         LoginRateLimitApplicationService.class,
-                        CaptchaApplicationService.class,
+                        CaptchaChallengeComponent.class,
                         AuthDomainService.class,
                         AnalyticsIngestActionApi.class
                 ));
@@ -241,7 +241,7 @@ class RefreshTokenApplicationServiceTest {
         UserCredentialQueryApi userCredentialQueryApi = mock(UserCredentialQueryApi.class);
         AuthTokenPort authTokenPort = mock(AuthTokenPort.class);
         LoginRateLimitApplicationService loginRateLimitService = mock(LoginRateLimitApplicationService.class);
-        CaptchaApplicationService captchaService = mock(CaptchaApplicationService.class);
+        CaptchaChallengeComponent captchaChallenge = mock(CaptchaChallengeComponent.class);
         LoginTokenIssuer loginTokenIssuer = new LoginTokenIssuer(userCredentialQueryApi, authTokenPort, refreshTokenService);
 
         when(userCredentialQueryApi.getByUserId(USER_ID)).thenReturn(credentialView);
@@ -260,7 +260,7 @@ class RefreshTokenApplicationServiceTest {
                 loginTokenIssuer,
                 refreshTokenService,
                 loginRateLimitService,
-                captchaService,
+                captchaChallenge,
                 new AuthDomainService(),
                 mock(AnalyticsIngestActionApi.class)
         );

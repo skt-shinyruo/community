@@ -9,7 +9,6 @@ import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
 import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
 import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
-import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
@@ -32,7 +31,7 @@ public class RegistrationApplicationService {
     private final UserRegistrationActionApi userRegistrationActionApi;
     private final RegistrationProperties properties;
     private final MailPort mailService;
-    private final CaptchaApplicationService captchaService;
+    private final CaptchaChallengeComponent captchaChallenge;
     private final RegistrationCodeRepository registrationCodeStore;
     private final RegistrationDraftRepository registrationDraftRepository;
     private final AuthSecretGenerator authSecretGenerator;
@@ -42,7 +41,7 @@ public class RegistrationApplicationService {
             UserRegistrationActionApi userRegistrationActionApi,
             RegistrationProperties properties,
             MailPort mailService,
-            CaptchaApplicationService captchaService,
+            CaptchaChallengeComponent captchaChallenge,
             RegistrationCodeRepository registrationCodeStore,
             RegistrationDraftRepository registrationDraftRepository,
             AuthSecretGenerator authSecretGenerator,
@@ -51,7 +50,7 @@ public class RegistrationApplicationService {
         this.userRegistrationActionApi = userRegistrationActionApi;
         this.properties = properties;
         this.mailService = mailService;
-        this.captchaService = captchaService;
+        this.captchaChallenge = captchaChallenge;
         this.registrationCodeStore = registrationCodeStore;
         this.registrationDraftRepository = registrationDraftRepository;
         this.authSecretGenerator = authSecretGenerator;
@@ -62,12 +61,7 @@ public class RegistrationApplicationService {
         if (command == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "参数不能为空");
         }
-        if (!StringUtils.hasText(command.captchaId()) || !StringUtils.hasText(command.captchaCode())) {
-            throw new BusinessException(AuthErrorCode.CAPTCHA_REQUIRED);
-        }
-        if (!captchaService.verify(command.captchaId(), command.captchaCode())) {
-            throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
-        }
+        captchaChallenge.requireValidCaptcha(command.captchaId(), command.captchaCode());
 
         String username = safeTrim(command.username());
         String password = command.password() == null ? "" : command.password();

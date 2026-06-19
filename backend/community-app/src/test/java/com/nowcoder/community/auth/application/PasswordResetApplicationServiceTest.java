@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -58,7 +59,7 @@ class PasswordResetApplicationServiceTest {
     private MailPort mailService;
 
     @Mock
-    private CaptchaApplicationService captchaService;
+    private CaptchaChallengeComponent captchaChallenge;
 
     private PasswordResetProperties properties;
     private PasswordResetApplicationService service;
@@ -75,7 +76,7 @@ class PasswordResetApplicationServiceTest {
                 userCredentialQueryApi,
                 userCredentialActionApi,
                 mailService,
-                captchaService,
+                captchaChallenge,
                 new AuthSecretGenerator(),
                 new PasswordResetDomainService()
         );
@@ -86,7 +87,7 @@ class PasswordResetApplicationServiceTest {
         UUID userId = uuid(7);
         UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 0L);
 
-        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(user);
 
         PasswordResetRequestResult result = service.requestReset(new RequestPasswordResetCommand(" alice@example.com ", "cid", "1234"));
@@ -109,7 +110,7 @@ class PasswordResetApplicationServiceTest {
         UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 0L);
         String[] capturedToken = new String[1];
 
-        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(user);
         doAnswer(invocation -> {
             capturedToken[0] = invocation.getArgument(0);
@@ -131,7 +132,7 @@ class PasswordResetApplicationServiceTest {
         UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 0L);
         String[] capturedToken = new String[1];
 
-        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(user);
         doAnswer(invocation -> {
             capturedToken[0] = invocation.getArgument(0);
@@ -153,7 +154,7 @@ class PasswordResetApplicationServiceTest {
         properties.setRequestWindowSeconds(300);
         properties.setMaxRequestsPerEmail(1);
         properties.setMaxRequestsPerIp(20);
-        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         when(resetRequestRateLimitRepository.increment("auth:pwdreset:req:ip:203.0.113.10", 300)).thenReturn(1);
         when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(null);
 
@@ -177,7 +178,7 @@ class PasswordResetApplicationServiceTest {
         properties.setRequestWindowSeconds(300);
         properties.setMaxRequestsPerEmail(1);
         properties.setMaxRequestsPerIp(20);
-        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         when(resetRequestRateLimitRepository.increment("auth:pwdreset:req:ip:203.0.113.10", 300)).thenReturn(1);
         when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(user);
         when(resetRequestRateLimitRepository.increment("auth:pwdreset:req:email:alice@example.com", 300)).thenReturn(2);
@@ -198,7 +199,7 @@ class PasswordResetApplicationServiceTest {
 
     @Test
     void requestResetShouldLogSkippedHiddenNoopForUnknownEmail(CapturedOutput output) {
-        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(null);
 
         PasswordResetRequestResult result = service.requestReset(new RequestPasswordResetCommand(" alice@example.com ", "cid", "1234"));
@@ -217,7 +218,7 @@ class PasswordResetApplicationServiceTest {
     @Test
     void confirmResetShouldLogSuccessWithoutTokenOrPassword(CapturedOutput output) {
         UUID userId = uuid(7);
-        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         when(tokenStore.consumeWithTtl("token-123"))
                 .thenReturn(new PasswordResetTokenRepository.ConsumedPasswordResetToken(userId, Duration.ofSeconds(600)));
 
@@ -237,7 +238,7 @@ class PasswordResetApplicationServiceTest {
     void confirmResetShouldRestoreConsumedTokenWhenUserResetFailsSoRetryCanSucceed() {
         UUID userId = uuid(7);
         RuntimeException resetFailure = new IllegalStateException("reset failed");
-        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         when(tokenStore.consumeWithTtl("token-123")).thenReturn(
                 new PasswordResetTokenRepository.ConsumedPasswordResetToken(userId, Duration.ofSeconds(600)),
                 new PasswordResetTokenRepository.ConsumedPasswordResetToken(userId, Duration.ofSeconds(600))
@@ -260,7 +261,7 @@ class PasswordResetApplicationServiceTest {
     void confirmResetShouldRestoreConsumedTokenWithRemainingTtlWhenUserResetFails() {
         UUID userId = uuid(8);
         RuntimeException resetFailure = new IllegalStateException("reset failed");
-        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         when(tokenStore.consumeWithTtl("token-123"))
                 .thenReturn(new PasswordResetTokenRepository.ConsumedPasswordResetToken(userId, Duration.ofSeconds(123)));
         doThrow(resetFailure).when(userCredentialActionApi).resetPasswordAndRevokeRefreshSessions(userId, " new-password ");
@@ -274,7 +275,7 @@ class PasswordResetApplicationServiceTest {
     @Test
     void confirmResetShouldValidatePasswordBeforeConsumingToken() {
         BusinessException weakPassword = new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "weak password");
-        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         doThrow(weakPassword).when(userCredentialActionApi).validatePasswordPolicy(" weakpass ");
 
         assertThatThrownBy(() -> service.confirmReset(new ConfirmPasswordResetCommand(" token-123 ", " weakpass ", "cid", "1234")))
@@ -288,7 +289,7 @@ class PasswordResetApplicationServiceTest {
 
     @Test
     void confirmResetShouldLogDeniedWhenTokenIsInvalid(CapturedOutput output) {
-        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         when(tokenStore.consumeWithTtl("token-123")).thenReturn(null);
 
         assertThatThrownBy(() -> service.confirmReset(new ConfirmPasswordResetCommand(" token-123 ", " new-password ", "cid", "1234")))

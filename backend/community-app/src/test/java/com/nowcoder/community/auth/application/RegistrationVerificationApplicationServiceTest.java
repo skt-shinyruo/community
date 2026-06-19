@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.matches;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -57,7 +58,7 @@ class RegistrationVerificationApplicationServiceTest {
     private MailPort mailService;
 
     @Mock
-    private CaptchaApplicationService captchaService;
+    private CaptchaChallengeComponent captchaChallenge;
 
     @Mock
     private LoginTokenIssuer loginTokenIssuer;
@@ -78,7 +79,7 @@ class RegistrationVerificationApplicationServiceTest {
                 properties,
                 registrationCodeStore,
                 mailService,
-                captchaService,
+                captchaChallenge,
                 registrationDraftRepository,
                 loginTokenIssuer,
                 new AuthSecretGenerator(),
@@ -90,7 +91,7 @@ class RegistrationVerificationApplicationServiceTest {
     void resendCodeShouldRequireCaptchaAndReturnIssuedResponse() {
         UUID userId = uuid(7);
 
-        when(captchaService.verify("cid", "abcd")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
         when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
@@ -109,7 +110,7 @@ class RegistrationVerificationApplicationServiceTest {
     void resendCodeShouldRejectWhenCooldownWindowIsStillActive() {
         UUID userId = uuid(7);
 
-        when(captchaService.verify("cid", "abcd")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
         when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
@@ -218,7 +219,7 @@ class RegistrationVerificationApplicationServiceTest {
 
     @Test
     void resendCodeShouldTreatMissingDraftAsStaleContext() {
-        when(captchaService.verify("cid", "abcd")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
@@ -229,7 +230,7 @@ class RegistrationVerificationApplicationServiceTest {
 
     @Test
     void resendCodeShouldRejectWhenRegistrationTokenIsMissingOrExpired() {
-        when(captchaService.verify("cid", "abcd")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
@@ -242,7 +243,7 @@ class RegistrationVerificationApplicationServiceTest {
 
     @Test
     void resendCodeShouldRejectAndDeleteMalformedDraftBeforeIssuingCode() {
-        when(captchaService.verify("cid", "abcd")).thenReturn(true);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(new PreparedRegistrationDraft(
                 uuid(7),
                 "alice",

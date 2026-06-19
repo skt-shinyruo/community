@@ -4,7 +4,7 @@ create table if not exists user (
   password varchar(255),
   salt varchar(255),
   email varchar(255) not null,
-  type int default 0,
+  type int not null default 0,
   status int default 0,
   header_url varchar(255),
   create_time timestamp default current_timestamp,

@@ -115,12 +115,14 @@ class AdminUserApplicationServiceTest {
         AdminUserApplicationService service = service();
         UpdateUserRoleCommand command = new UpdateUserRoleCommand(ACTOR_ID, TARGET_ID, 2, "  delegate moderation  ", true);
         when(userRepository.findById(TARGET_ID)).thenReturn(Optional.of(user(TARGET_ID, "admin", "admin@example.com", 1, 0, "h8", new Date())));
+        when(userRepository.nextUserSecurityVersion(TARGET_ID)).thenReturn(123L);
 
         service.updateRole(command);
 
         InOrder inOrder = inOrder(userRepository, userAuditLogPort);
         inOrder.verify(userRepository).findById(TARGET_ID);
-        inOrder.verify(userRepository).updateRole(TARGET_ID, 2);
+        inOrder.verify(userRepository).nextUserSecurityVersion(TARGET_ID);
+        inOrder.verify(userRepository).updateRole(TARGET_ID, 2, 123L);
         inOrder.verify(userAuditLogPort).recordRoleUpdated(ACTOR_ID, TARGET_ID, 1, 2, "delegate moderation");
     }
 

@@ -77,6 +77,7 @@ public class UserCredentialApplicationService {
         return userRepository.findByEmail(value).map(this::toCredentialResult).orElse(null);
     }
 
+    @Transactional
     public void updatePassword(UUID userId, String newPassword) {
         updatePasswordOnly(userId, newPassword);
     }
@@ -99,7 +100,8 @@ public class UserCredentialApplicationService {
         if (userRepository.findById(userId).isEmpty()) {
             throw new BusinessException(USER_NOT_FOUND);
         }
-        userRepository.updatePassword(userId, passwordEncoder.encode(validatedPassword));
+        long securityVersion = userRepository.nextUserSecurityVersion(userId);
+        userRepository.updatePassword(userId, passwordEncoder.encode(validatedPassword), securityVersion);
     }
 
     public List<String> authoritiesOf(UserCredentialResult user) {

@@ -5,6 +5,7 @@ import com.nowcoder.community.infra.security.jwt.AuthoritiesConverterFactory;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -24,9 +25,9 @@ public class CommunitySecurityConfig {
             HttpSecurity http,
             SecurityExceptionHandler securityExceptionHandler,
             List<ApiSecurityRules> securityRules,
-            TokenFreshnessFilter tokenFreshnessFilter
+            ObjectProvider<TokenFreshnessFilter> tokenFreshnessFilter
     ) throws Exception {
-        return http
+        var chain = http
                 .securityMatcher("/api/**", "/internal/**")
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
@@ -51,7 +52,11 @@ public class CommunitySecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(AuthoritiesConverterFactory.jwtAuthenticationConverter()))
                 )
-                .addFilterAfter(tokenFreshnessFilter, BearerTokenAuthenticationFilter.class)
-                .build();
+                ;
+        TokenFreshnessFilter freshnessFilter = tokenFreshnessFilter.getIfAvailable();
+        if (freshnessFilter != null) {
+            chain.addFilterAfter(freshnessFilter, BearerTokenAuthenticationFilter.class);
+        }
+        return chain.build();
     }
 }

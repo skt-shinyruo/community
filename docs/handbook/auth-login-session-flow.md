@@ -42,6 +42,7 @@ access token 是短期 JWT，由 `JwtTokenService.createAccessToken(...)` 签发
 | `sub` | `userId` 字符串 |
 | `username` | 用户名 |
 | `authorities` | 当前用户权限 / 角色列表 |
+| `security_version` | user owner 当前认证授权版本，用于高风险入口 freshness 校验 |
 
 refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`username` 或权限。它是 opaque token：`AuthSecretGenerator.opaqueToken()` 生成 32 字节 `SecureRandom` 随机数，再使用 base64url 无填充编码，通常约 43 个字符。服务端把明文 refresh token 写入 `refresh_token` HttpOnly cookie；默认 DB store 只保存该明文的 SHA-256 hex hash。
 
@@ -86,7 +87,7 @@ refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`us
 | application command | `RefreshCommand`, `LogoutCommand` | `refreshToken` | 从 cookie 读取后传入 application |
 | application result | `LoginResult`, `RefreshResult` | `accessToken`, `RefreshCookieSpec` | application 返回 controller |
 | owner API | `UserAuthenticationResultView` | `authenticated`, `failure`, `user` | user owner 认证结果 |
-| owner API | `UserCredentialView` | `userId`, `username`, `status`, `type`, `headerUrl` | 角色计算、refresh 后回源校验 |
+| owner API | `UserCredentialView` | `userId`, `username`, `status`, `type`, `headerUrl`, `securityVersion`, `loginAllowed`, `refreshAllowed` | 角色计算、refresh 后回源校验 |
 | owner API | `RefreshTokenSessionView` | `tokenHash`, `userId`, `familyId`, `expiresAt`, `revokedAt` | 默认 DB refresh store 状态 |
 
 敏感数据处理：
@@ -181,7 +182,7 @@ CurrentUser.requireJwt(authentication)
   -> authorities claim
 ```
 
-因此用户角色或账号状态变化不会立刻反映到已签出的 access token；通常要等下一次 refresh 或重新登录后重新签发。
+因此用户角色或账号状态变化不会立刻反映到已签出的 access token；通常要等下一次 refresh 或重新登录后重新签发。高风险入口会额外校验 `security_version`，版本落后时拒绝进入。
 
 ## Refresh 续期
 
@@ -194,8 +195,8 @@ CurrentUser.requireJwt(authentication)
 1. cookie 缺失或空值时抛 `REFRESH_TOKEN_INVALID`。
 2. `RefreshTokenApplicationService.consume(...)` 消费旧 token。
 3. 旧 token 找不到、已撤销或已过期时返回 invalid；被撤销 token 复用仍会走 family reuse 检测。
-4. 使用已消费 token 中的 `userId` 回源 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在且未禁用。
-5. 用户不存在或被禁用时撤销该 `familyId`，抛 `USER_DISABLED`，controller 会清 refresh cookie。
+4. 使用已消费 token 中的 `userId` 回源 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在、允许登录且允许 refresh，并读取当前 `securityVersion`。
+5. 用户不存在、`loginAllowed=false` 或 `refreshAllowed=false` 时撤销该 `familyId`，抛 `USER_DISABLED`，controller 会清 refresh cookie。
 6. 重新计算 authorities，签发新的 access token。
 7. 通过 `RefreshTokenApplicationService.issueInFamily(...)` 写入同 family 的新 refresh token，并返回新的 refresh cookie。
 
@@ -234,7 +235,7 @@ PasswordResetApplicationService.confirmReset(...)
 
 这只影响 refresh token。已签出的 access token 不会被服务端集中撤销，仍等待短 TTL 过期。
 
-密码重置请求会先校验验证码，再按邮箱/IP 维度使用 `auth:pwdreset:req:email:<email>` 和 `auth:pwdreset:req:ip:<ip>` 计数限流；未知邮箱也计数，但不会暴露是否存在。reset token 使用 256-bit base64url 明文，只存储在 Redis key 和邮件链接中。如果 reset token 已写入但邮件发送失败，auth 会 best-effort 删除该 token。如果 reset token 已被消费但 user owner 更新密码失败，auth 会用消费时捕获的剩余 TTL 恢复该 reset token，允许用户在原有效期内重试；不会把 token 延长回完整 TTL。
+密码重置请求会先校验验证码，再先按客户端 IP 计数限流，再查询 user owner；邮箱 quota 只对存在且可用的账号计数。reset token 使用 256-bit base64url 明文，只存储在 Redis key 和邮件链接中。如果 reset token 已写入但邮件发送失败，auth 会 best-effort 删除该 token。如果 reset token 已被消费但 user owner 更新密码失败，auth 会用消费时捕获的剩余 TTL 恢复该 reset token，允许用户在原有效期内重试；不会把 token 延长回完整 TTL。
 
 密码策略由 user owner 执行：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符，且拒绝首尾空白字符。前端和后端都不再静默 trim 密码字段。
 

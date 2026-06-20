@@ -39,17 +39,22 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 - refresh token、registration token 和 password reset token 明文由 auth application 使用统一的 256-bit `SecureRandom` 生成器生成，并使用 base64url 无填充编码。
 - refresh token store 支持 `redis` / `db`，当前默认 `db`；不提供进程内存实现。
 - DB store 使用 `community.auth_refresh_token`，仅保存 token hash。
-- refresh 支持 rotation：刷新时先消费旧 token，再回源校验用户仍 active，最后颁发同 family 的新 refresh token；用户不存在或被禁用时撤销 family 并清 cookie。
+- refresh 支持 rotation：刷新时先消费旧 token，再回源校验用户仍允许 refresh，最后颁发同 family 的新 refresh token；用户不存在、账号被禁用或 `refreshAllowed=false` 时撤销 family 并清 cookie。当前实现里角色变更、密码重置和活跃账号级封禁会显式撤销 refresh sessions。
 - token family 支持族撤销，复用旧 token 可触发 family revoke。
 
-`GET /api/auth/me` 直接读取已验证 JWT claim，不实时查库；角色变化通常要等下一次 access token 重新签发后反映。
+`GET /api/auth/me` 直接读取已验证 JWT claim，不实时查库；高风险 admin/ops/wallet admin 写入口会额外校验 JWT 中的 `security_version`，版本落后时要求刷新或重新登录。普通前端权限展示可能仍滞后到下一次 access token 重新签发。
+
+`security_version` 是 user owner 的认证授权版本。角色、密码、账号状态和活跃账号级封禁变化会递增该版本；其中角色、密码和活跃账号级封禁变更会撤销 refresh sessions，账号状态变化会在 login / refresh 校验中被拒绝。`muteUntil` 只影响发言能力，不影响登录或 refresh。
+
+`banUntil` 是账号级暂停，影响 login、refresh 和依赖 moderation guard 的敏感写操作。`muteUntil` 是发言级限制，只影响发帖、评论、回复和 IM / 内容侧发言能力。
 
 ## 找回密码和凭证变更
 
 找回密码链路的安全目标是防用户枚举、防 reset link 泄漏、防旧 session 继续可用：
 
-- 请求重置必须通过验证码；验证码通过后按邮箱/IP 做请求限流。
-- 邮箱不存在、用户未激活或状态不可用时也返回受理结果，但不签发 token、不发送邮件。
+- 请求重置必须通过验证码；验证码通过后先按客户端 IP 做请求限流，再按邮箱查 user owner。
+- 邮箱维度限流只对存在且可用的账号计数。
+- 邮箱不存在、未激活或状态不可用时也返回受理结果，但不签发 token、不发送邮件，也不消耗邮箱 quota。
 - reset link 只通过邮件下发，HTTP 响应体不返回链接或 token。
 - token 存储在 `auth:pwdreset:<token>`，带短 TTL，确认时一次性消费；token 明文是 256-bit base64url 随机值；若 token 写入后邮件发送失败，会 best-effort 删除该 token。
 - 确认重置也需要验证码。
@@ -185,7 +190,7 @@ prod 下如果开启 trusted proxy：
 
 - 默认启用 `auth.password-reset.request-window-seconds`、`max-requests-per-email`、`max-requests-per-ip`。
 - 验证码通过后按邮箱和客户端 IP 自增计数，超过阈值返回 `TOO_MANY_REQUESTS`。
-- 邮箱不存在的请求也会计数，但不会暴露该邮箱是否存在。
+- 邮箱不存在或不可用的请求不会消耗邮箱 quota，但仍可能计入 IP 维度限流；系统不会暴露该邮箱是否存在。
 
 gateway 路径级限流：
 

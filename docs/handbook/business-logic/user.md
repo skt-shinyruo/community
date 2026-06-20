@@ -41,6 +41,8 @@ HTTP：
 5. 处罚和角色：管理员或治理动作进入 user application，更新 `muteUntil`、`banUntil` 或 `type`。处罚变化发布 policy event，IM outbox/Kafka 最终刷新 realtime 本地 projection；角色变化要等 access token 重新签发后才体现在前端权限里。
 6. 奖励语义桥接：content/social/growth 不直接改余额事实；user 只做奖励语义转换，最终奖励或撤销进入 wallet owner。
 
+`securityVersion` 是 user owner 的认证授权版本。角色调整、密码更新和活跃账号级封禁变更会递增该版本；这些路径会撤销 refresh sessions。`muteUntil` 只影响发言能力，不影响登录或 refresh。
+
 ## 用户资料和摘要
 
 `UserReadApplicationService` 提供基础用户读取能力：
@@ -132,6 +134,8 @@ HTTP：
 3. IM outbox 把变化投递给 realtime。
 4. content 写路径同步回源 user owner 判断是否可发言。
 
+`muteUntil` 只影响发言能力；`banUntil` 是账号级暂停，影响 login / refresh 和需要鉴权的敏感写入口。活跃账号级封禁变更会递增 `securityVersion` 并撤销 refresh sessions。
+
 ## 管理员角色
 
 `AdminUserApplicationService` 管理用户角色调整：
@@ -143,7 +147,7 @@ HTTP：
 5. 同角色更新直接返回，不重复写库。
 6. 变更成功写 `user.type`，并通过 audit port 记录审计日志。
 
-角色决定 JWT authorities，但已签发的 access token 不会立即变化，需要重新签发后体现。
+角色决定 JWT authorities，但已签发的 access token 不会立即变化，需要重新签发后体现。角色调整会同时提升 `securityVersion` 并撤销该用户 refresh sessions。
 
 ## 奖励语义桥接
 

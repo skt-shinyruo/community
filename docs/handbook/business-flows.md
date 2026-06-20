@@ -89,7 +89,7 @@ Security：
 - `AuthSecurityRules` 决定 `/api/auth/**` 哪些入口允许匿名。
 - `AuthOriginGuardFilter` 覆盖所有 public 且会改变认证状态的 auth POST 入口：login、refresh、logout、register、register code resend / verify、password reset request / confirm。
 - prod 下 `AuthStartupValidator` 禁止固定验证码、注册验证码回传和 reset link 回传，SMTP 必须可用；OriginGuard 启用且 fail-closed 时必须配置可信 Origin allowlist。
-- `/api/auth/me` 直接读 JWT claim；角色变化通常要等 token 重签后体现。
+- `/api/auth/me` 直接读 JWT claim；高风险写入口会额外校验 `security_version`，版本落后时拒绝进入。普通前端权限展示仍可能要等 token 重签后体现。
 
 Key code：
 

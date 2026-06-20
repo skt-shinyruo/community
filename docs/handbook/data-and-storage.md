@@ -34,7 +34,8 @@ UUID 持久化：
 
 | 表 | 说明 |
 | --- | --- |
-| `user` | 用户基础信息、角色、处罚状态等用户事实 |
+| `user` | 用户基础信息、角色、处罚状态、`security_version` 等用户事实 |
+| `user_security_version_counter` | user 认证授权版本计数器，用于分配 `user.security_version` |
 | `auth_refresh_token` | refresh token 状态，仅存 token hash |
 | `discuss_post` | 帖子 |
 | `comment` | 评论 / 回复 |

@@ -108,7 +108,7 @@ IM：
 
 认证：
 
-- 角色变化通常要等待 access token 重新签发后在前端权限中体现。
+- 角色变化通常要等待 access token 重新签发后在前端权限中体现；高风险入口会额外校验 `security_version`。
 - refresh 失败后应清理本地 session 并跳登录。
 
 ## 关键文件

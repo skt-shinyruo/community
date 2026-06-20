@@ -44,9 +44,9 @@ HTTP 入口位于 `AuthController`：
 
 认证域的数据流分成四条主线：
 
-1. 注册：`AuthController` 接收请求后进入 `RegistrationApplicationService`，auth 先校验验证码、请求字段和邮件配置，再通过 `UserRegistrationActionApi.prepareRegistrationUser(...)` 让 user owner 检查用户名/邮箱冲突并准备用户名、邮箱、密码 hash 和默认头像。auth application 生成 registration token，draft 仓储只负责按 token 存储上下文；验证码通过后再调用 `createVerifiedRegistrationUser(...)` 插入 active 用户，并复用登录签发链路返回 access token 和 refresh cookie。
+1. 注册：`AuthController` 接收请求后进入 `RegistrationApplicationService`，auth 先校验验证码、请求字段和邮件配置，再通过 `UserRegistrationActionApi.prepareRegistrationUser(...)` 让 user owner 检查用户名/邮箱冲突并准备用户名、邮箱、密码 hash 和默认头像。auth application 生成 registration token，draft 仓储只负责按 token 存储上下文；验证码通过后先进入 pending 消费态，再调用 `createVerifiedRegistrationUser(...)` 插入 active 用户，并复用登录签发链路返回 access token 和 refresh cookie。
 2. 登录：`LoginApplicationService.login(...)` 先经过登录风控和 captcha 判断，再用 `UserCredentialQueryApi.authenticate(...)` 回源 user owner 校验凭据。认证成功后签发 access token，写 refresh session，并异步/同步触发安全日志和 analytics 登录采集。
-3. refresh / logout：浏览器只把 refresh token 放在 HttpOnly cookie 中。refresh 时 auth 先消费旧 token，再回源 user 校验用户仍 active，最后才签发同 family 的新 token；logout 撤销当前 token 或 family，并由 controller 写 clear cookie。
+3. refresh / logout：浏览器只把 refresh token 放在 HttpOnly cookie 中。refresh 时 auth 先消费旧 token，再回源 user 校验用户仍允许登录和 refresh，并读取当前 `securityVersion`，最后才签发同 family 的新 token；logout 撤销当前 token 或 family，并由 controller 写 clear cookie。
 4. 密码重置：auth 校验邮箱、captcha、请求限流和 reset token，user owner 校验新密码策略并更新 BCrypt hash；成功后撤销该用户 refresh sessions，避免旧会话继续刷新。
 
 auth 不直接写 user 表或 refresh session 表；这些状态变化都通过 user owner API 进入 user application。
@@ -62,8 +62,8 @@ auth 不直接写 user 表或 refresh session 表；这些状态变化都通过 
 5. user owner 规范化用户名和邮箱，先检查用户名/邮箱是否已存在，再生成预备用户 ID、计算 BCrypt 密码、准备默认头像，但不插入 `user` row。
 6. auth application 生成 256-bit base64url opaque `registrationToken`，把 `PreparedRegistrationDraft` 存入 draft store；token 冲突最多重试 5 次。
 7. auth 域用安全随机生成器签发 6 位注册验证码并发送邮件。
-8. `verifyRegisterCode(...)` 根据 `registrationToken` 找回 draft，消费验证码。
-9. 验证通过后调用 `UserRegistrationActionApi.createVerifiedRegistrationUser(...)`，由 user owner 插入 active 用户。
+8. `verifyRegisterCode(...)` 根据 `registrationToken` 找回 draft，先把验证码转入 pending 消费态。
+9. 验证通过后调用 `UserRegistrationActionApi.createVerifiedRegistrationUser(...)`，由 user owner 插入 active 用户；创建成功后才把 pending code 真正 consume 并删除 draft。若创建前失败，会恢复 pending code。
 10. 注册验证成功后复用登录签发能力，直接返回 access token 和 refresh cookie。
 11. 注册验证成功后会 best-effort 删除 draft/code；失败不应让已创建用户回滚到未注册状态。
 
@@ -99,8 +99,8 @@ refresh 使用 refresh token rotation：
 1. controller 从 refresh cookie 读 token。
 2. `LoginApplicationService.refresh(...)` 调 `RefreshTokenApplicationService.consume(...)` 消费旧 token。
 3. token hash 找不到、已撤销、过期或 family 被撤销都会失败。
-4. 当前 token 被消费后，先通过 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在且 active。
-5. 用户不存在或被禁用时撤销该 family 并返回 `USER_DISABLED`，controller 清 cookie。
+4. 当前 token 被消费后，先通过 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在、允许登录且允许 refresh，并读取当前 `securityVersion`。
+5. 用户不存在、`loginAllowed=false` 或 `refreshAllowed=false` 时撤销该 family 并返回 `USER_DISABLED`，controller 清 cookie。
 6. 用户校验通过后签发新的 access token 和同 family 的 256-bit base64url refresh token。
 7. refresh 失败时 controller 视错误决定是否清 cookie。
 
@@ -160,8 +160,8 @@ logout：
 密码重置由 `PasswordResetApplicationService` 处理：
 
 1. 请求阶段必须提交邮箱和验证码。
-2. 验证码通过后按邮箱/IP 自增请求限流计数，超过阈值返回 `TOO_MANY_REQUESTS`。
-3. 邮箱不存在、用户不可用或未激活时，也返回已受理，避免用户枚举。
+2. 验证码通过后先按客户端 IP 自增请求限流计数，再查询 user owner。
+3. 邮箱不存在、用户不可用或未激活时，也返回已受理，避免用户枚举；邮箱限流只对存在且可用的账号计数。
 4. 符合条件时生成 256-bit base64url reset token，存入 token store，并发送邮件链接；如果邮件发送失败，会 best-effort 删除已写入 token。
 5. HTTP 响应不返回 reset link。
 6. 确认阶段再次校验验证码、reset token 和新密码策略。

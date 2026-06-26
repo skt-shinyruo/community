@@ -145,6 +145,10 @@ public class NoticeProjectionApplicationService {
         if (SocialEventTypes.LIKE_CREATED.equals(command.eventType()) && command.payload() instanceof LikePayload payload) {
             return projection(command.sourceEventId(), command.eventType(), NoticeTopic.LIKE, payload.getEntityUserId(), payload);
         }
+        if (SocialEventTypes.LIKE_REMOVED.equals(command.eventType()) && command.payload() instanceof LikePayload payload) {
+            revokeProjectedLikeNotice(payload);
+            return null;
+        }
         if (SocialEventTypes.FOLLOW_CREATED.equals(command.eventType()) && command.payload() instanceof FollowPayload payload) {
             return projection(command.sourceEventId(), command.eventType(), NoticeTopic.FOLLOW, payload.getEntityUserId(), payload);
         }
@@ -185,7 +189,13 @@ public class NoticeProjectionApplicationService {
                     "type", projection.sourceEventType(),
                     "payload", projection.payload()
             ));
-            noticeApplicationService.createNotice(new CreateNoticeCommand(projection.toUserId(), projection.topic(), contentJson));
+            noticeApplicationService.createNotice(new CreateNoticeCommand(
+                    projection.toUserId(),
+                    projection.topic(),
+                    contentJson,
+                    projection.sourceEventType(),
+                    relationKey(projection.payload())
+            ));
         } catch (JsonCodecException e) {
             throw new IllegalStateException("notice payload serialization failed: " + projection.sourceEventType(), e);
         }
@@ -196,5 +206,19 @@ public class NoticeProjectionApplicationService {
             return null;
         }
         return new NoticeProjection(toUserId, topic, eventId, eventType, payload);
+    }
+
+    private void revokeProjectedLikeNotice(LikePayload payload) {
+        if (payload == null) {
+            return;
+        }
+        noticeApplicationService.revokeLikeNotice(payload.getEntityUserId(), payload.getRelationKey());
+    }
+
+    private String relationKey(Object payload) {
+        if (payload instanceof LikePayload likePayload) {
+            return likePayload.getRelationKey();
+        }
+        return null;
     }
 }

@@ -5,8 +5,8 @@
 <mapper namespace="com.nowcoder.community.notice.infrastructure.persistence.mapper.NoticeMapper">
 
     <insert id="insertNotice" parameterType="com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeRecordDataObject">
-        insert into notice_record(id, sender_user_id, recipient_user_id, topic, content, status, create_time)
-        values(#{id, jdbcType=BINARY}, #{senderUserId, jdbcType=BINARY}, #{recipientUserId, jdbcType=BINARY}, #{topic}, #{content}, #{status}, #{createTime})
+        insert into notice_record(id, sender_user_id, recipient_user_id, topic, content, source_event_type, source_relation_key, status, create_time)
+        values(#{id, jdbcType=BINARY}, #{senderUserId, jdbcType=BINARY}, #{recipientUserId, jdbcType=BINARY}, #{topic}, #{content}, #{sourceEventType}, #{sourceRelationKey}, #{status}, #{createTime})
     </insert>
 
     <select id="selectNotices" resultType="com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeRecordDataObject">
@@ -15,6 +15,8 @@
                recipient_user_id as recipientUserId,
                topic,
                content,
+               source_event_type as sourceEventType,
+               source_relation_key as sourceRelationKey,
                status,
                create_time as createTime
         from notice_record
@@ -48,6 +50,16 @@
         <foreach collection="ids" item="id" open="(" separator="," close=")">
             #{id, jdbcType=BINARY}
         </foreach>
+    </update>
+
+    <update id="revokeLikeNotice">
+        update notice_record
+        set status = #{revokedStatus}
+        where recipient_user_id = #{recipientUserId}
+          and topic = #{topic}
+          and source_event_type = #{sourceEventType}
+          and source_relation_key = #{sourceRelationKey}
+          and status in (#{activeStatus}, #{readStatus})
     </update>
 
 </mapper>

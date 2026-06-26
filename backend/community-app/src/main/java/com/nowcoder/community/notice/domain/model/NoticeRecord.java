@@ -12,6 +12,8 @@ public class NoticeRecord {
     private UUID recipientUserId;
     private String topic;
     private String content;
+    private String sourceEventType;
+    private String sourceRelationKey;
     private int status;
     private Date createTime;
 
@@ -53,6 +55,22 @@ public class NoticeRecord {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public String getSourceEventType() {
+        return sourceEventType;
+    }
+
+    public void setSourceEventType(String sourceEventType) {
+        this.sourceEventType = sourceEventType;
+    }
+
+    public String getSourceRelationKey() {
+        return sourceRelationKey;
+    }
+
+    public void setSourceRelationKey(String sourceRelationKey) {
+        this.sourceRelationKey = sourceRelationKey;
     }
 
     public int getStatus() {

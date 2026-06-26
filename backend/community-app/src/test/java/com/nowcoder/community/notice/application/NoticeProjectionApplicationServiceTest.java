@@ -7,8 +7,13 @@ import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.command.ProjectContentNoticeCommand;
+import com.nowcoder.community.notice.application.command.ProjectSocialNoticeCommand;
 import com.nowcoder.community.notice.domain.service.NoticeProjectionDomainService;
+import com.nowcoder.community.social.contracts.event.LikePayload;
+import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
+
+import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -80,6 +85,24 @@ class NoticeProjectionApplicationServiceTest {
 
         verifyNoInteractions(eventRecorder);
         verify(noticeService, never()).createNotice(any(CreateNoticeCommand.class));
+    }
+
+    @Test
+    void shouldRevokeLikeNoticeOnLikeRemoved() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionApplicationService projectionService = projectionService(noticeService, mock(NoticeProjectionEventRecorder.class));
+
+        LikePayload payload = new LikePayload();
+        payload.setEntityUserId(UUID.fromString("00000000-0000-0000-0000-000000000055"));
+        payload.setRelationKey("like:actor:3:entity");
+
+        projectionService.projectSocialEventReliably(new ProjectSocialNoticeCommand(
+                "evt-like-removed-1",
+                SocialEventTypes.LIKE_REMOVED,
+                payload
+        ));
+
+        verify(noticeService).revokeLikeNotice(payload.getEntityUserId(), payload.getRelationKey());
     }
 
     private static NoticeProjectionApplicationService projectionService(

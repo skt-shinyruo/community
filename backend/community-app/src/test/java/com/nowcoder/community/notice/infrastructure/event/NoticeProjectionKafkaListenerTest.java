@@ -98,16 +98,35 @@ class NoticeProjectionKafkaListenerTest {
         NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
 
         listener.onContentEvent(new ContentContractEvent("evt-post-updated", ContentEventTypes.POST_UPDATED, Map.of("postId", uuid(100).toString())));
-        listener.onSocialEvent(new SocialContractEvent("evt-like-removed", SocialEventTypes.LIKE_REMOVED, Map.of(
-                "actorUserId", uuid(1).toString(),
-                "entityType", EntityTypes.POST,
-                "entityId", uuid(100).toString(),
-                "entityUserId", uuid(2).toString()
-        )));
         listener.onContentEvent(null);
         listener.onSocialEvent(null);
 
         verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void likeRemovedShouldBeDelegatedToReliableSocialProjection() {
+        NoticeProjectionApplicationService applicationService = mock(NoticeProjectionApplicationService.class);
+        NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
+
+        listener.onSocialEvent(new SocialContractEvent(
+                "evt-like-removed",
+                SocialEventTypes.LIKE_REMOVED,
+                Map.of(
+                        "actorUserId", uuid(1).toString(),
+                        "entityType", EntityTypes.POST,
+                        "entityId", uuid(100).toString(),
+                        "entityUserId", uuid(2).toString(),
+                        "relationKey", "like:" + uuid(1) + ":" + EntityTypes.POST + ":" + uuid(100)
+                )
+        ));
+
+        ArgumentCaptor<ProjectSocialNoticeCommand> captor = ArgumentCaptor.forClass(ProjectSocialNoticeCommand.class);
+        verify(applicationService).projectSocialEventReliably(captor.capture());
+        assertThat(captor.getValue().eventType()).isEqualTo(SocialEventTypes.LIKE_REMOVED);
+        assertThat(captor.getValue().payload()).isInstanceOf(LikePayload.class);
+        assertThat(((LikePayload) captor.getValue().payload()).getRelationKey())
+                .isEqualTo("like:" + uuid(1) + ":" + EntityTypes.POST + ":" + uuid(100));
     }
 
     @Test

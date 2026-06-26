@@ -54,6 +54,8 @@ class NoticeMapperPersistenceTest {
         notice.setRecipientUserId(RECIPIENT_USER_ID);
         notice.setTopic("comment");
         notice.setContent("{\"eventId\":\"evt-1\"}");
+        notice.setSourceEventType("CommentCreated");
+        notice.setSourceRelationKey("comment:1");
         notice.setStatus(0);
         notice.setCreateTime(new Date());
 
@@ -90,14 +92,50 @@ class NoticeMapperPersistenceTest {
         assertThat(statusOf(OTHER_NOTICE_ID)).isEqualTo(0);
     }
 
+    @Test
+    void revokeLikeNoticeShouldUpdateOnlyMatchingActiveLikeNotice() {
+        insertLikeNotice(NOTICE_ID, RECIPIENT_USER_ID, "like:actor:3:entity", 0);
+        insertLikeNotice(OTHER_NOTICE_ID, RECIPIENT_USER_ID, "like:actor:3:other", 0);
+
+        int updated = noticeMapper.revokeLikeNotice(
+                RECIPIENT_USER_ID,
+                "like",
+                "LikeCreated",
+                "like:actor:3:entity",
+                0,
+                1,
+                2
+        );
+
+        assertThat(updated).isEqualTo(1);
+        assertThat(statusOf(NOTICE_ID)).isEqualTo(2);
+        assertThat(statusOf(OTHER_NOTICE_ID)).isEqualTo(0);
+    }
+
     private void insertNotice(UUID noticeId, UUID toUserId, String topic, int status) {
         jdbcTemplate.update(
-                "insert into notice_record (id, sender_user_id, recipient_user_id, topic, content, status, create_time) values (?, ?, ?, ?, ?, ?, current_timestamp)",
+                "insert into notice_record (id, sender_user_id, recipient_user_id, topic, content, source_event_type, source_relation_key, status, create_time) values (?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)",
                 BinaryUuidCodec.toBytes(noticeId),
                 BinaryUuidCodec.toBytes(NoticeRecord.SYSTEM_NOTICE_SENDER_ID),
                 BinaryUuidCodec.toBytes(toUserId),
                 topic,
                 "{\"eventId\":\"" + noticeId + "\"}",
+                null,
+                null,
+                status
+        );
+    }
+
+    private void insertLikeNotice(UUID noticeId, UUID toUserId, String relationKey, int status) {
+        jdbcTemplate.update(
+                "insert into notice_record (id, sender_user_id, recipient_user_id, topic, content, source_event_type, source_relation_key, status, create_time) values (?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)",
+                BinaryUuidCodec.toBytes(noticeId),
+                BinaryUuidCodec.toBytes(NoticeRecord.SYSTEM_NOTICE_SENDER_ID),
+                BinaryUuidCodec.toBytes(toUserId),
+                "like",
+                "{\"eventId\":\"" + noticeId + "\"}",
+                "LikeCreated",
+                relationKey,
                 status
         );
     }

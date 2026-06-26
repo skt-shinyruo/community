@@ -105,14 +105,37 @@ class NoticeApplicationServiceTest {
         });
     }
 
+    @Test
+    void revokeLikeNoticeShouldHideMatchingNoticeFromUnreadAndListViews() {
+        UUID recipientUserId = uuid(9);
+        jdbcTemplate.update(
+                "insert into notice_record (id, sender_user_id, recipient_user_id, topic, content, source_event_type, source_relation_key, status, create_time) values (?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)",
+                BinaryUuidCodec.toBytes(NOTICE_ID_4),
+                BinaryUuidCodec.toBytes(ZERO_UUID),
+                BinaryUuidCodec.toBytes(recipientUserId),
+                "like",
+                "{\"eventId\":\"evt-like-1\"}",
+                "LikeCreated",
+                "like:" + uuid(1) + ":3:" + uuid(100),
+                NoticeApplicationService.STATUS_UNREAD
+        );
+
+        noticeService.revokeLikeNotice(recipientUserId, "like:" + uuid(1) + ":3:" + uuid(100));
+
+        assertThat(noticeService.unreadCount(recipientUserId, "like")).isZero();
+        assertThat(noticeService.listNotices(recipientUserId, "like", 0, 10)).isEmpty();
+    }
+
     private void insertNotice(UUID id, UUID fromId, UUID toId, String topic, String content, int status) {
         jdbcTemplate.update(
-                "insert into notice_record (id, sender_user_id, recipient_user_id, topic, content, status, create_time) values (?, ?, ?, ?, ?, ?, current_timestamp)",
+                "insert into notice_record (id, sender_user_id, recipient_user_id, topic, content, source_event_type, source_relation_key, status, create_time) values (?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)",
                 BinaryUuidCodec.toBytes(id),
                 BinaryUuidCodec.toBytes(fromId),
                 BinaryUuidCodec.toBytes(toId),
                 topic,
                 content,
+                null,
+                null,
                 status
         );
     }

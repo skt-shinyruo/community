@@ -11,6 +11,8 @@ public class NoticeRecordDataObject extends NoticeRecord {
         row.setRecipientUserId(notice.getRecipientUserId());
         row.setTopic(notice.getTopic());
         row.setContent(notice.getContent());
+        row.setSourceEventType(notice.getSourceEventType());
+        row.setSourceRelationKey(notice.getSourceRelationKey());
         row.setStatus(notice.getStatus());
         row.setCreateTime(notice.getCreateTime());
         return row;

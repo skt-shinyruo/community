@@ -43,4 +43,17 @@ public class MyBatisNoticeRepository implements NoticeRepository {
     public int markRead(UUID userId, List<UUID> ids, int status) {
         return noticeMapper.updateNoticesStatusForRecipient(ids, status, userId);
     }
+
+    @Override
+    public int revokeLikeNotice(UUID recipientUserId, String relationKey, int revokedStatus) {
+        return noticeMapper.revokeLikeNotice(
+                recipientUserId,
+                com.nowcoder.community.notice.domain.model.NoticeTopic.LIKE,
+                com.nowcoder.community.social.contracts.event.SocialEventTypes.LIKE_CREATED,
+                relationKey,
+                com.nowcoder.community.notice.application.NoticeApplicationService.STATUS_UNREAD,
+                com.nowcoder.community.notice.application.NoticeApplicationService.STATUS_READ,
+                revokedStatus
+        );
+    }
 }

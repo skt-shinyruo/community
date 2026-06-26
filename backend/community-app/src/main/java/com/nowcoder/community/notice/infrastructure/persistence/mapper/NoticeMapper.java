@@ -21,4 +21,14 @@ public interface NoticeMapper {
     int selectNoticeUnreadCount(@Param("userId") UUID userId, @Param("topic") String topic);
 
     int updateNoticesStatusForRecipient(@Param("ids") List<UUID> ids, @Param("status") int status, @Param("userId") UUID userId);
+
+    int revokeLikeNotice(
+            @Param("recipientUserId") UUID recipientUserId,
+            @Param("topic") String topic,
+            @Param("sourceEventType") String sourceEventType,
+            @Param("sourceRelationKey") String sourceRelationKey,
+            @Param("activeStatus") int activeStatus,
+            @Param("readStatus") int readStatus,
+            @Param("revokedStatus") int revokedStatus
+    );
 }

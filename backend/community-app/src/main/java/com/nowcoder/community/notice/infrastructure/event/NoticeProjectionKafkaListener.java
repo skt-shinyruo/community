@@ -69,6 +69,7 @@ public class NoticeProjectionKafkaListener {
 
     private boolean isSupportedSocialNoticeEvent(String type) {
         return SocialEventTypes.LIKE_CREATED.equals(type)
+                || SocialEventTypes.LIKE_REMOVED.equals(type)
                 || SocialEventTypes.FOLLOW_CREATED.equals(type);
     }
 
@@ -83,7 +84,7 @@ public class NoticeProjectionKafkaListener {
     }
 
     private Object normalizeSocialPayload(String type, Object payload) {
-        if (SocialEventTypes.LIKE_CREATED.equals(type)) {
+        if (SocialEventTypes.LIKE_CREATED.equals(type) || SocialEventTypes.LIKE_REMOVED.equals(type)) {
             return normalizePayload(payload, LikePayload.class);
         }
         if (SocialEventTypes.FOLLOW_CREATED.equals(type)) {

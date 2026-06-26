@@ -24,6 +24,7 @@ public class NoticeApplicationService {
     public static final UUID SYSTEM_NOTICE_SENDER_ID = NoticeRecord.SYSTEM_NOTICE_SENDER_ID;
     public static final int STATUS_UNREAD = NoticeDomainService.STATUS_UNREAD;
     public static final int STATUS_READ = NoticeDomainService.STATUS_READ;
+    public static final int STATUS_REVOKED = 2;
 
     private final NoticeRepository noticeRepository;
     private final NoticeDomainService noticeDomainService;
@@ -52,6 +53,8 @@ public class NoticeApplicationService {
         notice.setRecipientUserId(command.toUserId());
         notice.setTopic(command.topic());
         notice.setContent(command.contentJson());
+        notice.setSourceEventType(command.sourceEventType());
+        notice.setSourceRelationKey(command.sourceRelationKey());
         notice.setStatus(STATUS_UNREAD);
         notice.setCreateTime(new Date());
         noticeRepository.insert(notice);
@@ -104,6 +107,13 @@ public class NoticeApplicationService {
 
     public void markRead(UUID userId, List<UUID> ids) {
         markRead(new MarkNoticeReadCommand(userId, ids));
+    }
+
+    public void revokeLikeNotice(UUID recipientUserId, String relationKey) {
+        if (recipientUserId == null || relationKey == null || relationKey.isBlank()) {
+            return;
+        }
+        noticeRepository.revokeLikeNotice(recipientUserId, relationKey.trim(), STATUS_REVOKED);
     }
 
     private NoticeItemResult toNoticeItemResult(NoticeRecord notice) {

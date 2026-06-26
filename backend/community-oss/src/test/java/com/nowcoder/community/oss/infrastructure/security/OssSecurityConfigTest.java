@@ -1,5 +1,8 @@
 package com.nowcoder.community.oss.infrastructure.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.oss.application.ObjectAccessApplicationService;
 import com.nowcoder.community.oss.application.ObjectLifecycleApplicationService;
@@ -18,6 +21,8 @@ import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -35,17 +40,22 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest({
+@WebMvcTest(controllers = {
         InternalOssObjectController.class,
         OssObjectController.class,
         PublicFileController.class
+}, properties = {
+        "spring.cloud.discovery.enabled=false",
+        "spring.cloud.nacos.discovery.enabled=false",
+        "spring.cloud.nacos.config.enabled=false"
 })
 @Import({
         InternalOssObjectController.class,
         OssObjectController.class,
         PublicFileController.class,
         OssSecurityConfig.class,
-        SecurityExceptionHandler.class
+        SecurityExceptionHandler.class,
+        OssSecurityConfigTest.WebMvcSliceJsonCodecTestConfig.class
 })
 class OssSecurityConfigTest {
 
@@ -76,6 +86,15 @@ class OssSecurityConfigTest {
     @SpringBootConfiguration
     @EnableAutoConfiguration
     static class TestApplication {
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class WebMvcSliceJsonCodecTestConfig {
+
+        @Bean
+        JsonCodec jsonCodec(ObjectMapper objectMapper) {
+            return new JacksonJsonCodec(objectMapper);
+        }
     }
 
     @Test

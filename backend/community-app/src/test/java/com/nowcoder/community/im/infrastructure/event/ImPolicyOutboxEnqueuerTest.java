@@ -8,6 +8,9 @@ import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.transaction.event.TransactionalEventListener;
+
+import java.util.Arrays;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,19 +29,11 @@ class ImPolicyOutboxEnqueuerTest {
     }
 
     @Test
-    void socialBlockRelationChangedShouldEnqueueImBlockPolicyUpdate() {
-        ImPolicyChangePublisher changePublisher = mock(ImPolicyChangePublisher.class);
-        ImPolicyOutboxEnqueuer enqueuer = new ImPolicyOutboxEnqueuer(changePublisher);
-
-        BlockPayload payload = new BlockPayload();
-        payload.setBlockerUserId(uuid(1));
-        payload.setBlockedUserId(uuid(2));
-        payload.setBlocked(Boolean.TRUE);
-        payload.setVersion(1234L);
-
-        enqueuer.onSocialEvent(new SocialContractEvent("evt-social-1", SocialEventTypes.BLOCK_RELATION_CHANGED, payload));
-
-        verify(changePublisher).publishBlockRelationChanged(uuid(1), uuid(2), true, 1234L);
+    void outboxEnqueuerShouldNotHandleSocialBlockEventsForCorrectness() {
+        assertThat(Arrays.stream(ImPolicyOutboxEnqueuer.class.getDeclaredMethods())
+                .filter(method -> method.isAnnotationPresent(TransactionalEventListener.class))
+                .map(method -> method.getParameterTypes()[0]))
+                .containsExactly(UserContractEvent.class);
     }
 
     @Test

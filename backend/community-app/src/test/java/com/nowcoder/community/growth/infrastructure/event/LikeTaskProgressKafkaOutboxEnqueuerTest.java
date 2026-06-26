@@ -41,7 +41,7 @@ class LikeTaskProgressKafkaOutboxEnqueuerTest {
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
         verify(store).enqueue(
-                eq("like-created:" + actorUserId + ":" + POST + ":" + entityId + ":growth_task"),
+                eq("like:" + actorUserId + ":" + POST + ":" + entityId + ":growth_task"),
                 eq(topic),
                 eq(entityUserId.toString()),
                 payloadCaptor.capture()
@@ -73,6 +73,7 @@ class LikeTaskProgressKafkaOutboxEnqueuerTest {
         payload.setEntityType(POST);
         payload.setEntityId(entityId);
         payload.setEntityUserId(entityUserId);
+        payload.setRelationKey("like:" + actorUserId + ":" + POST + ":" + entityId);
         payload.setCreateTime(createTime);
         return payload;
     }

@@ -11,6 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.util.StringUtils;
 
 @Component
 @ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "true")
@@ -62,6 +63,9 @@ public class LikeTaskProgressKafkaOutboxEnqueuer {
     }
 
     private String sourceEventId(LikePayload payload) {
+        if (StringUtils.hasText(payload.getRelationKey())) {
+            return payload.getRelationKey().trim();
+        }
         return "like-created:" + payload.getActorUserId() + ":" + payload.getEntityType() + ":" + payload.getEntityId();
     }
 }

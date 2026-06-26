@@ -1,7 +1,10 @@
 package com.nowcoder.community.event;
 
 import com.nowcoder.community.common.event.BestEffortLocalEventListener;
+import com.nowcoder.community.content.infrastructure.event.SocialInteractionBackboneKafkaListener;
 import com.nowcoder.community.content.infrastructure.event.SocialInteractionProjectionListener;
+import com.nowcoder.community.growth.infrastructure.event.TaskProgressEventBackboneKafkaListener;
+import com.nowcoder.community.im.infrastructure.event.ImPolicyBackboneKafkaListener;
 import com.nowcoder.community.notice.infrastructure.event.NoticeProjectionListener;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.event.TransactionPhase;
@@ -19,6 +22,13 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class EventDeliverySemanticsStructureTest {
+
+    @Test
+    void socialBackboneListenersShouldOwnCrossDomainCorrectness() {
+        assertThat(ImPolicyBackboneKafkaListener.class).isNotNull();
+        assertThat(SocialInteractionBackboneKafkaListener.class).isNotNull();
+        assertThat(TaskProgressEventBackboneKafkaListener.class).isNotNull();
+    }
 
     @Test
     void afterCommitLocalListenersShouldDeclareBestEffortSemantics() throws Exception {

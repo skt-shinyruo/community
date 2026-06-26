@@ -1,8 +1,5 @@
 package com.nowcoder.community.im.infrastructure.event;
 
-import com.nowcoder.community.social.contracts.event.BlockPayload;
-import com.nowcoder.community.social.contracts.event.SocialContractEvent;
-import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
@@ -19,24 +16,6 @@ public class ImPolicyOutboxEnqueuer {
 
     public ImPolicyOutboxEnqueuer(ImPolicyChangePublisher imPolicyChangePublisher) {
         this.imPolicyChangePublisher = imPolicyChangePublisher;
-    }
-
-    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = false)
-    public void onSocialEvent(SocialContractEvent event) {
-        if (event == null
-                || !SocialEventTypes.BLOCK_RELATION_CHANGED.equals(event.type())
-                || !(event.payload() instanceof BlockPayload payload)
-                || payload.getBlockerUserId() == null
-                || payload.getBlockedUserId() == null
-                || payload.getBlocked() == null) {
-            return;
-        }
-        imPolicyChangePublisher.publishBlockRelationChanged(
-                payload.getBlockerUserId(),
-                payload.getBlockedUserId(),
-                payload.getBlocked(),
-                payload.getVersion() == null ? 0L : payload.getVersion()
-        );
     }
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = false)

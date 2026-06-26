@@ -73,7 +73,7 @@ class UserRewardApplicationServiceIntegrationTest {
 
     @Test
     void duplicateLikeRewardShouldCreateOneWalletTxnThroughStableIdempotencyKey() {
-        String sourceEventId = "like-created:" + dashless(uuid(2)) + ":1:" + dashless(uuid(3));
+        String sourceEventId = "like:" + uuid(2) + ":1:" + uuid(3) + ":created";
         UserRewardApplicationService.RewardCommand command = userRewardApplicationService.commandForLikeCreated(
                 sourceEventId,
                 uuid(2),
@@ -102,9 +102,4 @@ class UserRewardApplicationServiceIntegrationTest {
         );
         return count == null ? 0 : count;
     }
-
-    private static String dashless(UUID value) {
-        return value.toString().replace("-", "");
-    }
-
 }

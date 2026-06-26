@@ -19,10 +19,10 @@ create table if not exists wallet_account (
 
 create table if not exists wallet_txn (
   txn_id binary(16) primary key,
-  request_id varchar(96) not null,
+  request_id varchar(128) not null,
   txn_type varchar(32) not null,
   biz_type varchar(32) not null,
-  biz_id varchar(96) not null,
+  biz_id varchar(128) not null,
   status varchar(16) not null,
   amount bigint not null,
   remark varchar(255) default null,
@@ -45,7 +45,7 @@ create table if not exists wallet_entry (
 
 create table if not exists recharge_order (
   order_id binary(16) primary key,
-  request_id varchar(96) not null,
+  request_id varchar(128) not null,
   user_id binary(16) not null,
   amount bigint not null,
   status varchar(16) not null,
@@ -60,7 +60,7 @@ create table if not exists recharge_order (
 
 create table if not exists withdraw_order (
   order_id binary(16) primary key,
-  request_id varchar(96) not null,
+  request_id varchar(128) not null,
   user_id binary(16) not null,
   amount bigint not null,
   status varchar(16) not null,
@@ -74,7 +74,7 @@ create table if not exists withdraw_order (
 
 create table if not exists transfer_order (
   order_id binary(16) primary key,
-  request_id varchar(96) not null,
+  request_id varchar(128) not null,
   from_user_id binary(16) not null,
   to_user_id binary(16) not null,
   amount bigint not null,
@@ -89,7 +89,7 @@ create table if not exists transfer_order (
 
 create table if not exists wallet_admin_action (
   action_id binary(16) primary key,
-  request_id varchar(96) not null,
+  request_id varchar(128) not null,
   actor_user_id binary(16) not null,
   target_account_id binary(16) not null,
   action_type varchar(32) not null,

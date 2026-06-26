@@ -78,6 +78,23 @@ class IdempotencySchemaPersistenceTest {
     }
 
     @Test
+    void documented128CharacterRequestIdsShouldFitPersistenceSchema() {
+        String requestId128 = "r".repeat(128);
+        String bizId128 = "b".repeat(128);
+
+        assertThatCode(() -> insertRecharge(uuid(861), requestId128, uuid(1), 100))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> insertWithdraw(uuid(862), requestId128, uuid(1), 100))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> insertTransfer(uuid(863), requestId128, uuid(1), uuid(2), 100))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> insertMarketOrder(uuid(864), requestId128, uuid(9), uuid(7), uuid(701)))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> insertWalletTxn(uuid(865), requestId128, bizId128))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     void httpIdempotencyShouldPersistRequestHash() {
         jdbcTemplate.update(
                 """

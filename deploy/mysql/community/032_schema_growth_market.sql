@@ -50,7 +50,7 @@ create table if not exists market_delivery (
 
 create table if not exists market_order (
   order_id binary(16) primary key,
-  request_id varchar(96) not null,
+  request_id varchar(128) not null,
   listing_id binary(16) not null,
   goods_type varchar(16) not null,
   seller_user_id binary(16) not null,
@@ -87,8 +87,8 @@ create table if not exists market_wallet_action (
   order_id binary(16) not null,
   dispute_id binary(16) default null,
   action_type varchar(16) not null,
-  request_id varchar(96) not null,
-  wallet_biz_id varchar(96) not null,
+  request_id varchar(128) not null,
+  wallet_biz_id varchar(128) not null,
   actor_user_id binary(16) not null,
   counterparty_user_id binary(16) default null,
   amount bigint not null,

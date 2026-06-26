@@ -92,7 +92,7 @@ class UserRewardKafkaListenerTest {
         listener.onSocialEvent(new SocialContractEvent("se:like:created:01965429-b34a-7000-8000-000000000042", SocialEventTypes.LIKE_CREATED, payload));
 
         verify(walletRewardActionApi, org.mockito.Mockito.times(2)).applyDelta(
-                "wallet-reward:like-created:" + dashless(uuid(1)) + ":" + POST + ":" + dashless(uuid(100)),
+                "wallet-reward:" + payload.getRelationKey() + ":created",
                 uuid(2),
                 1,
                 "LikeCreated"
@@ -101,9 +101,12 @@ class UserRewardKafkaListenerTest {
 
     @Test
     void likeRewardBusinessSourceShouldFitWalletRequestIdLimit() {
-        String requestId = "wallet-reward:like-created:" + dashless(uuid(1)) + ":" + POST + ":" + dashless(uuid(100));
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
+        String requestId = "wallet-reward:" + payload.getRelationKey() + ":created";
 
-        org.assertj.core.api.Assertions.assertThat(requestId).hasSizeLessThanOrEqualTo(96);
+        org.assertj.core.api.Assertions.assertThat(requestId)
+                .hasSizeGreaterThan(96)
+                .hasSizeLessThanOrEqualTo(128);
     }
 
     @Test
@@ -115,7 +118,7 @@ class UserRewardKafkaListenerTest {
         listener.onSocialEvent(new SocialContractEvent("se:like:removed:01965429-b34a-7000-8000-000000000042", SocialEventTypes.LIKE_REMOVED, payload));
 
         verify(walletRewardActionApi).applyDelta(
-                "wallet-reward:like-removed:" + dashless(uuid(1)) + ":" + POST + ":" + dashless(uuid(100)),
+                "wallet-reward:" + payload.getRelationKey() + ":removed",
                 uuid(2),
                 -1,
                 "LikeRemoved"
@@ -202,6 +205,7 @@ class UserRewardKafkaListenerTest {
         payload.setEntityType(POST);
         payload.setEntityId(entityId);
         payload.setEntityUserId(entityUserId);
+        payload.setRelationKey("like:" + actorUserId + ":" + POST + ":" + entityId);
         payload.setCreateTime(Instant.parse("2026-05-18T10:30:00Z"));
         return payload;
     }

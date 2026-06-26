@@ -13,6 +13,7 @@ import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.user.application.UserRewardApplicationService;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Component
 public class UserRewardKafkaListener {
@@ -92,7 +93,7 @@ public class UserRewardKafkaListener {
             return;
         }
         applicationService.apply(applicationService.commandForLikeCreated(
-                likeSourceId("like-created", payload),
+                likeSourceId("created", payload),
                 payload.getActorUserId(),
                 payload.getEntityUserId()
         ));
@@ -104,7 +105,7 @@ public class UserRewardKafkaListener {
             return;
         }
         applicationService.apply(applicationService.commandForLikeRemoved(
-                likeSourceId("like-removed", payload),
+                likeSourceId("removed", payload),
                 payload.getActorUserId(),
                 payload.getEntityUserId()
         ));
@@ -120,7 +121,10 @@ public class UserRewardKafkaListener {
     }
 
     private String likeSourceId(String action, LikePayload payload) {
-        return action + ":" + dashless(payload.getActorUserId()) + ":" + payload.getEntityType() + ":" + dashless(payload.getEntityId());
+        if (StringUtils.hasText(payload.getRelationKey())) {
+            return payload.getRelationKey().trim() + ":" + action;
+        }
+        return "like-" + action + ":" + dashless(payload.getActorUserId()) + ":" + payload.getEntityType() + ":" + dashless(payload.getEntityId());
     }
 
     private String dashless(java.util.UUID value) {

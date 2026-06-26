@@ -172,6 +172,7 @@ owner domain event
 - `user`：用户资料、头像、refresh token session、处罚状态和用户摘要。
 - `content`：帖子、评论、回复、收藏、分类订阅、标签、举报和内容治理动作。
 - `social`：点赞、关注、拉黑。
+- `social` 严格互动链默认要求 `social.storage=db`；Redis-backed social storage 不是支持的 correctness runtime。
 - `notice`：站内通知投影、列表、未读、摘要、已读。
 - `search`：帖子搜索、搜索投影、ES alias/index。
 - `analytics`：UV / DAU / 请求采集与查询。

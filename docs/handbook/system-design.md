@@ -118,6 +118,8 @@ caller ApplicationService
 | market fund action | `market_wallet_action` saga command -> wallet owner API | 市场事务先提交资金命令，后台 processor 调钱包并推进订单/争议状态 |
 | analytics | filter / application 写 Redis | 采集口径以当前配置和代码入口为准 |
 
+social 严格互动链当前只支持 `social.storage=db`。`social.events=outbox-kafka` 为默认 correctness backbone，Redis-backed social storage 不在支持矩阵内。
+
 因此“HTTP 成功”不等于“所有投影完成”。业务读模型若可能延迟，应提供补偿或明确 best-effort 语义。
 
 ## Outbox 设计

@@ -28,6 +28,16 @@ class StartupValidationTest {
         new StartupValidation().validateOrThrow(environment);
     }
 
+    @Test
+    void prodShouldRejectNonDbSocialStorage() {
+        MockEnvironment environment = prodEnvironment()
+                .withProperty("social.storage", "redis");
+
+        assertThatThrownBy(() -> new StartupValidation().validateOrThrow(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("social.storage=db");
+    }
+
     private MockEnvironment prodEnvironment() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("spring.profiles.active", "prod")

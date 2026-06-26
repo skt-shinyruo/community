@@ -80,6 +80,18 @@ public class MyBatisLikeRepository implements LikeRepository {
     }
 
     @Override
+    public List<LikeRelation> scanLikesByEntity(int entityType, UUID entityId, UUID afterActorUserId, int limit) {
+        UUID cursor = afterActorUserId == null ? new UUID(0L, 0L) : afterActorUserId;
+        List<LikeScanDataObject> rows = mapper.scanLikesByEntity(entityType, entityId, cursor, limit);
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        return rows.stream()
+                .map(row -> new LikeRelation(row.getUserId(), entityType, row.getEntityId(), row.getEntityUserId()))
+                .toList();
+    }
+
+    @Override
     public boolean isLiked(UUID userId, int entityType, UUID entityId) {
         return mapper.countLike(userId, entityType, entityId) > 0;
     }

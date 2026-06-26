@@ -38,6 +38,7 @@ public class LikeApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(LikeApplicationService.class);
     private static final int MAX_BATCH_ENTITY_IDS = 200;
+    private static final int CLEANUP_SCAN_LIMIT = 200;
 
     private final LikeRepository likeRepository;
     private final BlockRepository blockRepository;
@@ -134,7 +135,36 @@ public class LikeApplicationService {
     @Transactional
     public long cleanupEntityLikes(int entityType, UUID entityId) {
         validateLikeEntity(entityType, entityId);
-        return likeRepository.deleteLikesByEntity(entityType, entityId);
+        long removed = 0L;
+        UUID afterActorUserId = new UUID(0L, 0L);
+        while (true) {
+            List<LikeRelation> page = likeRepository.scanLikesByEntity(entityType, entityId, afterActorUserId, CLEANUP_SCAN_LIMIT);
+            if (page == null || page.isEmpty()) {
+                return removed;
+            }
+            for (LikeRelation relation : page) {
+                boolean changed = likeRepository.setLike(
+                        relation.actorUserId(),
+                        entityType,
+                        entityId,
+                        relation.entityUserId(),
+                        false
+                );
+                afterActorUserId = relation.actorUserId();
+                if (!changed) {
+                    continue;
+                }
+                eventPublisher.publishLikeChanged(likeDomainService.likeChangedEvent(
+                        relation.actorUserId(),
+                        entityType,
+                        entityId,
+                        new ResolvedSocialEntity(relation.entityUserId(), entityType == POST ? entityId : null),
+                        false,
+                        Instant.now()
+                ));
+                removed++;
+            }
+        }
     }
 
     public Map<UUID, Long> counts(int entityType, List<UUID> entityIds) {

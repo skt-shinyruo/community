@@ -95,4 +95,20 @@ public interface LikeMapper {
             @Param("afterUserId") UUID afterUserId,
             @Param("limit") int limit
     );
+
+    @Select("""
+            select user_id as userId, entity_id as entityId, entity_user_id as entityUserId
+            from social_like
+            where entity_type = #{entityType}
+              and entity_id = #{entityId, jdbcType=BINARY}
+              and user_id > #{afterUserId, jdbcType=BINARY}
+            order by user_id asc
+            limit #{limit}
+            """)
+    List<LikeScanDataObject> scanLikesByEntity(
+            @Param("entityType") int entityType,
+            @Param("entityId") UUID entityId,
+            @Param("afterUserId") UUID afterUserId,
+            @Param("limit") int limit
+    );
 }

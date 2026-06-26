@@ -204,6 +204,33 @@ class LikeApplicationServiceTest {
     }
 
     @Test
+    void cleanupShouldEmitLikeRemovedForEachExistingLike() {
+        StatefulLikeRepository repo = new StatefulLikeRepository();
+        RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                publisher,
+                mock(ContentEntityResolver.class)
+        );
+
+        assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
+        assertThat(repo.setLike(uuid(3), POST, uuid(100), uuid(2), true)).isTrue();
+
+        long removed = service.cleanupEntityLikes(POST, uuid(100));
+
+        assertThat(removed).isEqualTo(2L);
+        assertThat(repo.countEntityLikes(POST, uuid(100))).isZero();
+        assertThat(publisher.snapshot())
+                .filteredOn(LikeChangedDomainEvent.class::isInstance)
+                .extracting(LikeChangedDomainEvent.class::cast)
+                .allSatisfy(event -> assertThat(event.liked()).isFalse());
+        assertThat(publisher.snapshot())
+                .filteredOn(LikeChangedDomainEvent.class::isInstance)
+                .hasSize(2);
+    }
+
+    @Test
     void likeShouldStillFailWhenContentDomainReportsPostNotFoundOnCreate() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
         RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
@@ -438,6 +465,26 @@ class LikeApplicationServiceTest {
                 }
             }
             return removed.size();
+        }
+
+        @Override
+        public List<LikeRelation> scanLikesByEntity(int entityType, UUID entityId, UUID afterActorUserId, int limit) {
+            Map<UUID, UUID> map = entityLikes.get(entityKey(entityType, entityId));
+            if (map == null || map.isEmpty()) {
+                return List.of();
+            }
+            UUID cursor = afterActorUserId == null ? new UUID(0L, 0L) : afterActorUserId;
+            return map.entrySet().stream()
+                    .filter(entry -> entry.getKey().compareTo(cursor) > 0)
+                    .sorted(Map.Entry.comparingByKey())
+                    .limit(limit)
+                    .map(entry -> new LikeRelation(
+                            entry.getKey(),
+                            entityType,
+                            entityId,
+                            UNKNOWN_OWNER.equals(entry.getValue()) ? null : entry.getValue()
+                    ))
+                    .toList();
         }
 
         @Override

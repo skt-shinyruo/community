@@ -29,6 +29,10 @@ public interface LikeRepository {
         return 0;
     }
 
+    default List<LikeRelation> scanLikesByEntity(int entityType, UUID entityId, UUID afterActorUserId, int limit) {
+        return List.of();
+    }
+
     boolean isLiked(UUID userId, int entityType, UUID entityId);
 
     long countEntityLikes(int entityType, UUID entityId);

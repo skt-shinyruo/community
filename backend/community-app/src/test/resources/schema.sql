@@ -331,7 +331,7 @@ create table if not exists user_task_progress (
   reached_at timestamp null,
   claimed_at timestamp null,
   reward_grant_id varchar(191),
-  last_source_event_id varchar(64),
+  last_source_event_id varchar(128),
   update_time timestamp default current_timestamp,
   constraint uk_user_task_period unique (user_id, task_code, period_key)
 );
@@ -341,7 +341,7 @@ create table if not exists user_task_event_log (
   user_id binary(16) not null,
   task_code varchar(64) not null,
   period_key varchar(32) not null,
-  source_event_id varchar(64) not null,
+  source_event_id varchar(128) not null,
   create_time timestamp default current_timestamp,
   constraint uk_user_task_event unique (user_id, task_code, period_key, source_event_id)
 );

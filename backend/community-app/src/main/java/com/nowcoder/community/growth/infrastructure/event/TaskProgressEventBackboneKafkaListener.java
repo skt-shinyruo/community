@@ -9,6 +9,7 @@ import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService;
 import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
+import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
 import com.nowcoder.community.growth.application.command.TriggerPostPublishedCommand;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
@@ -57,24 +58,16 @@ public class TaskProgressEventBackboneKafkaListener {
             concurrency = "${growth.task.kafka.consumer.concurrency:3}"
     )
     public void onSocialEvent(SocialContractEvent event) {
-        if (event == null || !SocialEventTypes.LIKE_CREATED.equals(event.type())) {
+        if (event == null
+                || (!SocialEventTypes.LIKE_CREATED.equals(event.type()) && !SocialEventTypes.LIKE_REMOVED.equals(event.type()))) {
             return;
         }
         LikePayload payload = normalizePayload(event.payload(), LikePayload.class);
-        if (payload == null
-                || payload.getActorUserId() == null
-                || payload.getEntityId() == null
-                || payload.getEntityUserId() == null
-                || payload.getCreateTime() == null
-                || payload.getActorUserId().equals(payload.getEntityUserId())) {
-            return;
+        if (SocialEventTypes.LIKE_REMOVED.equals(event.type())) {
+            handleLikeRemoved(payload);
+        } else {
+            handleLikeCreated(payload);
         }
-        applicationService.triggerLikeCreated(new TriggerLikeCreatedCommand(
-                sourceEventId(payload),
-                payload.getActorUserId(),
-                payload.getEntityUserId(),
-                payload.getCreateTime()
-        ));
     }
 
     private void handlePostPublished(Object eventPayload) {
@@ -101,10 +94,44 @@ public class TaskProgressEventBackboneKafkaListener {
         ));
     }
 
+    private void handleLikeCreated(LikePayload payload) {
+        if (payload == null
+                || payload.getActorUserId() == null
+                || payload.getEntityId() == null
+                || payload.getEntityUserId() == null
+                || payload.getCreateTime() == null
+                || payload.getActorUserId().equals(payload.getEntityUserId())) {
+            return;
+        }
+        applicationService.triggerLikeCreated(new TriggerLikeCreatedCommand(
+                sourceEventId(payload),
+                payload.getActorUserId(),
+                payload.getEntityUserId(),
+                payload.getCreateTime()
+        ));
+    }
+
+    private void handleLikeRemoved(LikePayload payload) {
+        if (payload == null || payload.getEntityUserId() == null || !hasText(payload.getRelationKey())) {
+            return;
+        }
+        applicationService.triggerLikeRemoved(new TriggerLikeRemovedCommand(
+                payload.getRelationKey().trim(),
+                payload.getEntityUserId()
+        ));
+    }
+
     private String sourceEventId(LikePayload payload) {
+        if (hasText(payload.getRelationKey())) {
+            return payload.getRelationKey().trim();
+        }
         String source = payload.getActorUserId() + ":" + payload.getEntityType() + ":" + payload.getEntityId();
         UUID digest = UUID.nameUUIDFromBytes(source.getBytes(StandardCharsets.UTF_8));
         return "gl:like:" + digest;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private <T> T normalizePayload(Object payload, Class<T> type) {

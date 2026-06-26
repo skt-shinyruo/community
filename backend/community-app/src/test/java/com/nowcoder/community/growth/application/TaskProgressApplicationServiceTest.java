@@ -3,6 +3,8 @@ package com.nowcoder.community.growth.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
+import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +13,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -42,6 +46,7 @@ class TaskProgressApplicationServiceTest {
         jdbcTemplate.update("delete from wallet_entry");
         jdbcTemplate.update("delete from wallet_txn");
         jdbcTemplate.update("delete from wallet_account");
+        jdbcTemplate.update("delete from task_template where task_code like 'TEST_%'");
     }
 
     @Test
@@ -74,6 +79,49 @@ class TaskProgressApplicationServiceTest {
         assertThat(progressPeriodKey("LIFETIME_RECEIVE_LIKE")).isEqualTo("LIFETIME");
         assertThat(progressValue("LIFETIME_RECEIVE_LIKE")).isEqualTo(3);
         assertThat(walletTxnCountFor("task:" + USER_ID + ":LIFETIME_RECEIVE_LIKE:LIFETIME")).isEqualTo(1);
+    }
+
+    @Test
+    void likeRemovedShouldRollbackClaimableLikeTaskProgress() {
+        upsertLikeTaskTemplate("TEST_DAILY_RECEIVE_LIKE_CLAIM", "DAILY", 1, true);
+        Instant createTime = Instant.parse("2026-03-22T10:30:00Z");
+        String relationKey = "like:" + uuid(9) + ":3:" + uuid(100);
+
+        service.triggerLikeCreated(new TriggerLikeCreatedCommand(relationKey, uuid(9), USER_ID, createTime));
+
+        assertThat(progressValue("TEST_DAILY_RECEIVE_LIKE_CLAIM")).isEqualTo(1);
+        assertThat(progressStatus("TEST_DAILY_RECEIVE_LIKE_CLAIM")).isEqualTo("CLAIMABLE");
+        assertThat(eventLogCount("TEST_DAILY_RECEIVE_LIKE_CLAIM", relationKey)).isEqualTo(1);
+
+        service.triggerLikeRemoved(new TriggerLikeRemovedCommand(relationKey, USER_ID));
+
+        assertThat(progressValue("TEST_DAILY_RECEIVE_LIKE_CLAIM")).isZero();
+        assertThat(progressStatus("TEST_DAILY_RECEIVE_LIKE_CLAIM")).isEqualTo("IN_PROGRESS");
+        assertThat(progressReachedAt("TEST_DAILY_RECEIVE_LIKE_CLAIM")).isNull();
+        assertThat(eventLogCount("TEST_DAILY_RECEIVE_LIKE_CLAIM", relationKey)).isZero();
+    }
+
+    @Test
+    void likeRemovedShouldNotRollbackClaimedLikeTaskProgress() {
+        String firstRelationKey = "like:" + uuid(9) + ":3:" + uuid(100);
+        String secondRelationKey = "like:" + uuid(9) + ":3:" + uuid(101);
+        String thirdRelationKey = "like:" + uuid(9) + ":3:" + uuid(102);
+
+        service.triggerLikeCreated(new TriggerLikeCreatedCommand(firstRelationKey, uuid(9), USER_ID, Instant.parse("2026-03-20T10:30:00Z")));
+        service.triggerLikeCreated(new TriggerLikeCreatedCommand(secondRelationKey, uuid(9), USER_ID, Instant.parse("2026-03-21T10:30:00Z")));
+        service.triggerLikeCreated(new TriggerLikeCreatedCommand(thirdRelationKey, uuid(9), USER_ID, Instant.parse("2026-03-22T10:30:00Z")));
+
+        assertThat(progressStatus("LIFETIME_RECEIVE_LIKE")).isEqualTo("CLAIMED");
+        assertThat(progressValue("LIFETIME_RECEIVE_LIKE")).isEqualTo(3);
+        assertThat(walletTxnCountFor("task:" + USER_ID + ":LIFETIME_RECEIVE_LIKE:LIFETIME")).isEqualTo(1);
+        assertThat(eventLogCount("LIFETIME_RECEIVE_LIKE", firstRelationKey)).isEqualTo(1);
+
+        service.triggerLikeRemoved(new TriggerLikeRemovedCommand(firstRelationKey, USER_ID));
+
+        assertThat(progressStatus("LIFETIME_RECEIVE_LIKE")).isEqualTo("CLAIMED");
+        assertThat(progressValue("LIFETIME_RECEIVE_LIKE")).isEqualTo(3);
+        assertThat(walletTxnCountFor("task:" + USER_ID + ":LIFETIME_RECEIVE_LIKE:LIFETIME")).isEqualTo(1);
+        assertThat(eventLogCount("LIFETIME_RECEIVE_LIKE", firstRelationKey)).isEqualTo(1);
     }
 
     @Test
@@ -135,6 +183,24 @@ class TaskProgressApplicationServiceTest {
         );
     }
 
+    private String progressStatus(String taskCode) {
+        return jdbcTemplate.queryForObject(
+                "select status from user_task_progress where user_id = ? and task_code = ?",
+                String.class,
+                BinaryUuidCodec.toBytes(USER_ID),
+                taskCode
+        );
+    }
+
+    private Timestamp progressReachedAt(String taskCode) {
+        return jdbcTemplate.queryForObject(
+                "select reached_at from user_task_progress where user_id = ? and task_code = ?",
+                Timestamp.class,
+                BinaryUuidCodec.toBytes(USER_ID),
+                taskCode
+        );
+    }
+
     private int walletTxnCountFor(String requestId) {
         Integer count = jdbcTemplate.queryForObject(
                 "select count(*) from wallet_txn where request_id = ?",
@@ -142,6 +208,27 @@ class TaskProgressApplicationServiceTest {
                 requestId
         );
         return count == null ? 0 : count;
+    }
+
+    private int eventLogCount(String taskCode, String sourceEventId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "select count(*) from user_task_event_log where user_id = ? and task_code = ? and source_event_id = ?",
+                Integer.class,
+                BinaryUuidCodec.toBytes(USER_ID),
+                taskCode,
+                sourceEventId
+        );
+        return count == null ? 0 : count;
+    }
+
+    private void upsertLikeTaskTemplate(String taskCode, String periodType, int targetValue, boolean claimRequired) {
+        jdbcTemplate.update(
+                "merge into task_template(task_code, task_type, period_type, trigger_event_type, target_value, reward_growth_delta, reward_balance_delta, claim_required, display_order, status) key(task_code) values (?, 'SOCIAL', ?, 'LikeCreated', ?, 0, 0, ?, 99, 'ACTIVE')",
+                taskCode,
+                periodType,
+                targetValue,
+                claimRequired
+        );
     }
 
     private int countRows(String tableName) {

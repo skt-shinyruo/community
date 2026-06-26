@@ -5,6 +5,7 @@ import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService;
 import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
+import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
 import com.nowcoder.community.growth.application.command.TriggerPostPublishedCommand;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import org.junit.jupiter.api.Test;
@@ -64,15 +65,36 @@ class TaskProgressKafkaListenerTest {
         payload.setEntityType(POST);
         payload.setEntityId(uuid(100));
         payload.setEntityUserId(uuid(2));
+        payload.setRelationKey("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
         payload.setCreateTime(Instant.parse("2026-05-18T10:30:00Z"));
 
         listener.onLikeCreated(payload);
 
         verify(applicationService).triggerLikeCreated(new TriggerLikeCreatedCommand(
-                "like-created:" + uuid(1) + ":" + POST + ":" + uuid(100),
+                "like:" + uuid(1) + ":" + POST + ":" + uuid(100),
                 uuid(1),
                 uuid(2),
                 Instant.parse("2026-05-18T10:30:00Z")
+        ));
+    }
+
+    @Test
+    void likeRemovedShouldTriggerRollbackForEntityOwner() {
+        TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
+        TaskProgressKafkaListener listener = new TaskProgressKafkaListener(applicationService);
+        LikePayload payload = new LikePayload();
+        payload.setActorUserId(uuid(1));
+        payload.setEntityType(POST);
+        payload.setEntityId(uuid(100));
+        payload.setEntityUserId(uuid(2));
+        payload.setRelationKey("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
+        payload.setCreateTime(Instant.parse("2026-05-18T10:30:00Z"));
+
+        listener.onLikeRemoved(payload);
+
+        verify(applicationService).triggerLikeRemoved(new TriggerLikeRemovedCommand(
+                "like:" + uuid(1) + ":" + POST + ":" + uuid(100),
+                uuid(2)
         ));
     }
 

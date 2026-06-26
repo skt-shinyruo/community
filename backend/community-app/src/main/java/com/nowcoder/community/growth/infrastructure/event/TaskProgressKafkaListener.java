@@ -5,6 +5,7 @@ import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService;
 import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
+import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
 import com.nowcoder.community.growth.application.command.TriggerPostPublishedCommand;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -73,7 +74,31 @@ public class TaskProgressKafkaListener {
         ));
     }
 
+    @KafkaListener(
+            topics = "${growth.task.kafka.topics.like-removed:growth.task.like-removed}",
+            groupId = "${growth.task.kafka.consumer.group-id:growth-task-progress}",
+            concurrency = "${growth.task.kafka.consumer.concurrency:3}"
+    )
+    public void onLikeRemoved(LikePayload payload) {
+        if (payload == null
+                || payload.getEntityUserId() == null
+                || !hasText(payload.getRelationKey())) {
+            return;
+        }
+        applicationService.triggerLikeRemoved(new TriggerLikeRemovedCommand(
+                payload.getRelationKey().trim(),
+                payload.getEntityUserId()
+        ));
+    }
+
     private String sourceEventId(LikePayload payload) {
+        if (hasText(payload.getRelationKey())) {
+            return payload.getRelationKey().trim();
+        }
         return "like-created:" + payload.getActorUserId() + ":" + payload.getEntityType() + ":" + payload.getEntityId();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

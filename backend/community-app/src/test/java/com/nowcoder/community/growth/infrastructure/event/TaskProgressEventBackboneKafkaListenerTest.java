@@ -10,6 +10,7 @@ import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService;
 import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
+import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
 import com.nowcoder.community.growth.application.command.TriggerPostPublishedCommand;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
@@ -18,9 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.UUID;
 
 import static com.nowcoder.community.common.constants.EntityTypes.POST;
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -92,10 +91,12 @@ class TaskProgressEventBackboneKafkaListenerTest {
     }
 
     @Test
-    void likeCreatedShouldUseShortDeterministicSourceId() {
+    void likeCreatedShouldUseStableRelationKeyAsGrowthSourceId() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = new TaskProgressEventBackboneKafkaListener(jsonCodec, applicationService);
+        String relationKey = "like:" + uuid(1) + ":" + POST + ":" + uuid(100);
         LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2), Instant.parse("2026-05-18T10:30:00Z"));
+        payload.setRelationKey(relationKey);
 
         listener.onSocialEvent(new SocialContractEvent("se:like:created:1", SocialEventTypes.LIKE_CREATED, payload));
         listener.onSocialEvent(new SocialContractEvent("se:like:created:2", SocialEventTypes.LIKE_CREATED, payload));
@@ -104,9 +105,7 @@ class TaskProgressEventBackboneKafkaListenerTest {
         verify(applicationService, org.mockito.Mockito.times(2)).triggerLikeCreated(captor.capture());
         TriggerLikeCreatedCommand first = captor.getAllValues().get(0);
         TriggerLikeCreatedCommand second = captor.getAllValues().get(1);
-        String source = uuid(1) + ":" + POST + ":" + uuid(100);
-        String expectedSourceEventId = "gl:like:" + UUID.nameUUIDFromBytes(source.getBytes(StandardCharsets.UTF_8));
-        assertThat(first.sourceEventId()).isEqualTo(expectedSourceEventId);
+        assertThat(first.sourceEventId()).isEqualTo(relationKey);
         assertThat(first.sourceEventId()).isEqualTo(second.sourceEventId());
         assertThat(first.actorUserId()).isEqualTo(uuid(1));
         assertThat(first.entityUserId()).isEqualTo(uuid(2));
@@ -126,15 +125,32 @@ class TaskProgressEventBackboneKafkaListenerTest {
                         "entityType", POST,
                         "entityId", uuid(100).toString(),
                         "entityUserId", uuid(2).toString(),
+                        "relationKey", "like:" + uuid(1) + ":" + POST + ":" + uuid(100),
                         "createTime", "2026-05-18T10:30:00Z"
                 )
         ));
 
         ArgumentCaptor<TriggerLikeCreatedCommand> captor = ArgumentCaptor.forClass(TriggerLikeCreatedCommand.class);
         verify(applicationService).triggerLikeCreated(captor.capture());
+        assertThat(captor.getValue().sourceEventId()).isEqualTo("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
         assertThat(captor.getValue().actorUserId()).isEqualTo(uuid(1));
         assertThat(captor.getValue().entityUserId()).isEqualTo(uuid(2));
         assertThat(captor.getValue().createTime()).isEqualTo(Instant.parse("2026-05-18T10:30:00Z"));
+    }
+
+    @Test
+    void likeRemovedShouldTriggerRollbackByRelationKey() {
+        TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
+        TaskProgressEventBackboneKafkaListener listener = new TaskProgressEventBackboneKafkaListener(jsonCodec, applicationService);
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2), Instant.parse("2026-05-18T10:30:00Z"));
+        payload.setRelationKey("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
+
+        listener.onSocialEvent(new SocialContractEvent("se:like:removed:1", SocialEventTypes.LIKE_REMOVED, payload));
+
+        verify(applicationService).triggerLikeRemoved(new TriggerLikeRemovedCommand(
+                "like:" + uuid(1) + ":" + POST + ":" + uuid(100),
+                uuid(2)
+        ));
     }
 
     @Test

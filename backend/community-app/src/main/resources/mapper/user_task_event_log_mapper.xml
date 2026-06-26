@@ -10,4 +10,25 @@
         values(#{id, jdbcType=BINARY}, #{userId, jdbcType=BINARY}, #{taskCode}, #{periodKey}, #{sourceEventId}, current_timestamp)
     </insert>
 
+    <select id="selectLikeContributionLogs" resultType="com.nowcoder.community.growth.domain.repository.UserTaskEventLogRepository$UserTaskContributionLog">
+        select l.user_id as userId,
+               l.task_code as taskCode,
+               l.period_key as periodKey,
+               l.source_event_id as sourceEventId
+        from user_task_event_log l
+                 join task_template t on t.task_code = l.task_code
+        where l.user_id = #{userId, jdbcType=BINARY}
+          and l.source_event_id = #{sourceEventId}
+          and t.trigger_event_type = 'LikeCreated'
+    </select>
+
+    <delete id="deleteByUserTaskPeriodAndSourceEventId">
+        delete
+        from user_task_event_log
+        where user_id = #{userId, jdbcType=BINARY}
+          and task_code = #{taskCode}
+          and period_key = #{periodKey}
+          and source_event_id = #{sourceEventId}
+    </delete>
+
 </mapper>

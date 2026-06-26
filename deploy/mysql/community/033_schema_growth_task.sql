@@ -43,7 +43,7 @@ create table if not exists user_task_progress (
   reached_at timestamp null default null,
   claimed_at timestamp null default null,
   reward_grant_id varchar(64) default null,
-  last_source_event_id varchar(64) default null,
+  last_source_event_id varchar(128) default null,
   update_time timestamp null default current_timestamp on update current_timestamp,
   unique key uk_user_task_period (user_id, task_code, period_key),
   key idx_user_task_lookup (user_id, status, update_time)
@@ -54,7 +54,7 @@ create table if not exists user_task_event_log (
   user_id binary(16) not null,
   task_code varchar(64) not null,
   period_key varchar(32) not null,
-  source_event_id varchar(64) not null,
+  source_event_id varchar(128) not null,
   create_time timestamp null default current_timestamp,
   unique key uk_user_task_event (user_id, task_code, period_key, source_event_id),
   key idx_user_task_event_lookup (user_id, task_code, period_key, create_time)

@@ -4,6 +4,7 @@ import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.growth.application.command.RecordTaskProgressCommand;
 import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
+import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
 import com.nowcoder.community.growth.application.command.TriggerPostPublishedCommand;
 import com.nowcoder.community.growth.domain.model.TaskTemplate;
 import com.nowcoder.community.growth.domain.model.UserTaskProgress;
@@ -131,6 +132,14 @@ public class TaskProgressApplicationService {
         process(toUserId, TRIGGER_LIKE_CREATED, command.sourceEventId().trim(), command.createTime());
     }
 
+    @Transactional
+    public void triggerLikeRemoved(TriggerLikeRemovedCommand command) {
+        if (command == null || !StringUtils.hasText(command.relationKey()) || command.entityUserId() == null) {
+            return;
+        }
+        rollbackLikeCreatedProgress(command.entityUserId(), command.relationKey().trim());
+    }
+
     private void process(UUID userId, String triggerEventType, String sourceEventId, Instant occurredAt) {
         if (userId == null || !StringUtils.hasText(triggerEventType) || !StringUtils.hasText(sourceEventId) || occurredAt == null) {
             return;
@@ -213,5 +222,57 @@ public class TaskProgressApplicationService {
         } catch (DataIntegrityViolationException ignored) {
             // Another event created the row first; lock and continue.
         }
+    }
+
+    private void rollbackLikeCreatedProgress(UUID userId, String relationKey) {
+        List<UserTaskEventLogRepository.UserTaskContributionLog> logs =
+                userTaskEventLogRepository.findLikeContributionLogs(userId, relationKey);
+        if (logs == null || logs.isEmpty()) {
+            return;
+        }
+        for (UserTaskEventLogRepository.UserTaskContributionLog log : logs) {
+            rollbackLikeContribution(log, relationKey);
+        }
+    }
+
+    private void rollbackLikeContribution(UserTaskEventLogRepository.UserTaskContributionLog log, String relationKey) {
+        if (log == null) {
+            return;
+        }
+        UserTaskProgress progress = userTaskProgressRepository.findByUserTaskAndPeriodForUpdate(
+                log.userId(),
+                log.taskCode(),
+                log.periodKey()
+        );
+        if (progress == null) {
+            userTaskEventLogRepository.deleteByUserTaskPeriodAndSourceEventId(
+                    log.userId(),
+                    log.taskCode(),
+                    log.periodKey(),
+                    log.sourceEventId()
+            );
+            return;
+        }
+        if (STATUS_CLAIMED.equals(progress.getStatus())) {
+            return;
+        }
+
+        int nextValue = Math.max(progress.getCurrentValue() - 1, 0);
+        boolean stillReached = nextValue >= progress.getTargetValue();
+        userTaskProgressRepository.updateProgress(
+                progress.getId(),
+                nextValue,
+                stillReached ? STATUS_CLAIMABLE : STATUS_IN_PROGRESS,
+                stillReached ? progress.getReachedAt() : null,
+                null,
+                null,
+                relationKey
+        );
+        userTaskEventLogRepository.deleteByUserTaskPeriodAndSourceEventId(
+                log.userId(),
+                log.taskCode(),
+                log.periodKey(),
+                log.sourceEventId()
+        );
     }
 }

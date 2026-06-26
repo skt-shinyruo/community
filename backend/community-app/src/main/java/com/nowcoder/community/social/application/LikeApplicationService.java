@@ -98,14 +98,14 @@ public class LikeApplicationService {
             registerRollbackIfTxRolledBack("like", rollback);
         }
 
-        Instant createTime = Instant.now();
+        Instant occurredAt = Instant.now();
         LikeChangedDomainEvent event = likeDomainService.likeChangedEvent(
                 actorUserId,
                 entityType,
                 entityId,
                 resolved,
                 liked,
-                createTime
+                occurredAt
         );
         try {
             eventPublisher.publishLikeChanged(event);

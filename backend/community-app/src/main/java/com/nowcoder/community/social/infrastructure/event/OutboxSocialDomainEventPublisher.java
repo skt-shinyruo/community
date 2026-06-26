@@ -47,7 +47,9 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         payload.setEntityId(event.entityId());
         payload.setEntityUserId(event.entityUserId());
         payload.setPostId(event.postId());
-        payload.setCreateTime(event.createTime());
+        payload.setRelationKey(event.relationKey());
+        payload.setOccurredAt(event.occurredAt());
+        payload.setCreateTime(event.occurredAt());
 
         String type = event.liked() ? SocialEventTypes.LIKE_CREATED : SocialEventTypes.LIKE_REMOVED;
         publish(

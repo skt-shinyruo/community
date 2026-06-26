@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.IntStream;
 
 import static com.nowcoder.community.common.constants.EntityTypes.POST;
+import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -40,6 +41,25 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class LikeApplicationServiceTest {
+
+    @Test
+    void selfLikeShouldBeRejectedForUserEntity() {
+        LikeRepository repo = mock(LikeRepository.class);
+        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                mock(SocialDomainEventPublisher.class),
+                resolver
+        );
+
+        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(uuid(1), USER, uuid(1), true)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+
+        verifyNoInteractions(repo, resolver);
+    }
 
     @Test
     void likeShouldBeForbiddenWhenEitherBlockedOnCreate() {
@@ -94,6 +114,24 @@ class LikeApplicationServiceTest {
         assertThat(r4.likeCount()).isEqualTo(0);
         assertThat(service.userLikeCount(uuid(2))).isEqualTo(0);
         assertThat(publisher.snapshot()).hasSize(2);
+    }
+
+    @Test
+    void likeAndUnlikeShouldShareStableRelationKey() {
+        StatefulLikeRepository repo = new StatefulLikeRepository();
+        RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
+        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
+        Mockito.when(resolver.resolve(POST, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
+        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver);
+
+        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
+        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), false));
+
+        assertThat(publisher.snapshot()).hasSize(2);
+        LikeChangedDomainEvent created = (LikeChangedDomainEvent) publisher.snapshot().get(0);
+        LikeChangedDomainEvent removed = (LikeChangedDomainEvent) publisher.snapshot().get(1);
+        assertThat(created.relationKey()).isEqualTo(removed.relationKey());
+        assertThat(created.relationKey()).isEqualTo("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
     }
 
     @Test

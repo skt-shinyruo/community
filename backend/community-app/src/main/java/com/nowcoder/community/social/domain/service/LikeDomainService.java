@@ -21,6 +21,9 @@ public class LikeDomainService {
         if (!isSupportedLikeEntityType(entityType) || entityId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType/entityId 非法");
         }
+        if (entityType == USER && actorUserId.equals(entityId)) {
+            throw new BusinessException(INVALID_ARGUMENT, "不能给自己点赞");
+        }
     }
 
     private boolean isSupportedLikeEntityType(int entityType) {
@@ -31,13 +34,17 @@ public class LikeDomainService {
         return requestedLiked == null ? !existed : Boolean.TRUE.equals(requestedLiked);
     }
 
+    public String relationKey(UUID actorUserId, int entityType, UUID entityId) {
+        return "like:" + actorUserId + ":" + entityType + ":" + entityId;
+    }
+
     public LikeChangedDomainEvent likeChangedEvent(
             UUID actorUserId,
             int entityType,
             UUID entityId,
             ResolvedSocialEntity resolved,
             boolean liked,
-            Instant createTime
+            Instant occurredAt
     ) {
         return new LikeChangedDomainEvent(
                 actorUserId,
@@ -45,8 +52,9 @@ public class LikeDomainService {
                 entityId,
                 resolved == null ? null : resolved.entityUserId(),
                 resolved == null ? null : resolved.postId(),
+                relationKey(actorUserId, entityType, entityId),
                 liked,
-                createTime
+                occurredAt
         );
     }
 }

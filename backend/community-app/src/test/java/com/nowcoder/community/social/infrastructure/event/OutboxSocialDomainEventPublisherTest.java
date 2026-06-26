@@ -74,7 +74,9 @@ class OutboxSocialDomainEventPublisherTest {
         );
 
         publisher.publishLikeChanged(new LikeChangedDomainEvent(
-                actorUserId, EntityTypes.POST, entityId, uuid(2), entityId, true, Instant.EPOCH
+                actorUserId, EntityTypes.POST, entityId, uuid(2), entityId,
+                "like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId,
+                true, Instant.EPOCH
         ));
 
         ArgumentCaptor<String> eventIdCaptor = ArgumentCaptor.forClass(String.class);
@@ -94,6 +96,9 @@ class OutboxSocialDomainEventPublisherTest {
         assertThat(json.path("payload").path("actorUserId").asText()).isEqualTo(actorUserId.toString());
         assertThat(json.path("payload").path("entityType").asInt()).isEqualTo(EntityTypes.POST);
         assertThat(json.path("payload").path("entityId").asText()).isEqualTo(entityId.toString());
+        assertThat(json.path("payload").path("relationKey").asText())
+                .isEqualTo("like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId);
+        assertThat(json.path("payload").path("occurredAt").asText()).isEqualTo(Instant.EPOCH.toString());
     }
 
     @Test
@@ -109,7 +114,9 @@ class OutboxSocialDomainEventPublisherTest {
         );
 
         publisher.publishLikeChanged(new LikeChangedDomainEvent(
-                actorUserId, EntityTypes.COMMENT, entityId, uuid(4), uuid(40), false, Instant.EPOCH
+                actorUserId, EntityTypes.COMMENT, entityId, uuid(4), uuid(40),
+                "like:" + actorUserId + ":" + EntityTypes.COMMENT + ":" + entityId,
+                false, Instant.EPOCH
         ));
 
         ArgumentCaptor<String> eventIdCaptor = ArgumentCaptor.forClass(String.class);
@@ -176,10 +183,14 @@ class OutboxSocialDomainEventPublisherTest {
         UUID blockedUserId = uuid(105);
 
         publisher.publishLikeChanged(new LikeChangedDomainEvent(
-                uuid(201), EntityTypes.POST, likedPostId, uuid(301), likedPostId, true, Instant.EPOCH
+                uuid(201), EntityTypes.POST, likedPostId, uuid(301), likedPostId,
+                "like:" + uuid(201) + ":" + EntityTypes.POST + ":" + likedPostId,
+                true, Instant.EPOCH
         ));
         publisher.publishLikeChanged(new LikeChangedDomainEvent(
-                uuid(202), EntityTypes.COMMENT, removedCommentId, uuid(302), uuid(402), false, Instant.EPOCH
+                uuid(202), EntityTypes.COMMENT, removedCommentId, uuid(302), uuid(402),
+                "like:" + uuid(202) + ":" + EntityTypes.COMMENT + ":" + removedCommentId,
+                false, Instant.EPOCH
         ));
         publisher.publishFollowCreated(new FollowCreatedDomainEvent(
                 uuid(203), EntityTypes.USER, followedUserId, followedUserId, Instant.EPOCH
@@ -218,6 +229,8 @@ class OutboxSocialDomainEventPublisherTest {
                 );
         assertThat(eventCaptor.getAllValues().get(0).payload()).isInstanceOf(LikePayload.class);
         assertThat(((LikePayload) eventCaptor.getAllValues().get(0).payload()).getEntityId()).isEqualTo(likedPostId);
+        assertThat(((LikePayload) eventCaptor.getAllValues().get(0).payload()).getRelationKey())
+                .isEqualTo("like:" + uuid(201) + ":" + EntityTypes.POST + ":" + likedPostId);
         assertThat(eventCaptor.getAllValues().get(1).payload()).isInstanceOf(LikePayload.class);
         assertThat(((LikePayload) eventCaptor.getAllValues().get(1).payload()).getEntityId()).isEqualTo(removedCommentId);
         assertThat(eventCaptor.getAllValues().get(2).payload()).isInstanceOf(FollowPayload.class);
@@ -271,7 +284,9 @@ class OutboxSocialDomainEventPublisherTest {
                 TOPIC
         );
         LikeChangedDomainEvent event = new LikeChangedDomainEvent(
-                actorUserId, EntityTypes.POST, entityId, uuid(2), entityId, true, Instant.EPOCH
+                actorUserId, EntityTypes.POST, entityId, uuid(2), entityId,
+                "like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId,
+                true, Instant.EPOCH
         );
 
         publisher.publishLikeChanged(event);
@@ -302,8 +317,8 @@ class OutboxSocialDomainEventPublisherTest {
         );
 
         publisher.publishLikeChanged(null);
-        publisher.publishLikeChanged(new LikeChangedDomainEvent(null, EntityTypes.POST, uuid(10), uuid(2), uuid(10), true, Instant.EPOCH));
-        publisher.publishLikeChanged(new LikeChangedDomainEvent(uuid(1), EntityTypes.POST, null, uuid(2), uuid(10), true, Instant.EPOCH));
+        publisher.publishLikeChanged(new LikeChangedDomainEvent(null, EntityTypes.POST, uuid(10), uuid(2), uuid(10), null, true, Instant.EPOCH));
+        publisher.publishLikeChanged(new LikeChangedDomainEvent(uuid(1), EntityTypes.POST, null, uuid(2), uuid(10), null, true, Instant.EPOCH));
         publisher.publishFollowCreated(new FollowCreatedDomainEvent(null, EntityTypes.USER, uuid(2), uuid(2), Instant.EPOCH));
         publisher.publishFollowCreated(new FollowCreatedDomainEvent(uuid(1), EntityTypes.USER, null, uuid(2), Instant.EPOCH));
         publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(null, uuid(2), true, 0L));

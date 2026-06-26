@@ -10,6 +10,8 @@ public class LikePayload {
     private UUID entityId;
     private UUID entityUserId;
     private UUID postId;
+    private String relationKey;
+    private Instant occurredAt;
     private Instant createTime;
 
     public UUID getActorUserId() {
@@ -50,6 +52,22 @@ public class LikePayload {
 
     public void setPostId(UUID postId) {
         this.postId = postId;
+    }
+
+    public String getRelationKey() {
+        return relationKey;
+    }
+
+    public void setRelationKey(String relationKey) {
+        this.relationKey = relationKey;
+    }
+
+    public Instant getOccurredAt() {
+        return occurredAt;
+    }
+
+    public void setOccurredAt(Instant occurredAt) {
+        this.occurredAt = occurredAt;
     }
 
     public Instant getCreateTime() {

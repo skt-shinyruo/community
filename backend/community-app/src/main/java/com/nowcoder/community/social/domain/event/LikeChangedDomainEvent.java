@@ -9,7 +9,8 @@ public record LikeChangedDomainEvent(
         UUID entityId,
         UUID entityUserId,
         UUID postId,
+        String relationKey,
         boolean liked,
-        Instant createTime
+        Instant occurredAt
 ) {
 }

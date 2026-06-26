@@ -48,6 +48,16 @@ class LikeDomainServiceTest {
     }
 
     @Test
+    void validateLikeShouldRejectSelfLikeForUserEntity() {
+        LikeDomainService service = new LikeDomainService();
+
+        assertThatThrownBy(() -> service.validateLike(uuid(1), USER, uuid(1)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+    }
+
+    @Test
     void validateLikeShouldAcceptOnlySupportedEntityTypes() {
         LikeDomainService service = new LikeDomainService();
 
@@ -83,7 +93,8 @@ class LikeDomainServiceTest {
         assertThat(event.entityId()).isEqualTo(uuid(10));
         assertThat(event.entityUserId()).isEqualTo(uuid(2));
         assertThat(event.postId()).isEqualTo(uuid(10));
+        assertThat(event.relationKey()).isEqualTo("like:" + uuid(1) + ":" + EntityTypes.POST + ":" + uuid(10));
         assertThat(event.liked()).isTrue();
-        assertThat(event.createTime()).isEqualTo(createdAt);
+        assertThat(event.occurredAt()).isEqualTo(createdAt);
     }
 }

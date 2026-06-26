@@ -29,7 +29,9 @@ class LocalSocialDomainEventPublisherTest {
         Instant createdAt = Instant.parse("2026-04-28T00:00:00Z");
 
         publisher.publishLikeChanged(new LikeChangedDomainEvent(
-                uuid(1), EntityTypes.POST, uuid(10), uuid(2), uuid(10), true, createdAt
+                uuid(1), EntityTypes.POST, uuid(10), uuid(2), uuid(10),
+                "like:" + uuid(1) + ":" + EntityTypes.POST + ":" + uuid(10),
+                true, createdAt
         ));
 
         SocialContractEvent event = captureEvent(springPublisher);
@@ -42,6 +44,8 @@ class LocalSocialDomainEventPublisherTest {
         assertThat(payload.getEntityId()).isEqualTo(uuid(10));
         assertThat(payload.getEntityUserId()).isEqualTo(uuid(2));
         assertThat(payload.getPostId()).isEqualTo(uuid(10));
+        assertThat(payload.getRelationKey()).isEqualTo("like:" + uuid(1) + ":" + EntityTypes.POST + ":" + uuid(10));
+        assertThat(payload.getOccurredAt()).isEqualTo(createdAt);
         assertThat(payload.getCreateTime()).isEqualTo(createdAt);
     }
 
@@ -51,7 +55,9 @@ class LocalSocialDomainEventPublisherTest {
         LocalSocialDomainEventPublisher publisher = new LocalSocialDomainEventPublisher(springPublisher);
 
         publisher.publishLikeChanged(new LikeChangedDomainEvent(
-                uuid(1), EntityTypes.POST, uuid(10), uuid(2), uuid(10), false, Instant.EPOCH
+                uuid(1), EntityTypes.POST, uuid(10), uuid(2), uuid(10),
+                "like:" + uuid(1) + ":" + EntityTypes.POST + ":" + uuid(10),
+                false, Instant.EPOCH
         ));
 
         SocialContractEvent event = captureEvent(springPublisher);

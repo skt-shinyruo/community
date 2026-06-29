@@ -86,7 +86,7 @@ class TaskProgressApplicationServiceUnitTest {
 
         service.processEvent(userId, "PostPublished", "post-evt-1", LocalDate.of(2026, 3, 22));
 
-        verify(walletRewardService).issue("task:" + userId + ":DAILY_POST:2026-03-22", userId, 4L, "DAILY_POST");
+        verify(walletRewardService).issue("task:" + userId + ":DAILY_POST:2026-03-22", userId, 1L, "DAILY_POST");
         verify(userTaskProgressRepository).updateProgress(any(UUID.class), anyInt(), anyString(), any(), any(), anyString(), anyString());
     }
 

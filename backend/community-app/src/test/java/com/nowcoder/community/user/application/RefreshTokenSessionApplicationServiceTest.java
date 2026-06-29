@@ -2,6 +2,7 @@ package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.user.application.result.RefreshTokenSessionResult;
 import com.nowcoder.community.user.domain.model.RefreshTokenSession;
+import com.nowcoder.community.user.domain.model.RefreshTokenSessionState;
 import com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,6 +23,7 @@ class RefreshTokenSessionApplicationServiceTest {
     private static final UUID USER_ID = UUID.fromString("00000000-0000-7000-8000-000000000007");
     private static final Instant EXPIRES_AT = Instant.parse("2026-04-21T03:00:00Z");
     private static final Instant REVOKED_AT = Instant.parse("2026-04-20T03:00:00Z");
+    private static final Instant PENDING_EXPIRES_AT = Instant.parse("2026-04-20T03:00:30Z");
 
     @Mock
     private RefreshTokenSessionRepository repository;
@@ -55,5 +57,29 @@ class RefreshTokenSessionApplicationServiceTest {
         verify(repository).revokeFamily("family-1");
         verify(repository).revokeByUserId(USER_ID);
         verify(repository).deleteExpiredBefore(EXPIRES_AT);
+    }
+
+    @Test
+    void rotationMethodsShouldDelegateAndMapState() {
+        RefreshTokenSessionApplicationService service = new RefreshTokenSessionApplicationService(repository);
+        RefreshTokenSession pending = new RefreshTokenSession(
+                TOKEN_HASH,
+                USER_ID,
+                "family-1",
+                EXPIRES_AT,
+                null,
+                RefreshTokenSessionState.PENDING_ROTATION,
+                PENDING_EXPIRES_AT
+        );
+        when(repository.beginRotation(TOKEN_HASH, PENDING_EXPIRES_AT)).thenReturn(pending);
+        when(repository.finishRotation(TOKEN_HASH, "replacement-hash", USER_ID, "family-1", EXPIRES_AT)).thenReturn(true);
+        when(repository.rollbackPendingRotation(TOKEN_HASH)).thenReturn(true);
+
+        RefreshTokenSessionResult result = service.beginRotation(TOKEN_HASH, PENDING_EXPIRES_AT);
+
+        assertThat(result.state()).isEqualTo(RefreshTokenSessionState.PENDING_ROTATION);
+        assertThat(result.pendingExpiresAt()).isEqualTo(PENDING_EXPIRES_AT);
+        assertThat(service.finishRotation(TOKEN_HASH, "replacement-hash", USER_ID, "family-1", EXPIRES_AT)).isTrue();
+        assertThat(service.rollbackPendingRotation(TOKEN_HASH)).isTrue();
     }
 }

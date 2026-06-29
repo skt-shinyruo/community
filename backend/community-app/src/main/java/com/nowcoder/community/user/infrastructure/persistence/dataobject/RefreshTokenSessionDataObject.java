@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.infrastructure.persistence.dataobject;
 
 import com.nowcoder.community.user.domain.model.RefreshTokenSession;
+import com.nowcoder.community.user.domain.model.RefreshTokenSessionState;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -11,10 +12,17 @@ public class RefreshTokenSessionDataObject {
     private UUID userId;
     private String familyId;
     private Instant expiresAt;
+    private RefreshTokenSessionState state;
+    private Instant pendingExpiresAt;
     private Instant revokedAt;
 
     public RefreshTokenSession toDomain() {
-        return new RefreshTokenSession(tokenHash, userId, familyId, expiresAt, revokedAt);
+        RefreshTokenSessionState normalizedState = state == null ? legacyState() : state;
+        return new RefreshTokenSession(tokenHash, userId, familyId, expiresAt, revokedAt, normalizedState, pendingExpiresAt);
+    }
+
+    private RefreshTokenSessionState legacyState() {
+        return revokedAt == null ? RefreshTokenSessionState.ACTIVE : RefreshTokenSessionState.REVOKED;
     }
 
     public String getTokenHash() {
@@ -47,6 +55,22 @@ public class RefreshTokenSessionDataObject {
 
     public void setExpiresAt(Instant expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public RefreshTokenSessionState getState() {
+        return state;
+    }
+
+    public void setState(RefreshTokenSessionState state) {
+        this.state = state;
+    }
+
+    public Instant getPendingExpiresAt() {
+        return pendingExpiresAt;
+    }
+
+    public void setPendingExpiresAt(Instant pendingExpiresAt) {
+        this.pendingExpiresAt = pendingExpiresAt;
     }
 
     public Instant getRevokedAt() {

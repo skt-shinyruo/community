@@ -358,8 +358,11 @@ create table if not exists auth_refresh_token (
   user_id binary(16) not null,
   family_id varchar(64) not null,
   expires_at timestamp not null,
+  state varchar(32) not null default 'ACTIVE',
+  pending_expires_at timestamp,
   revoked_at timestamp,
-  created_at timestamp default current_timestamp
+  created_at timestamp default current_timestamp,
+  constraint ck_auth_refresh_token_state check (state in ('ACTIVE', 'PENDING_ROTATION', 'CONSUMED', 'REVOKED'))
 );
 
 create table if not exists auth_refresh_token_family_revocation (

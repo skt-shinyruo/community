@@ -65,6 +65,55 @@ public class MyBatisRefreshTokenSessionRepository implements com.nowcoder.commun
     }
 
     @Override
+    public RefreshTokenSession beginRotation(String tokenHash, Instant pendingExpiresAt) {
+        if (!StringUtils.hasText(tokenHash) || pendingExpiresAt == null) {
+            return null;
+        }
+        String token = tokenHash.trim();
+        Instant now = Instant.now();
+        mapper.recoverExpiredPending(token, now);
+        int updated = mapper.beginRotation(token, pendingExpiresAt, now);
+        if (updated <= 0) {
+            return null;
+        }
+        return find(token);
+    }
+
+    @Override
+    public boolean finishRotation(
+            String pendingTokenHash,
+            String replacementTokenHash,
+            UUID userId,
+            String familyId,
+            Instant replacementExpiresAt
+    ) {
+        if (!StringUtils.hasText(pendingTokenHash)
+                || !StringUtils.hasText(replacementTokenHash)
+                || userId == null
+                || !StringUtils.hasText(familyId)
+                || replacementExpiresAt == null) {
+            return false;
+        }
+        String pendingToken = pendingTokenHash.trim();
+        String replacementToken = replacementTokenHash.trim();
+        String family = familyId.trim();
+        store(replacementToken, userId, family, replacementExpiresAt);
+        int updated = mapper.finishPendingRotation(pendingToken, userId, family, Instant.now());
+        if (updated <= 0) {
+            throw new IllegalStateException("refresh token pending rotation 不存在或已失效");
+        }
+        return true;
+    }
+
+    @Override
+    public boolean rollbackPendingRotation(String pendingTokenHash) {
+        if (!StringUtils.hasText(pendingTokenHash)) {
+            return false;
+        }
+        return mapper.rollbackPendingRotation(pendingTokenHash.trim()) > 0;
+    }
+
+    @Override
     public void revoke(String tokenHash) {
         if (!StringUtils.hasText(tokenHash)) {
             return;

@@ -4,6 +4,7 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.domain.model.RefreshTokenSession;
+import com.nowcoder.community.user.domain.model.RefreshTokenSessionState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,6 +28,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class MyBatisRefreshTokenSessionRepositoryTest {
 
     private static final UUID USER_ID = UUID.fromString("00000000-0000-7000-8000-00000000000a");
+    private static final String TOKEN_HASH = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    private static final String REPLACEMENT_HASH = "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd";
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -132,5 +136,50 @@ class MyBatisRefreshTokenSessionRepositoryTest {
                 "hash-atomic"
         );
         assertThat(rowCount).isZero();
+    }
+
+    @Test
+    void beginRollbackAndFinishRotationShouldPreserveRecoverableState() {
+        Instant expiresAt = Instant.now().plusSeconds(3600).truncatedTo(ChronoUnit.SECONDS);
+        Instant pendingExpiresAt = Instant.now().plusSeconds(30).truncatedTo(ChronoUnit.SECONDS);
+        repository.store(TOKEN_HASH, USER_ID, "family-rotation", expiresAt);
+
+        RefreshTokenSession pending = repository.beginRotation(TOKEN_HASH, pendingExpiresAt);
+
+        assertThat(pending).isNotNull();
+        assertThat(pending.tokenHash()).isEqualTo(TOKEN_HASH);
+        assertThat(pending.state()).isEqualTo(RefreshTokenSessionState.PENDING_ROTATION);
+        assertThat(pending.pendingExpiresAt()).isEqualTo(pendingExpiresAt);
+        assertThat(repository.find(TOKEN_HASH).revokedAt()).isNull();
+
+        assertThat(repository.rollbackPendingRotation(TOKEN_HASH)).isTrue();
+        RefreshTokenSession restored = repository.find(TOKEN_HASH);
+        assertThat(restored.state()).isEqualTo(RefreshTokenSessionState.ACTIVE);
+        assertThat(restored.pendingExpiresAt()).isNull();
+
+        repository.beginRotation(TOKEN_HASH, pendingExpiresAt);
+        assertThat(repository.finishRotation(TOKEN_HASH, REPLACEMENT_HASH, USER_ID, "family-rotation", expiresAt)).isTrue();
+
+        RefreshTokenSession consumed = repository.find(TOKEN_HASH);
+        RefreshTokenSession replacement = repository.find(REPLACEMENT_HASH);
+        assertThat(consumed.state()).isEqualTo(RefreshTokenSessionState.CONSUMED);
+        assertThat(consumed.revokedAt()).isNotNull();
+        assertThat(consumed.pendingExpiresAt()).isNull();
+        assertThat(replacement.state()).isEqualTo(RefreshTokenSessionState.ACTIVE);
+        assertThat(replacement.revokedAt()).isNull();
+    }
+
+    @Test
+    void beginRotationShouldRecoverExpiredPendingBeforeRetry() {
+        Instant expiresAt = Instant.now().plusSeconds(3600).truncatedTo(ChronoUnit.SECONDS);
+        repository.store(TOKEN_HASH, USER_ID, "family-retry", expiresAt);
+        RefreshTokenSession firstPending = repository.beginRotation(TOKEN_HASH, Instant.now().minusSeconds(1).truncatedTo(ChronoUnit.SECONDS));
+        assertThat(firstPending.state()).isEqualTo(RefreshTokenSessionState.PENDING_ROTATION);
+
+        RefreshTokenSession retried = repository.beginRotation(TOKEN_HASH, Instant.now().plusSeconds(30).truncatedTo(ChronoUnit.SECONDS));
+
+        assertThat(retried).isNotNull();
+        assertThat(retried.state()).isEqualTo(RefreshTokenSessionState.PENDING_ROTATION);
+        assertThat(retried.pendingExpiresAt()).isAfter(Instant.now());
     }
 }

@@ -18,6 +18,7 @@ import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
 import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.PasswordResetRequestResult;
+import com.nowcoder.community.auth.application.result.RefreshFailure;
 import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
 import com.nowcoder.community.auth.application.result.RegisterResult;
@@ -103,6 +104,11 @@ public class AuthController {
             RefreshResult result = loginApplicationService.refresh(new RefreshCommand(readRefreshToken(request)));
             addRefreshCookie(response, result.refreshCookie());
             return Result.ok(new LoginResponse(result.accessToken()));
+        } catch (RefreshFailure ex) {
+            if (ex.clearRefreshCookie()) {
+                addRefreshCookie(response, loginApplicationService.clearRefreshCookie());
+            }
+            throw ex;
         } catch (BusinessException ex) {
             if (shouldClearRefreshCookie(ex)) {
                 addRefreshCookie(response, loginApplicationService.clearRefreshCookie());
@@ -182,7 +188,7 @@ public class AuthController {
                 request.getCaptchaCode(),
                 resolvedIp == null ? null : resolvedIp.ip()
         ));
-        return Result.ok(new PasswordResetRequestResponse(result.issued(), result.resetLink()));
+        return Result.ok(new PasswordResetRequestResponse(result.issued()));
     }
 
     @PostMapping("/password/reset/confirm")

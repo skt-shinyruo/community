@@ -23,7 +23,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
+import java.lang.reflect.RecordComponent;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -83,6 +85,13 @@ class PasswordResetApplicationServiceTest {
     }
 
     @Test
+    void requestResetResultShouldExposeOnlyIssued() {
+        assertThat(Arrays.stream(PasswordResetRequestResult.class.getRecordComponents())
+                .map(RecordComponent::getName))
+                .containsExactly("issued");
+    }
+
+    @Test
     void requestResetShouldLogIssuedEventWithoutResetLink(CapturedOutput output) {
         UUID userId = uuid(7);
         UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 0L);
@@ -93,7 +102,6 @@ class PasswordResetApplicationServiceTest {
         PasswordResetRequestResult result = service.requestReset(new RequestPasswordResetCommand(" alice@example.com ", "cid", "1234"));
 
         assertThat(result.issued()).isTrue();
-        assertThat(result.resetLink()).isBlank();
         verify(tokenStore).store(anyString(), eq(userId), eq(Duration.ofSeconds(600)));
         verify(mailService).sendPasswordResetMail(eq("alice@example.com"), contains("/#/auth/password/reset?token="));
         assertThat(output.getAll())
@@ -205,7 +213,6 @@ class PasswordResetApplicationServiceTest {
         PasswordResetRequestResult result = service.requestReset(new RequestPasswordResetCommand(" alice@example.com ", "cid", "1234"));
 
         assertThat(result.issued()).isTrue();
-        assertThat(result.resetLink()).isBlank();
         verify(tokenStore, never()).store(anyString(), any(UUID.class), any(Duration.class));
         verify(mailService, never()).sendPasswordResetMail(anyString(), anyString());
         assertThat(output.getAll())

@@ -7,6 +7,8 @@ import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import com.nowcoder.community.user.application.UserCredentialApplicationService;
 import com.nowcoder.community.user.application.result.UserAuthenticationResult;
 import com.nowcoder.community.user.application.result.UserCredentialResult;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.exception.UserErrorCode;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -28,7 +30,14 @@ public class UserCredentialApiAdapter implements UserCredentialQueryApi, UserCre
 
     @Override
     public UserCredentialView getByUserId(UUID userId) {
-        return toCredentialView(applicationService.getByUserId(userId));
+        try {
+            return toCredentialView(applicationService.getByUserId(userId));
+        } catch (BusinessException ex) {
+            if (ex.getErrorCode() == UserErrorCode.USER_NOT_FOUND) {
+                return null;
+            }
+            throw ex;
+        }
     }
 
     @Override

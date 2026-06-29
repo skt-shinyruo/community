@@ -1,7 +1,8 @@
-package com.nowcoder.community.auth.application;
+package com.nowcoder.community.auth.infrastructure.api;
 
 import com.nowcoder.community.auth.application.port.RefreshTokenSessionPort;
 import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
+import com.nowcoder.community.user.api.model.RefreshTokenSessionStateView;
 import com.nowcoder.community.user.api.model.RefreshTokenSessionView;
 import com.nowcoder.community.user.api.query.UserRefreshTokenSessionQueryApi;
 import org.springframework.stereotype.Component;
@@ -39,6 +40,33 @@ public class RefreshTokenSessionApplicationPortAdapter implements RefreshTokenSe
     }
 
     @Override
+    public RefreshTokenSession beginRotation(String tokenHash, Instant pendingExpiresAt) {
+        return toSession(refreshTokenSessionActionApi.beginRotation(tokenHash, pendingExpiresAt));
+    }
+
+    @Override
+    public boolean finishRotation(
+            String pendingTokenHash,
+            String replacementTokenHash,
+            UUID userId,
+            String familyId,
+            Instant replacementExpiresAt
+    ) {
+        return refreshTokenSessionActionApi.finishRotation(
+                pendingTokenHash,
+                replacementTokenHash,
+                userId,
+                familyId,
+                replacementExpiresAt
+        );
+    }
+
+    @Override
+    public boolean rollbackPendingRotation(String pendingTokenHash) {
+        return refreshTokenSessionActionApi.rollbackPendingRotation(pendingTokenHash);
+    }
+
+    @Override
     public void revoke(String tokenHash) {
         refreshTokenSessionActionApi.revoke(tokenHash);
     }
@@ -57,6 +85,21 @@ public class RefreshTokenSessionApplicationPortAdapter implements RefreshTokenSe
         if (view == null) {
             return null;
         }
-        return new RefreshTokenSession(view.tokenHash(), view.userId(), view.familyId(), view.expiresAt(), view.revokedAt());
+        return new RefreshTokenSession(
+                view.tokenHash(),
+                view.userId(),
+                view.familyId(),
+                view.expiresAt(),
+                view.revokedAt(),
+                toState(view.state()),
+                view.pendingExpiresAt()
+        );
+    }
+
+    private RefreshTokenSessionState toState(RefreshTokenSessionStateView state) {
+        if (state == null) {
+            return RefreshTokenSessionState.ACTIVE;
+        }
+        return RefreshTokenSessionState.valueOf(state.name());
     }
 }

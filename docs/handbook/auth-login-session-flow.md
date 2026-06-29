@@ -54,7 +54,9 @@ refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`us
 | `user_id` | token 所属用户 |
 | `family_id` | 同一登录 / rotation 链路的 token family |
 | `expires_at` | refresh token 过期时间，默认 7 天 |
-| `revoked_at` | 被消费、登出、复用检测或统一撤销时写入 |
+| `state` | `ACTIVE`、`PENDING_ROTATION`、`CONSUMED` 或 `REVOKED` |
+| `pending_expires_at` | `PENDING_ROTATION` lease 截止时间；过期 pending 可恢复后重试 |
+| `revoked_at` | `CONSUMED` / `REVOKED` terminal tombstone 写入时间 |
 
 ## HTTP 入口
 
@@ -88,7 +90,7 @@ refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`us
 | application result | `LoginResult`, `RefreshResult` | `accessToken`, `RefreshCookieSpec` | application 返回 controller |
 | owner API | `UserAuthenticationResultView` | `authenticated`, `failure`, `user` | user owner 认证结果 |
 | owner API | `UserCredentialView` | `userId`, `username`, `status`, `type`, `headerUrl`, `securityVersion`, `loginAllowed`, `refreshAllowed` | 角色计算、refresh 后回源校验 |
-| owner API | `RefreshTokenSessionView` | `tokenHash`, `userId`, `familyId`, `expiresAt`, `revokedAt` | 默认 DB refresh store 状态 |
+| owner API | `RefreshTokenSessionView` | `tokenHash`, `userId`, `familyId`, `expiresAt`, `revokedAt`, `state`, `pendingExpiresAt` | 默认 DB refresh store 状态 |
 
 敏感数据处理：
 
@@ -155,6 +157,7 @@ AuthController.verifyRegisterCode(...)
 - prepare registration 阶段会先由 user owner 检查用户名和邮箱是否已存在；验证码通过后的最终插入仍以数据库唯一约束处理竞态冲突。
 - 创建用户成功后不再走用户名密码认证，而是对刚创建的 `UserCredentialView` 调 `issueLoginResult(...)`。
 - 响应体仍是 `LoginResponse(accessToken)`，并写入 refresh cookie。
+- resend 注册验证码时先写 pending replacement code，邮件发送成功后才 promote 为 active code；邮件发送失败会 abort replacement，原 active code 继续有效。
 - `finally` 中 best-effort 删除 registration draft，避免重复使用。
 - 如果 active 用户已经创建但自动登录签发 token 失败，返回 `REGISTRATION_ACTIVATED_LOGIN_REQUIRED`，前端清理注册上下文并提示用户直接登录，避免误导用户重复注册。
 
@@ -193,21 +196,23 @@ CurrentUser.requireJwt(authentication)
 主流程：
 
 1. cookie 缺失或空值时抛 `REFRESH_TOKEN_INVALID`。
-2. `RefreshTokenApplicationService.consume(...)` 消费旧 token。
-3. 旧 token 找不到、已撤销或已过期时返回 invalid；被撤销 token 复用仍会走 family reuse 检测。
-4. 使用已消费 token 中的 `userId` 回源 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在、允许登录且允许 refresh，并读取当前 `securityVersion`。
+2. `RefreshTokenApplicationService.beginRotation(...)` 把旧 refresh session 转入 `PENDING_ROTATION`，lease 为 30 秒。
+3. 旧 token 找不到、已撤销、已过期或 family 已撤销时返回 invalid；被撤销 token 复用仍会走 family reuse 检测。
+4. 使用 pending session 中的 `userId` 回源 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在、允许登录且允许 refresh，并读取当前 `securityVersion`。
 5. 用户不存在、`loginAllowed=false` 或 `refreshAllowed=false` 时撤销该 `familyId`，抛 `USER_DISABLED`，controller 会清 refresh cookie。
 6. 重新计算 authorities，签发新的 access token。
-7. 通过 `RefreshTokenApplicationService.issueInFamily(...)` 写入同 family 的新 refresh token，并返回新的 refresh cookie。
+7. 生成同 family 的 replacement refresh token，并调用 `RefreshTokenApplicationService.finishRotation(...)`；finish 成功后旧 session 变为 `CONSUMED`，replacement session 变为 `ACTIVE`。
 
 rotation 语义：
 
-- 每次 refresh 都消费旧 refresh token。
+- 每次 refresh 都先把旧 refresh session 转入 `PENDING_ROTATION`，避免 begin 后的瞬时失败直接丢失旧 token。
 - 新 refresh token 复用同一个 `familyId`。
-- 旧 token 不再 active。
+- finish 成功后旧 token 不再 active，只作为 `CONSUMED` tombstone 用于复用检测和 logout family 识别。
 - 新 refresh token 不会在用户存在性和状态校验前提前签发。
+- begin 后若发生临时失败，auth 先 `rollbackPendingRotation(...)` 把旧 session 恢复为 `ACTIVE`；如果 rollback 不安全或失败，auth 撤销整个 family，并要求 controller 清 refresh cookie。
+- pending lease 过期后再次 begin rotation 时，store 会先恢复过期 pending，再重新进入 pending 状态。
 - 如果旧 token 已被撤销但又被复用，`maybeRevokeFamilyForReusedToken(...)` 会检查 `security.jwt.refresh-reuse-grace-seconds`；超过 grace window 且未过期时撤销整个 family。
-- refresh 失败且错误是 `REFRESH_TOKEN_INVALID` 或 `USER_DISABLED` 时，controller 会额外写入 `Max-Age=0` 的 clear cookie。
+- refresh 失败时由 application 抛出的 `RefreshFailure.clearRefreshCookie()` 决定 controller 是否额外写入 `Max-Age=0` 的 clear cookie；invalid、user disabled 和 fail-closed family revocation 都会清 cookie。
 
 ## Logout
 
@@ -218,7 +223,8 @@ rotation 语义：
 logout 是 best-effort：
 
 - 请求没有 refresh token 时，不做 repository 操作，但仍清浏览器 cookie。
-- 请求带 refresh token 时，先查 token，撤销当前 token；如果能识别 family，再撤销整个 family。
+- 请求带 refresh token 时，先从 active session 识别 family 并撤销当前 token 和整个 family；如果 active row 不存在，再从 terminal tombstone 识别 family 并撤销整个 family。
+- controller 总是写 clear cookie；repository 是否识别 token 只影响服务端 family 撤销范围。
 - logout 不撤销已经签出的 access token；access token 继续依赖短 TTL 自然过期。
 
 ## 密码重置后的会话失效
@@ -247,6 +253,7 @@ PasswordResetApplicationService.confirmReset(...)
 RefreshTokenApplicationService
   -> RefreshTokenRepository
   -> DbRefreshTokenRepository
+  -> RefreshTokenSessionApplicationPortAdapter
   -> UserRefreshTokenSessionActionApi / UserRefreshTokenSessionQueryApi
   -> RefreshTokenSessionApplicationService
   -> MyBatisRefreshTokenSessionRepository
@@ -257,14 +264,17 @@ DB schema 精简视图：
 
 | 表 | 关键字段 | 说明 |
 | --- | --- | --- |
-| `auth_refresh_token` | `token_hash`, `user_id`, `family_id`, `expires_at`, `revoked_at`, `created_at` | refresh session 主表；`token_hash` 是 SHA-256 hex |
+| `auth_refresh_token` | `token_hash`, `user_id`, `family_id`, `expires_at`, `state`, `pending_expires_at`, `revoked_at`, `created_at` | refresh session 主表；`token_hash` 是 SHA-256 hex |
 | `auth_refresh_token_family_revocation` | `family_id`, `revoked_at` | family 撤销标记；防止已撤销 family 写回 active token |
 
 DB store 行为：
 
 - `store(...)` 插入 active row；如果 family 已撤销，写入失败。
-- `consume(...)` 只消费 `revoked_at is null` 且未过期的 active token，并设置 `revoked_at`。
+- `beginRotation(...)` 只把未过期的 `ACTIVE` row 转为 `PENDING_ROTATION` 并写入 `pending_expires_at`；如果发现过期 pending，会先恢复后再重试。
+- `finishRotation(...)` 要求旧 row 仍是未过期 `PENDING_ROTATION`，然后原子地把旧 row 标为 `CONSUMED` 并插入同 family 的 replacement `ACTIVE` row。
+- `rollbackPendingRotation(...)` 只把 `PENDING_ROTATION` row 恢复为 `ACTIVE`，用于 begin 后的临时失败恢复。
 - `find(...)` 返回 active 且未过期的 token；过期时会撤销并返回 null。
+- `findRevoked(...)` 返回 `CONSUMED` / `REVOKED` terminal tombstone，用于 refresh reuse 检测和 logout family 识别。
 - `revoke(...)` 撤销单个 token。
 - `revokeFamily(...)` 写 family marker，并撤销该 family 下所有 active token。
 - `revokeByUserId(...)` 用于密码重置，撤销该用户所有 refresh sessions，并标记相关 family。
@@ -280,8 +290,8 @@ DB store 行为：
 
 | Key | 内容 |
 | --- | --- |
-| `auth:refresh:<refreshToken>` | active refresh token record |
-| `auth:refresh:revoked:<refreshToken>` | 被消费或撤销 token 的 tombstone，用于复用检测 |
+| `auth:refresh:<refreshToken>` | active 或 pending refresh token record，包含 `state` 和 pending lease |
+| `auth:refresh:revoked:<refreshToken>` | `CONSUMED` / `REVOKED` tombstone，用于复用检测和 logout family 识别 |
 | `auth:refresh:family:<familyId>` | family 下 active token set |
 | `auth:refresh:family:revoked:<familyId>` | family 撤销 marker，阻止新 token 写入 |
 
@@ -381,8 +391,9 @@ auth:
 | `LoginRateLimitApplicationService` | 登录失败计数、验证码门槛和阻断 | [LoginRateLimitApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/LoginRateLimitApplicationService.java) |
 | `CaptchaApplicationService` | 验证码签发和校验 | [CaptchaApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/CaptchaApplicationService.java) |
 | `RefreshTokenApplicationService` | refresh token 签发、旋转、撤销和 cleanup 编排 | [RefreshTokenApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/RefreshTokenApplicationService.java) |
-| `DbRefreshTokenRepository` | DB-backed refresh token hash adapter | [DbRefreshTokenRepository.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/DbRefreshTokenRepository.java) |
+| `DbRefreshTokenRepository` | DB-backed refresh token hash adapter | [DbRefreshTokenRepository.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/persistence/DbRefreshTokenRepository.java) |
 | `RedisRefreshTokenRepository` | 可选 Redis-backed refresh token store | [RedisRefreshTokenRepository.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/persistence/RedisRefreshTokenRepository.java) |
+| `RefreshTokenSessionApplicationPortAdapter` | auth outbound adapter for user owner refresh session API | [RefreshTokenSessionApplicationPortAdapter.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/api/RefreshTokenSessionApplicationPortAdapter.java) |
 | `JwtTokenService` | access token 签发 | [JwtTokenService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/jwt/JwtTokenService.java) |
 | `JwtCodecs` | JWT encoder / decoder 和 issuer 校验 | [JwtCodecs.java](../../backend/community-common/common-security/src/main/java/com/nowcoder/community/common/security/jwt/JwtCodecs.java) |
 | `RefreshTokenDomainService` | refresh token 过期和复用撤销规则 | [RefreshTokenDomainService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/domain/service/RefreshTokenDomainService.java) |

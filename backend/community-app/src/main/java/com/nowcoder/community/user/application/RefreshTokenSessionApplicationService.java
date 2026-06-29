@@ -4,6 +4,7 @@ import com.nowcoder.community.user.application.result.RefreshTokenSessionResult;
 import com.nowcoder.community.user.domain.model.RefreshTokenSession;
 import com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -27,6 +28,25 @@ public class RefreshTokenSessionApplicationService {
 
     public RefreshTokenSessionResult consume(String tokenHash) {
         return toResult(repository.consumeActive(tokenHash));
+    }
+
+    public RefreshTokenSessionResult beginRotation(String tokenHash, Instant pendingExpiresAt) {
+        return toResult(repository.beginRotation(tokenHash, pendingExpiresAt));
+    }
+
+    @Transactional
+    public boolean finishRotation(
+            String pendingTokenHash,
+            String replacementTokenHash,
+            UUID userId,
+            String familyId,
+            Instant replacementExpiresAt
+    ) {
+        return repository.finishRotation(pendingTokenHash, replacementTokenHash, userId, familyId, replacementExpiresAt);
+    }
+
+    public boolean rollbackPendingRotation(String pendingTokenHash) {
+        return repository.rollbackPendingRotation(pendingTokenHash);
     }
 
     public void revoke(String tokenHash) {
@@ -54,7 +74,9 @@ public class RefreshTokenSessionApplicationService {
                 session.userId(),
                 session.familyId(),
                 session.expiresAt(),
-                session.revokedAt()
+                session.revokedAt(),
+                session.state(),
+                session.pendingExpiresAt()
         );
     }
 }

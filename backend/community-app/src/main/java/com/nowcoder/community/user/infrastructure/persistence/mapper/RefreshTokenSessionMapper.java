@@ -23,6 +23,23 @@ public interface RefreshTokenSessionMapper {
 
     int consumeActive(@Param("tokenHash") String tokenHash, @Param("now") Instant now);
 
+    int recoverExpiredPending(@Param("tokenHash") String tokenHash, @Param("now") Instant now);
+
+    int beginRotation(
+            @Param("tokenHash") String tokenHash,
+            @Param("pendingExpiresAt") Instant pendingExpiresAt,
+            @Param("now") Instant now
+    );
+
+    int finishPendingRotation(
+            @Param("tokenHash") String tokenHash,
+            @Param("userId") UUID userId,
+            @Param("familyId") String familyId,
+            @Param("now") Instant now
+    );
+
+    int rollbackPendingRotation(@Param("tokenHash") String tokenHash);
+
     int revoke(@Param("tokenHash") String tokenHash);
 
     int upsertFamilyRevocation(@Param("familyId") String familyId);

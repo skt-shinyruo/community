@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.infrastructure.api;
 
 import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
+import com.nowcoder.community.user.api.model.RefreshTokenSessionStateView;
 import com.nowcoder.community.user.api.model.RefreshTokenSessionView;
 import com.nowcoder.community.user.api.query.UserRefreshTokenSessionQueryApi;
 import com.nowcoder.community.user.application.RefreshTokenSessionApplicationService;
@@ -48,6 +49,46 @@ public class RefreshTokenSessionApiAdapter implements UserRefreshTokenSessionQue
     }
 
     @Override
+    public RefreshTokenSessionView beginRotation(String tokenHash, Instant pendingExpiresAt) {
+        if (!isValidTokenHash(tokenHash) || pendingExpiresAt == null) {
+            return null;
+        }
+        return toView(applicationService.beginRotation(tokenHash.trim(), pendingExpiresAt));
+    }
+
+    @Override
+    public boolean finishRotation(
+            String pendingTokenHash,
+            String replacementTokenHash,
+            UUID userId,
+            String familyId,
+            Instant replacementExpiresAt
+    ) {
+        if (!isValidTokenHash(pendingTokenHash)
+                || !isValidTokenHash(replacementTokenHash)
+                || userId == null
+                || !StringUtils.hasText(familyId)
+                || replacementExpiresAt == null) {
+            return false;
+        }
+        return applicationService.finishRotation(
+                pendingTokenHash.trim(),
+                replacementTokenHash.trim(),
+                userId,
+                familyId.trim(),
+                replacementExpiresAt
+        );
+    }
+
+    @Override
+    public boolean rollbackPendingRotation(String pendingTokenHash) {
+        if (!isValidTokenHash(pendingTokenHash)) {
+            return false;
+        }
+        return applicationService.rollbackPendingRotation(pendingTokenHash.trim());
+    }
+
+    @Override
     public void revoke(String tokenHash) {
         if (!isValidTokenHash(tokenHash)) {
             return;
@@ -88,7 +129,9 @@ public class RefreshTokenSessionApiAdapter implements UserRefreshTokenSessionQue
                 result.userId(),
                 result.familyId(),
                 result.expiresAt(),
-                result.revokedAt()
+                result.revokedAt(),
+                result.state() == null ? RefreshTokenSessionStateView.ACTIVE : RefreshTokenSessionStateView.valueOf(result.state().name()),
+                result.pendingExpiresAt()
         );
     }
 

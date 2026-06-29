@@ -9,6 +9,12 @@ public interface RegistrationCodeRepository {
 
     IssueResult issue(UUID userId, String code, Duration ttl, Duration cooldown);
 
+    IssueResult beginReplacement(UUID userId, String code, Duration ttl, Duration cooldown);
+
+    void promoteReplacement(UUID userId);
+
+    void abortReplacement(UUID userId);
+
     Long lastSentAtMillis(UUID userId);
 
     void delete(UUID userId);

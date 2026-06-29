@@ -124,11 +124,12 @@ class DddLayeringArchTest {
                     .allowEmptyShould(true);
 
     @ArchTest
-    static final ArchRule auth_infrastructure_must_not_call_foreign_owner_apis =
+    static final ArchRule auth_non_api_infrastructure_must_not_call_foreign_owner_apis =
             noClasses()
                     .that().resideInAnyPackage("..auth.infrastructure..")
+                    .and().resideOutsideOfPackage("..auth.infrastructure.api..")
                     .should().dependOnClassesThat().resideInAnyPackage("..api.query..", "..api.action..", "..api.model..")
-                    .because("foreign synchronous collaboration belongs in auth application services")
+                    .because("foreign synchronous collaboration from auth infrastructure is limited to outbound API adapters")
                     .allowEmptyShould(true);
 
     @ArchTest

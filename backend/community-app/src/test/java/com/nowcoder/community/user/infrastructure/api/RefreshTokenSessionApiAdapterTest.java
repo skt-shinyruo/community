@@ -1,10 +1,12 @@
 package com.nowcoder.community.user.infrastructure.api;
 
 import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
+import com.nowcoder.community.user.api.model.RefreshTokenSessionStateView;
 import com.nowcoder.community.user.api.model.RefreshTokenSessionView;
 import com.nowcoder.community.user.api.query.UserRefreshTokenSessionQueryApi;
 import com.nowcoder.community.user.application.RefreshTokenSessionApplicationService;
 import com.nowcoder.community.user.application.result.RefreshTokenSessionResult;
+import com.nowcoder.community.user.domain.model.RefreshTokenSessionState;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -25,6 +27,7 @@ class RefreshTokenSessionApiAdapterTest {
     private static final UUID USER_ID = UUID.fromString("00000000-0000-7000-8000-000000000007");
     private static final Instant EXPIRES_AT = Instant.parse("2026-04-21T03:00:00Z");
     private static final Instant REVOKED_AT = Instant.parse("2026-04-20T03:00:00Z");
+    private static final Instant PENDING_EXPIRES_AT = Instant.parse("2026-04-20T03:00:30Z");
 
     @Mock
     private RefreshTokenSessionApplicationService applicationService;
@@ -83,5 +86,37 @@ class RefreshTokenSessionApiAdapterTest {
         verify(applicationService, never()).consume("bad-token");
         verify(applicationService, never()).store("bad-token", USER_ID, "family-1", EXPIRES_AT);
         verify(applicationService, never()).revoke("bad-token");
+    }
+
+    @Test
+    void rotationMethodsShouldDelegateToApplicationServiceAndMapState() {
+        RefreshTokenSessionApiAdapter adapter = new RefreshTokenSessionApiAdapter(applicationService);
+        RefreshTokenSessionResult result = new RefreshTokenSessionResult(
+                TOKEN_HASH,
+                USER_ID,
+                "family-1",
+                EXPIRES_AT,
+                null,
+                RefreshTokenSessionState.PENDING_ROTATION,
+                PENDING_EXPIRES_AT
+        );
+        when(applicationService.beginRotation(TOKEN_HASH, PENDING_EXPIRES_AT)).thenReturn(result);
+        when(applicationService.finishRotation(TOKEN_HASH, "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd", USER_ID, "family-1", EXPIRES_AT))
+                .thenReturn(true);
+        when(applicationService.rollbackPendingRotation(TOKEN_HASH)).thenReturn(true);
+
+        RefreshTokenSessionView pending = adapter.beginRotation(TOKEN_HASH, PENDING_EXPIRES_AT);
+
+        assertThat(pending).isEqualTo(new RefreshTokenSessionView(
+                TOKEN_HASH,
+                USER_ID,
+                "family-1",
+                EXPIRES_AT,
+                null,
+                RefreshTokenSessionStateView.PENDING_ROTATION,
+                PENDING_EXPIRES_AT
+        ));
+        assertThat(adapter.finishRotation(TOKEN_HASH, "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd", USER_ID, "family-1", EXPIRES_AT)).isTrue();
+        assertThat(adapter.rollbackPendingRotation(TOKEN_HASH)).isTrue();
     }
 }

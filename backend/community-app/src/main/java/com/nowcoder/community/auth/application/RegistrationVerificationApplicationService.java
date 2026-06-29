@@ -75,11 +75,17 @@ public class RegistrationVerificationApplicationService {
         String code = generateCode();
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
         Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
-        RegistrationCodeRepository.IssueResult issueResult = registrationCodeStore.issue(draft.userId(), code, ttl, cooldown);
+        RegistrationCodeRepository.IssueResult issueResult = registrationCodeStore.beginReplacement(draft.userId(), code, ttl, cooldown);
         if (issueResult == RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_RESEND_COOLDOWN);
         }
-        mailService.sendRegistrationCodeMail(draft.email(), code);
+        try {
+            mailService.sendRegistrationCodeMail(draft.email(), code);
+            registrationCodeStore.promoteReplacement(draft.userId());
+        } catch (RuntimeException ex) {
+            registrationCodeStore.abortReplacement(draft.userId());
+            throw ex;
+        }
 
         return new RegisterCodeResendResult(
                 true,

@@ -28,8 +28,8 @@ public class MyBatisUserTaskProgressRepository implements UserTaskProgressReposi
     }
 
     @Override
-    public int countByUserTaskAndPeriodKeyRange(UUID userId, String taskCode, String startPeriodKey, String endPeriodKey) {
-        return userTaskProgressMapper.countByUserTaskAndPeriodKeyRange(userId, taskCode, startPeriodKey, endPeriodKey);
+    public int countCompletedByUserTaskAndPeriodKeyRange(UUID userId, String taskCode, String startPeriodKey, String endPeriodKey) {
+        return userTaskProgressMapper.countCompletedByUserTaskAndPeriodKeyRange(userId, taskCode, startPeriodKey, endPeriodKey);
     }
 
     @Override

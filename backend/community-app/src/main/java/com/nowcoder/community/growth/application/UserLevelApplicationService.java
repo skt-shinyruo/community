@@ -77,7 +77,7 @@ public class UserLevelApplicationService {
         }
 
         LocalDate startDate = bizDate.minusDays(config.getWindowDays() - 1L);
-        int signInDaysInWindow = userTaskProgressRepository.countByUserTaskAndPeriodKeyRange(
+        int signInDaysInWindow = userTaskProgressRepository.countCompletedByUserTaskAndPeriodKeyRange(
                 userId,
                 DAILY_CHECK_IN_TASK_CODE,
                 startDate.toString(),

@@ -182,7 +182,7 @@ public class TaskProgressApplicationService {
                 nextStatus = STATUS_CLAIMABLE;
             } else if (rewardGrantId == null) {
                 rewardGrantId = rewardGrantDomainService.taskRewardGrantId(userId, template.getTaskCode(), periodKey);
-                long rewardAmount = rewardGrantDomainService.rewardAmount(template.getRewardGrowthDelta(), template.getRewardBalanceDelta());
+                long rewardAmount = rewardGrantDomainService.walletRewardAmount(template.getRewardBalanceDelta());
                 if (rewardAmount > 0) {
                     walletRewardActionApi.issue(rewardGrantId, userId, rewardAmount, template.getTaskCode());
                 }

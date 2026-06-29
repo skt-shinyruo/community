@@ -11,7 +11,7 @@ public interface UserTaskProgressRepository {
 
     UserTaskProgress findByUserTaskAndPeriodForUpdate(UUID userId, String taskCode, String periodKey);
 
-    int countByUserTaskAndPeriodKeyRange(UUID userId, String taskCode, String startPeriodKey, String endPeriodKey);
+    int countCompletedByUserTaskAndPeriodKeyRange(UUID userId, String taskCode, String startPeriodKey, String endPeriodKey);
 
     int insert(UUID id, UUID userId, String taskCode, String periodKey, int targetValue, String status, String lastSourceEventId);
 

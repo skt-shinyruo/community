@@ -29,6 +29,11 @@ public class LikeTaskProgressKafkaOutboxHandler implements OutboxHandler {
 
     @Override
     public void handle(OutboxEvent event) {
+        String eventId = event == null ? null : event.eventId();
+        if (eventId != null && eventId.startsWith("like-removed:")) {
+            applicationService.dispatchLikeRemoved(event.eventKey(), event.payload());
+            return;
+        }
         applicationService.dispatchLikeCreated(event == null ? null : event.eventKey(), event == null ? null : event.payload());
     }
 }

@@ -12,7 +12,7 @@ public final class RewardGrantDomainService {
         return "task:" + userId + ":" + taskCode + ":" + periodKey;
     }
 
-    public long rewardAmount(int rewardGrowthDelta, int rewardBalanceDelta) {
-        return (long) rewardGrowthDelta + rewardBalanceDelta;
+    public long walletRewardAmount(int rewardBalanceDelta) {
+        return rewardBalanceDelta;
     }
 }

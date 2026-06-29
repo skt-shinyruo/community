@@ -27,7 +27,7 @@ final class TaskPeriodKeyResolver {
                 yield String.format(Locale.ROOT, "%04d-W%02d", year, week);
             }
             case "LIFETIME" -> PERIOD_LIFETIME;
-            default -> String.valueOf(bizDate);
+            default -> throw new IllegalArgumentException("unsupported period type: " + periodType.trim());
         };
     }
 }

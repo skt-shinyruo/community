@@ -27,9 +27,20 @@ class LikeTaskProgressKafkaOutboxHandlerTest {
         TaskProgressOutboxDispatchApplicationService applicationService = mock(TaskProgressOutboxDispatchApplicationService.class);
         LikeTaskProgressKafkaOutboxHandler handler = new LikeTaskProgressKafkaOutboxHandler(applicationService, OUTBOX_TOPIC);
 
-        handler.handle(new OutboxEvent(UUID.randomUUID(), "event-id", OUTBOX_TOPIC, "key-1", "{\"entityId\":\"e\"}",
+        handler.handle(new OutboxEvent(UUID.randomUUID(), "like-created:event-id", OUTBOX_TOPIC, "key-1", "{\"entityId\":\"e\"}",
                 "PENDING", 0, null, null, null, null));
 
         verify(applicationService).dispatchLikeCreated("key-1", "{\"entityId\":\"e\"}");
+    }
+
+    @Test
+    void handleShouldDelegateRemovedEventToGrowthApplicationService() {
+        TaskProgressOutboxDispatchApplicationService applicationService = mock(TaskProgressOutboxDispatchApplicationService.class);
+        LikeTaskProgressKafkaOutboxHandler handler = new LikeTaskProgressKafkaOutboxHandler(applicationService, OUTBOX_TOPIC);
+
+        handler.handle(new OutboxEvent(UUID.randomUUID(), "like-removed:event-id", OUTBOX_TOPIC, "key-1", "{\"relationKey\":\"like:1:1:2\"}",
+                "PENDING", 0, null, null, null, null));
+
+        verify(applicationService).dispatchLikeRemoved("key-1", "{\"relationKey\":\"like:1:1:2\"}");
     }
 }

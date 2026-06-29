@@ -6,6 +6,7 @@ import java.time.LocalDate;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TaskProgressDomainServiceTest {
 
@@ -15,9 +16,18 @@ class TaskProgressDomainServiceTest {
     void periodKeyShouldResolveDailyWeeklyAndLifetimeRules() {
         LocalDate bizDate = LocalDate.of(2026, 3, 16);
 
+        assertThat(service.periodKey(null, bizDate)).isEqualTo("2026-03-16");
+        assertThat(service.periodKey(" ", bizDate)).isEqualTo("2026-03-16");
         assertThat(service.periodKey("DAILY", bizDate)).isEqualTo("2026-03-16");
         assertThat(service.periodKey("WEEKLY", bizDate)).isEqualTo("2026-W12");
         assertThat(service.periodKey("LIFETIME", bizDate)).isEqualTo("LIFETIME");
+    }
+
+    @Test
+    void unsupportedPeriodTypeShouldBeRejected() {
+        assertThatThrownBy(() -> service.periodKey("MONTHLY", LocalDate.of(2026, 3, 16)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unsupported period type");
     }
 
     @Test

@@ -24,12 +24,13 @@
         for update
     </select>
 
-    <select id="countByUserTaskAndPeriodKeyRange" resultType="int">
+    <select id="countCompletedByUserTaskAndPeriodKeyRange" resultType="int">
         select count(*)
         from user_task_progress
         where user_id = #{userId, jdbcType=BINARY}
           and task_code = #{taskCode}
           and period_key between #{startPeriodKey} and #{endPeriodKey}
+          and (status in ('CLAIMABLE', 'CLAIMED') or current_value >= target_value)
     </select>
 
     <insert id="insert">

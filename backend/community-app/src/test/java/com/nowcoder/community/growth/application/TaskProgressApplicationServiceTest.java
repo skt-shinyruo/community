@@ -135,6 +135,15 @@ class TaskProgressApplicationServiceTest {
     }
 
     @Test
+    void walletRewardShouldUseBalanceDeltaOnly() {
+        String requestId = "task:" + USER_ID + ":DAILY_POST:2026-03-22";
+
+        service.processEvent(USER_ID, "PostPublished", "post-evt-balance-only", LocalDate.of(2026, 3, 22));
+
+        assertThat(walletTxnAmountFor(requestId)).isEqualTo(1L);
+    }
+
+    @Test
     void nonAdjacentDuplicateSourceEventShouldNotAdvanceProgressAgain() {
         service.processEvent(USER_ID, "CommentCreated", "comment-evt-1", LocalDate.of(2026, 3, 16));
         service.processEvent(USER_ID, "CommentCreated", "comment-evt-2", LocalDate.of(2026, 3, 17));
@@ -208,6 +217,15 @@ class TaskProgressApplicationServiceTest {
                 requestId
         );
         return count == null ? 0 : count;
+    }
+
+    private long walletTxnAmountFor(String requestId) {
+        Long amount = jdbcTemplate.queryForObject(
+                "select amount from wallet_txn where request_id = ?",
+                Long.class,
+                requestId
+        );
+        return amount == null ? 0L : amount;
     }
 
     private int eventLogCount(String taskCode, String sourceEventId) {

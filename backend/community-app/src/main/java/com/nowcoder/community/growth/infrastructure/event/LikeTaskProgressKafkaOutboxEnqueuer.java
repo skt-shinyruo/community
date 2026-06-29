@@ -35,15 +35,17 @@ public class LikeTaskProgressKafkaOutboxEnqueuer {
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = false)
     public void onSocialEvent(SocialContractEvent event) {
-        if (event == null || !SocialEventTypes.LIKE_CREATED.equals(event.type())) {
+        if (event == null || (!SocialEventTypes.LIKE_CREATED.equals(event.type()) && !SocialEventTypes.LIKE_REMOVED.equals(event.type()))) {
             return;
         }
         if (!(event.payload() instanceof LikePayload payload)
-                || payload.getActorUserId() == null
-                || payload.getEntityId() == null
-                || payload.getEntityUserId() == null
-                || payload.getCreateTime() == null
-                || payload.getActorUserId().equals(payload.getEntityUserId())) {
+                || payload.getEntityUserId() == null) {
+            return;
+        }
+        if (SocialEventTypes.LIKE_CREATED.equals(event.type()) && !isProcessableLikeCreated(payload)) {
+            return;
+        }
+        if (SocialEventTypes.LIKE_REMOVED.equals(event.type()) && !StringUtils.hasText(payload.getRelationKey())) {
             return;
         }
 
@@ -55,17 +57,25 @@ public class LikeTaskProgressKafkaOutboxEnqueuer {
         }
 
         store.enqueue(
-                sourceEventId(payload) + OUTBOX_EVENT_SUFFIX,
+                sourceEventId(event.type(), payload) + OUTBOX_EVENT_SUFFIX,
                 topic,
                 payload.getEntityUserId().toString(),
                 payloadJson
         );
     }
 
-    private String sourceEventId(LikePayload payload) {
+    private boolean isProcessableLikeCreated(LikePayload payload) {
+        return payload.getActorUserId() != null
+                && payload.getEntityId() != null
+                && payload.getCreateTime() != null
+                && !payload.getActorUserId().equals(payload.getEntityUserId());
+    }
+
+    private String sourceEventId(String eventType, LikePayload payload) {
+        String prefix = SocialEventTypes.LIKE_REMOVED.equals(eventType) ? "like-removed:" : "like-created:";
         if (StringUtils.hasText(payload.getRelationKey())) {
-            return payload.getRelationKey().trim();
+            return prefix + payload.getRelationKey().trim();
         }
-        return "like-created:" + payload.getActorUserId() + ":" + payload.getEntityType() + ":" + payload.getEntityId();
+        return prefix + payload.getActorUserId() + ":" + payload.getEntityType() + ":" + payload.getEntityId();
     }
 }

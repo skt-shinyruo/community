@@ -180,7 +180,9 @@ HTTP：
 
 - `store(...)`：保存 refresh token hash、userId、family、expiresAt。
 - `find(...)`：查询 token 状态。
-- `consume(...)`：消费当前 token。
+- `beginRotation(...)`：把 active token 转入 `PENDING_ROTATION` 并写 pending lease。
+- `finishRotation(...)`：把 pending token 标为 `CONSUMED`，并写入 replacement active token。
+- `rollbackPendingRotation(...)`：把 pending token 恢复为 active。
 - `revoke(...)`：撤销单 token。
 - `revokeFamily(...)`：撤销 family。
 - `revokeByUserId(...)`：密码重置后撤销用户全部 refresh sessions。

@@ -213,6 +213,63 @@ class RedisRegistrationCodeRepositoryTest {
         verify(redisTemplate).delete("auth:regcode:" + userId);
     }
 
+    @Test
+    void beginReplacementShouldWritePendingFieldsWithoutReplacingActiveCode() {
+        UUID userId = uuid(9);
+        when(redisTemplate.execute(
+                any(RedisScript.class),
+                eq(List.of("auth:regcode:" + userId)),
+                eq("333333"),
+                any(String.class),
+                eq(Long.toString(Duration.ofMinutes(5).toMillis())),
+                eq(Long.toString(Duration.ofMinutes(1).toMillis()))))
+                .thenReturn("ISSUED");
+        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
+
+        assertThat(store.beginReplacement(userId, "333333", Duration.ofMinutes(5), Duration.ofMinutes(1)))
+                .isEqualTo(RegistrationCodeRepository.IssueResult.ISSUED);
+
+        ArgumentCaptor<RedisScript<String>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        verify(redisTemplate).execute(
+                scriptCaptor.capture(),
+                eq(List.of("auth:regcode:" + userId)),
+                eq("333333"),
+                any(String.class),
+                eq(Long.toString(Duration.ofMinutes(5).toMillis())),
+                eq(Long.toString(Duration.ofMinutes(1).toMillis()))
+        );
+        assertThat(((DefaultRedisScript<?>) scriptCaptor.getValue()).getScriptAsString())
+                .contains("pendingCode")
+                .contains("PENDING_REPLACEMENT")
+                .contains("activeCode")
+                .contains("pendingExpiresAtMs");
+    }
+
+    @Test
+    void promoteAndAbortReplacementShouldMutateOnlyPendingFields() {
+        UUID userId = uuid(10);
+        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
+
+        store.promoteReplacement(userId);
+        store.abortReplacement(userId);
+
+        ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        verify(redisTemplate, org.mockito.Mockito.times(2)).execute(
+                scriptCaptor.capture(),
+                eq(List.of("auth:regcode:" + userId)),
+                any(String.class)
+        );
+        assertThat(((DefaultRedisScript<?>) scriptCaptor.getAllValues().get(0)).getScriptAsString())
+                .contains("pendingCode")
+                .contains("activeCode")
+                .contains("PENDING_REPLACEMENT")
+                .contains("promote");
+        assertThat(((DefaultRedisScript<?>) scriptCaptor.getAllValues().get(1)).getScriptAsString())
+                .contains("pendingCode")
+                .contains("PENDING_REPLACEMENT")
+                .contains("abort");
+    }
+
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }

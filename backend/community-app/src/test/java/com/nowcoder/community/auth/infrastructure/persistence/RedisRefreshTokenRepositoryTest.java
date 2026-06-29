@@ -260,4 +260,106 @@ class RedisRefreshTokenRepositoryTest {
         assertThat(store.findRevoked("t1")).isNull();
     }
 
+    @Test
+    void beginRotationShouldUseAtomicPendingScriptAndHidePendingFromFind() throws Exception {
+        UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000007");
+        Instant expiresAt = Instant.now().plusSeconds(120);
+        Instant pendingExpiresAt = Instant.parse("2026-04-20T03:00:30Z");
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+
+        JacksonJsonCodec codec = jsonCodec();
+        String pendingJson = codec.toJson(Map.of(
+                "refreshToken", "t1",
+                "userId", userId,
+                "familyId", "f1",
+                "expiresAt", expiresAt,
+                "state", "PENDING_ROTATION",
+                "pendingExpiresAt", pendingExpiresAt
+        ));
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString(), anyString())).thenReturn(pendingJson);
+        when(valueOps.get(eq("auth:refresh:t1"))).thenReturn(pendingJson);
+
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, codec);
+
+        RefreshTokenRepository.StoredRefreshToken pending = store.beginRotation("  t1  ", pendingExpiresAt);
+
+        assertThat(pending).isEqualTo(new RefreshTokenRepository.StoredRefreshToken("t1", userId, "f1", expiresAt));
+        assertThat(store.find("t1")).isNull();
+        ArgumentCaptor<RedisScript<String>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        verify(redisTemplate).execute(scriptCaptor.capture(), keysCaptor.capture(), eq(pendingExpiresAt.toString()), anyString());
+        assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);
+        DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
+        assertThat(script.getScriptAsString())
+                .contains("PENDING_ROTATION")
+                .contains("pendingExpiresAt")
+                .contains("ACTIVE");
+        assertThat(keysCaptor.getValue()).containsExactly(
+                "auth:refresh:t1",
+                "auth:refresh:family:revoked:"
+        );
+    }
+
+    @Test
+    void finishRotationShouldUseAtomicScriptToWriteTombstoneAndReplacement() throws Exception {
+        UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000007");
+        Instant replacementExpiresAt = Instant.now().plusSeconds(120);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(1L);
+
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
+
+        assertThat(store.finishRotation("  t1  ", "  t2  ", userId, " f1 ", replacementExpiresAt)).isTrue();
+
+        ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        verify(redisTemplate).execute(
+                scriptCaptor.capture(),
+                keysCaptor.capture(),
+                anyString(),
+                anyString(),
+                eq("t2"),
+                anyString(),
+                eq("t1")
+        );
+        assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);
+        DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
+        assertThat(script.getScriptAsString())
+                .contains("PENDING_ROTATION")
+                .contains("CONSUMED")
+                .contains("auth:refresh:revoked:")
+                .contains("redis.call('sadd', KEYS[3], ARGV[3])");
+        assertThat(keysCaptor.getValue()).containsExactly(
+                "auth:refresh:t1",
+                "auth:refresh:t2",
+                "auth:refresh:family:f1",
+                "auth:refresh:family:revoked:f1"
+        );
+    }
+
+    @Test
+    void rollbackPendingRotationShouldUseAtomicScript() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        when(redisTemplate.execute(any(RedisScript.class), anyList())).thenReturn(1L);
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
+
+        assertThat(store.rollbackPendingRotation("  t1  ")).isTrue();
+
+        ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        verify(redisTemplate).execute(scriptCaptor.capture(), keysCaptor.capture());
+        assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);
+        DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
+        assertThat(script.getScriptAsString())
+                .contains("PENDING_ROTATION")
+                .contains("ACTIVE")
+                .contains("pendingExpiresAt");
+        assertThat(keysCaptor.getValue()).containsExactly("auth:refresh:t1");
+    }
+
 }

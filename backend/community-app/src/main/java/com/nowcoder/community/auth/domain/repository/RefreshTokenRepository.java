@@ -9,7 +9,27 @@ public interface RefreshTokenRepository {
 
     StoredRefreshToken find(String refreshToken);
 
-    StoredRefreshToken consume(String refreshToken);
+    default StoredRefreshToken beginRotation(String refreshToken, Instant pendingExpiresAt) {
+        return null;
+    }
+
+    default boolean finishRotation(
+            String pendingRefreshToken,
+            String replacementRefreshToken,
+            UUID userId,
+            String familyId,
+            Instant replacementExpiresAt
+    ) {
+        return false;
+    }
+
+    default boolean rollbackPendingRotation(String refreshToken) {
+        return false;
+    }
+
+    default StoredRefreshToken consume(String refreshToken) {
+        return beginRotation(refreshToken, Instant.now().plusSeconds(30));
+    }
 
     RevokedRefreshToken findRevoked(String refreshToken);
 

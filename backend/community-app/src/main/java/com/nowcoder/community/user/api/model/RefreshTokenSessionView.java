@@ -8,6 +8,19 @@ public record RefreshTokenSessionView(
         UUID userId,
         String familyId,
         Instant expiresAt,
-        Instant revokedAt
+        Instant revokedAt,
+        RefreshTokenSessionStateView state,
+        Instant pendingExpiresAt
 ) {
+    public RefreshTokenSessionView(String tokenHash, UUID userId, String familyId, Instant expiresAt, Instant revokedAt) {
+        this(
+                tokenHash,
+                userId,
+                familyId,
+                expiresAt,
+                revokedAt,
+                revokedAt == null ? RefreshTokenSessionStateView.ACTIVE : RefreshTokenSessionStateView.REVOKED,
+                null
+        );
+    }
 }

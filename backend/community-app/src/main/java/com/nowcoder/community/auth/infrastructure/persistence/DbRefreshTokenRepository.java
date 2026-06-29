@@ -52,6 +52,50 @@ public class DbRefreshTokenRepository implements RefreshTokenRepository {
     }
 
     @Override
+    public StoredRefreshToken beginRotation(String refreshToken, Instant pendingExpiresAt) {
+        if (!StringUtils.hasText(refreshToken) || pendingExpiresAt == null) {
+            return null;
+        }
+        RefreshTokenSessionPort.RefreshTokenSession record = refreshTokenSessionPort.beginRotation(
+                sha256Hex(refreshToken),
+                pendingExpiresAt
+        );
+        return toStoredRefreshToken(refreshToken, record);
+    }
+
+    @Override
+    public boolean finishRotation(
+            String pendingRefreshToken,
+            String replacementRefreshToken,
+            UUID userId,
+            String familyId,
+            Instant replacementExpiresAt
+    ) {
+        if (!StringUtils.hasText(pendingRefreshToken)
+                || !StringUtils.hasText(replacementRefreshToken)
+                || userId == null
+                || !StringUtils.hasText(familyId)
+                || replacementExpiresAt == null) {
+            return false;
+        }
+        return refreshTokenSessionPort.finishRotation(
+                sha256Hex(pendingRefreshToken),
+                sha256Hex(replacementRefreshToken),
+                userId,
+                familyId.trim(),
+                replacementExpiresAt
+        );
+    }
+
+    @Override
+    public boolean rollbackPendingRotation(String refreshToken) {
+        if (!StringUtils.hasText(refreshToken)) {
+            return false;
+        }
+        return refreshTokenSessionPort.rollbackPendingRotation(sha256Hex(refreshToken));
+    }
+
+    @Override
     public RevokedRefreshToken findRevoked(String refreshToken) {
         if (!StringUtils.hasText(refreshToken)) {
             return null;

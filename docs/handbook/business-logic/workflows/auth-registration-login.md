@@ -21,8 +21,8 @@
 3. auth 校验 captcha、用户名、密码、邮箱和邮件配置。
 4. auth 调 `UserRegistrationActionApi.prepareRegistrationUser(...)`，让 user owner 规范化用户名/邮箱、前置检查用户名/邮箱冲突、生成预备 userId、计算 BCrypt 密码 hash 和默认头像。
 5. auth 保存 `PreparedRegistrationDraft`，生成 256-bit base64url opaque `registrationToken`。
-6. auth 发送安全随机生成的 6 位注册验证码。
-7. 用户提交验证码后，auth 消费验证码和 draft。
+6. auth 发送安全随机生成的 6 位注册验证码；重发时先写 pending replacement code，邮件发送成功后才 promote，发送失败则 abort 并保留原 active code。
+7. 用户提交验证码后，auth 先把验证码转入 pending 消费态，再创建用户。
 8. auth 调 `UserRegistrationActionApi.createVerifiedRegistrationUser(...)`，由 user owner 插入 active 用户。
 9. 注册成功后复用登录签发链路，返回 access token 和 refresh cookie。
 10. draft/code 清理属于后续清理动作，不能让已创建用户回滚成未注册状态。
@@ -53,10 +53,12 @@
 refresh token 明文只出现在浏览器 HttpOnly cookie 和当前请求/响应中。
 
 1. 浏览器业务请求遇到 401 后，前端调用 `/api/auth/refresh`。
-2. auth 校验旧 refresh token，消费旧 token 并旋转新 token。
-3. user owner 更新 refresh session 存储状态。
-4. 返回新 access token 和新 refresh cookie。
-5. logout 撤销当前 token 或 token family，并由 controller 写 clear cookie。
+2. auth 校验旧 refresh token，把旧 session 转入 `PENDING_ROTATION` 30 秒 lease。
+3. auth 回源 user owner 校验用户仍允许登录和 refresh，成功后生成 replacement token。
+4. user owner finish rotation：旧 session 变为 `CONSUMED`，replacement session 变为 `ACTIVE`。
+5. 返回新 access token 和新 refresh cookie。
+6. begin 后遇到临时失败时 rollback 旧 session；无法安全 rollback 时撤销 family 并清 cookie。
+7. logout 可从 active session 或 terminal tombstone 识别 family，并由 controller 写 clear cookie。
 
 重要语义：
 

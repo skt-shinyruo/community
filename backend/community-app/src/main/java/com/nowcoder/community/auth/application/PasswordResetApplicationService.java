@@ -83,7 +83,7 @@ public class PasswordResetApplicationService {
             SecurityEventLogger.info(log, "password_reset_request", "skipped",
                     "community.reason_code", "hidden_noop",
                     "masked.email", maskEmail(normalizedEmail));
-            return new PasswordResetRequestResult(true, "");
+            return new PasswordResetRequestResult(true);
         }
         enforceEmailRequestRateLimit(normalizedEmail);
 
@@ -105,7 +105,7 @@ public class PasswordResetApplicationService {
                 "user.id", user.userId(),
                 "masked.email", maskEmail(normalizedEmail));
 
-        return new PasswordResetRequestResult(true, "");
+        return new PasswordResetRequestResult(true);
     }
 
     public boolean confirmReset(ConfirmPasswordResetCommand command) {

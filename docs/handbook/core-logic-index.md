@@ -16,7 +16,7 @@
 | `auth.application.LoginApplicationService` | 登录、验证码要求、JWT / refresh token 签发 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.RefreshTokenApplicationService` | refresh / logout / refresh family reuse 处理 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.RegistrationApplicationService` | Verify-First registration start; creates registration draft and code after user-domain preparation | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
-| `auth.application.RegistrationVerificationApplicationService` | resolves registration drafts, resends codes, consumes verification codes, and asks user domain to create the active user | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
+| `auth.application.RegistrationVerificationApplicationService` | resolves registration drafts, resends codes through pending replacement, consumes verification codes, and asks user domain to create the active user | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.PasswordResetApplicationService` | 找回密码 token、邮件、密码更新和 session 撤销 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.CaptchaApplicationService` | 验证码发放和校验 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.LoginRateLimitApplicationService` | 登录失败计数和验证码触发 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
@@ -38,7 +38,7 @@
 | --- | --- | --- | --- |
 | `user.controller.UserController` | `/api/users/**` HTTP binding | [User 用户业务逻辑](business-logic/user.md) | IndexOnly |
 | `user.controller.AdminUserController` | `/api/admin/users/**` HTTP binding | [User 用户业务逻辑](business-logic/user.md) | IndexOnly |
-| `user.application.RefreshTokenSessionApplicationService` | DB refresh token session 存储、消费、撤销和过期清理 | [User 用户业务逻辑](business-logic/user.md) | Covered |
+| `user.application.RefreshTokenSessionApplicationService` | DB refresh token session 存储、begin/finish/rollback rotation、撤销和过期清理 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserRegistrationApplicationService` | registration preparation and verified active user creation aggregate | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserRegistrationApplicationService#prepareRegistrationUser` | validates and prepares registration material without database writes or events | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserRegistrationApplicationService#createVerifiedRegistrationUser` | inserts the active user and publishes user policy existence | [User 用户业务逻辑](business-logic/user.md) | Covered |

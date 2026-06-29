@@ -39,7 +39,7 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 - refresh token、registration token 和 password reset token 明文由 auth application 使用统一的 256-bit `SecureRandom` 生成器生成，并使用 base64url 无填充编码。
 - refresh token store 支持 `redis` / `db`，当前默认 `db`；不提供进程内存实现。
 - DB store 使用 `community.auth_refresh_token`，仅保存 token hash。
-- refresh 支持 rotation：刷新时先消费旧 token，再回源校验用户仍允许 refresh，最后颁发同 family 的新 refresh token；用户不存在、账号被禁用或 `refreshAllowed=false` 时撤销 family 并清 cookie。当前实现里角色变更、密码重置和活跃账号级封禁会显式撤销 refresh sessions。
+- refresh 支持 recoverable rotation：刷新时先把旧 session 转入 `PENDING_ROTATION`，再回源校验用户仍允许 refresh，成功后 finish rotation 使旧 session 变为 `CONSUMED` tombstone、同 family replacement 变为 `ACTIVE`；临时失败会 rollback，无法安全恢复或用户不存在、账号被禁用、`refreshAllowed=false` 时撤销 family 并清 cookie。当前实现里角色变更、密码重置和活跃账号级封禁会显式撤销 refresh sessions。
 - token family 支持族撤销，复用旧 token 可触发 family revoke。
 
 `GET /api/auth/me` 直接读取已验证 JWT claim，不实时查库；高风险 admin/ops/wallet admin 写入口会额外校验 JWT 中的 `security_version`，版本落后时要求刷新或重新登录。普通前端权限展示可能仍滞后到下一次 access token 重新签发。

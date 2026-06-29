@@ -38,6 +38,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -93,7 +94,7 @@ class RegistrationVerificationApplicationServiceTest {
 
         doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
-        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+        when(registrationCodeStore.beginReplacement(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
 
         RegisterCodeResendResult response = service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd"));
@@ -101,7 +102,8 @@ class RegistrationVerificationApplicationServiceTest {
         assertThat(response.issued()).isTrue();
         assertThat(response.maskedEmail()).isNotBlank().contains("@").isNotEqualTo("alice@example.com");
         assertThat(response.debugEmailCode()).matches("\\d{6}");
-        verify(registrationCodeStore).issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
+        verify(registrationCodeStore).beginReplacement(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
+        verify(registrationCodeStore).promoteReplacement(userId);
         verify(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));
         verify(userRegistrationActionApi, never()).createVerifiedRegistrationUser(any());
     }
@@ -112,7 +114,7 @@ class RegistrationVerificationApplicationServiceTest {
 
         doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
-        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+        when(registrationCodeStore.beginReplacement(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
 
         assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
@@ -122,6 +124,24 @@ class RegistrationVerificationApplicationServiceTest {
 
         verifyNoInteractions(mailService);
         verify(userRegistrationActionApi, never()).createVerifiedRegistrationUser(any());
+    }
+
+    @Test
+    void resendCodeShouldAbortReplacementWhenMailSendingFails() {
+        UUID userId = uuid(7);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
+        when(registrationCodeStore.beginReplacement(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+                .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
+        doThrow(new IllegalStateException("mail down"))
+                .when(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));
+
+        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("mail down");
+
+        verify(registrationCodeStore).abortReplacement(userId);
+        verify(registrationCodeStore, never()).promoteReplacement(userId);
     }
 
     @Test

@@ -233,6 +233,25 @@ class RefreshTokenApplicationServiceTest {
         verify(repository, never()).revokeFamily("family-1");
     }
 
+    @Test
+    void logoutShouldRevokeFamilyFromRevokedTombstoneWhenActiveTokenIsGone() {
+        RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
+        Instant now = Instant.now();
+        when(repository.find("old-refresh")).thenReturn(null);
+        when(repository.findRevoked("old-refresh")).thenReturn(new RefreshTokenRepository.RevokedRefreshToken(
+                "old-refresh",
+                USER_ID,
+                "family-1",
+                now.plusSeconds(300),
+                now.minusSeconds(2)
+        ));
+        RefreshTokenApplicationService refreshTokenService = refreshTokenService(repository, jwtProperties());
+
+        refreshTokenService.revokeFamilyByPresentedToken("old-refresh");
+
+        verify(repository).revokeFamily("family-1");
+    }
+
     private static LoginApplicationService authService(RefreshTokenApplicationService refreshTokenService) {
         return authService(refreshTokenService, new UserCredentialView(USER_ID, "alice", 1, 0, "h1", 0L));
     }
@@ -307,6 +326,7 @@ class RefreshTokenApplicationServiceTest {
     private static final class CoordinatedRefreshTokenStore implements RefreshTokenRepository {
 
         private final ConcurrentHashMap<String, StoredRefreshToken> tokens = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, StoredRefreshToken> pendingTokens = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<String, RevokedRefreshToken> revokedTokens = new ConcurrentHashMap<>();
         private final String coordinatedToken;
         private final CyclicBarrier barrier = new CyclicBarrier(2);
@@ -346,6 +366,52 @@ class RefreshTokenApplicationServiceTest {
         }
 
         @Override
+        public StoredRefreshToken beginRotation(String refreshToken, Instant pendingExpiresAt) {
+            StoredRefreshToken captured = tokens.get(refreshToken);
+            if (coordinatedToken.equals(refreshToken) && captured != null) {
+                awaitBarrier();
+            }
+            StoredRefreshToken token = tokens.remove(refreshToken);
+            if (token != null) {
+                pendingTokens.put(refreshToken, token);
+            }
+            return token;
+        }
+
+        @Override
+        public boolean finishRotation(
+                String pendingRefreshToken,
+                String replacementRefreshToken,
+                UUID userId,
+                String familyId,
+                Instant replacementExpiresAt
+        ) {
+            StoredRefreshToken token = pendingTokens.remove(pendingRefreshToken);
+            if (token == null) {
+                return false;
+            }
+            revokedTokens.put(pendingRefreshToken, new RevokedRefreshToken(
+                    pendingRefreshToken,
+                    token.userId(),
+                    token.familyId(),
+                    token.expiresAt(),
+                    Instant.now()
+            ));
+            tokens.put(replacementRefreshToken, new StoredRefreshToken(replacementRefreshToken, userId, familyId, replacementExpiresAt));
+            return true;
+        }
+
+        @Override
+        public boolean rollbackPendingRotation(String refreshToken) {
+            StoredRefreshToken token = pendingTokens.remove(refreshToken);
+            if (token == null) {
+                return false;
+            }
+            tokens.put(refreshToken, token);
+            return true;
+        }
+
+        @Override
         public RevokedRefreshToken findRevoked(String refreshToken) {
             return revokedTokens.get(refreshToken);
         }
@@ -358,6 +424,7 @@ class RefreshTokenApplicationServiceTest {
         @Override
         public void revokeFamily(String familyId) {
             tokens.entrySet().removeIf(entry -> familyId.equals(entry.getValue().familyId()));
+            pendingTokens.entrySet().removeIf(entry -> familyId.equals(entry.getValue().familyId()));
         }
 
         private Set<String> activeTokensInFamily(String familyId) {

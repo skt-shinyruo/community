@@ -7,6 +7,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -105,5 +108,51 @@ class DbRefreshTokenRepositoryTest {
         RefreshTokenRepository.RevokedRefreshToken result = store.findRevoked("rt1");
 
         assertThat(result).isNull();
+    }
+
+    @Test
+    void beginFinishAndRollbackRotationShouldHashPresentedTokens() {
+        DbRefreshTokenRepository store = newStore();
+        Instant pendingExpiresAt = Instant.parse("2026-04-20T03:00:30Z");
+        Instant replacementExpiresAt = Instant.parse("2026-04-21T03:00:00Z");
+        String oldRefreshHash = sha256Hex("old-refresh");
+        String newRefreshHash = sha256Hex("new-refresh");
+        RefreshTokenSessionPort.RefreshTokenSession pending = new RefreshTokenSessionPort.RefreshTokenSession(
+                oldRefreshHash,
+                USER_ID,
+                "family-1",
+                replacementExpiresAt,
+                null,
+                RefreshTokenSessionPort.RefreshTokenSessionState.PENDING_ROTATION,
+                pendingExpiresAt
+        );
+        when(refreshTokenSessionPort.beginRotation(oldRefreshHash, pendingExpiresAt)).thenReturn(pending);
+        when(refreshTokenSessionPort.finishRotation(
+                oldRefreshHash,
+                newRefreshHash,
+                USER_ID,
+                "family-1",
+                replacementExpiresAt
+        )).thenReturn(true);
+        when(refreshTokenSessionPort.rollbackPendingRotation(oldRefreshHash)).thenReturn(true);
+
+        assertThat(store.beginRotation("old-refresh", pendingExpiresAt).familyId()).isEqualTo("family-1");
+        assertThat(store.finishRotation("old-refresh", "new-refresh", USER_ID, "family-1", replacementExpiresAt)).isTrue();
+        assertThat(store.rollbackPendingRotation("old-refresh")).isTrue();
+    }
+
+    private String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(value.trim().getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                hex.append(Character.forDigit((b >> 4) & 0xF, 16));
+                hex.append(Character.forDigit(b & 0xF, 16));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
     }
 }

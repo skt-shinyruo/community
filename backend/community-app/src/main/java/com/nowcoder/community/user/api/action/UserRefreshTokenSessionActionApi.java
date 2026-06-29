@@ -11,6 +11,18 @@ public interface UserRefreshTokenSessionActionApi {
 
     RefreshTokenSessionView consume(String tokenHash);
 
+    RefreshTokenSessionView beginRotation(String tokenHash, Instant pendingExpiresAt);
+
+    boolean finishRotation(
+            String pendingTokenHash,
+            String replacementTokenHash,
+            UUID userId,
+            String familyId,
+            Instant replacementExpiresAt
+    );
+
+    boolean rollbackPendingRotation(String pendingTokenHash);
+
     void revoke(String tokenHash);
 
     int revokeFamily(String familyId);

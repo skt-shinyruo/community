@@ -46,7 +46,7 @@ HTTP 入口位于 `AuthController`：
 
 1. 注册：`AuthController` 接收请求后进入 `RegistrationApplicationService`，auth 先校验验证码、请求字段和邮件配置，再通过 `UserRegistrationActionApi.prepareRegistrationUser(...)` 让 user owner 检查用户名/邮箱冲突并准备用户名、邮箱、密码 hash 和默认头像。auth application 生成 registration token，draft 仓储只负责按 token 存储上下文；验证码通过后先进入 pending 消费态，再调用 `createVerifiedRegistrationUser(...)` 插入 active 用户，并复用登录签发链路返回 access token 和 refresh cookie。
 2. 登录：`LoginApplicationService.login(...)` 先经过登录风控和 captcha 判断，再用 `UserCredentialQueryApi.authenticate(...)` 回源 user owner 校验凭据。认证成功后签发 access token，写 refresh session，并异步/同步触发安全日志和 analytics 登录采集。
-3. refresh / logout：浏览器只把 refresh token 放在 HttpOnly cookie 中。refresh 时 auth 先消费旧 token，再回源 user 校验用户仍允许登录和 refresh，并读取当前 `securityVersion`，最后才签发同 family 的新 token；logout 撤销当前 token 或 family，并由 controller 写 clear cookie。
+3. refresh / logout：浏览器只把 refresh token 放在 HttpOnly cookie 中。refresh 时 auth 先把旧 session 转入 `PENDING_ROTATION`，再回源 user 校验用户仍允许登录和 refresh，并读取当前 `securityVersion`；校验通过后才生成 replacement token 并 finish rotation，把旧 session 标为 `CONSUMED`、新 session 标为 `ACTIVE`。失败时先尝试 rollback 旧 session；若无法安全恢复则撤销 family 并由 controller 清 cookie。logout 可从 active session 或 terminal tombstone 识别 family，并由 controller 写 clear cookie。
 4. 密码重置：auth 校验邮箱、captcha、请求限流和 reset token，user owner 校验新密码策略并更新 BCrypt hash；成功后撤销该用户 refresh sessions，避免旧会话继续刷新。
 
 auth 不直接写 user 表或 refresh session 表；这些状态变化都通过 user owner API 进入 user application。
@@ -72,6 +72,7 @@ auth 不直接写 user 表或 refresh session 表；这些状态变化都通过 
 - 验证码错误或过期返回认证错误，不创建用户。
 - 用户名或邮箱冲突由 user owner 判断；prepare 阶段做前置查重，最终插入仍依赖数据库唯一约束兜住并发竞态。
 - 邮件发送失败时，注册流程不应伪造成功。
+- 重发验证码先写 `PENDING_REPLACEMENT`，邮件发送成功后才 promote 为 active code；发送失败会 abort replacement，保持原 active code 仍然有效。
 - active 用户创建成功但自动登录 token 签发失败时，返回 `REGISTRATION_ACTIVATED_LOGIN_REQUIRED`，前端应清理注册上下文并提示直接登录。
 - abandoned draft 过期后自然清理，不会产生用户行。
 
@@ -97,17 +98,17 @@ user owner 的密码校验只接受 BCrypt。
 refresh 使用 refresh token rotation：
 
 1. controller 从 refresh cookie 读 token。
-2. `LoginApplicationService.refresh(...)` 调 `RefreshTokenApplicationService.consume(...)` 消费旧 token。
-3. token hash 找不到、已撤销、过期或 family 被撤销都会失败。
-4. 当前 token 被消费后，先通过 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在、允许登录且允许 refresh，并读取当前 `securityVersion`。
+2. `LoginApplicationService.refresh(...)` 调 `RefreshTokenApplicationService.beginRotation(...)`，把旧 refresh session 转入 `PENDING_ROTATION`，lease 为 30 秒。
+3. token hash 找不到、已撤销、过期或 family 被撤销都会失败；已撤销 token 复用会触发 family reuse 检测。
+4. 旧 session 处于 pending 后，通过 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在、允许登录且允许 refresh，并读取当前 `securityVersion`。
 5. 用户不存在、`loginAllowed=false` 或 `refreshAllowed=false` 时撤销该 family 并返回 `USER_DISABLED`，controller 清 cookie。
-6. 用户校验通过后签发新的 access token 和同 family 的 256-bit base64url refresh token。
-7. refresh 失败时 controller 视错误决定是否清 cookie。
+6. 用户校验通过后签发新的 access token，生成同 family 的 256-bit base64url replacement refresh token，再调用 `finishRotation(...)` 持久化 replacement session。
+7. begin 后遇到临时失败时先 `rollbackPendingRotation(...)`，让旧 token 恢复 active；如果 rollback 失败，auth 撤销 family 并要求 controller 清 cookie。
 
 logout：
 
 1. controller 从 cookie 读 refresh token。
-2. `LoginApplicationService.logout(...)` 撤销 token 或 token family。
+2. `LoginApplicationService.logout(...)` 先从 active session 识别 family；若 active row 不存在，再查 terminal tombstone 识别已消费 / 已撤销 token 的 family。
 3. controller 写 clear cookie。
 4. access token 不会被服务端即时拉黑，依赖短 TTL 过期。
 
@@ -175,7 +176,7 @@ logout：
 
 - `UserCredentialQueryApi`：认证账号、取角色、取凭据。
 - `UserRegistrationActionApi`：准备注册用户、创建已验证用户。
-- `UserRefreshTokenSessionActionApi` / `QueryApi`：DB refresh session 写入、消费、撤销、清理。
+- `UserRefreshTokenSessionActionApi` / `QueryApi`：DB refresh session 写入、begin/finish/rollback rotation、撤销、清理。
 - `UserCredentialActionApi`：密码更新和会话撤销。
 - `AnalyticsIngestActionApi`：登录成功采集。
 

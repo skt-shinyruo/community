@@ -63,6 +63,34 @@ public class RefreshTokenApplicationService {
         return consumed;
     }
 
+    public RefreshTokenRepository.StoredRefreshToken beginRotation(String refreshToken) {
+        Instant now = Instant.now();
+        RefreshTokenRepository.StoredRefreshToken pending = refreshTokenStore.beginRotation(refreshToken, now.plusSeconds(30));
+        if (pending == null) {
+            maybeRevokeFamilyForReusedToken(refreshToken);
+            return null;
+        }
+        if (refreshTokenDomainService.isExpired(pending.expiresAt(), now)) {
+            refreshTokenStore.rollbackPendingRotation(refreshToken);
+            return null;
+        }
+        return pending;
+    }
+
+    public IssuedRefreshToken generateReplacementToken(UUID userId, String familyId) {
+        String tokenValue = secureTokenValue();
+        return new IssuedRefreshToken(tokenValue, buildCookie(tokenValue));
+    }
+
+    public boolean finishRotation(String pendingRefreshToken, String replacementRefreshToken, UUID userId, String familyId) {
+        Instant replacementExpiresAt = Instant.now().plusSeconds(jwtProperties.getRefreshTokenTtlSeconds());
+        return refreshTokenStore.finishRotation(pendingRefreshToken, replacementRefreshToken, userId, familyId, replacementExpiresAt);
+    }
+
+    public boolean rollbackPendingRotation(String refreshToken) {
+        return refreshTokenStore.rollbackPendingRotation(refreshToken);
+    }
+
     public IssuedRefreshToken issueInFamily(UUID userId, String familyId) {
         return issue(userId, familyId);
     }
@@ -84,10 +112,19 @@ public class RefreshTokenApplicationService {
     }
 
     public void revokeFamilyByToken(String refreshToken) {
+        revokeFamilyByPresentedToken(refreshToken);
+    }
+
+    public void revokeFamilyByPresentedToken(String refreshToken) {
         RefreshTokenRepository.StoredRefreshToken token = refreshTokenStore.find(refreshToken);
-        refreshTokenStore.revoke(refreshToken);
         if (token != null) {
+            refreshTokenStore.revoke(refreshToken);
             refreshTokenStore.revokeFamily(token.familyId());
+            return;
+        }
+        RefreshTokenRepository.RevokedRefreshToken revoked = refreshTokenStore.findRevoked(refreshToken);
+        if (revoked != null) {
+            refreshTokenStore.revokeFamily(revoked.familyId());
         }
     }
 

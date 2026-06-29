@@ -14,6 +14,7 @@ import com.nowcoder.community.auth.application.command.ResendRegisterCodeCommand
 import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand;
 import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
 import com.nowcoder.community.auth.application.result.LoginResult;
+import com.nowcoder.community.auth.application.result.RefreshFailure;
 import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
@@ -24,6 +25,7 @@ import com.nowcoder.community.auth.controller.dto.MeResponse;
 import com.nowcoder.community.auth.controller.dto.CaptchaIssueResponse;
 import com.nowcoder.community.auth.controller.dto.PasswordResetConfirmRequest;
 import com.nowcoder.community.auth.controller.dto.PasswordResetRequestRequest;
+import com.nowcoder.community.auth.controller.dto.PasswordResetRequestResponse;
 import com.nowcoder.community.auth.controller.dto.RegisterCodeResendRequest;
 import com.nowcoder.community.auth.controller.dto.RegisterCodeResendResponse;
 import com.nowcoder.community.auth.controller.dto.RegisterCodeVerifyRequest;
@@ -32,6 +34,7 @@ import com.nowcoder.community.auth.controller.dto.RegisterResponse;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.constants.ValidationLimits;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import jakarta.servlet.http.Cookie;
@@ -51,6 +54,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -59,6 +63,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -99,6 +104,13 @@ class AuthControllerUnitTest {
                 passwordResetApplicationService,
                 clientIpResolver
         );
+    }
+
+    @Test
+    void passwordResetRequestResponseShouldExposeOnlyIssued() {
+        assertThat(Arrays.stream(PasswordResetRequestResponse.class.getDeclaredFields())
+                .map(Field::getName))
+                .containsExactly("issued");
     }
 
     @Test
@@ -180,6 +192,21 @@ class AuthControllerUnitTest {
         assertThat(thrown).isInstanceOf(BusinessException.class);
         verify(loginApplicationService).clearRefreshCookie();
         assertClearedRefreshCookie(httpResponse.getHeader(HttpHeaders.SET_COOKIE));
+    }
+
+    @Test
+    void refreshShouldNotClearCookieWhenRefreshFailureSaysRetryIsSafe() {
+        when(loginApplicationService.refresh(any(RefreshCommand.class)))
+                .thenThrow(new RefreshFailure(CommonErrorCode.SERVICE_UNAVAILABLE, false));
+
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+        MockHttpServletResponse httpResponse = new MockHttpServletResponse();
+
+        Throwable thrown = catchThrowable(() -> controller.refresh(httpRequest, httpResponse));
+
+        assertThat(thrown).isInstanceOf(RefreshFailure.class);
+        verify(loginApplicationService, never()).clearRefreshCookie();
+        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).isNull();
     }
 
     @Test

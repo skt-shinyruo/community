@@ -43,8 +43,8 @@ Main path：
 6. 登录先经过登录风控、验证码要求和密码校验。
 7. 密码只接受 BCrypt hash。
 8. 登录成功后签发 access token，并通过 HttpOnly cookie 下发 256-bit base64url refresh token；registration token 和 reset token 也由 auth application 使用同一安全随机生成策略。
-9. refresh 先消费旧 token，再回源 user 校验用户仍存在且 active，最后才签发同 family 的新 refresh token；family reuse 可触发族撤销。
-10. logout 撤销 refresh token / family 并清 cookie。
+9. refresh 先把旧 session 转入 `PENDING_ROTATION`，回源 user 校验用户仍允许 refresh 后再 finish rotation；临时失败会 rollback，无法安全恢复时撤销 family 并清 cookie。
+10. logout 可从 active session 或 terminal tombstone 识别 family，撤销 refresh family 并清 cookie。
 11. cleanup job 清理过期 refresh session；registration draft 和验证码依赖各自 store TTL 自然过期。
 
 登录、刷新、退出和 JWT 鉴权的详细代码链路见 [auth-login-session-flow.md](auth-login-session-flow.md)。
@@ -58,7 +58,7 @@ The high-concurrency registration flow is Verify-First:
 3. User checks username/email conflicts, then prepares normalized username/email, generated provisional user id, BCrypt password hash, and default avatar URL without inserting a `user` row.
 4. Auth application 生成 256-bit base64url opaque `registrationToken`，仓储只负责按该 token 存储 `PreparedRegistrationDraft`；token 冲突时 application 最多重试 5 次。
 5. `AuthController.verifyRegisterCode` calls `RegistrationVerificationApplicationService.verifyAndLogin`.
-6. Auth resolves the draft, consumes the code, then calls `user.api.action.UserRegistrationActionApi.createVerifiedRegistrationUser`.
+6. Auth resolves the draft, moves the code into pending consumption, then calls `user.api.action.UserRegistrationActionApi.createVerifiedRegistrationUser`.
 7. User inserts one active `user` row with `status=1` and publishes `UserPolicyChanged(userExists=true)`.
 8. Auth issues login tokens and deletes the draft as best-effort cleanup. If token issuance fails after the user row is created, auth returns `REGISTRATION_ACTIVATED_LOGIN_REQUIRED` and the user should log in manually.
 
@@ -66,11 +66,12 @@ Abandoned registrations expire from the draft/code stores and do not create user
 
 Refresh session DB state：
 
-- `auth_refresh_token` 只保存 refresh token hash、用户、family、过期时间和撤销时间。
+- `auth_refresh_token` 只保存 refresh token hash、用户、family、过期时间、rotation 状态、pending lease 和 terminal 撤销时间。
 - `RefreshTokenSessionApplicationService.store(...)` 在签发 refresh token 时写入 DB session 状态。
-- `/api/auth/refresh` 通过 `consume(...)` 消费当前 active token；找不到、已过期或已撤销都会视为不可刷新。
-- 消费成功后先回源 user owner 校验用户状态；用户不存在或已禁用时撤销该 refresh family，并清浏览器 cookie。
-- 刷新成功会旋转 refresh token，新 token 重新 `store(...)`，旧 token 不再保持 active；不会在用户状态校验前提前签发新 token。
+- `/api/auth/refresh` 通过 `beginRotation(...)` 把当前 active token 转入 `PENDING_ROTATION`；找不到、已过期、已撤销或 family 已撤销都会视为不可刷新。
+- begin 成功后先回源 user owner 校验用户状态；用户不存在或已禁用时撤销该 refresh family，并清浏览器 cookie。
+- 刷新成功会 `finishRotation(...)`：旧 token 变成 `CONSUMED` tombstone，新 token 成为同 family 的 active session；不会在用户状态校验前提前持久化新 token。
+- begin 后出现临时失败时会 `rollbackPendingRotation(...)`；rollback 不安全时 fail-closed 撤销 family 并清 cookie。
 - `revoke(...)` 用于单 token 撤销；`revokeFamily(...)` 用于 family reuse 或整族撤销；`revokeByUserId(...)` 用于密码重置后撤销该用户会话。
 - `deleteExpiredBefore(...)` 由 cleanup job 调用，只清理已过期 refresh session，不影响已经签出的 access token。
 

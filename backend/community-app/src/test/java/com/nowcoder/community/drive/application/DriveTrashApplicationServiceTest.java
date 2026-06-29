@@ -110,6 +110,24 @@ class DriveTrashApplicationServiceTest {
     }
 
     @Test
+    void restoreShouldRejectNonRootTrashedEntry() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveEntryApplicationService entryService = fixture.entryService();
+        DriveTrashApplicationService trashService = fixture.trashService();
+        UUID userId = uuid(7);
+        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
+        UUID childFileId = fixture.createFile(userId, folder.entryId(), "child.txt", 12);
+
+        trashService.trash(userId, folder.entryId());
+
+        assertThatThrownBy(() -> trashService.restore(userId, childFileId, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("回收站条目不可执行该操作");
+        assertThat(fixture.entry(folder.entryId()).status()).isEqualTo(DriveEntryStatus.TRASHED);
+        assertThat(fixture.entry(childFileId).status()).isEqualTo(DriveEntryStatus.TRASHED);
+    }
+
+    @Test
     void deletePermanentlyShouldNotDoubleDeleteAlreadyDeletedDescendants() {
         TestDriveFixture fixture = TestDriveFixture.create();
         DriveEntryApplicationService entryService = fixture.entryService();

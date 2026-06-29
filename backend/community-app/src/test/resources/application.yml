@@ -147,3 +147,7 @@ http:
 xxl:
   job:
     enabled: false
+
+drive:
+  share:
+    ticket-secret: test-drive-share-ticket-secret

@@ -142,6 +142,11 @@ final class TestDriveFixture {
         }
 
         @Override
+        public DriveSpace lockById(UUID spaceId) {
+            return rows.get(spaceId);
+        }
+
+        @Override
         public boolean reserve(UUID spaceId, long bytes, Instant updatedAt) {
             DriveSpace space = rows.get(spaceId);
             if (space == null || bytes < 0 || space.usedBytes() + space.reservedBytes() + bytes > space.quotaBytes()) {

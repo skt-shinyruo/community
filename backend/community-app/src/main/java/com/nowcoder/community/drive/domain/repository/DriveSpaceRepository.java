@@ -12,6 +12,8 @@ public interface DriveSpaceRepository {
 
     Optional<DriveSpace> findById(UUID spaceId);
 
+    DriveSpace lockById(UUID spaceId);
+
     boolean reserve(UUID spaceId, long bytes, Instant updatedAt);
 
     boolean commitReserved(UUID spaceId, long bytes, Instant updatedAt);

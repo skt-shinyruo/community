@@ -39,6 +39,10 @@ security:
     refresh-cookie-same-site: Lax
     refresh-cookie-secure: false
 
+drive:
+  share:
+    ticket-secret: change-this-drive-share-ticket-secret
+
 auth:
   refresh:
     store: db

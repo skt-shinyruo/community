@@ -227,7 +227,12 @@ public class DriveUploadApplicationService {
                     finalizeObjectCompletedUpload(upload.uploadId(), upload.createdBy());
                     finalized++;
                 } catch (RuntimeException e) {
-                    skipped++;
+                    DriveUpload latest = uploadRepository.findById(upload.uploadId()).orElse(upload);
+                    if (latest.status() == DriveUploadStatus.FAILED) {
+                        failed++;
+                    } else {
+                        skipped++;
+                    }
                 }
                 continue;
             }
@@ -242,7 +247,12 @@ public class DriveUploadApplicationService {
                             finalized++;
                         }
                     } catch (RuntimeException e) {
-                        skipped++;
+                        DriveUpload latest = uploadRepository.findById(upload.uploadId()).orElse(upload);
+                        if (latest.status() == DriveUploadStatus.FAILED) {
+                            failed++;
+                        } else {
+                            skipped++;
+                        }
                     }
                 } else if (storageState == StorageCompletionState.NOT_COMPLETED) {
                     markUploadFailed(upload.uploadId());
@@ -262,6 +272,7 @@ public class DriveUploadApplicationService {
             Instant now = clock.instant();
             DriveUpload upload = loadUpload(uploadId);
             DriveSpace space = loadSpace(upload.spaceId());
+            lockSpace(space.spaceId());
             ensureUploadOwner(upload, space, actorUserId);
             if (upload.status() == DriveUploadStatus.COMPLETED || upload.status() == DriveUploadStatus.OBJECT_COMPLETED) {
                 return new CompletionClaim(upload, false);
@@ -341,6 +352,7 @@ public class DriveUploadApplicationService {
                 return upload;
             }
             DriveSpace space = loadSpace(upload.spaceId());
+            lockSpace(space.spaceId());
             DriveUpload failed = upload.failCompletion(clock.instant());
             if (uploadRepository.transitionStatus(failed, DriveUploadStatus.COMPLETING)) {
                 spaceRepository.releaseReserved(space.spaceId(), upload.sizeBytes(), failed.updatedAt());
@@ -350,50 +362,140 @@ public class DriveUploadApplicationService {
         });
     }
 
-    private DriveEntryResult finalizeObjectCompletedUpload(UUID uploadId, UUID actorUserId) {
+    private DriveUpload terminalizeObjectCompletedUpload(DriveUpload upload, Instant now) {
         return runInCompletionTransaction(() -> {
-            Instant now = clock.instant();
-            DriveUpload upload = loadUpload(uploadId);
-            DriveSpace space = loadSpace(upload.spaceId());
-            ensureUploadOwner(upload, space, actorUserId);
-            if (upload.status() == DriveUploadStatus.COMPLETED) {
-                return completedEntryResult(upload);
+            DriveUpload latest = loadUpload(upload.uploadId());
+            if (latest.status() == DriveUploadStatus.FAILED) {
+                return latest;
             }
-            if (upload.status() != DriveUploadStatus.OBJECT_COMPLETED) {
-                throw new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用");
+            if (latest.status() != DriveUploadStatus.OBJECT_COMPLETED) {
+                return latest;
             }
-            UUID entryId = upload.completedEntryId();
-            if (entryId == null) {
-                throw new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用");
+            DriveSpace space = loadSpace(latest.spaceId());
+            lockSpace(space.spaceId());
+            DriveUpload failed = latest.failCompletion(now);
+            if (uploadRepository.transitionStatus(failed, DriveUploadStatus.OBJECT_COMPLETED)) {
+                spaceRepository.releaseReserved(latest.spaceId(), latest.sizeBytes(), now);
+                return failed;
             }
-            validateParent(upload.parentId(), upload.spaceId());
-            rejectDuplicate(upload.spaceId(), upload.parentId(), upload.name());
-
-            DriveEntry entry = DriveEntry.file(
-                    entryId,
-                    upload.spaceId(),
-                    upload.parentId(),
-                    upload.name(),
-                    upload.objectId(),
-                    upload.versionId(),
-                    upload.sizeBytes(),
-                    upload.mimeType(),
-                    now
-            );
-            entryRepository.save(entry);
-            if (!spaceRepository.commitReserved(space.spaceId(), upload.sizeBytes(), now)) {
-                throw new BusinessException(DriveErrorCode.DRIVE_QUOTA_EXCEEDED, "网盘容量不足");
-            }
-            DriveUpload completed = upload.completeFinalization(now);
-            if (!uploadRepository.transitionStatus(completed, DriveUploadStatus.OBJECT_COMPLETED)) {
-                DriveUpload latest = loadUpload(upload.uploadId());
-                if (latest.status() == DriveUploadStatus.COMPLETED) {
-                    return completedEntryResult(latest);
-                }
-                throw new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用");
-            }
-            return toEntryResult(entry);
+            return loadUpload(upload.uploadId());
         });
+    }
+
+    private void deleteObjectQuietly(DriveUpload upload, UUID actorUserId) {
+        try {
+            objectStoragePort.deleteObject(upload.objectId(), actorUserId == null ? "" : actorUserId.toString());
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    private DriveEntryResult finalizeObjectCompletedUpload(UUID uploadId, UUID actorUserId) {
+        try {
+            return runInCompletionTransaction(() -> {
+                Instant now = clock.instant();
+                DriveUpload upload = loadUpload(uploadId);
+                DriveSpace space = loadSpace(upload.spaceId());
+                lockSpace(space.spaceId());
+                ensureUploadOwner(upload, space, actorUserId);
+                if (upload.status() == DriveUploadStatus.COMPLETED) {
+                    return completedEntryResult(upload);
+                }
+                if (upload.status() != DriveUploadStatus.OBJECT_COMPLETED) {
+                    throw new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用");
+                }
+                UUID entryId = upload.completedEntryId();
+                if (entryId == null) {
+                    throw new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用");
+                }
+                try {
+                    validateParent(upload.parentId(), upload.spaceId());
+                    rejectDuplicate(upload.spaceId(), upload.parentId(), upload.name());
+                } catch (BusinessException e) {
+                    throw new TerminalObjectCompletedException(upload, now, e);
+                }
+
+                DriveEntry entry = DriveEntry.file(
+                        entryId,
+                        upload.spaceId(),
+                        upload.parentId(),
+                        upload.name(),
+                        upload.objectId(),
+                        upload.versionId(),
+                        upload.sizeBytes(),
+                        upload.mimeType(),
+                        now
+                );
+                try {
+                    entryRepository.save(entry);
+                } catch (DuplicateKeyException e) {
+                    if (hasConcurrentDuplicate(upload, entryId)) {
+                        throw new TerminalObjectCompletedException(
+                                upload,
+                                now,
+                                new BusinessException(DriveErrorCode.DRIVE_DUPLICATE_NAME, "同名文件或文件夹已存在", e)
+                        );
+                    }
+                    throw e;
+                }
+                if (!spaceRepository.commitReserved(space.spaceId(), upload.sizeBytes(), now)) {
+                    throw new TerminalObjectCompletedException(
+                            upload,
+                            now,
+                            new BusinessException(DriveErrorCode.DRIVE_QUOTA_EXCEEDED, "网盘容量不足")
+                    );
+                }
+                DriveUpload completed = upload.completeFinalization(now);
+                if (!uploadRepository.transitionStatus(completed, DriveUploadStatus.OBJECT_COMPLETED)) {
+                    DriveUpload latest = loadUpload(upload.uploadId());
+                    if (latest.status() == DriveUploadStatus.COMPLETED) {
+                        return completedEntryResult(latest);
+                    }
+                    throw new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用");
+                }
+                return toEntryResult(entry);
+            });
+        } catch (TerminalObjectCompletedException e) {
+            DriveUpload terminalized = terminalizeObjectCompletedUpload(e.upload(), e.failedAt());
+            if (terminalized.status() == DriveUploadStatus.COMPLETED) {
+                return completedEntryResult(terminalized);
+            }
+            if (terminalized.status() == DriveUploadStatus.FAILED) {
+                deleteObjectQuietly(e.upload(), actorUserId);
+            }
+            throw e.cause();
+        }
+    }
+
+    private static final class TerminalObjectCompletedException extends RuntimeException {
+
+        private final DriveUpload upload;
+        private final Instant failedAt;
+        private final BusinessException cause;
+
+        private TerminalObjectCompletedException(DriveUpload upload, Instant failedAt, BusinessException cause) {
+            super(cause);
+            this.upload = upload;
+            this.failedAt = failedAt;
+            this.cause = cause;
+        }
+
+        private DriveUpload upload() {
+            return upload;
+        }
+
+        private Instant failedAt() {
+            return failedAt;
+        }
+
+        private BusinessException cause() {
+            return cause;
+        }
+    }
+
+    private boolean hasConcurrentDuplicate(DriveUpload upload, UUID entryId) {
+        return entryRepository.findActiveChildByName(upload.spaceId(), upload.parentId(), upload.name())
+                .filter(existing -> !existing.entryId().equals(entryId))
+                .isPresent();
     }
 
     private DriveUpload loadUpload(UUID uploadId) {
@@ -409,6 +511,12 @@ public class DriveUploadApplicationService {
     private void ensureUploadOwner(DriveUpload upload, DriveSpace space, UUID actorUserId) {
         if (!space.userId().equals(actorUserId) || !upload.createdBy().equals(actorUserId)) {
             throw new BusinessException(FORBIDDEN, "只能完成自己的上传会话");
+        }
+    }
+
+    private void lockSpace(UUID spaceId) {
+        if (spaceRepository.lockById(spaceId) == null) {
+            throw new BusinessException(DriveErrorCode.DRIVE_SPACE_NOT_FOUND, "网盘空间不存在");
         }
     }
 

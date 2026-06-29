@@ -168,6 +168,10 @@ security:
     refresh-cookie-same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
     refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:false}
 
+drive:
+  share:
+    ticket-secret: ${DRIVE_SHARE_TICKET_SECRET:}
+
 gateway:
   origin-guard:
     enabled: true

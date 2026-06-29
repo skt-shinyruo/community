@@ -79,9 +79,10 @@ Front-end：
 6. 过期会话会被标记为失效并返回上传会话不可用；该标记使用新事务保存，避免随异常回滚。
 7. 完成时再次校验文件大小、父目录、重名和剩余空间；claim 成功后状态从 `PREPARED` 变成 `COMPLETING`，并把容量写入 `reserved_bytes`，避免并发请求重复打 OSS 或超卖配额。
 8. drive 在事务外通过 OSS complete 写 blob 和激活版本；OSS 成功后先把 upload 标记为 `OBJECT_COMPLETED`，再在短事务里创建 `DriveEntry` file、把 `reserved_bytes` 转入 `used_bytes`，最后标记 `COMPLETED`。
-9. 如果 OSS 已成功但 entry/quota/upload finalization 失败，upload 会停在 `OBJECT_COMPLETED`，用户暂时看不到文件，`used_bytes` 不增加，后续重试或 recovery 会用同一个 entryId 补完，不会再次 complete OSS。
-10. 如果 OSS complete 返回失败但 OSS 元数据已显示对象 active，upload 也会进入 `OBJECT_COMPLETED` 等待补偿；如果元数据无法确认，则保持 `COMPLETING`，由 recovery 后续判断。
-11. `DriveUploadRecoveryJob` 定期扫描 stale `COMPLETING/OBJECT_COMPLETED`：可确认 OSS active 的会补写 entry 和 used quota；确认未完成的会标记 failed 并释放 reserved quota；无法确认的留到下一轮。
+9. 如果 OSS 已成功但后续只是瞬时数据库故障，upload 会停在 `OBJECT_COMPLETED`，用户暂时看不到文件，`used_bytes` 不增加，后续重试或 recovery 会用同一个 entryId 补完，不会再次 complete OSS。
+10. 如果 OSS 已成功但父目录已失效或同目录出现重名，drive 会把 upload 标记为 `FAILED`、释放 `reserved_bytes`，并尽力删除刚完成的 OSS 对象，避免 quota 长期卡死。
+11. 如果 OSS complete 返回失败但 OSS 元数据已显示对象 active，upload 也会进入 `OBJECT_COMPLETED` 等待补偿；如果元数据无法确认，则保持 `COMPLETING`，由 recovery 后续判断。
+12. `DriveUploadRecoveryJob` 定期扫描 stale `COMPLETING/OBJECT_COMPLETED`：可确认 OSS active 的会补写 entry 和 used quota；如果补写时发现父目录失效或重名冲突，会标记 failed 并释放 reserved quota；确认未完成的也会标记 failed；无法确认的留到下一轮。
 
 回收站：
 

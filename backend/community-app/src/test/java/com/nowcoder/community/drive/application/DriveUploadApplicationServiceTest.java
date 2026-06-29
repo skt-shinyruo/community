@@ -238,6 +238,67 @@ class DriveUploadApplicationServiceTest {
     }
 
     @Test
+    void completeUploadShouldFailAndReleaseReservationWhenDuplicateAppearsAfterOssCompletion() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
+        UUID uploadId = UUID.fromString(session.uploadId());
+        DriveSpace space = spaces.findByUserId(userId).orElseThrow();
+        storage.afterComplete = () -> entries.save(DriveEntry.file(uuid(82), space.spaceId(), null, "report.pdf", uuid(83), uuid(84), 10L, "application/pdf", NOW.plusSeconds(1)));
+
+        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+                userId,
+                uploadId,
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessage("同名文件或文件夹已存在");
+
+        DriveUpload failed = uploads.findById(uploadId).orElseThrow();
+        assertThat(failed.status()).isEqualTo(DriveUploadStatus.FAILED);
+        assertThat(spaces.findByUserId(userId).orElseThrow().usedBytes()).isZero();
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isZero();
+        assertThat(storage.deletedObjects).containsExactly(failed.objectId());
+    }
+
+    @Test
+    void recoverStaleUploadsShouldFailAndReleaseReservationWhenParentIsNoLongerActive() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveSpace space = DriveSpace.createDefault(uuid(90), userId, NOW);
+        DriveEntry parent = DriveEntry.folder(uuid(91), space.spaceId(), null, "work", NOW);
+        spaces.save(space);
+        entries.save(parent);
+        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, parent.entryId(), "report.pdf", "application/pdf", 1_024L, ""));
+        UUID uploadId = UUID.fromString(session.uploadId());
+
+        service.completeUpload(new CompleteDriveUploadCommand(
+                userId,
+                uploadId,
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+        ));
+        entries.rows.remove(uploads.findById(uploadId).orElseThrow().completedEntryId());
+        uploads.forceStatus(uploadId, DriveUploadStatus.OBJECT_COMPLETED, NOW.plusSeconds(2));
+        spaces.forceReserved(space.spaceId(), 1_024L, NOW.plusSeconds(2));
+        entries.save(parent.trash(NOW.plusSeconds(3), NOW.plusSeconds(86_400)));
+
+        DriveUploadRecoveryResult result = service.recoverStaleUploads(NOW.plusSeconds(10), 10);
+
+        assertThat(result.failed()).isEqualTo(1);
+        assertThat(result.finalized()).isZero();
+        assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.FAILED);
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isZero();
+        assertThat(storage.deletedObjects).contains(uploads.findById(uploadId).orElseThrow().objectId());
+    }
+
+    @Test
     void completeUploadShouldFailSecondConcurrentReservationWithoutOverwritingQuota() {
         InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
         InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
@@ -412,6 +473,7 @@ class DriveUploadApplicationServiceTest {
     private static final class InMemoryDriveSpaceRepository implements DriveSpaceRepository {
         private final Map<UUID, DriveSpace> stored = new LinkedHashMap<>();
         private final Map<UUID, DriveSpace> snapshots = new LinkedHashMap<>();
+        private int lockCount;
 
         @Override
         public Optional<DriveSpace> findByUserId(UUID userId) {
@@ -423,6 +485,15 @@ class DriveUploadApplicationServiceTest {
         @Override
         public Optional<DriveSpace> findById(UUID spaceId) {
             return Optional.ofNullable(snapshots.getOrDefault(spaceId, stored.get(spaceId)));
+        }
+
+        @Override
+        public DriveSpace lockById(UUID spaceId) {
+            DriveSpace space = stored.get(spaceId);
+            if (space != null) {
+                lockCount++;
+            }
+            return space;
         }
 
         @Override
@@ -462,6 +533,19 @@ class DriveUploadApplicationServiceTest {
 
         void captureSnapshot(UUID spaceId) {
             snapshots.put(spaceId, stored.get(spaceId));
+        }
+
+        void forceReserved(UUID spaceId, long reservedBytes, Instant updatedAt) {
+            DriveSpace current = stored.get(spaceId);
+            stored.put(spaceId, new DriveSpace(
+                    current.spaceId(),
+                    current.userId(),
+                    current.quotaBytes(),
+                    current.usedBytes(),
+                    reservedBytes,
+                    current.createdAt(),
+                    updatedAt
+            ));
         }
     }
 
@@ -562,6 +646,28 @@ class DriveUploadApplicationServiceTest {
             DriveUpload upload = rows.get(uploadId);
             rows.put(uploadId, upload.complete(UUID.randomUUID(), now));
         }
+
+        void forceStatus(UUID uploadId, DriveUploadStatus status, Instant updatedAt) {
+            DriveUpload upload = rows.get(uploadId);
+            rows.put(uploadId, new DriveUpload(
+                    upload.uploadId(),
+                    upload.spaceId(),
+                    upload.parentId(),
+                    upload.name(),
+                    upload.sizeBytes(),
+                    upload.mimeType(),
+                    upload.objectId(),
+                    upload.versionId(),
+                    upload.ossSessionId(),
+                    upload.createdBy(),
+                    status,
+                    upload.completedEntryId(),
+                    upload.createdAt(),
+                    updatedAt,
+                    upload.expiresAt(),
+                    upload.completedAt()
+            ));
+        }
     }
 
     private static final class FakeStoragePort implements DriveObjectStoragePort {
@@ -569,6 +675,7 @@ class DriveUploadApplicationServiceTest {
         private final List<CompleteObject> completed = new ArrayList<>();
         private final List<UUID> deletedObjects = new ArrayList<>();
         private boolean failAfterObjectCompleted;
+        private Runnable afterComplete;
 
         @Override
         public PreparedObject prepareUpload(PrepareObject command) {
@@ -580,6 +687,11 @@ class DriveUploadApplicationServiceTest {
         @Override
         public StoredObject completeUpload(CompleteObject command) {
             completed.add(command);
+            if (afterComplete != null) {
+                Runnable callback = afterComplete;
+                afterComplete = null;
+                callback.run();
+            }
             if (failAfterObjectCompleted) {
                 failAfterObjectCompleted = false;
                 throw new RuntimeException("response lost");

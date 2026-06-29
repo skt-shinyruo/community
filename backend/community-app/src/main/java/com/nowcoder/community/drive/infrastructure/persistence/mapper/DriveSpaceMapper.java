@@ -16,6 +16,8 @@ public interface DriveSpaceMapper {
 
     DriveSpaceDataObject selectById(@Param("spaceId") UUID spaceId);
 
+    DriveSpaceDataObject selectByIdForUpdate(@Param("spaceId") UUID spaceId);
+
     int reserve(@Param("spaceId") UUID spaceId,
                 @Param("bytes") long bytes,
                 @Param("updatedAt") Instant updatedAt);

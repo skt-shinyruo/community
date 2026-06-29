@@ -57,6 +57,7 @@ public class DriveEntryApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "创建文件夹参数非法");
         }
         DriveSpace space = loadOrCreateSpace(command.actorUserId());
+        lockSpace(space.spaceId());
         validateParent(command.parentId(), space.spaceId());
         String name = normalizeName(command.name());
         rejectDuplicate(space.spaceId(), command.parentId(), name, null);
@@ -92,6 +93,7 @@ public class DriveEntryApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "重命名参数非法");
         }
         DriveSpace space = loadSpace(command.actorUserId());
+        lockSpace(space.spaceId());
         DriveEntry entry = loadActiveEntry(space.spaceId(), command.entryId());
         String newName = normalizeName(command.newName());
         rejectDuplicate(space.spaceId(), entry.parentId(), newName, entry.entryId());
@@ -106,6 +108,7 @@ public class DriveEntryApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "移动参数非法");
         }
         DriveSpace space = loadSpace(command.actorUserId());
+        lockSpace(space.spaceId());
         DriveEntry entry = loadActiveEntry(space.spaceId(), command.entryId());
         validateParent(command.targetParentId(), space.spaceId());
         if (entry.folder()) {
@@ -140,6 +143,12 @@ public class DriveEntryApplicationService {
 
     private DriveSpace loadSpace(UUID actorUserId) {
         return loadOrCreateSpace(actorUserId);
+    }
+
+    private void lockSpace(UUID spaceId) {
+        if (spaceRepository.lockById(spaceId) == null) {
+            throw new BusinessException(DriveErrorCode.DRIVE_SPACE_NOT_FOUND, "网盘空间不存在");
+        }
     }
 
     private DriveSpace createDefaultSpace(UUID userId, Instant now) {

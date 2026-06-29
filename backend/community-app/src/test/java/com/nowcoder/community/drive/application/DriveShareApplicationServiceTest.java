@@ -244,4 +244,11 @@ class DriveShareApplicationServiceTest {
         assertThat(ticketCodec.valid("other-share", ticket, TestDriveFixture.NOW)).isFalse();
         assertThat(ticketCodec.valid("share-token", ticket, expiresAt)).isFalse();
     }
+
+    @Test
+    void hmacTicketCodecShouldRejectBlankSecret() {
+        assertThatThrownBy(() -> new HmacDriveShareTicketCodec(" "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ticket-secret");
+    }
 }

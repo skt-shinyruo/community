@@ -17,12 +17,14 @@ import java.util.Objects;
 public class HmacDriveShareTicketCodec implements DriveShareTicketCodec {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
-    private static final String DEV_SECRET = "community-drive-dev-secret";
 
     private final String secret;
 
-    public HmacDriveShareTicketCodec(@Value("${drive.share.ticket-secret:" + DEV_SECRET + "}") String secret) {
-        this.secret = secret == null || secret.isBlank() ? DEV_SECRET : secret.trim();
+    public HmacDriveShareTicketCodec(@Value("${drive.share.ticket-secret:}") String secret) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalArgumentException("drive.share.ticket-secret must not be blank");
+        }
+        this.secret = secret.trim();
     }
 
     @Override

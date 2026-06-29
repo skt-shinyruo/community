@@ -23,6 +23,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -137,6 +138,138 @@ class DriveEntryApplicationServiceTest {
         assertThatThrownBy(() -> service.move(new MoveDriveEntryCommand(userId, folder.entryId(), child.entryId())))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("不能移动到自身或子目录");
+    }
+
+    @Test
+    void moveShouldLockSpaceBeforeSavingTreeMutation() {
+        UUID userId = uuid(7);
+        Instant now = Instant.parse("2026-05-09T00:00:00Z");
+        Clock clock = Clock.fixed(now, ZoneOffset.UTC);
+        DriveObjectStoragePort storagePort = noOpStoragePort();
+        DriveSpace space = DriveSpace.createDefault(uuid(70), userId, now);
+        DriveEntry source = DriveEntry.folder(uuid(71), space.spaceId(), null, "Source", now.plusSeconds(1));
+        DriveEntry target = DriveEntry.folder(uuid(72), space.spaceId(), null, "Target", now.plusSeconds(2));
+        AtomicBoolean locked = new AtomicBoolean(false);
+
+        DriveSpaceRepository spaceRepository = new DriveSpaceRepository() {
+            @Override
+            public Optional<DriveSpace> findByUserId(UUID queryUserId) {
+                return userId.equals(queryUserId) ? Optional.of(space) : Optional.empty();
+            }
+
+            @Override
+            public Optional<DriveSpace> findById(UUID spaceId) {
+                return space.spaceId().equals(spaceId) ? Optional.of(space) : Optional.empty();
+            }
+
+            @Override
+            public DriveSpace lockById(UUID spaceId) {
+                if (!space.spaceId().equals(spaceId)) {
+                    return null;
+                }
+                locked.set(true);
+                return space;
+            }
+
+            @Override
+            public boolean reserve(UUID spaceId, long bytes, Instant updatedAt) {
+                return false;
+            }
+
+            @Override
+            public boolean commitReserved(UUID spaceId, long bytes, Instant updatedAt) {
+                return false;
+            }
+
+            @Override
+            public boolean releaseReserved(UUID spaceId, long bytes, Instant updatedAt) {
+                return false;
+            }
+
+            @Override
+            public void save(DriveSpace ignored) {
+            }
+        };
+
+        DriveEntryRepository entryRepository = new DriveEntryRepository() {
+            @Override
+            public Optional<DriveEntry> findById(UUID spaceId, UUID entryId) {
+                if (!space.spaceId().equals(spaceId)) {
+                    return Optional.empty();
+                }
+                if (source.entryId().equals(entryId)) {
+                    return Optional.of(source);
+                }
+                if (target.entryId().equals(entryId)) {
+                    return Optional.of(target);
+                }
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<DriveEntry> findActiveChildByName(UUID spaceId, UUID parentId, String name) {
+                return Optional.empty();
+            }
+
+            @Override
+            public List<DriveEntry> listActiveChildren(UUID spaceId, UUID parentId) {
+                return List.of();
+            }
+
+            @Override
+            public List<DriveEntry> listTrash(UUID spaceId) {
+                return List.of();
+            }
+
+            @Override
+            public List<DriveEntry> searchActive(UUID spaceId, String keyword, int limit) {
+                return List.of();
+            }
+
+            @Override
+            public List<UUID> listDescendantIds(UUID spaceId, UUID folderId) {
+                return List.of();
+            }
+
+            @Override
+            public void save(DriveEntry entry) {
+                assertThat(locked.get()).isTrue();
+            }
+        };
+
+        DriveEntryApplicationService service = new DriveEntryApplicationService(spaceRepository, entryRepository, storagePort, clock);
+
+        service.move(new MoveDriveEntryCommand(userId, source.entryId(), target.entryId()));
+
+        assertThat(locked.get()).isTrue();
+    }
+
+    private static DriveObjectStoragePort noOpStoragePort() {
+        return new DriveObjectStoragePort() {
+            @Override
+            public PreparedObject prepareUpload(PrepareObject command) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoredObject completeUpload(CompleteObject command) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ObjectMetadata getMetadata(UUID objectId) {
+                return null;
+            }
+
+            @Override
+            public SignedDownloadUrl createDownloadUrl(UUID objectId, long ttlSeconds) {
+                return null;
+            }
+
+            @Override
+            public void deleteObject(UUID objectId, String actorId) {
+            }
+        };
     }
 
     @Test

@@ -30,6 +30,13 @@ public class MyBatisDriveSpaceRepository implements DriveSpaceRepository {
     }
 
     @Override
+    public DriveSpace lockById(UUID spaceId) {
+        return Optional.ofNullable(mapper.selectByIdForUpdate(spaceId))
+                .map(DriveSpaceDataObject::toDomain)
+                .orElse(null);
+    }
+
+    @Override
     public boolean reserve(UUID spaceId, long bytes, Instant updatedAt) {
         return mapper.reserve(spaceId, bytes, updatedAt) == 1;
     }

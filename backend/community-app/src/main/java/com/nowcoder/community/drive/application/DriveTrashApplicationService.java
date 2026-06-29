@@ -70,6 +70,7 @@ public class DriveTrashApplicationService {
     @Transactional
     public DriveEntryResult trash(UUID actorUserId, UUID entryId) {
         DriveSpace space = loadOrCreateSpace(actorUserId);
+        lockSpace(space.spaceId());
         DriveEntry entry = loadEntry(space.spaceId(), entryId);
         if (entry.status() != DriveEntryStatus.ACTIVE) {
             throw new BusinessException(DriveErrorCode.DRIVE_ENTRY_NOT_FOUND, "网盘条目不存在");
@@ -88,8 +89,12 @@ public class DriveTrashApplicationService {
     @Transactional
     public DriveEntryResult restore(UUID actorUserId, UUID entryId, UUID targetParentId) {
         DriveSpace space = loadOrCreateSpace(actorUserId);
+        lockSpace(space.spaceId());
         DriveEntry entry = loadEntry(space.spaceId(), entryId);
         if (entry.status() != DriveEntryStatus.TRASHED) {
+            throw new BusinessException(DriveErrorCode.DRIVE_ENTRY_TRASHED, "回收站条目不可执行该操作");
+        }
+        if (!entry.entryId().equals(entry.trashRootId())) {
             throw new BusinessException(DriveErrorCode.DRIVE_ENTRY_TRASHED, "回收站条目不可执行该操作");
         }
         validateParent(targetParentId, space.spaceId());
@@ -108,6 +113,7 @@ public class DriveTrashApplicationService {
 
     public void deletePermanently(UUID actorUserId, UUID entryId) {
         DriveSpace space = loadOrCreateSpace(actorUserId);
+        lockSpace(space.spaceId());
         DriveEntry entry = loadEntry(space.spaceId(), entryId);
         if (entry.status() == DriveEntryStatus.ACTIVE) {
             throw new BusinessException(DriveErrorCode.DRIVE_ENTRY_TRASHED, "回收站条目不可执行该操作");
@@ -166,6 +172,12 @@ public class DriveTrashApplicationService {
         } catch (DuplicateKeyException e) {
             return spaceRepository.findByUserId(userId)
                     .orElseThrow(() -> new BusinessException(INTERNAL_ERROR, "网盘空间创建失败", e));
+        }
+    }
+
+    private void lockSpace(UUID spaceId) {
+        if (spaceRepository.lockById(spaceId) == null) {
+            throw new BusinessException(DriveErrorCode.DRIVE_SPACE_NOT_FOUND, "网盘空间不存在");
         }
     }
 

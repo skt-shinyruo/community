@@ -41,7 +41,7 @@ class LikeTaskProgressKafkaOutboxEnqueuerTest {
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
         verify(store).enqueue(
-                eq("like:" + actorUserId + ":" + POST + ":" + entityId + ":growth_task"),
+                eq("like-created:like:" + actorUserId + ":" + POST + ":" + entityId + ":growth_task"),
                 eq(topic),
                 eq(entityUserId.toString()),
                 payloadCaptor.capture()
@@ -52,6 +52,55 @@ class LikeTaskProgressKafkaOutboxEnqueuerTest {
         assertThat(json.path("entityId").asText()).isEqualTo(entityId.toString());
         assertThat(json.path("entityUserId").asText()).isEqualTo(entityUserId.toString());
         assertThat(json.path("createTime").asText()).isEqualTo(createTime.toString());
+    }
+
+    @Test
+    void likeCreatedWithoutRelationKeyShouldEnqueueWithFallbackEventId() {
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        String topic = "custom.projection.growth.task.like";
+        UUID actorUserId = uuid(1);
+        UUID entityId = uuid(100);
+        UUID entityUserId = uuid(2);
+        LikePayload payload = likePayload(actorUserId, entityId, entityUserId, Instant.parse("2026-05-18T10:30:00Z"));
+        payload.setRelationKey(null);
+
+        LikeTaskProgressKafkaOutboxEnqueuer enqueuer =
+                new LikeTaskProgressKafkaOutboxEnqueuer(new JacksonJsonCodec(JsonMappers.standard()), store, topic);
+        enqueuer.onSocialEvent(new SocialContractEvent("local-like-event", SocialEventTypes.LIKE_CREATED, payload));
+
+        verify(store).enqueue(
+                eq("like-created:" + actorUserId + ":" + POST + ":" + entityId + ":growth_task"),
+                eq(topic),
+                eq(entityUserId.toString()),
+                org.mockito.ArgumentMatchers.anyString()
+        );
+    }
+
+    @Test
+    void likeRemovedShouldEnqueueGrowthTaskProjectionWithStableEventId() throws Exception {
+        ObjectMapper objectMapper = JsonMappers.standard();
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        String topic = "custom.projection.growth.task.like";
+        UUID actorUserId = uuid(1);
+        UUID entityId = uuid(100);
+        UUID entityUserId = uuid(2);
+        Instant createTime = Instant.parse("2026-05-18T10:30:00Z");
+
+        LikeTaskProgressKafkaOutboxEnqueuer enqueuer =
+                new LikeTaskProgressKafkaOutboxEnqueuer(new JacksonJsonCodec(JsonMappers.standard()), store, topic);
+        enqueuer.onSocialEvent(new SocialContractEvent("local-like-removed-event", SocialEventTypes.LIKE_REMOVED,
+                likePayload(actorUserId, entityId, entityUserId, createTime)));
+
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(store).enqueue(
+                eq("like-removed:like:" + actorUserId + ":" + POST + ":" + entityId + ":growth_task"),
+                eq(topic),
+                eq(entityUserId.toString()),
+                payloadCaptor.capture()
+        );
+        JsonNode json = objectMapper.readTree(payloadCaptor.getValue());
+        assertThat(json.path("entityUserId").asText()).isEqualTo(entityUserId.toString());
+        assertThat(json.path("relationKey").asText()).isEqualTo("like:" + actorUserId + ":" + POST + ":" + entityId);
     }
 
     @Test

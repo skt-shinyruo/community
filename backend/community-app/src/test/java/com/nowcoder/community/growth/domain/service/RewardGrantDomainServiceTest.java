@@ -16,8 +16,8 @@ class RewardGrantDomainServiceTest {
     }
 
     @Test
-    void rewardAmountShouldCombineGrowthAndBalanceDelta() {
-        assertThat(service.rewardAmount(3, 2)).isEqualTo(5L);
+    void walletRewardAmountShouldUseBalanceDeltaOnly() {
+        assertThat(service.walletRewardAmount(2)).isEqualTo(2L);
         assertThat(service.hasValidSourceEventId("event-1")).isTrue();
         assertThat(service.hasValidSourceEventId(" ")).isFalse();
     }

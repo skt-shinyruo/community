@@ -67,6 +67,19 @@ class UserLevelApplicationServiceTest {
     }
 
     @Test
+    void evaluateLevelShouldIgnoreIncompleteCheckInProgressRows() {
+        LocalDate bizDate = LocalDate.of(2026, 4, 2);
+        UUID userId = uuid(12);
+        insertCheckIns(userId, bizDate, 11);
+        insertCheckIn(userId, bizDate.minusDays(20), 0, 1, "IN_PROGRESS");
+
+        UserLevelSummaryResult summary = service.evaluateLevelSummary(userId, bizDate);
+
+        assertThat(summary.signInDaysInWindow()).isEqualTo(11);
+        assertThat(summary.userLevel()).isEqualTo(1);
+    }
+
+    @Test
     void evaluateLevelShouldReturnLevel1WhenConfigDisabled() {
         LocalDate bizDate = LocalDate.of(2026, 4, 2);
         jdbcTemplate.update(
@@ -175,20 +188,24 @@ class UserLevelApplicationServiceTest {
     private void insertCheckIns(UUID userId, LocalDate endDateInclusive, int days) {
         for (int i = 0; i < days; i++) {
             LocalDate bizDate = endDateInclusive.minusDays(i);
-            jdbcTemplate.update(
-                    "insert into user_task_progress(id, user_id, task_code, period_key, current_value, target_value, status, reward_grant_id, last_source_event_id, update_time) " +
-                            "values (?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)",
-                    BinaryUuidCodec.toBytes(taskProgressId(userId, bizDate)),
-                    BinaryUuidCodec.toBytes(userId),
-                    "DAILY_CHECK_IN",
-                    bizDate.toString(),
-                    1,
-                    1,
-                    "CLAIMED",
-                    null,
-                    "check-in:" + userId + ":" + bizDate
-            );
+            insertCheckIn(userId, bizDate, 1, 1, "CLAIMED");
         }
+    }
+
+    private void insertCheckIn(UUID userId, LocalDate bizDate, int currentValue, int targetValue, String status) {
+        jdbcTemplate.update(
+                "insert into user_task_progress(id, user_id, task_code, period_key, current_value, target_value, status, reward_grant_id, last_source_event_id, update_time) " +
+                        "values (?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)",
+                BinaryUuidCodec.toBytes(taskProgressId(userId, bizDate)),
+                BinaryUuidCodec.toBytes(userId),
+                "DAILY_CHECK_IN",
+                bizDate.toString(),
+                currentValue,
+                targetValue,
+                status,
+                null,
+                "check-in:" + userId + ":" + bizDate
+        );
     }
 
     private UUID taskProgressId(UUID userId, LocalDate bizDate) {

@@ -17,8 +17,6 @@ import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 
 @Component
 public class TaskProgressEventBackboneKafkaListener {
@@ -125,9 +123,7 @@ public class TaskProgressEventBackboneKafkaListener {
         if (hasText(payload.getRelationKey())) {
             return payload.getRelationKey().trim();
         }
-        String source = payload.getActorUserId() + ":" + payload.getEntityType() + ":" + payload.getEntityId();
-        UUID digest = UUID.nameUUIDFromBytes(source.getBytes(StandardCharsets.UTF_8));
-        return "gl:like:" + digest;
+        return "like-created:" + payload.getActorUserId() + ":" + payload.getEntityType() + ":" + payload.getEntityId();
     }
 
     private boolean hasText(String value) {

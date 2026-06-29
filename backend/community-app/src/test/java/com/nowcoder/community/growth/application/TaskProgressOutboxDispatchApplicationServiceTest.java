@@ -24,6 +24,7 @@ class TaskProgressOutboxDispatchApplicationServiceTest {
     private static final String POST_TOPIC = "custom.growth.task.post-published";
     private static final String COMMENT_TOPIC = "custom.growth.task.comment-created";
     private static final String LIKE_TOPIC = "custom.growth.task.like-created";
+    private static final String LIKE_REMOVED_TOPIC = "custom.growth.task.like-removed";
 
     private final TaskProgressKafkaDispatchPort dispatchPort = mock(TaskProgressKafkaDispatchPort.class);
     private final TaskProgressOutboxDispatchApplicationService service =
@@ -32,7 +33,8 @@ class TaskProgressOutboxDispatchApplicationServiceTest {
                     dispatchPort,
                     POST_TOPIC,
                     COMMENT_TOPIC,
-                    LIKE_TOPIC
+                    LIKE_TOPIC,
+                    LIKE_REMOVED_TOPIC
             );
 
     @Test
@@ -83,11 +85,30 @@ class TaskProgressOutboxDispatchApplicationServiceTest {
     }
 
     @Test
+    void dispatchLikeRemovedShouldSendTypedPayloadThroughPort() {
+        LikePayload payload = new LikePayload();
+        payload.setActorUserId(uuid(1));
+        payload.setEntityType(POST);
+        payload.setEntityId(uuid(100));
+        payload.setEntityUserId(uuid(2));
+        payload.setRelationKey("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
+        payload.setCreateTime(Instant.parse("2026-05-18T10:30:00Z"));
+
+        service.dispatchLikeRemoved("like-removed-key", JsonMappers.standard().valueToTree(payload).toString());
+
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(dispatchPort).send(org.mockito.ArgumentMatchers.eq(LIKE_REMOVED_TOPIC), org.mockito.ArgumentMatchers.eq("like-removed-key"), payloadCaptor.capture());
+        assertThat(payloadCaptor.getValue()).isInstanceOf(LikePayload.class);
+        assertThat(((LikePayload) payloadCaptor.getValue()).getRelationKey()).isEqualTo("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
+    }
+
+    @Test
     void dispatchShouldIgnoreBlankPayloadAndMissingRequiredFields() {
         service.dispatchPostPublished("key", " ");
         service.dispatchPostPublished("key", "{}");
         service.dispatchCommentCreated("key", "{}");
         service.dispatchLikeCreated("key", "{}");
+        service.dispatchLikeRemoved("key", "{}");
 
         verifyNoInteractions(dispatchPort);
     }

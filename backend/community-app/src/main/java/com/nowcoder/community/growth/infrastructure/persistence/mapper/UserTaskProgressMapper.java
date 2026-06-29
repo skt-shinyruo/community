@@ -16,7 +16,7 @@ public interface UserTaskProgressMapper {
 
     UserTaskProgressDataObject selectByUserTaskAndPeriodForUpdate(@Param("userId") UUID userId, @Param("taskCode") String taskCode, @Param("periodKey") String periodKey);
 
-    int countByUserTaskAndPeriodKeyRange(
+    int countCompletedByUserTaskAndPeriodKeyRange(
             @Param("userId") UUID userId,
             @Param("taskCode") String taskCode,
             @Param("startPeriodKey") String startPeriodKey,

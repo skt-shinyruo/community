@@ -17,19 +17,22 @@ public class TaskProgressOutboxDispatchApplicationService {
     private final String postPublishedTopic;
     private final String commentCreatedTopic;
     private final String likeCreatedTopic;
+    private final String likeRemovedTopic;
 
     public TaskProgressOutboxDispatchApplicationService(
             JsonCodec jsonCodec,
             TaskProgressKafkaDispatchPort dispatchPort,
             @Value("${growth.task.kafka.topics.post-published:growth.task.post-published}") String postPublishedTopic,
             @Value("${growth.task.kafka.topics.comment-created:growth.task.comment-created}") String commentCreatedTopic,
-            @Value("${growth.task.kafka.topics.like-created:growth.task.like-created}") String likeCreatedTopic
+            @Value("${growth.task.kafka.topics.like-created:growth.task.like-created}") String likeCreatedTopic,
+            @Value("${growth.task.kafka.topics.like-removed:growth.task.like-removed}") String likeRemovedTopic
     ) {
         this.jsonCodec = jsonCodec;
         this.dispatchPort = dispatchPort;
         this.postPublishedTopic = postPublishedTopic;
         this.commentCreatedTopic = commentCreatedTopic;
         this.likeCreatedTopic = likeCreatedTopic;
+        this.likeRemovedTopic = likeRemovedTopic;
     }
 
     public void dispatchPostPublished(String key, String payloadJson) {
@@ -82,6 +85,22 @@ public class TaskProgressOutboxDispatchApplicationService {
             return;
         }
         dispatchPort.send(likeCreatedTopic, dispatchKey(key, payload.getEntityUserId().toString()), payload);
+    }
+
+    public void dispatchLikeRemoved(String key, String payloadJson) {
+        if (!StringUtils.hasText(payloadJson)) {
+            return;
+        }
+        LikePayload payload;
+        try {
+            payload = jsonCodec.fromJson(payloadJson, LikePayload.class);
+        } catch (JsonCodecException e) {
+            throw new IllegalStateException("growth task like outbox payload 反序列化失败", e);
+        }
+        if (payload.getEntityUserId() == null || !StringUtils.hasText(payload.getRelationKey())) {
+            return;
+        }
+        dispatchPort.send(likeRemovedTopic, dispatchKey(key, payload.getEntityUserId().toString()), payload);
     }
 
     private String dispatchKey(String eventKey, String fallback) {

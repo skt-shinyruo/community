@@ -113,6 +113,19 @@ class TaskProgressEventBackboneKafkaListenerTest {
     }
 
     @Test
+    void likeCreatedWithoutRelationKeyShouldUseDedicatedKafkaFallbackSourceId() {
+        TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
+        TaskProgressEventBackboneKafkaListener listener = new TaskProgressEventBackboneKafkaListener(jsonCodec, applicationService);
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2), Instant.parse("2026-05-18T10:30:00Z"));
+
+        listener.onSocialEvent(new SocialContractEvent("se:like:created:no-relation-key", SocialEventTypes.LIKE_CREATED, payload));
+
+        ArgumentCaptor<TriggerLikeCreatedCommand> captor = ArgumentCaptor.forClass(TriggerLikeCreatedCommand.class);
+        verify(applicationService).triggerLikeCreated(captor.capture());
+        assertThat(captor.getValue().sourceEventId()).isEqualTo("like-created:" + uuid(1) + ":" + POST + ":" + uuid(100));
+    }
+
+    @Test
     void mapLikeSocialPayloadShouldConvertBeforeDelegation() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = new TaskProgressEventBackboneKafkaListener(jsonCodec, applicationService);

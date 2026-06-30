@@ -136,6 +136,7 @@ public class LikeApplicationService {
     public long cleanupEntityLikes(int entityType, UUID entityId) {
         validateLikeEntity(entityType, entityId);
         long removed = 0L;
+        boolean needsExplicitCompensation = likeRepository.requiresExplicitCompensation();
         UUID afterActorUserId = new UUID(0L, 0L);
         while (true) {
             List<LikeRelation> page = likeRepository.scanLikesByEntity(entityType, entityId, afterActorUserId, CLEANUP_SCAN_LIMIT);
@@ -154,14 +155,32 @@ public class LikeApplicationService {
                 if (!changed) {
                     continue;
                 }
-                eventPublisher.publishLikeChanged(likeDomainService.likeChangedEvent(
+                Runnable rollback = () -> likeRepository.setLike(
+                        relation.actorUserId(),
+                        entityType,
+                        entityId,
+                        relation.entityUserId(),
+                        true
+                );
+                if (needsExplicitCompensation) {
+                    registerRollbackIfTxRolledBack("like-cleanup", rollback);
+                }
+                LikeChangedDomainEvent event = likeDomainService.likeChangedEvent(
                         relation.actorUserId(),
                         entityType,
                         entityId,
                         new ResolvedSocialEntity(relation.entityUserId(), entityType == POST ? entityId : null),
                         false,
                         Instant.now()
-                ));
+                );
+                try {
+                    eventPublisher.publishLikeChanged(event);
+                } catch (RuntimeException ex) {
+                    if (needsExplicitCompensation) {
+                        compensate("like-cleanup", rollback);
+                    }
+                    throw ex;
+                }
                 removed++;
             }
         }

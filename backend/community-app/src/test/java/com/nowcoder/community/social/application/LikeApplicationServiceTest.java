@@ -17,6 +17,8 @@ import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -228,6 +230,55 @@ class LikeApplicationServiceTest {
         assertThat(publisher.snapshot())
                 .filteredOn(LikeChangedDomainEvent.class::isInstance)
                 .hasSize(2);
+    }
+
+    @Test
+    void cleanupShouldCompensateRemovedLikeWhenPublisherFailsForCompensatingRepository() {
+        StatefulLikeRepository repo = new StatefulLikeRepository();
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                new FailingSocialDomainEventPublisher(),
+                mock(ContentEntityResolver.class)
+        );
+
+        assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
+
+        assertThatThrownBy(() -> service.cleanupEntityLikes(POST, uuid(100)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("publish failed");
+
+        assertThat(repo.isLiked(uuid(1), POST, uuid(100))).isTrue();
+        assertThat(repo.countEntityLikes(POST, uuid(100))).isEqualTo(1);
+        assertThat(repo.getUserLikeCount(uuid(2))).isEqualTo(1);
+    }
+
+    @Test
+    void cleanupShouldRestoreRemovedLikeWhenTransactionRollsBackForCompensatingRepository() {
+        StatefulLikeRepository repo = new StatefulLikeRepository();
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                new RecordingSocialDomainEventPublisher(),
+                mock(ContentEntityResolver.class)
+        );
+
+        assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            assertThat(service.cleanupEntityLikes(POST, uuid(100))).isEqualTo(1);
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+            }
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+
+        assertThat(repo.isLiked(uuid(1), POST, uuid(100))).isTrue();
+        assertThat(repo.countEntityLikes(POST, uuid(100))).isEqualTo(1);
+        assertThat(repo.getUserLikeCount(uuid(2))).isEqualTo(1);
     }
 
     @Test

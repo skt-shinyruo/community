@@ -51,11 +51,7 @@ public class BlockApplicationService {
         boolean changed = blockRepository.block(command.actorUserId(), command.targetUserId(), version);
         boolean removedForwardFollow = followRepository.unfollow(command.actorUserId(), USER, command.targetUserId());
         boolean removedReverseFollow = followRepository.unfollow(command.targetUserId(), USER, command.actorUserId());
-        if (!changed) {
-            return;
-        }
-        Runnable rollback = () -> {
-            blockRepository.unblock(command.actorUserId(), command.targetUserId());
+        Runnable restoreRemovedFollows = () -> {
             long now = System.currentTimeMillis();
             if (removedForwardFollow) {
                 followRepository.follow(command.actorUserId(), USER, command.targetUserId(), now);
@@ -63,6 +59,16 @@ public class BlockApplicationService {
             if (removedReverseFollow) {
                 followRepository.follow(command.targetUserId(), USER, command.actorUserId(), now);
             }
+        };
+        if (!changed) {
+            if ((removedForwardFollow || removedReverseFollow) && followRepository.requiresExplicitCompensation()) {
+                registerRollbackIfTxRolledBack(restoreRemovedFollows);
+            }
+            return;
+        }
+        Runnable rollback = () -> {
+            blockRepository.unblock(command.actorUserId(), command.targetUserId());
+            restoreRemovedFollows.run();
         };
         publishChangedWithCompensation(
                 new BlockRelationChangedDomainEvent(command.actorUserId(), command.targetUserId(), true, version),

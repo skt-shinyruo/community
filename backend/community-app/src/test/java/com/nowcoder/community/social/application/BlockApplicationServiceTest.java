@@ -14,6 +14,8 @@ import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.exception.SocialErrorCode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -144,6 +146,37 @@ class BlockApplicationServiceTest {
 
         assertThat(followRepository.hasFollowed(USER_ID_1, USER, USER_ID_2)).isFalse();
         assertThat(followRepository.hasFollowed(USER_ID_2, USER, USER_ID_1)).isFalse();
+    }
+
+    @Test
+    void duplicateBlockShouldRestoreStaleFollowCleanupWhenTransactionRollsBack() {
+        StatefulBlockRepository blockRepository = new StatefulBlockRepository();
+        StatefulFollowRepository followRepository = new StatefulFollowRepository();
+        BlockApplicationService service = new BlockApplicationService(
+                blockRepository,
+                followRepository,
+                new BlockDomainService(),
+                new RecordingSocialDomainEventPublisher()
+        );
+        blockRepository.block(USER_ID_1, USER_ID_2, 1L);
+        followRepository.follow(USER_ID_1, USER, USER_ID_2, 1000L);
+        followRepository.follow(USER_ID_2, USER, USER_ID_1, 1001L);
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            service.block(new BlockCommand(USER_ID_1, USER_ID_2));
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+            }
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+
+        assertThat(followRepository.hasFollowed(USER_ID_1, USER, USER_ID_2)).isTrue();
+        assertThat(followRepository.hasFollowed(USER_ID_2, USER, USER_ID_1)).isTrue();
+        assertThat(blockRepository.hasBlocked(USER_ID_1, USER_ID_2)).isTrue();
     }
 
     private static final class StatefulBlockRepository implements BlockRepository {

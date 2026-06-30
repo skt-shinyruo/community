@@ -26,6 +26,11 @@ public interface PostMediaAssetMapper {
             @Param("updateTime") Date updateTime
     );
 
+    int markDraftDeleted(
+            @Param("id") UUID id,
+            @Param("updateTime") Date updateTime
+    );
+
     int bindToPost(
             @Param("id") UUID id,
             @Param("postId") UUID postId,

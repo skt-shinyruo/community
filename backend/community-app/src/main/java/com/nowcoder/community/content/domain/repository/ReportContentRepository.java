@@ -15,7 +15,9 @@ public interface ReportContentRepository {
     int STATUS_PROCESSED = 1;
     int STATUS_REJECTED = 2;
 
-    UUID createReport(UUID reporterId, int targetType, UUID targetId, String reason, String detail);
+    UUID createReport(Report report);
+
+    UUID findExistingReportId(UUID reporterId, int targetType, UUID targetId);
 
     Report getById(UUID reportId);
 

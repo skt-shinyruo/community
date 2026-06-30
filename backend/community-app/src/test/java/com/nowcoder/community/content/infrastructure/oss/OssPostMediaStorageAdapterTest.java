@@ -165,6 +165,17 @@ class OssPostMediaStorageAdapterTest {
     }
 
     @Test
+    void deleteDraftObjectShouldDeletePreparedObjectByOwner() {
+        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        OssPostMediaStorageAdapter adapter = new OssPostMediaStorageAdapter(ossClient);
+        PostMediaAsset asset = draft(uuid(1), uuid(2), uuid(21), uuid(22), uuid(23));
+
+        adapter.deleteDraftObject(asset, uuid(2));
+
+        verify(ossClient).deleteObject(uuid(22), uuid(2).toString());
+    }
+
+    @Test
     void prepareUploadShouldRejectNullOssResponse() {
         CommunityOssClient ossClient = mock(CommunityOssClient.class);
         when(ossClient.prepareUpload(any())).thenReturn(null);

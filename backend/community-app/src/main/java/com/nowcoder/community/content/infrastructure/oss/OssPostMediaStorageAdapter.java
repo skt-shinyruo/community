@@ -107,6 +107,14 @@ public class OssPostMediaStorageAdapter implements PostMediaStoragePort {
     }
 
     @Override
+    public void deleteDraftObject(PostMediaAsset asset, UUID actorUserId) {
+        if (asset == null || asset.ossObjectId() == null) {
+            return;
+        }
+        ossClient.deleteObject(asset.ossObjectId(), actorUserId == null ? "" : actorUserId.toString());
+    }
+
+    @Override
     public UUID bindReference(PostMediaAsset asset, UUID postId, UUID actorUserId) {
         if (asset == null || asset.ossObjectId() == null || asset.ossVersionId() == null || postId == null || actorUserId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "媒体绑定上下文非法");

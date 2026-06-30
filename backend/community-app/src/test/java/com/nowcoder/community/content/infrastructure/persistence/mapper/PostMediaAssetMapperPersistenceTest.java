@@ -123,4 +123,30 @@ class PostMediaAssetMapperPersistenceTest {
         assertThat(saved.uploadSessionId()).isEqualTo(uploadSessionId);
         assertThat(saved.lifecycle()).isEqualTo(PostMediaAssetLifecycle.DRAFT);
     }
+
+    @Test
+    void markDraftDeletedShouldOnlyDeleteDraftAsset() {
+        PostMediaAssetDataObject row = new PostMediaAssetDataObject();
+        row.setId(ASSET_ID);
+        row.setOwnerUserId(OWNER_ID);
+        row.setOssObjectId(OBJECT_ID);
+        row.setOssVersionId(VERSION_ID);
+        row.setFileName("demo.mp4");
+        row.setContentType("video/mp4");
+        row.setContentLength(1234L);
+        row.setMediaKind("VIDEO");
+        row.setLifecycle("DRAFT");
+        row.setVideoState("NONE");
+        row.setPublicUrl("");
+        row.setCreateTime(Timestamp.from(Instant.parse("2026-05-09T00:00:00Z")));
+        assertThat(mapper.insert(row)).isEqualTo(1);
+
+        assertThat(mapper.markDraftDeleted(
+                ASSET_ID,
+                Timestamp.from(Instant.parse("2026-05-09T00:03:00Z"))
+        )).isEqualTo(1);
+
+        PostMediaAssetDataObject saved = mapper.selectById(ASSET_ID);
+        assertThat(saved.getLifecycle()).isEqualTo("DELETED");
+    }
 }

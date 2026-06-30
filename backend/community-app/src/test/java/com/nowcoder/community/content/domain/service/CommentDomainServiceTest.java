@@ -107,6 +107,36 @@ class CommentDomainServiceTest {
     }
 
     @Test
+    void resolveCreateTargetShouldUseAuthoritativeTargetUserForReplyTarget() {
+        UUID postId = uuid(100);
+        UUID targetCommentId = uuid(300);
+        UUID targetUserId = uuid(302);
+        CommentSnapshot targetComment = snapshot(
+                targetCommentId,
+                targetUserId,
+                EntityTypes.POST,
+                postId,
+                uuid(999),
+                0,
+                new Date()
+        );
+
+        CommentDomainService.CreateTarget target = service.resolveCreateTarget(
+                postId,
+                EntityTypes.COMMENT,
+                targetCommentId,
+                uuid(888),
+                uuid(200),
+                targetComment
+        );
+
+        assertThat(target.entityType()).isEqualTo(EntityTypes.COMMENT);
+        assertThat(target.entityId()).isEqualTo(targetCommentId);
+        assertThat(target.targetId()).isEqualTo(targetUserId);
+        assertThat(target.targetUserId()).isEqualTo(targetUserId);
+    }
+
+    @Test
     void assertEditableByAuthorShouldRejectEditsAfterFifteenMinutes() {
         Date createTime = new Date(1_000_000L);
         Date afterEditWindow = new Date(createTime.getTime() + 15L * 60 * 1000 + 1);

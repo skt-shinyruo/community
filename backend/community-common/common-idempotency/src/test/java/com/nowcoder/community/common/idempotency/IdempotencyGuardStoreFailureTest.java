@@ -6,6 +6,8 @@ import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -111,5 +113,61 @@ class IdempotencyGuardStoreFailureTest {
         );
 
         assertThat(result).isEqualTo("OK");
+    }
+
+    @Test
+    void executeRequiredShouldSaveSuccessOnlyAfterTransactionCommit() {
+        IdempotencyStore store = mock(IdempotencyStore.class);
+        when(store.tryAcquireProcessing(anyString(), any(), anyString(), any(Duration.class))).thenReturn(true);
+        IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            String result = guard.executeRequired("op", USER_ID, "k1", String.class, () -> "OK");
+
+            assertThat(result).isEqualTo("OK");
+            verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), any(Duration.class));
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCommit();
+            }
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+
+        verify(store).saveSuccess(eq("op"), eq(USER_ID), eq("k1"), eq("\"OK\""), any(Duration.class));
+        verify(store, never()).delete(anyString(), any(), anyString());
+    }
+
+    @Test
+    void executeRequiredShouldDeleteProcessingKeyWhenTransactionRollsBackAfterSupplierSucceeded() {
+        IdempotencyStore store = mock(IdempotencyStore.class);
+        when(store.tryAcquireProcessing(anyString(), any(), anyString(), any(Duration.class))).thenReturn(true);
+        IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            String result = guard.executeRequired("op", USER_ID, "k1", String.class, () -> "OK");
+
+            assertThat(result).isEqualTo("OK");
+            verify(store).tryAcquireProcessing(eq("op"), eq(USER_ID), eq("k1"), any(Duration.class));
+            verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), any(Duration.class));
+            verify(store, never()).delete(anyString(), any(), anyString());
+        } finally {
+            try {
+                for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                    synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+                }
+            } finally {
+                TransactionSynchronizationManager.clearSynchronization();
+                TransactionSynchronizationManager.setActualTransactionActive(false);
+            }
+        }
+
+        verify(store).tryAcquireProcessing(eq("op"), eq(USER_ID), eq("k1"), any(Duration.class));
+        verify(store).delete(eq("op"), eq(USER_ID), eq("k1"));
+        verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), any(Duration.class));
     }
 }

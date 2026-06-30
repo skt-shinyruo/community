@@ -83,6 +83,11 @@ public class MyBatisPostMediaAssetRepository implements PostMediaAssetRepository
     }
 
     @Override
+    public void markDraftDeleted(UUID assetId, Date updateTime) {
+        mapper.markDraftDeleted(assetId, updateTime);
+    }
+
+    @Override
     public void bindToPost(UUID assetId, UUID postId, UUID ossReferenceId, PostVideoState videoState, Date updateTime) {
         mapper.bindToPost(assetId, postId, ossReferenceId, videoState.name(), updateTime);
     }

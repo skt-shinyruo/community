@@ -7,16 +7,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ContentTextCodecTest {
 
     @Test
-    void codecShouldLeaveTextUntouched() {
+    void codecShouldEscapeOnWriteAndDecodeOnRead() {
         ContentTextCodec codec = new ContentTextCodec();
 
         assertThat(codec.escapeOnWrite(null)).isNull();
         assertThat(codec.escapeOnWrite("")).isEqualTo("");
-        assertThat(codec.escapeOnWrite("A&B")).isEqualTo("A&B");
-        assertThat(codec.escapeOnWrite("&lt;")).isEqualTo("&lt;");
+        assertThat(codec.escapeOnWrite("<tag>A&B</tag>")).isEqualTo("&lt;tag&gt;A&amp;B&lt;/tag&gt;");
+        assertThat(codec.escapeOnWrite("&lt;")).isEqualTo("&amp;lt;");
         assertThat(codec.decodeOnRead(null)).isNull();
         assertThat(codec.decodeOnRead("")).isEqualTo("");
-        assertThat(codec.decodeOnRead("&lt;tag&gt;")).isEqualTo("&lt;tag&gt;");
-        assertThat(codec.decodeOnRead("A&amp;B")).isEqualTo("A&amp;B");
+        assertThat(codec.decodeOnRead("&lt;tag&gt;")).isEqualTo("<tag>");
+        assertThat(codec.decodeOnRead("A&amp;B")).isEqualTo("A&B");
     }
 }

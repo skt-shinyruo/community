@@ -86,8 +86,14 @@ public class PostMediaApplicationService {
                 null
         );
         PostMediaUploadSessionResult session = storagePort.prepareUpload(draft, normalizeChecksum(command.checksumSha256()));
-        assetRepository.createDraft(draftWithPreparedUploadSession(draft, session));
-        return session;
+        PostMediaAsset preparedDraft = draftWithPreparedUploadSession(draft, session);
+        try {
+            assetRepository.createDraft(preparedDraft);
+            return session;
+        } catch (RuntimeException e) {
+            cleanupPreparedDraft(preparedDraft);
+            throw e;
+        }
     }
 
     @Transactional
@@ -108,7 +114,13 @@ public class PostMediaApplicationService {
         if (uploaded == null || uploaded.versionId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "上传结果非法");
         }
-        assetRepository.markUploaded(assetId, uploaded.versionId(), uploaded.publicUrl(), new Date());
+        Date now = new Date();
+        try {
+            assetRepository.markUploaded(assetId, uploaded.versionId(), uploaded.publicUrl(), now);
+        } catch (RuntimeException e) {
+            cleanupUploadedDraft(asset, now);
+            throw e;
+        }
     }
 
     private static PostMediaAsset draftWithPreparedUploadSession(PostMediaAsset draft, PostMediaUploadSessionResult session) {
@@ -225,5 +237,23 @@ public class PostMediaApplicationService {
 
     private static String normalizeChecksum(String checksumSha256) {
         return checksumSha256 == null ? "" : checksumSha256.trim();
+    }
+
+    private void cleanupPreparedDraft(PostMediaAsset preparedDraft) {
+        try {
+            storagePort.deleteDraftObject(preparedDraft, preparedDraft.ownerUserId());
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    private void cleanupUploadedDraft(PostMediaAsset asset, Date now) {
+        try {
+            assetRepository.markDraftDeleted(asset.id(), now);
+        } catch (RuntimeException ignored) {
+        }
+        try {
+            storagePort.deleteDraftObject(asset, asset.ownerUserId());
+        } catch (RuntimeException ignored) {
+        }
     }
 }

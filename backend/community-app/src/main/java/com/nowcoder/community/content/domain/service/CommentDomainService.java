@@ -47,8 +47,7 @@ public class CommentDomainService {
             throw new BusinessException(NOT_FOUND, "资源不存在");
         }
         UUID targetUserId = targetComment.userId();
-        UUID targetId = rawTargetId == null ? targetUserId : rawTargetId;
-        return new CreateTarget(EntityTypes.COMMENT, rawEntityId, targetId, targetUserId);
+        return new CreateTarget(EntityTypes.COMMENT, rawEntityId, targetUserId, targetUserId);
     }
 
     public CommentDraft createDraft(

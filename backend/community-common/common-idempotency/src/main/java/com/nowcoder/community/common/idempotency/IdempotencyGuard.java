@@ -9,6 +9,8 @@ import com.nowcoder.community.common.json.JsonCodecException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -135,11 +137,7 @@ public class IdempotencyGuard {
                 json = "null";
             }
             try {
-                if (hash == null) {
-                    store.saveSuccess(op, userId, key, json, successTtl);
-                } else {
-                    store.saveSuccess(op, userId, key, hash, json, successTtl);
-                }
+                saveSuccess(op, userId, key, hash, json, successTtl);
             } catch (RuntimeException e) {
                 record(operation, "store_error");
                 safeExtendProcessing(op, userId, key, successTtl);
@@ -236,6 +234,45 @@ public class IdempotencyGuard {
             store.extendProcessing(operation, userId, key, ttl);
         } catch (RuntimeException ignored) {
         }
+    }
+
+    private void saveSuccess(String operation,
+                             UUID userId,
+                             String key,
+                             String requestHash,
+                             String successJson,
+                             Duration successTtl) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            doSaveSuccess(operation, userId, key, requestHash, successJson, successTtl);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                doSaveSuccess(operation, userId, key, requestHash, successJson, successTtl);
+            }
+
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    safeDelete(operation, userId, key);
+                }
+            }
+        });
+    }
+
+    private void doSaveSuccess(String operation,
+                               UUID userId,
+                               String key,
+                               String requestHash,
+                               String successJson,
+                               Duration successTtl) {
+        if (requestHash == null) {
+            store.saveSuccess(operation, userId, key, successJson, successTtl);
+            return;
+        }
+        store.saveSuccess(operation, userId, key, requestHash, successJson, successTtl);
     }
 
     private Duration safeDuration(Duration v, Duration fallback) {

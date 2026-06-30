@@ -124,7 +124,7 @@ class PaginationOffsetOverflowTest {
         ReportMapper reportMapper = mock(ReportMapper.class);
         when(reportMapper.selectReports(any(), any(), any(), anyInt(), anyInt())).thenReturn(List.of());
 
-        MyBatisReportContentRepository service = new MyBatisReportContentRepository(reportMapper, mock(MyBatisPostContentRepository.class), mock(CommentMapper.class));
+        MyBatisReportContentRepository service = new MyBatisReportContentRepository(reportMapper);
         service.listReports(null, null, null, Integer.MAX_VALUE, 100);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);

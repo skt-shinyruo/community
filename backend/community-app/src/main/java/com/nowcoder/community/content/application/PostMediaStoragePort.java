@@ -11,6 +11,8 @@ public interface PostMediaStoragePort {
 
     UploadedPostMedia completeUpload(PostMediaAsset draft, UUID uploadSessionId, PostMediaUploadContent content);
 
+    void deleteDraftObject(PostMediaAsset asset, UUID actorUserId);
+
     UUID bindReference(PostMediaAsset asset, UUID postId, UUID actorUserId);
 
     void releaseReference(PostMediaAsset asset, UUID actorUserId);

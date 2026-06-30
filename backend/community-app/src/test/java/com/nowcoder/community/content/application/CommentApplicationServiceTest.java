@@ -28,11 +28,8 @@ import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -66,7 +63,6 @@ class CommentApplicationServiceTest {
     private SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private CommentDomainEventPublisher domainEventPublisher;
     private PostWriteSideEffectScheduler postWriteSideEffectScheduler;
-    private PlatformTransactionManager transactionManager;
     private CommentApplicationService service;
 
     private static JsonCodec jsonCodec() {
@@ -84,8 +80,6 @@ class CommentApplicationServiceTest {
         socialLikeCleanupActionApi = mock(SocialLikeCleanupActionApi.class);
         domainEventPublisher = mock(CommentDomainEventPublisher.class);
         postWriteSideEffectScheduler = mock(PostWriteSideEffectScheduler.class);
-        transactionManager = mock(PlatformTransactionManager.class);
-        when(transactionManager.getTransaction(any(TransactionDefinition.class))).thenReturn(new SimpleTransactionStatus());
         service = new CommentApplicationService(
                 sensitiveFilter,
                 idempotencyGuard,
@@ -97,8 +91,7 @@ class CommentApplicationServiceTest {
                 blockQueryApi,
                 socialLikeCleanupActionApi,
                 domainEventPublisher,
-                postWriteSideEffectScheduler,
-                transactionManager
+                postWriteSideEffectScheduler
         );
     }
 
@@ -114,7 +107,7 @@ class CommentApplicationServiceTest {
                 .thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(4).get());
         when(postContentPort.getById(postId)).thenReturn(post);
         when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
-        when(sensitiveFilter.filter("hello & world")).thenReturn("clean & body");
+        when(sensitiveFilter.filter("hello &amp; world")).thenReturn("clean &amp; body");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
         CommentCreateResult result = service.create(
@@ -154,7 +147,7 @@ class CommentApplicationServiceTest {
         assertThat(draft.entityType()).isEqualTo(EntityTypes.POST);
         assertThat(draft.entityId()).isEqualTo(postId);
         assertThat(draft.targetId()).isNull();
-        assertThat(draft.content()).isEqualTo("clean & body");
+        assertThat(draft.content()).isEqualTo("clean &amp; body");
         assertThat(draft.createTime()).isNotNull();
 
         CommentCreatedDomainEvent event = eventCaptor.getValue();
@@ -205,16 +198,13 @@ class CommentApplicationServiceTest {
     }
 
     @Test
-    void createShouldCommitCommentTransactionBeforeSavingUuidIdempotencySuccess() {
+    void createShouldSaveUuidIdempotencySuccessPayloadUsingCreatedCommentId() {
         UUID userId = uuid(1);
         UUID postId = uuid(100);
         UUID postAuthorId = uuid(2);
         UUID commentId = uuid(200);
         IdempotencyStore store = mock(IdempotencyStore.class);
         IdempotencyGuard realGuard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
-        PlatformTransactionManager realTransactionManager = mock(PlatformTransactionManager.class);
-        SimpleTransactionStatus transactionStatus = new SimpleTransactionStatus();
-        when(realTransactionManager.getTransaction(any(TransactionDefinition.class))).thenReturn(transactionStatus);
         when(store.tryAcquireProcessing(eq("content:create_comment"), eq(userId), eq("idem-transaction"), any(Duration.class)))
                 .thenReturn(true);
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
@@ -232,8 +222,7 @@ class CommentApplicationServiceTest {
                 blockQueryApi,
                 socialLikeCleanupActionApi,
                 domainEventPublisher,
-                postWriteSideEffectScheduler,
-                realTransactionManager
+                postWriteSideEffectScheduler
         );
 
         CommentCreateResult result = service.create(
@@ -242,10 +231,8 @@ class CommentApplicationServiceTest {
         );
 
         assertThat(result.commentId()).isEqualTo(commentId);
-        var inOrder = inOrder(commentRepository, realTransactionManager, store);
-        inOrder.verify(realTransactionManager).getTransaction(any(TransactionDefinition.class));
+        var inOrder = inOrder(commentRepository, store);
         inOrder.verify(commentRepository).create(any(CommentDraft.class));
-        inOrder.verify(realTransactionManager).commit(transactionStatus);
         ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
         inOrder.verify(store).saveSuccess(
                 eq("content:create_comment"),
@@ -255,6 +242,47 @@ class CommentApplicationServiceTest {
                 any(Duration.class)
         );
         assertThat(jsonCaptor.getValue()).isEqualTo("\"" + commentId + "\"");
+    }
+
+    @Test
+    void commentApplicationServiceShouldNotOwnDedicatedCommentWriteTransactionTemplate() {
+        assertThat(Arrays.stream(CommentApplicationService.class.getDeclaredFields())
+                .map(field -> field.getType().getName()))
+                .doesNotContain(
+                        "org.springframework.transaction.support.TransactionTemplate",
+                        "org.springframework.transaction.PlatformTransactionManager"
+                );
+    }
+
+    @Test
+    void createReplyShouldPersistAuthoritativeTargetUserInsteadOfRawClientTargetId() {
+        UUID userId = uuid(1);
+        UUID postId = uuid(100);
+        UUID targetCommentId = uuid(200);
+        UUID targetCommentAuthorId = uuid(201);
+        UUID rawTargetId = uuid(999);
+        UUID commentId = uuid(300);
+        CommentSnapshot targetComment = activeComment(targetCommentId, targetCommentAuthorId, EntityTypes.POST, postId);
+
+        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(UUID.class), any()))
+                .thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(4).get());
+        when(postContentPort.getById(postId)).thenReturn(post(postId, uuid(2)));
+        when(commentRepository.findActiveSnapshot(targetCommentId)).thenReturn(Optional.of(targetComment));
+        when(blockQueryApi.isEitherBlocked(userId, targetCommentAuthorId)).thenReturn(false);
+        when(sensitiveFilter.filter("reply")).thenReturn("reply");
+        when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
+
+        service.create(
+                "idem-reply-target",
+                new CreateCommentCommand(userId, postId, EntityTypes.COMMENT, targetCommentId, rawTargetId, "reply")
+        );
+
+        ArgumentCaptor<CommentDraft> draftCaptor = ArgumentCaptor.forClass(CommentDraft.class);
+        verify(commentRepository).create(draftCaptor.capture());
+        assertThat(draftCaptor.getValue().targetId()).isEqualTo(targetCommentAuthorId);
+        ArgumentCaptor<CommentCreatedDomainEvent> eventCaptor = ArgumentCaptor.forClass(CommentCreatedDomainEvent.class);
+        verify(domainEventPublisher).commentCreated(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().targetUserId()).isEqualTo(targetCommentAuthorId);
     }
 
     @Test
@@ -317,7 +345,7 @@ class CommentApplicationServiceTest {
 
         when(postContentPort.getById(postId)).thenReturn(post(postId, uuid(2)));
         when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
-        when(sensitiveFilter.filter("hello & world")).thenReturn("clean");
+        when(sensitiveFilter.filter("hello &amp; world")).thenReturn("clean");
 
         service.update(new UpdateCommentCommand(userId, postId, commentId, " hello & world "));
 
@@ -440,6 +468,28 @@ class CommentApplicationServiceTest {
         }
 
         verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, commentId);
+    }
+
+    @Test
+    void deleteByAuthorShouldContinueCleanupWhenOneAfterCommitTaskFails() {
+        UUID userId = uuid(1);
+        UUID postId = uuid(100);
+        UUID commentId = uuid(200);
+        UUID replyId = uuid(201);
+        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
+        when(commentRepository.markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class)))
+                .thenReturn(new CommentDeletionResult(List.of(
+                        activeComment(commentId, userId, EntityTypes.POST, postId),
+                        activeComment(replyId, userId, EntityTypes.COMMENT, commentId)
+                )));
+        org.mockito.Mockito.doThrow(new RuntimeException("cleanup failed"))
+                .when(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, commentId);
+
+        service.deleteByAuthor(userId, postId, commentId);
+
+        verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, commentId);
+        verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, replyId);
     }
 
     @Test

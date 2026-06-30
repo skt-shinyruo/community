@@ -4,6 +4,7 @@ import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
+import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.result.PostCreateResult;
@@ -25,6 +26,8 @@ import com.nowcoder.community.content.domain.service.PostPublishingDomainService
 import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Date;
 import java.util.HashSet;
@@ -214,23 +217,35 @@ public class PostPublishingApplicationService {
                 continue;
             }
             UUID referenceId = postMediaStoragePort.bindReference(asset, postId, userId);
-            postMediaAssetRepository.bindToPost(
-                    asset.id(),
-                    postId,
-                    referenceId,
-                    "video".equals(block.type()) ? PostVideoState.PENDING_TRANSCODE : PostVideoState.NONE,
-                    now
-            );
+            try {
+                postMediaAssetRepository.bindToPost(
+                        asset.id(),
+                        postId,
+                        referenceId,
+                        "video".equals(block.type()) ? PostVideoState.PENDING_TRANSCODE : PostVideoState.NONE,
+                        now
+                );
+            } catch (RuntimeException e) {
+                releaseBoundReference(asset, postId, referenceId, userId);
+                throw e;
+            }
+            registerRollbackReferenceRelease(asset, postId, referenceId, userId);
         }
     }
 
     private void releaseRemovedMediaAssets(UUID userId, UUID postId, List<UUID> keepAssetIds, Date now) {
         Set<UUID> keepAssetIdSet = Set.copyOf(keepAssetIds);
-        postMediaAssetRepository.listByPostId(postId).stream()
+        List<PostMediaAsset> removedAssets = postMediaAssetRepository.listByPostId(postId).stream()
                 .filter(asset -> asset.lifecycle() == PostMediaAssetLifecycle.BOUND)
                 .filter(asset -> !keepAssetIdSet.contains(asset.id()))
-                .forEach(asset -> postMediaStoragePort.releaseReference(asset, userId));
+                .toList();
         postMediaAssetRepository.releaseRemovedFromPost(postId, keepAssetIds, now);
+        AfterCommitExecutor.runAfterCommit(() -> removedAssets.forEach(asset -> {
+            try {
+                postMediaStoragePort.releaseReference(asset, userId);
+            } catch (RuntimeException ignored) {
+            }
+        }));
     }
 
     private void validateMediaAsset(UUID userId, UUID postId, PostContentBlockCommand block, PostMediaAsset asset) {
@@ -263,5 +278,45 @@ public class PostPublishingApplicationService {
                 .filter(id -> id != null)
                 .distinct()
                 .toList();
+    }
+
+    private void releaseBoundReference(PostMediaAsset asset, UUID postId, UUID referenceId, UUID actorUserId) {
+        try {
+            postMediaStoragePort.releaseReference(new PostMediaAsset(
+                    asset.id(),
+                    asset.ownerUserId(),
+                    postId,
+                    asset.ossObjectId(),
+                    asset.ossVersionId(),
+                    referenceId,
+                    asset.uploadSessionId(),
+                    asset.fileName(),
+                    asset.contentType(),
+                    asset.contentLength(),
+                    asset.mediaKind(),
+                    asset.lifecycle(),
+                    asset.videoState(),
+                    asset.publicUrl(),
+                    asset.failureReason(),
+                    asset.createTime(),
+                    asset.updateTime()
+            ), actorUserId);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    private void registerRollbackReferenceRelease(PostMediaAsset asset, UUID postId, UUID referenceId, UUID actorUserId) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    releaseBoundReference(asset, postId, referenceId, actorUserId);
+                }
+            }
+        });
     }
 }

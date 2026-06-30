@@ -28,6 +28,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.Date;
@@ -46,6 +48,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 @ExtendWith(OutputCaptureExtension.class)
 class PostPublishingApplicationServiceTest {
@@ -112,8 +115,8 @@ class PostPublishingApplicationServiceTest {
         List<PostContentBlockCommand> blocks = List.of(new PostContentBlockCommand("paragraph", "<content>", null, null, "", "", null));
         List<PostContentBlockCommand> normalizedBlocks = List.of(new PostContentBlockCommand("paragraph", "<content>", null, "", "", "", null));
 
-        when(sensitiveFilter.filter("<title>")).thenReturn("title");
-        when(sensitiveFilter.filter("<content>")).thenReturn("content");
+        when(sensitiveFilter.filter("&lt;title&gt;")).thenReturn("title");
+        when(sensitiveFilter.filter("&lt;content&gt;")).thenReturn("content");
         when(blockPolicy.validateAndNormalize(blocks)).thenReturn(normalizedBlocks);
         when(idempotencyGuard.executeRequired(eq("content:create_post"), eq(userId), anyString(), eq(PostCreateResult.class), any()))
                 .thenAnswer(invocation -> invocation.<Supplier<PostCreateResult>>getArgument(4).get());
@@ -159,8 +162,8 @@ class PostPublishingApplicationServiceTest {
         List<PostContentBlockCommand> blocks = List.of(new PostContentBlockCommand("paragraph", "<content>", null, null, "", "", null));
         List<PostContentBlockCommand> normalizedBlocks = List.of(new PostContentBlockCommand("paragraph", "<content>", null, "", "", "", null));
 
-        when(sensitiveFilter.filter("<title>")).thenReturn("title");
-        when(sensitiveFilter.filter("<content>")).thenReturn("content");
+        when(sensitiveFilter.filter("&lt;title&gt;")).thenReturn("title");
+        when(sensitiveFilter.filter("&lt;content&gt;")).thenReturn("content");
         when(blockPolicy.validateAndNormalize(blocks)).thenReturn(normalizedBlocks);
         when(postRepository.getRequiredSnapshot(postId)).thenReturn(post);
         when(postRepository.markDeletedByAuthor(eq(postId), eq(userId), any(Date.class))).thenReturn(true);
@@ -200,7 +203,7 @@ class PostPublishingApplicationServiceTest {
         List<PostContentBlockCommand> blocks = List.of(new PostContentBlockCommand("image", "", keptAssetId, null, "caption", "", null));
         List<PostContentBlockCommand> normalizedBlocks = List.of(new PostContentBlockCommand("image", "", keptAssetId, "", "caption", "", null));
 
-        when(sensitiveFilter.filter("<title>")).thenReturn("title");
+        when(sensitiveFilter.filter("&lt;title&gt;")).thenReturn("title");
         when(sensitiveFilter.filter("")).thenReturn("");
         when(sensitiveFilter.filter("caption")).thenReturn("caption");
         when(blockPolicy.validateAndNormalize(blocks)).thenReturn(normalizedBlocks);
@@ -213,6 +216,142 @@ class PostPublishingApplicationServiceTest {
         verify(postMediaStoragePort).releaseReference(removedAsset, userId);
         verify(postMediaStoragePort, never()).releaseReference(keptAsset, userId);
         verify(postMediaAssetRepository).releaseRemovedFromPost(eq(postId), eq(List.of(keptAssetId)), any(Date.class));
+    }
+
+    @Test
+    void createShouldReleaseOssReferenceWhenBindPersistenceFails() {
+        UUID userId = uuid(7);
+        UUID categoryId = uuid(1);
+        UUID postId = uuid(99);
+        UUID assetId = uuid(201);
+        UUID referenceId = uuid(202);
+        Date createTime = Date.from(Instant.parse("2026-04-27T08:00:00Z"));
+        PostDraft draft = new PostDraft(userId, "title", categoryId, createTime);
+        PostMediaAsset asset = uploadedAsset(assetId, userId);
+        List<PostContentBlockCommand> blocks = List.of(new PostContentBlockCommand("image", "", assetId, null, "", "", null));
+        List<PostContentBlockCommand> normalizedBlocks = List.of(new PostContentBlockCommand("image", "", assetId, "", "", "", null));
+
+        when(sensitiveFilter.filter("title")).thenReturn("title");
+        when(sensitiveFilter.filter("")).thenReturn("");
+        when(blockPolicy.validateAndNormalize(blocks)).thenReturn(normalizedBlocks);
+        when(idempotencyGuard.executeRequired(eq("content:create_post"), eq(userId), anyString(), eq(PostCreateResult.class), any()))
+                .thenAnswer(invocation -> invocation.<Supplier<PostCreateResult>>getArgument(4).get());
+        when(domainService.createDraft(userId, "title", categoryId)).thenReturn(draft);
+        when(postRepository.create(draft)).thenReturn(postId);
+        when(postMediaAssetRepository.listByIds(List.of(assetId))).thenReturn(List.of(asset));
+        when(postMediaStoragePort.bindReference(asset, postId, userId)).thenReturn(referenceId);
+        org.mockito.Mockito.doThrow(new RuntimeException("bind db failed"))
+                .when(postMediaAssetRepository).bindToPost(eq(assetId), eq(postId), eq(referenceId), eq(PostVideoState.NONE), any(Date.class));
+
+        Throwable thrown = catchThrowable(() -> service.create(
+                "idem-bind-fail",
+                new CreatePostCommand(userId, "title", categoryId, List.of(), blocks)
+        ));
+
+        assertThat(thrown).isInstanceOf(RuntimeException.class).hasMessage("bind db failed");
+        verify(postMediaStoragePort).releaseReference(org.mockito.ArgumentMatchers.argThat(released ->
+                released != null
+                        && assetId.equals(released.id())
+                        && referenceId.equals(released.ossReferenceId())
+                        && postId.equals(released.postId())
+        ), eq(userId));
+    }
+
+    @Test
+    void updateShouldReleaseStorageReferencesAfterRepositoryStateChanges() {
+        UUID userId = uuid(7);
+        UUID postId = uuid(101);
+        UUID categoryId = uuid(2);
+        UUID removedAssetId = uuid(202);
+        PostSnapshot post = new PostSnapshot(postId, userId, 0, Date.from(Instant.parse("2026-04-27T08:00:00Z")));
+        PostMediaAsset removedAsset = mediaAsset(removedAssetId, userId, postId, PostMediaKind.FILE);
+        List<PostContentBlockCommand> blocks = List.of();
+        List<PostContentBlockCommand> normalizedBlocks = List.of();
+
+        when(sensitiveFilter.filter("&lt;title&gt;")).thenReturn("title");
+        when(blockPolicy.validateAndNormalize(blocks)).thenReturn(normalizedBlocks);
+        when(postRepository.getRequiredSnapshot(postId)).thenReturn(post);
+        when(postMediaAssetRepository.listByPostId(postId)).thenReturn(List.of(removedAsset));
+
+        service.updatePost(userId, postId, "<title>", categoryId, List.of("spring"), blocks);
+
+        var ordered = inOrder(postMediaAssetRepository, postMediaStoragePort);
+        ordered.verify(postMediaAssetRepository).releaseRemovedFromPost(eq(postId), eq(List.of()), any(Date.class));
+        ordered.verify(postMediaStoragePort).releaseReference(removedAsset, userId);
+    }
+
+    @Test
+    void updateShouldDelayStorageReleaseUntilAfterCommit() {
+        UUID userId = uuid(7);
+        UUID postId = uuid(101);
+        UUID categoryId = uuid(2);
+        UUID removedAssetId = uuid(202);
+        PostSnapshot post = new PostSnapshot(postId, userId, 0, Date.from(Instant.parse("2026-04-27T08:00:00Z")));
+        PostMediaAsset removedAsset = mediaAsset(removedAssetId, userId, postId, PostMediaKind.FILE);
+        when(sensitiveFilter.filter("&lt;title&gt;")).thenReturn("title");
+        when(blockPolicy.validateAndNormalize(List.<PostContentBlockCommand>of())).thenReturn(List.of());
+        when(postRepository.getRequiredSnapshot(postId)).thenReturn(post);
+        when(postMediaAssetRepository.listByPostId(postId)).thenReturn(List.of(removedAsset));
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            service.updatePost(userId, postId, "<title>", categoryId, List.of("spring"), List.of());
+
+            verify(postMediaStoragePort, never()).releaseReference(removedAsset, userId);
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCommit();
+            }
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+
+        verify(postMediaStoragePort).releaseReference(removedAsset, userId);
+    }
+
+    @Test
+    void createShouldReleaseBoundReferenceWhenTransactionRollsBack() {
+        UUID userId = uuid(7);
+        UUID categoryId = uuid(1);
+        UUID postId = uuid(99);
+        UUID assetId = uuid(201);
+        UUID referenceId = uuid(202);
+        Date createTime = Date.from(Instant.parse("2026-04-27T08:00:00Z"));
+        PostDraft draft = new PostDraft(userId, "title", categoryId, createTime);
+        PostMediaAsset asset = uploadedAsset(assetId, userId);
+        List<PostContentBlockCommand> blocks = List.of(new PostContentBlockCommand("image", "", assetId, null, "", "", null));
+        List<PostContentBlockCommand> normalizedBlocks = List.of(new PostContentBlockCommand("image", "", assetId, "", "", "", null));
+
+        when(sensitiveFilter.filter("title")).thenReturn("title");
+        when(sensitiveFilter.filter("")).thenReturn("");
+        when(blockPolicy.validateAndNormalize(blocks)).thenReturn(normalizedBlocks);
+        when(idempotencyGuard.executeRequired(eq("content:create_post"), eq(userId), anyString(), eq(PostCreateResult.class), any()))
+                .thenAnswer(invocation -> invocation.<Supplier<PostCreateResult>>getArgument(4).get());
+        when(domainService.createDraft(userId, "title", categoryId)).thenReturn(draft);
+        when(postRepository.create(draft)).thenReturn(postId);
+        when(postMediaAssetRepository.listByIds(List.of(assetId))).thenReturn(List.of(asset));
+        when(postMediaStoragePort.bindReference(asset, postId, userId)).thenReturn(referenceId);
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            service.create("idem-bind-rollback", new CreatePostCommand(userId, "title", categoryId, List.of(), blocks));
+            verify(postMediaStoragePort, never()).releaseReference(any(), eq(userId));
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+            }
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+
+        verify(postMediaStoragePort).releaseReference(org.mockito.ArgumentMatchers.argThat(released ->
+                released != null
+                        && assetId.equals(released.id())
+                        && referenceId.equals(released.ossReferenceId())
+                        && postId.equals(released.postId())
+        ), eq(userId));
     }
 
     @Test
@@ -247,6 +386,29 @@ class PostPublishingApplicationServiceTest {
                 1024L,
                 mediaKind,
                 PostMediaAssetLifecycle.BOUND,
+                PostVideoState.NONE,
+                "https://cdn.example.com/asset.bin",
+                "",
+                now,
+                now
+        );
+    }
+
+    private static PostMediaAsset uploadedAsset(UUID assetId, UUID ownerUserId) {
+        Date now = Date.from(Instant.parse("2026-04-27T08:00:00Z"));
+        return new PostMediaAsset(
+                assetId,
+                ownerUserId,
+                null,
+                uuid(901),
+                uuid(902),
+                null,
+                uuid(903),
+                "asset.bin",
+                "image/png",
+                1024L,
+                PostMediaKind.IMAGE,
+                PostMediaAssetLifecycle.UPLOADED,
                 PostVideoState.NONE,
                 "https://cdn.example.com/asset.bin",
                 "",

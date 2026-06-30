@@ -31,6 +31,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 class PostMediaApplicationServiceTest {
@@ -189,6 +190,92 @@ class PostMediaApplicationServiceTest {
                 .hasMessage("媒体资源状态不允许上传");
         assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(INVALID_ARGUMENT);
         verifyNoInteractions(storagePort);
+    }
+
+    @Test
+    void prepareUploadShouldDeletePreparedObjectWhenDraftPersistenceFails() {
+        UUID userId = uuid(7);
+        UUID objectId = uuid(9);
+        UUID versionId = uuid(10);
+        UUID sessionId = uuid(11);
+        when(storagePort.prepareUpload(any(), any())).thenAnswer(invocation -> {
+            PostMediaAsset draft = invocation.getArgument(0);
+            return new PostMediaUploadSessionResult(
+                    draft.id(),
+                    sessionId.toString(),
+                    "/api/posts/media/" + draft.id() + "/upload",
+                    "POST",
+                    "file",
+                    "uploadId",
+                    100 * 1024 * 1024L,
+                    PostMediaApplicationService.MIME_TYPES,
+                    Instant.parse("2026-05-09T00:10:00Z"),
+                    objectId,
+                    versionId
+            );
+        });
+        when(assetRepository.createDraft(any())).thenThrow(new RuntimeException("db down"));
+
+        Throwable thrown = catchThrowable(() -> service.prepareUpload(new PreparePostMediaUploadCommand(
+                userId,
+                "demo.mp4",
+                "video/mp4",
+                1234,
+                "VIDEO",
+                "sha256"
+        )));
+
+        assertThat(thrown).isInstanceOf(RuntimeException.class).hasMessage("db down");
+        var assetCaptor = forClass(PostMediaAsset.class);
+        verify(storagePort).deleteDraftObject(assetCaptor.capture(), eq(userId));
+        assertThat(assetCaptor.getValue().ossObjectId()).isEqualTo(objectId);
+        assertThat(assetCaptor.getValue().ossVersionId()).isEqualTo(versionId);
+    }
+
+    @Test
+    void completeUploadShouldDeleteDraftWhenMarkUploadedFails() {
+        UUID actorUserId = uuid(7);
+        UUID assetId = uuid(8);
+        UUID uploadSessionId = uuid(11);
+        UUID versionId = uuid(12);
+        Date now = new Date();
+        PostMediaAsset draft = new PostMediaAsset(
+                assetId,
+                actorUserId,
+                null,
+                uuid(9),
+                uuid(10),
+                null,
+                uploadSessionId,
+                "demo.mp4",
+                "video/mp4",
+                5,
+                PostMediaKind.VIDEO,
+                PostMediaAssetLifecycle.DRAFT,
+                PostVideoState.NONE,
+                "",
+                "",
+                now,
+                null
+        );
+        PostMediaUploadContent content = new PostMediaUploadContent(
+                () -> new ByteArrayInputStream("media".getBytes()),
+                "video/mp4",
+                5,
+                ""
+        );
+        when(assetRepository.getRequired(assetId)).thenReturn(draft);
+        when(storagePort.completeUpload(draft, uploadSessionId, content)).thenReturn(
+                new PostMediaStoragePort.UploadedPostMedia(versionId, "https://cdn.example.com/demo.mp4", "video/mp4", 5)
+        );
+        org.mockito.Mockito.doThrow(new RuntimeException("mark uploaded failed"))
+                .when(assetRepository).markUploaded(eq(assetId), eq(versionId), eq("https://cdn.example.com/demo.mp4"), any(Date.class));
+
+        Throwable thrown = catchThrowable(() -> service.completeUpload(actorUserId, assetId, uploadSessionId, content));
+
+        assertThat(thrown).isInstanceOf(RuntimeException.class).hasMessage("mark uploaded failed");
+        verify(assetRepository).markDraftDeleted(eq(assetId), any(Date.class));
+        verify(storagePort).deleteDraftObject(draft, actorUserId);
     }
 
     private static PostMediaUploadSessionResult session(UUID assetId) {

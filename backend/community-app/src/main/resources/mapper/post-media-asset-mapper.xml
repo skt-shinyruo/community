@@ -68,6 +68,14 @@
         where id = #{id, jdbcType=BINARY}
     </update>
 
+    <update id="markDraftDeleted">
+        update post_media_asset
+        set lifecycle = 'DELETED',
+            update_time = #{updateTime}
+        where id = #{id, jdbcType=BINARY}
+          and lifecycle = 'DRAFT'
+    </update>
+
     <update id="bindToPost">
         update post_media_asset
         set lifecycle = 'BOUND',

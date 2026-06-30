@@ -21,11 +21,7 @@ import com.nowcoder.community.content.domain.service.CommentDomainService;
 import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Date;
 import java.util.UUID;
@@ -49,7 +45,6 @@ public class CommentApplicationService {
     private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private final CommentDomainEventPublisher domainEventPublisher;
     private final PostWriteSideEffectScheduler postWriteSideEffectScheduler;
-    private final TransactionTemplate commentWriteTransactionTemplate;
 
     public CommentApplicationService(
             ContentSanitizer sensitiveFilter,
@@ -62,8 +57,7 @@ public class CommentApplicationService {
             SocialBlockQueryApi blockQueryApi,
             SocialLikeCleanupActionApi socialLikeCleanupActionApi,
             CommentDomainEventPublisher domainEventPublisher,
-            PostWriteSideEffectScheduler postWriteSideEffectScheduler,
-            PlatformTransactionManager transactionManager
+            PostWriteSideEffectScheduler postWriteSideEffectScheduler
     ) {
         this.sensitiveFilter = sensitiveFilter;
         this.idempotencyGuard = idempotencyGuard;
@@ -76,11 +70,9 @@ public class CommentApplicationService {
         this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
         this.domainEventPublisher = domainEventPublisher;
         this.postWriteSideEffectScheduler = postWriteSideEffectScheduler;
-        this.commentWriteTransactionTemplate = new TransactionTemplate(transactionManager);
-        this.commentWriteTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional
     public CommentCreateResult create(
             UUID userId,
             String idempotencyKey,
@@ -93,7 +85,7 @@ public class CommentApplicationService {
         return create(idempotencyKey, new CreateCommentCommand(userId, postId, entityType, entityId, targetId, content));
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional
     public CommentCreateResult create(String idempotencyKey, CreateCommentCommand command) {
         if (command == null) {
             throw new IllegalArgumentException("command must not be null");
@@ -108,12 +100,12 @@ public class CommentApplicationService {
                 userId,
                 idempotencyKey,
                 UUID.class,
-                () -> commentWriteTransactionTemplate.execute(status -> createInsideTransaction(command))
+                () -> createInsideTransaction(command)
         );
         return new CommentCreateResult(commentId);
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional
     public UUID addComment(UUID userId, String idempotencyKey, UUID postId, Integer entityType, UUID entityId, UUID targetId, String content) {
         return create(userId, idempotencyKey, postId, entityType, entityId, targetId, content).commentId();
     }
@@ -226,7 +218,11 @@ public class CommentApplicationService {
         postContentPort.incrementCommentCount(postId, -deletion.deletedCount());
         AfterCommitExecutor.runAfterCommit(() -> {
             for (UUID deletedCommentId : deletion.deletedCommentIds()) {
-                socialLikeCleanupActionApi.cleanupEntityLikes(EntityTypes.COMMENT, deletedCommentId);
+                try {
+                    socialLikeCleanupActionApi.cleanupEntityLikes(EntityTypes.COMMENT, deletedCommentId);
+                } catch (RuntimeException ignored) {
+                    // best-effort after-commit cleanup; event/outbox path remains the source for downstream repair
+                }
             }
         });
         for (CommentSnapshot deletedComment : deletion.deletedComments()) {

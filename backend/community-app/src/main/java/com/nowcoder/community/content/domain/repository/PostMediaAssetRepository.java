@@ -19,6 +19,8 @@ public interface PostMediaAssetRepository {
 
     void markUploaded(UUID assetId, UUID versionId, String publicUrl, Date updateTime);
 
+    void markDraftDeleted(UUID assetId, Date updateTime);
+
     void bindToPost(UUID assetId, UUID postId, UUID ossReferenceId, PostVideoState videoState, Date updateTime);
 
     void releaseRemovedFromPost(UUID postId, List<UUID> keepIds, Date updateTime);

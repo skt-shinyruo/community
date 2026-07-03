@@ -168,7 +168,7 @@ public class MarketDisputeApplicationService {
     }
 
     private MarketDispute requireOpenDisputeForSeller(UUID disputeId, UUID sellerUserId) {
-        MarketDispute dispute = reloadDispute(disputeId);
+        MarketDispute dispute = requireDisputeForUpdate(disputeId);
         disputeDomainService.validateSellerCanResolve(sellerUserId, dispute.getSellerUserId());
         if (!DISPUTE_STATUS_OPEN.equals(dispute.getStatus())) {
             throw new BusinessException(INVALID_ARGUMENT, "dispute is not open: disputeId=" + disputeId);
@@ -177,7 +177,7 @@ public class MarketDisputeApplicationService {
     }
 
     private MarketDispute requireAdminResolvableDispute(UUID disputeId) {
-        MarketDispute dispute = reloadDispute(disputeId);
+        MarketDispute dispute = requireDisputeForUpdate(disputeId);
         if (!isActiveDispute(dispute)) {
             throw new BusinessException(INVALID_ARGUMENT, "dispute is not admin-resolvable: disputeId=" + disputeId);
         }
@@ -200,6 +200,14 @@ public class MarketDisputeApplicationService {
 
     private MarketDispute reloadDispute(UUID disputeId) {
         MarketDispute dispute = marketDisputeRepository.findById(disputeId);
+        if (dispute == null) {
+            throw new BusinessException(NOT_FOUND, "market dispute not found: disputeId=" + disputeId);
+        }
+        return dispute;
+    }
+
+    private MarketDispute requireDisputeForUpdate(UUID disputeId) {
+        MarketDispute dispute = marketDisputeRepository.lockById(disputeId);
         if (dispute == null) {
             throw new BusinessException(NOT_FOUND, "market dispute not found: disputeId=" + disputeId);
         }

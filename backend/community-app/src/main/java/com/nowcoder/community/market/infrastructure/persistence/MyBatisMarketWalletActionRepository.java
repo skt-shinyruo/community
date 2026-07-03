@@ -80,6 +80,11 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     }
 
     @Override
+    public int markRecoveryPending(UUID actionId, UUID walletTxnId, String failureCode, String lastError) {
+        return mapper.markRecoveryPending(actionId, walletTxnId, failureCode, lastError);
+    }
+
+    @Override
     public int markDead(UUID actionId, String lastError) {
         return mapper.markDead(actionId, lastError);
     }

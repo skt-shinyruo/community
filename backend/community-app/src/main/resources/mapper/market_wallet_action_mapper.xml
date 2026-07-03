@@ -127,6 +127,17 @@
         where action_id = #{actionId, jdbcType=BINARY}
     </update>
 
+    <update id="markRecoveryPending">
+        update market_wallet_action
+        set status = 'FAILED',
+            wallet_txn_id = #{walletTxnId, jdbcType=BINARY},
+            failure_code = #{failureCode},
+            last_error = #{lastError},
+            processing_lease_until = null,
+            update_time = current_timestamp
+        where action_id = #{actionId, jdbcType=BINARY}
+    </update>
+
     <update id="markDead">
         update market_wallet_action
         set status = 'DEAD',

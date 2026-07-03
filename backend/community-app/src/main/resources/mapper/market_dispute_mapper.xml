@@ -12,6 +12,14 @@
         where dispute_id = #{disputeId, jdbcType=BINARY}
     </select>
 
+    <select id="selectByIdForUpdate" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketDisputeDataObject">
+        select dispute_id, order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
+               resolution_type, resolved_by, resolved_at, create_time, update_time
+        from market_dispute
+        where dispute_id = #{disputeId, jdbcType=BINARY}
+        for update
+    </select>
+
     <select id="selectByOrderId" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketDisputeDataObject">
         select dispute_id, order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
                resolution_type, resolved_by, resolved_at, create_time, update_time

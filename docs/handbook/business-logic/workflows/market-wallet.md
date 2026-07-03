@@ -51,6 +51,8 @@ HTTP 成功表示订单主事实和资金动作命令已按设计接单，不等
 4. wallet 根据 action 入账。
 5. market 根据 action 结果通过订单领域 transition intent 条件推进订单或纠纷状态。
 
+release / refund 的可恢复失败会在 market action processor 中按 backoff 重试；超过 retry budget 后 action 进入 `DEAD`，等待人工排查。
+
 市场侧订单状态流转由 `MarketOrder` 表达，仓储用条件更新持久化 transition。wallet action 仍是 market-owned durable command，资金入账仍只通过 wallet owner action 完成。
 
 ## 钱包账本口径

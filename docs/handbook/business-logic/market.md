@@ -233,8 +233,8 @@ processor：
 3. 在 market 事务外调用 `WalletMarketActionApi`。
 4. wallet 成功返回 walletTxnId。
 5. action 标记成功，并由 `MarketOrderSagaApplicationService` 条件推进订单/争议状态。
-6. 可恢复失败进入 retry/backoff。
-7. 终态失败保留失败状态供 recovery 或人工排查。
+6. 可恢复失败进入 retry/backoff；超过 retry budget 后进入 `DEAD`，停止自动重试。
+7. `FAILED` / `DEAD` 终态保留失败状态供 recovery 或人工排查。
 
 saga 状态推进：
 
@@ -288,6 +288,7 @@ saga 状态推进：
 - `RETRYING`
 - `SUCCEEDED`
 - `FAILED`
+- `DEAD`
 - `CANCELLED` / no-op 类状态
 
 ## 关键代码

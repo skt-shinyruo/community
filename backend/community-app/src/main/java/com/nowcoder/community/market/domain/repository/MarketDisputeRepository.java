@@ -11,6 +11,8 @@ public interface MarketDisputeRepository {
 
     MarketDispute findById(UUID disputeId);
 
+    MarketDispute lockById(UUID disputeId);
+
     List<MarketDispute> findByOrderId(UUID orderId);
 
     List<MarketDispute> findOpenDisputes();

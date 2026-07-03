@@ -103,7 +103,7 @@ public class MarketListingApplicationService {
     @Transactional
     public MarketListingResult resumeListing(UUID sellerUserId, UUID listingId) {
         MarketListing listing = requireOwnedListing(listingId, sellerUserId);
-        String nextStatus = MarketStockMode.FINITE.code().equals(listing.getStockMode()) && listing.getStockAvailable() <= 0
+        String nextStatus = listing.isFiniteStock() && listing.getStockAvailable() <= 0
                 ? MarketListingStatus.SOLD_OUT.code()
                 : MarketListingStatus.ACTIVE.code();
         marketListingRepository.changeStatus(listingId, sellerUserId, nextStatus);

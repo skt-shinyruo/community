@@ -41,7 +41,7 @@ public class MarketOrderSagaApplicationService {
         MarketOrder order = marketOrderRepository.lockById(orderId);
         int updated = marketOrderRepository.markCancelledNoRefund(orderId);
         if (updated == 1) {
-            restoreMarketSideCompensation(order);
+            restoreReservedInventoryAndStock(order);
         }
     }
 
@@ -72,7 +72,7 @@ public class MarketOrderSagaApplicationService {
             updated = marketOrderRepository.markCancelledNoRefund(orderId);
         }
         if (updated == 1) {
-            restoreMarketSideCompensation(order);
+            restoreReservedInventoryAndStock(order);
         }
     }
 
@@ -92,7 +92,9 @@ public class MarketOrderSagaApplicationService {
             updated = marketOrderRepository.markDisputeRefundSucceeded(orderId, refundTxnId);
         }
         if (updated == 1) {
-            restoreMarketSideCompensation(order);
+            if (order.status() == com.nowcoder.community.market.domain.model.MarketOrderStatus.REFUND_PENDING) {
+                restoreReservedInventoryAndStock(order);
+            }
             return true;
         }
         return false;
@@ -107,7 +109,7 @@ public class MarketOrderSagaApplicationService {
         marketOrderRepository.markDelivered(order.getOrderId(), Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
     }
 
-    private void restoreMarketSideCompensation(MarketOrder order) {
+    private void restoreReservedInventoryAndStock(MarketOrder order) {
         if (order == null) {
             return;
         }

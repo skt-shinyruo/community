@@ -29,6 +29,11 @@ public class MyBatisMarketDisputeRepository implements MarketDisputeRepository {
     }
 
     @Override
+    public MarketDispute lockById(UUID disputeId) {
+        return mapper.selectByIdForUpdate(disputeId);
+    }
+
+    @Override
     public List<MarketDispute> findByOrderId(UUID orderId) {
         return DomainRowAdapter.asDomainList(mapper.selectByOrderId(orderId));
     }

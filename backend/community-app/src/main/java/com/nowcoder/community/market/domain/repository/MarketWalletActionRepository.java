@@ -32,6 +32,8 @@ public interface MarketWalletActionRepository {
 
     int markFailed(UUID actionId, String failureCode, String lastError);
 
+    int markRecoveryPending(UUID actionId, UUID walletTxnId, String failureCode, String lastError);
+
     int markDead(UUID actionId, String lastError);
 
     int recoverExpiredProcessing(Date asOf);

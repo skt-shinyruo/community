@@ -71,7 +71,7 @@ public class MarketWalletActionRecoveryApplicationService {
             }
         }
 
-        int remaining = limit - reconciled - skipped;
+        int remaining = limit - reconciled;
         if (remaining > 0) {
             for (MarketOrder order : orderRepository.findWalletPendingOrders(remaining)) {
                 if (reconcilePendingOrder(order)) {

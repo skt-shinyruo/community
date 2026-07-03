@@ -6,6 +6,8 @@ import com.nowcoder.community.market.controller.dto.CreateMarketListingRequest;
 import com.nowcoder.community.market.application.result.MarketListingResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -82,5 +84,30 @@ class MarketListingApplicationServiceTest {
         assertThat(marketQueryService.listSellerListings(firstSellerId))
                 .extracting(MarketListingResult::sellerUserId)
                 .containsExactly(firstSellerId);
+    }
+
+    @Test
+    void resumeListingShouldKeepPhysicalSoldOutListingSoldOutWhenStockIsStillZero() {
+        UUID sellerUserId = uuid(7);
+        CreateMarketListingRequest request = new CreateMarketListingRequest();
+        request.setGoodsType("PHYSICAL");
+        request.setTitle("二手键盘");
+        request.setDescription("九成新");
+        request.setUnitPrice(12_900L);
+        request.setStockTotal(1);
+        request.setMinPurchaseQuantity(1);
+        request.setMaxPurchaseQuantity(1);
+
+        UUID listingId = marketListingService.createListing(MarketTestCommands.listingCommand(sellerUserId, request, null)).listingId();
+        jdbcTemplate.update(
+                "update market_listing set stock_available = 0, status = 'SOLD_OUT' where listing_id = ?",
+                listingId
+        );
+
+        marketListingService.pauseListing(sellerUserId, listingId);
+        MarketListingResult resumed = marketListingService.resumeListing(sellerUserId, listingId);
+
+        assertThat(resumed.status()).isEqualTo("SOLD_OUT");
+        assertThat(resumed.stockAvailable()).isEqualTo(0);
     }
 }

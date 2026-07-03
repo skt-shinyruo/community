@@ -43,6 +43,11 @@ public interface MarketWalletActionMapper {
                    @Param("failureCode") String failureCode,
                    @Param("lastError") String lastError);
 
+    int markRecoveryPending(@Param("actionId") UUID actionId,
+                            @Param("walletTxnId") UUID walletTxnId,
+                            @Param("failureCode") String failureCode,
+                            @Param("lastError") String lastError);
+
     int markDead(@Param("actionId") UUID actionId, @Param("lastError") String lastError);
 
     int recoverExpiredProcessing(@Param("asOf") Date asOf);

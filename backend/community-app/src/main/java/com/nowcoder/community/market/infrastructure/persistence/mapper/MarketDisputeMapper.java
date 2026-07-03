@@ -16,6 +16,8 @@ public interface MarketDisputeMapper {
 
     MarketDisputeDataObject selectById(@Param("disputeId") UUID disputeId);
 
+    MarketDisputeDataObject selectByIdForUpdate(@Param("disputeId") UUID disputeId);
+
     List<MarketDisputeDataObject> selectByOrderId(@Param("orderId") UUID orderId);
 
     List<MarketDisputeDataObject> selectOpenDisputes();

@@ -89,6 +89,7 @@
             auto_confirm_at = #{autoConfirmAt},
             update_time = current_timestamp
         where order_id = #{orderId, jdbcType=BINARY}
+          and status = 'ESCROWED'
     </update>
 
     <update id="markShipped">
@@ -97,6 +98,7 @@
             auto_confirm_at = #{autoConfirmAt},
             update_time = current_timestamp
         where order_id = #{orderId, jdbcType=BINARY}
+          and status = 'ESCROWED'
     </update>
 
     <update id="markEscrowSucceeded">
@@ -222,6 +224,7 @@
         set status = 'DISPUTED',
             update_time = current_timestamp
         where order_id = #{orderId, jdbcType=BINARY}
+          and status in ('DELIVERED', 'SHIPPED')
     </update>
 
     <update id="markRefunded">

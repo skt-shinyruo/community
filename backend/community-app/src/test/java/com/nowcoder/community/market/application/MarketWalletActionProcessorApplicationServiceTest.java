@@ -141,6 +141,36 @@ class MarketWalletActionProcessorApplicationServiceTest {
     }
 
     @Test
+    void processOneShouldMarkReleaseDeadWhenRecoverableFailureExceedsRetryBudget() {
+        MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
+        MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
+        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
+        MarketWalletAction action = releaseAction();
+        action.setRetryCount(7);
+        when(mapper.claimProcessing(eq(action.getActionId()), any())).thenReturn(1);
+        when(walletApi.releaseOrder(action.getRequestId(), action.getActorUserId(), action.getAmount(), action.getWalletBizId()))
+                .thenThrow(new BusinessException(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT, "escrow insufficient"));
+
+        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+                new MyBatisMarketWalletActionRepository(mapper),
+                walletApi,
+                sagaService,
+                actionService,
+                Clock.systemUTC(),
+                Duration.ofSeconds(60),
+                8
+        );
+
+        boolean processed = processor.processOne(action);
+
+        assertThat(processed).isTrue();
+        verify(mapper).markDead(action.getActionId(), "escrow insufficient");
+        verify(mapper, never()).markRetrying(any(), any(), any());
+        verify(mapper, never()).markFailed(any(), any(), any());
+    }
+
+    @Test
     void processOneShouldFailReleasePermanentlyWhenWalletRejectsInvalidRequest() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
@@ -169,6 +199,90 @@ class MarketWalletActionProcessorApplicationServiceTest {
         );
         verify(mapper, never()).markRetrying(any(), any(), any());
         verify(sagaService, never()).markReleaseSucceeded(any(), any());
+    }
+
+    @Test
+    void processOneShouldLeaveReleaseActionRecoverableWhenSagaStateDoesNotAdvance() {
+        MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
+        MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
+        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
+        MarketWalletAction action = releaseAction();
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
+                uuid(101),
+                "ORDER_RELEASE",
+                "SUCCEEDED",
+                action.getAmount(),
+                action.getWalletBizId()
+        );
+        when(mapper.claimProcessing(eq(action.getActionId()), any())).thenReturn(1);
+        when(walletApi.releaseOrder(action.getRequestId(), action.getActorUserId(), action.getAmount(), action.getWalletBizId()))
+                .thenReturn(walletTxn);
+        when(sagaService.markReleaseSucceeded(action.getOrderId(), walletTxn.txnId())).thenReturn(false);
+
+        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+                new MyBatisMarketWalletActionRepository(mapper),
+                walletApi,
+                sagaService,
+                actionService,
+                Clock.systemUTC()
+        );
+
+        boolean processed = processor.processOne(action);
+
+        assertThat(processed).isTrue();
+        verify(sagaService).markReleaseSucceeded(action.getOrderId(), walletTxn.txnId());
+        verify(mapper, never()).markSucceeded(any(), any(), any());
+        verify(mapper).markRecoveryPending(
+                eq(action.getActionId()),
+                eq(walletTxn.txnId()),
+                eq("SAGA_STATE_NOT_ADVANCED"),
+                eq("market order saga did not advance after wallet success")
+        );
+    }
+
+    @Test
+    void processOneShouldLeaveEscrowActionRecoverableWhenWalletSucceedsButSagaCannotApply() {
+        MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
+        MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
+        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
+        MarketWalletAction action = escrowAction();
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
+                uuid(102),
+                "ORDER_ESCROW",
+                "SUCCEEDED",
+                action.getAmount(),
+                action.getWalletBizId()
+        );
+        when(mapper.claimProcessing(eq(action.getActionId()), any())).thenReturn(1);
+        when(sagaService.canApplyEscrow(action.getOrderId())).thenReturn(true);
+        when(walletApi.escrowOrder(action.getRequestId(), action.getActorUserId(), action.getAmount(), action.getWalletBizId()))
+                .thenReturn(walletTxn);
+        when(sagaService.markEscrowSucceeded(action.getOrderId(), walletTxn.txnId())).thenReturn(false);
+        when(sagaService.markEscrowCancelRefundPending(action.getOrderId(), walletTxn.txnId())).thenReturn(false);
+
+        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+                new MyBatisMarketWalletActionRepository(mapper),
+                walletApi,
+                sagaService,
+                actionService,
+                Clock.systemUTC()
+        );
+
+        boolean processed = processor.processOne(action);
+
+        assertThat(processed).isTrue();
+        verify(sagaService).markEscrowSucceeded(action.getOrderId(), walletTxn.txnId());
+        verify(sagaService).markEscrowCancelRefundPending(action.getOrderId(), walletTxn.txnId());
+        verify(mapper, never()).markSucceeded(any(), any(), any());
+        verify(mapper).markRecoveryPending(
+                eq(action.getActionId()),
+                eq(walletTxn.txnId()),
+                eq("SAGA_STATE_NOT_ADVANCED"),
+                eq("market order saga did not advance after wallet success")
+        );
+        verify(actionService, never()).enqueueRefund(any(), any(), any(), anyLong());
     }
 
     private MarketWalletAction escrowAction() {

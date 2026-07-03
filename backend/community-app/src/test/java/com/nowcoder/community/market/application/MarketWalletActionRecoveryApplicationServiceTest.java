@@ -136,6 +136,18 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         assertThat(action.getNextRetryAt()).isNull();
     }
 
+    @Test
+    void reconcileOnceShouldNotStarvePendingOrdersWhenEarlierWalletTxnActionsAreSkipped() {
+        seedSkippedWalletTxnAction();
+        seedRefundPendingOrder();
+
+        MarketWalletActionRecoveryResult result = recoveryService.reconcileOnce(1);
+
+        assertThat(result.reconciledCount()).isEqualTo(1);
+        assertThat(result.skippedCount()).isEqualTo(1);
+        assertThat(marketWalletActionMapper.selectByOrderAndType(orderId, "REFUND")).isNotNull();
+    }
+
     private UUID seedProcessingActionWithExpiredLease(Instant expiredAt) {
         UUID actionId = uuid(301);
         UUID actionOrderId = uuid(302);
@@ -205,6 +217,47 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         action.setStatus("FAILED");
         action.setFailureCode(failureCode);
         action.setLastError("escrow insufficient");
+        marketWalletActionMapper.insert(MarketWalletActionDataObject.from(action));
+    }
+
+    private void seedSkippedWalletTxnAction() {
+        UUID skippedListingId = uuid(501);
+        UUID skippedOrderId = uuid(502);
+        MarketListing skippedListing = new MarketListing();
+        skippedListing.setListingId(skippedListingId);
+        skippedListing.setSellerUserId(sellerUserId);
+        skippedListing.setGoodsType("PHYSICAL");
+        skippedListing.setTitle("旧手机");
+        skippedListing.setDescription("成色一般");
+        skippedListing.setUnitPrice(9_900L);
+        skippedListing.setStockMode("FINITE");
+        skippedListing.setStockTotal(1);
+        skippedListing.setStockAvailable(1);
+        skippedListing.setMinPurchaseQuantity(1);
+        skippedListing.setMaxPurchaseQuantity(1);
+        skippedListing.setStatus("ACTIVE");
+        marketListingMapper.insert(MarketListingDataObject.from(skippedListing));
+
+        MarketOrder skippedOrder = new MarketOrder();
+        skippedOrder.setOrderId(skippedOrderId);
+        skippedOrder.setRequestId("recovery:skipped-wallet-txn");
+        skippedOrder.setListingId(skippedListingId);
+        skippedOrder.setGoodsType("PHYSICAL");
+        skippedOrder.setSellerUserId(sellerUserId);
+        skippedOrder.setBuyerUserId(buyerUserId);
+        skippedOrder.setQuantity(1);
+        skippedOrder.setUnitPriceSnapshot(9_900L);
+        skippedOrder.setTotalAmount(9_900L);
+        skippedOrder.setDeliveryModeSnapshot("MANUAL");
+        skippedOrder.setListingTitleSnapshot("旧手机");
+        skippedOrder.setStatus("COMPLETED");
+        marketOrderMapper.insert(MarketOrderDataObject.from(skippedOrder));
+
+        MarketWalletAction action = action(uuid(503), skippedOrderId, "REFUND");
+        action.setStatus("FAILED");
+        action.setWalletTxnId(uuid(504));
+        action.setFailureCode("SAGA_STATE_NOT_ADVANCED");
+        action.setLastError("market order saga did not advance after wallet success");
         marketWalletActionMapper.insert(MarketWalletActionDataObject.from(action));
     }
 

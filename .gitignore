@@ -70,3 +70,5 @@ tests/playwright-single/test-results/
 tests/playwright-single/playwright-report/
 tests/playwright-single/reports/*.json
 tests/playwright-single/reports/*.md
+
+.codebase-memory/

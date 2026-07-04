@@ -2,7 +2,7 @@
 
 本文档覆盖本地 observability、Kibana、XXL-Job、outbox worker、scheduler 和常见故障检查。本地启动命令见 [local-development.md](local-development.md)，压测套件见 [performance-testing.md](performance-testing.md)，可靠性机制见 [reliability.md](reliability.md)。
 
-观测模型、SLO/SLI、信号契约、指标维度、trace 命名和告警优先级的 SSOT 是 [observability.md](observability.md)。本文只维护运行和排障入口。
+观测模型、SLO/SLI、信号契约、指标维度、trace 命名和告警优先级的 SSOT 是 [observability.md](observability.md)。运行态 hook 的代码接入点见 [Runtime Observability](core-logic/runtime-observability.md)。本文只维护运行和排障入口。
 
 ## Observability
 

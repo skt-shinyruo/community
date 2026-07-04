@@ -279,9 +279,9 @@ Main path: create post：
 4. application 做文本清洗、分类存在性校验、用户发言资格校验。
 5. domain / repository 完成 `DiscussPost` 落库。
 6. tag 绑定；新 tag 通过 `ensureTagId(...)` 幂等创建。
-7. 同步触发奖励 / 任务进度 owner API。
-8. 发布 content domain event。
-9. search outbox enqueuer 在 `BEFORE_COMMIT` 写 outbox。
+7. 发布 content domain event。
+8. domain event bridge 映射为 content contract event，并写入 outbox。
+9. content contract event 进入 Kafka 后，search、user reward 和 growth task 等下游异步追平。
 10. notice projection listener 在 `AFTER_COMMIT` best-effort 生成通知。
 11. 安排帖子分数刷新副作用。
 
@@ -358,10 +358,10 @@ Main path: like：
 4. 服务端解析 `entityUserId`、`postId` 等事件字段，不信任客户端声明。
 5. repository 写点赞关系。
 6. storage adapter 若声明需要补偿，application 注册事务回滚补偿。
-7. 同步调用奖励 / 任务进度 owner API。
-8. 发布 social domain event。
-9. `LocalSocialDomainEventPublisher` 映射为 `SocialContractEvent`。
-10. notice / growth 等下游消费。
+7. 发布 social domain event。
+8. `LocalSocialDomainEventPublisher` 映射为 `SocialContractEvent` 并写入 outbox。
+9. social contract event 进入 Kafka。
+10. notice、growth、user reward 和 content score projection 等下游异步追平。
 
 Main path: follow：
 
@@ -377,7 +377,7 @@ Payload semantics：
 Consistency：
 
 - 点赞 / 关注主业务写入在当前事务域内。
-- 奖励 / 任务进度通过同步 owner API 处理。
+- 奖励 / 任务进度通过 social contract event、outbox 和 Kafka listener 异步追平。
 - notice 是 best-effort after-commit。
 
 Key code：

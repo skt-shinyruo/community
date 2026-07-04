@@ -26,10 +26,10 @@
 6. domain / repository 写帖子主事实。
 7. 新 tag 通过 `ensureTagId(...)` 幂等创建，帖子和 tag 关系在 content 内绑定。
 8. 如果有媒体，content 只绑定当前用户已上传且类型匹配的 asset；对象和版本事实仍在 OSS。
-9. 提交前同步触发积分或成长任务相关 owner API。
-10. content 发布 domain event。
-11. search outbox 在事务内写入待投影事件。
-12. notice projection 在事务提交后 best-effort 生成通知。
+9. content 发布帖子事实对应的 domain event。
+10. domain event bridge 映射为 content contract event。
+11. content contract event 进入 outbox / Kafka。
+12. search、notice、user reward 和 growth task 等下游投影异步追平。
 13. 帖子分数刷新等副作用按当前策略安排执行。
 
 ## 媒体上传和绑定

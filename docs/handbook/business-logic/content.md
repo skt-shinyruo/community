@@ -54,7 +54,7 @@ HTTP：
 内容域是社区主写路径的事件源，核心数据流如下：
 
 1. 读帖：controller 进入 `PostReadApplicationService`，content 先读帖子主事实、正文 blocks、媒体资源、标签和评论活动，再按 viewer 组合点赞、收藏等外部状态。帖子摘要和详情都以 content repository 为主，不从 search 或 notice 反查。
-2. 发帖：`PostPublishingApplicationService.create(...)` 用 `IdempotencyGuard` 包住写操作，先回源 user 判断能否发言，再写帖子元信息、正文 blocks、媒体绑定和 tag 关系。提交前同步触发 user reward 与 growth task，提交后通过 domain event 驱动 search outbox、notice projection 和 score refresh。
+2. 发帖：`PostPublishingApplicationService.create(...)` 用 `IdempotencyGuard` 包住写操作，先回源 user 判断能否发言，再写帖子元信息、正文 blocks、媒体绑定和 tag 关系。写入后发布 domain event，并由 outbox / Kafka 驱动 search、notice、growth task 等下游投影；帖子分数刷新在提交后调度。
 3. 媒体：帖子媒体先在 content 保存 draft asset，再通过 OSS upload session 完成 blob 上传。发帖或改帖时只允许绑定当前用户已上传且类型匹配的 asset，旧引用会释放 OSS reference。
 4. 评论：`CommentApplicationService` 校验帖子、目标评论、作者发言资格和拉黑关系后写 `comment`，同步更新帖子评论数并发布评论事件；奖励和成长任务由各自 outbox handler 异步追平。
 5. 删除和治理：作者删除、治理删除和帖子下线都改变 content 主事实，再发布事件让 search 删除或更新 ES 文档，让 notice 生成治理通知，并在提交后调用 social owner 清理失效实体上的点赞关系。
@@ -91,9 +91,9 @@ HTTP：
 8. 校验媒体资源归属、类型和上传状态，并把被 blocks 引用的媒体资源绑定到帖子。
 9. `PostContentBlockRepository.replaceBlocks(...)` 写入有序正文 blocks。
 10. `PostTagRepository.bindTagsToPost(...)` 绑定标签。
-11. 同步触发 `UserRewardActionApi.awardPostPublished(...)`。
-12. 同步触发 `GrowthTaskProgressActionApi.triggerPostPublished(...)`。
-13. 发布 `PostPublishedDomainEvent`。
+11. 发布 `PostPublishedDomainEvent`。
+12. domain event bridge 将帖子事实映射为 content contract event，并写入 outbox。
+13. content contract event 进入 Kafka 后，驱动 user reward 和 growth task 投影异步追平。
 14. 安排帖子热度分刷新。
 15. 写业务事件日志。
 
@@ -272,7 +272,7 @@ contract events：
 
 - search outbox 根据帖子事件回源 content 当前状态，决定 upsert 或 delete ES 文档；搜索正文从 blocks 投影生成。
 - notice listener after-commit best-effort 生成站内通知。
-- 发帖主用例当前仍同步调用 growth/task 和 user reward；评论发布改为通过 user reward / growth task outbox 异步触发。
+- 发帖、评论、治理等 content contract event 默认通过 DB outbox 写入 `eventbus.content`，再 dispatch 到 `content.events`；search、notice、growth task、user reward 等下游按各自 outbox / Kafka listener 追平。
 - social cleanup 在内容删除后清理点赞关系。
 
 帖子分数和社交派生刷新：
@@ -286,13 +286,23 @@ contract events：
 - 提取到 postId 后写入 `PostScoreQueue`，由帖子分数刷新任务后续重算。
 - 队列写入失败只记录 warn，不回滚 social 主事务，也不阻断点赞/取消点赞。
 
+## Owner Entity Resolution
+
+`ContentEntityResolutionApplicationService.resolve(entityType, entityId)` 是 content owner 暴露给外域的实体归属解析用例。它只支持 `POST` 和 `COMMENT`：
+
+- `POST`：读取帖子主事实，返回帖子作者和帖子 id。
+- `COMMENT`：允许读取已删除评论行以解析关系，但目标评论自身必须 active；随后沿评论父链向上追溯到根帖子，最多 12 跳。父评论缺失、非 active、链路不是 `POST/COMMENT`、或超过跳数都会返回无法解析。
+- 解析到根帖子后会再次读取帖子主事实，确保帖子存在；返回评论作者和根帖子 id。
+
+这个用例用于点赞、通知、成长等外域判断目标 owner 和根内容，不把 comment/post repository 暴露给外域，也不把 content 内部 domain model 作为跨域协作模型。
+
 ## 失败和一致性
 
 - 发帖和评论是 HTTP 幂等写。
 - 媒体上传 prepare / complete 当前不走 HTTP Idempotency-Key；重复 complete 受 asset lifecycle 约束。
 - 通知投影失败不回滚内容写入。
 - 搜索投影通过 outbox 重试，ES 不是内容主事实。
-- 评论奖励和评论成长任务通过 outbox 重试；wallet/growth 故障不回滚已提交评论。
+- 评论奖励和成长任务通过 outbox / Kafka 重试；wallet/growth 故障不回滚已提交评论。
 - 点赞清理是提交后副作用，失败不回滚已提交删除。
 - 用户处罚和拉黑关系需要同步回源 owner 判断。
 - 删除/下线都是软删除和事件扩散，不物理删除主事实行。
@@ -319,6 +329,7 @@ contract events：
 - `content.application.ModerationApplicationService`
 - `content.application.PostModerationApplicationService`
 - `content.application.PostScoreRefreshApplicationService`
+- `content.application.ContentEntityResolutionApplicationService`
 - `content.domain.service.*`
 - `content.infrastructure.event.*`
 - `content.contracts.event.*`

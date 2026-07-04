@@ -27,9 +27,9 @@
 8. 新增点赞前检查 actor 和目标用户之间是否存在拉黑关系。
 9. repository 写入或删除点赞关系。
 10. 如底层 storage adapter 需要显式补偿，application 注册事务回滚补偿。
-11. 点赞创建或取消可同步触发用户积分和成长任务。
-12. social 发布 domain event，并映射为 contract event。
-13. notice / growth 等下游消费事件。
+11. social 发布 `LikeChangedDomainEvent`。
+12. social 将 domain event 映射为 contract event，并写入 outbox。
+13. social contract event 进入 Kafka 后，notice、growth、user reward 和 content score projection 等下游异步追平。
 
 关键语义：
 

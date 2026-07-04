@@ -42,7 +42,7 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 - refresh 支持 recoverable rotation：刷新时先把旧 session 转入 `PENDING_ROTATION`，再回源校验用户仍允许 refresh，成功后 finish rotation 使旧 session 变为 `CONSUMED` tombstone、同 family replacement 变为 `ACTIVE`；临时失败会 rollback，无法安全恢复或用户不存在、账号被禁用、`refreshAllowed=false` 时撤销 family 并清 cookie。当前实现里角色变更、密码重置和活跃账号级封禁会显式撤销 refresh sessions。
 - token family 支持族撤销，复用旧 token 可触发 family revoke。
 
-`GET /api/auth/me` 直接读取已验证 JWT claim，不实时查库；高风险 admin/ops/wallet admin 写入口会额外校验 JWT 中的 `security_version`，版本落后时要求刷新或重新登录。普通前端权限展示可能仍滞后到下一次 access token 重新签发。
+`GET /api/auth/me` 直接读取已验证 JWT claim，不实时查库；高风险 admin/ops/wallet admin URI prefix 会额外校验 JWT 中的 `security_version`，版本落后时要求刷新或重新登录。普通前端权限展示可能仍滞后到下一次 access token 重新签发。具体 prefix、401/403 映射和失败语义见 [Token Freshness 与高风险请求安全](core-logic/security-token-freshness.md)。
 
 `security_version` 是 user owner 的认证授权版本。角色、密码、账号状态和活跃账号级封禁变化会递增该版本；其中角色、密码和活跃账号级封禁变更会撤销 refresh sessions，账号状态变化会在 login / refresh 校验中被拒绝。`muteUntil` 只影响发言能力，不影响登录或 refresh。
 

@@ -171,7 +171,7 @@ IM policy projection 先在主站 outbox 使用内部 topic `projection.im.polic
 
 IM 消息事实和发送结果使用不同 outbox event id 空间：私信事实 `im:pf:<messageId>`，群聊事实 `im:rf:<roomId>:<seq>`，私信发送结果 `im:psr:<attemptHash>`，群聊发送结果 `im:rsr:<attemptHash>`。`attemptHash` 来自 `fromUserId + requestId + clientMsgId`，用于避免事实事件和发送尝试回执互相覆盖。
 
-`community.event.*` 是已退休跨服务 topic，当前默认 compose 不创建、不使用；`community-app` 的主站投影/通知不依赖 Kafka，而是使用本地事务事件、DB outbox 或同步 owner API。
+`community.event.*` 是已退休跨服务 topic，当前默认 compose 不创建、不使用；`community-app` 的主站异步协作使用 owner outbox topic（如 `eventbus.content`、`eventbus.social`、`eventbus.user`）和领域 Kafka topic（如 `content.events`、`social.events`、`user.events`），局部路径仍可使用本地事务事件、DB outbox 或必须同步回答的 owner API。
 
 ## 事件契约位置
 

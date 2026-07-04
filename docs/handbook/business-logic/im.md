@@ -131,7 +131,7 @@ IM 的数据流分成 session、command、消息事实 event、发送结果 even
 
 房间管理由 im-core owning：
 
-- `RoomMembershipService.createRoom(...)` 创建房间并把创建者加入。
+- `RoomApplicationService.createRoom(...)` 创建房间并把创建者加入，房间成员规则由 `RoomMembershipDomainService` 承担。
 - `joinRoom(...)` 加入房间。
 - `leaveRoom(...)` 退出房间。
 - 成员变化发布 `RoomMemberChanged`。
@@ -143,7 +143,7 @@ IM 的数据流分成 session、command、消息事实 event、发送结果 even
 3. 通过本地 membership projection 判断发送者是否在房间中；最终权威校验仍在 im-core。
 4. 写 Kafka `SendRoomTextCommand`。
 5. im-core 消费 command。
-6. `RoomMessageService.persist(...)` 校验房间存在和发送者是成员。
+6. `RoomMessageApplicationService.persist(...)` 校验房间存在和发送者是成员；成员和 seq 规则由 `RoomMessageDomainService` 承担。
 7. 按 `(roomId, fromUserId, clientMsgId)` 做幂等。
 8. 分配 room seq。
 9. 写群消息。
@@ -168,9 +168,10 @@ IM 的数据流分成 session、command、消息事实 event、发送结果 even
 
 未读：
 
-- `UnreadService.listRoomUnread(...)` 计算房间未读。
-- `listConversationUnread(...)` 计算私聊未读。
+- `UnreadApplicationService.listRoomUnread(...)` 计算房间未读。
+- `UnreadApplicationService.listConversationUnread(...)` 计算私聊未读。
 - `UnreadController.summary(...)` 返回未读汇总。
+- 未读 limit 规范化和 repository 委托规则由 `UnreadDomainService` 承担。
 
 已读水位只做单调推进，不能倒退。
 
@@ -261,10 +262,14 @@ Core：
 - `im.core.controller.RoomController`
 - `im.core.controller.UnreadController`
 - `im.core.controller.InternalRealtimeProjectionController`
-- `im.core.service.PrivateMessageService`
-- `im.core.service.RoomMessageService`
-- `im.core.service.RoomMembershipService`
-- `im.core.service.UnreadService`
+- `im.core.application.ConversationApplicationService`
+- `im.core.application.PrivateMessageApplicationService`
+- `im.core.application.RoomApplicationService`
+- `im.core.application.RoomMessageApplicationService`
+- `im.core.application.UnreadApplicationService`
+- `im.core.domain.service.PrivateMessageDomainService`
+- `im.core.domain.service.RoomMessageDomainService`
+- `im.core.domain.service.RoomMembershipDomainService`
 - `im.core.kafka.CommandConsumers`
 - `im.core.outbox.ImMessageOutboxEnqueuer`
 

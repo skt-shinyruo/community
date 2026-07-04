@@ -126,9 +126,9 @@ POST /api/posts + Authorization + Idempotency-Key
   -> IdempotencyGuard.executeRequired(...)
   -> content domain rules + repository
   -> DiscussPost / tag 绑定 / 分类校验
-  -> 同步调用 growth / wallet 相关 owner API
   -> 发布 content domain event
-  -> search outbox / notice after-commit / score refresh
+  -> outbox / Kafka 驱动 search / notice / growth / reward 等下游投影
+  -> score refresh
 ```
 
 这个链路代表了主站大多数写能力的共同形态：controller 不拼业务规则，应用层负责用例编排和事务，domain 放业务规则，MyBatis / Redis / ES 细节留在 infrastructure。

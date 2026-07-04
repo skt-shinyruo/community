@@ -8,7 +8,7 @@
 2. `ExternalImEdgeWebSocketHandler` / `InternalWorkerBridgeFactory`
 3. `ImWebSocketHandler` / `ProjectionSyncCoordinator`
 4. `MessageCommandIngressService`
-5. `PrivateMessageService` / `RoomMessageService` / `RoomMembershipService`
+5. `PrivateMessageApplicationService` / `RoomMessageApplicationService` / `RoomApplicationService`
 6. `ImPolicySnapshotApplicationService`
 
 ## Gateway
@@ -39,8 +39,11 @@
 | `im.realtime.projection.PolicySnapshotClient` | 拉 user policy snapshot。 |
 | `im.realtime.projection.MembershipSnapshotClient` | 拉 room membership snapshot。 |
 | `im.realtime.presence.RoomLocalIndex` | 本进程 room -> connectionId 索引。 |
+| `im.realtime.presence.RoomLocalPresenceService` | 本 worker 房间在线 presence 的激活、刷新和释放。 |
 | `im.realtime.presence.RedisRoomPresenceDirectory` | routed fanout 使用的分布式 room -> worker presence。 |
+| `im.realtime.fanout.RoomFanoutRoutingService` | routed fanout 的 owner 规划和 target command 分发。 |
 | `im.realtime.fanout.RoomFanoutOwnerCoalescer` | routed owner 侧房间更新合并、目标 dispatch 和 pending retry。 |
+| `im.realtime.fanout.RoomFanoutTargetController` | internal routed fanout target HTTP 入口。 |
 | `im.realtime.fanout.RoomFanoutTargetService` | routed target 校验、本地 fanout 触发和 sourceEventId 去重。 |
 | `im.realtime.session.SessionTicketCodec` | realtime 侧 session ticket 校验。 |
 | `im.realtime.push.PrivatePushService` | 私信在线 fanout。 |
@@ -56,14 +59,19 @@
 | `im.core.controller.RoomController` | 房间 HTTP 入口。 |
 | `im.core.controller.UnreadController` | 未读 HTTP 入口。 |
 | `im.core.controller.InternalRealtimeProjectionController` | membership snapshot HTTP 入口。 |
-| `im.core.service.PrivateMessageService` | 私信幂等、seq 分配和会话状态。 |
-| `im.core.service.RoomMessageService` | 群聊幂等、成员校验和 seq 分配。 |
-| `im.core.service.RoomMembershipService` | 房间创建、加入、离开和成员事件。 |
-| `im.core.service.UnreadService` | 私聊 / 群聊未读汇总和 watermark。 |
+| `im.core.application.ConversationApplicationService` | 私聊会话查询和删除用例。 |
+| `im.core.application.PrivateMessageApplicationService` | 私信持久化、owner policy 回源、幂等命中回执和 outbox 事件。 |
+| `im.core.application.RoomApplicationService` | 房间创建、加入、离开和成员事件。 |
+| `im.core.application.RoomMessageApplicationService` | 群聊消息持久化、成员权威校验、幂等命中回执和 outbox 事件。 |
+| `im.core.application.UnreadApplicationService` | 私聊 / 群聊未读汇总和 watermark 用例。 |
+| `im.core.domain.service.PrivateMessageDomainService` | 私信草稿校验、conversationId 规范化、既有消息查找和 seq 分配规则。 |
+| `im.core.domain.service.RoomMessageDomainService` | 群聊消息草稿校验、成员检查、既有消息查找和 seq 分配规则。 |
+| `im.core.domain.service.RoomMembershipDomainService` | 房间成员关系和成员变更规则。 |
+| `im.core.domain.service.UnreadDomainService` | 未读查询 limit 归一化。 |
 | `im.core.kafka.CommandConsumers` | 消费 IM command 并发布 persisted / committed / rejected event。 |
 | `im.core.kafka.KafkaRoomMemberChangePublisher` | 通过 outbox 发布成员变化。 |
-| `im.core.service.RoomMemberChangePublisher` | 房间成员事件发布端口。 |
-| `im.core.service.NoopRoomMemberChangePublisher` | Kafka/outbox 关闭时的空实现。 |
+| `im.core.domain.event.RoomMemberChangePublisher` | 房间成员事件发布端口。 |
+| `im.core.infrastructure.event.NoopRoomMemberChangePublisher` | Kafka/outbox 关闭时的空实现。 |
 | `im.core.outbox.ImMessageOutboxEnqueuer` | persisted fact、committed/rejected send-result、member 事件入 outbox。 |
 | `im.core.outbox.ImKafkaOutboxHandler` | IM outbox 到 Kafka topic 的分发。 |
 

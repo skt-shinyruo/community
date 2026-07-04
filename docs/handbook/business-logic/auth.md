@@ -192,8 +192,10 @@ logout：
 - `auth.application.PasswordResetApplicationService`
 - `auth.application.RefreshTokenApplicationService`
 - `auth.application.LoginRateLimitApplicationService`
+- `auth.application.TokenFreshnessApplicationService`
 - `auth.domain.service.*`
 - `auth.infrastructure.jwt.JwtTokenService`
+- `auth.infrastructure.web.TokenFreshnessFilter`
 - `auth.infrastructure.job.RefreshTokenCleanupJob`
 - `user.application.UserCredentialApplicationService`
 - `user.application.RefreshTokenSessionApplicationService`

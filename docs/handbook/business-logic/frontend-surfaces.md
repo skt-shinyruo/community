@@ -1,6 +1,6 @@
 # Frontend 业务面映射
 
-本文不是前端架构文档；前端架构、路由鉴权、session 恢复和 HTTP interceptor 见 [../frontend.md](../frontend.md)。本文只把 Vue 页面和 API service 映射到后端业务逻辑，方便从用户界面反查业务域。
+本文不是前端架构文档；前端架构、路由鉴权、session 恢复和 HTTP interceptor 见 [../frontend.md](../frontend.md)。本文只把 Vue 页面和 API service 映射到后端业务逻辑，方便从用户界面反查业务域。前端业务状态、API 编排和 route-to-page 能力的核心逻辑口径见 [前端业务状态与 API 编排](../core-logic/frontend-business-state.md)。
 
 ## 入口和会话
 
@@ -72,10 +72,11 @@
 | --- | --- |
 | `authService.js` | auth |
 | `userService.js`, `adminUserService.js` | user |
-| `postService.js`, `bookmarkService.js`, `taxonomyService.js`, `subscriptionService.js`, `reportService.js`, `moderationService.js` | content |
+| `postService.js`, `postMediaService.js`, `bookmarkService.js`, `taxonomyService.js`, `subscriptionService.js`, `reportService.js`, `moderationService.js` | content |
 | `socialService.js`, `blockService.js` | social |
 | `walletService.js` | wallet |
 | `marketService.js` | market |
+| `driveService.js` | drive |
 | `noticeService.js` | notice |
 | `searchService.js` | search / ops |
 | `analyticsService.js` | analytics |

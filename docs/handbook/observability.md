@@ -1,6 +1,6 @@
 # 观测模型
 
-本文档是 SLO/SLI、信号契约、指标维度、trace 命名、告警优先级和观测治理的 SSOT。运行排障步骤继续维护在 [operations.md](operations.md)，本地启动和端口继续维护在 [local-development.md](local-development.md)。
+本文档是 SLO/SLI、信号契约、指标维度、trace 命名、告警优先级和观测治理的 SSOT。运行排障步骤继续维护在 [operations.md](operations.md)，本地启动和端口继续维护在 [local-development.md](local-development.md)。运行态 hook 的代码接入点见 [Runtime Observability](core-logic/runtime-observability.md)。
 
 ## 目标模型
 

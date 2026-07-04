@@ -6,16 +6,18 @@
 
 - growth owns `task_template`、`user_task_progress`、`user_task_event_log` 和 `user_level_rule_config`。
 - wallet owns 在线余额和奖励资金事实。
-- content/social 通过 owner API 触发成长事件。
+- content/social 的 contract event 通过 outbox / Kafka listener 触发成长事件。
 - 用户等级不是 `user` 表上的实时字段，而是按成长规则计算的结果。
 
 ## 入口
 
-同步 owner API：
+事件和 owner API 入口：
 
-- `GrowthTaskProgressActionApi.triggerPostPublished(...)`
-- `GrowthTaskProgressActionApi.triggerCommentCreated(...)`
-- `GrowthTaskProgressActionApi.triggerLikeCreated(...)`
+- `TaskProgressEventBackboneKafkaListener`
+- `TaskProgressKafkaListener`
+- `GrowthTaskProgressActionApi.triggerPostPublished(...)`（保留的同步 owner action 合约，不是 content/social 主链路）
+- `GrowthTaskProgressActionApi.triggerCommentCreated(...)`（保留的同步 owner action 合约，不是 content/social 主链路）
+- `GrowthTaskProgressActionApi.triggerLikeCreated(...)`（保留的同步 owner action 合约，不是 content/social 主链路）
 - `UserLevelQueryApi.evaluateLevel(...)`
 
 应用服务：
@@ -34,7 +36,7 @@
 
 成长域当前不是面向浏览器的独立业务面，而是被内容和社交事件驱动：
 
-1. 事件入口：content/social 通过 `GrowthTaskProgressActionApi` 把发帖、评论、点赞创建等业务事件转成 growth command，进入 `TaskProgressApplicationService`。
+1. 事件入口：content/social 的 contract event 通过 DB outbox / Kafka 或 growth task projection outbox 转成 growth command，进入 `TaskProgressApplicationService`。
 2. 去重：application 按 `sourceEventId` 先写 `user_task_event_log`。唯一约束冲突表示同一源事件已经处理，直接跳过，避免重复推进任务。
 3. 进度推进：按事件类型查询 active `TaskTemplate`，计算 `periodKey`，确保并锁定 `user_task_progress`，再由 domain service capped 增加进度并判断是否达到目标。
 4. 奖励：达到目标后，如果模板需要手动领取，状态变 `CLAIMABLE`；如果自动发奖，生成稳定 reward grant id 并调用 `WalletRewardActionApi`，由 wallet owner 完成总账入账和幂等。
@@ -123,6 +125,7 @@
 ## 关键代码
 
 - `growth.application.TaskProgressApplicationService`
+- `growth.application.TaskProgressOutboxDispatchApplicationService`
 - `growth.application.UserLevelApplicationService`
 - `growth.application.GrowthBusinessTimeService`
 - `growth.domain.service.TaskProgressDomainService`

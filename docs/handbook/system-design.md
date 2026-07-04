@@ -78,7 +78,7 @@ caller ApplicationService
 当前典型协作：
 
 - social 点赞/关注解析内容 owner：`content.api.query`。
-- content 发帖/评论同步推进 growth task 和 wallet / points 相关 owner action。
+- content 发帖/评论同步回源 user owner 判断发言资格；growth task 和 user reward 通过 content contract event、outbox 和 Kafka projection 追平。
 - market 下单/退款/放款先写 `market_wallet_action` durable command，再由 market processor 调用 `wallet.api.action`。
 - user / social 为 IM policy snapshot 暴露同步查询面。
 
@@ -113,8 +113,8 @@ caller ApplicationService
 | search post projection | DB outbox | 可靠追平，可重试，handler 幂等 upsert/delete ES |
 | IM policy projection | DB outbox -> Kafka | user punishment / social block 变化发布给 `im-realtime` |
 | notice projection | local after-commit listener | best-effort，失败只记录日志，不回滚主事务 |
-| growth task progress | 同步 owner API | 当前用例内推进，失败按用例语义回滚 |
-| wallet reward | 同步 owner API | 资金事实 owner 同步落账 |
+| growth task progress | owner contract event -> DB outbox / Kafka listener | 主事实先提交，growth 侧按 `sourceEventId` 去重追平 |
+| wallet reward | user reward projection -> wallet owner API | reward 投影消费事件后调用 wallet owner，资金事实由 wallet 幂等落账 |
 | market fund action | `market_wallet_action` saga command -> wallet owner API | 市场事务先提交资金命令，后台 processor 调钱包并推进订单/争议状态 |
 | analytics | filter / application 写 Redis | 采集口径以当前配置和代码入口为准 |
 

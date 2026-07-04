@@ -1,6 +1,6 @@
 # 集成契约
 
-本文档集中说明系统内外的协作契约：owner-domain 同步 API、异步 `contracts.event`、HTTP 写接口契约、IM Kafka contract 和新增协作时的约束。
+本文档集中说明系统内外的协作契约：owner-domain 同步 API、异步 `contracts.event`、HTTP 写接口契约、IM Kafka contract 和新增协作时的约束。当前 owner eventbus、projection topic 和 Kafka dispatch 接入点见 [异步事件骨干](core-logic/async-event-backbone.md)。
 
 ## 契约分层
 

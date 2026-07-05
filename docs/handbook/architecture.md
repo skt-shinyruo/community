@@ -98,6 +98,16 @@ com.nowcoder.community.<domain>
 - 不直接依赖 MyBatis mapper 或 dataobject；持久化只通过 domain repository interface 或明确的 infrastructure port。
 - 不新增以域名命名的聚合入口门面，例如 `AuthApplicationService`、`WalletApplicationService`、`MarketApplicationService`、`AdminWalletApplicationService`、`AdminMarketApplicationService` 这类只路由到同域多个更细 `*ApplicationService` 的类。controller / admin controller 应直接进入拥有该用例事务、幂等、审计和跨域协作语义的具体同域 `*ApplicationService`。
 
+## Application Service Collaboration
+
+`ApplicationService` remains the same-domain use-case entry style. Controllers, listeners, jobs, outbox handlers, bridges, and enqueuers must enter only a same-domain `*ApplicationService`.
+
+Same-domain `ApplicationService -> ApplicationService` collaboration is allowed only when the caller is an explicit process manager or larger use-case orchestrator. The class name must identify the process it owns, for example `MarketWalletActionProcessorApplicationService`, `MarketWalletActionRecoveryApplicationService`, `MarketOrderAutoConfirmApplicationService`, `NoticeProjectionApplicationService`, or `SearchPostProjectionApplicationService`.
+
+Domain-named facade services such as `MarketApplicationService`, `WalletApplicationService`, or `ContentApplicationService` must not delegate to multiple same-domain application services. Reusable application helpers that are not use-case entries should use focused names such as `*Issuer`, `*Assembler`, `*Scheduler`, `*Coordinator`, or `*Component` and must stay in the application package only when they express application semantics.
+
+Transactional methods must not rely on self-invocation for Spring proxy behavior. Public `@Transactional` overloads should delegate to a private non-annotated helper when they share an implementation.
+
 ### Domain
 
 - 承载业务模型、领域规则、领域服务、策略、仓储接口和领域事件。

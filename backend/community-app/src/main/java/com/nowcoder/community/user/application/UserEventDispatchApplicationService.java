@@ -11,6 +11,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.Objects;
+
 @Service
 @ConditionalOnExpression("'${user.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'")
 public class UserEventDispatchApplicationService {
@@ -27,7 +29,8 @@ public class UserEventDispatchApplicationService {
     }
 
     public void dispatch(DispatchUserEventCommand command) {
-        if (command == null || !StringUtils.hasText(command.payloadJson())) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (!StringUtils.hasText(command.payloadJson())) {
             throw new IllegalStateException("user event outbox payload is blank");
         }
 

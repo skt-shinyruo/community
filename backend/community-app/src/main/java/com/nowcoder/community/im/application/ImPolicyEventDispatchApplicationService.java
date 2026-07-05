@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -28,7 +29,8 @@ public class ImPolicyEventDispatchApplicationService {
     }
 
     public void dispatch(DispatchImPolicyEventCommand command) {
-        if (command == null || !StringUtils.hasText(command.payloadJson())) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (!StringUtils.hasText(command.payloadJson())) {
             return;
         }
 

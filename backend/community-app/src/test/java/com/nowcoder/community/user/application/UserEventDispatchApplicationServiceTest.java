@@ -79,6 +79,13 @@ class UserEventDispatchApplicationServiceTest {
     }
 
     @Test
+    void dispatchShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.dispatch(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void dispatchShouldRejectBlankOrNullPayloadForOutboxRetry() {
         assertThatThrownBy(() -> service.dispatch(new DispatchUserEventCommand("key", null)))
                 .isInstanceOf(IllegalStateException.class)

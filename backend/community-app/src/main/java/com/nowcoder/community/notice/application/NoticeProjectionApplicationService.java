@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -88,9 +89,7 @@ public class NoticeProjectionApplicationService {
     }
 
     public void projectContentEvent(ProjectContentNoticeCommand command) {
-        if (command == null) {
-            return;
-        }
+        Objects.requireNonNull(command, "command must not be null");
         try {
             project(commandForContentEvent(command));
         } catch (RuntimeException e) {
@@ -99,9 +98,7 @@ public class NoticeProjectionApplicationService {
     }
 
     public void projectSocialEvent(ProjectSocialNoticeCommand command) {
-        if (command == null) {
-            return;
-        }
+        Objects.requireNonNull(command, "command must not be null");
         try {
             project(commandForSocialEvent(command));
         } catch (RuntimeException e) {
@@ -111,24 +108,17 @@ public class NoticeProjectionApplicationService {
 
     @Transactional
     public void projectContentEventReliably(ProjectContentNoticeCommand command) {
-        if (command == null) {
-            return;
-        }
+        Objects.requireNonNull(command, "command must not be null");
         projectReliably(commandForContentEvent(command));
     }
 
     @Transactional
     public void projectSocialEventReliably(ProjectSocialNoticeCommand command) {
-        if (command == null) {
-            return;
-        }
+        Objects.requireNonNull(command, "command must not be null");
         projectReliably(commandForSocialEvent(command));
     }
 
     NoticeProjection commandForContentEvent(ProjectContentNoticeCommand command) {
-        if (command == null) {
-            return null;
-        }
         if (ContentEventTypes.COMMENT_CREATED.equals(command.eventType()) && command.payload() instanceof CommentPayload payload) {
             return projection(command.sourceEventId(), command.eventType(), NoticeTopic.COMMENT, payload.getTargetUserId(), payload);
         }
@@ -139,9 +129,6 @@ public class NoticeProjectionApplicationService {
     }
 
     NoticeProjection commandForSocialEvent(ProjectSocialNoticeCommand command) {
-        if (command == null) {
-            return null;
-        }
         if (SocialEventTypes.LIKE_CREATED.equals(command.eventType()) && command.payload() instanceof LikePayload payload) {
             return projection(command.sourceEventId(), command.eventType(), NoticeTopic.LIKE, payload.getEntityUserId(), payload);
         }

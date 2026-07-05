@@ -108,6 +108,13 @@ class TaskProgressOutboxDispatchApplicationServiceTest {
     }
 
     @Test
+    void dispatchShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.dispatch(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void dispatchShouldIgnoreBlankPayloadAndMissingRequiredFields() {
         service.dispatch(new DispatchTaskProgressEventCommand(TaskProgressDispatchKind.POST_PUBLISHED, "key", " "));
         service.dispatch(new DispatchTaskProgressEventCommand(TaskProgressDispatchKind.POST_PUBLISHED, "key", "{}"));

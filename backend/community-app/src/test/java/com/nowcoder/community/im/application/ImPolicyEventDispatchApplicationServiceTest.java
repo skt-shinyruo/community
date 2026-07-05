@@ -106,6 +106,13 @@ class ImPolicyEventDispatchApplicationServiceTest {
     }
 
     @Test
+    void dispatchShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.dispatch(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void dispatchShouldIgnoreBlankPayloadUnknownKindAndMissingInvalidIds() {
         service.dispatch(new DispatchImPolicyEventCommand("evt-blank", "key", " "));
         service.dispatch(new DispatchImPolicyEventCommand("evt-unknown", "key", "{\"kind\":\"OTHER\"}"));

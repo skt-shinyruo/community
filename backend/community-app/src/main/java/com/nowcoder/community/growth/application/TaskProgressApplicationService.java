@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -106,7 +107,8 @@ public class TaskProgressApplicationService {
 
     @Transactional
     public void triggerPostPublished(TriggerPostPublishedCommand command) {
-        if (command == null || command.postId() == null || command.userId() == null || command.createTime() == null) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.postId() == null || command.userId() == null || command.createTime() == null) {
             return;
         }
         process(command.userId(), TRIGGER_POST_PUBLISHED, "post-published:" + command.postId(), command.createTime());
@@ -114,7 +116,8 @@ public class TaskProgressApplicationService {
 
     @Transactional
     public void triggerCommentCreated(TriggerCommentCreatedCommand command) {
-        if (command == null || command.commentId() == null || command.userId() == null || command.createTime() == null) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.commentId() == null || command.userId() == null || command.createTime() == null) {
             return;
         }
         process(command.userId(), TRIGGER_COMMENT_CREATED, "comment-created:" + command.commentId(), command.createTime());
@@ -122,7 +125,8 @@ public class TaskProgressApplicationService {
 
     @Transactional
     public void triggerLikeCreated(TriggerLikeCreatedCommand command) {
-        if (command == null || !StringUtils.hasText(command.sourceEventId()) || command.createTime() == null) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (!StringUtils.hasText(command.sourceEventId()) || command.createTime() == null) {
             return;
         }
         UUID toUserId = command.entityUserId();
@@ -134,7 +138,8 @@ public class TaskProgressApplicationService {
 
     @Transactional
     public void triggerLikeRemoved(TriggerLikeRemovedCommand command) {
-        if (command == null || !StringUtils.hasText(command.relationKey()) || command.entityUserId() == null) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (!StringUtils.hasText(command.relationKey()) || command.entityUserId() == null) {
             return;
         }
         rollbackLikeCreatedProgress(command.entityUserId(), command.relationKey().trim());

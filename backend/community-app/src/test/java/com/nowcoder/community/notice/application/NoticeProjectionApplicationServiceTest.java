@@ -105,6 +105,38 @@ class NoticeProjectionApplicationServiceTest {
         verify(noticeService).revokeLikeNotice(payload.getEntityUserId(), payload.getRelationKey());
     }
 
+    @Test
+    void projectContentEventShouldRejectNullCommand() {
+        assertThatThrownBy(() -> projectionService(mock(NoticeApplicationService.class), mock(NoticeProjectionEventRecorder.class))
+                .projectContentEvent(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void projectSocialEventShouldRejectNullCommand() {
+        assertThatThrownBy(() -> projectionService(mock(NoticeApplicationService.class), mock(NoticeProjectionEventRecorder.class))
+                .projectSocialEvent(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void projectContentEventReliablyShouldRejectNullCommand() {
+        assertThatThrownBy(() -> projectionService(mock(NoticeApplicationService.class), mock(NoticeProjectionEventRecorder.class))
+                .projectContentEventReliably(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void projectSocialEventReliablyShouldRejectNullCommand() {
+        assertThatThrownBy(() -> projectionService(mock(NoticeApplicationService.class), mock(NoticeProjectionEventRecorder.class))
+                .projectSocialEventReliably(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
     private static NoticeProjectionApplicationService projectionService(
             NoticeApplicationService noticeService,
             NoticeProjectionEventRecorder eventRecorder

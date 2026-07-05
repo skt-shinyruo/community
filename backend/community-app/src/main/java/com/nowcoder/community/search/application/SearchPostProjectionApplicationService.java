@@ -6,6 +6,8 @@ import com.nowcoder.community.search.application.command.DeleteIndexedPostComman
 import com.nowcoder.community.search.application.command.ProjectPostOutboxCommand;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
+
 @Service
 public class SearchPostProjectionApplicationService {
 
@@ -21,7 +23,8 @@ public class SearchPostProjectionApplicationService {
     }
 
     public void projectPostFromOutbox(ProjectPostOutboxCommand command) {
-        if (command == null || command.postId() == null) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.postId() == null) {
             return;
         }
         PostScanView.PostProjectionView projection = postScanQueryApi.getPostProjectionAllowDeleted(command.postId());

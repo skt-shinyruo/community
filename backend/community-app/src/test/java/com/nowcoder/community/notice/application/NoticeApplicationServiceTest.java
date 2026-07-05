@@ -21,6 +21,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 @SpringBootTest(
@@ -72,6 +73,13 @@ class NoticeApplicationServiceTest {
     }
 
     @Test
+    void createNoticeShouldRejectNullCommand() {
+        assertThatThrownBy(() -> noticeService.createNotice(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void listNoticesShouldReturnNoticeOwnedRecords() {
         UUID recipientUserId = uuid(2);
         insertNotice(NOTICE_ID_1, ZERO_UUID, recipientUserId, "comment", "{\"eventId\":\"evt-sentinel\"}", NoticeApplicationService.STATUS_UNREAD);
@@ -103,6 +111,20 @@ class NoticeApplicationServiceTest {
             assertThat(item.noticeTopic()).isEqualTo("comment");
             assertThat(item.status()).isEqualTo(NoticeApplicationService.STATUS_UNREAD);
         });
+    }
+
+    @Test
+    void listNoticeItemsShouldRejectNullCommand() {
+        assertThatThrownBy(() -> noticeService.listNoticeItems(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void markReadShouldRejectNullCommand() {
+        assertThatThrownBy(() -> noticeService.markRead(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 
     @Test

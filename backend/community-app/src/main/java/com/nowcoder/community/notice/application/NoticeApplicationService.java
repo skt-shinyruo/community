@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -46,6 +47,7 @@ public class NoticeApplicationService {
     }
 
     public void createNotice(CreateNoticeCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         noticeDomainService.validateCreate(command.toUserId(), command.noticeTopic(), command.contentJson());
         NoticeRecord notice = new NoticeRecord();
         notice.setId(idGenerator.next());
@@ -68,6 +70,7 @@ public class NoticeApplicationService {
     }
 
     public List<NoticeItemResult> listNoticeItems(ListNoticeItemsCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         int p = noticeDomainService.pageOrDefault(command.page());
         int s = noticeDomainService.sizeOrDefault(command.size());
         int offset = Pagination.safeOffset(p, s);
@@ -99,6 +102,7 @@ public class NoticeApplicationService {
     }
 
     public void markRead(MarkNoticeReadCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         if (command.ids() == null || command.ids().isEmpty()) {
             return;
         }

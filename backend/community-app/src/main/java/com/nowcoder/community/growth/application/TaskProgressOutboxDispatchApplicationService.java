@@ -9,6 +9,8 @@ import com.nowcoder.community.social.contracts.event.LikePayload;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.Objects;
+
 @Service
 public class TaskProgressOutboxDispatchApplicationService {
 
@@ -24,7 +26,8 @@ public class TaskProgressOutboxDispatchApplicationService {
     }
 
     public void dispatch(DispatchTaskProgressEventCommand command) {
-        if (command == null || command.kind() == null || !StringUtils.hasText(command.payloadJson())) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.kind() == null || !StringUtils.hasText(command.payloadJson())) {
             return;
         }
         switch (command.kind()) {

@@ -3,8 +3,10 @@ package com.nowcoder.community.growth.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
+import com.nowcoder.community.growth.application.command.TriggerPostPublishedCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +22,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(
         classes = CommunityAppApplication.class,
@@ -57,6 +60,34 @@ class TaskProgressApplicationServiceTest {
         assertThat(countProgressRows("DAILY_CHECK_IN")).isEqualTo(1);
         assertThat(progressValue("DAILY_CHECK_IN")).isEqualTo(1);
         assertThat(walletTxnCountFor("task:" + USER_ID + ":DAILY_CHECK_IN:2026-03-22")).isEqualTo(1);
+    }
+
+    @Test
+    void triggerPostPublishedShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.triggerPostPublished(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void triggerCommentCreatedShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.triggerCommentCreated(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void triggerLikeCreatedShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.triggerLikeCreated(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void triggerLikeRemovedShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.triggerLikeRemoved(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 
     @Test

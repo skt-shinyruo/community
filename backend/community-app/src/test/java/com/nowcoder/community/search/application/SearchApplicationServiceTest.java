@@ -30,6 +30,16 @@ import static org.mockito.Mockito.when;
 class SearchApplicationServiceTest {
 
     @Test
+    void searchPostsShouldRejectNullCommand() {
+        PostSearchRepository repository = mock(PostSearchRepository.class);
+        SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
+
+        assertThatThrownBy(() -> service.searchPosts(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void searchPostsShouldNormalizeQueryAndMapDomainHits() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
         SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
@@ -193,6 +203,26 @@ class SearchApplicationServiceTest {
 
         verify(repository).delete(postId);
         verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void syncPostProjectionShouldRejectNullCommand() {
+        PostSearchRepository repository = mock(PostSearchRepository.class);
+        SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
+
+        assertThatThrownBy(() -> service.syncPostProjection(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void deletePostShouldRejectNullCommand() {
+        PostSearchRepository repository = mock(PostSearchRepository.class);
+        SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
+
+        assertThatThrownBy(() -> service.deletePost(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 
     @Test

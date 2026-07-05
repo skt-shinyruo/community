@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class SearchApplicationService {
@@ -64,6 +65,7 @@ public class SearchApplicationService {
     }
 
     public List<SearchPostResult> searchPosts(SearchPostsCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         if (!featureFlags.enabledOrDefault("search", true)) {
             return List.of();
         }
@@ -89,6 +91,7 @@ public class SearchApplicationService {
     }
 
     public void syncPostProjection(SyncPostProjectionCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         if (!postSearchDomainService.shouldIndex(command.postId(), command.status())) {
             postSearchRepository.delete(command.postId());
             return;
@@ -97,6 +100,7 @@ public class SearchApplicationService {
     }
 
     public void deletePost(DeleteIndexedPostCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         if (command.postId() == null) {
             return;
         }

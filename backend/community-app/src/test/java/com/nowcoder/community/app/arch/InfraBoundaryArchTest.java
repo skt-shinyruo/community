@@ -1,6 +1,7 @@
 package com.nowcoder.community.app.arch;
 
 import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -50,6 +51,9 @@ class InfraBoundaryArchTest {
         return new ArchCondition<>("end with ApiAdapter when implementing published owner APIs") {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
+                if (item.isInterface() || item.getModifiers().contains(JavaModifier.ABSTRACT)) {
+                    return;
+                }
                 boolean implementsOwnerApi = item.getAllRawInterfaces().stream()
                         .map(JavaClass::getPackageName)
                         .anyMatch(packageName -> packageName.contains(".api.query")

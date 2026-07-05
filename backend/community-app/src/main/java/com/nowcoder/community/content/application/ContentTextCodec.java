@@ -1,16 +1,8 @@
 package com.nowcoder.community.content.application;
 
-import org.springframework.stereotype.Component;
-import org.springframework.web.util.HtmlUtils;
+public interface ContentTextCodec {
 
-@Component
-public class ContentTextCodec {
+    String escapeOnWrite(String text);
 
-    public String escapeOnWrite(String text) {
-        return text == null ? null : HtmlUtils.htmlEscape(text);
-    }
-
-    public String decodeOnRead(String text) {
-        return text == null ? null : HtmlUtils.htmlUnescape(text);
-    }
+    String decodeOnRead(String text);
 }

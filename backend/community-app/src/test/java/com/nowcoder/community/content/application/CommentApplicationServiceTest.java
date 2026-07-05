@@ -11,6 +11,7 @@ import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.command.CreateCommentCommand;
 import com.nowcoder.community.content.application.command.UpdateCommentCommand;
+import com.nowcoder.community.content.infrastructure.text.SpringHtmlContentTextCodec;
 import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.application.result.CommentCreateResult;
@@ -83,7 +84,7 @@ class CommentApplicationServiceTest {
         service = new CommentApplicationService(
                 sensitiveFilter,
                 idempotencyGuard,
-                new ContentTextCodec(),
+                new SpringHtmlContentTextCodec(),
                 moderationGuard,
                 new CommentDomainService(),
                 commentRepository,
@@ -214,7 +215,7 @@ class CommentApplicationServiceTest {
         service = new CommentApplicationService(
                 sensitiveFilter,
                 realGuard,
-                new ContentTextCodec(),
+                new SpringHtmlContentTextCodec(),
                 moderationGuard,
                 new CommentDomainService(),
                 commentRepository,

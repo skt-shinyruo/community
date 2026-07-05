@@ -1,15 +1,16 @@
-package com.nowcoder.community.content.application;
+package com.nowcoder.community.content.infrastructure.text;
 
+import com.nowcoder.community.content.application.ContentTextCodec;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class ContentTextCodecTest {
+class SpringHtmlContentTextCodecTest {
+
+    private final ContentTextCodec codec = new SpringHtmlContentTextCodec();
 
     @Test
     void codecShouldEscapeOnWriteAndDecodeOnRead() {
-        ContentTextCodec codec = new ContentTextCodec();
-
         assertThat(codec.escapeOnWrite(null)).isNull();
         assertThat(codec.escapeOnWrite("")).isEqualTo("");
         assertThat(codec.escapeOnWrite("<tag>A&B</tag>")).isEqualTo("&lt;tag&gt;A&amp;B&lt;/tag&gt;");

@@ -22,6 +22,7 @@ import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
 import com.nowcoder.community.content.application.ContentTextCodec;
 import com.nowcoder.community.content.application.ContentSanitizer;
+import com.nowcoder.community.content.infrastructure.text.SpringHtmlContentTextCodec;
 import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -88,7 +89,7 @@ class PostPublishingApplicationServiceTest {
         service = new PostPublishingApplicationService(
                 sensitiveFilter,
                 idempotencyGuard,
-                new ContentTextCodec(),
+                new SpringHtmlContentTextCodec(),
                 new PostBusinessEventLogger(),
                 moderationGuard,
                 domainService,

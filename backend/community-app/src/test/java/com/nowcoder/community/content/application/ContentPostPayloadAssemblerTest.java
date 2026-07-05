@@ -6,6 +6,7 @@ import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
+import com.nowcoder.community.content.infrastructure.text.SpringHtmlContentTextCodec;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -21,7 +22,7 @@ import static org.mockito.Mockito.when;
 class ContentPostPayloadAssemblerTest {
 
     @Test
-    void assembleShouldLoadPostTagsAndKeepStoredTextUntouched() {
+    void assembleShouldLoadPostTagsAndDecodeStoredText() {
         PostContentRepository postRepository = mock(PostContentRepository.class);
         PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         TagContentRepository tagRepository = mock(TagContentRepository.class);
@@ -31,7 +32,7 @@ class ContentPostPayloadAssemblerTest {
                         blockRepository,
                         tagRepository,
                         new PostContentBlockTextProjector(),
-                        new ContentTextCodec()
+                        new SpringHtmlContentTextCodec()
                 );
 
         DiscussPost post = new DiscussPost();
@@ -56,8 +57,8 @@ class ContentPostPayloadAssemblerTest {
         assertThat(payload.getUserId()).isEqualTo(uuid(7));
         assertThat(payload.getCategoryId()).isEqualTo(uuid(3));
         assertThat(payload.getTags()).containsExactly("java", "ddd");
-        assertThat(payload.getTitle()).isEqualTo("&lt;title&gt;");
-        assertThat(payload.getContent()).isEqualTo("&lt;p&gt;body&lt;/p&gt;");
+        assertThat(payload.getTitle()).isEqualTo("<title>");
+        assertThat(payload.getContent()).isEqualTo("<p>body</p>");
         assertThat(payload.getType()).isEqualTo(0);
         assertThat(payload.getStatus()).isEqualTo(0);
         assertThat(payload.getCreateTime()).isEqualTo(Instant.parse("2026-04-29T09:30:00Z"));

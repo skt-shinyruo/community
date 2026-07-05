@@ -13,7 +13,6 @@ import com.nowcoder.community.social.domain.repository.LikeRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -277,7 +276,7 @@ public class LikeApplicationService {
 
     private void requireUserTargetExistsOnCreate(int entityType, UUID entityId) {
         if (entityType == USER && userLookupQueryApi.getSummaryById(entityId) == null) {
-            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+            throw new BusinessException(NOT_FOUND, "like target user not found: userId=" + entityId);
         }
     }
 

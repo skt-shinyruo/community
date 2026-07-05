@@ -2,11 +2,11 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import com.nowcoder.community.wallet.domain.model.TransferOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.domain.repository.TransferOrderRepository;
@@ -182,7 +182,7 @@ class WalletTransferApplicationServiceTest {
 
         assertThatThrownBy(() -> transferService.create("transfer:req-missing-receiver", fromUserId, missingToUserId, 300))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
 
         assertThat(accountService.findUserWallet(missingToUserId)).isNull();
         assertThat(countRows("transfer_order")).isZero();

@@ -18,7 +18,6 @@ import com.nowcoder.community.social.domain.service.FollowDomainService;
 import com.nowcoder.community.social.exception.SocialErrorCode;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -130,7 +129,7 @@ class FollowApplicationServiceTest {
 
         assertThatThrownBy(() -> service.follow(new FollowCommand(actorUserId, USER, targetUserId)))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
 
         assertThat(service.hasFollowed(actorUserId, USER, targetUserId)).isFalse();
         assertThat(publisher.snapshot()).isEmpty();

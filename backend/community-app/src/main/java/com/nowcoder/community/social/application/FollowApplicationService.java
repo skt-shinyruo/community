@@ -13,7 +13,6 @@ import com.nowcoder.community.social.domain.repository.FollowRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.FollowDomainService;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -28,6 +27,7 @@ import java.util.UUID;
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service("socialFollowApplicationService")
 public class FollowApplicationService {
@@ -169,7 +169,7 @@ public class FollowApplicationService {
 
     private void requireFollowTargetUserExists(UUID entityId) {
         if (userLookupQueryApi.getSummaryById(entityId) == null) {
-            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+            throw new BusinessException(NOT_FOUND, "follow target user not found: userId=" + entityId);
         }
     }
 

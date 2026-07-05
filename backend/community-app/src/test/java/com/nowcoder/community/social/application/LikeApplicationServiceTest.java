@@ -17,7 +17,6 @@ import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -108,7 +107,7 @@ class LikeApplicationServiceTest {
         assertThatThrownBy(() -> service.setLike(new SetLikeCommand(actorUserId, USER, targetUserId, true)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
-                        .isEqualTo(UserErrorCode.USER_NOT_FOUND));
+                        .isEqualTo(CommonErrorCode.NOT_FOUND));
 
         verify(repo, never()).setLike(any(UUID.class), anyInt(), any(UUID.class), any(), anyBoolean());
         verifyNoInteractions(resolver);

@@ -16,7 +16,6 @@ import com.nowcoder.community.wallet.domain.repository.TransferOrderRepository;
 import com.nowcoder.community.wallet.domain.service.WalletOrderDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -24,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+
+import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service
 public class WalletTransferApplicationService {
@@ -188,7 +189,7 @@ public class WalletTransferApplicationService {
 
     private void requireRecipientUserExists(UUID toUserId) {
         if (userLookupQueryApi.getSummaryById(toUserId) == null) {
-            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+            throw new BusinessException(NOT_FOUND, "wallet transfer recipient not found: userId=" + toUserId);
         }
     }
 }

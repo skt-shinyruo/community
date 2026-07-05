@@ -128,6 +128,7 @@ public class MarketOrderApplicationService {
 
     @Transactional
     public MarketOrderResult createOrder(CreateMarketOrderCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         String requestHash = RequestFingerprint.sha256(
                 "market:create_order|listingId=" + command.listingId()

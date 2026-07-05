@@ -20,6 +20,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -100,6 +101,15 @@ class AdminUserApplicationServiceTest {
         verify(userRepository).findById(TARGET_ID);
         verify(userRepository, never()).updateRole(TARGET_ID, 1);
         verifyNoInteractions(userAuditLogPort);
+    }
+
+    @Test
+    void updateRoleShouldRejectNullCommand() {
+        AdminUserApplicationService service = service();
+
+        assertThatThrownBy(() -> service.updateRole(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 
     @Test

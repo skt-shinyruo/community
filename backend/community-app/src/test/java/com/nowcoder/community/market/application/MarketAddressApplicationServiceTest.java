@@ -14,6 +14,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(
         classes = CommunityAppApplication.class,
@@ -73,5 +74,19 @@ class MarketAddressApplicationServiceTest {
                 .first()
                 .extracting(MarketAddressResult::receiverName)
                 .isEqualTo("李四");
+    }
+
+    @Test
+    void createAddressShouldRejectNullCommand() {
+        assertThatThrownBy(() -> marketAddressService.createAddress(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void updateAddressShouldRejectNullCommand() {
+        assertThatThrownBy(() -> marketAddressService.updateAddress(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 }

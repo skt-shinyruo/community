@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -63,9 +64,7 @@ public class UserModerationApplicationService {
 
     @Transactional
     public UserModerationStatus applyModeration(ApplyUserModerationCommand command) {
-        if (command == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "request 不能为空");
-        }
+        Objects.requireNonNull(command, "command must not be null");
         UUID userId = command.userId();
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");

@@ -47,6 +47,7 @@ public class MarketInventoryApplicationService {
 
     @Transactional
     public void appendInventory(AddMarketInventoryBatchCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         validateInventoryRequest(command);
         MarketListing listing = requireOwnedListingForUpdate(command.listingId(), command.sellerUserId());
         ensurePreloadedListing(listing);
@@ -97,9 +98,6 @@ public class MarketInventoryApplicationService {
     }
 
     private void validateInventoryRequest(AddMarketInventoryBatchCommand command) {
-        if (command == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "inventory request must not be null");
-        }
         if (!StringUtils.hasText(command.payloadType())) {
             throw new BusinessException(INVALID_ARGUMENT, "inventory payloadType must not be blank");
         }

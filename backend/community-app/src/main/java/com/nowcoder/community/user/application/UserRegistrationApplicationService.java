@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -92,7 +93,8 @@ public class UserRegistrationApplicationService {
 
     @Transactional
     public UserCredentialResult createVerifiedRegistrationUser(CreateVerifiedRegistrationUserCommand command) {
-        if (command == null || command.userId() == null) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.userId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         if (!hasText(command.username()) || !hasText(command.email()) || !hasText(command.encodedPassword())) {

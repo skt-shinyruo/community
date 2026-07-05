@@ -49,6 +49,7 @@ public class MarketListingApplicationService {
 
     @Transactional
     public MarketListingResult createListing(CreateMarketListingCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         validateCreateRequest(command);
         listingDomainService.validateListingBasics(command.sellerUserId(), command.title(), command.unitPrice());
 
@@ -83,6 +84,7 @@ public class MarketListingApplicationService {
 
     @Transactional
     public MarketListingResult updateListing(UpdateMarketListingCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         validateUpdateRequest(command);
         listingDomainService.validateListingBasics(command.sellerUserId(), command.title(), command.unitPrice());
         MarketListing listing = requireOwnedListing(command.listingId(), command.sellerUserId());
@@ -123,9 +125,6 @@ public class MarketListingApplicationService {
     }
 
     private void validateCreateRequest(CreateMarketListingCommand command) {
-        if (command == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "market listing request must not be null");
-        }
         validateCommonFields(command.title(), command.description(), command.unitPrice(),
                 command.minPurchaseQuantity(), command.maxPurchaseQuantity());
         MarketGoodsType goodsType = marketGoodsType(command.goodsType());
@@ -161,9 +160,6 @@ public class MarketListingApplicationService {
     }
 
     private void validateUpdateRequest(UpdateMarketListingCommand command) {
-        if (command == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "market listing update request must not be null");
-        }
         validateCommonFields(command.title(), command.description(), command.unitPrice(),
                 command.minPurchaseQuantity(), command.maxPurchaseQuantity());
     }

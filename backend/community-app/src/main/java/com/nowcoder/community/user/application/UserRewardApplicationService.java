@@ -4,6 +4,7 @@ import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -56,8 +57,8 @@ public class UserRewardApplicationService {
     }
 
     public void apply(RewardCommand command) {
-        if (command == null
-                || command.userId() == null
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.userId() == null
                 || command.delta() == 0
                 || !StringUtils.hasText(command.sourceEventId())
                 || !StringUtils.hasText(command.sourceEventType())) {

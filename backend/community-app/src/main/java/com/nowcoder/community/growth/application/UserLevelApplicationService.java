@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -105,14 +106,14 @@ public class UserLevelApplicationService {
 
     @Transactional
     public UserLevelConfigResult updateConfig(UpdateUserLevelConfigCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         return updateConfigInternal(command);
     }
 
     @Transactional
     public UserLevelConfigResult updateConfig(UUID actorUserId, UpdateUserLevelConfigCommand request) {
-        if (request != null) {
-            request.setActorUserId(actorUserId);
-        }
+        Objects.requireNonNull(request, "command must not be null");
+        request.setActorUserId(actorUserId);
         return updateConfigInternal(request);
     }
 

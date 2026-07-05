@@ -99,6 +99,15 @@ class UserRegistrationApplicationServiceTest {
     }
 
     @Test
+    void createVerifiedRegistrationUserShouldRejectNullCommand() {
+        UserRegistrationApplicationService service = service();
+
+        assertThatThrownBy(() -> service.createVerifiedRegistrationUser(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void createVerifiedRegistrationUserShouldTranslateDuplicateEmailRace() {
         UserRegistrationApplicationService service = service();
         doThrow(new DuplicateKeyException("uk_user_email")).when(userRepository).insertUser(any());

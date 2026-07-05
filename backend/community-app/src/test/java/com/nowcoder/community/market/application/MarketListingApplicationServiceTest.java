@@ -16,6 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(
         classes = CommunityAppApplication.class,
@@ -109,5 +110,12 @@ class MarketListingApplicationServiceTest {
 
         assertThat(resumed.status()).isEqualTo("SOLD_OUT");
         assertThat(resumed.stockAvailable()).isEqualTo(0);
+    }
+
+    @Test
+    void createListingShouldRejectNullCommand() {
+        assertThatThrownBy(() -> marketListingService.createListing(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 }

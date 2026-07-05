@@ -27,6 +27,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
@@ -59,6 +60,25 @@ class MarketOrderApplicationServiceUnitTest {
 
     @Mock
     private MarketOrderSagaApplicationService marketOrderSagaService;
+
+    @Test
+    void createOrderShouldRejectNullCommand() {
+        MarketOrderApplicationService service = new MarketOrderApplicationService(
+                new MyBatisMarketListingRepository(marketListingMapper),
+                new MyBatisMarketInventoryRepository(marketInventoryUnitMapper),
+                new MyBatisMarketOrderRepository(marketOrderMapper),
+                new MyBatisMarketAddressRepository(marketAddressMapper),
+                new MyBatisMarketDeliveryRepository(marketDeliveryMapper),
+                new MyBatisMarketShipmentRepository(marketShipmentMapper),
+                marketWalletActionService,
+                marketOrderSagaService,
+                new UuidV7Generator()
+        );
+
+        assertThatThrownBy(() -> service.createOrder(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
 
     @Test
     void createOrderShouldReturnExistingReplayAfterListingLockEvenIfListingIsAlreadySoldOut() {

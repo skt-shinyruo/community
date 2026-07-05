@@ -39,6 +39,7 @@ public class MarketAddressApplicationService {
 
     @Transactional
     public MarketAddressResult createAddress(CreateMarketAddressCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         validateUserId(command.userId());
         validateCreateRequest(command);
         if (command.defaultAddress()) {
@@ -70,6 +71,7 @@ public class MarketAddressApplicationService {
 
     @Transactional
     public MarketAddressResult updateAddress(UpdateMarketAddressCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         validateUserId(command.userId());
         validateUpdateRequest(command);
         requireOwnedAddress(command.addressId(), command.userId());
@@ -105,9 +107,6 @@ public class MarketAddressApplicationService {
     }
 
     private void validateCreateRequest(CreateMarketAddressCommand command) {
-        if (command == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "market address request must not be null");
-        }
         requireText(command.receiverName(), "receiverName");
         requireText(command.receiverPhone(), "receiverPhone");
         requireText(command.province(), "province");
@@ -117,9 +116,6 @@ public class MarketAddressApplicationService {
     }
 
     private void validateUpdateRequest(UpdateMarketAddressCommand command) {
-        if (command == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "market address update request must not be null");
-        }
         requireText(command.receiverName(), "receiverName");
         requireText(command.receiverPhone(), "receiverPhone");
         requireText(command.province(), "province");

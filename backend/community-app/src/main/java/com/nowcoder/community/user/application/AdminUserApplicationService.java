@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,10 +45,7 @@ public class AdminUserApplicationService {
 
     @Transactional
     public void updateRole(UpdateUserRoleCommand command) {
-        if (command == null) {
-            userRoleDomainService.requireValidCommand(false, null, 0, null, false);
-            return;
-        }
+        Objects.requireNonNull(command, "command must not be null");
 
         String reason = userRoleDomainService.requireValidCommand(
                 true,

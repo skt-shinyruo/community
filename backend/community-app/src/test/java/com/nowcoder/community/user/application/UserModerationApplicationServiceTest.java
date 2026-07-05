@@ -25,6 +25,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -151,6 +152,15 @@ class UserModerationApplicationServiceTest {
                 .hasMessage("action 不能为空");
         assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(INVALID_ARGUMENT);
         verifyNoInteractions(userRepository, userPolicyEventPublisher);
+    }
+
+    @Test
+    void applyModerationShouldRejectNullCommand() {
+        UserModerationApplicationService service = service();
+
+        assertThatThrownBy(() -> service.applyModeration(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 
     @Test

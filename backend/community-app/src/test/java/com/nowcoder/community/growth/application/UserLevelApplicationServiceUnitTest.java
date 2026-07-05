@@ -13,6 +13,7 @@ import org.springframework.dao.DuplicateKeyException;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -22,6 +23,36 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class UserLevelApplicationServiceUnitTest {
+
+    @Test
+    void updateConfigShouldRejectNullCommand() {
+        UserLevelApplicationService service = new UserLevelApplicationService(
+                mock(UserTaskProgressRepository.class),
+                mock(UserLevelRuleConfigRepository.class),
+                mock(GrowthBusinessTimeService.class),
+                new UserLevelDomainService(),
+                new UuidV7Generator()
+        );
+
+        assertThatThrownBy(() -> service.updateConfig((UpdateUserLevelConfigCommand) null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void updateConfigWithActorShouldRejectNullCommand() {
+        UserLevelApplicationService service = new UserLevelApplicationService(
+                mock(UserTaskProgressRepository.class),
+                mock(UserLevelRuleConfigRepository.class),
+                mock(GrowthBusinessTimeService.class),
+                new UserLevelDomainService(),
+                new UuidV7Generator()
+        );
+
+        assertThatThrownBy(() -> service.updateConfig(uuid(99), null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
 
     @Test
     void updateConfigShouldRetryUpdateWhenInsertHitsDuplicateKeyOnFirstWriteRace() {

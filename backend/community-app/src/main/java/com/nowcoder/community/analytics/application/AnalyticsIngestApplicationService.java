@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -50,9 +51,7 @@ public class AnalyticsIngestApplicationService {
     }
 
     public void recordRequest(RecordRequestCommand command) {
-        if (command == null) {
-            return;
-        }
+        Objects.requireNonNull(command, "command must not be null");
         LocalDate today = LocalDate.now(clock);
         AnalyticsRequestEvent event = new AnalyticsRequestEvent(
                 command.ip(),
@@ -69,7 +68,8 @@ public class AnalyticsIngestApplicationService {
     }
 
     public void recordLoginSuccess(RecordLoginSuccessCommand command) {
-        if (command == null || !command.recordDau()) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (!command.recordDau()) {
             return;
         }
         AnalyticsRequestEvent event = new AnalyticsRequestEvent(null, command.userId(), false, true);

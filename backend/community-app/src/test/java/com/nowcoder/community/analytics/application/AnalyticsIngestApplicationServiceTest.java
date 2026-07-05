@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -98,6 +99,24 @@ class AnalyticsIngestApplicationServiceTest {
         ));
 
         verifyNoInteractions(analyticsRepository, ordinalRepository);
+    }
+
+    @Test
+    void recordRequestShouldRejectNullCommand() {
+        AnalyticsIngestApplicationService service = newService(mock(AnalyticsRepository.class), mock(AnalyticsUserOrdinalRepository.class));
+
+        assertThatThrownBy(() -> service.recordRequest(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void recordLoginSuccessShouldRejectNullCommand() {
+        AnalyticsIngestApplicationService service = newService(mock(AnalyticsRepository.class), mock(AnalyticsUserOrdinalRepository.class));
+
+        assertThatThrownBy(() -> service.recordLoginSuccess(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 
     private AnalyticsIngestApplicationService newService(

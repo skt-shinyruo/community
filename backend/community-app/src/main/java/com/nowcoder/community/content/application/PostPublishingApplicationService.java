@@ -23,6 +23,8 @@ import com.nowcoder.community.content.domain.repository.PostRepository;
 import com.nowcoder.community.content.domain.repository.PostTagRepository;
 import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
+import com.nowcoder.community.content.exception.ContentErrorCode;
+import com.nowcoder.community.infra.idempotency.RequestFingerprint;
 import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -107,7 +109,15 @@ public class PostPublishingApplicationService {
             throw new IllegalArgumentException("command must not be null");
         }
         UUID userId = command.userId();
-        return idempotencyGuard.executeRequired(CREATE_POST_IDEMPOTENCY_SCOPE, userId, idempotencyKey, PostCreateResult.class, () -> {
+        String requestHash = createPostRequestHash(command);
+        return idempotencyGuard.executeRequired(
+                CREATE_POST_IDEMPOTENCY_SCOPE,
+                userId,
+                idempotencyKey,
+                requestHash,
+                ContentErrorCode.REQUEST_REPLAY_CONFLICT,
+                PostCreateResult.class,
+                () -> {
             moderationGuard.assertCanSpeak(userId);
             categoryRepository.assertExists(command.categoryId());
             List<PostContentBlockCommand> blocks = sanitizeBlocks(blockPolicy.validateAndNormalize(command.blocks()));
@@ -174,6 +184,47 @@ public class PostPublishingApplicationService {
                         block.metadata()
                 ))
                 .toList();
+    }
+
+    private String createPostRequestHash(CreatePostCommand command) {
+        List<PostContentBlockCommand> blockCommands = command.blocks() == null ? List.of() : command.blocks();
+        List<String> tagValues = command.tags() == null ? List.of() : command.tags();
+        String blocks = blockCommands.stream()
+                .map(this::canonicalBlock)
+                .collect(Collectors.joining(","));
+        String tags = tagValues.stream()
+                .map(this::canonicalValue)
+                .collect(Collectors.joining(","));
+        String canonical = "content:create_post"
+                + "|title=" + canonicalValue(command.title())
+                + "|categoryId=" + canonicalValue(command.categoryId())
+                + "|tags=[" + tags + "]"
+                + "|blocks=[" + blocks + "]";
+        return RequestFingerprint.sha256(canonical);
+    }
+
+    private String canonicalBlock(PostContentBlockCommand block) {
+        return "type=" + canonicalValue(block.type())
+                + ";text=" + canonicalValue(block.text())
+                + ";assetId=" + canonicalValue(block.assetId())
+                + ";language=" + canonicalValue(block.language())
+                + ";caption=" + canonicalValue(block.caption())
+                + ";displayName=" + canonicalValue(block.displayName())
+                + ";metadata=" + canonicalMetadata(block.metadata());
+    }
+
+    private String canonicalMetadata(Map<String, Object> metadata) {
+        if (metadata == null) {
+            return "<null>";
+        }
+        return metadata.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> canonicalValue(entry.getKey()) + "=" + canonicalValue(entry.getValue()))
+                .collect(Collectors.joining(",", "{", "}"));
+    }
+
+    private String canonicalValue(Object value) {
+        return value == null ? "<null>" : String.valueOf(value);
     }
 
     private List<PostContentBlock> toDomainBlocks(UUID postId, List<PostContentBlockCommand> blocks) {

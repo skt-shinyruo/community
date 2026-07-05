@@ -9,6 +9,7 @@ import com.nowcoder.community.content.application.command.UpdateCommentCommand;
 import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.application.result.CommentCreateResult;
+import com.nowcoder.community.content.exception.ContentErrorCode;
 import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
 import com.nowcoder.community.content.domain.event.CommentDeletedDomainEvent;
 import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
@@ -18,6 +19,7 @@ import com.nowcoder.community.content.domain.model.CommentSnapshot;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
+import com.nowcoder.community.infra.idempotency.RequestFingerprint;
 import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import org.springframework.stereotype.Service;
@@ -114,10 +116,13 @@ public class CommentApplicationService {
         if (userId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
         }
+        String requestHash = createCommentRequestHash(command);
         UUID commentId = idempotencyGuard.executeRequired(
                 CREATE_COMMENT_IDEMPOTENCY_SCOPE,
                 userId,
                 idempotencyKey,
+                requestHash,
+                ContentErrorCode.REQUEST_REPLAY_CONFLICT,
                 UUID.class,
                 () -> createInsideTransaction(command)
         );
@@ -210,6 +215,20 @@ public class CommentApplicationService {
         domainEventPublisher.commentCreated(event);
         postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
         return commentId;
+    }
+
+    private String createCommentRequestHash(CreateCommentCommand command) {
+        String canonical = "content:create_comment"
+                + "|postId=" + canonicalValue(command.postId())
+                + "|entityType=" + canonicalValue(command.entityType())
+                + "|entityId=" + canonicalValue(command.entityId())
+                + "|targetId=" + canonicalValue(command.targetId())
+                + "|content=" + canonicalValue(command.content());
+        return RequestFingerprint.sha256(canonical);
+    }
+
+    private String canonicalValue(Object value) {
+        return value == null ? "<null>" : String.valueOf(value);
     }
 
     private void deleteActiveThread(CommentSnapshot existing, UUID postId, UUID deletedBy, String deletedReason) {

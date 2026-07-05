@@ -12,6 +12,8 @@ import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.FollowRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.FollowDomainService;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.exception.UserErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -37,19 +39,22 @@ public class FollowApplicationService {
     private final FollowDomainService followDomainService;
     private final BlockDomainService blockDomainService;
     private final SocialDomainEventPublisher eventPublisher;
+    private final UserLookupQueryApi userLookupQueryApi;
 
     public FollowApplicationService(
             FollowRepository followRepository,
             BlockRepository blockRepository,
             FollowDomainService followDomainService,
             BlockDomainService blockDomainService,
-            SocialDomainEventPublisher eventPublisher
+            SocialDomainEventPublisher eventPublisher,
+            UserLookupQueryApi userLookupQueryApi
     ) {
         this.followRepository = followRepository;
         this.blockRepository = blockRepository;
         this.followDomainService = followDomainService;
         this.blockDomainService = blockDomainService;
         this.eventPublisher = eventPublisher;
+        this.userLookupQueryApi = userLookupQueryApi;
     }
 
     @Transactional
@@ -60,8 +65,11 @@ public class FollowApplicationService {
         followDomainService.validateFollow(actorUserId, entityType, entityId);
 
         boolean existed = followRepository.hasFollowed(actorUserId, entityType, entityId);
-        if (!existed && blockDomainService.isEitherBlocked(actorUserId, entityId, blockRepository)) {
-            throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
+        if (!existed) {
+            requireFollowTargetUserExists(entityId);
+            if (blockDomainService.isEitherBlocked(actorUserId, entityId, blockRepository)) {
+                throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
+            }
         }
 
         long now = System.currentTimeMillis();
@@ -156,6 +164,12 @@ public class FollowApplicationService {
     private void validateUserOnlyEntityType(int entityType) {
         if (entityType != USER) {
             throw new BusinessException(INVALID_ARGUMENT, "follow 仅支持 USER");
+        }
+    }
+
+    private void requireFollowTargetUserExists(UUID entityId) {
+        if (userLookupQueryApi.getSummaryById(entityId) == null) {
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
         }
     }
 

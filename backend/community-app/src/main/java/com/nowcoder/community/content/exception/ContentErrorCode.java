@@ -16,6 +16,7 @@ public enum ContentErrorCode implements ErrorCode {
 
     BOOKMARK_CONFLICT(12005, "收藏状态冲突", 409),
     SUBSCRIPTION_CONFLICT(12006, "订阅状态冲突", 409),
+    REQUEST_REPLAY_CONFLICT(12009, "请求号与已有内容请求不一致", 409),
 
     CONTENT_RENDER_FAILED(12007, "内容渲染失败", 500),
     INTERNAL_ERROR(12008, "内容服务异常", 500);

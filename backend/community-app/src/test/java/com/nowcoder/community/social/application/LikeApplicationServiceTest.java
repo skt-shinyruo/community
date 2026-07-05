@@ -15,6 +15,9 @@ import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.LikeRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
+import com.nowcoder.community.user.api.model.UserSummaryView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -36,6 +39,8 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -81,6 +86,32 @@ class LikeApplicationServiceTest {
         assertThat(repo.isLiked(uuid(1), POST, uuid(100))).isFalse();
         assertThat(repo.countEntityLikes(POST, uuid(100))).isEqualTo(0);
         assertThat(publisher.snapshot()).isEmpty();
+    }
+
+    @Test
+    void likeUserShouldRejectMissingTargetUserOnCreate() {
+        LikeRepository repo = mock(LikeRepository.class);
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
+        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
+        UUID actorUserId = uuid(1);
+        UUID targetUserId = uuid(2);
+        when(userLookupQueryApi.getSummaryById(targetUserId)).thenReturn(null);
+
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                mock(SocialDomainEventPublisher.class),
+                resolver,
+                userLookupQueryApi
+        );
+
+        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(actorUserId, USER, targetUserId, true)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(UserErrorCode.USER_NOT_FOUND));
+
+        verify(repo, never()).setLike(any(UUID.class), anyInt(), any(UUID.class), any(), anyBoolean());
+        verifyNoInteractions(resolver);
     }
 
     @Test
@@ -460,14 +491,36 @@ class LikeApplicationServiceTest {
             SocialDomainEventPublisher publisher,
             ContentEntityResolver resolver
     ) {
+        return newService(likeRepository, blockRepository, publisher, resolver, allowAllUsersLookup());
+    }
+
+    private LikeApplicationService newService(
+            LikeRepository likeRepository,
+            BlockRepository blockRepository,
+            SocialDomainEventPublisher publisher,
+            ContentEntityResolver resolver,
+            UserLookupQueryApi userLookupQueryApi
+    ) {
         return new LikeApplicationService(
                 likeRepository,
                 blockRepository,
                 new LikeDomainService(),
                 new BlockDomainService(),
                 resolver,
-                publisher
+                publisher,
+                userLookupQueryApi
         );
+    }
+
+    private UserLookupQueryApi allowAllUsersLookup() {
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
+        when(userLookupQueryApi.getSummaryById(org.mockito.ArgumentMatchers.any(UUID.class)))
+                .thenAnswer(invocation -> summary(invocation.getArgument(0)));
+        return userLookupQueryApi;
+    }
+
+    private UserSummaryView summary(UUID userId) {
+        return new UserSummaryView(userId, "user-" + userId, null, 0);
     }
 
     private static final class StatefulLikeRepository implements LikeRepository {

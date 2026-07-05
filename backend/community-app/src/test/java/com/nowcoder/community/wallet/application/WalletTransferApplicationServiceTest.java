@@ -4,6 +4,9 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.user.api.model.UserSummaryView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.exception.UserErrorCode;
 import com.nowcoder.community.wallet.domain.model.TransferOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.domain.repository.TransferOrderRepository;
@@ -48,6 +51,9 @@ class WalletTransferApplicationServiceTest {
     @MockBean
     private ClientIpResolver clientIpResolver;
 
+    @MockBean
+    private UserLookupQueryApi userLookupQueryApi;
+
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from wallet_entry");
@@ -56,6 +62,8 @@ class WalletTransferApplicationServiceTest {
         jdbcTemplate.update("delete from withdraw_order");
         jdbcTemplate.update("delete from transfer_order");
         jdbcTemplate.update("delete from wallet_account");
+        when(userLookupQueryApi.getSummaryById(any(UUID.class)))
+                .thenAnswer(invocation -> summary(invocation.getArgument(0)));
     }
 
     @Test
@@ -166,11 +174,35 @@ class WalletTransferApplicationServiceTest {
     }
 
     @Test
+    void transferShouldRejectUnknownReceiverBeforePersistingWalletState() {
+        UUID fromUserId = uuid(101);
+        UUID missingToUserId = uuid(404);
+        seedUserBalance(fromUserId, 900);
+        when(userLookupQueryApi.getSummaryById(missingToUserId)).thenReturn(null);
+
+        assertThatThrownBy(() -> transferService.create("transfer:req-missing-receiver", fromUserId, missingToUserId, 300))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+
+        assertThat(accountService.findUserWallet(missingToUserId)).isNull();
+        assertThat(countRows("transfer_order")).isZero();
+        assertThat(countRows("wallet_txn")).isZero();
+        assertThat(countRows("wallet_entry")).isZero();
+    }
+
+    @Test
     void transferShouldLoadExistingOrderWhenInsertLosesDuplicateKeyRace() {
         TransferOrderRepository repository = mock(TransferOrderRepository.class);
         WalletAccountApplicationService mockedAccountService = mock(WalletAccountApplicationService.class);
         WalletLedgerApplicationService mockedLedgerService = mock(WalletLedgerApplicationService.class);
-        WalletTransferApplicationService service = new WalletTransferApplicationService(repository, mockedAccountService, mockedLedgerService);
+        UserLookupQueryApi mockedUserLookupQueryApi = mock(UserLookupQueryApi.class);
+        when(mockedUserLookupQueryApi.getSummaryById(toUserId())).thenReturn(summary(toUserId()));
+        WalletTransferApplicationService service = new WalletTransferApplicationService(
+                repository,
+                mockedAccountService,
+                mockedLedgerService,
+                mockedUserLookupQueryApi
+        );
 
         UUID fromUserId = uuid(101);
         UUID toUserId = uuid(202);
@@ -224,5 +256,13 @@ class WalletTransferApplicationServiceTest {
         } catch (ReflectiveOperationException ex) {
             throw new AssertionError(ex);
         }
+    }
+
+    private UserSummaryView summary(UUID userId) {
+        return new UserSummaryView(userId, "user-" + userId, null, 0);
+    }
+
+    private UUID toUserId() {
+        return uuid(202);
     }
 }

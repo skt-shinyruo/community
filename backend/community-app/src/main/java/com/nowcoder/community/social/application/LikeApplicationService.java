@@ -12,6 +12,8 @@ import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.LikeRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.exception.UserErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -46,6 +48,7 @@ public class LikeApplicationService {
     private final BlockDomainService blockDomainService;
     private final ContentEntityResolver contentEntityResolver;
     private final SocialDomainEventPublisher eventPublisher;
+    private final UserLookupQueryApi userLookupQueryApi;
 
     public LikeApplicationService(
             LikeRepository likeRepository,
@@ -53,7 +56,8 @@ public class LikeApplicationService {
             LikeDomainService likeDomainService,
             BlockDomainService blockDomainService,
             ContentEntityResolver contentEntityResolver,
-            SocialDomainEventPublisher eventPublisher
+            SocialDomainEventPublisher eventPublisher,
+            UserLookupQueryApi userLookupQueryApi
     ) {
         this.likeRepository = likeRepository;
         this.blockRepository = blockRepository;
@@ -61,6 +65,7 @@ public class LikeApplicationService {
         this.blockDomainService = blockDomainService;
         this.contentEntityResolver = contentEntityResolver;
         this.eventPublisher = eventPublisher;
+        this.userLookupQueryApi = userLookupQueryApi;
     }
 
     @Transactional
@@ -78,6 +83,7 @@ public class LikeApplicationService {
 
         ResolvedSocialEntity resolvedForCreate = null;
         if (liked && !existed) {
+            requireUserTargetExistsOnCreate(entityType, entityId);
             resolvedForCreate = resolveEntity(entityType, entityId);
             if (resolvedForCreate.entityUserId() != null
                     && blockDomainService.isEitherBlocked(actorUserId, resolvedForCreate.entityUserId(), blockRepository)) {
@@ -266,6 +272,12 @@ public class LikeApplicationService {
                 return new ResolvedSocialEntity(storedOwnerId, null);
             }
             throw ex;
+        }
+    }
+
+    private void requireUserTargetExistsOnCreate(int entityType, UUID entityId) {
+        if (entityType == USER && userLookupQueryApi.getSummaryById(entityId) == null) {
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
         }
     }
 

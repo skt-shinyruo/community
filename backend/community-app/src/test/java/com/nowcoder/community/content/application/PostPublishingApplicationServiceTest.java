@@ -20,6 +20,7 @@ import com.nowcoder.community.content.domain.repository.PostRepository;
 import com.nowcoder.community.content.domain.repository.PostTagRepository;
 import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
+import com.nowcoder.community.content.exception.ContentErrorCode;
 import com.nowcoder.community.content.application.ContentTextCodec;
 import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.content.infrastructure.text.SpringHtmlContentTextCodec;
@@ -119,8 +120,15 @@ class PostPublishingApplicationServiceTest {
         when(sensitiveFilter.filter("&lt;title&gt;")).thenReturn("title");
         when(sensitiveFilter.filter("&lt;content&gt;")).thenReturn("content");
         when(blockPolicy.validateAndNormalize(blocks)).thenReturn(normalizedBlocks);
-        when(idempotencyGuard.executeRequired(eq("content:create_post"), eq(userId), anyString(), eq(PostCreateResult.class), any()))
-                .thenAnswer(invocation -> invocation.<Supplier<PostCreateResult>>getArgument(4).get());
+        when(idempotencyGuard.executeRequired(
+                eq("content:create_post"),
+                eq(userId),
+                anyString(),
+                anyString(),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
+                eq(PostCreateResult.class),
+                any()
+        )).thenAnswer(invocation -> invocation.<Supplier<PostCreateResult>>getArgument(6).get());
         when(domainService.createDraft(userId, "title", categoryId)).thenReturn(draft);
         when(postRepository.create(draft)).thenReturn(postId);
 
@@ -130,7 +138,15 @@ class PostPublishingApplicationServiceTest {
         );
 
         assertThat(response.postId()).isEqualTo(postId);
-        verify(idempotencyGuard).executeRequired(eq("content:create_post"), eq(userId), eq("idem-1"), eq(PostCreateResult.class), any());
+        verify(idempotencyGuard).executeRequired(
+                eq("content:create_post"),
+                eq(userId),
+                eq("idem-1"),
+                org.mockito.ArgumentMatchers.argThat(hash -> hash != null && !hash.isBlank()),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
+                eq(PostCreateResult.class),
+                any()
+        );
         var inOrder = inOrder(
                 moderationGuard,
                 categoryRepository,
@@ -235,8 +251,15 @@ class PostPublishingApplicationServiceTest {
         when(sensitiveFilter.filter("title")).thenReturn("title");
         when(sensitiveFilter.filter("")).thenReturn("");
         when(blockPolicy.validateAndNormalize(blocks)).thenReturn(normalizedBlocks);
-        when(idempotencyGuard.executeRequired(eq("content:create_post"), eq(userId), anyString(), eq(PostCreateResult.class), any()))
-                .thenAnswer(invocation -> invocation.<Supplier<PostCreateResult>>getArgument(4).get());
+        when(idempotencyGuard.executeRequired(
+                eq("content:create_post"),
+                eq(userId),
+                anyString(),
+                anyString(),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
+                eq(PostCreateResult.class),
+                any()
+        )).thenAnswer(invocation -> invocation.<Supplier<PostCreateResult>>getArgument(6).get());
         when(domainService.createDraft(userId, "title", categoryId)).thenReturn(draft);
         when(postRepository.create(draft)).thenReturn(postId);
         when(postMediaAssetRepository.listByIds(List.of(assetId))).thenReturn(List.of(asset));
@@ -327,8 +350,15 @@ class PostPublishingApplicationServiceTest {
         when(sensitiveFilter.filter("title")).thenReturn("title");
         when(sensitiveFilter.filter("")).thenReturn("");
         when(blockPolicy.validateAndNormalize(blocks)).thenReturn(normalizedBlocks);
-        when(idempotencyGuard.executeRequired(eq("content:create_post"), eq(userId), anyString(), eq(PostCreateResult.class), any()))
-                .thenAnswer(invocation -> invocation.<Supplier<PostCreateResult>>getArgument(4).get());
+        when(idempotencyGuard.executeRequired(
+                eq("content:create_post"),
+                eq(userId),
+                anyString(),
+                anyString(),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
+                eq(PostCreateResult.class),
+                any()
+        )).thenAnswer(invocation -> invocation.<Supplier<PostCreateResult>>getArgument(6).get());
         when(domainService.createDraft(userId, "title", categoryId)).thenReturn(draft);
         when(postRepository.create(draft)).thenReturn(postId);
         when(postMediaAssetRepository.listByIds(List.of(assetId))).thenReturn(List.of(asset));

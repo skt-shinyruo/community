@@ -15,6 +15,8 @@ import com.nowcoder.community.wallet.domain.model.WalletTxnType;
 import com.nowcoder.community.wallet.domain.repository.TransferOrderRepository;
 import com.nowcoder.community.wallet.domain.service.WalletOrderDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.exception.UserErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -32,13 +34,23 @@ public class WalletTransferApplicationService {
     private final IdempotencyGuard idempotencyGuard;
     private final WalletOrderDomainService orderDomainService;
     private final UuidV7Generator idGenerator;
+    private final UserLookupQueryApi userLookupQueryApi;
 
     @Autowired
     public WalletTransferApplicationService(TransferOrderRepository transferOrderRepository,
                                             WalletAccountApplicationService accountService,
                                             WalletLedgerApplicationService ledgerService,
-                                            IdempotencyGuard idempotencyGuard) {
-        this(transferOrderRepository, accountService, ledgerService, idempotencyGuard, new WalletOrderDomainService(), new UuidV7Generator());
+                                            IdempotencyGuard idempotencyGuard,
+                                            UserLookupQueryApi userLookupQueryApi) {
+        this(
+                transferOrderRepository,
+                accountService,
+                ledgerService,
+                idempotencyGuard,
+                new WalletOrderDomainService(),
+                new UuidV7Generator(),
+                userLookupQueryApi
+        );
     }
 
     WalletTransferApplicationService(TransferOrderRepository transferOrderRepository,
@@ -46,19 +58,30 @@ public class WalletTransferApplicationService {
                                      WalletLedgerApplicationService ledgerService,
                                      IdempotencyGuard idempotencyGuard,
                                      WalletOrderDomainService orderDomainService,
-                                     UuidV7Generator idGenerator) {
+                                     UuidV7Generator idGenerator,
+                                     UserLookupQueryApi userLookupQueryApi) {
         this.transferOrderRepository = transferOrderRepository;
         this.accountService = accountService;
         this.ledgerService = ledgerService;
         this.idempotencyGuard = idempotencyGuard;
         this.orderDomainService = orderDomainService;
         this.idGenerator = idGenerator;
+        this.userLookupQueryApi = userLookupQueryApi;
     }
 
     WalletTransferApplicationService(TransferOrderRepository transferOrderRepository,
                                      WalletAccountApplicationService accountService,
-                                     WalletLedgerApplicationService ledgerService) {
-        this(transferOrderRepository, accountService, ledgerService, null, new WalletOrderDomainService(), new UuidV7Generator());
+                                     WalletLedgerApplicationService ledgerService,
+                                     UserLookupQueryApi userLookupQueryApi) {
+        this(
+                transferOrderRepository,
+                accountService,
+                ledgerService,
+                null,
+                new WalletOrderDomainService(),
+                new UuidV7Generator(),
+                userLookupQueryApi
+        );
     }
 
     @Transactional
@@ -98,6 +121,7 @@ public class WalletTransferApplicationService {
             return TransferOrderResult.from(existing);
         }
 
+        requireRecipientUserExists(toUserId);
         accountService.requireUserWalletActive(fromUserId);
 
         TransferOrder order = createOrLoad(requestId, fromUserId, toUserId, amount);
@@ -159,6 +183,12 @@ public class WalletTransferApplicationService {
                     WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                     "requestId replay conflict: requestId=" + order.getRequestId()
             );
+        }
+    }
+
+    private void requireRecipientUserExists(UUID toUserId) {
+        if (userLookupQueryApi.getSummaryById(toUserId) == null) {
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
         }
     }
 }

@@ -4,7 +4,13 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.user.api.model.UserSummaryView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.exception.UserErrorCode;
+import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
+import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
+import com.nowcoder.community.wallet.domain.model.WalletTxnType;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletTxnMapper;
 import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
@@ -22,6 +28,8 @@ import java.util.UUID;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(
         classes = CommunityAppApplication.class,
@@ -57,6 +65,9 @@ class WalletAdminOpsApplicationServiceTest {
     @MockBean
     private ClientIpResolver clientIpResolver;
 
+    @MockBean
+    private UserLookupQueryApi userLookupQueryApi;
+
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from wallet_admin_action");
@@ -66,6 +77,8 @@ class WalletAdminOpsApplicationServiceTest {
         jdbcTemplate.update("delete from withdraw_order");
         jdbcTemplate.update("delete from transfer_order");
         jdbcTemplate.update("delete from wallet_account");
+        when(userLookupQueryApi.getSummaryById(any(UUID.class)))
+                .thenAnswer(invocation -> summary(invocation.getArgument(0)));
     }
 
     @Test
@@ -210,6 +223,47 @@ class WalletAdminOpsApplicationServiceTest {
     }
 
     @Test
+    void reverseShouldRejectOrderReleaseTxnUntilMarketSagaSupportsRollback() {
+        UUID actorUserId = uuid(1);
+        UUID sellerUserId = uuid(101);
+        seedSystemBalance("ORDER_ESCROW", 900);
+
+        ledgerService.post(new WalletLedgerCommand(
+                "wallet:order:release:test",
+                WalletTxnType.ORDER_RELEASE,
+                WalletTxnType.ORDER_RELEASE.name(),
+                "market-order-1",
+                java.util.List.of(
+                        WalletPosting.debit(accountService.ensureSystemAccount("ORDER_ESCROW"), 300),
+                        WalletPosting.credit(accountService.ensureUserWallet(sellerUserId), 300)
+                )
+        ));
+
+        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(actorUserId, "wallet:order:release:test", "fraud report"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_REQUEST))
+                .hasMessageContaining("not reversible");
+
+        assertThat(countRows("wallet_txn")).isEqualTo(1);
+        assertThat(countRows("wallet_entry")).isEqualTo(2);
+        assertThat(countRows("wallet_admin_action")).isZero();
+    }
+
+    @Test
+    void freezeShouldRejectUnknownTargetUser() {
+        UUID actorUserId = uuid(1);
+        UUID missingUserId = uuid(404);
+        when(userLookupQueryApi.getSummaryById(missingUserId)).thenReturn(null);
+
+        assertThatThrownBy(() -> adminWalletOpsService.freezeWallet(actorUserId, missingUserId, "risk review"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+
+        assertThat(countRows("wallet_account")).isZero();
+        assertThat(countRows("wallet_admin_action")).isZero();
+    }
+
+    @Test
     void reverseShouldRejectBusinessOrderRequestId() {
         UUID actorUserId = uuid(1);
         UUID fromUserId = uuid(101);
@@ -248,5 +302,9 @@ class WalletAdminOpsApplicationServiceTest {
     private int countRows(String tableName) {
         Integer count = jdbcTemplate.queryForObject("select count(*) from " + tableName, Integer.class);
         return count == null ? 0 : count;
+    }
+
+    private UserSummaryView summary(UUID userId) {
+        return new UserSummaryView(userId, "user-" + userId, null, 0);
     }
 }

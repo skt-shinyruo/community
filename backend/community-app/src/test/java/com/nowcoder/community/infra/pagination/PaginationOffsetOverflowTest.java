@@ -19,6 +19,7 @@ import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.FollowRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.FollowDomainService;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -78,7 +79,8 @@ class PaginationOffsetOverflowTest {
                 blockRepository,
                 new FollowDomainService(),
                 new BlockDomainService(),
-                mock(SocialDomainEventPublisher.class)
+                mock(SocialDomainEventPublisher.class),
+                mock(UserLookupQueryApi.class)
         );
 
         service.listFollowers(USER, userId, Integer.MAX_VALUE, 50);

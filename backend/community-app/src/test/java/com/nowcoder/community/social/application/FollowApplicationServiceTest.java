@@ -16,6 +16,9 @@ import com.nowcoder.community.social.domain.repository.FollowRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.FollowDomainService;
 import com.nowcoder.community.social.exception.SocialErrorCode;
+import com.nowcoder.community.user.api.model.UserSummaryView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -110,6 +113,30 @@ class FollowApplicationServiceTest {
     }
 
     @Test
+    void followShouldRejectMissingTargetUserOnCreate() {
+        StatefulFollowRepository repo = new StatefulFollowRepository();
+        RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
+        UUID actorUserId = uuid(1);
+        UUID targetUserId = uuid(2);
+        when(userLookupQueryApi.getSummaryById(targetUserId)).thenReturn(null);
+
+        FollowApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                publisher,
+                userLookupQueryApi
+        );
+
+        assertThatThrownBy(() -> service.follow(new FollowCommand(actorUserId, USER, targetUserId)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+
+        assertThat(service.hasFollowed(actorUserId, USER, targetUserId)).isFalse();
+        assertThat(publisher.snapshot()).isEmpty();
+    }
+
+    @Test
     void followShouldBeIdempotentAndPublishOnce() {
         StatefulFollowRepository repo = new StatefulFollowRepository();
         RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
@@ -195,7 +222,8 @@ class FollowApplicationServiceTest {
                 blockRepository,
                 new FollowDomainService(),
                 new BlockDomainService(),
-                publisher
+                publisher,
+                allowAllUsersLookup()
         );
         UUID viewerUserId = uuid(1);
         UUID visibleUserId = uuid(2);
@@ -243,13 +271,34 @@ class FollowApplicationServiceTest {
             BlockRepository blockRepository,
             SocialDomainEventPublisher publisher
     ) {
+        return newService(followRepository, blockRepository, publisher, allowAllUsersLookup());
+    }
+
+    private FollowApplicationService newService(
+            FollowRepository followRepository,
+            BlockRepository blockRepository,
+            SocialDomainEventPublisher publisher,
+            UserLookupQueryApi userLookupQueryApi
+    ) {
         return new FollowApplicationService(
                 followRepository,
                 blockRepository,
                 new FollowDomainService(),
                 new BlockDomainService(),
-                publisher
+                publisher,
+                userLookupQueryApi
         );
+    }
+
+    private UserLookupQueryApi allowAllUsersLookup() {
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
+        when(userLookupQueryApi.getSummaryById(org.mockito.ArgumentMatchers.any(UUID.class)))
+                .thenAnswer(invocation -> summary(invocation.getArgument(0)));
+        return userLookupQueryApi;
+    }
+
+    private UserSummaryView summary(UUID userId) {
+        return new UserSummaryView(userId, "user-" + userId, null, 0);
     }
 
     private static final class StatefulFollowRepository implements FollowRepository {

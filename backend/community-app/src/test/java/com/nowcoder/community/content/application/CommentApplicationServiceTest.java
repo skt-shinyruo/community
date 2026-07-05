@@ -13,6 +13,7 @@ import com.nowcoder.community.content.application.command.CreateCommentCommand;
 import com.nowcoder.community.content.application.command.UpdateCommentCommand;
 import com.nowcoder.community.content.infrastructure.text.SpringHtmlContentTextCodec;
 import com.nowcoder.community.content.application.ContentSanitizer;
+import com.nowcoder.community.content.exception.ContentErrorCode;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.application.result.CommentCreateResult;
 import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
@@ -104,8 +105,15 @@ class CommentApplicationServiceTest {
         UUID commentId = uuid(200);
         DiscussPost post = post(postId, postAuthorId);
 
-        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(UUID.class), any()))
-                .thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(4).get());
+        when(idempotencyGuard.executeRequired(
+                eq("content:create_comment"),
+                eq(userId),
+                anyString(),
+                anyString(),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
+                eq(UUID.class),
+                any()
+        )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post);
         when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("hello &amp; world")).thenReturn("clean &amp; body");
@@ -121,6 +129,8 @@ class CommentApplicationServiceTest {
                 eq("content:create_comment"),
                 eq(userId),
                 eq("idem-1"),
+                org.mockito.ArgumentMatchers.argThat(hash -> hash != null && !hash.isBlank()),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
                 eq(UUID.class),
                 any()
         );
@@ -179,8 +189,15 @@ class CommentApplicationServiceTest {
         UUID postAuthorId = uuid(2);
         UUID commentId = uuid(200);
 
-        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(UUID.class), any()))
-                .thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(4).get());
+        when(idempotencyGuard.executeRequired(
+                eq("content:create_comment"),
+                eq(userId),
+                anyString(),
+                anyString(),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
+                eq(UUID.class),
+                any()
+        )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
         when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("hi")).thenReturn("hi");
@@ -193,6 +210,8 @@ class CommentApplicationServiceTest {
                 eq("content:create_comment"),
                 eq(userId),
                 eq("idem-comment-1"),
+                org.mockito.ArgumentMatchers.argThat(hash -> hash != null && !hash.isBlank()),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
                 eq(UUID.class),
                 any()
         );
@@ -206,7 +225,7 @@ class CommentApplicationServiceTest {
         UUID commentId = uuid(200);
         IdempotencyStore store = mock(IdempotencyStore.class);
         IdempotencyGuard realGuard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
-        when(store.tryAcquireProcessing(eq("content:create_comment"), eq(userId), eq("idem-transaction"), any(Duration.class)))
+        when(store.tryAcquireProcessing(eq("content:create_comment"), eq(userId), eq("idem-transaction"), anyString(), any(Duration.class)))
                 .thenReturn(true);
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
         when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
@@ -235,13 +254,16 @@ class CommentApplicationServiceTest {
         var inOrder = inOrder(commentRepository, store);
         inOrder.verify(commentRepository).create(any(CommentDraft.class));
         ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> hashCaptor = ArgumentCaptor.forClass(String.class);
         inOrder.verify(store).saveSuccess(
                 eq("content:create_comment"),
                 eq(userId),
                 eq("idem-transaction"),
+                hashCaptor.capture(),
                 jsonCaptor.capture(),
                 any(Duration.class)
         );
+        assertThat(hashCaptor.getValue()).isNotBlank();
         assertThat(jsonCaptor.getValue()).isEqualTo("\"" + commentId + "\"");
     }
 
@@ -265,8 +287,15 @@ class CommentApplicationServiceTest {
         UUID commentId = uuid(300);
         CommentSnapshot targetComment = activeComment(targetCommentId, targetCommentAuthorId, EntityTypes.POST, postId);
 
-        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(UUID.class), any()))
-                .thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(4).get());
+        when(idempotencyGuard.executeRequired(
+                eq("content:create_comment"),
+                eq(userId),
+                anyString(),
+                anyString(),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
+                eq(UUID.class),
+                any()
+        )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, uuid(2)));
         when(commentRepository.findActiveSnapshot(targetCommentId)).thenReturn(Optional.of(targetComment));
         when(blockQueryApi.isEitherBlocked(userId, targetCommentAuthorId)).thenReturn(false);
@@ -295,8 +324,15 @@ class CommentApplicationServiceTest {
         UUID targetCommentId = uuid(200);
         CommentSnapshot targetComment = activeComment(targetCommentId, postAuthorId, EntityTypes.POST, otherPostId);
 
-        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(UUID.class), any()))
-                .thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(4).get());
+        when(idempotencyGuard.executeRequired(
+                eq("content:create_comment"),
+                eq(userId),
+                anyString(),
+                anyString(),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
+                eq(UUID.class),
+                any()
+        )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
         when(commentRepository.findActiveSnapshot(targetCommentId)).thenReturn(Optional.of(targetComment));
 
@@ -319,8 +355,15 @@ class CommentApplicationServiceTest {
         UUID postId = uuid(100);
         UUID postAuthorId = uuid(2);
 
-        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(UUID.class), any()))
-                .thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(4).get());
+        when(idempotencyGuard.executeRequired(
+                eq("content:create_comment"),
+                eq(userId),
+                anyString(),
+                anyString(),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
+                eq(UUID.class),
+                any()
+        )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
         when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(true);
 

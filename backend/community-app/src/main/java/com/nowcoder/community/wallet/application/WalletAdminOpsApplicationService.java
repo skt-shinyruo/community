@@ -12,6 +12,8 @@ import com.nowcoder.community.wallet.domain.repository.WalletLedgerRepository;
 import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
 import com.nowcoder.community.wallet.domain.service.WalletAdminDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.exception.UserErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -28,7 +30,6 @@ public class WalletAdminOpsApplicationService {
     private static final String ACTION_REVERSE_TXN = "REVERSE_TXN";
     private static final Set<String> REVERSIBLE_TXN_TYPES = Set.of(
             WalletTxnType.TRANSFER.name(),
-            WalletTxnType.ORDER_RELEASE.name(),
             WalletTxnType.REWARD_ISSUE.name()
     );
 
@@ -38,19 +39,22 @@ public class WalletAdminOpsApplicationService {
     private final WalletAdminActionRepository walletAdminActionRepository;
     private final WalletAdminDomainService adminDomainService;
     private final UuidV7Generator idGenerator;
+    private final UserLookupQueryApi userLookupQueryApi;
 
     @Autowired
     public WalletAdminOpsApplicationService(WalletAccountApplicationService accountService,
                                             WalletLedgerApplicationService ledgerService,
                                             WalletLedgerRepository walletLedgerRepository,
-                                            WalletAdminActionRepository walletAdminActionRepository) {
+                                            WalletAdminActionRepository walletAdminActionRepository,
+                                            UserLookupQueryApi userLookupQueryApi) {
         this(
                 accountService,
                 ledgerService,
                 walletLedgerRepository,
                 walletAdminActionRepository,
                 new WalletAdminDomainService(),
-                new UuidV7Generator()
+                new UuidV7Generator(),
+                userLookupQueryApi
         );
     }
 
@@ -59,13 +63,15 @@ public class WalletAdminOpsApplicationService {
                                      WalletLedgerRepository walletLedgerRepository,
                                      WalletAdminActionRepository walletAdminActionRepository,
                                      WalletAdminDomainService adminDomainService,
-                                     UuidV7Generator idGenerator) {
+                                     UuidV7Generator idGenerator,
+                                     UserLookupQueryApi userLookupQueryApi) {
         this.accountService = accountService;
         this.ledgerService = ledgerService;
         this.walletLedgerRepository = walletLedgerRepository;
         this.walletAdminActionRepository = walletAdminActionRepository;
         this.adminDomainService = adminDomainService;
         this.idGenerator = idGenerator;
+        this.userLookupQueryApi = userLookupQueryApi;
     }
 
     @Transactional
@@ -175,6 +181,9 @@ public class WalletAdminOpsApplicationService {
     private void validateTargetUser(UUID targetUserId) {
         if (targetUserId == null) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "targetUserId must not be null");
+        }
+        if (userLookupQueryApi.getSummaryById(targetUserId) == null) {
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
         }
     }
 }

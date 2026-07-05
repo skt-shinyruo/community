@@ -111,10 +111,10 @@ public class UserLevelApplicationService {
     }
 
     @Transactional
-    public UserLevelConfigResult updateConfig(UUID actorUserId, UpdateUserLevelConfigCommand request) {
-        Objects.requireNonNull(request, "command must not be null");
-        request.setActorUserId(actorUserId);
-        return updateConfigInternal(request);
+    public UserLevelConfigResult updateConfig(UUID actorUserId, UpdateUserLevelConfigCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
+        command.setActorUserId(actorUserId);
+        return updateConfigInternal(command);
     }
 
     private UserLevelConfigResult updateConfigInternal(UpdateUserLevelConfigCommand command) {
@@ -159,19 +159,16 @@ public class UserLevelApplicationService {
         return config;
     }
 
-    private void validateUpdateRequest(UpdateUserLevelConfigCommand request) {
-        if (request == null) {
-            throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "config request required");
-        }
-        if (request.getEnabled() == null) {
+    private void validateUpdateRequest(UpdateUserLevelConfigCommand command) {
+        if (command.getEnabled() == null) {
             throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "enabled required");
         }
 
         try {
             userLevelDomainService.validateLevelConfig(
-                    request.getWindowDays(),
-                    request.getLv2SignInDays(),
-                    request.getLv3SignInDays()
+                    command.getWindowDays(),
+                    command.getLv2SignInDays(),
+                    command.getLv3SignInDays()
             );
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "invalid user level thresholds");

@@ -98,7 +98,7 @@ com.nowcoder.community.<domain>
 - 不直接依赖 MyBatis mapper 或 dataobject；持久化只通过 domain repository interface 或明确的 infrastructure port。
 - 不新增以域名命名的聚合入口门面，例如 `AuthApplicationService`、`WalletApplicationService`、`MarketApplicationService`、`AdminWalletApplicationService`、`AdminMarketApplicationService` 这类只路由到同域多个更细 `*ApplicationService` 的类。controller / admin controller 应直接进入拥有该用例事务、幂等、审计和跨域协作语义的具体同域 `*ApplicationService`。
 
-## Application Service Collaboration
+#### Application Service Collaboration
 
 `ApplicationService` remains the same-domain use-case entry style. Controllers, listeners, jobs, outbox handlers, bridges, and enqueuers must enter only a same-domain `*ApplicationService`.
 

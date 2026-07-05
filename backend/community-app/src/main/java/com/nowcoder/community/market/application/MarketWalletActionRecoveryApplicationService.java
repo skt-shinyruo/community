@@ -59,7 +59,7 @@ public class MarketWalletActionRecoveryApplicationService {
         if (limit <= 0) {
             return new MarketWalletActionRecoveryResult(0, 0, 0);
         }
-        int recoveredLeases = recoverExpiredProcessing(clock.instant());
+        int recoveredLeases = recoverExpiredProcessingInternal(clock.instant());
         int reconciled = 0;
         int skipped = 0;
 
@@ -87,6 +87,10 @@ public class MarketWalletActionRecoveryApplicationService {
 
     @Transactional
     public int recoverExpiredProcessing(Instant asOf) {
+        return recoverExpiredProcessingInternal(asOf);
+    }
+
+    private int recoverExpiredProcessingInternal(Instant asOf) {
         Objects.requireNonNull(asOf, "asOf must not be null");
         return walletActionRepository.recoverExpiredProcessing(Date.from(asOf));
     }

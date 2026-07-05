@@ -140,7 +140,7 @@ public class MarketOrderApplicationService {
                 requestHash,
                 MarketErrorCode.REQUEST_REPLAY_CONFLICT,
                 MarketOrderResult.class,
-                () -> createOrder(
+                () -> createOrderInternal(
                         effective.value(),
                         command.buyerUserId(),
                         command.listingId(),
@@ -152,6 +152,10 @@ public class MarketOrderApplicationService {
 
     @Transactional
     public MarketOrderResult createOrder(String requestId, UUID buyerUserId, UUID listingId, int quantity, UUID addressId) {
+        return createOrderInternal(requestId, buyerUserId, listingId, quantity, addressId);
+    }
+
+    private MarketOrderResult createOrderInternal(String requestId, UUID buyerUserId, UUID listingId, int quantity, UUID addressId) {
         validateCreateOrderRequest(requestId, buyerUserId, listingId, quantity);
         MarketOrder existing = marketOrderRepository.findByBuyerUserIdAndRequestId(buyerUserId, requestId);
         if (existing != null) {

@@ -70,12 +70,16 @@ public class WalletRechargeApplicationService {
                 RequestFingerprint.sha256("wallet:recharge|amount=" + command.amount()),
                 WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                 RechargeOrderResult.class,
-                () -> complete(effective.value(), command.userId(), command.amount())
+                () -> completeInternal(effective.value(), command.userId(), command.amount())
         );
     }
 
     @Transactional
     public RechargeOrderResult complete(String requestId, UUID userId, long amount) {
+        return completeInternal(requestId, userId, amount);
+    }
+
+    private RechargeOrderResult completeInternal(String requestId, UUID userId, long amount) {
         validate(requestId, amount);
 
         RechargeOrder existing = rechargeOrderRepository.findByUserIdAndRequestId(userId, requestId);

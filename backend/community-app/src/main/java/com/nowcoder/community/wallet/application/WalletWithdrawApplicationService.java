@@ -70,12 +70,16 @@ public class WalletWithdrawApplicationService {
                 RequestFingerprint.sha256("wallet:withdraw|amount=" + command.amount()),
                 WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                 WithdrawOrderResult.class,
-                () -> request(effective.value(), command.userId(), command.amount())
+                () -> requestInternal(effective.value(), command.userId(), command.amount())
         );
     }
 
     @Transactional
     public WithdrawOrderResult request(String requestId, UUID userId, long amount) {
+        return requestInternal(requestId, userId, amount);
+    }
+
+    private WithdrawOrderResult requestInternal(String requestId, UUID userId, long amount) {
         validate(requestId, amount);
         WithdrawOrder order = withdrawOrderRepository.findByUserIdAndRequestId(userId, requestId);
         if (order != null) {

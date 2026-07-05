@@ -73,7 +73,7 @@ public class WalletTransferApplicationService {
                 requestHash,
                 WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                 TransferOrderResult.class,
-                () -> create(
+                () -> createInternal(
                         effective.value(),
                         command.fromUserId(),
                         command.toUserId(),
@@ -84,6 +84,10 @@ public class WalletTransferApplicationService {
 
     @Transactional
     public TransferOrderResult create(String requestId, UUID fromUserId, UUID toUserId, long amount) {
+        return createInternal(requestId, fromUserId, toUserId, amount);
+    }
+
+    private TransferOrderResult createInternal(String requestId, UUID fromUserId, UUID toUserId, long amount) {
         validate(requestId, amount);
         orderDomainService.validateTransfer(fromUserId, toUserId, amount);
 

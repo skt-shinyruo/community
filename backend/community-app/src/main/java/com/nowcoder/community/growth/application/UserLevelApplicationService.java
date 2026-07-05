@@ -105,6 +105,17 @@ public class UserLevelApplicationService {
 
     @Transactional
     public UserLevelConfigResult updateConfig(UpdateUserLevelConfigCommand command) {
+        return updateConfigInternal(command);
+    }
+
+    public UserLevelConfigResult updateConfig(UUID actorUserId, UpdateUserLevelConfigCommand request) {
+        if (request != null) {
+            request.setActorUserId(actorUserId);
+        }
+        return updateConfigInternal(request);
+    }
+
+    private UserLevelConfigResult updateConfigInternal(UpdateUserLevelConfigCommand command) {
         validateUpdateRequest(command);
 
         UserLevelRuleConfig config = new UserLevelRuleConfig();
@@ -124,13 +135,6 @@ public class UserLevelApplicationService {
             }
         }
         return toConfigResponse(config);
-    }
-
-    public UserLevelConfigResult updateConfig(UUID actorUserId, UpdateUserLevelConfigCommand request) {
-        if (request != null) {
-            request.setActorUserId(actorUserId);
-        }
-        return updateConfig(request);
     }
 
     public UserLevelRuleConfig activeConfigOrDefault() {

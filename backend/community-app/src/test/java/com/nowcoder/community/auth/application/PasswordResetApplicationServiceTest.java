@@ -85,6 +85,20 @@ class PasswordResetApplicationServiceTest {
     }
 
     @Test
+    void requestResetShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.requestReset(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void confirmResetShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.confirmReset(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void requestResetResultShouldExposeOnlyIssued() {
         assertThat(Arrays.stream(PasswordResetRequestResult.class.getRecordComponents())
                 .map(RecordComponent::getName))

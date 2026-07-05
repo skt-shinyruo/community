@@ -21,6 +21,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -58,9 +59,7 @@ public class RegistrationApplicationService {
     }
 
     public RegisterResult register(RegisterCommand command) {
-        if (command == null) {
-            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "参数不能为空");
-        }
+        Objects.requireNonNull(command, "command must not be null");
         captchaChallenge.requireValidCaptcha(command.captchaId(), command.captchaCode());
 
         String username = safeTrim(command.username());

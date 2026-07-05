@@ -25,6 +25,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -65,9 +66,10 @@ public class RegistrationVerificationApplicationService {
     }
 
     public RegisterCodeResendResult resendCode(ResendRegisterCodeCommand command) {
-        String registrationToken = command == null ? null : command.registrationToken();
-        String captchaId = command == null ? null : command.captchaId();
-        String captchaCode = command == null ? null : command.captchaCode();
+        Objects.requireNonNull(command, "command must not be null");
+        String registrationToken = command.registrationToken();
+        String captchaId = command.captchaId();
+        String captchaCode = command.captchaCode();
         captchaChallenge.requireValidCaptcha(captchaId, captchaCode);
 
         PreparedRegistrationDraft draft = resolveDraftOrThrow(registrationToken);
@@ -95,8 +97,9 @@ public class RegistrationVerificationApplicationService {
     }
 
     public LoginResult verifyAndLogin(VerifyRegisterCodeCommand command) {
-        String registrationToken = command == null ? null : command.registrationToken();
-        String code = command == null ? null : command.code();
+        Objects.requireNonNull(command, "command must not be null");
+        String registrationToken = command.registrationToken();
+        String code = command.code();
         if (!StringUtils.hasText(registrationToken) || !StringUtils.hasText(code)) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "registrationToken/code 不能为空");
         }

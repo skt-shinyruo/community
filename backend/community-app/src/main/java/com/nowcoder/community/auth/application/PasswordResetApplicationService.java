@@ -23,6 +23,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -65,10 +66,11 @@ public class PasswordResetApplicationService {
     }
 
     public PasswordResetRequestResult requestReset(RequestPasswordResetCommand command) {
-        String email = command == null ? null : command.email();
-        String captchaId = command == null ? null : command.captchaId();
-        String captchaCode = command == null ? null : command.captchaCode();
-        String clientIp = command == null ? null : command.clientIp();
+        Objects.requireNonNull(command, "command must not be null");
+        String email = command.email();
+        String captchaId = command.captchaId();
+        String captchaCode = command.captchaCode();
+        String clientIp = command.clientIp();
         passwordResetDomainService.requireResetRequestEmail(email);
         captchaChallenge.requireValidCaptcha(captchaId, captchaCode);
 
@@ -109,10 +111,11 @@ public class PasswordResetApplicationService {
     }
 
     public boolean confirmReset(ConfirmPasswordResetCommand command) {
-        String resetToken = command == null ? null : command.resetToken();
-        String newPassword = command == null ? null : command.newPassword();
-        String captchaId = command == null ? null : command.captchaId();
-        String captchaCode = command == null ? null : command.captchaCode();
+        Objects.requireNonNull(command, "command must not be null");
+        String resetToken = command.resetToken();
+        String newPassword = command.newPassword();
+        String captchaId = command.captchaId();
+        String captchaCode = command.captchaCode();
         passwordResetDomainService.requireConfirmFields(resetToken, newPassword);
         captchaChallenge.requireValidCaptcha(captchaId, captchaCode);
 

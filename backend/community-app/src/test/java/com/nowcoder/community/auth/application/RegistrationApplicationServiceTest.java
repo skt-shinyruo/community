@@ -80,6 +80,13 @@ class RegistrationApplicationServiceTest {
     }
 
     @Test
+    void registerShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.register(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void registerShouldIssueEmailCodeAndReturnMaskedEmailAndDebugCode(CapturedOutput output) {
         UUID userId = uuid(7);
         RegisterCommand command = registerCommand();

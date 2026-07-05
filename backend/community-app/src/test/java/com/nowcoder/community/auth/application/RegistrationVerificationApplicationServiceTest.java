@@ -89,6 +89,20 @@ class RegistrationVerificationApplicationServiceTest {
     }
 
     @Test
+    void resendCodeShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.resendCode(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void verifyAndLoginShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.verifyAndLogin(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void resendCodeShouldRequireCaptchaAndReturnIssuedResponse() {
         UUID userId = uuid(7);
 

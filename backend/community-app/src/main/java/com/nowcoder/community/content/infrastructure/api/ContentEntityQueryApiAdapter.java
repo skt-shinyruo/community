@@ -9,11 +9,11 @@ import org.springframework.stereotype.Service;
 import java.util.UUID;
 
 @Service
-public class ContentEntityQueryService implements ContentEntityQueryApi {
+public class ContentEntityQueryApiAdapter implements ContentEntityQueryApi {
 
     private final ContentEntityResolutionApplicationService applicationService;
 
-    public ContentEntityQueryService(ContentEntityResolutionApplicationService applicationService) {
+    public ContentEntityQueryApiAdapter(ContentEntityResolutionApplicationService applicationService) {
         this.applicationService = applicationService;
     }
 

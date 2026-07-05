@@ -14,7 +14,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class PostScanServiceTest {
+class PostScanQueryApiAdapterTest {
 
     @Test
     void scanPostsShouldDelegateToApplicationService() {
@@ -23,7 +23,7 @@ class PostScanServiceTest {
         PostScanResult result = new PostScanResult(List.of(), nextAfterId, false);
         when(applicationService.scanPosts(null, 5)).thenReturn(result);
 
-        PostScanService service = new PostScanService(applicationService);
+        PostScanQueryApiAdapter service = new PostScanQueryApiAdapter(applicationService);
 
         PostScanView view = service.scanPosts(null, 5);
 
@@ -50,7 +50,7 @@ class PostScanServiceTest {
         );
         when(applicationService.getPostProjectionAllowDeleted(postId)).thenReturn(result);
 
-        PostScanService service = new PostScanService(applicationService);
+        PostScanQueryApiAdapter service = new PostScanQueryApiAdapter(applicationService);
 
         PostScanView.PostProjectionView projection = service.getPostProjectionAllowDeleted(postId);
 

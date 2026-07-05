@@ -10,11 +10,11 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-public class PostScanService implements PostScanQueryApi {
+public class PostScanQueryApiAdapter implements PostScanQueryApi {
 
     private final PostReadApplicationService postReadApplicationService;
 
-    public PostScanService(PostReadApplicationService postReadApplicationService) {
+    public PostScanQueryApiAdapter(PostReadApplicationService postReadApplicationService) {
         this.postReadApplicationService = postReadApplicationService;
     }
 
@@ -33,7 +33,7 @@ public class PostScanService implements PostScanQueryApi {
             return new PostScanView(List.of(), null, false);
         }
         return new PostScanView(
-                result.items().stream().map(PostScanService::toView).toList(),
+                result.items().stream().map(PostScanQueryApiAdapter::toView).toList(),
                 result.nextAfterId(),
                 result.hasMore()
         );

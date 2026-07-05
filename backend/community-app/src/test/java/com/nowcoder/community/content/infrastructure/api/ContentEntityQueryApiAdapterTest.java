@@ -12,7 +12,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class ContentEntityQueryServiceTest {
+class ContentEntityQueryApiAdapterTest {
 
     @Test
     void resolveShouldDelegateToApplicationService() {
@@ -20,7 +20,7 @@ class ContentEntityQueryServiceTest {
         ResolvedContentResult result = new ResolvedContentResult(uuid(7), uuid(101));
         when(applicationService.resolve(EntityTypes.POST, uuid(101))).thenReturn(result);
 
-        ContentEntityQueryService service = new ContentEntityQueryService(applicationService);
+        ContentEntityQueryApiAdapter service = new ContentEntityQueryApiAdapter(applicationService);
 
         ResolvedContentRef resolved = service.resolve(EntityTypes.POST, uuid(101));
 

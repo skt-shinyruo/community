@@ -100,6 +100,24 @@ class DddLayeringArchTest {
                     .should(notReturnWebTransportTypes());
 
     @ArchTest
+    static final ArchRule application_must_not_depend_on_broker_transport_types =
+            noClasses()
+                    .that().resideInAnyPackage("..application..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "org.springframework.kafka..",
+                            "org.apache.kafka..",
+                            "..common.kafka.."
+                    )
+                    .because("broker transport details belong in infrastructure adapters");
+
+    @ArchTest
+    static final ArchRule application_ports_must_not_expose_transport_vocabulary =
+            classes()
+                    .that().resideInAnyPackage("..application..")
+                    .and().areInterfaces()
+                    .should(notExposeTransportVocabularyInApplicationPort());
+
+    @ArchTest
     static final ArchRule content_infrastructure_persistence_must_not_own_transactions =
             noMethods()
                     .that().areDeclaredInClassesThat().resideInAnyPackage("..content.infrastructure.persistence..")
@@ -531,6 +549,79 @@ class DddLayeringArchTest {
                                 item,
                                 method.getFullName() + " returns " + returnType.getName()
                         ));
+                    }
+                }
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> notExposeTransportVocabularyInApplicationPort() {
+        Set<String> forbiddenNameParts = Set.of("Kafka", "Rabbit", "Redis", "MyBatis", "Jdbc", "Http");
+        Set<String> forbiddenParameterNames = Set.of(
+                "org.springframework.kafka.core.KafkaTemplate",
+                "org.apache.kafka.clients.consumer.ConsumerRecord",
+                "org.apache.kafka.clients.producer.ProducerRecord"
+        );
+        Set<String> forbiddenSignatureVocabulary = Set.of("topic", "partition", "offset", "key");
+        return new ArchCondition<>("not expose broker or infrastructure vocabulary") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                for (String forbiddenNamePart : forbiddenNameParts) {
+                    if (item.getSimpleName().contains(forbiddenNamePart)) {
+                        events.add(SimpleConditionEvent.violated(
+                                item,
+                                item.getFullName() + " contains transport/infrastructure vocabulary: " + forbiddenNamePart
+                        ));
+                    }
+                }
+                for (JavaMethod method : item.getMethods()) {
+                    String lowerMethodName = method.getName().toLowerCase();
+                    for (String forbiddenSignaturePart : forbiddenSignatureVocabulary) {
+                        if (lowerMethodName.contains(forbiddenSignaturePart)) {
+                            events.add(SimpleConditionEvent.violated(
+                                    method,
+                                    method.getFullName() + " exposes broker routing vocabulary: " + forbiddenSignaturePart
+                            ));
+                        }
+                    }
+                    if ((lowerMethodName.equals("send") || lowerMethodName.equals("publish"))
+                            && !method.getRawParameterTypes().isEmpty()
+                            && "java.lang.String".equals(method.getRawParameterTypes().get(0).getName())) {
+                        events.add(SimpleConditionEvent.violated(
+                                method,
+                                method.getFullName() + " uses broker-shaped String-first send/publish signature"
+                        ));
+                    }
+                    JavaClass returnType = method.getRawReturnType();
+                    if (forbiddenParameterNames.contains(returnType.getName())) {
+                        events.add(SimpleConditionEvent.violated(
+                                method,
+                                method.getFullName() + " returns " + returnType.getName()
+                        ));
+                    }
+                    for (String forbiddenNamePart : forbiddenNameParts) {
+                        if (returnType.getSimpleName().contains(forbiddenNamePart)) {
+                            events.add(SimpleConditionEvent.violated(
+                                    method,
+                                    method.getFullName() + " returns transport/infrastructure vocabulary: " + forbiddenNamePart
+                            ));
+                        }
+                    }
+                    for (JavaClass parameterType : method.getRawParameterTypes()) {
+                        if (forbiddenParameterNames.contains(parameterType.getName())) {
+                            events.add(SimpleConditionEvent.violated(
+                                    method,
+                                    method.getFullName() + " exposes " + parameterType.getName()
+                            ));
+                        }
+                        for (String forbiddenNamePart : forbiddenNameParts) {
+                            if (parameterType.getSimpleName().contains(forbiddenNamePart)) {
+                                events.add(SimpleConditionEvent.violated(
+                                        method,
+                                        method.getFullName() + " exposes transport/infrastructure vocabulary: " + forbiddenNamePart
+                                ));
+                            }
+                        }
                     }
                 }
             }

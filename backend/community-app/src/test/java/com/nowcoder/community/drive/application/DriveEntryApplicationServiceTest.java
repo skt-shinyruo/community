@@ -68,6 +68,7 @@ class DriveEntryApplicationServiceTest {
         when(spaceRepository.findByUserId(userId))
                 .thenReturn(Optional.empty(), Optional.of(existingSpace));
         doThrow(new DuplicateKeyException("duplicate drive_space user")).when(spaceRepository).save(any(DriveSpace.class));
+        when(spaceRepository.lockById(existingSpaceId)).thenReturn(existingSpace);
         when(entryRepository.findActiveChildByName(any(), any(), any())).thenReturn(Optional.empty());
 
         DriveEntryApplicationService service = new DriveEntryApplicationService(spaceRepository, entryRepository, storagePort, clock);

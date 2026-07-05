@@ -36,6 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -105,9 +106,7 @@ public class PostPublishingApplicationService {
 
     @Transactional
     public PostCreateResult create(String idempotencyKey, CreatePostCommand command) {
-        if (command == null) {
-            throw new IllegalArgumentException("command must not be null");
-        }
+        Objects.requireNonNull(command, "command must not be null");
         UUID userId = command.userId();
         String requestHash = createPostRequestHash(command);
         return idempotencyGuard.executeRequired(

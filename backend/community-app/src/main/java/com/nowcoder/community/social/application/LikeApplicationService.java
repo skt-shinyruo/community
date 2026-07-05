@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.constants.EntityTypes.COMMENT;
@@ -69,6 +70,7 @@ public class LikeApplicationService {
 
     @Transactional
     public LikeResult setLike(SetLikeCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         UUID actorUserId = command.actorUserId();
         int entityType = command.entityType();
         UUID entityId = command.entityId();

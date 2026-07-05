@@ -56,7 +56,8 @@ public class PostMediaApplicationService {
 
     @Transactional
     public PostMediaUploadSessionResult prepareUpload(PreparePostMediaUploadCommand command) {
-        if (command == null || command.actorUserId() == null) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.actorUserId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
         }
         String fileName = normalizeFileName(command.fileName());

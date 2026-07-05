@@ -21,6 +21,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -93,6 +94,13 @@ class ModerationApplicationServiceTest {
         inOrder.verify(moderationNoticePort).publish(report, action, target, "to_target", targetUserId);
         inOrder.verify(moderationNoticePort).publish(report, action, target, "to_reporter", reporterId);
         verifyNoInteractions(userModerationActionApi);
+    }
+
+    @Test
+    void takeActionShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.takeAction(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 
     @Test

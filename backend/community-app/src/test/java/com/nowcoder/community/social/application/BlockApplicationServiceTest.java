@@ -2,6 +2,7 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.social.application.command.BlockCommand;
+import com.nowcoder.community.social.application.command.UnblockCommand;
 import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.FollowCreatedDomainEvent;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
@@ -52,6 +53,34 @@ class BlockApplicationServiceTest {
                 .extracting(Field::getType)
                 .extracting(Class::getName)
                 .doesNotContain("com.nowcoder.community.im.infrastructure.event.ImPolicyChangePublisher");
+    }
+
+    @Test
+    void blockShouldRejectNullCommand() {
+        BlockApplicationService service = new BlockApplicationService(
+                mock(BlockRepository.class),
+                mock(FollowRepository.class),
+                new BlockDomainService(),
+                mock(SocialDomainEventPublisher.class)
+        );
+
+        assertThatThrownBy(() -> service.block(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void unblockShouldRejectNullCommand() {
+        BlockApplicationService service = new BlockApplicationService(
+                mock(BlockRepository.class),
+                mock(FollowRepository.class),
+                new BlockDomainService(),
+                mock(SocialDomainEventPublisher.class)
+        );
+
+        assertThatThrownBy(() -> service.unblock(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 
     @Test

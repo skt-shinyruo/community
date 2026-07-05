@@ -22,6 +22,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
@@ -59,6 +60,7 @@ public class FollowApplicationService {
 
     @Transactional
     public void follow(FollowCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         UUID actorUserId = command.actorUserId();
         int entityType = command.entityType();
         UUID entityId = command.entityId();
@@ -101,6 +103,7 @@ public class FollowApplicationService {
 
     @Transactional
     public void unfollow(UnfollowCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         followDomainService.validateUnfollow(command.actorUserId(), command.entityType(), command.entityId());
         followRepository.unfollow(command.actorUserId(), command.entityType(), command.entityId());
     }

@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
@@ -89,6 +90,7 @@ public class CommentApplicationService {
 
     @Transactional
     public CommentCreateResult create(String idempotencyKey, CreateCommentCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         return createFromCommand(idempotencyKey, command);
     }
 
@@ -104,13 +106,11 @@ public class CommentApplicationService {
 
     @Transactional
     public void update(UpdateCommentCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         updateFromCommand(command);
     }
 
     private CommentCreateResult createFromCommand(String idempotencyKey, CreateCommentCommand command) {
-        if (command == null) {
-            throw new IllegalArgumentException("command must not be null");
-        }
         UUID userId = command.userId();
         UUID postId = command.postId();
         if (userId == null || postId == null) {
@@ -130,9 +130,6 @@ public class CommentApplicationService {
     }
 
     private void updateFromCommand(UpdateCommentCommand command) {
-        if (command == null) {
-            throw new IllegalArgumentException("command must not be null");
-        }
         UUID userId = command.userId();
         UUID postId = command.postId();
         UUID commentId = command.commentId();

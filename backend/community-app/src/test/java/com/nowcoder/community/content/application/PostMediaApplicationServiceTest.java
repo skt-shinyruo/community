@@ -23,6 +23,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
@@ -106,6 +107,13 @@ class PostMediaApplicationServiceTest {
         assertThat(persistedDraft.ossObjectId()).isEqualTo(result.ossObjectId());
         assertThat(persistedDraft.ossVersionId()).isEqualTo(result.ossVersionId());
         assertThat(persistedDraft.uploadSessionId()).isEqualTo(sessionId);
+    }
+
+    @Test
+    void prepareUploadShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.prepareUpload(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 
     @Test

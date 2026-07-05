@@ -51,6 +51,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ExtendWith(OutputCaptureExtension.class)
 class PostPublishingApplicationServiceTest {
@@ -168,6 +169,13 @@ class PostPublishingApplicationServiceTest {
         assertThat(output.getAll())
                 .contains("community.post_category_id=" + categoryId)
                 .contains("community.target_id=" + postId);
+    }
+
+    @Test
+    void createShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.create("idem-null", null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 
     @Test

@@ -68,6 +68,20 @@ class LikeApplicationServiceTest {
     }
 
     @Test
+    void setLikeShouldRejectNullCommand() {
+        LikeApplicationService service = newService(
+                mock(LikeRepository.class),
+                new StatefulBlockRepository(),
+                mock(SocialDomainEventPublisher.class),
+                mock(ContentEntityResolver.class)
+        );
+
+        assertThatThrownBy(() -> service.setLike(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void likeShouldBeForbiddenWhenEitherBlockedOnCreate() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
         RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();

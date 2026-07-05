@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
@@ -68,6 +69,7 @@ public class ModerationApplicationService {
 
     @Transactional
     public UUID takeAction(TakeModerationActionCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         ModerationDecision decision = decisionDomainService.decide(
                 command.actorId(),
                 command.reportId(),

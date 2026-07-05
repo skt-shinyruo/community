@@ -17,6 +17,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
@@ -46,6 +47,7 @@ public class BlockApplicationService {
 
     @Transactional
     public void block(BlockCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         blockDomainService.validateBlock(command.actorUserId(), command.targetUserId());
         long version = blockRepository.nextBlockProjectionVersion();
         boolean changed = blockRepository.block(command.actorUserId(), command.targetUserId(), version);
@@ -78,6 +80,7 @@ public class BlockApplicationService {
 
     @Transactional
     public void unblock(UnblockCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         blockDomainService.validateUnblock(command.actorUserId(), command.targetUserId());
         long version = blockRepository.nextBlockProjectionVersion();
         boolean changed = blockRepository.unblock(command.actorUserId(), command.targetUserId(), version);

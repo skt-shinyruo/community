@@ -173,6 +173,20 @@ class CommentApplicationServiceTest {
     }
 
     @Test
+    void createShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.create("idem-null", null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void updateShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.update(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void commentApplicationServiceShouldNotDependOnRewardOrGrowthSideEffectApis() {
         assertThat(Arrays.stream(CommentApplicationService.class.getDeclaredFields())
                 .map(field -> field.getType().getName()))

@@ -63,6 +63,32 @@ class FollowApplicationServiceTest {
     }
 
     @Test
+    void followShouldRejectNullCommand() {
+        FollowApplicationService service = newService(
+                new StatefulFollowRepository(),
+                new StatefulBlockRepository(),
+                new RecordingSocialDomainEventPublisher()
+        );
+
+        assertThatThrownBy(() -> service.follow(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void unfollowShouldRejectNullCommand() {
+        FollowApplicationService service = newService(
+                new StatefulFollowRepository(),
+                new StatefulBlockRepository(),
+                new RecordingSocialDomainEventPublisher()
+        );
+
+        assertThatThrownBy(() -> service.unfollow(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void followUseCasesShouldRejectNonUserEntityTypeAtApplicationBoundary() {
         StatefulFollowRepository repo = new StatefulFollowRepository();
         FollowApplicationService service = newService(repo, new StatefulBlockRepository(), new RecordingSocialDomainEventPublisher());

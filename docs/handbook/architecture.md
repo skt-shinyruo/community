@@ -221,6 +221,22 @@ backend/community-app/src/test/java/com/nowcoder/community/app/arch
 
 当前 controller / listener / handler / bridge / enqueuer / job 应用边界 baseline 应保持为空；遗留的非协作面依赖只能收缩，不允许扩散。新增或修改架构规则时，必须同步更新本文件、[system-design.md](system-design.md)、严格 DDD 设计 spec 和对应 ArchUnit 测试。
 
+## Architecture Verification
+
+Use the Maven reactor form when validating architecture rules from a fresh checkout or after changing shared modules:
+
+```bash
+cd backend
+mvn test -pl :community-app -am -Dtest='*ArchTest'
+```
+
+The narrower command below is still valid after local `0.0.1-SNAPSHOT` dependencies have been installed, but it can read stale artifacts from `~/.m2`:
+
+```bash
+cd backend
+mvn test -pl :community-app -Dtest='*ArchTest'
+```
+
 ## 文档守卫
 
 架构规则变化必须同时更新 handbook 和守卫测试；业务实现变化不一定修改本文件，但只要改变了 owner、跨域协作入口、deployable 边界或禁止模式，就不能只改代码。

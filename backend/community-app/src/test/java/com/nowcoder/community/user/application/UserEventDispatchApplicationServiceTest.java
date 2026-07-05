@@ -3,6 +3,7 @@ package com.nowcoder.community.user.application;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
+import com.nowcoder.community.user.application.command.DispatchUserEventCommand;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
@@ -25,12 +26,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class UserEventDispatchApplicationServiceTest {
 
-    private static final String KAFKA_TOPIC = "custom.user.events";
-
     private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
-    private final UserEventKafkaDispatchPort dispatchPort = mock(UserEventKafkaDispatchPort.class);
+    private final UserIntegrationEventDispatcher dispatcher = mock(UserIntegrationEventDispatcher.class);
     private final UserEventDispatchApplicationService service =
-            new UserEventDispatchApplicationService(jsonCodec, dispatchPort, KAFKA_TOPIC);
+            new UserEventDispatchApplicationService(jsonCodec, dispatcher);
 
     @Test
     void serviceShouldOnlyLoadForUserOutboxKafkaPublisher() {
@@ -46,14 +45,14 @@ class UserEventDispatchApplicationServiceTest {
     void dispatchShouldConvertPolicyPayloadAndSendThroughPort() {
         UUID userId = uuid(101);
 
-        service.dispatch(userId.toString(), toJson(new UserContractEvent(
+        service.dispatch(new DispatchUserEventCommand(userId.toString(), toJson(new UserContractEvent(
                 "user:UserPolicyChanged:" + userId + ":42",
                 UserEventTypes.USER_POLICY_CHANGED,
                 policyPayload(userId)
-        )));
+        ))));
 
         ArgumentCaptor<UserContractEvent> eventCaptor = ArgumentCaptor.forClass(UserContractEvent.class);
-        verify(dispatchPort).send(eq(KAFKA_TOPIC), eq(userId.toString()), eventCaptor.capture());
+        verify(dispatcher).dispatch(eq(userId.toString()), eventCaptor.capture());
         UserContractEvent event = eventCaptor.getValue();
         assertThat(event.eventId()).isEqualTo("user:UserPolicyChanged:" + userId + ":42");
         assertThat(event.type()).isEqualTo(UserEventTypes.USER_POLICY_CHANGED);
@@ -66,10 +65,13 @@ class UserEventDispatchApplicationServiceTest {
 
     @Test
     void dispatchShouldConvertUnknownPayloadAsObject() {
-        service.dispatch("unknown-key", "{\"eventId\":\"user:Unknown:1\",\"type\":\"UnknownUserEvent\",\"payload\":{\"value\":\"kept\"}}");
+        service.dispatch(new DispatchUserEventCommand(
+                "unknown-key",
+                "{\"eventId\":\"user:Unknown:1\",\"type\":\"UnknownUserEvent\",\"payload\":{\"value\":\"kept\"}}"
+        ));
 
         ArgumentCaptor<UserContractEvent> eventCaptor = ArgumentCaptor.forClass(UserContractEvent.class);
-        verify(dispatchPort).send(eq(KAFKA_TOPIC), eq("unknown-key"), eventCaptor.capture());
+        verify(dispatcher).dispatch(eq("unknown-key"), eventCaptor.capture());
         assertThat(eventCaptor.getValue().payload())
                 .isInstanceOf(Map.class)
                 .extracting(payload -> ((Map<?, ?>) payload).get("value"))
@@ -78,53 +80,65 @@ class UserEventDispatchApplicationServiceTest {
 
     @Test
     void dispatchShouldRejectBlankOrNullPayloadForOutboxRetry() {
-        assertThatThrownBy(() -> service.dispatch("key", null))
+        assertThatThrownBy(() -> service.dispatch(new DispatchUserEventCommand("key", null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("user event outbox payload is blank");
-        assertThatThrownBy(() -> service.dispatch("key", " "))
+        assertThatThrownBy(() -> service.dispatch(new DispatchUserEventCommand("key", " ")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("user event outbox payload is blank");
     }
 
     @Test
     void dispatchShouldRejectPayloadMissingEventIdForOutboxRetry() {
-        assertThatThrownBy(() -> service.dispatch("key", "{\"type\":\"UserPolicyChanged\",\"payload\":{\"userId\":\"" + uuid(201) + "\"}}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchUserEventCommand(
+                "key",
+                "{\"type\":\"UserPolicyChanged\",\"payload\":{\"userId\":\"" + uuid(201) + "\"}}"
+        )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("user event outbox payload missing eventId");
-        assertThatThrownBy(() -> service.dispatch("key", "{\"eventId\":\" \",\"type\":\"UserPolicyChanged\",\"payload\":{\"userId\":\"" + uuid(201) + "\"}}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchUserEventCommand(
+                "key",
+                "{\"eventId\":\" \",\"type\":\"UserPolicyChanged\",\"payload\":{\"userId\":\"" + uuid(201) + "\"}}"
+        )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("user event outbox payload missing eventId");
 
-        verifyNoInteractions(dispatchPort);
+        verifyNoInteractions(dispatcher);
     }
 
     @Test
     void dispatchShouldRejectPayloadMissingTypeForOutboxRetry() {
-        assertThatThrownBy(() -> service.dispatch("key", "{\"eventId\":\"event-1\",\"payload\":{\"userId\":\"" + uuid(202) + "\"}}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchUserEventCommand(
+                "key",
+                "{\"eventId\":\"event-1\",\"payload\":{\"userId\":\"" + uuid(202) + "\"}}"
+        )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("user event outbox payload missing type");
-        assertThatThrownBy(() -> service.dispatch("key", "{\"eventId\":\"event-1\",\"type\":\" \",\"payload\":{\"userId\":\"" + uuid(202) + "\"}}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchUserEventCommand(
+                "key",
+                "{\"eventId\":\"event-1\",\"type\":\" \",\"payload\":{\"userId\":\"" + uuid(202) + "\"}}"
+        )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("user event outbox payload missing type");
 
-        verifyNoInteractions(dispatchPort);
+        verifyNoInteractions(dispatcher);
     }
 
     @Test
     void dispatchShouldRejectKnownUserTypeMissingOrNullPayloadForOutboxRetry() {
-        assertThatThrownBy(() -> service.dispatch("key", "{\"eventId\":\"event-1\",\"type\":\"UserPolicyChanged\"}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchUserEventCommand("key", "{\"eventId\":\"event-1\",\"type\":\"UserPolicyChanged\"}")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("user event outbox payload missing payload");
-        assertThatThrownBy(() -> service.dispatch("key", "{\"eventId\":\"event-2\",\"type\":\"UserPolicyChanged\",\"payload\":null}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchUserEventCommand("key", "{\"eventId\":\"event-2\",\"type\":\"UserPolicyChanged\",\"payload\":null}")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("user event outbox payload missing payload");
 
-        verifyNoInteractions(dispatchPort);
+        verifyNoInteractions(dispatcher);
     }
 
     @Test
     void dispatchShouldWrapPayloadDeserializationFailure() {
-        assertThatThrownBy(() -> service.dispatch("key", "{not-json"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchUserEventCommand("key", "{not-json")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("user event outbox payload deserialization failed");
     }
@@ -138,9 +152,9 @@ class UserEventDispatchApplicationServiceTest {
                 UserEventTypes.USER_POLICY_CHANGED,
                 policyPayload(userId)
         ));
-        doThrow(failure).when(dispatchPort).send(eq(KAFKA_TOPIC), eq(userId.toString()), any());
+        doThrow(failure).when(dispatcher).dispatch(eq(userId.toString()), any());
 
-        assertThatThrownBy(() -> service.dispatch(userId.toString(), payloadJson))
+        assertThatThrownBy(() -> service.dispatch(new DispatchUserEventCommand(userId.toString(), payloadJson)))
                 .isSameAs(failure);
     }
 

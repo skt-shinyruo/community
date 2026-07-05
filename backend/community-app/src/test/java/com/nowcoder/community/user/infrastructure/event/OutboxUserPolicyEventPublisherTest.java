@@ -8,7 +8,8 @@ import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.user.application.UserEventDispatchApplicationService;
-import com.nowcoder.community.user.application.UserEventKafkaDispatchPort;
+import com.nowcoder.community.user.application.UserIntegrationEventDispatcher;
+import com.nowcoder.community.user.application.command.DispatchUserEventCommand;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
@@ -91,13 +92,13 @@ class OutboxUserPolicyEventPublisherTest {
     void statusBasedPolicyOutboxPayloadShouldDispatchAsTypedKafkaContractEvent() {
         JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
-        UserEventKafkaDispatchPort dispatchPort = mock(UserEventKafkaDispatchPort.class);
+        UserIntegrationEventDispatcher dispatcher = mock(UserIntegrationEventDispatcher.class);
         UUID userId = uuid(70);
         Instant occurredAt = Instant.parse("2026-04-28T01:00:00Z");
         Instant muteUntil = occurredAt.plusSeconds(60);
         OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(jsonCodec, store, TOPIC);
         UserEventDispatchApplicationService dispatchService =
-                new UserEventDispatchApplicationService(jsonCodec, dispatchPort, "user.events");
+                new UserEventDispatchApplicationService(jsonCodec, dispatcher);
 
         publisher.publishUserPolicyChanged(new UserModerationStatus(userId, muteUntil, null, 42L), occurredAt);
 
@@ -108,10 +109,10 @@ class OutboxUserPolicyEventPublisherTest {
                 eq(userId.toString()),
                 payloadCaptor.capture()
         );
-        dispatchService.dispatch(userId.toString(), payloadCaptor.getValue());
+        dispatchService.dispatch(new DispatchUserEventCommand(userId.toString(), payloadCaptor.getValue()));
 
         ArgumentCaptor<UserContractEvent> eventCaptor = ArgumentCaptor.forClass(UserContractEvent.class);
-        verify(dispatchPort).send(eq("user.events"), eq(userId.toString()), eventCaptor.capture());
+        verify(dispatcher).dispatch(eq(userId.toString()), eventCaptor.capture());
         UserContractEvent event = eventCaptor.getValue();
         assertThat(event.eventId()).isEqualTo(policyEventId(userId, 42L));
         assertThat(event.type()).isEqualTo(UserEventTypes.USER_POLICY_CHANGED);
@@ -158,12 +159,12 @@ class OutboxUserPolicyEventPublisherTest {
     void userExistencePolicyOutboxPayloadShouldDispatchAsTypedKafkaContractEvent() {
         JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
-        UserEventKafkaDispatchPort dispatchPort = mock(UserEventKafkaDispatchPort.class);
+        UserIntegrationEventDispatcher dispatcher = mock(UserIntegrationEventDispatcher.class);
         UUID userId = uuid(80);
         Instant occurredAt = Instant.parse("2026-04-28T02:00:00Z");
         OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(jsonCodec, store, TOPIC);
         UserEventDispatchApplicationService dispatchService =
-                new UserEventDispatchApplicationService(jsonCodec, dispatchPort, "user.events");
+                new UserEventDispatchApplicationService(jsonCodec, dispatcher);
 
         publisher.publishUserPolicyChanged(userId, false, occurredAt, 0L);
 
@@ -174,10 +175,10 @@ class OutboxUserPolicyEventPublisherTest {
                 eq(userId.toString()),
                 payloadCaptor.capture()
         );
-        dispatchService.dispatch(userId.toString(), payloadCaptor.getValue());
+        dispatchService.dispatch(new DispatchUserEventCommand(userId.toString(), payloadCaptor.getValue()));
 
         ArgumentCaptor<UserContractEvent> eventCaptor = ArgumentCaptor.forClass(UserContractEvent.class);
-        verify(dispatchPort).send(eq("user.events"), eq(userId.toString()), eventCaptor.capture());
+        verify(dispatcher).dispatch(eq(userId.toString()), eventCaptor.capture());
         UserContractEvent event = eventCaptor.getValue();
         assertThat(event.eventId()).isEqualTo(policyEventId(userId, 0L));
         assertThat(event.type()).isEqualTo(UserEventTypes.USER_POLICY_CHANGED);

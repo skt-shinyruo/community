@@ -2,7 +2,7 @@ package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
 
-public interface UserEventKafkaDispatchPort {
+public interface UserIntegrationEventDispatcher {
 
-    void send(String topic, String key, UserContractEvent event);
+    void dispatch(String eventKey, UserContractEvent event);
 }

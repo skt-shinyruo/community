@@ -9,7 +9,8 @@ import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.social.application.SocialEventDispatchApplicationService;
-import com.nowcoder.community.social.application.SocialEventKafkaDispatchPort;
+import com.nowcoder.community.social.application.SocialIntegrationEventDispatcher;
+import com.nowcoder.community.social.application.command.DispatchSocialEventCommand;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
@@ -172,10 +173,10 @@ class OutboxSocialDomainEventPublisherTest {
     void publishedSocialOutboxPayloadsShouldDispatchAsTypedKafkaContractEvents() {
         JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
-        SocialEventKafkaDispatchPort dispatchPort = mock(SocialEventKafkaDispatchPort.class);
+        SocialIntegrationEventDispatcher dispatcher = mock(SocialIntegrationEventDispatcher.class);
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(jsonCodec, store, TOPIC);
         SocialEventDispatchApplicationService dispatchService =
-                new SocialEventDispatchApplicationService(jsonCodec, dispatchPort, "social.events");
+                new SocialEventDispatchApplicationService(jsonCodec, dispatcher);
         UUID likedPostId = uuid(101);
         UUID removedCommentId = uuid(102);
         UUID followedUserId = uuid(103);
@@ -209,12 +210,15 @@ class OutboxSocialDomainEventPublisherTest {
                 payloadCaptor.capture()
         );
         for (int i = 0; i < payloadCaptor.getAllValues().size(); i++) {
-            dispatchService.dispatch(keyCaptor.getAllValues().get(i), payloadCaptor.getAllValues().get(i));
+            dispatchService.dispatch(new DispatchSocialEventCommand(
+                    keyCaptor.getAllValues().get(i),
+                    payloadCaptor.getAllValues().get(i)
+            ));
         }
 
         ArgumentCaptor<String> dispatchedKeyCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<SocialContractEvent> eventCaptor = ArgumentCaptor.forClass(SocialContractEvent.class);
-        verify(dispatchPort, times(4)).send(eq("social.events"), dispatchedKeyCaptor.capture(), eventCaptor.capture());
+        verify(dispatcher, times(4)).dispatch(dispatchedKeyCaptor.capture(), eventCaptor.capture());
         assertThat(dispatchedKeyCaptor.getAllValues()).containsExactlyElementsOf(keyCaptor.getAllValues());
         assertThat(eventCaptor.getAllValues())
                 .extracting(SocialContractEvent::eventId)

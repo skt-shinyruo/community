@@ -3,12 +3,12 @@ package com.nowcoder.community.social.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.social.application.command.DispatchSocialEventCommand;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.FollowPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -18,32 +18,29 @@ import org.springframework.util.StringUtils;
 public class SocialEventDispatchApplicationService {
 
     private final JsonCodec jsonCodec;
-    private final SocialEventKafkaDispatchPort dispatchPort;
-    private final String kafkaTopic;
+    private final SocialIntegrationEventDispatcher dispatcher;
 
     public SocialEventDispatchApplicationService(
             JsonCodec jsonCodec,
-            SocialEventKafkaDispatchPort dispatchPort,
-            @Value("${social.events.kafka-topic:social.events}") String kafkaTopic
+            SocialIntegrationEventDispatcher dispatcher
     ) {
         this.jsonCodec = jsonCodec;
-        this.dispatchPort = dispatchPort;
-        this.kafkaTopic = kafkaTopic;
+        this.dispatcher = dispatcher;
     }
 
-    public void dispatch(String key, String payloadJson) {
-        if (!StringUtils.hasText(payloadJson)) {
+    public void dispatch(DispatchSocialEventCommand command) {
+        if (command == null || !StringUtils.hasText(command.payloadJson())) {
             throw new IllegalStateException("social event outbox payload is blank");
         }
 
-        SocialContractEvent contractEvent = parseContractEvent(payloadJson);
+        SocialContractEvent contractEvent = parseContractEvent(command.payloadJson());
         if (!StringUtils.hasText(contractEvent.eventId())) {
             throw new IllegalStateException("social event outbox payload missing eventId");
         }
         if (!StringUtils.hasText(contractEvent.type())) {
             throw new IllegalStateException("social event outbox payload missing type");
         }
-        dispatchPort.send(kafkaTopic, key, contractEvent);
+        dispatcher.dispatch(command.eventKey(), contractEvent);
     }
 
     private SocialContractEvent parseContractEvent(String payloadJson) {

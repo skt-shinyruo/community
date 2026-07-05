@@ -8,7 +8,8 @@ import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.content.application.ContentEventDispatchApplicationService;
-import com.nowcoder.community.content.application.ContentEventKafkaDispatchPort;
+import com.nowcoder.community.content.application.ContentIntegrationEventDispatcher;
+import com.nowcoder.community.content.application.command.DispatchContentEventCommand;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
@@ -77,7 +78,7 @@ class OutboxContentEventPublisherTest {
     void publishedContentOutboxPayloadsShouldDispatchAsTypedKafkaContractEvents() {
         JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
-        ContentEventKafkaDispatchPort dispatchPort = mock(ContentEventKafkaDispatchPort.class);
+        ContentIntegrationEventDispatcher dispatcher = mock(ContentIntegrationEventDispatcher.class);
         UUID publishedPostId = uuid(606);
         UUID updatedPostId = uuid(607);
         UUID deletedPostId = uuid(608);
@@ -86,7 +87,7 @@ class OutboxContentEventPublisherTest {
         UUID moderatedUserId = uuid(611);
         OutboxContentEventPublisher publisher = new OutboxContentEventPublisher(jsonCodec, store, TOPIC);
         ContentEventDispatchApplicationService dispatchService =
-                new ContentEventDispatchApplicationService(jsonCodec, dispatchPort, "content.events");
+                new ContentEventDispatchApplicationService(jsonCodec, dispatcher);
 
         publisher.publishPostPublished(postPayload(publishedPostId));
         publisher.publishPostUpdated(postPayload(updatedPostId));
@@ -105,12 +106,15 @@ class OutboxContentEventPublisherTest {
                 payloadCaptor.capture()
         );
         for (int i = 0; i < payloadCaptor.getAllValues().size(); i++) {
-            dispatchService.dispatch(keyCaptor.getAllValues().get(i), payloadCaptor.getAllValues().get(i));
+            dispatchService.dispatch(new DispatchContentEventCommand(
+                    keyCaptor.getAllValues().get(i),
+                    payloadCaptor.getAllValues().get(i)
+            ));
         }
 
         ArgumentCaptor<String> dispatchedKeyCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<ContentContractEvent> eventCaptor = ArgumentCaptor.forClass(ContentContractEvent.class);
-        verify(dispatchPort, times(6)).send(eq("content.events"), dispatchedKeyCaptor.capture(), eventCaptor.capture());
+        verify(dispatcher, times(6)).dispatch(dispatchedKeyCaptor.capture(), eventCaptor.capture());
         assertThat(dispatchedKeyCaptor.getAllValues()).containsExactlyElementsOf(keyCaptor.getAllValues());
         assertThat(eventCaptor.getAllValues())
                 .extracting(ContentContractEvent::eventId)

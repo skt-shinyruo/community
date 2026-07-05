@@ -3,6 +3,7 @@ package com.nowcoder.community.social.infrastructure.event;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.social.application.SocialEventDispatchApplicationService;
+import com.nowcoder.community.social.application.command.DispatchSocialEventCommand;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
@@ -32,6 +33,9 @@ public class SocialEventKafkaOutboxHandler implements OutboxHandler {
         if (event == null) {
             return;
         }
-        applicationService.dispatch(event.eventKey(), event.payload());
+        applicationService.dispatch(new DispatchSocialEventCommand(
+                event == null ? null : event.eventKey(),
+                event == null ? null : event.payload()
+        ));
     }
 }

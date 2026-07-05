@@ -22,6 +22,8 @@ import static org.mockito.Mockito.when;
 
 class ContentEventKafkaSenderAdapterTest {
 
+    private static final String KAFKA_TOPIC = "content.events";
+
     @Test
     void senderShouldOnlyLoadForContentOutboxKafkaPublisher() {
         ConditionalOnExpression conditional = ContentEventKafkaSenderAdapter.class.getAnnotation(ConditionalOnExpression.class);
@@ -33,10 +35,10 @@ class ContentEventKafkaSenderAdapterTest {
     }
 
     @Test
-    void sendShouldPublishContractEventWithTopicAndKey() {
+    void dispatchShouldPublishContractEventWithConfiguredTopicAndKey() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(completedSend());
-        ContentEventKafkaSenderAdapter adapter = new ContentEventKafkaSenderAdapter(kafkaTemplate);
+        ContentEventKafkaSenderAdapter adapter = new ContentEventKafkaSenderAdapter(kafkaTemplate, KAFKA_TOPIC);
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(101));
         ContentContractEvent event = new ContentContractEvent(
@@ -45,25 +47,25 @@ class ContentEventKafkaSenderAdapterTest {
                 payload
         );
 
-        adapter.send("content.events", uuid(101).toString(), event);
+        adapter.dispatch(uuid(101).toString(), event);
 
         ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor = ArgumentCaptor.forClass(ProducerRecord.class);
         verify(kafkaTemplate).send(recordCaptor.capture());
         ProducerRecord<String, Object> record = recordCaptor.getValue();
-        assertThat(record.topic()).isEqualTo("content.events");
+        assertThat(record.topic()).isEqualTo(KAFKA_TOPIC);
         assertThat(record.key()).isEqualTo(uuid(101).toString());
         assertThat(record.value()).isSameAs(event);
     }
 
     @Test
-    void sendFailureShouldWrapExceptionForOutboxRetry() {
+    void dispatchFailureShouldWrapExceptionForOutboxRetry() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(failedSend());
-        ContentEventKafkaSenderAdapter adapter = new ContentEventKafkaSenderAdapter(kafkaTemplate);
+        ContentEventKafkaSenderAdapter adapter = new ContentEventKafkaSenderAdapter(kafkaTemplate, KAFKA_TOPIC);
 
-        assertThatThrownBy(() -> adapter.send("content.events", "key", new ContentContractEvent("event-1", "Type", new Object())))
+        assertThatThrownBy(() -> adapter.dispatch("key", new ContentContractEvent("event-1", "Type", new Object())))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("content event kafka publish failed: content.events")
+                .hasMessageContaining("content event kafka publish failed: " + KAFKA_TOPIC)
                 .hasCauseInstanceOf(RuntimeException.class);
     }
 

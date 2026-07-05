@@ -3,12 +3,12 @@ package com.nowcoder.community.content.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.content.application.command.DispatchContentEventCommand;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -18,32 +18,29 @@ import org.springframework.util.StringUtils;
 public class ContentEventDispatchApplicationService {
 
     private final JsonCodec jsonCodec;
-    private final ContentEventKafkaDispatchPort dispatchPort;
-    private final String kafkaTopic;
+    private final ContentIntegrationEventDispatcher dispatcher;
 
     public ContentEventDispatchApplicationService(
             JsonCodec jsonCodec,
-            ContentEventKafkaDispatchPort dispatchPort,
-            @Value("${content.events.kafka-topic:content.events}") String kafkaTopic
+            ContentIntegrationEventDispatcher dispatcher
     ) {
         this.jsonCodec = jsonCodec;
-        this.dispatchPort = dispatchPort;
-        this.kafkaTopic = kafkaTopic;
+        this.dispatcher = dispatcher;
     }
 
-    public void dispatch(String key, String payloadJson) {
-        if (!StringUtils.hasText(payloadJson)) {
+    public void dispatch(DispatchContentEventCommand command) {
+        if (command == null || !StringUtils.hasText(command.payloadJson())) {
             throw new IllegalStateException("content event outbox payload is blank");
         }
 
-        ContentContractEvent contractEvent = parseContractEvent(payloadJson);
+        ContentContractEvent contractEvent = parseContractEvent(command.payloadJson());
         if (!StringUtils.hasText(contractEvent.eventId())) {
             throw new IllegalStateException("content event outbox payload missing eventId");
         }
         if (!StringUtils.hasText(contractEvent.type())) {
             throw new IllegalStateException("content event outbox payload missing type");
         }
-        dispatchPort.send(kafkaTopic, key, contractEvent);
+        dispatcher.dispatch(command.eventKey(), contractEvent);
     }
 
     private ContentContractEvent parseContractEvent(String payloadJson) {

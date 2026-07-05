@@ -2,6 +2,7 @@ package com.nowcoder.community.content.infrastructure.event;
 
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.content.application.ContentEventDispatchApplicationService;
+import com.nowcoder.community.content.application.command.DispatchContentEventCommand;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
@@ -37,13 +38,13 @@ class ContentEventKafkaOutboxHandlerTest {
     }
 
     @Test
-    void handleShouldDelegateEventKeyAndPayloadToApplicationService() {
+    void handleShouldDelegateDispatchCommandToApplicationService() {
         ContentEventDispatchApplicationService applicationService = mock(ContentEventDispatchApplicationService.class);
         ContentEventKafkaOutboxHandler handler = new ContentEventKafkaOutboxHandler(applicationService, OUTBOX_TOPIC);
 
         handler.handle(outboxEvent("{\"eventId\":\"event-id\"}", "key-1"));
 
-        verify(applicationService).dispatch("key-1", "{\"eventId\":\"event-id\"}");
+        verify(applicationService).dispatch(new DispatchContentEventCommand("key-1", "{\"eventId\":\"event-id\"}"));
     }
 
     @Test

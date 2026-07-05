@@ -2,7 +2,7 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 
-public interface SocialEventKafkaDispatchPort {
+public interface SocialIntegrationEventDispatcher {
 
-    void send(String topic, String key, SocialContractEvent event);
+    void dispatch(String eventKey, SocialContractEvent event);
 }

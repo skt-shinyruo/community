@@ -4,6 +4,7 @@ import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
+import com.nowcoder.community.social.application.command.DispatchSocialEventCommand;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.FollowPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
@@ -29,12 +30,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class SocialEventDispatchApplicationServiceTest {
 
-    private static final String KAFKA_TOPIC = "custom.social.events";
-
     private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
-    private final SocialEventKafkaDispatchPort dispatchPort = mock(SocialEventKafkaDispatchPort.class);
+    private final SocialIntegrationEventDispatcher dispatcher = mock(SocialIntegrationEventDispatcher.class);
     private final SocialEventDispatchApplicationService service =
-            new SocialEventDispatchApplicationService(jsonCodec, dispatchPort, KAFKA_TOPIC);
+            new SocialEventDispatchApplicationService(jsonCodec, dispatcher);
 
     @Test
     void serviceShouldOnlyLoadForSocialOutboxKafkaPublisher() {
@@ -52,14 +51,14 @@ class SocialEventDispatchApplicationServiceTest {
         UUID entityId = uuid(102);
         String key = EntityTypes.POST + ":" + entityId;
 
-        service.dispatch(key, toJson(new SocialContractEvent(
+        service.dispatch(new DispatchSocialEventCommand(key, toJson(new SocialContractEvent(
                 "social:LikeCreated:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId,
                 SocialEventTypes.LIKE_CREATED,
                 likePayload(actorUserId, entityId)
-        )));
+        ))));
 
         ArgumentCaptor<SocialContractEvent> eventCaptor = ArgumentCaptor.forClass(SocialContractEvent.class);
-        verify(dispatchPort).send(eq(KAFKA_TOPIC), eq(key), eventCaptor.capture());
+        verify(dispatcher).dispatch(eq(key), eventCaptor.capture());
         SocialContractEvent event = eventCaptor.getValue();
         assertThat(event.eventId()).isEqualTo("social:LikeCreated:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId);
         assertThat(event.type()).isEqualTo(SocialEventTypes.LIKE_CREATED);
@@ -74,22 +73,25 @@ class SocialEventDispatchApplicationServiceTest {
         UUID followedUserId = uuid(202);
         UUID blockedUserId = uuid(203);
 
-        service.dispatch(actorUserId.toString(), toJson(new SocialContractEvent(
+        service.dispatch(new DispatchSocialEventCommand(actorUserId.toString(), toJson(new SocialContractEvent(
                 "social:FollowCreated:" + actorUserId + ":" + followedUserId,
                 SocialEventTypes.FOLLOW_CREATED,
                 followPayload(actorUserId, followedUserId)
-        )));
-        service.dispatch(actorUserId + ":" + blockedUserId, toJson(new SocialContractEvent(
+        ))));
+        service.dispatch(new DispatchSocialEventCommand(actorUserId + ":" + blockedUserId, toJson(new SocialContractEvent(
                 "social:BlockRelationChanged:" + actorUserId + ":" + blockedUserId + ":42",
                 SocialEventTypes.BLOCK_RELATION_CHANGED,
                 blockPayload(actorUserId, blockedUserId)
-        )));
-        service.dispatch("unknown-key", "{\"eventId\":\"social:Unknown:1\",\"type\":\"UnknownSocialEvent\",\"payload\":{\"value\":\"kept\"}}");
+        ))));
+        service.dispatch(new DispatchSocialEventCommand(
+                "unknown-key",
+                "{\"eventId\":\"social:Unknown:1\",\"type\":\"UnknownSocialEvent\",\"payload\":{\"value\":\"kept\"}}"
+        ));
 
         ArgumentCaptor<SocialContractEvent> eventCaptor = ArgumentCaptor.forClass(SocialContractEvent.class);
-        verify(dispatchPort).send(eq(KAFKA_TOPIC), eq(actorUserId.toString()), eventCaptor.capture());
-        verify(dispatchPort).send(eq(KAFKA_TOPIC), eq(actorUserId + ":" + blockedUserId), eventCaptor.capture());
-        verify(dispatchPort).send(eq(KAFKA_TOPIC), eq("unknown-key"), eventCaptor.capture());
+        verify(dispatcher).dispatch(eq(actorUserId.toString()), eventCaptor.capture());
+        verify(dispatcher).dispatch(eq(actorUserId + ":" + blockedUserId), eventCaptor.capture());
+        verify(dispatcher).dispatch(eq("unknown-key"), eventCaptor.capture());
         assertThat(eventCaptor.getAllValues().get(0).payload()).isInstanceOf(FollowPayload.class);
         assertThat(((FollowPayload) eventCaptor.getAllValues().get(0).payload()).getEntityId()).isEqualTo(followedUserId);
         assertThat(eventCaptor.getAllValues().get(1).payload()).isInstanceOf(BlockPayload.class);
@@ -102,59 +104,71 @@ class SocialEventDispatchApplicationServiceTest {
 
     @Test
     void dispatchShouldRejectBlankOrNullPayloadForOutboxRetry() {
-        assertThatThrownBy(() -> service.dispatch("key", null))
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand("key", null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload is blank");
-        assertThatThrownBy(() -> service.dispatch("key", " "))
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand("key", " ")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload is blank");
     }
 
     @Test
     void dispatchShouldRejectPayloadMissingEventIdForOutboxRetry() {
-        assertThatThrownBy(() -> service.dispatch("key", "{\"type\":\"LikeCreated\",\"payload\":{\"actorUserId\":\"" + uuid(301) + "\"}}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand(
+                "key",
+                "{\"type\":\"LikeCreated\",\"payload\":{\"actorUserId\":\"" + uuid(301) + "\"}}"
+        )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload missing eventId");
-        assertThatThrownBy(() -> service.dispatch("key", "{\"eventId\":\" \",\"type\":\"LikeCreated\",\"payload\":{\"actorUserId\":\"" + uuid(301) + "\"}}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand(
+                "key",
+                "{\"eventId\":\" \",\"type\":\"LikeCreated\",\"payload\":{\"actorUserId\":\"" + uuid(301) + "\"}}"
+        )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload missing eventId");
 
-        verifyNoInteractions(dispatchPort);
+        verifyNoInteractions(dispatcher);
     }
 
     @Test
     void dispatchShouldRejectPayloadMissingTypeForOutboxRetry() {
-        assertThatThrownBy(() -> service.dispatch("key", "{\"eventId\":\"event-1\",\"payload\":{\"actorUserId\":\"" + uuid(302) + "\"}}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand(
+                "key",
+                "{\"eventId\":\"event-1\",\"payload\":{\"actorUserId\":\"" + uuid(302) + "\"}}"
+        )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload missing type");
-        assertThatThrownBy(() -> service.dispatch("key", "{\"eventId\":\"event-1\",\"type\":\" \",\"payload\":{\"actorUserId\":\"" + uuid(302) + "\"}}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand(
+                "key",
+                "{\"eventId\":\"event-1\",\"type\":\" \",\"payload\":{\"actorUserId\":\"" + uuid(302) + "\"}}"
+        )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload missing type");
 
-        verifyNoInteractions(dispatchPort);
+        verifyNoInteractions(dispatcher);
     }
 
     @Test
     void dispatchShouldRejectKnownSocialTypeMissingOrNullPayloadForOutboxRetry() {
-        assertThatThrownBy(() -> service.dispatch("key", "{\"eventId\":\"event-1\",\"type\":\"LikeCreated\"}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand("key", "{\"eventId\":\"event-1\",\"type\":\"LikeCreated\"}")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload missing payload");
-        assertThatThrownBy(() -> service.dispatch("key", "{\"eventId\":\"event-2\",\"type\":\"LikeRemoved\",\"payload\":null}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand("key", "{\"eventId\":\"event-2\",\"type\":\"LikeRemoved\",\"payload\":null}")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload missing payload");
-        assertThatThrownBy(() -> service.dispatch("key", "{\"eventId\":\"event-3\",\"type\":\"FollowCreated\"}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand("key", "{\"eventId\":\"event-3\",\"type\":\"FollowCreated\"}")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload missing payload");
-        assertThatThrownBy(() -> service.dispatch("key", "{\"eventId\":\"event-4\",\"type\":\"BlockRelationChanged\",\"payload\":null}"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand("key", "{\"eventId\":\"event-4\",\"type\":\"BlockRelationChanged\",\"payload\":null}")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload missing payload");
 
-        verifyNoInteractions(dispatchPort);
+        verifyNoInteractions(dispatcher);
     }
 
     @Test
     void dispatchShouldWrapPayloadDeserializationFailure() {
-        assertThatThrownBy(() -> service.dispatch("key", "{not-json"))
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand("key", "{not-json")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload deserialization failed");
     }
@@ -170,9 +184,9 @@ class SocialEventDispatchApplicationServiceTest {
                 SocialEventTypes.LIKE_CREATED,
                 likePayload(actorUserId, entityId)
         ));
-        doThrow(failure).when(dispatchPort).send(eq(KAFKA_TOPIC), eq(key), any());
+        doThrow(failure).when(dispatcher).dispatch(eq(key), any());
 
-        assertThatThrownBy(() -> service.dispatch(key, payloadJson))
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand(key, payloadJson)))
                 .isSameAs(failure);
     }
 

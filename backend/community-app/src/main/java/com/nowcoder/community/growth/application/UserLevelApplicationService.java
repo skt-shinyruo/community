@@ -108,6 +108,7 @@ public class UserLevelApplicationService {
         return updateConfigInternal(command);
     }
 
+    @Transactional
     public UserLevelConfigResult updateConfig(UUID actorUserId, UpdateUserLevelConfigCommand request) {
         if (request != null) {
             request.setActorUserId(actorUserId);

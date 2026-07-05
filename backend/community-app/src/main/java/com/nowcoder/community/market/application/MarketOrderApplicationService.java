@@ -126,6 +126,7 @@ public class MarketOrderApplicationService {
                 idGenerator);
     }
 
+    @Transactional
     public MarketOrderResult createOrder(CreateMarketOrderCommand command) {
         EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         String requestHash = RequestFingerprint.sha256(

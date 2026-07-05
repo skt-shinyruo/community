@@ -61,6 +61,7 @@ public class WalletTransferApplicationService {
         this(transferOrderRepository, accountService, ledgerService, null, new WalletOrderDomainService(), new UuidV7Generator());
     }
 
+    @Transactional
     public TransferOrderResult transfer(CreateTransferCommand command) {
         EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         String requestHash = RequestFingerprint.sha256(

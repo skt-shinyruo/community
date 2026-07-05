@@ -61,6 +61,7 @@ public class WalletWithdrawApplicationService {
         this(withdrawOrderRepository, accountService, ledgerService, null, new WalletOrderDomainService(), new UuidV7Generator());
     }
 
+    @Transactional
     public WithdrawOrderResult withdraw(CreateWithdrawCommand command) {
         EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         return idempotencyGuard.executeRequired(

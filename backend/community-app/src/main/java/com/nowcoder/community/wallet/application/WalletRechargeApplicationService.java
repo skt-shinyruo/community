@@ -61,6 +61,7 @@ public class WalletRechargeApplicationService {
         this(rechargeOrderRepository, accountService, ledgerService, null, new WalletOrderDomainService(), new UuidV7Generator());
     }
 
+    @Transactional
     public RechargeOrderResult recharge(CreateRechargeCommand command) {
         EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         return idempotencyGuard.executeRequired(

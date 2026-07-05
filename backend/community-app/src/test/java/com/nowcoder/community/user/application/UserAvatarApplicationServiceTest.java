@@ -18,6 +18,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
@@ -32,6 +33,16 @@ class UserAvatarApplicationServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Test
+    void createUploadSessionShouldRejectNullCommand() {
+        UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
+        UUID userId = uuid(7);
+
+        assertThatThrownBy(() -> service.createUploadSession(userId, userId, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
 
     @Test
     void createUploadSessionShouldRejectNonSelfActor() {

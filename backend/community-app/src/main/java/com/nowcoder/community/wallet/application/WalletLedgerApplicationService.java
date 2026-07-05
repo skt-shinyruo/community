@@ -90,7 +90,8 @@ public class WalletLedgerApplicationService {
     }
 
     public List<WalletTransactionResult> recentTransactions(ListWalletTransactionsCommand command) {
-        if (command == null || command.userId() == null) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.userId() == null) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "userId must not be null");
         }
         WalletAccount account = walletAccountService.findUserWallet(command.userId());
@@ -112,6 +113,7 @@ public class WalletLedgerApplicationService {
 
     @Transactional
     public WalletTxnResult post(WalletLedgerCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         return postInsideTransaction(command);
     }
 
@@ -266,16 +268,16 @@ public class WalletLedgerApplicationService {
     }
 
     private void validateRequest(WalletLedgerCommand command) {
-        if (command == null) {
-            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "wallet ledger command must not be null");
-        }
-        if (command.requestId() == null || command.requestId().isBlank()) {
-            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "requestId must not be blank");
-        }
-        if (command.txnType() == null) {
+        validateText(command.requestId(), "requestId");
+        WalletTxnType txnType = command.txnType();
+        List<WalletPosting> postings = command.postings();
+        if (txnType == null) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "txnType must not be null");
         }
-        if (command.postings() == null || command.postings().size() < 2) {
+        if (postings == null || postings.isEmpty()) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "postings must not be empty");
+        }
+        if (postings.size() < 2) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "postings must contain at least two entries");
         }
     }

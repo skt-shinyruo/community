@@ -53,9 +53,7 @@ public class DriveEntryApplicationService {
 
     @Transactional
     public DriveEntryResult createFolder(CreateDriveFolderCommand command) {
-        if (command == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "创建文件夹参数非法");
-        }
+        Objects.requireNonNull(command, "command must not be null");
         DriveSpace space = loadOrCreateSpace(command.actorUserId());
         lockSpace(space.spaceId());
         validateParent(command.parentId(), space.spaceId());
@@ -89,7 +87,8 @@ public class DriveEntryApplicationService {
 
     @Transactional
     public DriveEntryResult rename(RenameDriveEntryCommand command) {
-        if (command == null || command.entryId() == null) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.entryId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "重命名参数非法");
         }
         DriveSpace space = loadSpace(command.actorUserId());
@@ -104,7 +103,8 @@ public class DriveEntryApplicationService {
 
     @Transactional
     public DriveEntryResult move(MoveDriveEntryCommand command) {
-        if (command == null || command.entryId() == null) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.entryId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "移动参数非法");
         }
         DriveSpace space = loadSpace(command.actorUserId());

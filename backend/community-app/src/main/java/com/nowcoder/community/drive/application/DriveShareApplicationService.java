@@ -27,6 +27,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
@@ -71,7 +72,8 @@ public class DriveShareApplicationService {
 
     @Transactional
     public DriveShareResult createShare(CreateDriveShareCommand command) {
-        if (command == null || command.entryId() == null) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.entryId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "分享参数非法");
         }
         UUID actorUserId = requireUser(command.actorUserId());
@@ -117,9 +119,7 @@ public class DriveShareApplicationService {
 
     @Transactional(noRollbackFor = BusinessException.class)
     public DriveShareResult verifyShare(VerifyDriveShareCommand command) {
-        if (command == null) {
-            throw new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用");
-        }
+        Objects.requireNonNull(command, "command must not be null");
         DriveShare share = shareRepository.findByToken(command.shareToken())
                 .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用"));
         Instant now = clock.instant();

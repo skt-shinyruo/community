@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -25,6 +26,7 @@ public class WalletRewardApplicationService {
 
     @Transactional
     public void issue(WalletRewardCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         if (command.amount() <= 0) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "reward amount must be positive");
         }
@@ -33,6 +35,7 @@ public class WalletRewardApplicationService {
 
     @Transactional
     public void revoke(WalletRewardCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         if (command.amount() <= 0) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "reward amount must be positive");
         }
@@ -41,6 +44,7 @@ public class WalletRewardApplicationService {
 
     @Transactional
     public void applyDelta(WalletRewardCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         if (command.amount() == 0) {
             return;
         }

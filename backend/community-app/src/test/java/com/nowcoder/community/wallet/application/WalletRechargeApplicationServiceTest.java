@@ -82,6 +82,13 @@ class WalletRechargeApplicationServiceTest {
     }
 
     @Test
+    void rechargeShouldRejectNullCommand() {
+        assertThatThrownBy(() -> rechargeService.recharge(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void completeRechargeShouldReturnExistingOrderForSameRequestIdAndPayload() {
         UUID userId = uuid(101);
         RechargeOrderResult first = rechargeService.complete("recharge:req-replay", userId, 1200);

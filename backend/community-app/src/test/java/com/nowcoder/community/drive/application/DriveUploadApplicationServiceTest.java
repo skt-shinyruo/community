@@ -47,6 +47,32 @@ class DriveUploadApplicationServiceTest {
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     @Test
+    void prepareUploadShouldRejectNullCommand() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+
+        assertThatThrownBy(() -> service.prepareUpload(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void completeUploadShouldRejectNullCommand() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+
+        assertThatThrownBy(() -> service.completeUpload(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void prepareUploadShouldCreateSpaceWhenMissingAndReturnProviderFreeInstruction() {
         InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
         InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();

@@ -3,6 +3,7 @@ package com.nowcoder.community.wallet.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.wallet.application.command.WalletMarketTxnCommand;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
@@ -42,6 +43,9 @@ class WalletMarketApplicationServiceTest {
 
     @MockBean
     private ClientIpResolver clientIpResolver;
+
+    @Autowired
+    private WalletMarketApplicationService service;
 
     @BeforeEach
     void setUp() {
@@ -92,6 +96,27 @@ class WalletMarketApplicationServiceTest {
         assertThat(walletAccountService.balanceOfSystem("ORDER_ESCROW")).isEqualTo(0L);
         assertThat(walletTxnMapper.selectByRequestId("order:2:refund").getTxnType()).isEqualTo("ORDER_REFUND");
         assertThat(walletTxnMapper.selectByRequestId("order:2:refund").getBizId()).isEqualTo("virtual-order:2");
+    }
+
+    @Test
+    void escrowOrderShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.escrowOrder((WalletMarketTxnCommand) null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void releaseOrderShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.releaseOrder((WalletMarketTxnCommand) null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void refundOrderShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.refundOrder((WalletMarketTxnCommand) null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 
     @Test

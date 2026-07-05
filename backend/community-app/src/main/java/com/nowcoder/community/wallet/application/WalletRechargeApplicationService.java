@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -63,6 +64,7 @@ public class WalletRechargeApplicationService {
 
     @Transactional
     public RechargeOrderResult recharge(CreateRechargeCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         return idempotencyGuard.executeRequired(
                 "wallet:recharge",

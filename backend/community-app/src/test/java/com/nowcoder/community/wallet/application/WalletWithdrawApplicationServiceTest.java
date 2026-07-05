@@ -71,6 +71,13 @@ class WalletWithdrawApplicationServiceTest {
     }
 
     @Test
+    void withdrawShouldRejectNullCommand() {
+        assertThatThrownBy(() -> withdrawService.withdraw(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void requestWithdrawShouldMoveMoneyToPendingThenSettleToPlatformCashWithUuidv7OrderId() {
         UUID userId = uuid(101);
         seedUserBalance(userId, 2000);

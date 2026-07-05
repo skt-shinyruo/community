@@ -102,6 +102,13 @@ class WalletTransferApplicationServiceTest {
     }
 
     @Test
+    void transferShouldRejectNullCommand() {
+        assertThatThrownBy(() -> transferService.transfer(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void duplicateTransferRequestShouldBeIdempotent() {
         UUID fromUserId = uuid(101);
         UUID toUserId = uuid(202);

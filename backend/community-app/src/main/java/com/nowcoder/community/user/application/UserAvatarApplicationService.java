@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.Objects;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 
@@ -24,6 +25,7 @@ public class UserAvatarApplicationService {
     }
 
     public AvatarUploadSessionResult createUploadSession(UUID actorUserId, UUID userId, CreateAvatarUploadSessionCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         requireSelf(actorUserId, userId);
         return avatarStoragePort.createUploadSession(userId, command);
     }

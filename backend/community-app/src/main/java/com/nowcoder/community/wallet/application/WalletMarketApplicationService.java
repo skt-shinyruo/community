@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -31,6 +32,7 @@ public class WalletMarketApplicationService {
 
     @Transactional
     public WalletMarketTxnResult escrowOrder(WalletMarketTxnCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         validateRequest(command.requestId(), command.userId(), command.amount(), command.bizId());
         walletAccountService.requireUserWalletActive(command.userId());
         WalletTxnResult result = walletLedgerService.post(new WalletLedgerCommand(
@@ -48,6 +50,7 @@ public class WalletMarketApplicationService {
 
     @Transactional
     public WalletMarketTxnResult releaseOrder(WalletMarketTxnCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         validateRequest(command.requestId(), command.userId(), command.amount(), command.bizId());
         WalletTxnResult result = walletLedgerService.post(new WalletLedgerCommand(
                 command.requestId(),
@@ -64,6 +67,7 @@ public class WalletMarketApplicationService {
 
     @Transactional
     public WalletMarketTxnResult refundOrder(WalletMarketTxnCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         validateRequest(command.requestId(), command.userId(), command.amount(), command.bizId());
         WalletTxnResult result = walletLedgerService.post(new WalletLedgerCommand(
                 command.requestId(),

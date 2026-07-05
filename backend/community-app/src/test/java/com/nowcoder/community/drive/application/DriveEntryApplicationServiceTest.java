@@ -38,6 +38,36 @@ import static org.mockito.Mockito.when;
 class DriveEntryApplicationServiceTest {
 
     @Test
+    void createFolderShouldRejectNullCommand() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveEntryApplicationService service = fixture.entryService();
+
+        assertThatThrownBy(() -> service.createFolder(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void renameShouldRejectNullCommand() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveEntryApplicationService service = fixture.entryService();
+
+        assertThatThrownBy(() -> service.rename(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void moveShouldRejectNullCommand() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveEntryApplicationService service = fixture.entryService();
+
+        assertThatThrownBy(() -> service.move(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void createFolderShouldLazilyCreateDefaultSpaceAndRejectDuplicateActiveSibling() {
         TestDriveFixture fixture = TestDriveFixture.create();
         DriveEntryApplicationService service = fixture.entryService();

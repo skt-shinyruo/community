@@ -94,8 +94,9 @@ public class DriveUploadApplicationService {
 
     @Transactional
     public DriveUploadSessionResult prepareUpload(PrepareDriveUploadCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         requirePrepareCommand(command);
-        UUID actorUserId = requireUser(command.actorUserId());
+        UUID actorUserId = command.actorUserId();
         Instant now = clock.instant();
         DriveSpace space = loadOrCreateSpace(actorUserId, now);
         validateParent(command.parentId(), space.spaceId());
@@ -165,6 +166,7 @@ public class DriveUploadApplicationService {
     }
 
     public DriveEntryResult completeUpload(CompleteDriveUploadCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         requireCompleteCommand(command);
         UUID actorUserId = requireUser(command.actorUserId());
         DriveUploadContent content = command.content();
@@ -606,13 +608,11 @@ public class DriveUploadApplicationService {
     }
 
     private static void requirePrepareCommand(PrepareDriveUploadCommand command) {
-        if (command == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "上传参数非法");
-        }
+        requireUser(command.actorUserId());
     }
 
     private static void requireCompleteCommand(CompleteDriveUploadCommand command) {
-        if (command == null || command.uploadId() == null || command.content() == null || command.content().uploadStream() == null) {
+        if (command.uploadId() == null || command.content() == null || command.content().uploadStream() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "上传参数非法");
         }
     }

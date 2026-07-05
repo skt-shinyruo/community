@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
@@ -87,6 +88,7 @@ public class WalletTransferApplicationService {
 
     @Transactional
     public TransferOrderResult transfer(CreateTransferCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         String requestHash = RequestFingerprint.sha256(
                 "wallet:transfer|toUserId=" + command.toUserId() + "|amount=" + command.amount()

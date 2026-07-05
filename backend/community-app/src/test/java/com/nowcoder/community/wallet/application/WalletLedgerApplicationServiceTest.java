@@ -77,6 +77,20 @@ class WalletLedgerApplicationServiceTest {
     }
 
     @Test
+    void recentTransactionsShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.recentTransactions((com.nowcoder.community.wallet.application.command.ListWalletTransactionsCommand) null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void postShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.post((com.nowcoder.community.wallet.domain.model.WalletLedgerCommand) null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void postShouldBeIdempotentByRequestId() {
         UUID userId = uuid(101);
         UUID userAccountId = service.ensureUserWallet(userId);

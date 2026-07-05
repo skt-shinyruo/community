@@ -25,6 +25,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class DriveShareApplicationServiceTest {
 
     @Test
+    void createShareShouldRejectNullCommand() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveShareApplicationService service = fixture.shareService();
+
+        assertThatThrownBy(() -> service.createShare(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void verifyShareShouldRejectNullCommand() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveShareApplicationService service = fixture.shareService();
+
+        assertThatThrownBy(() -> service.verifyShare(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void createShareShouldRequirePasswordAndFutureExpiry() {
         TestDriveFixture fixture = TestDriveFixture.create();
         DriveShareApplicationService service = fixture.shareService();

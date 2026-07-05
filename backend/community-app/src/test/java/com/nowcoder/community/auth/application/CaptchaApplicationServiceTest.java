@@ -99,4 +99,11 @@ class CaptchaApplicationServiceTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.TOO_MANY_REQUESTS);
     }
+
+    @Test
+    void issueShouldRejectNullCommand() {
+        assertThatThrownBy(() -> service.issue(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
 }

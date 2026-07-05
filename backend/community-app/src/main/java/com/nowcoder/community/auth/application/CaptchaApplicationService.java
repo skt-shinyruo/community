@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -44,7 +45,8 @@ public class CaptchaApplicationService {
     }
 
     public CaptchaIssueResult issue(IssueCaptchaCommand command) {
-        enforceIssueRateLimit(command == null ? null : command.clientIp());
+        Objects.requireNonNull(command, "command must not be null");
+        enforceIssueRateLimit(command.clientIp());
         IssuedCaptcha issued = issue();
         return new CaptchaIssueResult(issued.captchaId(), issued.imageBase64(), issued.ttlSeconds());
     }

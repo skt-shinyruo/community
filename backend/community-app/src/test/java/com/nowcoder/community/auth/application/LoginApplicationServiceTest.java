@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.analytics.api.action.AnalyticsIngestActionApi;
 import com.nowcoder.community.auth.application.command.LoginCommand;
+import com.nowcoder.community.auth.application.command.LogoutCommand;
 import com.nowcoder.community.auth.application.command.RefreshCommand;
 import com.nowcoder.community.auth.application.port.AuthTokenPort;
 import com.nowcoder.community.auth.application.result.LoginResult;
@@ -192,6 +193,13 @@ class LoginApplicationServiceTest {
     }
 
     @Test
+    void loginShouldRejectNullCommand() {
+        assertThatThrownBy(() -> authService.login(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
     void loginShouldLogDeniedWhenCaptchaIsRequiredButMissing(CapturedOutput output) {
         when(loginRateLimitService.isCaptchaRequired("alice", "127.0.0.1")).thenReturn(true);
 
@@ -255,6 +263,13 @@ class LoginApplicationServiceTest {
         verify(refreshTokenService).beginRotation("replayed-token");
         verify(refreshTokenService, never()).find("replayed-token");
         verify(userCredentialQueryApi, never()).getByUserId(any());
+    }
+
+    @Test
+    void refreshShouldRejectNullCommand() {
+        assertThatThrownBy(() -> authService.refresh(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
     }
 
     @Test
@@ -347,6 +362,20 @@ class LoginApplicationServiceTest {
         assertThat(failure.getErrorCode()).isEqualTo(CommonErrorCode.SERVICE_UNAVAILABLE);
         assertThat(failure.clearRefreshCookie()).isFalse();
         verify(refreshTokenService, never()).revokeFamily("family-rollback");
+    }
+
+    @Test
+    void logoutShouldRejectNullCommand() {
+        assertThatThrownBy(() -> authService.logout(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("command must not be null");
+    }
+
+    @Test
+    void logoutShouldRevokeRefreshTokenFamilyWhenTokenPresent() {
+        authService.logout(new LogoutCommand("refresh-token"));
+
+        verify(refreshTokenService).revokeFamilyByToken("refresh-token");
     }
 
     @Test

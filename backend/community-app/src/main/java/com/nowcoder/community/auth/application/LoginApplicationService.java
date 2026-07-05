@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.UUID;
+import java.util.Objects;
 
 @Service
 public class LoginApplicationService {
@@ -56,12 +57,13 @@ public class LoginApplicationService {
     }
 
     public LoginResult login(LoginCommand command) {
-        String username = command == null ? null : command.username();
-        String password = command == null ? null : command.password();
-        String captchaId = command == null ? null : command.captchaId();
-        String captchaCode = command == null ? null : command.captchaCode();
-        String ip = command == null ? null : command.clientIp();
-        String ipSource = command == null ? null : command.clientIpSource();
+        Objects.requireNonNull(command, "command must not be null");
+        String username = command.username();
+        String password = command.password();
+        String captchaId = command.captchaId();
+        String captchaCode = command.captchaCode();
+        String ip = command.clientIp();
+        String ipSource = command.clientIpSource();
 
         loginRateLimitService.assertNotBlocked(username, ip, ipSource);
 
@@ -134,7 +136,8 @@ public class LoginApplicationService {
     }
 
     public RefreshResult refresh(RefreshCommand command) {
-        String refreshToken = command == null ? null : command.refreshToken();
+        Objects.requireNonNull(command, "command must not be null");
+        String refreshToken = command.refreshToken();
         if (!StringUtils.hasText(refreshToken)) {
             throw new RefreshFailure(AuthErrorCode.REFRESH_TOKEN_INVALID, true);
         }
@@ -179,7 +182,8 @@ public class LoginApplicationService {
     }
 
     public void logout(LogoutCommand command) {
-        String refreshToken = command == null ? null : command.refreshToken();
+        Objects.requireNonNull(command, "command must not be null");
+        String refreshToken = command.refreshToken();
         if (StringUtils.hasText(refreshToken)) {
             refreshTokenService.revokeFamilyByToken(refreshToken);
         }

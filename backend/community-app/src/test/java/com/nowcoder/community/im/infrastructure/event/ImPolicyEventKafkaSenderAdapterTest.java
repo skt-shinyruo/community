@@ -26,6 +26,9 @@ import static org.mockito.Mockito.when;
 
 class ImPolicyEventKafkaSenderAdapterTest {
 
+    private static final String USER_POLICY_TOPIC = "im.policy.user";
+    private static final String BLOCK_TOPIC = "im.policy.block";
+
     @Test
     void senderShouldOnlyLoadWhenKafkaAndOutboxEnabled() {
         ConditionalOnClass conditionalOnClass = ImPolicyEventKafkaSenderAdapter.class.getAnnotation(ConditionalOnClass.class);
@@ -43,7 +46,11 @@ class ImPolicyEventKafkaSenderAdapterTest {
     void sendShouldPublishWithTopicKeyPayloadAndTraceHeaders() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(completedSend());
-        ImPolicyEventKafkaSenderAdapter adapter = new ImPolicyEventKafkaSenderAdapter(kafkaTemplate);
+        ImPolicyEventKafkaSenderAdapter adapter = new ImPolicyEventKafkaSenderAdapter(
+                kafkaTemplate,
+                USER_POLICY_TOPIC,
+                BLOCK_TOPIC
+        );
         TraceContextSnapshot snapshot = TraceContextSnapshot.fromStored(
                 "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
                 "00-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-00f067aa0ba902b7-01"
@@ -52,12 +59,12 @@ class ImPolicyEventKafkaSenderAdapterTest {
                 null, null, true, 1712345678901L, 1L);
 
         try (var ignored = OtelTraceContext.openForInbound(snapshot.traceparent(), "outbox.process im", SpanKind.CONSUMER)) {
-            adapter.send("im.policy", uuid(7).toString(), event);
+            adapter.dispatchUserMessagingPolicyChanged(uuid(7).toString(), event);
         }
 
         ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor = ArgumentCaptor.forClass(ProducerRecord.class);
         verify(kafkaTemplate).send(recordCaptor.capture());
-        assertThat(recordCaptor.getValue().topic()).isEqualTo("im.policy");
+        assertThat(recordCaptor.getValue().topic()).isEqualTo(USER_POLICY_TOPIC);
         assertThat(recordCaptor.getValue().key()).isEqualTo(uuid(7).toString());
         assertThat(recordCaptor.getValue().value()).isSameAs(event);
         assertThat(TraceKafkaHeaders.headerValue(recordCaptor.getValue().headers(), TraceHeaders.HEADER_TRACEPARENT))
@@ -68,11 +75,26 @@ class ImPolicyEventKafkaSenderAdapterTest {
     void sendFailureShouldWrapExceptionForOutboxRetry() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(failedSend());
-        ImPolicyEventKafkaSenderAdapter adapter = new ImPolicyEventKafkaSenderAdapter(kafkaTemplate);
+        ImPolicyEventKafkaSenderAdapter adapter = new ImPolicyEventKafkaSenderAdapter(
+                kafkaTemplate,
+                USER_POLICY_TOPIC,
+                BLOCK_TOPIC
+        );
 
-        assertThatThrownBy(() -> adapter.send("im.policy", "key-1", new Object()))
+        assertThatThrownBy(() -> adapter.dispatchUserMessagingPolicyChanged("key-1", new UserMessagingPolicyChanged(
+                "evt",
+                uuid(1),
+                true,
+                false,
+                false,
+                null,
+                null,
+                true,
+                1L,
+                1L
+        )))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("im policy kafka publish failed: im.policy")
+                .hasMessageContaining("im policy kafka publish failed: " + USER_POLICY_TOPIC)
                 .hasCauseInstanceOf(RuntimeException.class);
     }
 

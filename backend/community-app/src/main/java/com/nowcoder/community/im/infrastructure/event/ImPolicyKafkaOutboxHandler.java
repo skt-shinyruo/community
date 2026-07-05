@@ -3,6 +3,7 @@ package com.nowcoder.community.im.infrastructure.event;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.im.application.ImPolicyEventDispatchApplicationService;
+import com.nowcoder.community.im.application.command.DispatchImPolicyEventCommand;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -29,9 +30,10 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
 
     @Override
     public void handle(OutboxEvent event) {
-        if (event == null) {
-            return;
-        }
-        applicationService.dispatch(event.eventId(), event.eventKey(), event.payload());
+        applicationService.dispatch(new DispatchImPolicyEventCommand(
+                event == null ? null : event.eventId(),
+                event == null ? null : event.eventKey(),
+                event == null ? null : event.payload()
+        ));
     }
 }

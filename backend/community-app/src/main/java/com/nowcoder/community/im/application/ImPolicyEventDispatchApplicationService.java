@@ -3,9 +3,9 @@ package com.nowcoder.community.im.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.im.application.command.DispatchImPolicyEventCommand;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -17,41 +17,35 @@ import java.util.UUID;
 public class ImPolicyEventDispatchApplicationService {
 
     private final JsonCodec jsonCodec;
-    private final ImPolicyEventKafkaDispatchPort dispatchPort;
-    private final String userMessagingPolicyChangedTopic;
-    private final String userBlockRelationChangedTopic;
+    private final ImPolicyIntegrationEventDispatcher dispatcher;
 
     public ImPolicyEventDispatchApplicationService(
             JsonCodec jsonCodec,
-            ImPolicyEventKafkaDispatchPort dispatchPort,
-            @Value("${im.kafka.topics.event-user-messaging-policy-changed:im.event.user-messaging-policy-changed}") String userMessagingPolicyChangedTopic,
-            @Value("${im.kafka.topics.event-user-block-relation-changed:im.event.user-block-relation-changed}") String userBlockRelationChangedTopic
+            ImPolicyIntegrationEventDispatcher dispatcher
     ) {
         this.jsonCodec = jsonCodec;
-        this.dispatchPort = dispatchPort;
-        this.userMessagingPolicyChangedTopic = userMessagingPolicyChangedTopic;
-        this.userBlockRelationChangedTopic = userBlockRelationChangedTopic;
+        this.dispatcher = dispatcher;
     }
 
-    public void dispatch(String outboxEventId, String outboxKey, String payloadJson) {
-        if (!StringUtils.hasText(payloadJson)) {
+    public void dispatch(DispatchImPolicyEventCommand command) {
+        if (command == null || !StringUtils.hasText(command.payloadJson())) {
             return;
         }
 
         JsonNode payload;
         try {
-            payload = jsonCodec.readTree(payloadJson);
+            payload = jsonCodec.readTree(command.payloadJson());
         } catch (JsonCodecException e) {
             throw new IllegalStateException("im policy outbox payload 反序列化失败", e);
         }
 
         String kind = text(payload, "kind");
         if ("USER_POLICY".equalsIgnoreCase(kind) || "MODERATION".equalsIgnoreCase(kind)) {
-            publishModerationState(outboxEventId, payload);
+            publishModerationState(command.outboxEventId(), payload);
             return;
         }
         if ("BLOCK".equalsIgnoreCase(kind)) {
-            publishBlockState(outboxEventId, payload);
+            publishBlockState(command.outboxEventId(), payload);
         }
     }
 
@@ -72,7 +66,7 @@ public class ImPolicyEventDispatchApplicationService {
                 requiredLongValue(payload, "occurredAtEpochMillis"),
                 longValue(payload, "version")
         );
-        dispatchPort.send(userMessagingPolicyChangedTopic, userId.toString(), changed);
+        dispatcher.dispatchUserMessagingPolicyChanged(userId.toString(), changed);
     }
 
     private void publishBlockState(String eventId, JsonNode payload) {
@@ -89,7 +83,7 @@ public class ImPolicyEventDispatchApplicationService {
                 requiredLongValue(payload, "occurredAtEpochMillis"),
                 longValue(payload, "version")
         );
-        dispatchPort.send(userBlockRelationChangedTopic, blockerUserId.toString(), changed);
+        dispatcher.dispatchUserBlockRelationChanged(blockerUserId.toString(), changed);
     }
 
     private String text(JsonNode node, String fieldName) {

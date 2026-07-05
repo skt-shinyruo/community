@@ -3,6 +3,8 @@ package com.nowcoder.community.growth.infrastructure.event;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.growth.application.TaskProgressOutboxDispatchApplicationService;
+import com.nowcoder.community.growth.application.command.DispatchTaskProgressEventCommand;
+import com.nowcoder.community.growth.application.command.TaskProgressDispatchKind;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -29,6 +31,10 @@ public class CommentTaskProgressKafkaOutboxHandler implements OutboxHandler {
 
     @Override
     public void handle(OutboxEvent event) {
-        applicationService.dispatchCommentCreated(event == null ? null : event.eventKey(), event == null ? null : event.payload());
+        applicationService.dispatch(new DispatchTaskProgressEventCommand(
+                TaskProgressDispatchKind.COMMENT_CREATED,
+                event == null ? null : event.eventKey(),
+                event == null ? null : event.payload()
+        ));
     }
 }

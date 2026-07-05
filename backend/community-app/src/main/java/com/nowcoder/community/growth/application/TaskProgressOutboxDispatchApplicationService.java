@@ -4,8 +4,8 @@ import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.growth.application.command.DispatchTaskProgressEventCommand;
 import com.nowcoder.community.social.contracts.event.LikePayload;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -13,29 +13,29 @@ import org.springframework.util.StringUtils;
 public class TaskProgressOutboxDispatchApplicationService {
 
     private final JsonCodec jsonCodec;
-    private final TaskProgressKafkaDispatchPort dispatchPort;
-    private final String postPublishedTopic;
-    private final String commentCreatedTopic;
-    private final String likeCreatedTopic;
-    private final String likeRemovedTopic;
+    private final TaskProgressIntegrationEventDispatcher dispatcher;
 
     public TaskProgressOutboxDispatchApplicationService(
             JsonCodec jsonCodec,
-            TaskProgressKafkaDispatchPort dispatchPort,
-            @Value("${growth.task.kafka.topics.post-published:growth.task.post-published}") String postPublishedTopic,
-            @Value("${growth.task.kafka.topics.comment-created:growth.task.comment-created}") String commentCreatedTopic,
-            @Value("${growth.task.kafka.topics.like-created:growth.task.like-created}") String likeCreatedTopic,
-            @Value("${growth.task.kafka.topics.like-removed:growth.task.like-removed}") String likeRemovedTopic
+            TaskProgressIntegrationEventDispatcher dispatcher
     ) {
         this.jsonCodec = jsonCodec;
-        this.dispatchPort = dispatchPort;
-        this.postPublishedTopic = postPublishedTopic;
-        this.commentCreatedTopic = commentCreatedTopic;
-        this.likeCreatedTopic = likeCreatedTopic;
-        this.likeRemovedTopic = likeRemovedTopic;
+        this.dispatcher = dispatcher;
     }
 
-    public void dispatchPostPublished(String key, String payloadJson) {
+    public void dispatch(DispatchTaskProgressEventCommand command) {
+        if (command == null || command.kind() == null || !StringUtils.hasText(command.payloadJson())) {
+            return;
+        }
+        switch (command.kind()) {
+            case POST_PUBLISHED -> dispatchPostPublished(command.eventKey(), command.payloadJson());
+            case COMMENT_CREATED -> dispatchCommentCreated(command.eventKey(), command.payloadJson());
+            case LIKE_CREATED -> dispatchLikeCreated(command.eventKey(), command.payloadJson());
+            case LIKE_REMOVED -> dispatchLikeRemoved(command.eventKey(), command.payloadJson());
+        }
+    }
+
+    private void dispatchPostPublished(String key, String payloadJson) {
         if (!StringUtils.hasText(payloadJson)) {
             return;
         }
@@ -48,10 +48,10 @@ public class TaskProgressOutboxDispatchApplicationService {
         if (payload.getPostId() == null || payload.getUserId() == null || payload.getCreateTime() == null) {
             return;
         }
-        dispatchPort.send(postPublishedTopic, dispatchKey(key, payload.getUserId().toString()), payload);
+        dispatcher.dispatchPostPublished(dispatchKey(key, payload.getUserId().toString()), payload);
     }
 
-    public void dispatchCommentCreated(String key, String payloadJson) {
+    private void dispatchCommentCreated(String key, String payloadJson) {
         if (!StringUtils.hasText(payloadJson)) {
             return;
         }
@@ -64,10 +64,10 @@ public class TaskProgressOutboxDispatchApplicationService {
         if (payload.getCommentId() == null || payload.getUserId() == null || payload.getCreateTime() == null) {
             return;
         }
-        dispatchPort.send(commentCreatedTopic, dispatchKey(key, payload.getUserId().toString()), payload);
+        dispatcher.dispatchCommentCreated(dispatchKey(key, payload.getUserId().toString()), payload);
     }
 
-    public void dispatchLikeCreated(String key, String payloadJson) {
+    private void dispatchLikeCreated(String key, String payloadJson) {
         if (!StringUtils.hasText(payloadJson)) {
             return;
         }
@@ -84,10 +84,10 @@ public class TaskProgressOutboxDispatchApplicationService {
                 || payload.getActorUserId().equals(payload.getEntityUserId())) {
             return;
         }
-        dispatchPort.send(likeCreatedTopic, dispatchKey(key, payload.getEntityUserId().toString()), payload);
+        dispatcher.dispatchLikeCreated(dispatchKey(key, payload.getEntityUserId().toString()), payload);
     }
 
-    public void dispatchLikeRemoved(String key, String payloadJson) {
+    private void dispatchLikeRemoved(String key, String payloadJson) {
         if (!StringUtils.hasText(payloadJson)) {
             return;
         }
@@ -100,7 +100,7 @@ public class TaskProgressOutboxDispatchApplicationService {
         if (payload.getEntityUserId() == null || !StringUtils.hasText(payload.getRelationKey())) {
             return;
         }
-        dispatchPort.send(likeRemovedTopic, dispatchKey(key, payload.getEntityUserId().toString()), payload);
+        dispatcher.dispatchLikeRemoved(dispatchKey(key, payload.getEntityUserId().toString()), payload);
     }
 
     private String dispatchKey(String eventKey, String fallback) {

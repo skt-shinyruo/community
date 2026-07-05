@@ -2,7 +2,10 @@ package com.nowcoder.community.growth.infrastructure.event;
 
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.growth.application.TaskProgressOutboxDispatchApplicationService;
+import com.nowcoder.community.growth.application.command.DispatchTaskProgressEventCommand;
+import com.nowcoder.community.growth.application.command.TaskProgressDispatchKind;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.UUID;
 
@@ -30,7 +33,13 @@ class LikeTaskProgressKafkaOutboxHandlerTest {
         handler.handle(new OutboxEvent(UUID.randomUUID(), "like-created:event-id", OUTBOX_TOPIC, "key-1", "{\"entityId\":\"e\"}",
                 "PENDING", 0, null, null, null, null));
 
-        verify(applicationService).dispatchLikeCreated("key-1", "{\"entityId\":\"e\"}");
+        ArgumentCaptor<DispatchTaskProgressEventCommand> commandCaptor = ArgumentCaptor.forClass(DispatchTaskProgressEventCommand.class);
+        verify(applicationService).dispatch(commandCaptor.capture());
+        assertThat(commandCaptor.getValue()).isEqualTo(new DispatchTaskProgressEventCommand(
+                TaskProgressDispatchKind.LIKE_CREATED,
+                "key-1",
+                "{\"entityId\":\"e\"}"
+        ));
     }
 
     @Test
@@ -41,6 +50,12 @@ class LikeTaskProgressKafkaOutboxHandlerTest {
         handler.handle(new OutboxEvent(UUID.randomUUID(), "like-removed:event-id", OUTBOX_TOPIC, "key-1", "{\"relationKey\":\"like:1:1:2\"}",
                 "PENDING", 0, null, null, null, null));
 
-        verify(applicationService).dispatchLikeRemoved("key-1", "{\"relationKey\":\"like:1:1:2\"}");
+        ArgumentCaptor<DispatchTaskProgressEventCommand> commandCaptor = ArgumentCaptor.forClass(DispatchTaskProgressEventCommand.class);
+        verify(applicationService).dispatch(commandCaptor.capture());
+        assertThat(commandCaptor.getValue()).isEqualTo(new DispatchTaskProgressEventCommand(
+                TaskProgressDispatchKind.LIKE_REMOVED,
+                "key-1",
+                "{\"relationKey\":\"like:1:1:2\"}"
+        ));
     }
 }

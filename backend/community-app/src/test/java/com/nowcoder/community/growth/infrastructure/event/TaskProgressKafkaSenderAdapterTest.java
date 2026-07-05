@@ -19,6 +19,11 @@ import static org.mockito.Mockito.when;
 
 class TaskProgressKafkaSenderAdapterTest {
 
+    private static final String POST_TOPIC = "growth.topic.post";
+    private static final String COMMENT_TOPIC = "growth.topic.comment";
+    private static final String LIKE_CREATED_TOPIC = "growth.topic.like-created";
+    private static final String LIKE_REMOVED_TOPIC = "growth.topic.like-removed";
+
     @Test
     void senderShouldOnlyLoadWhenKafkaIsPresent() {
         ConditionalOnClass conditional = TaskProgressKafkaSenderAdapter.class.getAnnotation(ConditionalOnClass.class);
@@ -31,14 +36,20 @@ class TaskProgressKafkaSenderAdapterTest {
     void sendShouldPublishTopicKeyAndPayload() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(completedSend());
-        TaskProgressKafkaSenderAdapter adapter = new TaskProgressKafkaSenderAdapter(kafkaTemplate);
+        TaskProgressKafkaSenderAdapter adapter = new TaskProgressKafkaSenderAdapter(
+                kafkaTemplate,
+                POST_TOPIC,
+                COMMENT_TOPIC,
+                LIKE_CREATED_TOPIC,
+                LIKE_REMOVED_TOPIC
+        );
         PostPayload payload = new PostPayload();
 
-        adapter.send("growth.topic", "key-1", payload);
+        adapter.dispatchPostPublished("key-1", payload);
 
         ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor = ArgumentCaptor.forClass(ProducerRecord.class);
         verify(kafkaTemplate).send(recordCaptor.capture());
-        assertThat(recordCaptor.getValue().topic()).isEqualTo("growth.topic");
+        assertThat(recordCaptor.getValue().topic()).isEqualTo(POST_TOPIC);
         assertThat(recordCaptor.getValue().key()).isEqualTo("key-1");
         assertThat(recordCaptor.getValue().value()).isSameAs(payload);
     }
@@ -47,11 +58,17 @@ class TaskProgressKafkaSenderAdapterTest {
     void sendFailureShouldWrapExceptionForOutboxRetry() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(failedSend());
-        TaskProgressKafkaSenderAdapter adapter = new TaskProgressKafkaSenderAdapter(kafkaTemplate);
+        TaskProgressKafkaSenderAdapter adapter = new TaskProgressKafkaSenderAdapter(
+                kafkaTemplate,
+                POST_TOPIC,
+                COMMENT_TOPIC,
+                LIKE_CREATED_TOPIC,
+                LIKE_REMOVED_TOPIC
+        );
 
-        assertThatThrownBy(() -> adapter.send("growth.topic", "key-1", new PostPayload()))
+        assertThatThrownBy(() -> adapter.dispatchPostPublished("key-1", new PostPayload()))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("growth task kafka publish failed: growth.topic")
+                .hasMessageContaining("growth task kafka publish failed: " + POST_TOPIC)
                 .hasCauseInstanceOf(RuntimeException.class);
     }
 

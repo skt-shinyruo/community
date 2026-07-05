@@ -82,11 +82,30 @@ public class CommentApplicationService {
             UUID targetId,
             String content
     ) {
-        return create(idempotencyKey, new CreateCommentCommand(userId, postId, entityType, entityId, targetId, content));
+        return createFromCommand(idempotencyKey, new CreateCommentCommand(userId, postId, entityType, entityId, targetId, content));
     }
 
     @Transactional
     public CommentCreateResult create(String idempotencyKey, CreateCommentCommand command) {
+        return createFromCommand(idempotencyKey, command);
+    }
+
+    @Transactional
+    public UUID addComment(UUID userId, String idempotencyKey, UUID postId, Integer entityType, UUID entityId, UUID targetId, String content) {
+        return createFromCommand(idempotencyKey, new CreateCommentCommand(userId, postId, entityType, entityId, targetId, content)).commentId();
+    }
+
+    @Transactional
+    public void updateComment(UUID userId, UUID postId, UUID commentId, String content) {
+        updateFromCommand(new UpdateCommentCommand(userId, postId, commentId, content));
+    }
+
+    @Transactional
+    public void update(UpdateCommentCommand command) {
+        updateFromCommand(command);
+    }
+
+    private CommentCreateResult createFromCommand(String idempotencyKey, CreateCommentCommand command) {
         if (command == null) {
             throw new IllegalArgumentException("command must not be null");
         }
@@ -105,18 +124,7 @@ public class CommentApplicationService {
         return new CommentCreateResult(commentId);
     }
 
-    @Transactional
-    public UUID addComment(UUID userId, String idempotencyKey, UUID postId, Integer entityType, UUID entityId, UUID targetId, String content) {
-        return create(userId, idempotencyKey, postId, entityType, entityId, targetId, content).commentId();
-    }
-
-    @Transactional
-    public void updateComment(UUID userId, UUID postId, UUID commentId, String content) {
-        update(new UpdateCommentCommand(userId, postId, commentId, content));
-    }
-
-    @Transactional
-    public void update(UpdateCommentCommand command) {
+    private void updateFromCommand(UpdateCommentCommand command) {
         if (command == null) {
             throw new IllegalArgumentException("command must not be null");
         }

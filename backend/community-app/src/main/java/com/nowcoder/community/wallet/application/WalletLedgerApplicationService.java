@@ -102,16 +102,20 @@ public class WalletLedgerApplicationService {
 
     @Transactional
     public WalletTxnResult post(String requestId, WalletTxnType txnType, List<WalletPosting> postings) {
-        return post(new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), requestId, postings));
+        return postInsideTransaction(new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), requestId, postings));
     }
 
     @Transactional
     public WalletTxnResult post(String requestId, WalletTxnType txnType, String bizId, List<WalletPosting> postings) {
-        return post(new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), bizId, postings));
+        return postInsideTransaction(new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), bizId, postings));
     }
 
     @Transactional
     public WalletTxnResult post(WalletLedgerCommand command) {
+        return postInsideTransaction(command);
+    }
+
+    private WalletTxnResult postInsideTransaction(WalletLedgerCommand command) {
         validateRequest(command);
         String requestId = command.requestId();
         WalletTxnType txnType = command.txnType();

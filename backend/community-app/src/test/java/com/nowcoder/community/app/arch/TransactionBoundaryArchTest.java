@@ -1,5 +1,6 @@
 package com.nowcoder.community.app.arch;
 
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaMethodCall;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -7,28 +8,21 @@ import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TransactionBoundaryArchTest {
 
-    private static final Set<String> LOCKING_APPLICATION_SERVICES = Set.of(
-            "com.nowcoder.community.growth.application.TaskProgressApplicationService",
-            "com.nowcoder.community.market.application.MarketOrderAutoConfirmApplicationService",
-            "com.nowcoder.community.market.application.MarketOrderAutoConfirmSingleOrderApplicationService"
-    );
-
     @Test
-    void lockingApplicationServicesMustNotSelfInvokeTransactionalMethods() {
+    void applicationServicesMustNotSelfInvokeTransactionalMethods() {
         List<String> violations = new ClassFileImporter()
                 .withImportOption(new ImportOption.DoNotIncludeTests())
                 .importPackages("com.nowcoder.community")
                 .stream()
-                .filter(javaClass -> LOCKING_APPLICATION_SERVICES.contains(javaClass.getName()))
+                .filter(this::isApplicationService)
                 .flatMap(javaClass -> javaClass.getMethodCallsFromSelf().stream())
                 .filter(this::isSameClassCall)
-                .filter(this::targetsTransactionalMethod)
+                .filter(this::targetsTransactionalBoundary)
                 .map(this::describe)
                 .sorted()
                 .toList();
@@ -38,15 +32,21 @@ class TransactionBoundaryArchTest {
                 .isEmpty();
     }
 
+    private boolean isApplicationService(JavaClass javaClass) {
+        return javaClass.getPackageName().contains(".application")
+                && javaClass.getSimpleName().endsWith("ApplicationService");
+    }
+
     private boolean isSameClassCall(JavaMethodCall call) {
         return call.getOriginOwner().equals(call.getTargetOwner());
     }
 
-    private boolean targetsTransactionalMethod(JavaMethodCall call) {
-        return call.getTarget()
+    private boolean targetsTransactionalBoundary(JavaMethodCall call) {
+        boolean methodAnnotated = call.getTarget()
                 .resolveMember()
                 .filter(member -> member.isAnnotatedWith(Transactional.class))
                 .isPresent();
+        return methodAnnotated || call.getTargetOwner().isAnnotatedWith(Transactional.class);
     }
 
     private String describe(JavaMethodCall call) {

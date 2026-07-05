@@ -4,13 +4,13 @@ import java.util.UUID;
 
 public record CreateNoticeCommand(
         UUID toUserId,
-        String topic,
+        String noticeTopic,
         String contentJson,
         String sourceEventType,
         String sourceRelationKey
 ) {
 
-    public CreateNoticeCommand(UUID toUserId, String topic, String contentJson) {
-        this(toUserId, topic, contentJson, null, null);
+    public CreateNoticeCommand(UUID toUserId, String noticeTopic, String contentJson) {
+        this(toUserId, noticeTopic, contentJson, null, null);
     }
 }

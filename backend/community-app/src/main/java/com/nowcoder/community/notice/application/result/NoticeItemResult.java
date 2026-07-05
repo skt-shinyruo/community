@@ -7,7 +7,7 @@ public record NoticeItemResult(
         UUID id,
         UUID senderUserId,
         UUID recipientUserId,
-        String topic,
+        String noticeTopic,
         String content,
         int status,
         Date createTime

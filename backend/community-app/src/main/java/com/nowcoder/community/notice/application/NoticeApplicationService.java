@@ -46,12 +46,12 @@ public class NoticeApplicationService {
     }
 
     public void createNotice(CreateNoticeCommand command) {
-        noticeDomainService.validateCreate(command.toUserId(), command.topic(), command.contentJson());
+        noticeDomainService.validateCreate(command.toUserId(), command.noticeTopic(), command.contentJson());
         NoticeRecord notice = new NoticeRecord();
         notice.setId(idGenerator.next());
         notice.setSenderUserId(SYSTEM_NOTICE_SENDER_ID);
         notice.setRecipientUserId(command.toUserId());
-        notice.setTopic(command.topic());
+        notice.setTopic(command.noticeTopic());
         notice.setContent(command.contentJson());
         notice.setSourceEventType(command.sourceEventType());
         notice.setSourceRelationKey(command.sourceRelationKey());
@@ -60,40 +60,40 @@ public class NoticeApplicationService {
         noticeRepository.insert(notice);
     }
 
-    public List<NoticeRecord> listNotices(UUID userId, String topic, int page, int size) {
+    public List<NoticeRecord> listNotices(UUID userId, String noticeTopic, int page, int size) {
         int p = noticeDomainService.pageOrDefault(page);
         int s = noticeDomainService.sizeOrDefault(size);
         int offset = Pagination.safeOffset(p, s);
-        return noticeRepository.findByUserAndTopic(userId, topic, offset, s);
+        return noticeRepository.findByUserAndTopic(userId, noticeTopic, offset, s);
     }
 
     public List<NoticeItemResult> listNoticeItems(ListNoticeItemsCommand command) {
         int p = noticeDomainService.pageOrDefault(command.page());
         int s = noticeDomainService.sizeOrDefault(command.size());
         int offset = Pagination.safeOffset(p, s);
-        List<NoticeRecord> list = noticeRepository.findByUserAndTopic(command.userId(), command.topic(), offset, s);
+        List<NoticeRecord> list = noticeRepository.findByUserAndTopic(command.userId(), command.noticeTopic(), offset, s);
         if (list == null || list.isEmpty()) {
             return List.of();
         }
         return list.stream().map(this::toNoticeItemResult).toList();
     }
 
-    public List<NoticeItemResult> listNoticeItems(UUID userId, String topic, Integer page, Integer size) {
-        return listNoticeItems(new ListNoticeItemsCommand(userId, topic, page, size));
+    public List<NoticeItemResult> listNoticeItems(UUID userId, String noticeTopic, Integer page, Integer size) {
+        return listNoticeItems(new ListNoticeItemsCommand(userId, noticeTopic, page, size));
     }
 
-    public int unreadCount(UUID userId, String topic) {
-        return noticeRepository.unreadCount(userId, topic);
+    public int unreadCount(UUID userId, String noticeTopic) {
+        return noticeRepository.unreadCount(userId, noticeTopic);
     }
 
     public List<NoticeTopicSummaryResult> topicSummary(UUID userId) {
-        return NoticeTopic.DEFAULT_TOPICS.stream().map(topic -> {
-            List<NoticeRecord> latest = noticeRepository.findByUserAndTopic(userId, topic, 0, 1);
+        return NoticeTopic.DEFAULT_TOPICS.stream().map(noticeTopic -> {
+            List<NoticeRecord> latest = noticeRepository.findByUserAndTopic(userId, noticeTopic, 0, 1);
             return new NoticeTopicSummaryResult(
-                    topic,
+                    noticeTopic,
                     latest == null || latest.isEmpty() ? null : toNoticeItemResult(latest.get(0)),
-                    noticeRepository.count(userId, topic),
-                    noticeRepository.unreadCount(userId, topic)
+                    noticeRepository.count(userId, noticeTopic),
+                    noticeRepository.unreadCount(userId, noticeTopic)
             );
         }).toList();
     }

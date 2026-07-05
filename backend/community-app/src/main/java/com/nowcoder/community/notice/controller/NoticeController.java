@@ -70,7 +70,7 @@ public class NoticeController {
         response.setId(result.id());
         response.setSenderUserId(result.senderUserId());
         response.setRecipientUserId(result.recipientUserId());
-        response.setTopic(result.topic());
+        response.setTopic(result.noticeTopic());
         response.setContent(result.content());
         response.setStatus(result.status());
         response.setCreateTime(result.createTime());
@@ -79,7 +79,7 @@ public class NoticeController {
 
     private NoticeTopicSummaryResponse toResponse(NoticeTopicSummaryResult result) {
         NoticeTopicSummaryResponse response = new NoticeTopicSummaryResponse();
-        response.setTopic(result.topic());
+        response.setTopic(result.noticeTopic());
         response.setLatest(result.latest() == null ? null : toResponse(result.latest()));
         response.setNoticeCount(result.noticeCount());
         response.setUnreadCount(result.unreadCount());

@@ -201,11 +201,11 @@ public class NoticeProjectionApplicationService {
         }
     }
 
-    private NoticeProjection projection(String eventId, String eventType, String topic, UUID toUserId, Object payload) {
+    private NoticeProjection projection(String eventId, String eventType, String noticeTopic, UUID toUserId, Object payload) {
         if (toUserId == null) {
             return null;
         }
-        return new NoticeProjection(toUserId, topic, eventId, eventType, payload);
+        return new NoticeProjection(toUserId, noticeTopic, eventId, eventType, payload);
     }
 
     private void revokeProjectedLikeNotice(LikePayload payload) {

@@ -100,7 +100,7 @@ class NoticeApplicationServiceTest {
             assertThat(item.id()).isEqualTo(NOTICE_ID_4);
             assertThat(item.senderUserId()).isEqualTo(ZERO_UUID);
             assertThat(item.recipientUserId()).isEqualTo(recipientUserId);
-            assertThat(item.topic()).isEqualTo("comment");
+            assertThat(item.noticeTopic()).isEqualTo("comment");
             assertThat(item.status()).isEqualTo(NoticeApplicationService.STATUS_UNREAD);
         });
     }

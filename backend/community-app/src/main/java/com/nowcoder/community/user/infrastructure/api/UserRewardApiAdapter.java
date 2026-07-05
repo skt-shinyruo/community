@@ -20,7 +20,12 @@ public class UserRewardApiAdapter implements UserRewardActionApi {
 
     @Override
     public void awardPostPublished(UUID postId, UUID userId) {
-        userRewardApplicationService.apply(userRewardApplicationService.commandForPostPublished(postId, userId));
+        UserRewardApplicationService.RewardCommand command =
+                userRewardApplicationService.commandForPostPublished(postId, userId);
+        if (command == null) {
+            return;
+        }
+        userRewardApplicationService.apply(command);
     }
 
     @Override
@@ -28,10 +33,14 @@ public class UserRewardApiAdapter implements UserRewardActionApi {
         if (request == null) {
             return;
         }
-        userRewardApplicationService.apply(userRewardApplicationService.commandForCommentCreated(
+        UserRewardApplicationService.RewardCommand command = userRewardApplicationService.commandForCommentCreated(
                 request.commentId(),
                 request.userId()
-        ));
+        );
+        if (command == null) {
+            return;
+        }
+        userRewardApplicationService.apply(command);
     }
 
     @Override
@@ -39,11 +48,15 @@ public class UserRewardApiAdapter implements UserRewardActionApi {
         if (request == null || !StringUtils.hasText(request.sourceEventId())) {
             return;
         }
-        userRewardApplicationService.apply(userRewardApplicationService.commandForLikeCreated(
+        UserRewardApplicationService.RewardCommand command = userRewardApplicationService.commandForLikeCreated(
                 request.sourceEventId(),
                 request.actorUserId(),
                 request.entityUserId()
-        ));
+        );
+        if (command == null) {
+            return;
+        }
+        userRewardApplicationService.apply(command);
     }
 
     @Override
@@ -51,10 +64,14 @@ public class UserRewardApiAdapter implements UserRewardActionApi {
         if (request == null || !StringUtils.hasText(request.sourceEventId())) {
             return;
         }
-        userRewardApplicationService.apply(userRewardApplicationService.commandForLikeRemoved(
+        UserRewardApplicationService.RewardCommand command = userRewardApplicationService.commandForLikeRemoved(
                 request.sourceEventId(),
                 request.actorUserId(),
                 request.entityUserId()
-        ));
+        );
+        if (command == null) {
+            return;
+        }
+        userRewardApplicationService.apply(command);
     }
 }

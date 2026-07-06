@@ -5,6 +5,6 @@ import java.util.UUID;
 public record ProjectPostOutboxCommand(
         UUID postId,
         String sourceEventId,
-        String sourceEventType
+        long sourceVersion
 ) {
 }

@@ -269,6 +269,7 @@ social:
     kafka-topic: ${SOCIAL_EVENTS_KAFKA_TOPIC:social.events}
 
 notice:
+  projection-enabled: ${NOTICE_PROJECTION_ENABLED:true}
   kafka:
     consumer:
       group-id: ${NOTICE_KAFKA_CONSUMER_GROUP_ID:notice-projection}
@@ -295,6 +296,7 @@ oss:
 
 search:
   storage: es
+  projection-enabled: ${SEARCH_PROJECTION_ENABLED:true}
   kafka:
     consumer:
       group-id: ${SEARCH_KAFKA_CONSUMER_GROUP_ID:search-post-projection}

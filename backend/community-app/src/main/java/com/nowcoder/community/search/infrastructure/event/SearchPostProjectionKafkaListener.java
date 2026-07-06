@@ -40,7 +40,7 @@ public class SearchPostProjectionKafkaListener {
         searchPostProjectionApplicationService.projectPostFromOutbox(new ProjectPostOutboxCommand(
                 payload.getPostId(),
                 event.eventId(),
-                event.type()
+                event.version()
         ));
     }
 

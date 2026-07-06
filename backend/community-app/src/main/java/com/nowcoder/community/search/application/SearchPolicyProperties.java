@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class SearchPolicyProperties {
 
     private String storage = "es";
+    private boolean projectionEnabled = true;
     private final Index index = new Index();
     private final Query query = new Query();
     private final Idempotency idempotency = new Idempotency();
@@ -17,6 +18,14 @@ public class SearchPolicyProperties {
 
     public void setStorage(String storage) {
         this.storage = storage;
+    }
+
+    public boolean isProjectionEnabled() {
+        return projectionEnabled;
+    }
+
+    public void setProjectionEnabled(boolean projectionEnabled) {
+        this.projectionEnabled = projectionEnabled;
     }
 
     public Index getIndex() {

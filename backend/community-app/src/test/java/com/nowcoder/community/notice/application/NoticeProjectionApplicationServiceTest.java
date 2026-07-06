@@ -90,7 +90,9 @@ class NoticeProjectionApplicationServiceTest {
     @Test
     void shouldRevokeLikeNoticeOnLikeRemoved() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
-        NoticeProjectionApplicationService projectionService = projectionService(noticeService, mock(NoticeProjectionEventRecorder.class));
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        when(eventRecorder.tryRecord("evt-like-removed-1")).thenReturn(true);
+        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
 
         LikePayload payload = new LikePayload();
         payload.setEntityUserId(UUID.fromString("00000000-0000-0000-0000-000000000055"));
@@ -98,11 +100,78 @@ class NoticeProjectionApplicationServiceTest {
 
         projectionService.projectSocialEventReliably(new ProjectSocialNoticeCommand(
                 "evt-like-removed-1",
+                11L,
                 SocialEventTypes.LIKE_REMOVED,
                 payload
         ));
 
+        verify(eventRecorder).tryRecord("evt-like-removed-1");
         verify(noticeService).revokeLikeNotice(payload.getEntityUserId(), payload.getRelationKey());
+    }
+
+    @Test
+    void reliableLikeRemovedProjectionShouldRejectBlankSourceEventIdBeforeRevoking() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
+        LikePayload payload = new LikePayload();
+        payload.setEntityUserId(uuid(55));
+        payload.setRelationKey("like:actor:3:entity");
+
+        assertThatThrownBy(() -> projectionService.projectSocialEventReliably(new ProjectSocialNoticeCommand(
+                " ",
+                11L,
+                SocialEventTypes.LIKE_REMOVED,
+                payload
+        )))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("notice projection source event id is blank");
+
+        verifyNoInteractions(eventRecorder);
+        verify(noticeService, never()).revokeLikeNotice(any(), any());
+    }
+
+    @Test
+    void reliableLikeRemovedProjectionShouldRevokeOnceForDuplicateEventId() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        when(eventRecorder.tryRecord("evt-like-removed-duplicate")).thenReturn(true, false);
+        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
+        LikePayload payload = new LikePayload();
+        payload.setEntityUserId(uuid(55));
+        payload.setRelationKey("like:actor:3:entity");
+        ProjectSocialNoticeCommand command = new ProjectSocialNoticeCommand(
+                "evt-like-removed-duplicate",
+                12L,
+                SocialEventTypes.LIKE_REMOVED,
+                payload
+        );
+
+        projectionService.projectSocialEventReliably(command);
+        projectionService.projectSocialEventReliably(command);
+
+        verify(eventRecorder, times(2)).tryRecord("evt-like-removed-duplicate");
+        verify(noticeService, times(1)).revokeLikeNotice(payload.getEntityUserId(), payload.getRelationKey());
+    }
+
+    @Test
+    void reliableContentProjectionShouldSkipWhenProjectionDisabled() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        NoticePolicyProperties properties = new NoticePolicyProperties();
+        properties.getChannels().setInAppEnabled(true);
+        properties.setProjectionEnabled(false);
+        NoticeProjectionApplicationService projectionService = new NoticeProjectionApplicationService(
+                jsonCodec(),
+                noticeService,
+                new NoticeProjectionDomainService(),
+                properties,
+                eventRecorder
+        );
+
+        projectionService.projectContentEventReliably(commentCommand("evt-comment-disabled"));
+
+        verifyNoInteractions(noticeService, eventRecorder);
     }
 
     @Test
@@ -154,7 +223,7 @@ class NoticeProjectionApplicationServiceTest {
         CommentPayload payload = new CommentPayload();
         payload.setTargetUserId(uuid(9));
         payload.setPostId(uuid(100));
-        return new ProjectContentNoticeCommand(eventId, ContentEventTypes.COMMENT_CREATED, payload);
+        return new ProjectContentNoticeCommand(eventId, 42L, ContentEventTypes.COMMENT_CREATED, payload);
     }
 
     private static JsonCodec jsonCodec() {

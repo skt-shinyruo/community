@@ -53,7 +53,7 @@ public class PostOutboxEnqueuer {
         PostOutboxHandler.PostOutboxPayload outboxPayload = new PostOutboxHandler.PostOutboxPayload();
         outboxPayload.setPostId(payload.getPostId());
         outboxPayload.setSourceEventId(event.eventId());
-        outboxPayload.setSourceEventType(event.type());
+        outboxPayload.setSourceVersion(event.version());
 
         String payloadJson;
         try {

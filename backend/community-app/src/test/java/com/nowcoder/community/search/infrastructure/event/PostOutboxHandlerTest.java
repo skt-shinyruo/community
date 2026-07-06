@@ -32,13 +32,13 @@ class PostOutboxHandlerTest {
 
         PostOutboxHandler handler = new PostOutboxHandler(new JacksonJsonCodec(JsonMappers.standard()), projectionApplicationService, TOPIC);
 
-        handler.handle(outboxEvent(objectMapper, postId, "src-s1", "PostUpdated"));
+        handler.handle(outboxEvent(objectMapper, postId, "src-s1", 41L));
 
         ArgumentCaptor<ProjectPostOutboxCommand> captor = ArgumentCaptor.forClass(ProjectPostOutboxCommand.class);
         verify(projectionApplicationService).projectPostFromOutbox(captor.capture());
         assertThat(captor.getValue().postId()).isEqualTo(postId);
         assertThat(captor.getValue().sourceEventId()).isEqualTo("src-s1");
-        assertThat(captor.getValue().sourceEventType()).isEqualTo("PostUpdated");
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(41L);
     }
 
     @Test
@@ -94,12 +94,12 @@ class PostOutboxHandlerTest {
             ObjectMapper objectMapper,
             UUID postId,
             String sourceEventId,
-            String sourceEventType
+            long sourceVersion
     ) throws Exception {
         String payloadJson = objectMapper.writeValueAsString(Map.of(
                 "postId", postId,
                 "sourceEventId", sourceEventId,
-                "sourceEventType", sourceEventType
+                "sourceVersion", sourceVersion
         ));
         return new OutboxEvent(
                 UUID.fromString("01965429-b34a-7000-8000-000000000021"),

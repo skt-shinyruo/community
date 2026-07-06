@@ -90,6 +90,9 @@ public class NoticeProjectionApplicationService {
 
     public void projectContentEvent(ProjectContentNoticeCommand command) {
         Objects.requireNonNull(command, "command must not be null");
+        if (!noticePolicyProperties.isProjectionEnabled()) {
+            return;
+        }
         try {
             project(commandForContentEvent(command));
         } catch (RuntimeException e) {
@@ -99,6 +102,9 @@ public class NoticeProjectionApplicationService {
 
     public void projectSocialEvent(ProjectSocialNoticeCommand command) {
         Objects.requireNonNull(command, "command must not be null");
+        if (!noticePolicyProperties.isProjectionEnabled()) {
+            return;
+        }
         try {
             project(commandForSocialEvent(command));
         } catch (RuntimeException e) {
@@ -109,12 +115,28 @@ public class NoticeProjectionApplicationService {
     @Transactional
     public void projectContentEventReliably(ProjectContentNoticeCommand command) {
         Objects.requireNonNull(command, "command must not be null");
+        if (!noticePolicyProperties.isProjectionEnabled()) {
+            return;
+        }
         projectReliably(commandForContentEvent(command));
     }
 
     @Transactional
     public void projectSocialEventReliably(ProjectSocialNoticeCommand command) {
         Objects.requireNonNull(command, "command must not be null");
+        if (!noticePolicyProperties.isProjectionEnabled()) {
+            return;
+        }
+        if (SocialEventTypes.LIKE_REMOVED.equals(command.eventType()) && command.payload() instanceof LikePayload payload) {
+            if (!StringUtils.hasText(command.sourceEventId())) {
+                throw new IllegalStateException("notice projection source event id is blank");
+            }
+            if (noticeProjectionEventRecorder != null && !noticeProjectionEventRecorder.tryRecord(command.sourceEventId())) {
+                return;
+            }
+            revokeProjectedLikeNotice(payload);
+            return;
+        }
         projectReliably(commandForSocialEvent(command));
     }
 
@@ -131,10 +153,6 @@ public class NoticeProjectionApplicationService {
     NoticeProjection commandForSocialEvent(ProjectSocialNoticeCommand command) {
         if (SocialEventTypes.LIKE_CREATED.equals(command.eventType()) && command.payload() instanceof LikePayload payload) {
             return projection(command.sourceEventId(), command.eventType(), NoticeTopic.LIKE, payload.getEntityUserId(), payload);
-        }
-        if (SocialEventTypes.LIKE_REMOVED.equals(command.eventType()) && command.payload() instanceof LikePayload payload) {
-            revokeProjectedLikeNotice(payload);
-            return null;
         }
         if (SocialEventTypes.FOLLOW_CREATED.equals(command.eventType()) && command.payload() instanceof FollowPayload payload) {
             return projection(command.sourceEventId(), command.eventType(), NoticeTopic.FOLLOW, payload.getEntityUserId(), payload);
@@ -163,6 +181,9 @@ public class NoticeProjectionApplicationService {
     }
 
     private boolean shouldProject(NoticeProjection projection) {
+        if (!noticePolicyProperties.isProjectionEnabled()) {
+            return false;
+        }
         if (!noticePolicyProperties.getChannels().isInAppEnabled()) {
             return false;
         }

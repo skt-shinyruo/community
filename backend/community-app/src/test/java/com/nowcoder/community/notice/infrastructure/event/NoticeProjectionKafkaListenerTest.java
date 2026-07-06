@@ -16,6 +16,7 @@ import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Instant;
 import java.util.Map;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -35,11 +36,12 @@ class NoticeProjectionKafkaListenerTest {
         NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
         CommentPayload payload = commentPayload();
 
-        listener.onContentEvent(contentEvent("evt-comment-1", ContentEventTypes.COMMENT_CREATED, payload));
+        listener.onContentEvent(contentEvent("evt-comment-1", ContentEventTypes.COMMENT_CREATED, 42L, payload));
 
         ArgumentCaptor<ProjectContentNoticeCommand> captor = ArgumentCaptor.forClass(ProjectContentNoticeCommand.class);
         verify(applicationService).projectContentEventReliably(captor.capture());
         assertThat(captor.getValue().sourceEventId()).isEqualTo("evt-comment-1");
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(42L);
         assertThat(captor.getValue().eventType()).isEqualTo(ContentEventTypes.COMMENT_CREATED);
         assertThat(captor.getValue().payload()).isSameAs(payload);
     }
@@ -49,15 +51,17 @@ class NoticeProjectionKafkaListenerTest {
         NoticeProjectionApplicationService applicationService = mock(NoticeProjectionApplicationService.class);
         NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
 
-        listener.onContentEvent(new ContentContractEvent(
+        listener.onContentEvent(contentEvent(
                 "evt-comment-map",
                 ContentEventTypes.COMMENT_CREATED,
+                43L,
                 Map.of("targetUserId", uuid(9).toString(), "postId", uuid(100).toString())
         ));
 
         ArgumentCaptor<ProjectContentNoticeCommand> captor = ArgumentCaptor.forClass(ProjectContentNoticeCommand.class);
         verify(applicationService).projectContentEventReliably(captor.capture());
         assertThat(captor.getValue().sourceEventId()).isEqualTo("evt-comment-map");
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(43L);
         assertThat(captor.getValue().eventType()).isEqualTo(ContentEventTypes.COMMENT_CREATED);
         assertThat(captor.getValue().payload()).isInstanceOf(CommentPayload.class);
         CommentPayload payload = (CommentPayload) captor.getValue().payload();
@@ -70,9 +74,10 @@ class NoticeProjectionKafkaListenerTest {
         NoticeProjectionApplicationService applicationService = mock(NoticeProjectionApplicationService.class);
         NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
 
-        listener.onSocialEvent(new SocialContractEvent(
+        listener.onSocialEvent(socialEvent(
                 "evt-like-map",
                 SocialEventTypes.LIKE_CREATED,
+                44L,
                 Map.of(
                         "actorUserId", uuid(1).toString(),
                         "entityType", EntityTypes.POST,
@@ -84,6 +89,7 @@ class NoticeProjectionKafkaListenerTest {
         ArgumentCaptor<ProjectSocialNoticeCommand> captor = ArgumentCaptor.forClass(ProjectSocialNoticeCommand.class);
         verify(applicationService).projectSocialEventReliably(captor.capture());
         assertThat(captor.getValue().sourceEventId()).isEqualTo("evt-like-map");
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(44L);
         assertThat(captor.getValue().eventType()).isEqualTo(SocialEventTypes.LIKE_CREATED);
         assertThat(captor.getValue().payload()).isInstanceOf(LikePayload.class);
         LikePayload payload = (LikePayload) captor.getValue().payload();
@@ -108,9 +114,10 @@ class NoticeProjectionKafkaListenerTest {
         NoticeProjectionApplicationService applicationService = mock(NoticeProjectionApplicationService.class);
         NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
 
-        listener.onSocialEvent(new SocialContractEvent(
+        listener.onSocialEvent(socialEvent(
                 "evt-like-removed",
                 SocialEventTypes.LIKE_REMOVED,
+                45L,
                 Map.of(
                         "actorUserId", uuid(1).toString(),
                         "entityType", EntityTypes.POST,
@@ -122,6 +129,7 @@ class NoticeProjectionKafkaListenerTest {
 
         ArgumentCaptor<ProjectSocialNoticeCommand> captor = ArgumentCaptor.forClass(ProjectSocialNoticeCommand.class);
         verify(applicationService).projectSocialEventReliably(captor.capture());
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(45L);
         assertThat(captor.getValue().eventType()).isEqualTo(SocialEventTypes.LIKE_REMOVED);
         assertThat(captor.getValue().payload()).isInstanceOf(LikePayload.class);
         assertThat(((LikePayload) captor.getValue().payload()).getRelationKey())
@@ -170,8 +178,28 @@ class NoticeProjectionKafkaListenerTest {
                 .hasMessageContaining("notice projection source event id is blank");
     }
 
-    private static ContentContractEvent contentEvent(String eventId, String eventType, Object payload) {
-        return new ContentContractEvent(eventId, eventType, payload);
+    private static ContentContractEvent contentEvent(String eventId, String eventType, long version, Object payload) {
+        return new ContentContractEvent(
+                eventId,
+                null,
+                null,
+                eventType,
+                Instant.parse("2026-07-06T00:00:00Z"),
+                version,
+                payload
+        );
+    }
+
+    private static SocialContractEvent socialEvent(String eventId, String eventType, long version, Object payload) {
+        return new SocialContractEvent(
+                eventId,
+                null,
+                null,
+                eventType,
+                Instant.parse("2026-07-06T00:00:00Z"),
+                version,
+                payload
+        );
     }
 
     private static CommentPayload commentPayload() {

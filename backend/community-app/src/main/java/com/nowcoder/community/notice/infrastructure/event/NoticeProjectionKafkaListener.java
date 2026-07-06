@@ -41,6 +41,7 @@ public class NoticeProjectionKafkaListener {
         }
         noticeProjectionApplicationService.projectContentEventReliably(new ProjectContentNoticeCommand(
                 event.eventId(),
+                event.version(),
                 event.type(),
                 normalizeContentPayload(event.type(), event.payload())
         ));
@@ -57,6 +58,7 @@ public class NoticeProjectionKafkaListener {
         }
         noticeProjectionApplicationService.projectSocialEventReliably(new ProjectSocialNoticeCommand(
                 event.eventId(),
+                event.version(),
                 event.type(),
                 normalizeSocialPayload(event.type(), event.payload())
         ));

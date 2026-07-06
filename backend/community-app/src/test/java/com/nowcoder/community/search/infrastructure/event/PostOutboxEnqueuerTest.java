@@ -35,7 +35,15 @@ class PostOutboxEnqueuerTest {
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
 
-        enqueuer.onContentEvent(new ContentContractEvent("evt-s1", ContentEventTypes.POST_UPDATED, payload));
+        enqueuer.onContentEvent(new ContentContractEvent(
+                "evt-s1",
+                null,
+                null,
+                ContentEventTypes.POST_UPDATED,
+                java.time.Instant.parse("2026-07-06T00:00:00Z"),
+                41L,
+                payload
+        ));
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
         verify(store).enqueue(org.mockito.ArgumentMatchers.eq("evt-s1:search_post"), org.mockito.ArgumentMatchers.eq(topic), org.mockito.ArgumentMatchers.eq(postId.toString()), payloadCaptor.capture());
@@ -43,6 +51,6 @@ class PostOutboxEnqueuerTest {
         JsonNode json = objectMapper.readTree(payloadCaptor.getValue());
         assertThat(json.path("postId").asText()).isEqualTo(postId.toString());
         assertThat(json.path("sourceEventId").asText()).isEqualTo("evt-s1");
-        assertThat(json.path("sourceEventType").asText()).isEqualTo(ContentEventTypes.POST_UPDATED);
+        assertThat(json.path("sourceVersion").asLong()).isEqualTo(41L);
     }
 }

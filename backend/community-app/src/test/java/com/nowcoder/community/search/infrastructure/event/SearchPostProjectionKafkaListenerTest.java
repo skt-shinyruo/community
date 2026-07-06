@@ -12,6 +12,7 @@ import com.nowcoder.community.search.application.command.ProjectPostOutboxComman
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Instant;
 import java.util.Map;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -31,14 +32,14 @@ class SearchPostProjectionKafkaListenerTest {
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(100));
 
-        listener.onContentEvent(new ContentContractEvent("evt-post-updated", ContentEventTypes.POST_UPDATED, payload));
+        listener.onContentEvent(contentEvent("evt-post-updated", ContentEventTypes.POST_UPDATED, 42L, payload));
 
         ArgumentCaptor<ProjectPostOutboxCommand> captor = ArgumentCaptor.forClass(ProjectPostOutboxCommand.class);
         verify(applicationService).projectPostFromOutbox(captor.capture());
         assertThat(captor.getValue()).isEqualTo(new ProjectPostOutboxCommand(
                 uuid(100),
                 "evt-post-updated",
-                ContentEventTypes.POST_UPDATED
+                42L
         ));
     }
 
@@ -47,9 +48,10 @@ class SearchPostProjectionKafkaListenerTest {
         SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
         SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(jsonCodec, applicationService);
 
-        listener.onContentEvent(new ContentContractEvent(
+        listener.onContentEvent(contentEvent(
                 "evt-post-map",
                 ContentEventTypes.POST_UPDATED,
+                43L,
                 Map.of("postId", uuid(101).toString())
         ));
 
@@ -58,7 +60,7 @@ class SearchPostProjectionKafkaListenerTest {
         assertThat(captor.getValue()).isEqualTo(new ProjectPostOutboxCommand(
                 uuid(101),
                 "evt-post-map",
-                ContentEventTypes.POST_UPDATED
+                43L
         ));
     }
 
@@ -86,5 +88,17 @@ class SearchPostProjectionKafkaListenerTest {
         listener.onContentEvent(new ContentContractEvent("evt-post-map-missing", ContentEventTypes.POST_DELETED, Map.of("userId", uuid(7).toString())));
 
         verifyNoInteractions(applicationService);
+    }
+
+    private static ContentContractEvent contentEvent(String eventId, String type, long version, Object payload) {
+        return new ContentContractEvent(
+                eventId,
+                null,
+                null,
+                type,
+                Instant.parse("2026-07-06T00:00:00Z"),
+                version,
+                payload
+        );
     }
 }

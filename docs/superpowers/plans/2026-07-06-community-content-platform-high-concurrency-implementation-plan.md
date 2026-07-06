@@ -109,6 +109,8 @@
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/application/command/ProjectPostOutboxCommand.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/application/SearchPostProjectionApplicationService.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/SearchPostProjectionKafkaListener.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/PostOutboxEnqueuer.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/PostOutboxHandler.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/notice/application/NoticePolicyProperties.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/notice/application/command/ProjectContentNoticeCommand.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/notice/application/command/ProjectSocialNoticeCommand.java`
@@ -117,6 +119,8 @@
 - Modify: `backend/community-app/src/main/resources/application.yml`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/search/application/SearchPostProjectionApplicationServiceTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/event/SearchPostProjectionKafkaListenerTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/event/PostOutboxEnqueuerTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/event/PostOutboxHandlerTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/notice/application/NoticeProjectionApplicationServiceTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/notice/infrastructure/event/NoticeProjectionKafkaListenerTest.java`
 
@@ -923,6 +927,8 @@ git commit -m "feat: cache first-page comments and tighten counter flush"
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/application/command/ProjectPostOutboxCommand.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/application/SearchPostProjectionApplicationService.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/SearchPostProjectionKafkaListener.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/PostOutboxEnqueuer.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/PostOutboxHandler.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/notice/application/NoticePolicyProperties.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/notice/application/command/ProjectContentNoticeCommand.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/notice/application/command/ProjectSocialNoticeCommand.java`
@@ -931,6 +937,8 @@ git commit -m "feat: cache first-page comments and tighten counter flush"
 - Modify: `backend/community-app/src/main/resources/application.yml`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/search/application/SearchPostProjectionApplicationServiceTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/event/SearchPostProjectionKafkaListenerTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/event/PostOutboxEnqueuerTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/event/PostOutboxHandlerTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/notice/application/NoticeProjectionApplicationServiceTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/notice/infrastructure/event/NoticeProjectionKafkaListenerTest.java`
 
@@ -940,7 +948,7 @@ git commit -m "feat: cache first-page comments and tighten counter flush"
 - Produces: `ProjectSocialNoticeCommand(String sourceEventId, long sourceVersion, String eventType, Object payload)`
 - Produces: `SearchPolicyProperties.projectionEnabled` and `NoticePolicyProperties.projectionEnabled`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
 @Test
@@ -963,13 +971,13 @@ void reliableContentProjectionShouldSkipWhenProjectionDisabled() {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && mvn test -pl :community-app -Dtest=SearchPostProjectionApplicationServiceTest,SearchPostProjectionKafkaListenerTest,NoticeProjectionApplicationServiceTest,NoticeProjectionKafkaListenerTest`
 
 Expected: FAIL because commands do not yet carry source version, and search/notice policy objects do not expose projection toggles.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 ```java
 public record ProjectPostOutboxCommand(UUID postId, String sourceEventId, long sourceVersion) {
@@ -1044,19 +1052,21 @@ notice:
   projection-enabled: ${NOTICE_PROJECTION_ENABLED:true}
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd backend && mvn test -pl :community-app -Dtest=SearchPostProjectionApplicationServiceTest,SearchPostProjectionKafkaListenerTest,NoticeProjectionApplicationServiceTest,NoticeProjectionKafkaListenerTest`
 
 Expected: PASS with search and notice projection tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/community-app/src/main/java/com/nowcoder/community/search/application/SearchPolicyProperties.java \
         backend/community-app/src/main/java/com/nowcoder/community/search/application/command/ProjectPostOutboxCommand.java \
         backend/community-app/src/main/java/com/nowcoder/community/search/application/SearchPostProjectionApplicationService.java \
         backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/SearchPostProjectionKafkaListener.java \
+        backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/PostOutboxEnqueuer.java \
+        backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/PostOutboxHandler.java \
         backend/community-app/src/main/java/com/nowcoder/community/notice/application/NoticePolicyProperties.java \
         backend/community-app/src/main/java/com/nowcoder/community/notice/application/command/ProjectContentNoticeCommand.java \
         backend/community-app/src/main/java/com/nowcoder/community/notice/application/command/ProjectSocialNoticeCommand.java \
@@ -1065,6 +1075,8 @@ git add backend/community-app/src/main/java/com/nowcoder/community/search/applic
         backend/community-app/src/main/resources/application.yml \
         backend/community-app/src/test/java/com/nowcoder/community/search/application/SearchPostProjectionApplicationServiceTest.java \
         backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/event/SearchPostProjectionKafkaListenerTest.java \
+        backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/event/PostOutboxEnqueuerTest.java \
+        backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/event/PostOutboxHandlerTest.java \
         backend/community-app/src/test/java/com/nowcoder/community/notice/application/NoticeProjectionApplicationServiceTest.java \
         backend/community-app/src/test/java/com/nowcoder/community/notice/infrastructure/event/NoticeProjectionKafkaListenerTest.java
 git commit -m "feat: add projection guardrails for search and notice"

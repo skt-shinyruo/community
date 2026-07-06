@@ -59,7 +59,7 @@ public class PostOutboxHandler implements OutboxHandler {
         projectionApplicationService.projectPostFromOutbox(new ProjectPostOutboxCommand(
                 payload.getPostId(),
                 payload.getSourceEventId(),
-                payload.getSourceEventType()
+                payload.getSourceVersion()
         ));
     }
 
@@ -67,7 +67,7 @@ public class PostOutboxHandler implements OutboxHandler {
 
         private UUID postId;
         private String sourceEventId;
-        private String sourceEventType;
+        private long sourceVersion;
 
         public UUID getPostId() {
             return postId;
@@ -85,12 +85,12 @@ public class PostOutboxHandler implements OutboxHandler {
             this.sourceEventId = sourceEventId;
         }
 
-        public String getSourceEventType() {
-            return sourceEventType;
+        public long getSourceVersion() {
+            return sourceVersion;
         }
 
-        public void setSourceEventType(String sourceEventType) {
-            this.sourceEventType = sourceEventType;
+        public void setSourceVersion(long sourceVersion) {
+            this.sourceVersion = sourceVersion;
         }
     }
 }

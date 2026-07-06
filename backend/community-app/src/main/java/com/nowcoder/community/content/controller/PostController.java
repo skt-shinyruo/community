@@ -2,6 +2,8 @@ package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.command.PostContentBlockCommand;
+import com.nowcoder.community.content.application.command.RecordPostViewCommand;
+import com.nowcoder.community.content.application.PostCounterApplicationService;
 import com.nowcoder.community.content.application.PostPublishingApplicationService;
 import com.nowcoder.community.content.application.result.CommentResult;
 import com.nowcoder.community.content.application.result.PostCreateResult;
@@ -24,8 +26,10 @@ import com.nowcoder.community.content.application.PostReadApplicationService;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,6 +42,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @RestController
@@ -49,19 +55,22 @@ public class PostController {
     private final PostPublishingApplicationService postPublishingApplicationService;
     private final PostModerationApplicationService postModerationApplicationService;
     private final CommentApplicationService commentApplicationService;
+    private final PostCounterApplicationService postCounterApplicationService;
 
     public PostController(
             PostReadApplicationService postReadApplicationService,
             CommentReadApplicationService commentReadApplicationService,
             PostPublishingApplicationService postPublishingApplicationService,
             PostModerationApplicationService postModerationApplicationService,
-            CommentApplicationService commentApplicationService
+            CommentApplicationService commentApplicationService,
+            PostCounterApplicationService postCounterApplicationService
     ) {
         this.postReadApplicationService = postReadApplicationService;
         this.commentReadApplicationService = commentReadApplicationService;
         this.postPublishingApplicationService = postPublishingApplicationService;
         this.postModerationApplicationService = postModerationApplicationService;
         this.commentApplicationService = commentApplicationService;
+        this.postCounterApplicationService = postCounterApplicationService;
     }
 
     @GetMapping
@@ -107,9 +116,18 @@ public class PostController {
     }
 
     @GetMapping("/{postId}")
-    public Result<PostDetailResponse> detail(Authentication authentication, @PathVariable UUID postId) {
+    public Result<PostDetailResponse> detail(
+            Authentication authentication,
+            HttpServletRequest request,
+            @PathVariable UUID postId
+    ) {
         UUID currentUserId = CurrentUser.tryUserUuid(authentication);
         PostDetailResult detail = postReadApplicationService.getPostDetail(currentUserId, postId);
+        postCounterApplicationService.recordView(new RecordPostViewCommand(
+                postId,
+                viewerFingerprint(authentication, request),
+                Instant.now()
+        ));
         return Result.ok(PostDetailResponse.from(detail));
     }
 
@@ -236,5 +254,34 @@ public class PostController {
                         block.getMetadata()
                 ))
                 .toList();
+    }
+
+    private static String viewerFingerprint(Authentication authentication, HttpServletRequest request) {
+        UUID currentUserId = CurrentUser.tryUserUuid(authentication);
+        if (currentUserId != null) {
+            return "auth:" + currentUserId;
+        }
+        return "anon:" + remoteAddress(request) + "|" + userAgent(request);
+    }
+
+    private static String remoteAddress(HttpServletRequest request) {
+        if (request == null) {
+            return "";
+        }
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (StringUtils.hasText(forwarded)) {
+            String first = forwarded.split(",")[0].trim();
+            if (!first.isEmpty()) {
+                return first;
+            }
+        }
+        return Objects.toString(request.getRemoteAddr(), "");
+    }
+
+    private static String userAgent(HttpServletRequest request) {
+        if (request == null) {
+            return "";
+        }
+        return Objects.toString(request.getHeader("User-Agent"), "");
     }
 }

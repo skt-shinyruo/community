@@ -76,13 +76,14 @@ Implementation note:
 - `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostCounterCache.java`: Redis counter cache port.
 - `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostCounterApplicationService.java`: counter read/write orchestration.
 - `backend/community-app/src/main/java/com/nowcoder/community/content/application/command/RecordPostViewCommand.java`: typed detail-view signal.
+- `backend/community-app/src/main/java/com/nowcoder/community/content/domain/model/PostCounterSnapshot.java`: counter/score snapshot value object.
 - `backend/community-app/src/main/java/com/nowcoder/community/content/domain/repository/PostCounterSnapshotRepository.java`: durable snapshot repository interface.
 - `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/MyBatisPostCounterSnapshotRepository.java`: snapshot persistence implementation.
 - `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/RedisPostCounterCache.java`: Redis counter and dedupe implementation.
 - `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/mapper/PostCounterSnapshotMapper.java`: MyBatis mapper for counter/score snapshots.
 - `backend/community-app/src/main/resources/mapper/post_counter_snapshot_mapper.xml`: SQL for snapshot persistence.
 - `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/job/PostCounterSnapshotFlushJob.java`: scheduled snapshot flusher.
-- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/web/PostViewFingerprintResolver.java`: request/IP/session-to-viewer-key helper.
+- `backend/community-app/src/main/java/com/nowcoder/community/content/controller/PostController.java`: inline request/IP fingerprint helper for post detail views.
 - `deploy/mysql/community/040_schema_content_core.sql`: content schema changes for comment shape and snapshot tables.
 - `backend/community-app/src/main/java/com/nowcoder/community/content/application/command/CreateCommentCommand.java`: new root/parent/reply-to comment command shape.
 - `backend/community-app/src/main/java/com/nowcoder/community/content/application/result/{CommentPageResult.java,CommentResult.java}`: cursor comment page and item results.
@@ -692,13 +693,13 @@ git commit -m "feat: project hot feed from durable events"
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostCounterCache.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostCounterApplicationService.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/command/RecordPostViewCommand.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/content/domain/model/PostCounterSnapshot.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/domain/repository/PostCounterSnapshotRepository.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/MyBatisPostCounterSnapshotRepository.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/RedisPostCounterCache.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/mapper/PostCounterSnapshotMapper.java`
 - Create: `backend/community-app/src/main/resources/mapper/post_counter_snapshot_mapper.xml`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/job/PostCounterSnapshotFlushJob.java`
-- Create: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/web/PostViewFingerprintResolver.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/controller/PostController.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostReadApplicationService.java`
 - Create: `backend/community-app/src/test/java/com/nowcoder/community/content/application/PostCounterApplicationServiceTest.java`
@@ -711,7 +712,7 @@ git commit -m "feat: project hot feed from durable events"
   - `PostCounterApplicationService.read(UUID postId): PostCounterSnapshot`
   - `PostCounterSnapshotRepository.upsert(UUID postId, long viewCount, long likeCount, long commentCount, long bookmarkCount, double score): void`
 
-- [ ] **Step 1: Write the failing counter/view tests**
+- [x] **Step 1: Write the failing counter/view tests**
 
 Create `PostCounterApplicationServiceTest.java`:
 
@@ -735,7 +736,7 @@ verify(postCounterApplicationService).recordView(argThat(cmd ->
         cmd.viewerKey().startsWith("auth:")));
 ```
 
-- [ ] **Step 2: Run the counter/view tests and verify they fail**
+- [x] **Step 2: Run the counter/view tests and verify they fail**
 
 Run:
 
@@ -744,9 +745,9 @@ cd backend
 mvn test -pl :community-app -am -Dtest=PostCounterApplicationServiceTest,PostControllerUnitTest
 ```
 
-Expected: FAIL because the counter cache/service, viewer fingerprint resolver, and snapshot repository do not exist.
+Expected: FAIL because the counter cache/service and snapshot repository do not exist, and `PostController.detail(...)` does not yet accept the request argument.
 
-- [ ] **Step 3: Implement Redis counters, view dedupe, and snapshot tables**
+- [x] **Step 3: Implement Redis counters, view dedupe, and snapshot tables**
 
 In `deploy/mysql/community/040_schema_content_core.sql`, add:
 
@@ -801,7 +802,7 @@ public Result<PostDetailResponse> detail(Authentication authentication,
     PostDetailResult detail = postReadApplicationService.getPostDetail(currentUserId, postId);
     postCounterApplicationService.recordView(new RecordPostViewCommand(
             postId,
-            postViewFingerprintResolver.resolve(authentication, request),
+            viewerFingerprint(authentication, request),
             Instant.now()
     ));
     return Result.ok(PostDetailResponse.from(detail));
@@ -810,7 +811,7 @@ public Result<PostDetailResponse> detail(Authentication authentication,
 
 Add `PostCounterSnapshotFlushJob` to periodically persist Redis counters and the latest projected score into the new snapshot tables.
 
-- [ ] **Step 4: Run the counter/view tests and verify they pass**
+- [x] **Step 4: Run the counter/view tests and verify they pass**
 
 Run:
 
@@ -821,20 +822,20 @@ mvn test -pl :community-app -am -Dtest=PostCounterApplicationServiceTest,PostCon
 
 Expected: PASS, with detail requests recording deduplicated views and detail reads sourcing counters from the counter service.
 
-- [ ] **Step 5: Commit the counter pipeline**
+- [x] **Step 5: Commit the counter pipeline**
 
 ```bash
 git add deploy/mysql/community/040_schema_content_core.sql \
   backend/community-app/src/main/java/com/nowcoder/community/content/application/PostCounterCache.java \
   backend/community-app/src/main/java/com/nowcoder/community/content/application/PostCounterApplicationService.java \
   backend/community-app/src/main/java/com/nowcoder/community/content/application/command/RecordPostViewCommand.java \
+  backend/community-app/src/main/java/com/nowcoder/community/content/domain/model/PostCounterSnapshot.java \
   backend/community-app/src/main/java/com/nowcoder/community/content/domain/repository/PostCounterSnapshotRepository.java \
   backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/MyBatisPostCounterSnapshotRepository.java \
   backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/RedisPostCounterCache.java \
   backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/mapper/PostCounterSnapshotMapper.java \
   backend/community-app/src/main/resources/mapper/post_counter_snapshot_mapper.xml \
   backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/job/PostCounterSnapshotFlushJob.java \
-  backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/web/PostViewFingerprintResolver.java \
   backend/community-app/src/main/java/com/nowcoder/community/content/controller/PostController.java \
   backend/community-app/src/main/java/com/nowcoder/community/content/application/PostReadApplicationService.java \
   backend/community-app/src/test/java/com/nowcoder/community/content/application/PostCounterApplicationServiceTest.java \

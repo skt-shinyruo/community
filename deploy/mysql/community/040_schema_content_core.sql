@@ -151,6 +151,22 @@ create table if not exists user_subscription_category (
   key idx_user_sub_category_user (user_id, create_time)
 );
 
+create table if not exists post_counter_snapshot (
+  post_id binary(16) primary key,
+  view_count bigint not null default 0,
+  like_count bigint not null default 0,
+  comment_count bigint not null default 0,
+  bookmark_count bigint not null default 0,
+  snapshot_time timestamp null default current_timestamp on update current_timestamp
+);
+
+create table if not exists post_score_snapshot (
+  post_id binary(16) primary key,
+  score double not null default 0,
+  rank_version varchar(64) not null,
+  snapshot_time timestamp null default current_timestamp on update current_timestamp
+);
+
 insert ignore into category(name, description, position) values
   ('公告', '官方公告/规则', 0),
   ('技术', '技术讨论/问题求助', 10),

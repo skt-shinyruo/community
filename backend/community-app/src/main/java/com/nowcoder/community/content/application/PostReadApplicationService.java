@@ -8,6 +8,7 @@ import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
 import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
+import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostScanResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
@@ -32,6 +33,7 @@ public class PostReadApplicationService {
     private final TagContentRepository tagContentPort;
     private final BookmarkRepository bookmarkContentPort;
     private final SubscriptionRepository subscriptionContentPort;
+    private final PostCounterApplicationService postCounterApplicationService;
     private final PostContentBlockRepository postContentBlockRepository;
     private final PostMediaAssetRepository postMediaAssetRepository;
     private final PostDetailCache postDetailCache;
@@ -48,6 +50,7 @@ public class PostReadApplicationService {
             TagContentRepository tagContentPort,
             BookmarkRepository bookmarkContentPort,
             SubscriptionRepository subscriptionContentPort,
+            PostCounterApplicationService postCounterApplicationService,
             PostContentBlockRepository postContentBlockRepository,
             PostMediaAssetRepository postMediaAssetRepository,
             PostDetailCache postDetailCache,
@@ -63,6 +66,7 @@ public class PostReadApplicationService {
         this.tagContentPort = tagContentPort;
         this.bookmarkContentPort = bookmarkContentPort;
         this.subscriptionContentPort = subscriptionContentPort;
+        this.postCounterApplicationService = postCounterApplicationService;
         this.postContentBlockRepository = postContentBlockRepository;
         this.postMediaAssetRepository = postMediaAssetRepository;
         this.postDetailCache = postDetailCache;
@@ -105,24 +109,48 @@ public class PostReadApplicationService {
     public PostDetailResult getPostDetail(UUID currentUserId, UUID postId) {
         PostDetailResult cached = postDetailCache.get(postId);
         if (cached != null) {
-            return applyViewerOverlay(currentUserId, cached);
+            return applyViewerOverlay(currentUserId, applyCounterOverlay(cached));
         }
         PostDetailResult loaded = loadPostDetailShell(postId);
         postDetailCache.put(postId, loaded);
-        return applyViewerOverlay(currentUserId, loaded);
+        return applyViewerOverlay(currentUserId, applyCounterOverlay(loaded));
     }
 
     private PostDetailResult loadPostDetailShell(UUID postId) {
         DiscussPost post = postContentPort.getById(postId);
         List<PostContentBlock> blocks = postContentBlockRepository.listByPostId(postId);
         List<String> tags = tagContentPort.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
-        long likeCount = likeQueryService.countPostLikes(postId);
         List<UUID> assetIds = blocks.stream()
                 .map(PostContentBlock::mediaAssetId)
                 .filter(id -> id != null)
                 .distinct()
                 .toList();
-        return postDetailAssembler.assemble(post, blocks, postMediaAssetRepository.listByIds(assetIds), tags, likeCount, false, false);
+        return postDetailAssembler.assemble(post, blocks, postMediaAssetRepository.listByIds(assetIds), tags, 0L, false, false);
+    }
+
+    private PostDetailResult applyCounterOverlay(PostDetailResult detail) {
+        if (detail == null) {
+            return null;
+        }
+        PostCounterSnapshot counters = postCounterApplicationService.read(detail.id());
+        return new PostDetailResult(
+                detail.id(),
+                detail.userId(),
+                detail.title(),
+                detail.blocks(),
+                detail.type(),
+                detail.status(),
+                detail.createTime(),
+                detail.updateTime(),
+                detail.editCount(),
+                toIntCount(counters.commentCount(), detail.commentCount()),
+                counters.score(),
+                detail.categoryId(),
+                detail.tags(),
+                counters.likeCount(),
+                detail.liked(),
+                detail.bookmarked()
+        );
     }
 
     private PostDetailResult applyViewerOverlay(UUID currentUserId, PostDetailResult detail) {
@@ -263,5 +291,12 @@ public class PostReadApplicationService {
         } catch (BusinessException ex) {
             return null;
         }
+    }
+
+    private static int toIntCount(long rawCount, int fallback) {
+        if (rawCount <= 0L) {
+            return Math.max(0, fallback);
+        }
+        return rawCount >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) rawCount;
     }
 }

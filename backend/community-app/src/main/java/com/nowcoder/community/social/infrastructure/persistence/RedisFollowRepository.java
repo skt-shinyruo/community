@@ -139,6 +139,25 @@ public class RedisFollowRepository implements FollowRepository {
     }
 
     @Override
+    public List<UUID> listFolloweeIds(UUID userId, int entityType, int limit) {
+        return listFollowees(userId, entityType, 0, Math.max(1, limit)).stream()
+                .map(FollowRelation::targetId)
+                .toList();
+    }
+
+    @Override
+    public List<UUID> listFolloweeIdsExcludingBlocked(
+            UUID userId,
+            int entityType,
+            BlockRepository blockRepository,
+            int limit
+    ) {
+        return listFiltered(followeeKey(userId, entityType), userId, blockRepository, 0, Math.max(0, limit)).stream()
+                .map(FollowRelation::targetId)
+                .toList();
+    }
+
+    @Override
     public long countFolloweesExcludingBlocked(UUID userId, int entityType, BlockRepository blockRepository) {
         return countFiltered(followeeKey(userId, entityType), userId, blockRepository);
     }

@@ -1,14 +1,20 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
+import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.application.FeedReadApplicationService;
+import com.nowcoder.community.content.application.FollowFeedReadApplicationService;
 import com.nowcoder.community.content.application.result.FeedPageResult;
+import com.nowcoder.community.content.controller.dto.FeedPageResponse;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.Arrays;
 import java.util.List;
+import java.time.Instant;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -33,7 +39,7 @@ class FeedControllerTest {
     @Test
     void globalFeedShouldDelegateCursorRead() throws Exception {
         FeedReadApplicationService feedReadApplicationService = mock(FeedReadApplicationService.class);
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new FeedController(feedReadApplicationService))
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new FeedController(feedReadApplicationService, mock(FollowFeedReadApplicationService.class)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -53,7 +59,7 @@ class FeedControllerTest {
     @Test
     void boardFeedShouldDelegateBoardCursorRead() throws Exception {
         FeedReadApplicationService feedReadApplicationService = mock(FeedReadApplicationService.class);
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new FeedController(feedReadApplicationService))
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new FeedController(feedReadApplicationService, mock(FollowFeedReadApplicationService.class)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         UUID boardId = uuid(9);
@@ -69,5 +75,39 @@ class FeedControllerTest {
                 .andExpect(jsonPath("$.data.rankVersion").value("rank-board-v1"));
 
         verify(feedReadApplicationService).listBoardHotFeed(null, boardId, "cursor-9", 12);
+    }
+
+    @Test
+    void followFeedShouldDelegateAuthenticatedCursorRead() throws Exception {
+        FeedReadApplicationService feedReadApplicationService = mock(FeedReadApplicationService.class);
+        FollowFeedReadApplicationService followFeedReadApplicationService = mock(FollowFeedReadApplicationService.class);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new FeedController(feedReadApplicationService, followFeedReadApplicationService))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+        UUID viewerId = uuid(13);
+
+        when(followFeedReadApplicationService.listFollowFeed(eq(viewerId), eq("cursor-f"), eq(12)))
+                .thenReturn(new FeedPageResult(List.of(), "", "follow-v1"));
+
+        mockMvc.perform(get("/api/feed/follow")
+                        .principal(jwtAuthentication(viewerId))
+                        .param("cursor", "cursor-f")
+                        .param("size", "12"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.rankVersion").value("follow-v1"));
+
+        verify(followFeedReadApplicationService).listFollowFeed(viewerId, "cursor-f", 12);
+    }
+
+    private Authentication jwtAuthentication(UUID userId) {
+        Jwt jwt = Jwt.withTokenValue("token-" + userId)
+                .header("alg", "none")
+                .subject(userId.toString())
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(60))
+                .build();
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getPrincipal()).thenReturn(jwt);
+        return authentication;
     }
 }

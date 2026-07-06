@@ -80,6 +80,21 @@ public class MyBatisFollowRepository implements FollowRepository {
     }
 
     @Override
+    public List<UUID> listFolloweeIds(UUID userId, int entityType, int limit) {
+        return mapper.listFolloweeIds(userId, entityType, Math.min(200, Math.max(1, limit)));
+    }
+
+    @Override
+    public List<UUID> listFolloweeIdsExcludingBlocked(
+            UUID userId,
+            int entityType,
+            BlockRepository blockRepository,
+            int limit
+    ) {
+        return mapper.listFolloweeIds(userId, entityType, Math.min(200, Math.max(1, limit)));
+    }
+
+    @Override
     public List<FollowRelation> listFolloweesExcludingBlocked(
             UUID userId,
             int entityType,

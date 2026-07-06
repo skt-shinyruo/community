@@ -590,7 +590,7 @@ git commit -m "feat: harden hot feed projection"
 - Produces: `FeedPageResult listFollowFeed(UUID currentUserId, String cursor, int size)` from `FollowFeedReadApplicationService`
 - Produces: `List<UUID> getOrLoadPage(UUID userId, int page, int size, Supplier<List<UUID>> loader)` from `FollowFeedCache`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
 @Test
@@ -623,13 +623,13 @@ void globalControllerShouldExposeFollowFeedEndpoint() throws Exception {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && mvn test -pl :community-app -Dtest=FollowFeedReadApplicationServiceTest,FeedControllerTest,FollowApplicationServiceTest,SocialFollowQueryApiAdapterTest`
 
 Expected: FAIL because there is no `FollowFeedReadApplicationService`, no `/api/feed/follow` endpoint, and no social query to list followee ids.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 ```java
 public interface SocialFollowQueryApi {
@@ -737,13 +737,13 @@ public Result<FeedPageResponse> follow(
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd backend && mvn test -pl :community-app -Dtest=FollowFeedReadApplicationServiceTest,RedisFollowFeedCacheTest,FeedControllerTest,FollowApplicationServiceTest,SocialFollowQueryApiAdapterTest`
 
 Expected: PASS with the new follow-feed read model and controller path covered.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/community-app/src/main/java/com/nowcoder/community/content/application/FollowFeedCache.java \

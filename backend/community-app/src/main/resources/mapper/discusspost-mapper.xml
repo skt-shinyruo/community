@@ -67,6 +67,34 @@
           </foreach>
     </select>
 
+    <select id="selectRecentVisiblePostsByAuthorIds" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
+        select <include refid="selectFields"></include>
+        from discuss_post
+        where status = 0
+          and user_id in
+          <foreach collection="authorIds" item="authorId" open="(" separator="," close=")">
+              #{authorId, jdbcType=BINARY}
+          </foreach>
+        order by create_time desc, id desc
+        limit #{limit}
+    </select>
+
+    <select id="selectRecentVisiblePostsByAuthorIdsBefore" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
+        select <include refid="selectFields"></include>
+        from discuss_post
+        where status = 0
+          and user_id in
+          <foreach collection="authorIds" item="authorId" open="(" separator="," close=")">
+              #{authorId, jdbcType=BINARY}
+          </foreach>
+          and (
+              create_time &lt; #{beforeCreateTime}
+              or (create_time = #{beforeCreateTime} and id &lt; #{beforePostId, jdbcType=BINARY})
+          )
+        order by create_time desc, id desc
+        limit #{limit}
+    </select>
+
     <select id="selectDiscussPostRows" resultType="int">
         select count(id)
         from discuss_post

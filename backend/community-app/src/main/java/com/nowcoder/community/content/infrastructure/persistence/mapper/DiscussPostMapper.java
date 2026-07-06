@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Date;
 import java.util.UUID;
 
 @Mapper
@@ -22,6 +23,15 @@ public interface DiscussPostMapper {
     );
 
     List<DiscussPost> selectDiscussPostsByIds(@Param("postIds") List<UUID> postIds);
+
+    List<DiscussPost> selectRecentVisiblePostsByAuthorIds(@Param("authorIds") List<UUID> authorIds, @Param("limit") int limit);
+
+    List<DiscussPost> selectRecentVisiblePostsByAuthorIdsBefore(
+            @Param("authorIds") List<UUID> authorIds,
+            @Param("beforeCreateTime") Date beforeCreateTime,
+            @Param("beforePostId") UUID beforePostId,
+            @Param("limit") int limit
+    );
 
     /**
      * 供内部重建索引等后台任务使用：按主键游标向后扫描帖子，避免 offset 分页在大表上的性能问题。

@@ -33,6 +33,19 @@ public interface FollowRepository {
 
     List<FollowRelation> listFollowers(int entityType, UUID entityId, int offset, int limit);
 
+    List<UUID> listFolloweeIds(UUID userId, int entityType, int limit);
+
+    default List<UUID> listFolloweeIdsExcludingBlocked(
+            UUID userId,
+            int entityType,
+            BlockRepository blockRepository,
+            int limit
+    ) {
+        return listFolloweesExcludingBlocked(userId, entityType, blockRepository, 0, Math.max(0, limit)).stream()
+                .map(FollowRelation::targetId)
+                .toList();
+    }
+
     default List<FollowRelation> listFolloweesExcludingBlocked(
             UUID userId,
             int entityType,

@@ -123,6 +123,12 @@ public class FollowApplicationService {
         return followRepository.countFollowersExcludingBlocked(entityType, entityId, blockRepository);
     }
 
+    public List<UUID> listFolloweeIds(UUID userId, int limit) {
+        validateFollowUserQuery(userId, USER);
+        int safeLimit = Math.min(200, Math.max(1, limit));
+        return followRepository.listFolloweeIdsExcludingBlocked(userId, USER, blockRepository, safeLimit);
+    }
+
     public List<FollowRelationResult> listFollowees(UUID userId, int entityType, int page, int size) {
         validateFollowUserQuery(userId, entityType);
         int p = Math.max(0, page);

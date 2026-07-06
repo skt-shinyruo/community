@@ -2,9 +2,7 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.content.application.result.FeedPageResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
-import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
-import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.domain.repository.CommentContentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
@@ -12,8 +10,6 @@ import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -24,14 +20,26 @@ public class FeedReadApplicationService {
 
     private final PostFeedCache postFeedCache;
     private final PostContentRepository postContentRepository;
-    private final CommentContentRepository commentContentRepository;
-    private final TagContentRepository tagContentRepository;
-    private final PostContentBlockRepository postContentBlockRepository;
     private final PostSummaryCache postSummaryCache;
-    private final PostContentBlockTextProjector postContentBlockTextProjector;
-    private final PostSummaryAssembler postSummaryAssembler;
+    private final PostFeedSummaryLoader postFeedSummaryLoader;
     private final FeedCursorCodec feedCursorCodec;
     private final ContentFeedPolicyProperties policyProperties;
+
+    public FeedReadApplicationService(
+            PostFeedCache postFeedCache,
+            PostContentRepository postContentRepository,
+            PostSummaryCache postSummaryCache,
+            PostFeedSummaryLoader postFeedSummaryLoader,
+            FeedCursorCodec feedCursorCodec,
+            ContentFeedPolicyProperties policyProperties
+    ) {
+        this.postFeedCache = postFeedCache;
+        this.postContentRepository = postContentRepository;
+        this.postSummaryCache = postSummaryCache;
+        this.postFeedSummaryLoader = postFeedSummaryLoader;
+        this.feedCursorCodec = feedCursorCodec;
+        this.policyProperties = policyProperties == null ? new ContentFeedPolicyProperties() : policyProperties;
+    }
 
     public FeedReadApplicationService(
             PostFeedCache postFeedCache,
@@ -45,16 +53,22 @@ public class FeedReadApplicationService {
             FeedCursorCodec feedCursorCodec,
             ContentFeedPolicyProperties policyProperties
     ) {
-        this.postFeedCache = postFeedCache;
-        this.postContentRepository = postContentRepository;
-        this.commentContentRepository = commentContentRepository;
-        this.tagContentRepository = tagContentRepository;
-        this.postContentBlockRepository = postContentBlockRepository;
-        this.postSummaryCache = postSummaryCache;
-        this.postContentBlockTextProjector = postContentBlockTextProjector;
-        this.postSummaryAssembler = postSummaryAssembler;
-        this.feedCursorCodec = feedCursorCodec;
-        this.policyProperties = policyProperties == null ? new ContentFeedPolicyProperties() : policyProperties;
+        this(
+                postFeedCache,
+                postContentRepository,
+                postSummaryCache,
+                new PostFeedSummaryLoader(
+                        postContentRepository,
+                        commentContentRepository,
+                        tagContentRepository,
+                        postContentBlockRepository,
+                        postSummaryCache,
+                        postContentBlockTextProjector,
+                        postSummaryAssembler
+                ),
+                feedCursorCodec,
+                policyProperties
+        );
     }
 
     public FeedReadApplicationService(
@@ -118,31 +132,11 @@ public class FeedReadApplicationService {
         return ids == null ? List.of() : ids;
     }
 
-    private List<PostSummaryResult> readSummaries(List<UUID> postIds) {
-        if (postIds == null || postIds.isEmpty()) {
-            return List.of();
-        }
-        Map<UUID, PostSummaryResult> cachedEntries = postSummaryCache.getAll(postIds);
-        Map<UUID, PostSummaryResult> cached = new java.util.LinkedHashMap<>(cachedEntries == null ? Map.of() : cachedEntries);
-        List<UUID> missingIds = postIds.stream()
-                .filter(id -> !cached.containsKey(id))
-                .toList();
-        if (!missingIds.isEmpty()) {
-            List<PostSummaryResult> loaded = assembleSummaries(postContentRepository.listPostsByIds(missingIds));
-            postSummaryCache.putAll(loaded);
-            loaded.forEach(item -> cached.put(item.id(), item));
-        }
-        return postIds.stream()
-                .map(cached::get)
-                .filter(Objects::nonNull)
-                .toList();
-    }
-
     private LoadedFeedPage loadHotPage(String cursor, int page, int limit, UUID boardId) {
         String encodedCursor = feedCursorCodec.encodePage(page, limit);
         List<UUID> ids = readFeedIds(page == 0 ? cursor : encodedCursor, limit, boardId);
         if (!ids.isEmpty()) {
-            List<PostSummaryResult> items = filterBoardItems(readSummaries(ids), boardId);
+            List<PostSummaryResult> items = filterBoardItems(postFeedSummaryLoader.readSummaries(ids), boardId);
             return new LoadedFeedPage(items, hasNextCachedPage(page, limit, boardId), postFeedCache.readRankVersion());
         }
         List<DiscussPost> fallbackPosts = listFallbackPosts(page, limit, boardId);
@@ -151,7 +145,7 @@ public class FeedReadApplicationService {
         }
         String rankVersion = policyProperties.getHotRankVersion();
         warmFeedCache(fallbackPosts, boardId, rankVersion);
-        List<PostSummaryResult> items = filterBoardItems(assembleSummaries(fallbackPosts), boardId);
+        List<PostSummaryResult> items = filterBoardItems(postFeedSummaryLoader.assembleSummaries(fallbackPosts), boardId);
         postSummaryCache.putAll(items);
         return new LoadedFeedPage(items, !listFallbackPosts(page + 1, limit, boardId).isEmpty(), rankVersion);
     }
@@ -186,25 +180,6 @@ public class FeedReadApplicationService {
     private int normalizeRequestedSize(int size) {
         return Math.min(MAX_SIZE, Math.max(1, size <= 0 ? DEFAULT_SIZE : size));
     }
-
-    private List<PostSummaryResult> assembleSummaries(List<DiscussPost> posts) {
-        if (posts == null || posts.isEmpty()) {
-            return List.of();
-        }
-        List<UUID> postIds = posts.stream().map(DiscussPost::getId).toList();
-        Map<UUID, Comment> lastActivities = commentContentRepository.getLatestPostActivitiesByPostIds(postIds);
-        Map<UUID, List<String>> tagsByPostId = tagContentRepository.getTagsByPostIds(postIds);
-        Map<UUID, List<PostContentBlock>> blocksByPostId = postContentBlockRepository.listByPostIds(postIds);
-        return posts.stream()
-                .map(post -> postSummaryAssembler.assemble(
-                        post,
-                        lastActivities.get(post.getId()),
-                        tagsByPostId.get(post.getId()),
-                        postContentBlockTextProjector.preview(blocksByPostId.get(post.getId()), 240)
-                ))
-                .toList();
-    }
-
     private record LoadedFeedPage(List<PostSummaryResult> items, boolean hasNext, String rankVersion) {
     }
 }

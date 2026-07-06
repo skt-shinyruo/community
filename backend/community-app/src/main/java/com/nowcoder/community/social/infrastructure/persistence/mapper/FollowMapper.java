@@ -82,6 +82,25 @@ public interface FollowMapper {
     );
 
     @Select("""
+            select f.entity_id
+            from social_follow f
+            where f.user_id = #{userId, jdbcType=BINARY}
+              and f.entity_type = #{entityType}
+              and not exists (
+                select 1 from social_block b
+                where (b.user_id = #{userId, jdbcType=BINARY} and b.target_user_id = f.entity_id)
+                   or (b.user_id = f.entity_id and b.target_user_id = #{userId, jdbcType=BINARY})
+              )
+            order by f.created_at desc
+            limit #{limit}
+            """)
+    List<UUID> listFolloweeIds(
+            @Param("userId") UUID userId,
+            @Param("entityType") int entityType,
+            @Param("limit") int limit
+    );
+
+    @Select("""
             select f.entity_id as targetId, f.created_at as followTime
             from social_follow f
             where f.user_id = #{userId, jdbcType=BINARY}

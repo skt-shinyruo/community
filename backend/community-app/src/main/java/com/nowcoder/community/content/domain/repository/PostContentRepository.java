@@ -19,6 +19,10 @@ public interface PostContentRepository {
 
     List<DiscussPost> listPostsByIds(List<UUID> postIds);
 
+    List<DiscussPost> listRecentVisiblePostsByAuthorIds(List<UUID> authorIds, int limit);
+
+    List<DiscussPost> listRecentVisiblePostsByAuthorIdsBefore(List<UUID> authorIds, Date beforeCreateTime, UUID beforePostId, int limit);
+
     List<DiscussPost> scanAfterId(UUID afterId, int limit);
 
     DiscussPost getById(UUID postId);

@@ -4,6 +4,7 @@ import com.nowcoder.community.social.api.query.SocialFollowQueryApi;
 import com.nowcoder.community.social.application.FollowApplicationService;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -28,5 +29,10 @@ public final class SocialFollowQueryApiAdapter implements SocialFollowQueryApi {
     @Override
     public long followerCount(int entityType, UUID entityId) {
         return delegate.followerCount(entityType, entityId);
+    }
+
+    @Override
+    public List<UUID> listFolloweeIds(UUID userId, int limit) {
+        return delegate.listFolloweeIds(userId, limit);
     }
 }

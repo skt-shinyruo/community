@@ -93,6 +93,53 @@ public class MyBatisPostContentRepository implements PostContentRepository {
     }
 
     @Override
+    public List<DiscussPost> listRecentVisiblePostsByAuthorIds(List<UUID> authorIds, int limit) {
+        List<UUID> boundedAuthorIds = sanitizeAuthorIds(authorIds);
+        if (boundedAuthorIds.isEmpty()) {
+            return List.of();
+        }
+        int safeLimit = Math.max(1, limit);
+        List<DiscussPost> rows = discussPostMapper.selectRecentVisiblePostsByAuthorIds(boundedAuthorIds, safeLimit);
+        return rows == null ? List.of() : rows;
+    }
+
+    @Override
+    public List<DiscussPost> listRecentVisiblePostsByAuthorIdsBefore(List<UUID> authorIds, Date beforeCreateTime, UUID beforePostId, int limit) {
+        List<UUID> boundedAuthorIds = sanitizeAuthorIds(authorIds);
+        if (boundedAuthorIds.isEmpty() || beforeCreateTime == null || beforePostId == null) {
+            return List.of();
+        }
+        int safeLimit = Math.max(1, limit);
+        List<DiscussPost> rows = discussPostMapper.selectRecentVisiblePostsByAuthorIdsBefore(
+                boundedAuthorIds,
+                beforeCreateTime,
+                beforePostId,
+                safeLimit
+        );
+        return rows == null ? List.of() : rows;
+    }
+
+    private List<UUID> sanitizeAuthorIds(List<UUID> authorIds) {
+        if (authorIds == null || authorIds.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashMap<UUID, Boolean> orderedIds = new LinkedHashMap<>();
+        for (UUID authorId : authorIds) {
+            if (authorId == null) {
+                continue;
+            }
+            orderedIds.putIfAbsent(authorId, Boolean.TRUE);
+            if (orderedIds.size() >= 200) {
+                break;
+            }
+        }
+        if (orderedIds.isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(orderedIds.keySet());
+    }
+
+    @Override
     public List<DiscussPost> scanAfterId(UUID afterId, int limit) {
         int safeLimit = limit <= 0 ? 500 : Math.min(1000, Math.max(1, limit));
         List<DiscussPost> posts = discussPostMapper.selectDiscussPostsAfterId(afterId, safeLimit);

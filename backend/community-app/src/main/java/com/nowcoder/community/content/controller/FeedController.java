@@ -2,6 +2,7 @@ package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.application.FeedReadApplicationService;
+import com.nowcoder.community.content.application.FollowFeedReadApplicationService;
 import com.nowcoder.community.content.application.result.FeedPageResult;
 import com.nowcoder.community.content.controller.dto.FeedPageResponse;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
@@ -19,9 +20,14 @@ import java.util.UUID;
 public class FeedController {
 
     private final FeedReadApplicationService feedReadApplicationService;
+    private final FollowFeedReadApplicationService followFeedReadApplicationService;
 
-    public FeedController(FeedReadApplicationService feedReadApplicationService) {
+    public FeedController(
+            FeedReadApplicationService feedReadApplicationService,
+            FollowFeedReadApplicationService followFeedReadApplicationService
+    ) {
         this.feedReadApplicationService = feedReadApplicationService;
+        this.followFeedReadApplicationService = followFeedReadApplicationService;
     }
 
     @GetMapping("/feed/global")
@@ -44,6 +50,17 @@ public class FeedController {
     ) {
         UUID currentUserId = CurrentUser.tryUserUuid(authentication);
         FeedPageResult page = feedReadApplicationService.listBoardHotFeed(currentUserId, boardId, cursor, size == null ? 20 : size);
+        return Result.ok(FeedPageResponse.from(page));
+    }
+
+    @GetMapping("/feed/follow")
+    public Result<FeedPageResponse> follow(
+            Authentication authentication,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer size
+    ) {
+        UUID currentUserId = CurrentUser.tryUserUuid(authentication);
+        FeedPageResult page = followFeedReadApplicationService.listFollowFeed(currentUserId, cursor, size == null ? 20 : size);
         return Result.ok(FeedPageResponse.from(page));
     }
 }

@@ -306,6 +306,15 @@ class BlockApplicationServiceTest {
         }
 
         @Override
+        public List<UUID> listFolloweeIds(UUID userId, int entityType, int limit) {
+            Set<UUID> set = followees.get(followeeKey(userId, entityType));
+            if (set == null || set.isEmpty()) {
+                return List.of();
+            }
+            return set.stream().limit(Math.max(0, limit)).toList();
+        }
+
+        @Override
         public boolean requiresExplicitCompensation() {
             return true;
         }

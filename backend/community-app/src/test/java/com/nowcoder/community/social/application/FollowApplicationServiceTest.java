@@ -238,6 +238,24 @@ class FollowApplicationServiceTest {
     }
 
     @Test
+    void listFolloweeIdsShouldFilterBlockedRelationsInEitherDirection() {
+        StatefulFollowRepository repo = new StatefulFollowRepository();
+        StatefulBlockRepository blockRepository = new StatefulBlockRepository();
+        FollowApplicationService service = newService(repo, blockRepository, new RecordingSocialDomainEventPublisher());
+        UUID viewerUserId = uuid(1);
+        UUID visibleUserId = uuid(2);
+        UUID blockedByViewerUserId = uuid(3);
+        UUID blockerUserId = uuid(4);
+        repo.follow(viewerUserId, USER, visibleUserId, 1000L);
+        repo.follow(viewerUserId, USER, blockedByViewerUserId, 1002L);
+        repo.follow(viewerUserId, USER, blockerUserId, 1001L);
+        blockRepository.block(viewerUserId, blockedByViewerUserId);
+        blockRepository.block(blockerUserId, viewerUserId);
+
+        assertThat(service.listFolloweeIds(viewerUserId, 10)).containsExactly(visibleUserId);
+    }
+
+    @Test
     void followQueriesShouldUseRepositoryFilteredMethodsWithBoundedPagination() {
         FollowRepository followRepository = mock(FollowRepository.class);
         BlockRepository blockRepository = mock(BlockRepository.class);
@@ -289,6 +307,30 @@ class FollowApplicationServiceTest {
         assertThat(service.hasFollowed(actorUserId, USER, targetUserId)).isFalse();
         assertThat(service.followeeCount(actorUserId, USER)).isEqualTo(0);
         assertThat(service.followerCount(USER, targetUserId)).isEqualTo(0);
+    }
+
+    @Test
+    void listFolloweeIdsShouldUseRepositoryQueryWithBoundedLimit() {
+        FollowRepository followRepository = mock(FollowRepository.class);
+        BlockRepository blockRepository = mock(BlockRepository.class);
+        SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
+        FollowApplicationService service = new FollowApplicationService(
+                followRepository,
+                blockRepository,
+                new FollowDomainService(),
+                new BlockDomainService(),
+                publisher,
+                allowAllUsersLookup()
+        );
+        UUID viewerUserId = uuid(1);
+        UUID visibleUserId = uuid(2);
+        when(followRepository.listFolloweeIdsExcludingBlocked(viewerUserId, USER, blockRepository, 50))
+                .thenReturn(List.of(visibleUserId));
+
+        assertThat(service.listFolloweeIds(viewerUserId, 50)).containsExactly(visibleUserId);
+
+        verify(followRepository).listFolloweeIdsExcludingBlocked(viewerUserId, USER, blockRepository, 50);
+        verify(followRepository, never()).listFolloweeIds(viewerUserId, USER, 50);
     }
 
     private FollowApplicationService newService(
@@ -380,6 +422,13 @@ class FollowApplicationServiceTest {
         @Override
         public List<FollowRelation> listFollowers(int entityType, UUID entityId, int offset, int limit) {
             return list(followers.get(followerKey(entityType, entityId)), offset, limit);
+        }
+
+        @Override
+        public List<UUID> listFolloweeIds(UUID userId, int entityType, int limit) {
+            return list(followees.get(followeeKey(userId, entityType)), 0, limit).stream()
+                    .map(FollowRelation::targetId)
+                    .toList();
         }
 
         @Override

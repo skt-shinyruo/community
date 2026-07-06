@@ -7,10 +7,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -21,6 +23,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class FeedControllerTest {
+
+    @Test
+    void legacyPostsListRouteShouldNoLongerBeHandledByPostController() {
+        assertFalse(Arrays.stream(PostController.class.getDeclaredMethods())
+                .anyMatch(method -> method.getName().equals("list")));
+    }
 
     @Test
     void globalFeedShouldDelegateCursorRead() throws Exception {

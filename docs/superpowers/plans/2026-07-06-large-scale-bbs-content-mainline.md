@@ -1088,7 +1088,7 @@ git commit -m "feat: rewrite comments into two-level cursor threads"
   - notice projection only through `NoticeProjectionKafkaListener`
   - no remaining frontend or backend callers of the legacy `GET /api/posts` list route
 
-- [ ] **Step 1: Write the failing cleanup and notice projection tests**
+- [x] **Step 1: Write the failing cleanup and notice projection tests**
 
 Add to `NoticeProjectionKafkaListenerTest.java`:
 
@@ -1110,7 +1110,7 @@ void legacyPostsListRouteShouldNoLongerBeHandledByPostController() {
 }
 ```
 
-- [ ] **Step 2: Run the cleanup tests and verify they fail**
+- [x] **Step 2: Run the cleanup tests and verify they fail**
 
 Run:
 
@@ -1121,7 +1121,7 @@ mvn test -pl :community-app -am -Dtest=NoticeProjectionKafkaListenerTest,FeedCon
 
 Expected: FAIL because the local notice listener is still present and `PostController.list(...)` still exists.
 
-- [ ] **Step 3: Remove the local notice listener, retire the old `/api/posts` feed entry, and update docs**
+- [x] **Step 3: Remove the local notice listener, retire the old `/api/posts` feed entry, and update docs**
 
 Delete `NoticeProjectionListener.java` and its tests.
 
@@ -1162,7 +1162,7 @@ Update `docs/handbook/data-and-storage.md`:
 - New snapshot tables: `post_counter_snapshot`, `post_score_snapshot`.
 ```
 
-- [ ] **Step 4: Run the regression sweep and verify it passes**
+- [x] **Step 4: Run the regression sweep and verify it passes**
 
 Run:
 
@@ -1179,7 +1179,7 @@ Expected:
 - frontend PASS on the new feed/detail/comment contracts
 - `*ArchTest` PASS with the new controllers/listeners still entering same-domain application services
 
-- [ ] **Step 5: Commit the durable notice path and legacy cleanup**
+- [x] **Step 5: Commit the durable notice path and legacy cleanup**
 
 ```bash
 git add backend/community-app/src/main/java/com/nowcoder/community/notice/infrastructure/event/NoticeProjectionKafkaListener.java \

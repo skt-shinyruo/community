@@ -119,7 +119,7 @@ class PostControllerUnitTest {
     }
 
     @Test
-    void listAndBatchSummaryShouldReturnDtoResponsesFromControllerMapper() {
+    void batchSummaryShouldReturnDtoResponsesFromControllerMapper() {
         UUID userId = uuid(7);
         UUID postId = uuid(11);
         UUID secondPostId = uuid(12);
@@ -129,20 +129,12 @@ class PostControllerUnitTest {
         PostSummaryResult secondView = postSummaryView(secondPostId, userId, categoryId, createTime, "second");
         BatchPostSummaryRequest request = new BatchPostSummaryRequest();
         request.setPostIds(List.of(postId, secondPostId));
-        when(postReadApplicationService.listPosts(userId, "latest", categoryId, "java", false, 0, 10))
-                .thenReturn(List.of(firstView));
         when(postReadApplicationService.listPostsByIds(List.of(postId, secondPostId)))
                 .thenReturn(List.of(firstView, secondView));
 
-        Result<List<PostSummaryResponse>> listResult = controller.list(authentication(userId), "latest", categoryId, "java", false, 0, 10);
         Result<List<PostSummaryResponse>> batchResult = controller.batchSummary(request);
 
-        assertThat(listResult.getData()).singleElement().satisfies(response -> {
-            assertThat(response.getId()).isEqualTo(postId);
-            assertThat(response.getTitle()).isEqualTo("first");
-        });
         assertThat(batchResult.getData()).extracting(PostSummaryResponse::getTitle).containsExactly("first", "second");
-        verify(postReadApplicationService).listPosts(userId, "latest", categoryId, "java", false, 0, 10);
         verify(postReadApplicationService).listPostsByIds(List.of(postId, secondPostId));
     }
 

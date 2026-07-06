@@ -1,7 +1,8 @@
 package com.nowcoder.community.event;
 
-import com.nowcoder.community.notice.infrastructure.event.NoticeProjectionListener;
-import com.nowcoder.community.notice.application.NoticeProjectionApplicationService;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService;
+import com.nowcoder.community.content.infrastructure.event.PostHotFeedProjectionLocalListener;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -9,10 +10,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SpringEventAdapterConstructorSelectionTest {
 
     @Test
-    void localSpringEventAdaptersShouldExposeOnlyTheirOwnerApplicationServiceConstructor() {
-        assertThat(NoticeProjectionListener.class.getDeclaredConstructors())
+    void localSpringEventAdaptersShouldExposeOnlyTheirExplicitCollaboratorConstructor() {
+        assertThat(PostHotFeedProjectionLocalListener.class.getDeclaredConstructors())
                 .singleElement()
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes())
-                        .containsExactly(NoticeProjectionApplicationService.class));
+                        .containsExactly(JsonCodec.class, PostHotFeedProjectionApplicationService.class));
     }
 }

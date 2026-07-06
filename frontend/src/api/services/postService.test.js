@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
-import { addComment, createPost, listBoardFeed, listGlobalFeed, listPosts, updatePost } from './postService'
+import { addComment, createPost, listBoardFeed, listGlobalFeed, updatePost } from './postService'
 
 describe('api/services/postService', () => {
   let mock
@@ -15,30 +15,6 @@ describe('api/services/postService', () => {
   afterEach(() => {
     mock?.restore()
     mock = null
-  })
-
-  it('listPosts should preserve UUID category filters in query params', async () => {
-    const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
-    mock = new MockAdapter(http)
-    mock.onGet('/api/posts').reply((config) => {
-      expect(config.params).toMatchObject({
-        order: 'latest',
-        page: 0,
-        size: 10,
-        categoryId
-      })
-      return [200, {
-        code: 0,
-        message: '',
-        data: [],
-        traceId: 'trace-list-posts'
-      }]
-    })
-
-    const resp = await listPosts({ categoryId })
-
-    expect(resp.traceId).toBe('trace-list-posts')
-    expect(resp.data).toEqual([])
   })
 
   it('listGlobalFeed should call /api/feed/global with cursor params', async () => {

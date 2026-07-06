@@ -12,6 +12,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -44,13 +45,14 @@ class CommentMapperPersistenceTest {
     }
 
     @Test
-    void insertCommentShouldPersistApplicationAssignedUuidPrimaryKeyAndEntityReference() {
+    void insertCommentShouldPersistPostAndThreadIdentityColumns() {
         Comment comment = new Comment();
         comment.setId(COMMENT_ID);
+        comment.setPostId(POST_ID);
         comment.setUserId(USER_ID);
-        comment.setEntityType(1);
-        comment.setEntityId(POST_ID);
-        comment.setTargetId(null);
+        comment.setRootCommentId(COMMENT_ID);
+        comment.setParentCommentId(null);
+        comment.setReplyToUserId(null);
         comment.setContent("hello");
         comment.setStatus(0);
         comment.setCreateTime(new Date());
@@ -60,35 +62,44 @@ class CommentMapperPersistenceTest {
         assertThat(inserted).isEqualTo(1);
         assertThat(comment.getId()).isEqualTo(COMMENT_ID);
 
-        byte[] storedId = jdbcTemplate.queryForObject(
-                "select id from comment where content = ?",
-                (rs, rowNum) -> rs.getBytes(1),
-                "hello"
-        );
-        assertThat(BinaryUuidCodec.fromBytes(storedId)).isEqualTo(COMMENT_ID);
-
-        byte[] storedEntityId = jdbcTemplate.queryForObject(
-                "select entity_id from comment where id = ?",
+        byte[] storedPostId = jdbcTemplate.queryForObject(
+                "select post_id from comment where id = ?",
                 (rs, rowNum) -> rs.getBytes(1),
                 BinaryUuidCodec.toBytes(COMMENT_ID)
         );
-        assertThat(BinaryUuidCodec.fromBytes(storedEntityId)).isEqualTo(POST_ID);
+        assertThat(BinaryUuidCodec.fromBytes(storedPostId)).isEqualTo(POST_ID);
 
-        Comment persisted = commentMapper.selectCommentById(COMMENT_ID);
-        assertThat(persisted).isNotNull();
-        assertThat(persisted.getId()).isEqualTo(COMMENT_ID);
-        assertThat(persisted.getEntityId()).isEqualTo(POST_ID);
-        assertThat(persisted.getTargetId()).isNull();
+        byte[] storedRootCommentId = jdbcTemplate.queryForObject(
+                "select root_comment_id from comment where id = ?",
+                (rs, rowNum) -> rs.getBytes(1),
+                BinaryUuidCodec.toBytes(COMMENT_ID)
+        );
+        assertThat(BinaryUuidCodec.fromBytes(storedRootCommentId)).isEqualTo(COMMENT_ID);
+
+        byte[] storedParentCommentId = jdbcTemplate.queryForObject(
+                "select parent_comment_id from comment where id = ?",
+                (rs, rowNum) -> rs.getBytes(1),
+                BinaryUuidCodec.toBytes(COMMENT_ID)
+        );
+        assertThat(storedParentCommentId).isNull();
+
+        byte[] storedReplyToUserId = jdbcTemplate.queryForObject(
+                "select reply_to_user_id from comment where id = ?",
+                (rs, rowNum) -> rs.getBytes(1),
+                BinaryUuidCodec.toBytes(COMMENT_ID)
+        );
+        assertThat(storedReplyToUserId).isNull();
     }
 
     @Test
     void updateCommentContentShouldNotModifyInactiveComment() {
         Comment comment = new Comment();
         comment.setId(COMMENT_ID);
+        comment.setPostId(POST_ID);
         comment.setUserId(USER_ID);
-        comment.setEntityType(1);
-        comment.setEntityId(POST_ID);
-        comment.setTargetId(null);
+        comment.setRootCommentId(COMMENT_ID);
+        comment.setParentCommentId(null);
+        comment.setReplyToUserId(null);
         comment.setContent("deleted");
         comment.setStatus(2);
         comment.setCreateTime(new Date());
@@ -104,42 +115,125 @@ class CommentMapperPersistenceTest {
     }
 
     @Test
-    void activeThreadDeleteShouldSelectParentAndActiveDescendantsOnly() {
+    void activeThreadDeleteShouldSelectRootAndActiveRepliesOnly() {
         UUID replyId = UUID.fromString("00000000-0000-7000-8000-000000000404");
-        UUID nestedReplyId = UUID.fromString("00000000-0000-7000-8000-000000000405");
+        UUID secondReplyId = UUID.fromString("00000000-0000-7000-8000-000000000405");
         UUID inactiveReplyId = UUID.fromString("00000000-0000-7000-8000-000000000406");
-        insertComment(COMMENT_ID, USER_ID, 1, POST_ID, 0, "parent");
-        insertComment(replyId, USER_ID, 2, COMMENT_ID, 0, "reply");
-        insertComment(nestedReplyId, USER_ID, 2, replyId, 0, "nested");
-        insertComment(inactiveReplyId, USER_ID, 2, COMMENT_ID, 1, "inactive");
+        insertRootComment(COMMENT_ID, USER_ID, POST_ID, 0, "parent", Instant.parse("2026-04-29T01:02:03Z"));
+        insertReply(replyId, USER_ID, POST_ID, COMMENT_ID, USER_ID, 0, "reply", Instant.parse("2026-04-29T01:02:04Z"));
+        insertReply(secondReplyId, USER_ID, POST_ID, COMMENT_ID, USER_ID, 0, "second", Instant.parse("2026-04-29T01:02:05Z"));
+        insertReply(inactiveReplyId, USER_ID, POST_ID, COMMENT_ID, USER_ID, 1, "inactive", Instant.parse("2026-04-29T01:02:06Z"));
 
-        List<UUID> directReplyIds = commentMapper.selectActiveReplyIds(COMMENT_ID);
-        List<UUID> nestedReplyIds = commentMapper.selectActiveReplyIds(replyId);
+        List<UUID> directReplyIds = commentMapper.selectActiveRepliesByRootComment(COMMENT_ID);
         int updatedParent = commentMapper.updateActiveCommentDeleted(COMMENT_ID, USER_ID, "author_delete", new Date());
         int updatedReply = commentMapper.updateActiveCommentDeleted(directReplyIds.get(0), USER_ID, "author_delete", new Date());
-        int updatedNestedReply = commentMapper.updateActiveCommentDeleted(nestedReplyIds.get(0), USER_ID, "author_delete", new Date());
+        int updatedSecondReply = commentMapper.updateActiveCommentDeleted(directReplyIds.get(1), USER_ID, "author_delete", new Date());
         int updatedInactiveReply = commentMapper.updateActiveCommentDeleted(inactiveReplyId, USER_ID, "author_delete", new Date());
 
-        assertThat(directReplyIds).containsExactly(replyId);
-        assertThat(nestedReplyIds).containsExactly(nestedReplyId);
-        assertThat(updatedParent + updatedReply + updatedNestedReply).isEqualTo(3);
+        assertThat(directReplyIds).containsExactly(replyId, secondReplyId);
+        assertThat(updatedParent + updatedReply + updatedSecondReply).isEqualTo(3);
         assertThat(updatedInactiveReply).isZero();
         assertThat(commentMapper.selectCommentById(COMMENT_ID).getStatus()).isEqualTo(1);
         assertThat(commentMapper.selectCommentById(replyId).getStatus()).isEqualTo(1);
-        assertThat(commentMapper.selectCommentById(nestedReplyId).getStatus()).isEqualTo(1);
+        assertThat(commentMapper.selectCommentById(secondReplyId).getStatus()).isEqualTo(1);
         assertThat(commentMapper.selectCommentById(inactiveReplyId).getStatus()).isEqualTo(1);
     }
 
-    private void insertComment(UUID id, UUID userId, int entityType, UUID entityId, int status, String content) {
+    @Test
+    void listRootCommentsShouldReadNewestRootsByRootCursor() {
+        UUID olderRootId = UUID.fromString("00000000-0000-7000-8000-000000000407");
+        UUID newerRootId = UUID.fromString("00000000-0000-7000-8000-000000000408");
+        Instant olderTime = Instant.parse("2026-04-29T01:02:07Z");
+        Instant newerTime = Instant.parse("2026-04-29T01:02:08Z");
+        insertRootComment(olderRootId, USER_ID, POST_ID, 0, "older-root", olderTime);
+        insertRootComment(newerRootId, USER_ID, POST_ID, 0, "newer-root", newerTime);
+
+        List<UUID> ids = queryIds(
+                """
+                        select id
+                        from comment
+                        where post_id = ? and parent_comment_id is null
+                          and (create_time < ? or (create_time = ? and id < ?))
+                        order by create_time desc, id desc
+                        limit 20
+                        """,
+                BinaryUuidCodec.toBytes(POST_ID),
+                Date.from(newerTime),
+                Date.from(newerTime),
+                BinaryUuidCodec.toBytes(newerRootId)
+        );
+
+        assertThat(ids).containsExactly(olderRootId);
+    }
+
+    @Test
+    void listRepliesShouldReadOlderRepliesByReplyCursor() {
+        UUID rootCommentId = UUID.fromString("00000000-0000-7000-8000-000000000409");
+        UUID olderReplyId = UUID.fromString("00000000-0000-7000-8000-00000000040a");
+        UUID newerReplyId = UUID.fromString("00000000-0000-7000-8000-00000000040b");
+        Instant rootTime = Instant.parse("2026-04-29T01:02:06Z");
+        Instant olderTime = Instant.parse("2026-04-29T01:02:07Z");
+        Instant newerTime = Instant.parse("2026-04-29T01:02:08Z");
+        insertRootComment(rootCommentId, USER_ID, POST_ID, 0, "root", rootTime);
+        insertReply(olderReplyId, USER_ID, POST_ID, rootCommentId, USER_ID, 0, "older-reply", olderTime);
+        insertReply(newerReplyId, USER_ID, POST_ID, rootCommentId, USER_ID, 0, "newer-reply", newerTime);
+
+        List<UUID> ids = queryIds(
+                """
+                        select id
+                        from comment
+                        where root_comment_id = ? and parent_comment_id is not null
+                          and (create_time > ? or (create_time = ? and id > ?))
+                        order by create_time asc, id asc
+                        limit 20
+                        """,
+                BinaryUuidCodec.toBytes(rootCommentId),
+                Date.from(olderTime),
+                Date.from(olderTime),
+                BinaryUuidCodec.toBytes(olderReplyId)
+        );
+
+        assertThat(ids).containsExactly(newerReplyId);
+    }
+
+    private void insertRootComment(UUID id, UUID userId, UUID postId, int status, String content, Instant createTime) {
         Comment comment = new Comment();
         comment.setId(id);
+        comment.setPostId(postId);
         comment.setUserId(userId);
-        comment.setEntityType(entityType);
-        comment.setEntityId(entityId);
-        comment.setTargetId(null);
+        comment.setRootCommentId(id);
+        comment.setParentCommentId(null);
+        comment.setReplyToUserId(null);
         comment.setContent(content);
         comment.setStatus(status);
-        comment.setCreateTime(new Date());
+        comment.setCreateTime(Date.from(createTime));
         commentMapper.insertComment(comment);
+    }
+
+    private void insertReply(
+            UUID id,
+            UUID userId,
+            UUID postId,
+            UUID rootCommentId,
+            UUID replyToUserId,
+            int status,
+            String content,
+            Instant createTime
+    ) {
+        Comment comment = new Comment();
+        comment.setId(id);
+        comment.setPostId(postId);
+        comment.setUserId(userId);
+        comment.setRootCommentId(rootCommentId);
+        comment.setParentCommentId(rootCommentId);
+        comment.setReplyToUserId(replyToUserId);
+        comment.setContent(content);
+        comment.setStatus(status);
+        comment.setCreateTime(Date.from(createTime));
+        commentMapper.insertComment(comment);
+    }
+
+    private List<UUID> queryIds(String sql, Object... args) {
+        return jdbcTemplate.query(sql, (rs, rowNum) -> BinaryUuidCodec.fromBytes(rs.getBytes(1)), args);
     }
 }

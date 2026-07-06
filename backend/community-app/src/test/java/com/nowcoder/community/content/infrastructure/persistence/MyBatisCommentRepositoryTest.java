@@ -12,7 +12,9 @@ import org.mockito.ArgumentCaptor;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.lang.reflect.RecordComponent;
 import java.util.Date;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,6 +30,17 @@ import static org.mockito.Mockito.when;
 class MyBatisCommentRepositoryTest {
 
     @Test
+    void commentDraftAndSnapshotShouldExposeTwoLevelThreadFields() {
+        assertThat(recordComponentNames(CommentDraft.class))
+                .as("comment draft field shape")
+                .contains("postId", "rootCommentId", "parentCommentId", "replyToUserId");
+
+        assertThat(recordComponentNames(CommentSnapshot.class))
+                .as("comment snapshot field shape")
+                .contains("postId", "rootCommentId", "parentCommentId", "replyToUserId");
+    }
+
+    @Test
     void createShouldMapDraftIntoCommentSetGeneratedUuidStatusAndReturnGeneratedId() {
         CommentMapper commentMapper = mock(CommentMapper.class);
         UuidV7Generator idGenerator = new UuidV7Generator(Clock.fixed(
@@ -36,10 +49,9 @@ class MyBatisCommentRepositoryTest {
         ));
         MyBatisCommentRepository repository = new MyBatisCommentRepository(commentMapper, idGenerator);
         UUID userId = uuid(101);
-        UUID entityId = uuid(102);
-        UUID targetId = uuid(103);
+        UUID postId = uuid(102);
         Date createTime = Date.from(Instant.parse("2026-04-29T01:02:04Z"));
-        CommentDraft draft = new CommentDraft(userId, 1, entityId, targetId, "hello", createTime);
+        CommentDraft draft = new CommentDraft(userId, postId, null, null, null, "hello", createTime);
 
         UUID commentId = repository.create(draft);
 
@@ -49,10 +61,11 @@ class MyBatisCommentRepositoryTest {
         assertThat(commentId).isEqualTo(inserted.getId());
         assertThat(inserted.getId()).isNotNull();
         assertThat(inserted.getId().version()).isEqualTo(7);
+        assertThat(inserted.getPostId()).isEqualTo(postId);
         assertThat(inserted.getUserId()).isEqualTo(userId);
-        assertThat(inserted.getEntityType()).isEqualTo(1);
-        assertThat(inserted.getEntityId()).isEqualTo(entityId);
-        assertThat(inserted.getTargetId()).isEqualTo(targetId);
+        assertThat(inserted.getRootCommentId()).isEqualTo(inserted.getId());
+        assertThat(inserted.getParentCommentId()).isNull();
+        assertThat(inserted.getReplyToUserId()).isNull();
         assertThat(inserted.getContent()).isEqualTo("hello");
         assertThat(inserted.getStatus()).isZero();
         assertThat(inserted.getCreateTime()).isEqualTo(createTime);
@@ -91,9 +104,10 @@ class MyBatisCommentRepositoryTest {
         assertThat(snapshot).isEqualTo(new CommentSnapshot(
                 active.getId(),
                 active.getUserId(),
-                active.getEntityType(),
-                active.getEntityId(),
-                active.getTargetId(),
+                active.getPostId(),
+                active.getRootCommentId(),
+                active.getParentCommentId(),
+                active.getReplyToUserId(),
                 active.getContent(),
                 active.getStatus(),
                 active.getCreateTime(),
@@ -156,15 +170,22 @@ class MyBatisCommentRepositoryTest {
     private static Comment comment(UUID commentId, int status) {
         Comment comment = new Comment();
         comment.setId(commentId);
+        comment.setPostId(uuid(402));
         comment.setUserId(uuid(401));
-        comment.setEntityType(1);
-        comment.setEntityId(uuid(402));
-        comment.setTargetId(uuid(403));
+        comment.setRootCommentId(commentId);
+        comment.setParentCommentId(null);
+        comment.setReplyToUserId(null);
         comment.setContent("comment");
         comment.setStatus(status);
         comment.setCreateTime(Date.from(Instant.parse("2026-04-29T01:02:06Z")));
         comment.setUpdateTime(Date.from(Instant.parse("2026-04-29T01:02:07Z")));
         comment.setEditCount(1);
         return comment;
+    }
+
+    private static java.util.List<String> recordComponentNames(Class<?> type) {
+        return Arrays.stream(type.getRecordComponents())
+                .map(RecordComponent::getName)
+                .toList();
     }
 }

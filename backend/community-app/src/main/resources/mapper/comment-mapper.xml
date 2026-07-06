@@ -5,20 +5,30 @@
 <mapper namespace="com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper">
 
     <sql id="selectFields">
-        id, user_id, entity_type, entity_id, target_id, content, status, create_time, update_time, edit_count, deleted_by, deleted_reason, deleted_time
+        id, post_id, user_id, root_comment_id, parent_comment_id, reply_to_user_id, content, status, create_time, update_time, edit_count, deleted_by, deleted_reason, deleted_time
     </sql>
 
     <sql id="insertFields">
-        id, user_id, entity_type, entity_id, target_id, content, status, create_time
+        id, post_id, user_id, root_comment_id, parent_comment_id, reply_to_user_id, content, status, create_time
     </sql>
 
-    <select id="selectCommentsByEntity" resultType="com.nowcoder.community.content.domain.model.Comment">
+    <select id="selectRootComments" resultType="com.nowcoder.community.content.domain.model.Comment">
         select <include refid="selectFields"></include>
         from comment
         where status = 0
-        and entity_type = #{entityType}
-        and entity_id = #{entityId, jdbcType=BINARY}
-        order by create_time asc
+          and post_id = #{postId, jdbcType=BINARY}
+          and parent_comment_id is null
+        order by create_time desc, id desc
+        limit #{offset}, #{limit}
+    </select>
+
+    <select id="selectRepliesByRootComment" resultType="com.nowcoder.community.content.domain.model.Comment">
+        select <include refid="selectFields"></include>
+        from comment
+        where status = 0
+          and root_comment_id = #{rootCommentId, jdbcType=BINARY}
+          and parent_comment_id is not null
+        order by create_time asc, id asc
         limit #{offset}, #{limit}
     </select>
 
@@ -31,17 +41,19 @@
         limit #{offset}, #{limit}
     </select>
 
-    <select id="selectCountByEntity" resultType="int">
-        select count(id)
-        from comment
-        where status = 0
-          and entity_type = #{entityType}
-          and entity_id = #{entityId, jdbcType=BINARY}
-    </select>
-
     <insert id="insertComment" parameterType="com.nowcoder.community.content.domain.model.Comment">
         insert into comment(<include refid="insertFields"></include>)
-        values(#{id, jdbcType=BINARY},#{userId, jdbcType=BINARY},#{entityType},#{entityId, jdbcType=BINARY},#{targetId, jdbcType=BINARY},#{content},#{status},#{createTime})
+        values(
+            #{id, jdbcType=BINARY},
+            #{postId, jdbcType=BINARY},
+            #{userId, jdbcType=BINARY},
+            #{rootCommentId, jdbcType=BINARY},
+            #{parentCommentId, jdbcType=BINARY},
+            #{replyToUserId, jdbcType=BINARY},
+            #{content},
+            #{status},
+            #{createTime}
+        )
     </insert>
 
     <select id="selectCommentById" resultType="com.nowcoder.community.content.domain.model.Comment">
@@ -50,92 +62,30 @@
         where id = #{id, jdbcType=BINARY}
     </select>
 
-    <!--
-      校验 commentId 是否属于 postId（仅针对“直接评论”）：
-      - replies 接口中，commentId 表示父评论，必须满足 entity_type=POST 且 entity_id=postId
-    -->
-    <select id="existsPostComment" resultType="int">
+    <select id="existsRootComment" resultType="int">
         select count(1)
         from comment
         where status = 0
           and id = #{commentId, jdbcType=BINARY}
-          and entity_type = 1
-          and entity_id = #{postId, jdbcType=BINARY}
+          and post_id = #{postId, jdbcType=BINARY}
+          and parent_comment_id is null
     </select>
 
-    <!--
-      查询指定帖子集合的“最后活动”（包含：直接评论 + 回复评论）。
-      说明：返回结果映射到 Comment，其中 entity_id 被复用为 postId。
-
-      - 直接评论：comment(entity_type=1, entity_id=postId)
-      - 回复评论：comment(entity_type=2, entity_id=commentId) 通过 join parent comment(entity_type=1) 归属到 postId
-    -->
     <select id="selectLatestPostActivitiesByPostIds" resultType="com.nowcoder.community.content.domain.model.Comment">
-        select
-            u.cid as id,
-            u.user_id as user_id,
-            1 as entity_type,
-            u.post_id as entity_id,
-            cast(null as binary(16)) as target_id,
-            u.content as content,
-            0 as status,
-            u.create_time as create_time,
-            null as update_time,
-            0 as edit_count,
-            cast(null as binary(16)) as deleted_by,
-            '' as deleted_reason,
-            null as deleted_time
+        select <include refid="selectFields"></include>
         from (
-            select c.entity_id as post_id, c.user_id as user_id, c.content as content, c.create_time as create_time, c.id as cid
-            from comment c
-            where c.status = 0
-              and c.entity_type = 1
-              and c.entity_id in
+            select
+                <include refid="selectFields"></include>,
+                row_number() over (partition by post_id order by create_time desc, id desc) as rn
+            from comment
+            where status = 0
+              and post_id in
               <foreach collection="postIds" item="pid" open="(" separator="," close=")">
                   #{pid, jdbcType=BINARY}
               </foreach>
-
-            union all
-
-            select p.entity_id as post_id, r.user_id as user_id, r.content as content, r.create_time as create_time, r.id as cid
-            from comment r
-            join comment p on r.entity_type = 2 and r.entity_id = p.id
-            where r.status = 0
-              and p.status = 0
-              and p.entity_type = 1
-              and p.entity_id in
-              <foreach collection="postIds" item="pid" open="(" separator="," close=")">
-                  #{pid, jdbcType=BINARY}
-              </foreach>
-        ) u
-        inner join (
-            select post_id, max(create_time) as max_time
-            from (
-                select c.entity_id as post_id, c.create_time as create_time
-                from comment c
-                where c.status = 0
-                  and c.entity_type = 1
-                  and c.entity_id in
-                  <foreach collection="postIds" item="pid" open="(" separator="," close=")">
-                      #{pid, jdbcType=BINARY}
-                  </foreach>
-
-                union all
-
-                select p.entity_id as post_id, r.create_time as create_time
-                from comment r
-                join comment p on r.entity_type = 2 and r.entity_id = p.id
-                where r.status = 0
-                  and p.status = 0
-                  and p.entity_type = 1
-                  and p.entity_id in
-                  <foreach collection="postIds" item="pid" open="(" separator="," close=")">
-                      #{pid, jdbcType=BINARY}
-                  </foreach>
-            ) t
-            group by post_id
-        ) m on u.post_id = m.post_id and u.create_time = m.max_time
-        order by u.post_id asc, u.cid desc
+        ) ranked
+        where rn = 1
+        order by post_id asc
     </select>
 
     <update id="updateCommentContent">
@@ -156,12 +106,13 @@
         where id = #{id, jdbcType=BINARY}
     </update>
 
-    <select id="selectActiveReplyIds" resultType="java.util.UUID">
+    <select id="selectActiveRepliesByRootComment" resultType="java.util.UUID">
         select id
         from comment
         where status = 0
-          and entity_type = 2
-          and entity_id = #{id, jdbcType=BINARY}
+          and root_comment_id = #{rootCommentId, jdbcType=BINARY}
+          and parent_comment_id is not null
+        order by create_time asc, id asc
     </select>
 
     <update id="updateActiveCommentDeleted">

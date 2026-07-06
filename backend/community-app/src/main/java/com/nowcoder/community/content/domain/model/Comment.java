@@ -8,10 +8,11 @@ public class Comment {
     private static final int STATUS_ACTIVE = 0;
 
     private UUID id;
+    private UUID postId;
     private UUID userId;
-    private int entityType;
-    private UUID entityId;
-    private UUID targetId;
+    private UUID rootCommentId;
+    private UUID parentCommentId;
+    private UUID replyToUserId;
     private String content;
     private int status;
     private Date createTime;
@@ -33,8 +34,16 @@ public class Comment {
         return status == STATUS_ACTIVE;
     }
 
-    public boolean pointsTo(int expectedEntityType) {
-        return entityType == expectedEntityType && entityId != null;
+    public boolean isRootComment() {
+        return parentCommentId == null;
+    }
+
+    public UUID getPostId() {
+        return postId;
+    }
+
+    public void setPostId(UUID postId) {
+        this.postId = postId;
     }
 
     public UUID getUserId() {
@@ -45,28 +54,28 @@ public class Comment {
         this.userId = userId;
     }
 
-    public int getEntityType() {
-        return entityType;
+    public UUID getRootCommentId() {
+        return rootCommentId;
     }
 
-    public void setEntityType(int entityType) {
-        this.entityType = entityType;
+    public void setRootCommentId(UUID rootCommentId) {
+        this.rootCommentId = rootCommentId;
     }
 
-    public UUID getEntityId() {
-        return entityId;
+    public UUID getParentCommentId() {
+        return parentCommentId;
     }
 
-    public void setEntityId(UUID entityId) {
-        this.entityId = entityId;
+    public void setParentCommentId(UUID parentCommentId) {
+        this.parentCommentId = parentCommentId;
     }
 
-    public UUID getTargetId() {
-        return targetId;
+    public UUID getReplyToUserId() {
+        return replyToUserId;
     }
 
-    public void setTargetId(UUID targetId) {
-        this.targetId = targetId;
+    public void setReplyToUserId(UUID replyToUserId) {
+        this.replyToUserId = replyToUserId;
     }
 
     public String getContent() {

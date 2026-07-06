@@ -10,17 +10,17 @@ import java.util.UUID;
 @Mapper
 public interface CommentMapper {
 
-    List<Comment> selectCommentsByEntity(int entityType, UUID entityId, int offset, int limit);
+    List<Comment> selectRootComments(@Param("postId") UUID postId, @Param("offset") int offset, @Param("limit") int limit);
+
+    List<Comment> selectRepliesByRootComment(@Param("rootCommentId") UUID rootCommentId, @Param("offset") int offset, @Param("limit") int limit);
 
     List<Comment> selectRecentCommentsByUser(@Param("userId") UUID userId, @Param("offset") int offset, @Param("limit") int limit);
-
-    int selectCountByEntity(int entityType, UUID entityId);
 
     /**
      * 查询指定帖子集合的“最后活动”（包含：直接评论 + 回复评论）。
      * <p>
      * 返回的 Comment 实体中：
-     * - entityId = postId
+     * - postId = 帖子 id
      * - userId = 最后回复人 userId
      * - createTime = 最后回复时间
      */
@@ -30,7 +30,7 @@ public interface CommentMapper {
 
     Comment selectCommentById(UUID id);
 
-    int existsPostComment(@Param("postId") UUID postId, @Param("commentId") UUID commentId);
+    int existsRootComment(@Param("postId") UUID postId, @Param("commentId") UUID commentId);
 
     int updateCommentContent(
             @Param("id") UUID id,
@@ -46,7 +46,7 @@ public interface CommentMapper {
             @Param("deletedTime") java.util.Date deletedTime
     );
 
-    List<UUID> selectActiveReplyIds(@Param("id") UUID id);
+    List<UUID> selectActiveRepliesByRootComment(@Param("rootCommentId") UUID rootCommentId);
 
     int updateActiveCommentDeleted(
             @Param("id") UUID id,

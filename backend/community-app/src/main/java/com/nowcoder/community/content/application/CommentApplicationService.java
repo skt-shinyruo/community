@@ -85,7 +85,9 @@ public class CommentApplicationService {
             UUID targetId,
             String content
     ) {
-        return createFromCommand(idempotencyKey, new CreateCommentCommand(userId, postId, entityType, entityId, targetId, content));
+        UUID parentCommentId = entityType != null && entityType == EntityTypes.COMMENT ? entityId : null;
+        UUID replyToUserId = entityType != null && entityType == EntityTypes.COMMENT ? targetId : null;
+        return createFromCommand(idempotencyKey, new CreateCommentCommand(userId, postId, parentCommentId, replyToUserId, content));
     }
 
     @Transactional
@@ -96,7 +98,9 @@ public class CommentApplicationService {
 
     @Transactional
     public UUID addComment(UUID userId, String idempotencyKey, UUID postId, Integer entityType, UUID entityId, UUID targetId, String content) {
-        return createFromCommand(idempotencyKey, new CreateCommentCommand(userId, postId, entityType, entityId, targetId, content)).commentId();
+        UUID parentCommentId = entityType != null && entityType == EntityTypes.COMMENT ? entityId : null;
+        UUID replyToUserId = entityType != null && entityType == EntityTypes.COMMENT ? targetId : null;
+        return createFromCommand(idempotencyKey, new CreateCommentCommand(userId, postId, parentCommentId, replyToUserId, content)).commentId();
     }
 
     @Transactional
@@ -140,11 +144,8 @@ public class CommentApplicationService {
         moderationGuard.assertCanSpeak(userId);
         postContentPort.getById(postId);
         CommentSnapshot existing = commentRepository.getRequiredSnapshot(commentId);
-        CommentSnapshot parent = existing.entityType() == EntityTypes.COMMENT
-                ? commentRepository.findSnapshot(existing.entityId()).orElse(null)
-                : null;
         Date now = new Date();
-        domainService.assertEditableByAuthor(existing, userId, postId, now, parent);
+        domainService.assertEditableByAuthor(existing, userId, postId, now);
         commentRepository.updateContent(commentId, sanitize(command.content()), now);
     }
 
@@ -168,16 +169,15 @@ public class CommentApplicationService {
 
         moderationGuard.assertCanSpeak(userId);
         DiscussPost post = postContentPort.getById(postId);
-        CommentSnapshot targetComment = command.entityType() != null && command.entityType() == EntityTypes.COMMENT
-                ? commentRepository.findActiveSnapshot(command.entityId()).orElse(null)
+        CommentSnapshot parentComment = command.parentCommentId() != null
+                ? commentRepository.findActiveSnapshot(command.parentCommentId()).orElse(null)
                 : null;
         CommentDomainService.CreateTarget target = domainService.resolveCreateTarget(
                 postId,
-                command.entityType(),
-                command.entityId(),
-                command.targetId(),
+                command.parentCommentId(),
+                command.replyToUserId(),
                 post.getUserId(),
-                targetComment
+                parentComment
         );
         if (target.targetUserId() != null && blockQueryApi.isEitherBlocked(userId, target.targetUserId())) {
             throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
@@ -187,9 +187,10 @@ public class CommentApplicationService {
         Date createTime = new Date();
         CommentDraft draft = domainService.createDraft(
                 userId,
-                target.entityType(),
-                target.entityId(),
-                target.targetId(),
+                target.postId(),
+                target.rootCommentId(),
+                target.parentCommentId(),
+                target.replyToUserId(),
                 safeContent,
                 createTime
         );
@@ -203,8 +204,8 @@ public class CommentApplicationService {
                 commentId,
                 postId,
                 userId,
-                target.entityType(),
-                target.entityId(),
+                target.parentCommentId() == null ? EntityTypes.POST : EntityTypes.COMMENT,
+                target.parentCommentId() == null ? postId : target.parentCommentId(),
                 target.targetUserId(),
                 decodedContent,
                 createdAt
@@ -217,9 +218,8 @@ public class CommentApplicationService {
     private String createCommentRequestHash(CreateCommentCommand command) {
         String canonical = "content:create_comment"
                 + "|postId=" + canonicalValue(command.postId())
-                + "|entityType=" + canonicalValue(command.entityType())
-                + "|entityId=" + canonicalValue(command.entityId())
-                + "|targetId=" + canonicalValue(command.targetId())
+                + "|parentCommentId=" + canonicalValue(command.parentCommentId())
+                + "|replyToUserId=" + canonicalValue(command.replyToUserId())
                 + "|content=" + canonicalValue(command.content());
         return RequestFingerprint.sha256(canonical);
     }
@@ -255,25 +255,18 @@ public class CommentApplicationService {
                     deletedComment.id(),
                     postId,
                     deletedComment.userId(),
-                    deletedComment.entityType(),
-                    deletedComment.entityId(),
+                    deletedComment.rootComment() ? EntityTypes.POST : EntityTypes.COMMENT,
+                    deletedComment.rootComment() ? postId : deletedComment.parentCommentId(),
                     deletedTime.toInstant()
             ));
         }
     }
 
     private UUID resolvePostId(CommentSnapshot comment) {
-        CommentSnapshot current = comment;
-        for (int i = 0; i < 12; i++) {
-            if (current.entityType() == EntityTypes.POST) {
-                return current.entityId();
-            }
-            if (current.entityType() != EntityTypes.COMMENT || current.entityId() == null) {
-                throw new BusinessException(INVALID_ARGUMENT, "评论归属帖子非法");
-            }
-            current = commentRepository.getRequiredSnapshot(current.entityId());
+        if (comment == null || comment.postId() == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "评论归属帖子非法");
         }
-        throw new BusinessException(INVALID_ARGUMENT, "评论层级非法");
+        return comment.postId();
     }
 
     private String sanitize(String content) {

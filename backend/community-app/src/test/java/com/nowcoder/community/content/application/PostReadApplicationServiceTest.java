@@ -411,24 +411,19 @@ class PostReadApplicationServiceTest {
 
         Comment direct = new Comment();
         direct.setId(directCommentId);
+        direct.setPostId(firstPostId);
         direct.setUserId(userId);
-        direct.setEntityType(CommentContentRepository.ENTITY_TYPE_POST);
-        direct.setEntityId(firstPostId);
         direct.setContent("&lt;direct&gt;");
         direct.setCreateTime(new Date(2_000));
 
         Comment reply = new Comment();
         reply.setId(replyCommentId);
+        reply.setPostId(secondPostId);
+        reply.setRootCommentId(parentCommentId);
+        reply.setParentCommentId(parentCommentId);
         reply.setUserId(userId);
-        reply.setEntityType(CommentContentRepository.ENTITY_TYPE_COMMENT);
-        reply.setEntityId(parentCommentId);
         reply.setContent("&lt;reply&gt;");
         reply.setCreateTime(new Date(3_000));
-
-        Comment parent = new Comment();
-        parent.setId(parentCommentId);
-        parent.setEntityType(CommentContentRepository.ENTITY_TYPE_POST);
-        parent.setEntityId(secondPostId);
 
         DiscussPost firstPost = new DiscussPost();
         firstPost.setId(firstPostId);
@@ -439,7 +434,6 @@ class PostReadApplicationServiceTest {
         secondPost.setTitle("&lt;second&gt;");
 
         when(commentService.listRecentCommentsByUser(userId, 0, 3)).thenReturn(List.of(reply, direct));
-        when(commentService.getById(parentCommentId)).thenReturn(parent);
         when(postService.getById(firstPostId)).thenReturn(firstPost);
         when(postService.getById(secondPostId)).thenReturn(secondPost);
 
@@ -466,7 +460,7 @@ class PostReadApplicationServiceTest {
     }
 
     @Test
-    void listRecentCommentsByUserShouldSkipBrokenReplyTargetsInsteadOfFailingWholeFeed() {
+    void listRecentCommentsByUserShouldSkipCommentsMissingPostReferenceInsteadOfFailingWholeFeed() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
         LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
@@ -479,22 +473,18 @@ class PostReadApplicationServiceTest {
         UUID userId = uuid(7);
         UUID brokenReplyId = uuid(41);
         UUID directCommentId = uuid(42);
-        UUID missingParentCommentId = uuid(404);
         UUID postId = uuid(201);
 
         Comment brokenReply = new Comment();
         brokenReply.setId(brokenReplyId);
         brokenReply.setUserId(userId);
-        brokenReply.setEntityType(CommentContentRepository.ENTITY_TYPE_COMMENT);
-        brokenReply.setEntityId(missingParentCommentId);
         brokenReply.setContent("&lt;reply&gt;");
         brokenReply.setCreateTime(new Date(3_000));
 
         Comment direct = new Comment();
         direct.setId(directCommentId);
+        direct.setPostId(postId);
         direct.setUserId(userId);
-        direct.setEntityType(CommentContentRepository.ENTITY_TYPE_POST);
-        direct.setEntityId(postId);
         direct.setContent("&lt;direct&gt;");
         direct.setCreateTime(new Date(2_000));
 
@@ -503,7 +493,6 @@ class PostReadApplicationServiceTest {
         firstPost.setTitle("&lt;first&gt;");
 
         when(commentService.listRecentCommentsByUser(userId, 0, 3)).thenReturn(List.of(brokenReply, direct));
-        when(commentService.getById(missingParentCommentId)).thenThrow(new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND));
         when(postService.getById(postId)).thenReturn(firstPost);
 
         PostReadApplicationService service = service(

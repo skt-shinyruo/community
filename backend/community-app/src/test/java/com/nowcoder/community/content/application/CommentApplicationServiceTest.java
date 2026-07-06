@@ -121,7 +121,7 @@ class CommentApplicationServiceTest {
 
         CommentCreateResult result = service.create(
                 "idem-1",
-                new CreateCommentCommand(userId, postId, EntityTypes.POST, null, uuid(999), " hello & world ")
+                new CreateCommentCommand(userId, postId, null, null, " hello & world ")
         );
 
         assertThat(result.commentId()).isEqualTo(commentId);
@@ -155,9 +155,10 @@ class CommentApplicationServiceTest {
 
         CommentDraft draft = draftCaptor.getValue();
         assertThat(draft.userId()).isEqualTo(userId);
-        assertThat(draft.entityType()).isEqualTo(EntityTypes.POST);
-        assertThat(draft.entityId()).isEqualTo(postId);
-        assertThat(draft.targetId()).isNull();
+        assertThat(draft.postId()).isEqualTo(postId);
+        assertThat(draft.rootCommentId()).isNull();
+        assertThat(draft.parentCommentId()).isNull();
+        assertThat(draft.replyToUserId()).isNull();
         assertThat(draft.content()).isEqualTo("clean &amp; body");
         assertThat(draft.createTime()).isNotNull();
 
@@ -268,7 +269,7 @@ class CommentApplicationServiceTest {
 
         CommentCreateResult result = service.create(
                 "idem-transaction",
-                new CreateCommentCommand(userId, postId, EntityTypes.POST, null, null, "hi")
+                new CreateCommentCommand(userId, postId, null, null, "hi")
         );
 
         assertThat(result.commentId()).isEqualTo(commentId);
@@ -299,14 +300,14 @@ class CommentApplicationServiceTest {
     }
 
     @Test
-    void createReplyShouldPersistAuthoritativeTargetUserInsteadOfRawClientTargetId() {
+    void createReplyShouldPreserveExplicitReplyTargetUserWhenReplyingInsideThread() {
         UUID userId = uuid(1);
         UUID postId = uuid(100);
         UUID targetCommentId = uuid(200);
         UUID targetCommentAuthorId = uuid(201);
         UUID rawTargetId = uuid(999);
         UUID commentId = uuid(300);
-        CommentSnapshot targetComment = activeComment(targetCommentId, targetCommentAuthorId, EntityTypes.POST, postId);
+        CommentSnapshot targetComment = rootComment(targetCommentId, targetCommentAuthorId, postId);
 
         when(idempotencyGuard.executeRequired(
                 eq("content:create_comment"),
@@ -319,21 +320,57 @@ class CommentApplicationServiceTest {
         )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, uuid(2)));
         when(commentRepository.findActiveSnapshot(targetCommentId)).thenReturn(Optional.of(targetComment));
-        when(blockQueryApi.isEitherBlocked(userId, targetCommentAuthorId)).thenReturn(false);
+        when(blockQueryApi.isEitherBlocked(userId, rawTargetId)).thenReturn(false);
         when(sensitiveFilter.filter("reply")).thenReturn("reply");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
         service.create(
                 "idem-reply-target",
-                new CreateCommentCommand(userId, postId, EntityTypes.COMMENT, targetCommentId, rawTargetId, "reply")
+                new CreateCommentCommand(userId, postId, targetCommentId, rawTargetId, "reply")
         );
 
         ArgumentCaptor<CommentDraft> draftCaptor = ArgumentCaptor.forClass(CommentDraft.class);
         verify(commentRepository).create(draftCaptor.capture());
-        assertThat(draftCaptor.getValue().targetId()).isEqualTo(targetCommentAuthorId);
+        assertThat(draftCaptor.getValue().postId()).isEqualTo(postId);
+        assertThat(draftCaptor.getValue().rootCommentId()).isEqualTo(targetCommentId);
+        assertThat(draftCaptor.getValue().parentCommentId()).isEqualTo(targetCommentId);
+        assertThat(draftCaptor.getValue().replyToUserId()).isEqualTo(rawTargetId);
+        verify(blockQueryApi).isEitherBlocked(userId, rawTargetId);
         ArgumentCaptor<CommentCreatedDomainEvent> eventCaptor = ArgumentCaptor.forClass(CommentCreatedDomainEvent.class);
         verify(domainEventPublisher).commentCreated(eventCaptor.capture());
-        assertThat(eventCaptor.getValue().targetUserId()).isEqualTo(targetCommentAuthorId);
+        assertThat(eventCaptor.getValue().targetUserId()).isEqualTo(rawTargetId);
+    }
+
+    @Test
+    void createReplyShouldPersistParentAndReplyTargetInsteadOfGenericEntityFields() {
+        UUID userId = uuid(7);
+        UUID postId = uuid(100);
+        UUID parentCommentId = uuid(200);
+        UUID replyToUserId = uuid(9);
+        UUID commentId = uuid(300);
+
+        when(idempotencyGuard.executeRequired(
+                eq("content:create_comment"),
+                eq(userId),
+                anyString(),
+                anyString(),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
+                eq(UUID.class),
+                any()
+        )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
+        when(postContentPort.getById(postId)).thenReturn(post(postId, uuid(2)));
+        when(commentRepository.findActiveSnapshot(parentCommentId))
+                .thenReturn(Optional.of(rootComment(parentCommentId, replyToUserId, postId)));
+        when(blockQueryApi.isEitherBlocked(userId, replyToUserId)).thenReturn(false);
+        when(sensitiveFilter.filter("reply")).thenReturn("reply");
+        when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
+
+        service.create("idem-parent-reply", new CreateCommentCommand(userId, postId, parentCommentId, replyToUserId, "reply"));
+
+        verify(commentRepository).create(org.mockito.ArgumentMatchers.argThat(draft ->
+                postId.equals(draft.postId())
+                        && parentCommentId.equals(draft.parentCommentId())
+                        && replyToUserId.equals(draft.replyToUserId())));
     }
 
     @Test
@@ -343,7 +380,7 @@ class CommentApplicationServiceTest {
         UUID otherPostId = uuid(101);
         UUID postAuthorId = uuid(2);
         UUID targetCommentId = uuid(200);
-        CommentSnapshot targetComment = activeComment(targetCommentId, postAuthorId, EntityTypes.POST, otherPostId);
+        CommentSnapshot targetComment = rootComment(targetCommentId, postAuthorId, otherPostId);
 
         when(idempotencyGuard.executeRequired(
                 eq("content:create_comment"),
@@ -359,7 +396,7 @@ class CommentApplicationServiceTest {
 
         assertThatThrownBy(() -> service.create(
                 "idem-2",
-                new CreateCommentCommand(userId, postId, EntityTypes.COMMENT, targetCommentId, null, "reply")
+                new CreateCommentCommand(userId, postId, targetCommentId, null, "reply")
         ))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
@@ -389,7 +426,7 @@ class CommentApplicationServiceTest {
 
         assertThatThrownBy(() -> service.create(
                 "idem-3",
-                new CreateCommentCommand(userId, postId, EntityTypes.POST, null, null, "blocked")
+                new CreateCommentCommand(userId, postId, null, null, "blocked")
         ))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
@@ -404,7 +441,7 @@ class CommentApplicationServiceTest {
         UUID userId = uuid(1);
         UUID postId = uuid(100);
         UUID commentId = uuid(200);
-        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        CommentSnapshot existing = rootComment(commentId, userId, postId);
 
         when(postContentPort.getById(postId)).thenReturn(post(postId, uuid(2)));
         when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
@@ -426,13 +463,13 @@ class CommentApplicationServiceTest {
         UUID commentId = uuid(200);
         UUID replyId = uuid(201);
         UUID nestedReplyId = uuid(202);
-        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        CommentSnapshot existing = rootComment(commentId, userId, postId);
         when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
         when(commentRepository.markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class)))
                 .thenReturn(new CommentDeletionResult(List.of(
-                        activeComment(commentId, userId, EntityTypes.POST, postId),
-                        activeComment(replyId, userId, EntityTypes.COMMENT, commentId),
-                        activeComment(nestedReplyId, userId, EntityTypes.COMMENT, replyId)
+                        rootComment(commentId, userId, postId),
+                        replyComment(replyId, userId, postId, commentId, userId),
+                        replyComment(nestedReplyId, userId, postId, commentId, userId)
                 )));
 
         service.deleteByAuthor(userId, postId, commentId);
@@ -454,15 +491,15 @@ class CommentApplicationServiceTest {
         UUID commentId = uuid(200);
         UUID replyId = uuid(201);
         UUID nestedReplyId = uuid(202);
-        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        CommentSnapshot existing = rootComment(commentId, userId, postId);
         when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
         UUID replyAuthorId = uuid(2);
         UUID nestedReplyAuthorId = uuid(3);
         when(commentRepository.markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class)))
                 .thenReturn(new CommentDeletionResult(List.of(
-                        activeComment(commentId, userId, EntityTypes.POST, postId),
-                        activeComment(replyId, replyAuthorId, EntityTypes.COMMENT, commentId),
-                        activeComment(nestedReplyId, nestedReplyAuthorId, EntityTypes.COMMENT, replyId)
+                        rootComment(commentId, userId, postId),
+                        replyComment(replyId, replyAuthorId, postId, commentId, userId),
+                        replyComment(nestedReplyId, nestedReplyAuthorId, postId, commentId, replyAuthorId)
                 )));
 
         service.deleteByAuthor(userId, postId, commentId);
@@ -479,7 +516,7 @@ class CommentApplicationServiceTest {
         assertThat(eventCaptor.getAllValues()).extracting(CommentDeletedDomainEvent::entityType)
                 .containsExactly(EntityTypes.POST, EntityTypes.COMMENT, EntityTypes.COMMENT);
         assertThat(eventCaptor.getAllValues()).extracting(CommentDeletedDomainEvent::entityId)
-                .containsExactly(postId, commentId, replyId);
+                .containsExactly(postId, commentId, commentId);
         assertThat(eventCaptor.getAllValues()).allSatisfy(event -> assertThat(event.createTime()).isNotNull());
     }
 
@@ -490,10 +527,9 @@ class CommentApplicationServiceTest {
         UUID routePostId = uuid(101);
         UUID parentCommentId = uuid(200);
         UUID replyId = uuid(201);
-        CommentSnapshot parent = activeComment(parentCommentId, uuid(2), EntityTypes.POST, actualPostId);
-        CommentSnapshot reply = activeComment(replyId, userId, EntityTypes.COMMENT, parentCommentId);
+        CommentSnapshot parent = rootComment(parentCommentId, uuid(2), actualPostId);
+        CommentSnapshot reply = replyComment(replyId, userId, actualPostId, parentCommentId, uuid(2));
         when(commentRepository.getRequiredSnapshot(replyId)).thenReturn(reply);
-        when(commentRepository.getRequiredSnapshot(parentCommentId)).thenReturn(parent);
         when(commentRepository.markActiveThreadDeleted(eq(replyId), eq(userId), eq("author_delete"), any(Date.class)))
                 .thenReturn(new CommentDeletionResult(List.of(reply)));
 
@@ -511,7 +547,7 @@ class CommentApplicationServiceTest {
         UUID userId = uuid(1);
         UUID postId = uuid(100);
         UUID commentId = uuid(200);
-        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        CommentSnapshot existing = rootComment(commentId, userId, postId);
         when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
         when(commentRepository.markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class)))
                 .thenReturn(new CommentDeletionResult(List.of(existing)));
@@ -539,12 +575,12 @@ class CommentApplicationServiceTest {
         UUID postId = uuid(100);
         UUID commentId = uuid(200);
         UUID replyId = uuid(201);
-        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        CommentSnapshot existing = rootComment(commentId, userId, postId);
         when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
         when(commentRepository.markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class)))
                 .thenReturn(new CommentDeletionResult(List.of(
-                        activeComment(commentId, userId, EntityTypes.POST, postId),
-                        activeComment(replyId, userId, EntityTypes.COMMENT, commentId)
+                        rootComment(commentId, userId, postId),
+                        replyComment(replyId, userId, postId, commentId, userId)
                 )));
         org.mockito.Mockito.doThrow(new RuntimeException("cleanup failed"))
                 .when(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, commentId);
@@ -562,12 +598,12 @@ class CommentApplicationServiceTest {
         UUID commentId = uuid(200);
         UUID replyId = uuid(201);
         UUID nestedReplyId = uuid(202);
-        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        CommentSnapshot existing = rootComment(commentId, userId, postId);
         when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
         when(commentRepository.markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class)))
                 .thenReturn(new CommentDeletionResult(List.of(
-                        activeComment(commentId, userId, EntityTypes.POST, postId),
-                        activeComment(nestedReplyId, userId, EntityTypes.COMMENT, replyId)
+                        rootComment(commentId, userId, postId),
+                        replyComment(nestedReplyId, userId, postId, commentId, userId)
                 )));
 
         service.deleteByAuthor(userId, postId, commentId);
@@ -583,7 +619,7 @@ class CommentApplicationServiceTest {
         UUID userId = uuid(1);
         UUID postId = uuid(100);
         UUID commentId = uuid(200);
-        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        CommentSnapshot existing = rootComment(commentId, userId, postId);
         when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
         when(commentRepository.markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class)))
                 .thenReturn(new CommentDeletionResult(List.of()));
@@ -602,13 +638,36 @@ class CommentApplicationServiceTest {
         return post;
     }
 
-    private static CommentSnapshot activeComment(UUID commentId, UUID userId, int entityType, UUID entityId) {
+    private static CommentSnapshot rootComment(UUID commentId, UUID userId, UUID postId) {
         return new CommentSnapshot(
                 commentId,
                 userId,
-                entityType,
-                entityId,
+                postId,
+                commentId,
                 null,
+                null,
+                "content",
+                0,
+                new Date(),
+                null,
+                0
+        );
+    }
+
+    private static CommentSnapshot replyComment(
+            UUID commentId,
+            UUID userId,
+            UUID postId,
+            UUID rootCommentId,
+            UUID replyToUserId
+    ) {
+        return new CommentSnapshot(
+                commentId,
+                userId,
+                postId,
+                rootCommentId,
+                rootCommentId,
+                replyToUserId,
                 "content",
                 0,
                 new Date(),

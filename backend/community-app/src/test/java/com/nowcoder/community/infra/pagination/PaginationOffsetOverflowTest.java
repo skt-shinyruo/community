@@ -55,15 +55,15 @@ class PaginationOffsetOverflowTest {
     @Test
     void commentServiceShouldNotPassNegativeOffsetWhenPageIsHuge() {
         CommentMapper commentMapper = mock(CommentMapper.class);
-        when(commentMapper.selectCommentsByEntity(anyInt(), any(), anyInt(), anyInt())).thenReturn(List.of());
+        when(commentMapper.selectRootComments(any(), anyInt(), anyInt())).thenReturn(List.of());
         UUID postId = uuid(1);
 
         MyBatisCommentContentRepository service = new MyBatisCommentContentRepository(commentMapper, mock(PostContentRepository.class));
 
-        service.listByPost(postId, Integer.MAX_VALUE, 50);
+        service.listRootComments(postId, Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(commentMapper).selectCommentsByEntity(eq(MyBatisCommentContentRepository.ENTITY_TYPE_POST), eq(postId), offsetCaptor.capture(), eq(50));
+        verify(commentMapper).selectRootComments(eq(postId), offsetCaptor.capture(), eq(50));
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 

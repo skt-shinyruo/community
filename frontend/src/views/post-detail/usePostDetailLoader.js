@@ -28,15 +28,103 @@ import {
 } from '../../api/services/postService'
 import {
   buildQuotePreview,
-  collectCommentHydrationIds,
-  collectReplyHydrationIds,
-  composeReplyContent,
-  hydratePostComment,
-  hydratePostReply
+  composeReplyContent
 } from '../postDetailState'
 import { usePostDetailDrafts } from './usePostDetailDrafts'
 import { isWithinEditWindow } from './usePostDetailInteractions'
 import { isDangerConfirmation, resolvePostDetailConfirmation } from './usePostDetailModeration'
+
+function normalizeCommentCursorPage(raw) {
+  if (Array.isArray(raw)) {
+    return {
+      items: raw,
+      nextCursor: ''
+    }
+  }
+  const page = raw && typeof raw === 'object' ? raw : {}
+  return {
+    items: Array.isArray(page.items) ? page.items : [],
+    nextCursor: page.nextCursor == null ? '' : String(page.nextCursor)
+  }
+}
+
+function collectThreadHydrationIds(items, { includeReplyToUserId = false } = {}) {
+  const userIds = []
+  const entityIds = []
+  const seenUsers = new Set()
+  const seenEntities = new Set()
+
+  for (const item of Array.isArray(items) ? items : []) {
+    const userId = normalizeOpaqueId(item?.userId)
+    const entityId = normalizeOpaqueId(item?.id)
+    const replyToUserId = includeReplyToUserId ? normalizeOpaqueId(item?.replyToUserId) : ''
+
+    if (userId && !seenUsers.has(userId)) {
+      seenUsers.add(userId)
+      userIds.push(userId)
+    }
+    if (replyToUserId && !seenUsers.has(replyToUserId)) {
+      seenUsers.add(replyToUserId)
+      userIds.push(replyToUserId)
+    }
+    if (entityId && !seenEntities.has(entityId)) {
+      seenEntities.add(entityId)
+      entityIds.push(entityId)
+    }
+    if (userIds.length >= 200 && entityIds.length >= 200) break
+  }
+
+  return { userIds, entityIds }
+}
+
+function hydrateCommentItem(raw, { users = {}, counts = {}, statuses = {} } = {}) {
+  const commentId = normalizeOpaqueId(raw?.id)
+  const userId = normalizeOpaqueId(raw?.userId)
+  const likeCount = counts?.[commentId]
+  const liked = statuses?.[commentId]
+
+  return {
+    ...raw,
+    user: users?.[userId] || null,
+    likeCount: typeof likeCount === 'number' ? likeCount : 0,
+    liked: !!liked,
+    _likeLoading: false,
+    _replying: false,
+    _replyDraft: '',
+    _replyError: '',
+    _replySubmitting: false,
+    _replyToUserId: '',
+    _replyToUser: null,
+    _replyQuote: null,
+    _repliesExpanded: false,
+    _replies: [],
+    _repliesPage: 0,
+    _repliesSize: 5,
+    _repliesNextCursor: '',
+    _repliesCursorHistory: [''],
+    _repliesLoading: false,
+    _repliesError: ''
+  }
+}
+
+function hydrateReplyItem(raw, { users = {}, counts = {}, statuses = {} } = {}) {
+  const replyId = normalizeOpaqueId(raw?.id)
+  const userId = normalizeOpaqueId(raw?.userId)
+  const replyToUserId = normalizeOpaqueId(raw?.replyToUserId)
+  const likeCount = counts?.[replyId]
+  const liked = statuses?.[replyId]
+
+  return {
+    ...raw,
+    user: users?.[userId] || null,
+    replyToUserId,
+    targetUserId: replyToUserId,
+    targetUser: replyToUserId ? (users?.[replyToUserId] || null) : null,
+    likeCount: typeof likeCount === 'number' ? likeCount : 0,
+    liked: !!liked,
+    _likeLoading: false
+  }
+}
 
 export function usePostDetailLoader(emit) {
 
@@ -114,9 +202,11 @@ export function usePostDetailLoader(emit) {
   const comments = ref([])
   const commentsPage = ref(0)
   const commentsSize = ref(10)
+  const commentsNextCursor = ref('')
+  const commentsCursorHistory = ref([''])
   const commentsLoading = ref(false)
   const commentsError = ref('')
-  const commentsHasNext = computed(() => comments.value.length === Number(commentsSize.value || 10))
+  const commentsHasNext = computed(() => !!commentsNextCursor.value)
 
   const confirmOpen = ref(false)
   const confirmTitle = ref('')
@@ -449,7 +539,7 @@ export function usePostDetailLoader(emit) {
 
     if (!c._repliesExpanded) c._repliesExpanded = true
     if (Array.isArray(c._replies) && c._replies.length === 0) {
-      c._repliesPage = 0
+      resetRepliesCursorPaging(c)
       await loadReplies(c)
     }
 
@@ -457,16 +547,39 @@ export function usePostDetailLoader(emit) {
     scrollToAnchor(replyAnchorId(replyId))
   }
 
+  function resetCommentsCursorPaging() {
+    commentsPage.value = 0
+    commentsNextCursor.value = ''
+    commentsCursorHistory.value = ['']
+  }
+
+  function currentCommentsCursor() {
+    return String(commentsCursorHistory.value[commentsPage.value] || '')
+  }
+
+  function resetRepliesCursorPaging(c) {
+    if (!c) return
+    c._repliesPage = 0
+    c._repliesNextCursor = ''
+    c._repliesCursorHistory = ['']
+  }
+
+  function currentRepliesCursor(c) {
+    if (!Array.isArray(c?._repliesCursorHistory)) return ''
+    return String(c._repliesCursorHistory[c._repliesPage] || '')
+  }
+
   async function loadComments() {
     const token = commentsRequestTracker.begin()
     commentsError.value = ''
     commentsLoading.value = true
     try {
-      const resp = await apiListComments(postId.value, { page: commentsPage.value, size: commentsSize.value })
+      const resp = await apiListComments(postId.value, { cursor: currentCommentsCursor(), size: commentsSize.value })
       if (!commentsRequestTracker.isCurrent(token)) return
       emit('trace', resp?.traceId || '')
-      const raw = Array.isArray(resp?.data) ? resp.data : []
-      const { userIds, entityIds: commentIds } = collectCommentHydrationIds(raw)
+      const page = normalizeCommentCursorPage(resp?.data)
+      const raw = page.items
+      const { userIds, entityIds: commentIds } = collectThreadHydrationIds(raw)
 
       let users = {}
       let counts = {}
@@ -490,7 +603,14 @@ export function usePostDetailLoader(emit) {
         statuses = statusesResult.value || {}
       }
 
-      comments.value = raw.map((c) => hydratePostComment(c, { users, counts, statuses }))
+      const nextCursor = page.nextCursor
+      const history = commentsCursorHistory.value.slice(0, commentsPage.value + 1)
+      if (nextCursor) {
+        history[commentsPage.value + 1] = nextCursor
+      }
+      commentsCursorHistory.value = history
+      commentsNextCursor.value = nextCursor
+      comments.value = raw.map((c) => hydrateCommentItem(c, { users, counts, statuses }))
       await maybeScrollFromRoute()
     } catch (e) {
       if (!commentsRequestTracker.isCurrent(token)) return
@@ -503,7 +623,7 @@ export function usePostDetailLoader(emit) {
   }
 
   function repliesHasNext(c) {
-    return Array.isArray(c?._replies) && c._replies.length === Number(c?._repliesSize || 5)
+    return !!String(c?._repliesNextCursor || '')
   }
 
   async function loadReplies(c) {
@@ -511,10 +631,11 @@ export function usePostDetailLoader(emit) {
     c._repliesError = ''
     c._repliesLoading = true
     try {
-      const resp = await apiListReplies(postId.value, c.id, { page: c._repliesPage, size: c._repliesSize })
+      const resp = await apiListReplies(postId.value, c.id, { cursor: currentRepliesCursor(c), size: c._repliesSize })
       emit('trace', resp?.traceId || '')
-      const raw = Array.isArray(resp?.data) ? resp.data : []
-      const { userIds, entityIds: replyIds } = collectReplyHydrationIds(raw)
+      const page = normalizeCommentCursorPage(resp?.data)
+      const raw = page.items
+      const { userIds, entityIds: replyIds } = collectThreadHydrationIds(raw, { includeReplyToUserId: true })
 
       let users = {}
       let counts = {}
@@ -537,7 +658,14 @@ export function usePostDetailLoader(emit) {
         statuses = statusesResult.value || {}
       }
 
-      c._replies = raw.map((r) => hydratePostReply(r, { users, counts, statuses }))
+      const nextCursor = page.nextCursor
+      const history = Array.isArray(c._repliesCursorHistory) ? c._repliesCursorHistory.slice(0, c._repliesPage + 1) : ['']
+      if (nextCursor) {
+        history[c._repliesPage + 1] = nextCursor
+      }
+      c._repliesCursorHistory = history
+      c._repliesNextCursor = nextCursor
+      c._replies = raw.map((r) => hydrateReplyItem(r, { users, counts, statuses }))
     } catch (e) {
       c._repliesError = e?.message || '加载回复失败'
     } finally {
@@ -549,14 +677,14 @@ export function usePostDetailLoader(emit) {
     if (!c) return
     c._repliesExpanded = !c._repliesExpanded
     if (c._repliesExpanded && c._replies.length === 0) {
-      c._repliesPage = 0
+      resetRepliesCursorPaging(c)
       await loadReplies(c)
     }
   }
 
   async function reloadReplies(c) {
     if (!c) return
-    c._repliesPage = 0
+    resetRepliesCursorPaging(c)
     await loadReplies(c)
   }
 
@@ -582,8 +710,8 @@ export function usePostDetailLoader(emit) {
 
     // 引用内容：回复回复时引用 reply；回复评论时引用 comment。
     if (reply && reply.userId) {
-      c._replyTargetId = normalizeOpaqueId(reply.userId)
-      c._replyTargetUser = reply.user || null
+      c._replyToUserId = normalizeOpaqueId(reply.userId)
+      c._replyToUser = reply.user || null
       c._replyQuote = {
         sourceType: 'reply',
         sourceId: normalizeOpaqueId(reply.id),
@@ -593,8 +721,8 @@ export function usePostDetailLoader(emit) {
         preview: buildQuotePreview(reply.content)
       }
     } else {
-      c._replyTargetId = normalizeOpaqueId(c.userId)
-      c._replyTargetUser = c.user || null
+      c._replyToUserId = normalizeOpaqueId(c.userId)
+      c._replyToUser = c.user || null
       c._replyQuote = {
         sourceType: 'comment',
         sourceId: normalizeOpaqueId(c.id),
@@ -611,8 +739,8 @@ export function usePostDetailLoader(emit) {
     c._replying = false
     c._replyError = ''
     c._replySubmitting = false
-    c._replyTargetId = ''
-    c._replyTargetUser = null
+    c._replyToUserId = ''
+    c._replyToUser = null
     c._replyQuote = null
   }
 
@@ -627,14 +755,15 @@ export function usePostDetailLoader(emit) {
     try {
       const resp = await apiAddComment(postId.value, {
         content: composeReplyContent(c._replyDraft, c._replyQuote),
-        entityType: 2,
-        entityId: c.id,
-        targetId: c._replyTargetId || undefined
+        parentCommentId: c.id,
+        replyToUserId: c._replyToUserId || undefined
       })
       emit('trace', resp?.traceId || '')
       c._replyDraft = ''
       safeStorageSet(replyDraftKey(c.id), '')
       c._replying = false
+      c._replyToUserId = ''
+      c._replyToUser = null
       c._replyQuote = null
       if (post.value) {
         post.value.commentCount = Number(post.value.commentCount || 0) + 1
@@ -642,7 +771,7 @@ export function usePostDetailLoader(emit) {
       if (!c._repliesExpanded) {
         c._repliesExpanded = true
       }
-      c._repliesPage = 0
+      resetRepliesCursorPaging(c)
       await loadReplies(c)
     } catch (e) {
       c._replyError = e?.message || '回复失败'
@@ -716,7 +845,7 @@ export function usePostDetailLoader(emit) {
       const resp = await apiAddComment(postId.value, { content: newComment.value })
       emit('trace', resp?.traceId || '')
       setNewComment('')
-      commentsPage.value = 0
+      resetCommentsCursorPaging()
       await loadComments()
       await loadPost()
     } catch (e) {
@@ -739,7 +868,7 @@ export function usePostDetailLoader(emit) {
   }
 
   async function reloadComments() {
-    commentsPage.value = 0
+    resetCommentsCursorPaging()
     await loadComments()
   }
 
@@ -784,7 +913,7 @@ export function usePostDetailLoader(emit) {
       post.value = null
       postAuthor.value = null
       comments.value = []
-      commentsPage.value = 0
+      resetCommentsCursorPaging()
       followStatus.value = null
       reportOpen.value = false
       closeEdit()

@@ -52,39 +52,11 @@ public class ContentEntityResolutionApplicationService {
         if (!comment.isActive()) {
             throw new BusinessException(COMMENT_NOT_FOUND);
         }
-        UUID postId = resolveRootPostIdByComment(comment, 12);
+        UUID postId = comment.getPostId();
         if (postId == null) {
             throw new BusinessException(POST_NOT_FOUND, "评论所属帖子不存在");
         }
         postContentRepository.getById(postId);
         return new ResolvedContentResult(comment.getUserId(), postId);
-    }
-
-    private UUID resolveRootPostIdByComment(Comment comment, int maxHops) {
-        if (comment == null || comment.getId() == null) {
-            return null;
-        }
-        int type = comment.getEntityType();
-        UUID id = comment.getEntityId();
-        for (int i = 0; i < Math.max(1, maxHops); i++) {
-            if (type == EntityTypes.POST) {
-                return id;
-            }
-            if (type != EntityTypes.COMMENT || id == null) {
-                return null;
-            }
-            Comment parent;
-            try {
-                parent = commentContentRepository.getByIdAllowDeleted(id);
-            } catch (BusinessException ex) {
-                return null;
-            }
-            if (!parent.isActive()) {
-                return null;
-            }
-            type = parent.getEntityType();
-            id = parent.getEntityId();
-        }
-        return null;
     }
 }

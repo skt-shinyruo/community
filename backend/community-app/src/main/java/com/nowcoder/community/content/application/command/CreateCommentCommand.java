@@ -5,9 +5,8 @@ import java.util.UUID;
 public record CreateCommentCommand(
         UUID userId,
         UUID postId,
-        Integer entityType,
-        UUID entityId,
-        UUID targetId,
+        UUID parentCommentId,
+        UUID replyToUserId,
         String content
 ) {
 }

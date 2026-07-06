@@ -81,18 +81,22 @@ export async function deletePostByAuthor(postId) {
   return { traceId }
 }
 
-export async function listComments(postId, { page = 0, size = 10 } = {}) {
-  const resp = await http.get(`/api/posts/${postId}/comments`, { params: { page, size } })
+export async function listComments(postId, { cursor = '', size = 10 } = {}) {
+  const params = {}
+  if (cursor) params.cursor = cursor
+  if (size != null) params.size = size
+  const resp = await http.get(`/api/posts/${postId}/comments`, { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询评论')
-  const list = Array.isArray(data) ? data : []
-  return { data: list.map(pickCommentFields), traceId }
+  return { data: normalizeCommentPage(data), traceId }
 }
 
-export async function listReplies(postId, commentId, { page = 0, size = 10 } = {}) {
-  const resp = await http.get(`/api/posts/${postId}/comments/${commentId}/replies`, { params: { page, size } })
+export async function listReplies(postId, commentId, { cursor = '', size = 10 } = {}) {
+  const params = {}
+  if (cursor) params.cursor = cursor
+  if (size != null) params.size = size
+  const resp = await http.get(`/api/posts/${postId}/comments/${commentId}/replies`, { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询回复')
-  const list = Array.isArray(data) ? data : []
-  return { data: list.map(pickCommentFields), traceId }
+  return { data: normalizeCommentPage(data), traceId }
 }
 
 function pickCommentFields(raw) {
@@ -100,9 +104,10 @@ function pickCommentFields(raw) {
   return {
     id: normalizeOpaqueId(r.id),
     userId: normalizeOpaqueId(r.userId),
-    entityType: Number(r.entityType || 0),
-    entityId: normalizeOpaqueId(r.entityId),
-    targetId: normalizeOpaqueId(r.targetId),
+    postId: normalizeOpaqueId(r.postId),
+    rootCommentId: normalizeOpaqueId(r.rootCommentId),
+    parentCommentId: normalizeOpaqueId(r.parentCommentId),
+    replyToUserId: normalizeOpaqueId(r.replyToUserId),
     content: r.content == null ? '' : String(r.content),
     createTime: r.createTime,
     updateTime: r.updateTime,
@@ -128,17 +133,16 @@ function normalizeBlocks(blocks) {
   })
 }
 
-export async function addComment(postId, { content, entityType, entityId, targetId }) {
+export async function addComment(postId, { content, parentCommentId, replyToUserId } = {}) {
   const pid = requireOpaqueId(postId, 'postId')
   const payload = { content }
-  if (entityType != null) payload.entityType = entityType
   {
-    const commentId = normalizeOpaqueId(entityId)
-    if (commentId) payload.entityId = commentId
+    const normalizedParentCommentId = normalizeOpaqueId(parentCommentId)
+    if (normalizedParentCommentId) payload.parentCommentId = normalizedParentCommentId
   }
   {
-    const replyToUserId = normalizeOpaqueId(targetId)
-    if (replyToUserId) payload.targetId = replyToUserId
+    const normalizedReplyToUserId = normalizeOpaqueId(replyToUserId)
+    if (normalizedReplyToUserId) payload.replyToUserId = normalizedReplyToUserId
   }
   const resp = await http.post(`/api/posts/${pid}/comments`, payload)
   const { data, traceId } = unwrapResultBody(resp.data, '发表评论')
@@ -178,5 +182,19 @@ function normalizeFeedPage(raw) {
     items: Array.isArray(page.items) ? page.items : [],
     nextCursor: page.nextCursor == null ? '' : String(page.nextCursor),
     rankVersion: page.rankVersion == null ? '' : String(page.rankVersion)
+  }
+}
+
+function normalizeCommentPage(raw) {
+  if (Array.isArray(raw)) {
+    return {
+      items: raw.map(pickCommentFields),
+      nextCursor: ''
+    }
+  }
+  const page = raw && typeof raw === 'object' ? raw : {}
+  return {
+    items: Array.isArray(page.items) ? page.items.map(pickCommentFields) : [],
+    nextCursor: page.nextCursor == null ? '' : String(page.nextCursor)
   }
 }

@@ -270,22 +270,11 @@ public class PostReadApplicationService {
     }
 
     private RecentUserCommentResult toRecentComment(Comment comment) {
-        if (comment == null || comment.getId() == null) {
+        if (comment == null || comment.getId() == null || comment.getPostId() == null) {
             return null;
         }
         try {
-            UUID postId;
-            if (comment.getEntityType() == CommentContentRepository.ENTITY_TYPE_POST) {
-                postId = comment.getEntityId();
-            } else if (comment.getEntityType() == CommentContentRepository.ENTITY_TYPE_COMMENT) {
-                Comment parent = commentContentPort.getById(comment.getEntityId());
-                if (parent.getEntityType() != CommentContentRepository.ENTITY_TYPE_POST || parent.getEntityId() == null) {
-                    return null;
-                }
-                postId = parent.getEntityId();
-            } else {
-                return null;
-            }
+            UUID postId = comment.getPostId();
             DiscussPost post = postContentPort.getById(postId);
             return recentUserCommentAssembler.assemble(comment, postId, post.getTitle());
         } catch (BusinessException ex) {

@@ -14,9 +14,10 @@ public class CommentResponse {
 
     private UUID id;
     private UUID userId;
-    private int entityType;
-    private UUID entityId;
-    private UUID targetId;
+    private UUID postId;
+    private UUID rootCommentId;
+    private UUID parentCommentId;
+    private UUID replyToUserId;
     private String content;
     private Date createTime;
     private Date updateTime;
@@ -29,9 +30,10 @@ public class CommentResponse {
         CommentResponse response = new CommentResponse();
         response.id = view.id();
         response.userId = view.userId();
-        response.entityType = view.entityType();
-        response.entityId = view.entityId();
-        response.targetId = view.targetId();
+        response.postId = view.postId();
+        response.rootCommentId = view.rootCommentId();
+        response.parentCommentId = view.parentCommentId();
+        response.replyToUserId = view.replyToUserId();
         response.content = view.content();
         response.createTime = view.createTime();
         response.updateTime = view.updateTime();
@@ -55,28 +57,36 @@ public class CommentResponse {
         this.userId = userId;
     }
 
-    public int getEntityType() {
-        return entityType;
+    public UUID getPostId() {
+        return postId;
     }
 
-    public void setEntityType(int entityType) {
-        this.entityType = entityType;
+    public void setPostId(UUID postId) {
+        this.postId = postId;
     }
 
-    public UUID getEntityId() {
-        return entityId;
+    public UUID getRootCommentId() {
+        return rootCommentId;
     }
 
-    public void setEntityId(UUID entityId) {
-        this.entityId = entityId;
+    public void setRootCommentId(UUID rootCommentId) {
+        this.rootCommentId = rootCommentId;
     }
 
-    public UUID getTargetId() {
-        return targetId;
+    public UUID getParentCommentId() {
+        return parentCommentId;
     }
 
-    public void setTargetId(UUID targetId) {
-        this.targetId = targetId;
+    public void setParentCommentId(UUID parentCommentId) {
+        this.parentCommentId = parentCommentId;
+    }
+
+    public UUID getReplyToUserId() {
+        return replyToUserId;
+    }
+
+    public void setReplyToUserId(UUID replyToUserId) {
+        this.replyToUserId = replyToUserId;
     }
 
     public String getContent() {

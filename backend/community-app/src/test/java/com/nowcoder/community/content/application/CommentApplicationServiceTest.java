@@ -64,7 +64,6 @@ class CommentApplicationServiceTest {
     private SocialBlockQueryApi blockQueryApi;
     private SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private CommentDomainEventPublisher domainEventPublisher;
-    private PostWriteSideEffectScheduler postWriteSideEffectScheduler;
     private CommentApplicationService service;
 
     private static JsonCodec jsonCodec() {
@@ -81,7 +80,6 @@ class CommentApplicationServiceTest {
         blockQueryApi = mock(SocialBlockQueryApi.class);
         socialLikeCleanupActionApi = mock(SocialLikeCleanupActionApi.class);
         domainEventPublisher = mock(CommentDomainEventPublisher.class);
-        postWriteSideEffectScheduler = mock(PostWriteSideEffectScheduler.class);
         service = new CommentApplicationService(
                 sensitiveFilter,
                 idempotencyGuard,
@@ -92,8 +90,7 @@ class CommentApplicationServiceTest {
                 postContentPort,
                 blockQueryApi,
                 socialLikeCleanupActionApi,
-                domainEventPublisher,
-                postWriteSideEffectScheduler
+                domainEventPublisher
         );
     }
 
@@ -140,8 +137,7 @@ class CommentApplicationServiceTest {
                 postContentPort,
                 blockQueryApi,
                 commentRepository,
-                domainEventPublisher,
-                postWriteSideEffectScheduler
+                domainEventPublisher
         );
         inOrder.verify(moderationGuard).assertCanSpeak(userId);
         inOrder.verify(postContentPort).getById(postId);
@@ -151,7 +147,6 @@ class CommentApplicationServiceTest {
         inOrder.verify(postContentPort).incrementCommentCount(postId, 1);
         ArgumentCaptor<CommentCreatedDomainEvent> eventCaptor = ArgumentCaptor.forClass(CommentCreatedDomainEvent.class);
         inOrder.verify(domainEventPublisher).commentCreated(eventCaptor.capture());
-        inOrder.verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
 
         CommentDraft draft = draftCaptor.getValue();
         assertThat(draft.userId()).isEqualTo(userId);
@@ -194,6 +189,13 @@ class CommentApplicationServiceTest {
                         "com.nowcoder.community.user.api.action.UserRewardActionApi",
                         "com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi"
                 );
+    }
+
+    @Test
+    void commentApplicationServiceShouldNotDependOnPostWriteSideEffectScheduler() {
+        assertThat(Arrays.stream(CommentApplicationService.class.getDeclaredFields())
+                .map(field -> field.getType().getName()))
+                .doesNotContain("com.nowcoder.community.content.application.PostWriteSideEffectScheduler");
     }
 
     @Test
@@ -255,8 +257,7 @@ class CommentApplicationServiceTest {
                 postContentPort,
                 blockQueryApi,
                 socialLikeCleanupActionApi,
-                domainEventPublisher,
-                postWriteSideEffectScheduler
+                domainEventPublisher
         );
 
         CommentCreateResult result = service.create(
@@ -360,7 +361,6 @@ class CommentApplicationServiceTest {
         verify(commentRepository, never()).create(any(CommentDraft.class));
         verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
         verify(domainEventPublisher, never()).commentCreated(any(CommentCreatedDomainEvent.class));
-        verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));
     }
 
     @Test
@@ -391,7 +391,6 @@ class CommentApplicationServiceTest {
         verify(commentRepository, never()).create(any(CommentDraft.class));
         verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
         verify(domainEventPublisher, never()).commentCreated(any(CommentCreatedDomainEvent.class));
-        verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));
     }
 
     @Test
@@ -432,14 +431,13 @@ class CommentApplicationServiceTest {
 
         service.deleteByAuthor(userId, postId, commentId);
 
-        var inOrder = inOrder(commentRepository, postContentPort, socialLikeCleanupActionApi, postWriteSideEffectScheduler);
+        var inOrder = inOrder(commentRepository, postContentPort, socialLikeCleanupActionApi);
         inOrder.verify(commentRepository).getRequiredSnapshot(commentId);
         inOrder.verify(commentRepository).markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class));
         inOrder.verify(postContentPort).incrementCommentCount(postId, -3);
         inOrder.verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, commentId);
         inOrder.verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, replyId);
         inOrder.verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, nestedReplyId);
-        inOrder.verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
     }
 
     @Test
@@ -571,7 +569,6 @@ class CommentApplicationServiceTest {
         verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, commentId);
         verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, nestedReplyId);
         verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(EntityTypes.COMMENT, replyId);
-        verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
     }
 
     @Test
@@ -589,7 +586,6 @@ class CommentApplicationServiceTest {
         verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
         verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(any(Integer.class), any(UUID.class));
         verify(domainEventPublisher, never()).commentDeleted(any());
-        verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));
     }
 
     private static DiscussPost post(UUID postId, UUID authorId) {

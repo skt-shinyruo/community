@@ -4,7 +4,6 @@ import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
-import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.result.PostCreateResult;
@@ -65,7 +64,6 @@ public class PostPublishingApplicationService {
     private final CategoryRepository categoryRepository;
     private final PostTagRepository postTagRepository;
     private final PostDomainEventPublisher domainEventPublisher;
-    private final PostWriteSideEffectScheduler postWriteSideEffectScheduler;
     private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
 
     public PostPublishingApplicationService(
@@ -83,7 +81,6 @@ public class PostPublishingApplicationService {
             CategoryRepository categoryRepository,
             PostTagRepository postTagRepository,
             PostDomainEventPublisher domainEventPublisher,
-            PostWriteSideEffectScheduler postWriteSideEffectScheduler,
             SocialLikeCleanupActionApi socialLikeCleanupActionApi
     ) {
         this.sensitiveFilter = sensitiveFilter;
@@ -100,7 +97,6 @@ public class PostPublishingApplicationService {
         this.categoryRepository = categoryRepository;
         this.postTagRepository = postTagRepository;
         this.domainEventPublisher = domainEventPublisher;
-        this.postWriteSideEffectScheduler = postWriteSideEffectScheduler;
         this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
     }
 
@@ -126,7 +122,6 @@ public class PostPublishingApplicationService {
             postContentBlockRepository.replaceBlocks(postId, toDomainBlocks(postId, blocks));
             postTagRepository.bindTagsToPost(postId, command.tags());
             domainEventPublisher.postPublished(postId);
-            postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
             postBusinessEventLogger.postCreate(userId, command.categoryId(), postId);
             return new PostCreateResult(postId);
         });
@@ -147,7 +142,6 @@ public class PostPublishingApplicationService {
         releaseRemovedMediaAssets(userId, postId, keepAssetIds, now);
         postTagRepository.replaceTagsForPost(postId, tags);
         domainEventPublisher.postUpdated(postId);
-        postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
         postBusinessEventLogger.postUpdate(userId, categoryId, postId);
     }
 
@@ -161,7 +155,6 @@ public class PostPublishingApplicationService {
         }
         domainEventPublisher.postDeleted(postId);
         AfterCommitExecutor.runAfterCommit(() -> socialLikeCleanupActionApi.cleanupEntityLikes(EntityTypes.POST, postId));
-        postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
         postBusinessEventLogger.postDeleteByAuthor(userId, postId);
     }
 

@@ -35,7 +35,6 @@ class PostModerationApplicationServiceTest {
     private PostModerationDomainService domainService;
     private PostRepository postRepository;
     private PostDomainEventPublisher domainEventPublisher;
-    private PostWriteSideEffectScheduler postWriteSideEffectScheduler;
     private SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private PostModerationApplicationService service;
 
@@ -44,13 +43,11 @@ class PostModerationApplicationServiceTest {
         domainService = mock(PostModerationDomainService.class);
         postRepository = mock(PostRepository.class);
         domainEventPublisher = mock(PostDomainEventPublisher.class);
-        postWriteSideEffectScheduler = mock(PostWriteSideEffectScheduler.class);
         socialLikeCleanupActionApi = mock(SocialLikeCleanupActionApi.class);
         service = new PostModerationApplicationService(
                 domainService,
                 postRepository,
                 domainEventPublisher,
-                postWriteSideEffectScheduler,
                 socialLikeCleanupActionApi,
                 new PostBusinessEventLogger()
         );
@@ -69,7 +66,7 @@ class PostModerationApplicationServiceTest {
         service.wonderful(actorUserId, postId);
         service.delete(actorUserId, postId);
 
-        InOrder inOrder = inOrder(domainService, postRepository, domainEventPublisher, postWriteSideEffectScheduler, socialLikeCleanupActionApi);
+        InOrder inOrder = inOrder(domainService, postRepository, domainEventPublisher, socialLikeCleanupActionApi);
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).assertCanModeratePost(actorUserId, post);
         inOrder.verify(postRepository).markTop(postId);
@@ -78,13 +75,11 @@ class PostModerationApplicationServiceTest {
         inOrder.verify(domainService).assertCanModeratePost(actorUserId, post);
         inOrder.verify(postRepository).markWonderful(postId);
         inOrder.verify(domainEventPublisher).postUpdated(postId);
-        inOrder.verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).shouldAdminDelete(actorUserId, post);
         inOrder.verify(postRepository).markDeletedByAdmin(eq(postId), eq(actorUserId), any(Date.class));
         inOrder.verify(domainEventPublisher).postDeleted(postId);
         inOrder.verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.POST, postId);
-        inOrder.verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
 
         assertThat(output.getAll())
                 .contains("community.reason_code=admin_delete")
@@ -106,7 +101,7 @@ class PostModerationApplicationServiceTest {
         InOrder inOrder = inOrder(domainService, postRepository);
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).shouldAdminDelete(actorUserId, post);
-        verifyNoMoreInteractions(domainEventPublisher, postWriteSideEffectScheduler);
+        verifyNoMoreInteractions(domainEventPublisher);
         assertThat(output.getAll()).doesNotContain("community.reason_code=admin_delete");
     }
 
@@ -123,7 +118,6 @@ class PostModerationApplicationServiceTest {
 
         verify(domainEventPublisher, never()).postDeleted(any(UUID.class));
         verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(any(Integer.class), any(UUID.class));
-        verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));
         assertThat(output.getAll()).doesNotContain("community.reason_code=admin_delete");
     }
 
@@ -137,7 +131,6 @@ class PostModerationApplicationServiceTest {
 
         verify(domainEventPublisher, never()).postDeleted(any(UUID.class));
         verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(any(Integer.class), any(UUID.class));
-        verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));
         assertThat(output.getAll()).doesNotContain("community.reason_code=admin_delete");
     }
 
@@ -165,5 +158,12 @@ class PostModerationApplicationServiceTest {
         }
 
         verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.POST, postId);
+    }
+
+    @Test
+    void postModerationApplicationServiceShouldNotDependOnPostWriteSideEffectScheduler() {
+        assertThat(java.util.Arrays.stream(PostModerationApplicationService.class.getDeclaredFields())
+                .map(field -> field.getType().getName()))
+                .doesNotContain("com.nowcoder.community.content.application.PostWriteSideEffectScheduler");
     }
 }

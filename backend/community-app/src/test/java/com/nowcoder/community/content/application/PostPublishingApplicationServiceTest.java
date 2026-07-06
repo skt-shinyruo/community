@@ -68,7 +68,6 @@ class PostPublishingApplicationServiceTest {
     private CategoryRepository categoryRepository;
     private PostTagRepository postTagRepository;
     private PostDomainEventPublisher domainEventPublisher;
-    private PostWriteSideEffectScheduler postWriteSideEffectScheduler;
     private SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private PostPublishingApplicationService service;
 
@@ -86,7 +85,6 @@ class PostPublishingApplicationServiceTest {
         categoryRepository = mock(CategoryRepository.class);
         postTagRepository = mock(PostTagRepository.class);
         domainEventPublisher = mock(PostDomainEventPublisher.class);
-        postWriteSideEffectScheduler = mock(PostWriteSideEffectScheduler.class);
         socialLikeCleanupActionApi = mock(SocialLikeCleanupActionApi.class);
         service = new PostPublishingApplicationService(
                 sensitiveFilter,
@@ -103,7 +101,6 @@ class PostPublishingApplicationServiceTest {
                 categoryRepository,
                 postTagRepository,
                 domainEventPublisher,
-                postWriteSideEffectScheduler,
                 socialLikeCleanupActionApi
         );
     }
@@ -155,8 +152,7 @@ class PostPublishingApplicationServiceTest {
                 postRepository,
                 postContentBlockRepository,
                 postTagRepository,
-                domainEventPublisher,
-                postWriteSideEffectScheduler
+                domainEventPublisher
         );
         inOrder.verify(moderationGuard).assertCanSpeak(userId);
         inOrder.verify(categoryRepository).assertExists(categoryId);
@@ -165,7 +161,6 @@ class PostPublishingApplicationServiceTest {
         inOrder.verify(postContentBlockRepository).replaceBlocks(eq(postId), any());
         inOrder.verify(postTagRepository).bindTagsToPost(postId, List.of("java"));
         inOrder.verify(domainEventPublisher).postPublished(postId);
-        inOrder.verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
         assertThat(output.getAll())
                 .contains("community.post_category_id=" + categoryId)
                 .contains("community.target_id=" + postId);
@@ -204,7 +199,6 @@ class PostPublishingApplicationServiceTest {
         verify(postMediaAssetRepository).releaseRemovedFromPost(eq(postId), eq(List.of()), any(Date.class));
         verify(postTagRepository).replaceTagsForPost(postId, List.of("spring"));
         verify(domainEventPublisher).postUpdated(postId);
-        verify(postWriteSideEffectScheduler, times(2)).schedulePostScoreRefresh(postId);
         verify(domainService).assertDeletableByAuthor(post, userId);
         verify(postRepository).markDeletedByAuthor(eq(postId), eq(userId), any(Date.class));
         verify(domainEventPublisher).postDeleted(postId);
@@ -406,8 +400,14 @@ class PostPublishingApplicationServiceTest {
         verify(domainService).assertDeletableByAuthor(post, userId);
         verify(domainEventPublisher, never()).postDeleted(postId);
         verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(any(Integer.class), any(UUID.class));
-        verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));
         assertThat(output.getAll()).doesNotContain("community.reason_code=admin_delete");
+    }
+
+    @Test
+    void postPublishingApplicationServiceShouldNotDependOnPostWriteSideEffectScheduler() {
+        assertThat(java.util.Arrays.stream(PostPublishingApplicationService.class.getDeclaredFields())
+                .map(field -> field.getType().getName()))
+                .doesNotContain("com.nowcoder.community.content.application.PostWriteSideEffectScheduler");
     }
 
     private static PostMediaAsset mediaAsset(UUID assetId, UUID ownerUserId, UUID postId, PostMediaKind mediaKind) {

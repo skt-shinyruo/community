@@ -34,6 +34,7 @@ public class PostReadApplicationService {
     private final SubscriptionRepository subscriptionContentPort;
     private final PostContentBlockRepository postContentBlockRepository;
     private final PostMediaAssetRepository postMediaAssetRepository;
+    private final PostDetailCache postDetailCache;
     private final PostContentBlockTextProjector postContentBlockTextProjector;
     private final ContentTextCodec textCodec;
     private final PostSummaryAssembler postSummaryAssembler;
@@ -49,6 +50,7 @@ public class PostReadApplicationService {
             SubscriptionRepository subscriptionContentPort,
             PostContentBlockRepository postContentBlockRepository,
             PostMediaAssetRepository postMediaAssetRepository,
+            PostDetailCache postDetailCache,
             PostContentBlockTextProjector postContentBlockTextProjector,
             ContentTextCodec textCodec,
             PostSummaryAssembler postSummaryAssembler,
@@ -63,6 +65,7 @@ public class PostReadApplicationService {
         this.subscriptionContentPort = subscriptionContentPort;
         this.postContentBlockRepository = postContentBlockRepository;
         this.postMediaAssetRepository = postMediaAssetRepository;
+        this.postDetailCache = postDetailCache;
         this.postContentBlockTextProjector = postContentBlockTextProjector;
         this.textCodec = textCodec;
         this.postSummaryAssembler = postSummaryAssembler;
@@ -100,18 +103,52 @@ public class PostReadApplicationService {
     }
 
     public PostDetailResult getPostDetail(UUID currentUserId, UUID postId) {
+        PostDetailResult cached = postDetailCache.get(postId);
+        if (cached != null) {
+            return applyViewerOverlay(currentUserId, cached);
+        }
+        PostDetailResult loaded = loadPostDetailShell(postId);
+        postDetailCache.put(postId, loaded);
+        return applyViewerOverlay(currentUserId, loaded);
+    }
+
+    private PostDetailResult loadPostDetailShell(UUID postId) {
         DiscussPost post = postContentPort.getById(postId);
         List<PostContentBlock> blocks = postContentBlockRepository.listByPostId(postId);
         List<String> tags = tagContentPort.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
         long likeCount = likeQueryService.countPostLikes(postId);
-        boolean liked = likeQueryService.hasLikedPost(currentUserId, postId);
-        boolean bookmarked = currentUserId != null && bookmarkContentPort.hasBookmarked(currentUserId, postId);
         List<UUID> assetIds = blocks.stream()
                 .map(PostContentBlock::mediaAssetId)
                 .filter(id -> id != null)
                 .distinct()
                 .toList();
-        return postDetailAssembler.assemble(post, blocks, postMediaAssetRepository.listByIds(assetIds), tags, likeCount, liked, bookmarked);
+        return postDetailAssembler.assemble(post, blocks, postMediaAssetRepository.listByIds(assetIds), tags, likeCount, false, false);
+    }
+
+    private PostDetailResult applyViewerOverlay(UUID currentUserId, PostDetailResult detail) {
+        if (detail == null || currentUserId == null) {
+            return detail;
+        }
+        boolean liked = likeQueryService.hasLikedPost(currentUserId, detail.id());
+        boolean bookmarked = bookmarkContentPort.hasBookmarked(currentUserId, detail.id());
+        return new PostDetailResult(
+                detail.id(),
+                detail.userId(),
+                detail.title(),
+                detail.blocks(),
+                detail.type(),
+                detail.status(),
+                detail.createTime(),
+                detail.updateTime(),
+                detail.editCount(),
+                detail.commentCount(),
+                detail.score(),
+                detail.categoryId(),
+                detail.tags(),
+                detail.likeCount(),
+                liked,
+                bookmarked
+        );
     }
 
     public List<RecentUserCommentResult> listRecentCommentsByUser(UUID userId, Integer page, Integer size) {

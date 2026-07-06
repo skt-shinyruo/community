@@ -30,7 +30,11 @@ import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class PostReadApplicationServiceTest {
@@ -45,6 +49,7 @@ class PostReadApplicationServiceTest {
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
         PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
         UUID postId = uuid(10);
         UUID authorUserId = uuid(2);
         UUID lastReplyUserId = uuid(3);
@@ -73,7 +78,8 @@ class PostReadApplicationServiceTest {
                 bookmarkService,
                 subscriptionService,
                 blockRepository,
-                mediaAssetRepository
+                mediaAssetRepository,
+                postDetailCache
         );
 
         List<PostSummaryResult> views = service.listPosts(null, "latest", null, null, false, 0, 10);
@@ -97,6 +103,7 @@ class PostReadApplicationServiceTest {
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
         PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
         UUID currentUserId = uuid(7);
         UUID postId = uuid(10);
         UUID authorUserId = uuid(8);
@@ -130,7 +137,8 @@ class PostReadApplicationServiceTest {
                 bookmarkService,
                 subscriptionService,
                 blockRepository,
-                mediaAssetRepository
+                mediaAssetRepository,
+                postDetailCache
         );
 
         PostDetailResult detail = service.getPostDetail(currentUserId, postId);
@@ -148,6 +156,139 @@ class PostReadApplicationServiceTest {
     }
 
     @Test
+    void detailShouldReturnCachedShellBeforeFallingBackToRepositories() {
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
+        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        UUID postId = uuid(100);
+
+        when(postDetailCache.get(postId)).thenReturn(detail(postId));
+
+        PostReadApplicationService service = service(
+                postService,
+                commentService,
+                likeQueryService,
+                tagService,
+                bookmarkService,
+                subscriptionService,
+                blockRepository,
+                mediaAssetRepository,
+                postDetailCache
+        );
+
+        PostDetailResult result = service.getPostDetail(null, postId);
+
+        assertThat(result.id()).isEqualTo(postId);
+        verifyNoInteractions(postService, blockRepository, tagService, likeQueryService, bookmarkService);
+    }
+
+    @Test
+    void detailShouldOverlayViewerSpecificStateOnAuthenticatedCacheHit() {
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
+        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        UUID currentUserId = uuid(700);
+        UUID postId = uuid(101);
+
+        when(postDetailCache.get(postId)).thenReturn(detail(postId));
+        when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
+        when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
+
+        PostReadApplicationService service = service(
+                postService,
+                commentService,
+                likeQueryService,
+                tagService,
+                bookmarkService,
+                subscriptionService,
+                blockRepository,
+                mediaAssetRepository,
+                postDetailCache
+        );
+
+        PostDetailResult result = service.getPostDetail(currentUserId, postId);
+
+        assertThat(result.id()).isEqualTo(postId);
+        assertThat(result.liked()).isTrue();
+        assertThat(result.bookmarked()).isTrue();
+        verify(postDetailCache).get(postId);
+        verify(likeQueryService).hasLikedPost(currentUserId, postId);
+        verify(bookmarkService).hasBookmarked(currentUserId, postId);
+        verifyNoInteractions(postService, blockRepository, tagService, mediaAssetRepository);
+    }
+
+    @Test
+    void detailShouldWriteViewerNeutralShellIntoCacheOnMiss() {
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
+        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        UUID currentUserId = uuid(7);
+        UUID postId = uuid(10);
+        UUID authorUserId = uuid(8);
+        UUID categoryId = uuid(3);
+
+        DiscussPost post = new DiscussPost();
+        post.setId(postId);
+        post.setUserId(authorUserId);
+        post.setTitle("&lt;title&gt;");
+        post.setType(1);
+        post.setStatus(0);
+        post.setCreateTime(new Date(1_000));
+        post.setUpdateTime(new Date(2_000));
+        post.setEditCount(2);
+        post.setCommentCount(5);
+        post.setScore(12.5);
+        post.setCategoryId(categoryId);
+
+        when(postService.getById(postId)).thenReturn(post);
+        when(blockRepository.listByPostId(postId)).thenReturn(List.of(paragraphBlock(postId, "&lt;body&gt;")));
+        when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java", "spring")));
+        when(likeQueryService.countPostLikes(postId)).thenReturn(9L);
+        when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
+        when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
+
+        PostReadApplicationService service = service(
+                postService,
+                commentService,
+                likeQueryService,
+                tagService,
+                bookmarkService,
+                subscriptionService,
+                blockRepository,
+                mediaAssetRepository,
+                postDetailCache
+        );
+
+        PostDetailResult result = service.getPostDetail(currentUserId, postId);
+
+        assertThat(result.liked()).isTrue();
+        assertThat(result.bookmarked()).isTrue();
+        verify(postDetailCache).put(eq(postId), argThat(detail ->
+                detail != null
+                        && detail.id().equals(postId)
+                        && !detail.liked()
+                        && !detail.bookmarked()));
+    }
+
+    @Test
     void listPostsByUserShouldAssembleRecentSummaries() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
@@ -157,6 +298,7 @@ class PostReadApplicationServiceTest {
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
         PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
         UUID userId = uuid(7);
         UUID firstPostId = uuid(21);
         UUID secondPostId = uuid(22);
@@ -191,7 +333,8 @@ class PostReadApplicationServiceTest {
                 bookmarkService,
                 subscriptionService,
                 blockRepository,
-                mediaAssetRepository
+                mediaAssetRepository,
+                postDetailCache
         );
 
         List<PostSummaryResult> items = service.listPostsByUser(userId, 0, 3);
@@ -215,6 +358,7 @@ class PostReadApplicationServiceTest {
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
         PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
         UUID userId = uuid(7);
         UUID directCommentId = uuid(31);
         UUID replyCommentId = uuid(32);
@@ -264,7 +408,8 @@ class PostReadApplicationServiceTest {
                 bookmarkService,
                 subscriptionService,
                 blockRepository,
-                mediaAssetRepository
+                mediaAssetRepository,
+                postDetailCache
         );
 
         List<RecentUserCommentResult> items = service.listRecentCommentsByUser(userId, 0, 3);
@@ -287,6 +432,7 @@ class PostReadApplicationServiceTest {
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
         PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
         UUID userId = uuid(7);
         UUID brokenReplyId = uuid(41);
         UUID directCommentId = uuid(42);
@@ -325,7 +471,8 @@ class PostReadApplicationServiceTest {
                 bookmarkService,
                 subscriptionService,
                 blockRepository,
-                mediaAssetRepository
+                mediaAssetRepository,
+                postDetailCache
         );
 
         List<RecentUserCommentResult> items = service.listRecentCommentsByUser(userId, 0, 3);
@@ -345,6 +492,7 @@ class PostReadApplicationServiceTest {
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
         PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
         UUID firstPostId = uuid(12);
         UUID secondPostId = uuid(9);
         UUID firstAuthorId = uuid(2);
@@ -381,7 +529,8 @@ class PostReadApplicationServiceTest {
                 bookmarkService,
                 subscriptionService,
                 blockRepository,
-                mediaAssetRepository
+                mediaAssetRepository,
+                postDetailCache
         );
 
         List<PostSummaryResult> items = service.listPostsByIds(requestedPostIds);
@@ -405,7 +554,8 @@ class PostReadApplicationServiceTest {
             BookmarkRepository bookmarkService,
             SubscriptionRepository subscriptionService,
             PostContentBlockRepository blockRepository,
-            PostMediaAssetRepository mediaAssetRepository
+            PostMediaAssetRepository mediaAssetRepository,
+            PostDetailCache postDetailCache
     ) {
         return new PostReadApplicationService(
                 postService,
@@ -416,6 +566,7 @@ class PostReadApplicationServiceTest {
                 subscriptionService,
                 blockRepository,
                 mediaAssetRepository,
+                postDetailCache,
                 new PostContentBlockTextProjector(),
                 textCodec(),
                 new PostSummaryAssembler(textCodec()),
@@ -426,5 +577,26 @@ class PostReadApplicationServiceTest {
 
     private static PostContentBlock paragraphBlock(UUID postId, String text) {
         return new PostContentBlock(uuid(501), postId, 0, "paragraph", text, null, "", "", "", null);
+    }
+
+    private static PostDetailResult detail(UUID postId) {
+        return new PostDetailResult(
+                postId,
+                uuid(2),
+                "<title>",
+                List.of(),
+                0,
+                0,
+                new Date(1_000),
+                new Date(2_000),
+                0,
+                0,
+                0.0,
+                uuid(3),
+                List.of(),
+                0L,
+                false,
+                false
+        );
     }
 }

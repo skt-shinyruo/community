@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -26,6 +27,7 @@ public class FeedReadApplicationService {
     private final CommentContentRepository commentContentRepository;
     private final TagContentRepository tagContentRepository;
     private final PostContentBlockRepository postContentBlockRepository;
+    private final PostSummaryCache postSummaryCache;
     private final PostContentBlockTextProjector postContentBlockTextProjector;
     private final PostSummaryAssembler postSummaryAssembler;
     private final FeedCursorCodec feedCursorCodec;
@@ -35,6 +37,7 @@ public class FeedReadApplicationService {
             CommentContentRepository commentContentRepository,
             TagContentRepository tagContentRepository,
             PostContentBlockRepository postContentBlockRepository,
+            PostSummaryCache postSummaryCache,
             PostContentBlockTextProjector postContentBlockTextProjector,
             PostSummaryAssembler postSummaryAssembler,
             FeedCursorCodec feedCursorCodec
@@ -43,6 +46,7 @@ public class FeedReadApplicationService {
         this.commentContentRepository = commentContentRepository;
         this.tagContentRepository = tagContentRepository;
         this.postContentBlockRepository = postContentBlockRepository;
+        this.postSummaryCache = postSummaryCache;
         this.postContentBlockTextProjector = postContentBlockTextProjector;
         this.postSummaryAssembler = postSummaryAssembler;
         this.feedCursorCodec = feedCursorCodec;
@@ -62,9 +66,30 @@ public class FeedReadApplicationService {
         int limit = state.size() > 0 ? normalizeRequestedSize(state.size()) : requestedLimit;
         int page = state.page();
         List<DiscussPost> rows = postContentRepository.listPosts(page, limit, PostContentRepository.ORDER_HOT, boardId, null);
-        List<PostSummaryResult> items = assembleSummaries(rows);
+        List<PostSummaryResult> items = readSummaries(rows);
         String nextCursor = hasNextPage(rows, page, limit, boardId) ? feedCursorCodec.encodePage(page + 1, limit) : "";
         return new FeedPageResult(items, nextCursor, RANK_VERSION);
+    }
+
+    private List<PostSummaryResult> readSummaries(List<DiscussPost> posts) {
+        if (posts == null || posts.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> postIds = posts.stream().map(DiscussPost::getId).toList();
+        Map<UUID, PostSummaryResult> cachedEntries = postSummaryCache.getAll(postIds);
+        Map<UUID, PostSummaryResult> cached = new java.util.LinkedHashMap<>(cachedEntries == null ? Map.of() : cachedEntries);
+        List<DiscussPost> missingPosts = posts.stream()
+                .filter(post -> !cached.containsKey(post.getId()))
+                .toList();
+        if (!missingPosts.isEmpty()) {
+            List<PostSummaryResult> loaded = assembleSummaries(missingPosts);
+            postSummaryCache.putAll(loaded);
+            loaded.forEach(item -> cached.put(item.id(), item));
+        }
+        return postIds.stream()
+                .map(cached::get)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private boolean hasNextPage(List<DiscussPost> rows, int page, int limit, UUID boardId) {

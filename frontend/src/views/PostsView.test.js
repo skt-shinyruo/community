@@ -33,7 +33,8 @@ vi.mock('vue-router', async () => {
 })
 
 vi.mock('../api/services/postService', () => ({
-  listPosts: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-posts' }),
+  listGlobalFeed: vi.fn().mockResolvedValue({ data: { items: [], nextCursor: '', rankVersion: 'rank-v1' }, traceId: 'trace-feed' }),
+  listBoardFeed: vi.fn().mockResolvedValue({ data: { items: [], nextCursor: '', rankVersion: 'rank-board-v1' }, traceId: 'trace-board-feed' }),
   createPost: vi.fn().mockResolvedValue({ data: { postId: 1 }, traceId: 'trace-create-post' })
 }))
 
@@ -44,7 +45,8 @@ vi.mock('../api/services/taxonomyService', () => ({
 import PostsView from './PostsView.vue'
 import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
 import PostBlockEditor from '../components/posts/PostBlockEditor.vue'
-import { createPost, listPosts } from '../api/services/postService'
+import FeedToolbar from '../components/posts/FeedToolbar.vue'
+import { createPost, listBoardFeed, listGlobalFeed } from '../api/services/postService'
 
 describe('PostsView', () => {
   function mountView() {
@@ -92,11 +94,40 @@ describe('PostsView', () => {
     routerState.route.query = {}
     routerState.replace.mockClear()
     routerState.push.mockClear()
-    listPosts.mockClear()
-    listPosts.mockResolvedValue({ data: [], traceId: 'trace-posts' })
+    listGlobalFeed.mockClear()
+    listGlobalFeed.mockResolvedValue({ data: { items: [], nextCursor: '', rankVersion: 'rank-v1' }, traceId: 'trace-feed' })
+    listBoardFeed.mockClear()
+    listBoardFeed.mockResolvedValue({ data: { items: [], nextCursor: '', rankVersion: 'rank-board-v1' }, traceId: 'trace-board-feed' })
     createPost.mockClear()
     createPost.mockResolvedValue({ data: { postId: 1 }, traceId: 'trace-create-post' })
     window.localStorage.clear()
+  })
+
+  it('loads the new global feed contract by default', async () => {
+    mountView()
+    await flushPromises()
+
+    expect(listGlobalFeed).toHaveBeenCalledWith({ cursor: '', size: 10 })
+    expect(listBoardFeed).not.toHaveBeenCalled()
+  })
+
+  it('passes the simplified feed toolbar contract to the posts shell', async () => {
+    const wrapper = mount(PostsView, {
+      global: {
+        plugins: [createPinia()]
+      }
+    })
+    await flushPromises()
+
+    const toolbar = wrapper.getComponent(FeedToolbar)
+    expect(toolbar.props()).toMatchObject({
+      boardId: '',
+      showClear: false
+    })
+    expect(toolbar.props()).not.toHaveProperty('order')
+    expect(toolbar.props()).not.toHaveProperty('filter')
+    expect(toolbar.props()).not.toHaveProperty('subscribed')
+    expect(toolbar.props()).not.toHaveProperty('tag')
   })
 
   it('positions the discussion feed before secondary explanation copy', async () => {

@@ -18,6 +18,10 @@ export function normalizePostsCategoryId(value) {
   return normalizeOpaqueId(value)
 }
 
+export function normalizePostsBoardId(value) {
+  return normalizeOpaqueId(value)
+}
+
 export function normalizePostsOrder(value) {
   return value === POSTS_ORDER.HOT ? POSTS_ORDER.HOT : POSTS_ORDER.LATEST
 }

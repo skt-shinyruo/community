@@ -17,6 +17,25 @@ export async function listPosts({ order = 'latest', page = 0, size = 10, categor
   return { data: Array.isArray(data) ? data : [], traceId }
 }
 
+export async function listGlobalFeed({ cursor = '', size = 20 } = {}) {
+  const params = {}
+  if (cursor) params.cursor = cursor
+  if (size != null) params.size = size
+  const resp = await http.get('/api/feed/global', { params })
+  const { data, traceId } = unwrapResultBody(resp.data, '查询首页热门流')
+  return { data: normalizeFeedPage(data), traceId }
+}
+
+export async function listBoardFeed(boardId, { cursor = '', size = 20 } = {}) {
+  const bid = requireOpaqueId(boardId, 'boardId')
+  const params = {}
+  if (cursor) params.cursor = cursor
+  if (size != null) params.size = size
+  const resp = await http.get(`/api/boards/${bid}/feed`, { params })
+  const { data, traceId } = unwrapResultBody(resp.data, '查询版块热门流')
+  return { data: normalizeFeedPage(data), traceId }
+}
+
 export async function createPost({ title, blocks, categoryId, tags } = {}) {
   const payload = { title, blocks: normalizeBlocks(blocks) }
   {
@@ -151,4 +170,13 @@ export async function moderationDelete(postId) {
   const resp = await http.post(`/api/posts/${postId}/delete`)
   const { traceId } = unwrapResultBody(resp.data, '删除')
   return { traceId }
+}
+
+function normalizeFeedPage(raw) {
+  const page = raw && typeof raw === 'object' ? raw : {}
+  return {
+    items: Array.isArray(page.items) ? page.items : [],
+    nextCursor: page.nextCursor == null ? '' : String(page.nextCursor),
+    rankVersion: page.rankVersion == null ? '' : String(page.rankVersion)
+  }
 }

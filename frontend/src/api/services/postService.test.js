@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
-import { createPost, listPosts, updatePost } from './postService'
+import { createPost, listBoardFeed, listGlobalFeed, listPosts, updatePost } from './postService'
 
 describe('api/services/postService', () => {
   let mock
@@ -39,6 +39,34 @@ describe('api/services/postService', () => {
 
     expect(resp.traceId).toBe('trace-list-posts')
     expect(resp.data).toEqual([])
+  })
+
+  it('listGlobalFeed should call /api/feed/global with cursor params', async () => {
+    mock = new MockAdapter(http)
+    mock.onGet('/api/feed/global').reply((config) => {
+      expect(config.params).toEqual({ cursor: 'cursor-1', size: 12 })
+      return [200, { code: 0, message: '', data: { items: [], nextCursor: 'cursor-2', rankVersion: 'rank-v1' }, traceId: 'trace-feed' }]
+    })
+
+    const resp = await listGlobalFeed({ cursor: 'cursor-1', size: 12 })
+
+    expect(resp.traceId).toBe('trace-feed')
+    expect(resp.data.nextCursor).toBe('cursor-2')
+    expect(resp.data.rankVersion).toBe('rank-v1')
+  })
+
+  it('listBoardFeed should call /api/boards/{boardId}/feed with cursor params', async () => {
+    const boardId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    mock = new MockAdapter(http)
+    mock.onGet(`/api/boards/${boardId}/feed`).reply((config) => {
+      expect(config.params).toEqual({ size: 20 })
+      return [200, { code: 0, message: '', data: { items: [], nextCursor: '', rankVersion: 'rank-board-v1' }, traceId: 'trace-board-feed' }]
+    })
+
+    const resp = await listBoardFeed(boardId)
+
+    expect(resp.traceId).toBe('trace-board-feed')
+    expect(resp.data.items).toEqual([])
   })
 
   it('createPost and updatePost should normalize block payloads without content shortcuts', async () => {

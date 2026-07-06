@@ -6,7 +6,9 @@ import com.nowcoder.community.content.application.PostModerationApplicationServi
 import com.nowcoder.community.content.application.BookmarkApplicationService;
 import com.nowcoder.community.content.application.CommentApplicationService;
 import com.nowcoder.community.content.application.CommentReadApplicationService;
+import com.nowcoder.community.content.application.FeedReadApplicationService;
 import com.nowcoder.community.content.application.PostReadApplicationService;
+import com.nowcoder.community.content.application.result.FeedPageResult;
 import com.nowcoder.community.user.application.UserProfileApplicationService;
 import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.user.application.port.AvatarStoragePort;
@@ -50,6 +52,9 @@ class PublicReadEndpointSecurityTest {
 
     @MockBean
     private PostReadApplicationService postReadApplicationService;
+
+    @MockBean
+    private FeedReadApplicationService feedReadApplicationService;
 
     @MockBean
     private CommentReadApplicationService commentReadApplicationService;
@@ -123,6 +128,21 @@ class PublicReadEndpointSecurityTest {
                 ));
 
         mockMvc.perform(get("/api/users/" + USER_ID))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void unauthenticatedPublicFeedEndpointsShouldBeAllowed() throws Exception {
+        UUID boardId = uuid(7);
+        when(feedReadApplicationService.listGlobalHotFeed(null, null, 20))
+                .thenReturn(new FeedPageResult(List.of(), "", "rank-v1"));
+        when(feedReadApplicationService.listBoardHotFeed(null, boardId, null, 20))
+                .thenReturn(new FeedPageResult(List.of(), "", "rank-board-v1"));
+
+        mockMvc.perform(get("/api/feed/global"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/boards/" + boardId + "/feed"))
                 .andExpect(status().isOk());
     }
 

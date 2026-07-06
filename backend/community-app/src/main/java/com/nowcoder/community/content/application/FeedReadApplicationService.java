@@ -7,6 +7,7 @@ import com.nowcoder.community.content.domain.repository.CommentContentRepository
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -25,6 +26,7 @@ public class FeedReadApplicationService {
     private final FeedCursorCodec feedCursorCodec;
     private final ContentFeedPolicyProperties policyProperties;
 
+    @Autowired
     public FeedReadApplicationService(
             PostFeedCache postFeedCache,
             PostContentRepository postContentRepository,

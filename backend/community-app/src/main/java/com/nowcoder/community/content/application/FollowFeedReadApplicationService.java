@@ -9,6 +9,7 @@ import com.nowcoder.community.content.domain.repository.PostContentBlockReposito
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.social.api.query.SocialFollowQueryApi;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -31,6 +32,7 @@ public class FollowFeedReadApplicationService {
     private final PostFeedSummaryLoader postFeedSummaryLoader;
     private final FollowFeedCursorCodec followFeedCursorCodec;
 
+    @Autowired
     public FollowFeedReadApplicationService(
             SocialFollowQueryApi followQueryApi,
             PostContentRepository postContentRepository,

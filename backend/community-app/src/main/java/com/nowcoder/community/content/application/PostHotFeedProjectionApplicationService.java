@@ -4,6 +4,7 @@ import com.nowcoder.community.content.application.command.ProjectPostHotFeedComm
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.service.PostHotnessDomainService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,7 @@ public class PostHotFeedProjectionApplicationService {
     private final PostHotnessDomainService postHotnessDomainService;
     private final ContentFeedPolicyProperties policyProperties;
 
+    @Autowired
     public PostHotFeedProjectionApplicationService(
             PostContentRepository postContentRepository,
             LikeQueryPort likeQueryPort,

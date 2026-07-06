@@ -28,6 +28,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
                 postContentRepository,
@@ -35,6 +36,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 postFeedCache,
                 postSummaryCache,
                 postDetailCache,
+                postCounterCache,
                 postHotnessDomainService
         );
 
@@ -53,6 +55,7 @@ class PostHotFeedProjectionApplicationServiceTest {
 
         verify(postFeedCache).upsertGlobalHot(uuid(200), 88.5, "hot-v1");
         verify(postFeedCache).upsertBoardHot(uuid(10), uuid(200), 88.5, "hot-v1");
+        verify(postCounterCache).updateScore(uuid(200), 88.5);
         verify(postSummaryCache).evictAll(List.of(uuid(200)));
         verify(postDetailCache).evict(uuid(200));
     }
@@ -64,6 +67,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
                 postContentRepository,
@@ -71,6 +75,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 postFeedCache,
                 postSummaryCache,
                 postDetailCache,
+                postCounterCache,
                 postHotnessDomainService
         );
 
@@ -98,6 +103,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
                 postContentRepository,
@@ -105,6 +111,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 postFeedCache,
                 postSummaryCache,
                 postDetailCache,
+                postCounterCache,
                 postHotnessDomainService
         );
 
@@ -132,6 +139,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
                 postContentRepository,
@@ -139,6 +147,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 postFeedCache,
                 postSummaryCache,
                 postDetailCache,
+                postCounterCache,
                 postHotnessDomainService
         );
 
@@ -166,6 +175,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
                 postContentRepository,
@@ -173,6 +183,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 postFeedCache,
                 postSummaryCache,
                 postDetailCache,
+                postCounterCache,
                 postHotnessDomainService
         );
 

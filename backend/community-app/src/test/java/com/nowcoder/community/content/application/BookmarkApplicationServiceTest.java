@@ -18,6 +18,7 @@ import java.util.UUID;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,6 +30,7 @@ class BookmarkApplicationServiceTest {
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
         TagContentRepository tagContentRepository = mock(TagContentRepository.class);
         PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostSummaryAssembler postSummaryAssembler = mock(PostSummaryAssembler.class);
         BookmarkApplicationService service = new BookmarkApplicationService(
                 bookmarkRepository,
@@ -36,6 +38,7 @@ class BookmarkApplicationServiceTest {
                 tagContentRepository,
                 blockRepository,
                 new PostContentBlockTextProjector(),
+                postCounterCache,
                 postSummaryAssembler
         );
         UUID userId = uuid(7);
@@ -93,5 +96,49 @@ class BookmarkApplicationServiceTest {
         });
         verify(bookmarkRepository).listBookmarkedPosts(userId, 0, 10);
         verify(postSummaryAssembler).assemble(post, lastActivity, List.of("spring"), "post preview");
+    }
+
+    @Test
+    void addShouldIncrementBookmarkCounterWhenRepositoryCreatesBookmark() {
+        BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
+        PostCounterCache postCounterCache = mock(PostCounterCache.class);
+        BookmarkApplicationService service = new BookmarkApplicationService(
+                bookmarkRepository,
+                mock(CommentContentRepository.class),
+                mock(TagContentRepository.class),
+                mock(PostContentBlockRepository.class),
+                new PostContentBlockTextProjector(),
+                postCounterCache,
+                mock(PostSummaryAssembler.class)
+        );
+        UUID userId = uuid(9);
+        UUID postId = uuid(10);
+        when(bookmarkRepository.add(userId, postId)).thenReturn(true);
+
+        service.add(userId, postId);
+
+        verify(postCounterCache).incrementBookmarkCount(postId, 1L);
+    }
+
+    @Test
+    void removeShouldNotDecrementBookmarkCounterWhenRepositoryHasNoBookmarkToDelete() {
+        BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
+        PostCounterCache postCounterCache = mock(PostCounterCache.class);
+        BookmarkApplicationService service = new BookmarkApplicationService(
+                bookmarkRepository,
+                mock(CommentContentRepository.class),
+                mock(TagContentRepository.class),
+                mock(PostContentBlockRepository.class),
+                new PostContentBlockTextProjector(),
+                postCounterCache,
+                mock(PostSummaryAssembler.class)
+        );
+        UUID userId = uuid(11);
+        UUID postId = uuid(12);
+        when(bookmarkRepository.remove(userId, postId)).thenReturn(false);
+
+        service.remove(userId, postId);
+
+        verifyNoInteractions(postCounterCache);
     }
 }

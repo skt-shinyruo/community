@@ -22,6 +22,7 @@ public class BookmarkApplicationService {
     private final TagContentRepository tagContentRepository;
     private final PostContentBlockRepository postContentBlockRepository;
     private final PostContentBlockTextProjector postContentBlockTextProjector;
+    private final PostCounterCache postCounterCache;
     private final PostSummaryAssembler postSummaryAssembler;
 
     public BookmarkApplicationService(
@@ -30,6 +31,7 @@ public class BookmarkApplicationService {
             TagContentRepository tagContentRepository,
             PostContentBlockRepository postContentBlockRepository,
             PostContentBlockTextProjector postContentBlockTextProjector,
+            PostCounterCache postCounterCache,
             PostSummaryAssembler postSummaryAssembler
     ) {
         this.bookmarkRepository = bookmarkRepository;
@@ -37,15 +39,20 @@ public class BookmarkApplicationService {
         this.tagContentRepository = tagContentRepository;
         this.postContentBlockRepository = postContentBlockRepository;
         this.postContentBlockTextProjector = postContentBlockTextProjector;
+        this.postCounterCache = postCounterCache;
         this.postSummaryAssembler = postSummaryAssembler;
     }
 
     public void add(UUID userId, UUID postId) {
-        bookmarkRepository.add(userId, postId);
+        if (bookmarkRepository.add(userId, postId)) {
+            postCounterCache.incrementBookmarkCount(postId, 1L);
+        }
     }
 
     public void remove(UUID userId, UUID postId) {
-        bookmarkRepository.remove(userId, postId);
+        if (bookmarkRepository.remove(userId, postId)) {
+            postCounterCache.incrementBookmarkCount(postId, -1L);
+        }
     }
 
     public List<PostSummaryResult> listBookmarkedPostSummaries(UUID userId, int page, int size) {

@@ -30,20 +30,20 @@ public class MyBatisBookmarkRepository implements BookmarkRepository {
     }
 
     @Override
-    public void add(UUID userId, UUID postId) {
+    public boolean add(UUID userId, UUID postId) {
         if (userId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/postId 非法");
         }
         postContentRepository.getById(postId);
-        bookmarkMapper.insertBookmark(userId, postId, new Date());
+        return bookmarkMapper.insertBookmark(userId, postId, new Date()) > 0;
     }
 
     @Override
-    public void remove(UUID userId, UUID postId) {
+    public boolean remove(UUID userId, UUID postId) {
         if (userId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/postId 非法");
         }
-        bookmarkMapper.deleteBookmark(userId, postId);
+        return bookmarkMapper.deleteBookmark(userId, postId) > 0;
     }
 
     @Override

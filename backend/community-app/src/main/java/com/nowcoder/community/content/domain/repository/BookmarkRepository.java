@@ -7,9 +7,9 @@ import java.util.UUID;
 
 public interface BookmarkRepository {
 
-    void add(UUID userId, UUID postId);
+    boolean add(UUID userId, UUID postId);
 
-    void remove(UUID userId, UUID postId);
+    boolean remove(UUID userId, UUID postId);
 
     boolean hasBookmarked(UUID userId, UUID postId);
 

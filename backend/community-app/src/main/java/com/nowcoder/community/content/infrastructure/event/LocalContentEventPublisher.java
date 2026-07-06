@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Component
@@ -24,35 +25,146 @@ public class LocalContentEventPublisher implements ContentEventPublisher {
 
     @Override
     public void publishPostPublished(PostPayload payload) {
-        publish(ContentEventTypes.POST_PUBLISHED, payload);
+        UUID postId = payload == null ? null : payload.getPostId();
+        if (postId == null) {
+            return;
+        }
+        Instant occurredAt = requiredOccurredAt(ContentEventTypes.POST_PUBLISHED, payload.getCreateTime());
+        publish(
+                UUID.randomUUID().toString(),
+                ContentEventTypes.POST_PUBLISHED,
+                postId,
+                "post",
+                occurredAt,
+                positiveVersion(occurredAt),
+                payload
+        );
     }
 
     @Override
     public void publishPostUpdated(PostPayload payload) {
-        publish(ContentEventTypes.POST_UPDATED, payload);
+        UUID postId = payload == null ? null : payload.getPostId();
+        if (postId == null) {
+            return;
+        }
+        Instant occurredAt = requiredOccurredAt(
+                ContentEventTypes.POST_UPDATED,
+                payload.getUpdateTime() == null ? payload.getCreateTime() : payload.getUpdateTime()
+        );
+        publish(
+                UUID.randomUUID().toString(),
+                ContentEventTypes.POST_UPDATED,
+                postId,
+                "post",
+                occurredAt,
+                positiveVersion(occurredAt),
+                payload
+        );
     }
 
     @Override
     public void publishPostDeleted(PostPayload payload) {
-        publish(ContentEventTypes.POST_DELETED, payload);
+        UUID postId = payload == null ? null : payload.getPostId();
+        if (postId == null) {
+            return;
+        }
+        Instant occurredAt = requiredOccurredAt(
+                ContentEventTypes.POST_DELETED,
+                payload.getUpdateTime() == null ? payload.getCreateTime() : payload.getUpdateTime()
+        );
+        publish(
+                UUID.randomUUID().toString(),
+                ContentEventTypes.POST_DELETED,
+                postId,
+                "post",
+                occurredAt,
+                positiveVersion(occurredAt),
+                payload
+        );
     }
 
     @Override
     public void publishCommentCreated(CommentPayload payload) {
-        publish(ContentEventTypes.COMMENT_CREATED, payload);
+        UUID commentId = payload == null ? null : payload.getCommentId();
+        if (commentId == null) {
+            return;
+        }
+        Instant occurredAt = requiredOccurredAt(ContentEventTypes.COMMENT_CREATED, payload.getCreateTime());
+        publish(
+                UUID.randomUUID().toString(),
+                ContentEventTypes.COMMENT_CREATED,
+                commentId,
+                "comment",
+                occurredAt,
+                positiveVersion(occurredAt),
+                payload
+        );
     }
 
     @Override
     public void publishCommentDeleted(CommentPayload payload) {
-        publish(ContentEventTypes.COMMENT_DELETED, payload);
+        UUID commentId = payload == null ? null : payload.getCommentId();
+        if (commentId == null) {
+            return;
+        }
+        Instant occurredAt = requiredOccurredAt(ContentEventTypes.COMMENT_DELETED, payload.getCreateTime());
+        publish(
+                UUID.randomUUID().toString(),
+                ContentEventTypes.COMMENT_DELETED,
+                commentId,
+                "comment",
+                occurredAt,
+                positiveVersion(occurredAt),
+                payload
+        );
     }
 
     @Override
     public void publishModerationActionApplied(ModerationPayload payload) {
-        publish(ContentEventTypes.MODERATION_ACTION_APPLIED, payload);
+        UUID toUserId = payload == null ? null : payload.getToUserId();
+        if (toUserId == null) {
+            return;
+        }
+        Instant occurredAt = requiredOccurredAt(ContentEventTypes.MODERATION_ACTION_APPLIED, payload.getCreateTime());
+        publish(
+                UUID.randomUUID().toString(),
+                ContentEventTypes.MODERATION_ACTION_APPLIED,
+                toUserId,
+                "user",
+                occurredAt,
+                positiveVersion(occurredAt),
+                payload
+        );
     }
 
-    private void publish(String type, Object payload) {
-        applicationEventPublisher.publishEvent(new ContentContractEvent(UUID.randomUUID().toString(), type, payload));
+    private void publish(
+            String eventId,
+            String type,
+            UUID aggregateId,
+            String aggregateType,
+            Instant occurredAt,
+            long version,
+            Object payload
+    ) {
+        applicationEventPublisher.publishEvent(new ContentContractEvent(
+                eventId,
+                aggregateId,
+                aggregateType,
+                type,
+                occurredAt,
+                version,
+                payload
+        ));
+    }
+
+    private Instant requiredOccurredAt(String type, Instant occurredAt) {
+        if (occurredAt == null) {
+            throw new IllegalStateException("content event source occurredAt missing: " + type);
+        }
+        return occurredAt;
+    }
+
+    private long positiveVersion(Instant occurredAt) {
+        return Math.max(1L, occurredAt.toEpochMilli());
     }
 }

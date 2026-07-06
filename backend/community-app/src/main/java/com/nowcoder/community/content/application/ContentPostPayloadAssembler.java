@@ -58,6 +58,7 @@ public class ContentPostPayloadAssembler {
         payload.setType(post.getType());
         payload.setStatus(post.getStatus());
         payload.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toInstant());
+        payload.setUpdateTime(post.getUpdateTime() == null ? null : post.getUpdateTime().toInstant());
         payload.setScore(post.getScore());
         return payload;
     }

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -48,7 +49,11 @@ class ContentEventDispatchApplicationServiceTest {
 
         service.dispatch(new DispatchContentEventCommand(postId.toString(), toJson(new ContentContractEvent(
                 "content:PostPublished:" + postId,
+                postId,
+                "post",
                 ContentEventTypes.POST_PUBLISHED,
+                Instant.EPOCH,
+                1L,
                 postPayload(postId)
         ))));
 
@@ -68,12 +73,20 @@ class ContentEventDispatchApplicationServiceTest {
 
         service.dispatch(new DispatchContentEventCommand(commentId.toString(), toJson(new ContentContractEvent(
                 "content:CommentCreated:" + commentId,
+                commentId,
+                "comment",
                 ContentEventTypes.COMMENT_CREATED,
+                Instant.EPOCH,
+                1L,
                 commentPayload(commentId)
         ))));
         service.dispatch(new DispatchContentEventCommand(toUserId.toString(), toJson(new ContentContractEvent(
                 "content:ModerationActionApplied:" + toUserId,
+                toUserId,
+                "user",
                 ContentEventTypes.MODERATION_ACTION_APPLIED,
+                Instant.EPOCH,
+                1L,
                 moderationPayload(toUserId)
         ))));
 
@@ -134,6 +147,45 @@ class ContentEventDispatchApplicationServiceTest {
     }
 
     @Test
+    void dispatchShouldRejectMissingAggregateMetadata() {
+        String payloadJson = """
+                {"eventId":"ce:1","type":"post.published","payload":{"postId":"%s"}}
+                """.formatted(UUID.randomUUID());
+
+        assertThatThrownBy(() -> service.dispatch(new DispatchContentEventCommand("post:" + UUID.randomUUID(), payloadJson)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("aggregateId");
+    }
+
+    @Test
+    void dispatchShouldRejectMalformedAggregateIdForOutboxRetry() {
+        String postId = uuid(405).toString();
+        String payloadJson = """
+                {"eventId":"ce:bad-aggregate","aggregateId":"not-a-uuid","aggregateType":"post","type":"%s","occurredAt":"1970-01-01T00:00:00Z","version":1,"payload":{"postId":"%s"}}
+                """.formatted(ContentEventTypes.POST_PUBLISHED, postId);
+
+        assertThatThrownBy(() -> service.dispatch(new DispatchContentEventCommand("post:" + postId, payloadJson)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("content event outbox payload invalid aggregateId");
+
+        verifyNoInteractions(dispatcher);
+    }
+
+    @Test
+    void dispatchShouldRejectMalformedOccurredAtForOutboxRetry() {
+        UUID postId = uuid(406);
+        String payloadJson = """
+                {"eventId":"ce:bad-occurred-at","aggregateId":"%s","aggregateType":"post","type":"%s","occurredAt":"not-an-instant","version":1,"payload":{"postId":"%s"}}
+                """.formatted(postId, ContentEventTypes.POST_PUBLISHED, postId);
+
+        assertThatThrownBy(() -> service.dispatch(new DispatchContentEventCommand("post:" + postId, payloadJson)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("content event outbox payload invalid occurredAt");
+
+        verifyNoInteractions(dispatcher);
+    }
+
+    @Test
     void dispatchShouldRejectKnownContentTypeMissingOrNullPayloadForOutboxRetry() {
         assertThatThrownBy(() -> service.dispatch(new DispatchContentEventCommand("key", "{\"eventId\":\"event-1\",\"type\":\"PostPublished\"}")))
                 .isInstanceOf(IllegalStateException.class)
@@ -170,7 +222,11 @@ class ContentEventDispatchApplicationServiceTest {
         UUID postId = uuid(505);
         String payloadJson = toJson(new ContentContractEvent(
                 "content:PostPublished:" + postId,
+                postId,
+                "post",
                 ContentEventTypes.POST_PUBLISHED,
+                Instant.EPOCH,
+                1L,
                 postPayload(postId)
         ));
         doThrow(failure).when(dispatcher).dispatch(eq(postId.toString()), any());

@@ -103,6 +103,29 @@ class OutboxSocialDomainEventPublisherTest {
     }
 
     @Test
+    void publishLikeChangedShouldSerializeBackboneMetadata() {
+        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        UUID actorUserId = uuid(11);
+        UUID entityId = uuid(12);
+        OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(jsonCodec, store, "eventbus.social");
+
+        publisher.publishLikeChanged(new LikeChangedDomainEvent(
+                actorUserId, EntityTypes.POST, entityId, uuid(13), entityId,
+                "like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId,
+                true, Instant.parse("2026-07-06T08:00:00Z")
+        ));
+
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(store).enqueue(any(), eq("eventbus.social"), eq(EntityTypes.POST + ":" + entityId), payloadCaptor.capture());
+        SocialContractEvent event = jsonCodec.fromJson(payloadCaptor.getValue(), SocialContractEvent.class);
+        assertThat(event.aggregateId()).isEqualTo(entityId);
+        assertThat(event.aggregateType()).isEqualTo("entity");
+        assertThat(event.occurredAt()).isEqualTo(Instant.parse("2026-07-06T08:00:00Z"));
+        assertThat(event.version()).isPositive();
+    }
+
+    @Test
     void likeRemovedShouldUseRemovedEventIdAndEntityKey() throws Exception {
         ObjectMapper objectMapper = JsonMappers.standard();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
@@ -197,7 +220,7 @@ class OutboxSocialDomainEventPublisherTest {
                 uuid(203), EntityTypes.USER, followedUserId, followedUserId, Instant.EPOCH
         ));
         publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(
-                blockerUserId, blockedUserId, true, 99L
+                blockerUserId, blockedUserId, true, Instant.EPOCH, 99L
         ));
 
         ArgumentCaptor<String> eventIdCaptor = ArgumentCaptor.forClass(String.class);
@@ -249,13 +272,20 @@ class OutboxSocialDomainEventPublisherTest {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID blockerUserId = uuid(6);
         UUID blockedUserId = uuid(7);
+        Instant occurredAt = Instant.parse("2026-07-06T09:00:00Z");
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
                 new JacksonJsonCodec(JsonMappers.standard()),
                 store,
                 TOPIC
         );
 
-        publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(blockerUserId, blockedUserId, true, 81L));
+        publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(
+                blockerUserId,
+                blockedUserId,
+                true,
+                occurredAt,
+                81L
+        ));
 
         ArgumentCaptor<String> eventIdCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
@@ -270,11 +300,38 @@ class OutboxSocialDomainEventPublisherTest {
         assertThat(eventId.length()).isLessThanOrEqualTo(64);
         JsonNode json = objectMapper.readTree(payloadCaptor.getValue());
         assertThat(json.path("eventId").asText()).isEqualTo(eventId);
+        assertThat(json.path("aggregateId").asText()).isEqualTo(blockerUserId.toString());
+        assertThat(json.path("aggregateType").asText()).isEqualTo("user");
         assertThat(json.path("type").asText()).isEqualTo(SocialEventTypes.BLOCK_RELATION_CHANGED);
+        assertThat(json.path("occurredAt").asText()).isEqualTo(occurredAt.toString());
+        assertThat(json.path("version").asLong()).isEqualTo(81L);
         assertThat(json.path("payload").path("blockerUserId").asText()).isEqualTo(blockerUserId.toString());
         assertThat(json.path("payload").path("blockedUserId").asText()).isEqualTo(blockedUserId.toString());
         assertThat(json.path("payload").path("blocked").asBoolean()).isTrue();
+        assertThat(json.path("payload").path("occurredAt").asText()).isEqualTo(occurredAt.toString());
         assertThat(json.path("payload").path("version").asLong()).isEqualTo(81L);
+    }
+
+    @Test
+    void publishLikeChangedShouldRejectMissingSourceTimestamp() {
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        UUID actorUserId = uuid(9);
+        UUID entityId = uuid(90);
+        OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
+                new JacksonJsonCodec(JsonMappers.standard()),
+                store,
+                TOPIC
+        );
+
+        assertThatThrownBy(() -> publisher.publishLikeChanged(new LikeChangedDomainEvent(
+                actorUserId, EntityTypes.POST, entityId, uuid(2), entityId,
+                "like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId,
+                true, null
+        )))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("social event source occurredAt missing");
+
+        verifyNoInteractions(store);
     }
 
     @Test
@@ -362,7 +419,13 @@ class OutboxSocialDomainEventPublisherTest {
         };
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(failingJsonCodec, store, TOPIC);
 
-        assertThatThrownBy(() -> publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(uuid(1), uuid(2), true, 0L)))
+        assertThatThrownBy(() -> publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(
+                uuid(1),
+                uuid(2),
+                true,
+                Instant.EPOCH,
+                0L
+        )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload serialization failed");
         verifyNoInteractions(store);

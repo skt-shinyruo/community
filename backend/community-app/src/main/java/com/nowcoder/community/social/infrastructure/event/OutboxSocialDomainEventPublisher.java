@@ -17,6 +17,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+import java.util.UUID;
+
 @Component
 @ConditionalOnExpression("'${social.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'")
 public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublisher {
@@ -52,10 +55,15 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         payload.setCreateTime(event.occurredAt());
 
         String type = event.liked() ? SocialEventTypes.LIKE_CREATED : SocialEventTypes.LIKE_REMOVED;
+        Instant occurredAt = requiredOccurredAt(type, event.occurredAt());
         publish(
                 event.liked() ? "se:like:created:" + idGenerator.next() : "se:like:removed:" + idGenerator.next(),
                 type,
                 event.entityType() + ":" + event.entityId(),
+                event.entityId(),
+                "entity",
+                occurredAt,
+                positiveVersion(occurredAt),
                 payload
         );
     }
@@ -72,10 +80,15 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         payload.setEntityUserId(event.entityUserId());
         payload.setCreateTime(event.createTime());
 
+        Instant occurredAt = requiredOccurredAt(SocialEventTypes.FOLLOW_CREATED, event.createTime());
         publish(
                 "se:follow:created:" + idGenerator.next(),
                 SocialEventTypes.FOLLOW_CREATED,
                 event.entityType() + ":" + event.entityId(),
+                event.entityId(),
+                "entity",
+                occurredAt,
+                positiveVersion(occurredAt),
                 payload
         );
     }
@@ -89,23 +102,57 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         payload.setBlockerUserId(event.blockerUserId());
         payload.setBlockedUserId(event.blockedUserId());
         payload.setBlocked(event.blocked());
-        payload.setVersion(event.version());
+        Instant occurredAt = requiredOccurredAt(SocialEventTypes.BLOCK_RELATION_CHANGED, event.occurredAt());
+        payload.setOccurredAt(occurredAt);
+        payload.setVersion(event.version() > 0L ? event.version() : positiveVersion(occurredAt));
 
         publish(
                 "se:block:" + idGenerator.next(),
                 SocialEventTypes.BLOCK_RELATION_CHANGED,
                 event.blockerUserId().toString(),
+                event.blockerUserId(),
+                "user",
+                occurredAt,
+                payload.getVersion(),
                 payload
         );
     }
 
-    private void publish(String eventId, String type, String key, Object payload) {
+    private void publish(
+            String eventId,
+            String type,
+            String key,
+            UUID aggregateId,
+            String aggregateType,
+            Instant occurredAt,
+            long version,
+            Object payload
+    ) {
         String payloadJson;
         try {
-            payloadJson = jsonCodec.toJson(new SocialContractEvent(eventId, type, payload));
+            payloadJson = jsonCodec.toJson(new SocialContractEvent(
+                    eventId,
+                    aggregateId,
+                    aggregateType,
+                    type,
+                    occurredAt,
+                    version,
+                    payload
+            ));
         } catch (JsonCodecException e) {
             throw new IllegalStateException("social event outbox payload serialization failed: " + type, e);
         }
         store.enqueue(eventId, topic, key, payloadJson);
+    }
+
+    private Instant requiredOccurredAt(String type, Instant occurredAt) {
+        if (occurredAt == null) {
+            throw new IllegalStateException("social event source occurredAt missing: " + type);
+        }
+        return occurredAt;
+    }
+
+    private long positiveVersion(Instant occurredAt) {
+        return Math.max(1L, occurredAt.toEpochMilli());
     }
 }

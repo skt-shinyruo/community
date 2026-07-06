@@ -13,7 +13,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.Objects;
+import java.util.UUID;
 
 @Service
 @ConditionalOnExpression("'${content.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'")
@@ -43,6 +46,18 @@ public class ContentEventDispatchApplicationService {
         if (!StringUtils.hasText(contractEvent.type())) {
             throw new IllegalStateException("content event outbox payload missing type");
         }
+        if (contractEvent.aggregateId() == null) {
+            throw new IllegalStateException("content event outbox payload missing aggregateId");
+        }
+        if (!StringUtils.hasText(contractEvent.aggregateType())) {
+            throw new IllegalStateException("content event outbox payload missing aggregateType");
+        }
+        if (contractEvent.occurredAt() == null) {
+            throw new IllegalStateException("content event outbox payload missing occurredAt");
+        }
+        if (contractEvent.version() <= 0L) {
+            throw new IllegalStateException("content event outbox payload missing version");
+        }
         dispatcher.dispatch(command.eventKey(), contractEvent);
     }
 
@@ -50,9 +65,13 @@ public class ContentEventDispatchApplicationService {
         try {
             JsonNode root = jsonCodec.readTree(payloadJson);
             String eventId = text(root, "eventId");
+            UUID aggregateId = uuid(root, "aggregateId");
+            String aggregateType = text(root, "aggregateType");
             String type = text(root, "type");
+            Instant occurredAt = instant(root, "occurredAt");
+            long version = number(root, "version");
             Object payload = typedPayload(type, root.get("payload"));
-            return new ContentContractEvent(eventId, type, payload);
+            return new ContentContractEvent(eventId, aggregateId, aggregateType, type, occurredAt, version, payload);
         } catch (JsonCodecException e) {
             throw new IllegalStateException("content event outbox payload deserialization failed", e);
         }
@@ -94,5 +113,37 @@ public class ContentEventDispatchApplicationService {
         }
         JsonNode value = node.get(fieldName);
         return value == null || value.isNull() ? null : value.asText(null);
+    }
+
+    private UUID uuid(JsonNode node, String fieldName) {
+        String value = text(node, fieldName);
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("content event outbox payload invalid " + fieldName, e);
+        }
+    }
+
+    private Instant instant(JsonNode node, String fieldName) {
+        String value = text(node, fieldName);
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException e) {
+            throw new IllegalStateException("content event outbox payload invalid " + fieldName, e);
+        }
+    }
+
+    private long number(JsonNode node, String fieldName) {
+        if (node == null || fieldName == null) {
+            return 0L;
+        }
+        JsonNode value = node.get(fieldName);
+        return value == null || value.isNull() ? 0L : value.asLong(0L);
     }
 }

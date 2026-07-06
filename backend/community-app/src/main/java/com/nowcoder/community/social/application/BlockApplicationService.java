@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -68,12 +69,13 @@ public class BlockApplicationService {
             }
             return;
         }
+        Instant occurredAt = Instant.now();
         Runnable rollback = () -> {
             blockRepository.unblock(command.actorUserId(), command.targetUserId());
             restoreRemovedFollows.run();
         };
         publishChangedWithCompensation(
-                new BlockRelationChangedDomainEvent(command.actorUserId(), command.targetUserId(), true, version),
+                new BlockRelationChangedDomainEvent(command.actorUserId(), command.targetUserId(), true, occurredAt, version),
                 rollback
         );
     }
@@ -87,8 +89,9 @@ public class BlockApplicationService {
         if (!changed) {
             return;
         }
+        Instant occurredAt = Instant.now();
         publishChangedWithCompensation(
-                new BlockRelationChangedDomainEvent(command.actorUserId(), command.targetUserId(), false, version),
+                new BlockRelationChangedDomainEvent(command.actorUserId(), command.targetUserId(), false, occurredAt, version),
                 () -> blockRepository.block(command.actorUserId(), command.targetUserId())
         );
     }

@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
+import java.time.Instant;
 import java.util.UUID;
 import java.util.List;
 
@@ -58,6 +59,7 @@ class OutboxContentEventPublisherTest {
 
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
+        payload.setCreateTime(Instant.EPOCH);
 
         publisher.publishPostPublished(payload);
 
@@ -72,6 +74,46 @@ class OutboxContentEventPublisherTest {
         assertThat(json.path("eventId").asText()).isEqualTo("content:PostPublished:" + postId);
         assertThat(json.path("type").asText()).isEqualTo(ContentEventTypes.POST_PUBLISHED);
         assertThat(json.path("payload").path("postId").asText()).isEqualTo(postId.toString());
+    }
+
+    @Test
+    void publishPostPublishedShouldSerializeBackboneMetadata() {
+        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxContentEventPublisher publisher = new OutboxContentEventPublisher(jsonCodec, store, "eventbus.content");
+        UUID postId = UUID.randomUUID();
+        PostPayload payload = new PostPayload();
+        payload.setPostId(postId);
+        payload.setCreateTime(Instant.parse("2026-07-06T08:00:00Z"));
+
+        publisher.publishPostPublished(payload);
+
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(store).enqueue(eq("content:PostPublished:" + postId), eq("eventbus.content"), eq(postId.toString()), payloadCaptor.capture());
+        ContentContractEvent event = jsonCodec.fromJson(payloadCaptor.getValue(), ContentContractEvent.class);
+        assertThat(event.aggregateId()).isEqualTo(postId);
+        assertThat(event.aggregateType()).isEqualTo("post");
+        assertThat(event.occurredAt()).isEqualTo(Instant.parse("2026-07-06T08:00:00Z"));
+        assertThat(event.version()).isPositive();
+    }
+
+    @Test
+    void publishPostPublishedShouldRejectMissingSourceTimestamp() {
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        UUID postId = uuid(612);
+        OutboxContentEventPublisher publisher = new OutboxContentEventPublisher(
+                new JacksonJsonCodec(JsonMappers.standard()),
+                store,
+                TOPIC
+        );
+        PostPayload payload = new PostPayload();
+        payload.setPostId(postId);
+
+        assertThatThrownBy(() -> publisher.publishPostPublished(payload))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("content event source occurredAt missing");
+
+        verifyNoInteractions(store);
     }
 
     @Test
@@ -156,6 +198,7 @@ class OutboxContentEventPublisherTest {
 
         CommentPayload payload = new CommentPayload();
         payload.setCommentId(commentId);
+        payload.setCreateTime(Instant.EPOCH);
 
         publisher.publishCommentCreated(payload);
 
@@ -257,6 +300,7 @@ class OutboxContentEventPublisherTest {
         OutboxContentEventPublisher publisher = new OutboxContentEventPublisher(failingJsonCodec, store, TOPIC);
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(505));
+        payload.setCreateTime(Instant.EPOCH);
 
         assertThatThrownBy(() -> publisher.publishPostPublished(payload))
                 .isInstanceOf(IllegalStateException.class)
@@ -267,18 +311,22 @@ class OutboxContentEventPublisherTest {
     private static PostPayload postPayload(UUID postId) {
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
+        payload.setCreateTime(Instant.EPOCH);
+        payload.setUpdateTime(Instant.EPOCH);
         return payload;
     }
 
     private static CommentPayload commentPayload(UUID commentId) {
         CommentPayload payload = new CommentPayload();
         payload.setCommentId(commentId);
+        payload.setCreateTime(Instant.EPOCH);
         return payload;
     }
 
     private static ModerationPayload moderationPayload(UUID toUserId) {
         ModerationPayload payload = new ModerationPayload();
         payload.setToUserId(toUserId);
+        payload.setCreateTime(Instant.EPOCH);
         return payload;
     }
 }

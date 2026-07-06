@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Component
@@ -41,7 +42,17 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
         if (postId == null) {
             return;
         }
-        publish("content:PostPublished:" + postId, ContentEventTypes.POST_PUBLISHED, postId.toString(), payload);
+        Instant occurredAt = requiredOccurredAt(ContentEventTypes.POST_PUBLISHED, payload.getCreateTime());
+        publish(
+                "content:PostPublished:" + postId,
+                ContentEventTypes.POST_PUBLISHED,
+                postId.toString(),
+                postId,
+                "post",
+                occurredAt,
+                positiveVersion(occurredAt),
+                payload
+        );
     }
 
     @Override
@@ -50,8 +61,20 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
         if (postId == null) {
             return;
         }
-        publish("ce:post:updated:" + idGenerator.next(), ContentEventTypes.POST_UPDATED,
-                postId.toString(), payload);
+        Instant occurredAt = requiredOccurredAt(
+                ContentEventTypes.POST_UPDATED,
+                payload.getUpdateTime() == null ? payload.getCreateTime() : payload.getUpdateTime()
+        );
+        publish(
+                "ce:post:updated:" + idGenerator.next(),
+                ContentEventTypes.POST_UPDATED,
+                postId.toString(),
+                postId,
+                "post",
+                occurredAt,
+                positiveVersion(occurredAt),
+                payload
+        );
     }
 
     @Override
@@ -60,7 +83,20 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
         if (postId == null) {
             return;
         }
-        publish("content:PostDeleted:" + postId, ContentEventTypes.POST_DELETED, postId.toString(), payload);
+        Instant occurredAt = requiredOccurredAt(
+                ContentEventTypes.POST_DELETED,
+                payload.getUpdateTime() == null ? payload.getCreateTime() : payload.getUpdateTime()
+        );
+        publish(
+                "content:PostDeleted:" + postId,
+                ContentEventTypes.POST_DELETED,
+                postId.toString(),
+                postId,
+                "post",
+                occurredAt,
+                positiveVersion(occurredAt),
+                payload
+        );
     }
 
     @Override
@@ -69,7 +105,17 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
         if (commentId == null) {
             return;
         }
-        publish("content:CommentCreated:" + commentId, ContentEventTypes.COMMENT_CREATED, commentId.toString(), payload);
+        Instant occurredAt = requiredOccurredAt(ContentEventTypes.COMMENT_CREATED, payload.getCreateTime());
+        publish(
+                "content:CommentCreated:" + commentId,
+                ContentEventTypes.COMMENT_CREATED,
+                commentId.toString(),
+                commentId,
+                "comment",
+                occurredAt,
+                positiveVersion(occurredAt),
+                payload
+        );
     }
 
     @Override
@@ -78,7 +124,17 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
         if (commentId == null) {
             return;
         }
-        publish("content:CommentDeleted:" + commentId, ContentEventTypes.COMMENT_DELETED, commentId.toString(), payload);
+        Instant occurredAt = requiredOccurredAt(ContentEventTypes.COMMENT_DELETED, payload.getCreateTime());
+        publish(
+                "content:CommentDeleted:" + commentId,
+                ContentEventTypes.COMMENT_DELETED,
+                commentId.toString(),
+                commentId,
+                "comment",
+                occurredAt,
+                positiveVersion(occurredAt),
+                payload
+        );
     }
 
     @Override
@@ -87,17 +143,54 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
         if (toUserId == null) {
             return;
         }
-        publish("ce:moderation:" + idGenerator.next(),
-                ContentEventTypes.MODERATION_ACTION_APPLIED, toUserId.toString(), payload);
+        Instant occurredAt = requiredOccurredAt(ContentEventTypes.MODERATION_ACTION_APPLIED, payload.getCreateTime());
+        publish(
+                "ce:moderation:" + idGenerator.next(),
+                ContentEventTypes.MODERATION_ACTION_APPLIED,
+                toUserId.toString(),
+                toUserId,
+                "user",
+                occurredAt,
+                positiveVersion(occurredAt),
+                payload
+        );
     }
 
-    private void publish(String eventId, String type, String key, Object payload) {
+    private void publish(
+            String eventId,
+            String type,
+            String key,
+            UUID aggregateId,
+            String aggregateType,
+            Instant occurredAt,
+            long version,
+            Object payload
+    ) {
         String payloadJson;
         try {
-            payloadJson = jsonCodec.toJson(new ContentContractEvent(eventId, type, payload));
+            payloadJson = jsonCodec.toJson(new ContentContractEvent(
+                    eventId,
+                    aggregateId,
+                    aggregateType,
+                    type,
+                    occurredAt,
+                    version,
+                    payload
+            ));
         } catch (JsonCodecException e) {
             throw new IllegalStateException("content event outbox payload serialization failed: " + type, e);
         }
         store.enqueue(eventId, topic, key, payloadJson);
+    }
+
+    private Instant requiredOccurredAt(String type, Instant occurredAt) {
+        if (occurredAt == null) {
+            throw new IllegalStateException("content event source occurredAt missing: " + type);
+        }
+        return occurredAt;
+    }
+
+    private long positiveVersion(Instant occurredAt) {
+        return Math.max(1L, occurredAt.toEpochMilli());
     }
 }

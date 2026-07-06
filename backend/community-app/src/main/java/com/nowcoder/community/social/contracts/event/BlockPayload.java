@@ -1,5 +1,6 @@
 package com.nowcoder.community.social.contracts.event;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -12,6 +13,7 @@ public class BlockPayload {
     private UUID blockerUserId;
     private UUID blockedUserId;
     private Boolean blocked;
+    private Instant occurredAt;
     private Long version;
 
     public UUID getBlockerUserId() {
@@ -36,6 +38,14 @@ public class BlockPayload {
 
     public void setBlocked(Boolean blocked) {
         this.blocked = blocked;
+    }
+
+    public Instant getOccurredAt() {
+        return occurredAt;
+    }
+
+    public void setOccurredAt(Instant occurredAt) {
+        this.occurredAt = occurredAt;
     }
 
     public Long getVersion() {

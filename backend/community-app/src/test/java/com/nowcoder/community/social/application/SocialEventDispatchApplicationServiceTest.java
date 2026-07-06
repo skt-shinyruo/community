@@ -53,7 +53,11 @@ class SocialEventDispatchApplicationServiceTest {
 
         service.dispatch(new DispatchSocialEventCommand(key, toJson(new SocialContractEvent(
                 "social:LikeCreated:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId,
+                entityId,
+                "entity",
                 SocialEventTypes.LIKE_CREATED,
+                Instant.EPOCH,
+                1L,
                 likePayload(actorUserId, entityId)
         ))));
 
@@ -75,17 +79,27 @@ class SocialEventDispatchApplicationServiceTest {
 
         service.dispatch(new DispatchSocialEventCommand(actorUserId.toString(), toJson(new SocialContractEvent(
                 "social:FollowCreated:" + actorUserId + ":" + followedUserId,
+                followedUserId,
+                "entity",
                 SocialEventTypes.FOLLOW_CREATED,
+                Instant.EPOCH,
+                1L,
                 followPayload(actorUserId, followedUserId)
         ))));
         service.dispatch(new DispatchSocialEventCommand(actorUserId + ":" + blockedUserId, toJson(new SocialContractEvent(
                 "social:BlockRelationChanged:" + actorUserId + ":" + blockedUserId + ":42",
+                actorUserId,
+                "user",
                 SocialEventTypes.BLOCK_RELATION_CHANGED,
+                Instant.EPOCH,
+                42L,
                 blockPayload(actorUserId, blockedUserId)
         ))));
         service.dispatch(new DispatchSocialEventCommand(
                 "unknown-key",
-                "{\"eventId\":\"social:Unknown:1\",\"type\":\"UnknownSocialEvent\",\"payload\":{\"value\":\"kept\"}}"
+                """
+                        {"eventId":"social:Unknown:1","aggregateId":"%s","aggregateType":"entity","type":"UnknownSocialEvent","occurredAt":"1970-01-01T00:00:00Z","version":1,"payload":{"value":"kept"}}
+                        """.formatted(uuid(204))
         ));
 
         ArgumentCaptor<SocialContractEvent> eventCaptor = ArgumentCaptor.forClass(SocialContractEvent.class);
@@ -156,6 +170,49 @@ class SocialEventDispatchApplicationServiceTest {
     }
 
     @Test
+    void dispatchShouldRejectMissingAggregateMetadata() {
+        String payloadJson = """
+                {"eventId":"se:1","type":"LikeCreated","payload":{"actorUserId":"%s"}}
+                """.formatted(uuid(303));
+
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand("key", payloadJson)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("aggregateId");
+    }
+
+    @Test
+    void dispatchShouldRejectMalformedAggregateIdForOutboxRetry() {
+        UUID actorUserId = uuid(304);
+        UUID entityId = uuid(305);
+        String key = EntityTypes.POST + ":" + entityId;
+        String payloadJson = """
+                {"eventId":"se:bad-aggregate","aggregateId":"not-a-uuid","aggregateType":"entity","type":"%s","occurredAt":"1970-01-01T00:00:00Z","version":1,"payload":{"actorUserId":"%s","entityType":"%s","entityId":"%s","entityUserId":"%s","postId":"%s","createTime":"1970-01-01T00:00:00Z"}}
+                """.formatted(SocialEventTypes.LIKE_CREATED, actorUserId, EntityTypes.POST, entityId, uuid(306), entityId);
+
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand(key, payloadJson)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("social event outbox payload invalid aggregateId");
+
+        verifyNoInteractions(dispatcher);
+    }
+
+    @Test
+    void dispatchShouldRejectMalformedOccurredAtForOutboxRetry() {
+        UUID actorUserId = uuid(307);
+        UUID entityId = uuid(308);
+        String key = EntityTypes.POST + ":" + entityId;
+        String payloadJson = """
+                {"eventId":"se:bad-occurred-at","aggregateId":"%s","aggregateType":"entity","type":"%s","occurredAt":"not-an-instant","version":1,"payload":{"actorUserId":"%s","entityType":"%s","entityId":"%s","entityUserId":"%s","postId":"%s","createTime":"1970-01-01T00:00:00Z"}}
+                """.formatted(entityId, SocialEventTypes.LIKE_CREATED, actorUserId, EntityTypes.POST, entityId, uuid(309), entityId);
+
+        assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand(key, payloadJson)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("social event outbox payload invalid occurredAt");
+
+        verifyNoInteractions(dispatcher);
+    }
+
+    @Test
     void dispatchShouldRejectKnownSocialTypeMissingOrNullPayloadForOutboxRetry() {
         assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand("key", "{\"eventId\":\"event-1\",\"type\":\"LikeCreated\"}")))
                 .isInstanceOf(IllegalStateException.class)
@@ -188,7 +245,11 @@ class SocialEventDispatchApplicationServiceTest {
         String key = EntityTypes.POST + ":" + entityId;
         String payloadJson = toJson(new SocialContractEvent(
                 "social:LikeCreated:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId,
+                entityId,
+                "entity",
                 SocialEventTypes.LIKE_CREATED,
+                Instant.EPOCH,
+                1L,
                 likePayload(actorUserId, entityId)
         ));
         doThrow(failure).when(dispatcher).dispatch(eq(key), any());

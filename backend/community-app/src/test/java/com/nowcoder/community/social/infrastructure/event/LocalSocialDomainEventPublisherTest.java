@@ -14,11 +14,14 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class LocalSocialDomainEventPublisherTest {
 
@@ -86,17 +89,42 @@ class LocalSocialDomainEventPublisherTest {
     void publishBlockRelationChangedShouldMapContractPayload() {
         ApplicationEventPublisher springPublisher = mock(ApplicationEventPublisher.class);
         LocalSocialDomainEventPublisher publisher = new LocalSocialDomainEventPublisher(springPublisher);
+        Instant occurredAt = Instant.parse("2026-07-06T09:00:00Z");
 
-        publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(uuid(1), uuid(2), true, 81L));
+        publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(uuid(1), uuid(2), true, occurredAt, 81L));
 
         SocialContractEvent event = captureEvent(springPublisher);
+        assertThat(event.eventId()).isNotBlank();
+        assertThat(event.aggregateId()).isEqualTo(uuid(1));
+        assertThat(event.aggregateType()).isEqualTo("user");
         assertThat(event.type()).isEqualTo(SocialEventTypes.BLOCK_RELATION_CHANGED);
+        assertThat(event.occurredAt()).isEqualTo(occurredAt);
+        assertThat(event.version()).isEqualTo(81L);
         assertThat(event.payload()).isInstanceOf(BlockPayload.class);
         BlockPayload payload = (BlockPayload) event.payload();
         assertThat(payload.getBlockerUserId()).isEqualTo(uuid(1));
         assertThat(payload.getBlockedUserId()).isEqualTo(uuid(2));
         assertThat(payload.getBlocked()).isTrue();
+        assertThat(payload.getOccurredAt()).isEqualTo(occurredAt);
         assertThat(payload.getVersion()).isEqualTo(81L);
+    }
+
+    @Test
+    void publishLikeChangedShouldRejectMissingSourceTimestamp() {
+        ApplicationEventPublisher springPublisher = mock(ApplicationEventPublisher.class);
+        LocalSocialDomainEventPublisher publisher = new LocalSocialDomainEventPublisher(springPublisher);
+        UUID actorUserId = uuid(3);
+        UUID entityId = uuid(30);
+
+        assertThatThrownBy(() -> publisher.publishLikeChanged(new LikeChangedDomainEvent(
+                actorUserId, EntityTypes.POST, entityId, uuid(2), entityId,
+                "like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId,
+                true, null
+        )))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("social event source occurredAt missing");
+
+        verifyNoInteractions(springPublisher);
     }
 
     private SocialContractEvent captureEvent(ApplicationEventPublisher springPublisher) {

@@ -16,6 +16,7 @@ public class PostPayload implements Serializable {
     private int type;
     private int status;
     private Instant createTime;
+    private Instant updateTime;
     private Double score;
 
     public UUID getPostId() {
@@ -88,6 +89,14 @@ public class PostPayload implements Serializable {
 
     public void setCreateTime(Instant createTime) {
         this.createTime = createTime;
+    }
+
+    public Instant getUpdateTime() {
+        return updateTime;
+    }
+
+    public void setUpdateTime(Instant updateTime) {
+        this.updateTime = updateTime;
     }
 
     public Double getScore() {

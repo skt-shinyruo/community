@@ -25,6 +25,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class FeedReadApplicationServiceTest {
@@ -35,6 +37,7 @@ class FeedReadApplicationServiceTest {
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
         TagContentRepository tagContentRepository = mock(TagContentRepository.class);
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
         FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
@@ -65,6 +68,7 @@ class FeedReadApplicationServiceTest {
                 commentContentRepository,
                 tagContentRepository,
                 postContentBlockRepository,
+                postSummaryCache,
                 postContentBlockTextProjector,
                 postSummaryAssembler,
                 feedCursorCodec
@@ -87,6 +91,7 @@ class FeedReadApplicationServiceTest {
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
         TagContentRepository tagContentRepository = mock(TagContentRepository.class);
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
         FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
@@ -108,6 +113,7 @@ class FeedReadApplicationServiceTest {
                 commentContentRepository,
                 tagContentRepository,
                 postContentBlockRepository,
+                postSummaryCache,
                 postContentBlockTextProjector,
                 postSummaryAssembler,
                 feedCursorCodec
@@ -128,6 +134,7 @@ class FeedReadApplicationServiceTest {
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
         TagContentRepository tagContentRepository = mock(TagContentRepository.class);
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
         FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
@@ -145,6 +152,7 @@ class FeedReadApplicationServiceTest {
                 commentContentRepository,
                 tagContentRepository,
                 postContentBlockRepository,
+                postSummaryCache,
                 postContentBlockTextProjector,
                 postSummaryAssembler,
                 feedCursorCodec
@@ -163,6 +171,7 @@ class FeedReadApplicationServiceTest {
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
         TagContentRepository tagContentRepository = mock(TagContentRepository.class);
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
         FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
@@ -178,6 +187,7 @@ class FeedReadApplicationServiceTest {
                 commentContentRepository,
                 tagContentRepository,
                 postContentBlockRepository,
+                postSummaryCache,
                 postContentBlockTextProjector,
                 postSummaryAssembler,
                 feedCursorCodec
@@ -188,6 +198,55 @@ class FeedReadApplicationServiceTest {
         FeedPageResult result = service.listGlobalHotFeed(null, "%%%not-a-cursor%%%", 2);
 
         assertThat(result.items()).extracting(PostSummaryResult::title).containsExactly("<first>", "<second>");
+    }
+
+    @Test
+    void globalFeedShouldBackfillMissingSummariesIntoCache() {
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
+        when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
+        UUID firstPostId = uuid(1);
+        UUID secondPostId = uuid(2);
+        DiscussPost firstPost = post(firstPostId, "<first>");
+        DiscussPost secondPost = post(secondPostId, "<second>");
+
+        when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(List.of(firstPost, secondPost));
+        when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(List.of());
+        when(postSummaryCache.getAll(List.of(firstPostId, secondPostId)))
+                .thenReturn(Map.of(firstPostId, summary(firstPostId, "<cached>")));
+        when(commentContentRepository.getLatestPostActivitiesByPostIds(List.of(secondPostId))).thenReturn(Map.of());
+        when(tagContentRepository.getTagsByPostIds(List.of(secondPostId))).thenReturn(Map.of(secondPostId, List.of("spring")));
+        when(postContentBlockRepository.listByPostIds(List.of(secondPostId)))
+                .thenReturn(Map.of(secondPostId, List.of(paragraphBlock(secondPostId, "<body-2>"))));
+        when(postContentBlockTextProjector.preview(List.of(paragraphBlock(secondPostId, "<body-2>")), 240)).thenReturn("<body-2>");
+
+        FeedReadApplicationService service = new FeedReadApplicationService(
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec
+        );
+
+        FeedPageResult page = service.listGlobalHotFeed(null, "", 2);
+
+        verify(postSummaryCache).putAll(argThat((List<PostSummaryResult> items) ->
+                items.stream().anyMatch(it -> secondPostId.equals(it.id()))));
+        assertThat(page.items()).extracting(PostSummaryResult::id).containsExactly(firstPostId, secondPostId);
+        assertThat(page.items().get(0).title()).isEqualTo("<cached>");
+        assertThat(page.items().get(1).title()).isEqualTo("<second>");
     }
 
     private static DiscussPost post(UUID postId, String title) {
@@ -205,6 +264,26 @@ class FeedReadApplicationServiceTest {
         comment.setContent(content);
         comment.setCreateTime(new Date(2_000));
         return comment;
+    }
+
+    private static PostSummaryResult summary(UUID postId, String title) {
+        return new PostSummaryResult(
+                postId,
+                uuid(100),
+                title,
+                "<preview>",
+                0,
+                0,
+                new Date(1_000),
+                0,
+                0.0,
+                uuid(200),
+                List.of(),
+                null,
+                null,
+                null,
+                ""
+        );
     }
 
     private static void mockRepositoryPagination(

@@ -368,6 +368,9 @@ git commit -m "feat: add cursor-based public feed contract"
 
 ### Task 2: Add Redis Summary And Detail Read-Through Caches
 
+Implementation note:
+- In the current codebase and Task 2 write set, `PostFeedCache` / `RedisPostFeedCache` are not yet part of this task's editable surface. Task 2 therefore introduces summary/detail read-through caching after repository page rows are loaded; feed ID caching remains deferred until the later feed-runtime tasks that explicitly own `PostFeedCache`.
+
 **Files:**
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostSummaryCache.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostDetailCache.java`
@@ -387,7 +390,7 @@ git commit -m "feat: add cursor-based public feed contract"
   - `PostDetailCache.put(UUID postId, PostDetailResult detail): void`
   - `PostDetailCache.evict(UUID postId): void`
 
-- [ ] **Step 1: Write the failing cache behavior tests**
+- [x] **Step 1: Write the failing cache behavior tests**
 
 Add to `FeedReadApplicationServiceTest.java`:
 
@@ -419,7 +422,7 @@ void detailShouldReturnCachedShellBeforeFallingBackToRepositories() {
 }
 ```
 
-- [ ] **Step 2: Run the cache tests and verify they fail**
+- [x] **Step 2: Run the cache tests and verify they fail**
 
 Run:
 
@@ -430,7 +433,7 @@ mvn test -pl :community-app -am -Dtest=FeedReadApplicationServiceTest,PostReadAp
 
 Expected: FAIL because `PostSummaryCache`, `PostDetailCache`, and `postFeedCache` dependencies do not exist.
 
-- [ ] **Step 3: Implement Redis-backed summary/detail caches and wire them into read services**
+- [x] **Step 3: Implement Redis-backed summary/detail caches and wire them into read services**
 
 Add `PostSummaryCache`:
 
@@ -485,7 +488,7 @@ private static final String SUMMARY_KEY = "post:summary:";
 private static final String DETAIL_KEY = "post:detail:";
 ```
 
-- [ ] **Step 4: Run the cache tests and verify they pass**
+- [x] **Step 4: Run the cache tests and verify they pass**
 
 Run:
 
@@ -496,7 +499,7 @@ mvn test -pl :community-app -am -Dtest=FeedReadApplicationServiceTest,PostReadAp
 
 Expected: PASS, with feed summaries backfilled into Redis and post detail shells read through cache.
 
-- [ ] **Step 5: Commit the read-through cache layer**
+- [x] **Step 5: Commit the read-through cache layer**
 
 ```bash
 git add backend/community-app/src/main/java/com/nowcoder/community/content/application/PostSummaryCache.java \

@@ -1,6 +1,6 @@
 package com.nowcoder.community.analytics.infrastructure.web;
 
-import com.nowcoder.community.analytics.application.AnalyticsIngestApplicationService;
+import com.nowcoder.community.analytics.application.AnalyticsRequestCaptureApplicationService;
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import jakarta.servlet.FilterChain;
@@ -31,20 +31,20 @@ public class AnalyticsRequestCaptureFilter extends OncePerRequestFilter {
     private final ClientIpResolver clientIpResolver;
     private final AnalyticsPrincipalResolver principalResolver;
     private final AnalyticsIngestProperties properties;
-    private final AnalyticsIngestApplicationService ingestApplicationService;
+    private final AnalyticsRequestCaptureApplicationService analyticsRequestCaptureApplicationService;
 
     public AnalyticsRequestCaptureFilter(
             AnalyticsRequestClassifier classifier,
             ClientIpResolver clientIpResolver,
             AnalyticsPrincipalResolver principalResolver,
             AnalyticsIngestProperties properties,
-            AnalyticsIngestApplicationService ingestApplicationService
+            AnalyticsRequestCaptureApplicationService analyticsRequestCaptureApplicationService
     ) {
         this.classifier = classifier;
         this.clientIpResolver = clientIpResolver;
         this.principalResolver = principalResolver;
         this.properties = properties;
-        this.ingestApplicationService = ingestApplicationService;
+        this.analyticsRequestCaptureApplicationService = analyticsRequestCaptureApplicationService;
     }
 
     @Override
@@ -96,11 +96,13 @@ public class AnalyticsRequestCaptureFilter extends OncePerRequestFilter {
         String ip = resolved == null ? null : resolved.ip();
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UUID userId = principalResolver.resolveUserUuid(authentication);
-        ingestApplicationService.recordRequest(new RecordRequestCommand(
+        boolean recordUv = properties != null && properties.isRecordUv();
+        boolean recordDau = properties != null && properties.isRecordDau();
+        analyticsRequestCaptureApplicationService.capture(new RecordRequestCommand(
                 ip,
                 userId,
-                properties != null && properties.isRecordUv(),
-                properties != null && properties.isRecordDau()
-        ));
+                recordUv,
+                recordDau
+        ), properties != null && properties.isAsyncEnabled());
     }
 }

@@ -11,6 +11,7 @@ import java.util.List;
 public class AnalyticsIngestProperties {
 
     private boolean enabled = false;
+    private boolean asyncEnabled = true;
     private boolean recordUv = true;
     private boolean recordDau = true;
     private List<String> includePaths = new ArrayList<>(List.of("/api/posts/**", "/api/search/**", "/api/notices/**"));
@@ -22,6 +23,14 @@ public class AnalyticsIngestProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public boolean isAsyncEnabled() {
+        return asyncEnabled;
+    }
+
+    public void setAsyncEnabled(boolean asyncEnabled) {
+        this.asyncEnabled = asyncEnabled;
     }
 
     public boolean isRecordUv() {

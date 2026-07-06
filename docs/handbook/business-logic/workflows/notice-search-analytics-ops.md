@@ -53,10 +53,19 @@ ES 是读模型，不是帖子事实。
 
 1. 请求完成后，`AnalyticsRequestCaptureFilter` 采集请求信息。
 2. classifier 判断是否记录 UV / DAU。
-3. `AnalyticsIngestApplicationService` 写 Redis 统计结构。
-4. 登录成功也可以通过 action API 计入 DAU。
+3. 当 `analytics.ingest.async-enabled=true` 时，filter 发布 `AnalyticsRequestEvent` 到 Kafka，不阻塞请求线程写统计。
+4. `AnalyticsRequestKafkaListener` 将事件转换成 `RecordRequestCommand`，进入 `AnalyticsIngestApplicationService`。
+5. 当 async 关闭或 publisher 不可用时，filter 走同步 fallback。
+6. `AnalyticsIngestApplicationService` 写 Redis 统计结构。
+7. 登录成功也可以通过 action API 计入 DAU。
 
 analytics 不拥有用户、会话或内容事实。它只是统计读模型。
+
+运维开关：
+
+- `ANALYTICS_INGEST_ASYNC_ENABLED=true`：请求线程只投递 Kafka。
+- `ANALYTICS_INGEST_ASYNC_ENABLED=false`：请求线程同步调用 analytics application service。
+- `analytics.ingest.enabled=false`：classifier 跳过请求采集。
 
 ## Ops 入口
 

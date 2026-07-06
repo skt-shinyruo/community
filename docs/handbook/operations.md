@@ -319,6 +319,24 @@ Interpretation: production compatibility depends on stable fields and signal cat
 
 Next action: candidate SLOs are HTTP availability/latency, Kafka lag, database pool pending, Redis error/slow-operation rate, JVM memory/GC pressure, executor saturation, and outbox backlog or dead-letter rate.
 
+## Content Platform Degradation
+
+Runtime toggles for the high-traffic content platform:
+
+- `CONTENT_FEED_LATEST_FALLBACK_ENABLED=true` keeps global and board feeds available when hot ranking lags.
+- `SEARCH_PROJECTION_ENABLED=false` stops search projection writes without blocking owner writes.
+- `NOTICE_PROJECTION_ENABLED=false` pauses in-app projection while content and social writes continue.
+- `ANALYTICS_INGEST_ASYNC_ENABLED=true` keeps request latency off the analytics path and allows independent throttling.
+
+Dual-region failover order:
+
+1. Freeze old primary writes.
+2. Confirm replay boundary for Kafka/outbox consumers.
+3. Promote the new primary.
+4. Switch Kafka producers and consumers.
+5. Warm feed, comment, detail, search, and notice caches.
+6. Reopen writes.
+
 ## IM 压测
 
 IM 的正确性设计是 “WebSocket best-effort 推送 + HTTP 断线补拉”。压测流量推荐统一通过 gateway：

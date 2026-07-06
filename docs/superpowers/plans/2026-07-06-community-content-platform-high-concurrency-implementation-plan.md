@@ -127,6 +127,8 @@
 ### Task 6: Analytics Async Capture, Ops Toggles, And Verification
 
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/event/AnalyticsRequestEvent.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/analytics/application/AnalyticsRequestCaptureApplicationService.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/analytics/application/AnalyticsRequestCapturePort.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/event/AnalyticsRequestEventPublisher.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/event/AnalyticsRequestKafkaListener.java`
 - Create: `backend/community-app/src/test/java/com/nowcoder/community/analytics/infrastructure/event/AnalyticsRequestKafkaListenerTest.java`
@@ -1086,6 +1088,8 @@ git commit -m "feat: add projection guardrails for search and notice"
 
 **Files:**
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/event/AnalyticsRequestEvent.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/analytics/application/AnalyticsRequestCaptureApplicationService.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/analytics/application/AnalyticsRequestCapturePort.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/event/AnalyticsRequestEventPublisher.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/event/AnalyticsRequestKafkaListener.java`
 - Create: `backend/community-app/src/test/java/com/nowcoder/community/analytics/infrastructure/event/AnalyticsRequestKafkaListenerTest.java`
@@ -1103,7 +1107,7 @@ git commit -m "feat: add projection guardrails for search and notice"
 - Produces: `void publish(AnalyticsRequestEvent event)` from `AnalyticsRequestEventPublisher`
 - Produces: Kafka listener method that converts `AnalyticsRequestEvent` into `RecordRequestCommand`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
 @Test
@@ -1126,13 +1130,13 @@ void kafkaListenerShouldTranslateEventIntoRecordRequestCommand() {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && mvn test -pl :community-app -Dtest=AnalyticsRequestCaptureFilterTest,AnalyticsRequestKafkaListenerTest,AnalyticsIngestApplicationServiceTest,AnalyticsControllerUnitTest && mvn test -pl :community-app -Dtest='*ArchTest'`
 
 Expected: FAIL because there is no async publisher/listener path and no analytics async toggle.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 ```java
 public record AnalyticsRequestEvent(String ip, UUID userId, boolean recordUv, boolean recordDau) {
@@ -1215,7 +1219,7 @@ analytics:
 - Dual-region failover order is: freeze old primary writes, confirm replay boundary, promote new primary, switch Kafka producers and consumers, warm caches, then reopen writes.
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd backend && mvn test -pl :community-app -Dtest=AnalyticsRequestCaptureFilterTest,AnalyticsRequestKafkaListenerTest,AnalyticsIngestApplicationServiceTest,AnalyticsControllerUnitTest`
 
@@ -1225,10 +1229,12 @@ Run: `cd backend && mvn test -pl :community-app -Dtest='*ArchTest'`
 
 Expected: PASS with all architecture guardrails green after the new files and listeners are added.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/event/AnalyticsRequestEvent.java \
+        backend/community-app/src/main/java/com/nowcoder/community/analytics/application/AnalyticsRequestCaptureApplicationService.java \
+        backend/community-app/src/main/java/com/nowcoder/community/analytics/application/AnalyticsRequestCapturePort.java \
         backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/event/AnalyticsRequestEventPublisher.java \
         backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/event/AnalyticsRequestKafkaListener.java \
         backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/web/AnalyticsRequestCaptureFilter.java \

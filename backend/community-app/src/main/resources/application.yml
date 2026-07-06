@@ -312,6 +312,10 @@ analytics:
   max-days-range: 31
   ingest:
     enabled: false
+    async-enabled: ${ANALYTICS_INGEST_ASYNC_ENABLED:true}
+    kafka-topic: ${ANALYTICS_INGEST_KAFKA_TOPIC:analytics.request}
+    kafka-group-id: ${ANALYTICS_INGEST_KAFKA_GROUP_ID:analytics-request}
+    kafka-concurrency: ${ANALYTICS_INGEST_KAFKA_CONCURRENCY:2}
     record-uv: true
     record-dau: true
     include-paths:

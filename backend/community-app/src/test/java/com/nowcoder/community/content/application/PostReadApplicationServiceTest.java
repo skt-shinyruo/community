@@ -4,6 +4,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.application.result.RecentUserCommentResult;
+import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
 import com.nowcoder.community.content.domain.repository.BookmarkRepository;
 import com.nowcoder.community.content.domain.repository.CommentContentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
@@ -30,6 +31,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -104,6 +106,7 @@ class PostReadApplicationServiceTest {
         PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        PostCounterApplicationService postCounterApplicationService = mock(PostCounterApplicationService.class);
         UUID currentUserId = uuid(7);
         UUID postId = uuid(10);
         UUID authorUserId = uuid(8);
@@ -125,7 +128,7 @@ class PostReadApplicationServiceTest {
         when(postService.getById(postId)).thenReturn(post);
         when(blockRepository.listByPostId(postId)).thenReturn(List.of(paragraphBlock(postId, "&lt;body&gt;")));
         when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java", "spring")));
-        when(likeQueryService.countPostLikes(postId)).thenReturn(9L);
+        when(postCounterApplicationService.read(postId)).thenReturn(new PostCounterSnapshot(postId, 3L, 9L, 5L, 2L, 12.5));
         when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
         when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
 
@@ -138,7 +141,8 @@ class PostReadApplicationServiceTest {
                 subscriptionService,
                 blockRepository,
                 mediaAssetRepository,
-                postDetailCache
+                postDetailCache,
+                postCounterApplicationService
         );
 
         PostDetailResult detail = service.getPostDetail(currentUserId, postId);
@@ -185,6 +189,45 @@ class PostReadApplicationServiceTest {
         PostDetailResult result = service.getPostDetail(null, postId);
 
         assertThat(result.id()).isEqualTo(postId);
+        verifyNoInteractions(postService, blockRepository, tagService, likeQueryService, bookmarkService);
+    }
+
+    @Test
+    void detailShouldOverlayCounterSnapshotOnCacheHit() {
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
+        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        PostCounterApplicationService postCounterApplicationService = mock(PostCounterApplicationService.class);
+        UUID postId = uuid(102);
+
+        when(postDetailCache.get(postId)).thenReturn(detail(postId));
+        when(postCounterApplicationService.read(postId)).thenReturn(new PostCounterSnapshot(postId, 15L, 9L, 7L, 0L, 33.5));
+
+        PostReadApplicationService service = service(
+                postService,
+                commentService,
+                likeQueryService,
+                tagService,
+                bookmarkService,
+                subscriptionService,
+                blockRepository,
+                mediaAssetRepository,
+                postDetailCache,
+                postCounterApplicationService
+        );
+
+        PostDetailResult result = service.getPostDetail(null, postId);
+
+        assertThat(result.likeCount()).isEqualTo(9L);
+        assertThat(result.commentCount()).isEqualTo(7);
+        assertThat(result.score()).isEqualTo(33.5);
+        verify(postCounterApplicationService).read(postId);
         verifyNoInteractions(postService, blockRepository, tagService, likeQueryService, bookmarkService);
     }
 
@@ -557,6 +600,34 @@ class PostReadApplicationServiceTest {
             PostMediaAssetRepository mediaAssetRepository,
             PostDetailCache postDetailCache
     ) {
+        PostCounterApplicationService postCounterApplicationService = mock(PostCounterApplicationService.class);
+        when(postCounterApplicationService.read(any())).thenReturn(PostCounterSnapshot.empty());
+        return service(
+                postService,
+                commentService,
+                likeQueryService,
+                tagService,
+                bookmarkService,
+                subscriptionService,
+                blockRepository,
+                mediaAssetRepository,
+                postDetailCache,
+                postCounterApplicationService
+        );
+    }
+
+    private static PostReadApplicationService service(
+            PostContentRepository postService,
+            CommentContentRepository commentService,
+            LikeQueryPort likeQueryService,
+            TagContentRepository tagService,
+            BookmarkRepository bookmarkService,
+            SubscriptionRepository subscriptionService,
+            PostContentBlockRepository blockRepository,
+            PostMediaAssetRepository mediaAssetRepository,
+            PostDetailCache postDetailCache,
+            PostCounterApplicationService postCounterApplicationService
+    ) {
         return new PostReadApplicationService(
                 postService,
                 commentService,
@@ -564,6 +635,7 @@ class PostReadApplicationServiceTest {
                 tagService,
                 bookmarkService,
                 subscriptionService,
+                postCounterApplicationService,
                 blockRepository,
                 mediaAssetRepository,
                 postDetailCache,

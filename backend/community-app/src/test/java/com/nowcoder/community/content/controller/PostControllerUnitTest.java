@@ -5,6 +5,7 @@ import com.nowcoder.community.content.application.result.CommentCreateResult;
 import com.nowcoder.community.content.application.result.CommentResult;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
+import com.nowcoder.community.content.application.PostCounterApplicationService;
 import com.nowcoder.community.content.application.PostPublishingApplicationService;
 import com.nowcoder.community.content.application.PostModerationApplicationService;
 import com.nowcoder.community.content.application.result.PostCreateResult;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -62,6 +64,9 @@ class PostControllerUnitTest {
     @Mock
     private CommentApplicationService commentApplicationService;
 
+    @Mock
+    private PostCounterApplicationService postCounterApplicationService;
+
     private PostController controller;
 
     @BeforeEach
@@ -71,7 +76,8 @@ class PostControllerUnitTest {
                 commentReadApplicationService,
                 postPublishingApplicationService,
                 postModerationApplicationService,
-                commentApplicationService
+                commentApplicationService,
+                postCounterApplicationService
         );
     }
 
@@ -144,6 +150,8 @@ class PostControllerUnitTest {
         UUID postId = uuid(11);
         UUID commentId = uuid(21);
         UUID categoryId = uuid(3);
+        Authentication authentication = authentication(actorUserId);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/" + postId);
         PostDetailResult detailView = new PostDetailResult(
                 postId,
                 actorUserId,
@@ -167,7 +175,7 @@ class PostControllerUnitTest {
         when(commentReadApplicationService.comments(postId, 0, 10)).thenReturn(List.of(commentView));
         when(commentReadApplicationService.replies(postId, commentId, 0, 10)).thenReturn(List.of(commentView));
 
-        Result<PostDetailResponse> detailResult = controller.detail(authentication(actorUserId), postId);
+        Result<PostDetailResponse> detailResult = controller.detail(authentication, request, postId);
         Result<List<CommentResponse>> commentsResult = controller.comments(postId, 0, 10);
         Result<List<CommentResponse>> repliesResult = controller.replies(postId, commentId, 0, 10);
 
@@ -186,6 +194,11 @@ class PostControllerUnitTest {
             assertThat(response.getContent()).isEqualTo("comment");
         });
         verify(postReadApplicationService).getPostDetail(actorUserId, postId);
+        verify(postCounterApplicationService).recordView(argThat(command ->
+                command != null
+                        && postId.equals(command.postId())
+                        && command.viewerKey().startsWith("auth:")
+        ));
         verify(commentReadApplicationService).comments(postId, 0, 10);
         verify(commentReadApplicationService).replies(postId, commentId, 0, 10);
     }

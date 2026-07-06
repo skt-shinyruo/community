@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.content.infrastructure.persistence.mapper.PostCounterSnapshotMapper">
+
+    <insert id="upsertCounterSnapshot">
+        insert into post_counter_snapshot(
+            post_id,
+            view_count,
+            like_count,
+            comment_count,
+            bookmark_count
+        )
+        values(
+            #{postId, jdbcType=BINARY},
+            #{viewCount},
+            #{likeCount},
+            #{commentCount},
+            #{bookmarkCount}
+        )
+        on duplicate key update
+            view_count = values(view_count),
+            like_count = values(like_count),
+            comment_count = values(comment_count),
+            bookmark_count = values(bookmark_count)
+    </insert>
+
+    <insert id="upsertScoreSnapshot">
+        insert into post_score_snapshot(
+            post_id,
+            score,
+            rank_version
+        )
+        values(
+            #{postId, jdbcType=BINARY},
+            #{score},
+            #{rankVersion}
+        )
+        on duplicate key update
+            score = values(score),
+            rank_version = values(rank_version)
+    </insert>
+
+</mapper>

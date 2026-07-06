@@ -1,6 +1,5 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
-import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.domain.repository.CommentContentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
@@ -21,9 +20,6 @@ import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_
 @Service
 public class MyBatisCommentContentRepository implements CommentContentRepository {
 
-    public static final int ENTITY_TYPE_POST = EntityTypes.POST;
-    public static final int ENTITY_TYPE_COMMENT = EntityTypes.COMMENT;
-
     private final CommentMapper commentMapper;
     private final PostContentRepository postContentPort;
 
@@ -33,24 +29,24 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
     }
 
     @Override
-    public List<Comment> listByPost(UUID postId, int page, int size) {
+    public List<Comment> listRootComments(UUID postId, int page, int size) {
         if (postId == null) {
             return List.of();
         }
         postContentPort.getById(postId);
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
-        return commentMapper.selectCommentsByEntity(ENTITY_TYPE_POST, postId, Pagination.safeOffset(p, s), s);
+        return commentMapper.selectRootComments(postId, Pagination.safeOffset(p, s), s);
     }
 
     @Override
-    public List<Comment> listReplies(UUID commentId, int page, int size) {
-        if (commentId == null) {
+    public List<Comment> listReplies(UUID rootCommentId, int page, int size) {
+        if (rootCommentId == null) {
             return List.of();
         }
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
-        return commentMapper.selectCommentsByEntity(ENTITY_TYPE_COMMENT, commentId, Pagination.safeOffset(p, s), s);
+        return commentMapper.selectRepliesByRootComment(rootCommentId, Pagination.safeOffset(p, s), s);
     }
 
     @Override
@@ -87,7 +83,7 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
             throw new BusinessException(INVALID_ARGUMENT, "postId/commentId 非法");
         }
         postContentPort.getById(postId);
-        int count = commentMapper.existsPostComment(postId, commentId);
+        int count = commentMapper.existsRootComment(postId, commentId);
         if (count <= 0) {
             throw new BusinessException(NOT_FOUND, "资源不存在");
         }
@@ -106,10 +102,10 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
         }
 
         for (Comment comment : rows) {
-            if (comment == null || comment.getEntityId() == null) {
+            if (comment == null || comment.getPostId() == null) {
                 continue;
             }
-            map.putIfAbsent(comment.getEntityId(), comment);
+            map.putIfAbsent(comment.getPostId(), comment);
         }
         return map;
     }

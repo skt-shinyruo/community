@@ -2,6 +2,7 @@ package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.application.result.CommentCreateResult;
+import com.nowcoder.community.content.application.result.CommentPageResult;
 import com.nowcoder.community.content.application.result.CommentResult;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
@@ -10,6 +11,7 @@ import com.nowcoder.community.content.application.PostPublishingApplicationServi
 import com.nowcoder.community.content.application.PostModerationApplicationService;
 import com.nowcoder.community.content.application.result.PostCreateResult;
 import com.nowcoder.community.content.controller.dto.BatchPostSummaryRequest;
+import com.nowcoder.community.content.controller.dto.CommentPageResponse;
 import com.nowcoder.community.content.controller.dto.CommentResponse;
 import com.nowcoder.community.content.controller.dto.CreateCommentRequest;
 import com.nowcoder.community.content.controller.dto.CreatePostRequest;
@@ -149,6 +151,7 @@ class PostControllerUnitTest {
         UUID actorUserId = uuid(7);
         UUID postId = uuid(11);
         UUID commentId = uuid(21);
+        UUID rootCommentId = uuid(22);
         UUID categoryId = uuid(3);
         Authentication authentication = authentication(actorUserId);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/" + postId);
@@ -170,14 +173,27 @@ class PostControllerUnitTest {
                 false,
                 false
         );
-        CommentResult commentView = new CommentResult(commentId, actorUserId, 1, postId, null, "comment", new Date(), null, 0);
+        CommentResult commentView = new CommentResult(
+                commentId,
+                actorUserId,
+                postId,
+                rootCommentId,
+                null,
+                null,
+                "comment",
+                new Date(),
+                null,
+                0
+        );
         when(postReadApplicationService.getPostDetail(actorUserId, postId)).thenReturn(detailView);
-        when(commentReadApplicationService.comments(postId, 0, 10)).thenReturn(List.of(commentView));
-        when(commentReadApplicationService.replies(postId, commentId, 0, 10)).thenReturn(List.of(commentView));
+        when(commentReadApplicationService.listRootComments(postId, "", 10))
+                .thenReturn(new CommentPageResult(List.of(commentView), "cursor-roots-1"));
+        when(commentReadApplicationService.listReplies(postId, commentId, "", 10))
+                .thenReturn(new CommentPageResult(List.of(commentView), "cursor-replies-1"));
 
         Result<PostDetailResponse> detailResult = controller.detail(authentication, request, postId);
-        Result<List<CommentResponse>> commentsResult = controller.comments(postId, 0, 10);
-        Result<List<CommentResponse>> repliesResult = controller.replies(postId, commentId, 0, 10);
+        Result<CommentPageResponse> commentsResult = controller.comments(postId, "", 10);
+        Result<CommentPageResponse> repliesResult = controller.replies(postId, commentId, "", 10);
 
         assertThat(detailResult.getData().getId()).isEqualTo(postId);
         assertThat(detailResult.getData().getTitle()).isEqualTo("detail");
@@ -185,11 +201,13 @@ class PostControllerUnitTest {
             assertThat(block.getType()).isEqualTo("paragraph");
             assertThat(block.getText()).isEqualTo("body");
         });
-        assertThat(commentsResult.getData()).singleElement().satisfies(response -> {
+        assertThat(commentsResult.getData().getNextCursor()).isEqualTo("cursor-roots-1");
+        assertThat(commentsResult.getData().getItems()).singleElement().satisfies(response -> {
             assertThat(response.getId()).isEqualTo(commentId);
             assertThat(response.getContent()).isEqualTo("comment");
         });
-        assertThat(repliesResult.getData()).singleElement().satisfies(response -> {
+        assertThat(repliesResult.getData().getNextCursor()).isEqualTo("cursor-replies-1");
+        assertThat(repliesResult.getData().getItems()).singleElement().satisfies(response -> {
             assertThat(response.getId()).isEqualTo(commentId);
             assertThat(response.getContent()).isEqualTo("comment");
         });
@@ -199,8 +217,8 @@ class PostControllerUnitTest {
                         && postId.equals(command.postId())
                         && command.viewerKey().startsWith("auth:")
         ));
-        verify(commentReadApplicationService).comments(postId, 0, 10);
-        verify(commentReadApplicationService).replies(postId, commentId, 0, 10);
+        verify(commentReadApplicationService).listRootComments(postId, "", 10);
+        verify(commentReadApplicationService).listReplies(postId, commentId, "", 10);
     }
 
     @Test
@@ -209,11 +227,12 @@ class PostControllerUnitTest {
         UUID postId = uuid(11);
         UUID commentId = uuid(21);
         UUID createdCommentId = uuid(22);
+        UUID parentCommentId = uuid(31);
+        UUID replyToUserId = uuid(32);
         UUID categoryId = uuid(3);
         CreateCommentRequest createCommentRequest = new CreateCommentRequest();
-        createCommentRequest.setEntityType(1);
-        createCommentRequest.setEntityId(postId);
-        createCommentRequest.setTargetId(uuid(31));
+        createCommentRequest.setParentCommentId(parentCommentId);
+        createCommentRequest.setReplyToUserId(replyToUserId);
         createCommentRequest.setContent("reply");
         UpdatePostRequest updatePostRequest = new UpdatePostRequest();
         updatePostRequest.setTitle("updated");
@@ -222,8 +241,13 @@ class PostControllerUnitTest {
         updatePostRequest.setTags(List.of("spring"));
         UpdateCommentRequest updateCommentRequest = new UpdateCommentRequest();
         updateCommentRequest.setContent("edited");
-        when(commentApplicationService.create(userId, "idem-2", postId, 1, postId, createCommentRequest.getTargetId(), "reply"))
-                .thenReturn(new CommentCreateResult(createdCommentId));
+        when(commentApplicationService.create(eq("idem-2"), argThat(command ->
+                userId.equals(command.userId())
+                        && postId.equals(command.postId())
+                        && parentCommentId.equals(command.parentCommentId())
+                        && replyToUserId.equals(command.replyToUserId())
+                        && "reply".equals(command.content())
+        ))).thenReturn(new CommentCreateResult(createdCommentId));
 
         Result<UUID> addCommentResult = controller.addComment(authentication(userId), "idem-2", postId, createCommentRequest);
         Result<Void> updatePostResult = controller.updatePost(authentication(userId), postId, updatePostRequest);
@@ -240,7 +264,13 @@ class PostControllerUnitTest {
         assertThat(topResult.getCode()).isEqualTo(0);
         assertThat(wonderfulResult.getCode()).isEqualTo(0);
         assertThat(deleteResult.getCode()).isEqualTo(0);
-        verify(commentApplicationService).create(userId, "idem-2", postId, 1, postId, createCommentRequest.getTargetId(), "reply");
+        verify(commentApplicationService).create(eq("idem-2"), argThat(command ->
+                userId.equals(command.userId())
+                        && postId.equals(command.postId())
+                        && parentCommentId.equals(command.parentCommentId())
+                        && replyToUserId.equals(command.replyToUserId())
+                        && "reply".equals(command.content())
+        ));
         verify(postPublishingApplicationService).updatePost(
                 eq(userId),
                 eq(postId),

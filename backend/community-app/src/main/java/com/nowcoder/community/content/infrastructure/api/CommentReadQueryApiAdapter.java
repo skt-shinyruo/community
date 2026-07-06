@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.infrastructure.api;
 
+import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.content.api.model.CommentView;
 import com.nowcoder.community.content.api.query.CommentReadQueryApi;
 import com.nowcoder.community.content.application.CommentReadApplicationService;
@@ -39,9 +40,9 @@ public class CommentReadQueryApiAdapter implements CommentReadQueryApi {
         return new CommentView(
                 result.id(),
                 result.userId(),
-                result.entityType(),
-                result.entityId(),
-                result.targetId(),
+                result.parentCommentId() == null ? EntityTypes.POST : EntityTypes.COMMENT,
+                result.parentCommentId() == null ? result.postId() : result.parentCommentId(),
+                result.replyToUserId(),
                 result.content(),
                 result.createTime(),
                 result.updateTime(),

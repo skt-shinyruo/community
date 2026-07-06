@@ -439,19 +439,23 @@ create table if not exists post_bookmark (
 
 create table if not exists comment (
   id binary(16) primary key,
-  user_id binary(16),
-  entity_type int,
-  entity_id binary(16),
-  target_id binary(16),
+  post_id binary(16) not null,
+  user_id binary(16) not null,
+  root_comment_id binary(16) not null,
+  parent_comment_id binary(16) default null,
+  reply_to_user_id binary(16) default null,
   content text,
-  status int,
-  create_time timestamp,
-  update_time timestamp,
+  status int default 0,
+  create_time timestamp default current_timestamp,
+  update_time timestamp default null,
   edit_count int default 0,
-  deleted_by binary(16),
-  deleted_reason varchar(255),
-  deleted_time timestamp
+  deleted_by binary(16) default null,
+  deleted_reason varchar(255) default '',
+  deleted_time timestamp default null
 );
+
+create index if not exists idx_comment_post_root on comment(post_id, parent_comment_id, create_time, id);
+create index if not exists idx_comment_root_reply on comment(root_comment_id, parent_comment_id, create_time, id);
 
 create table if not exists category (
   id binary(16) primary key,

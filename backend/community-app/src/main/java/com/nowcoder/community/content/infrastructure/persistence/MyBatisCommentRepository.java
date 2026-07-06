@@ -12,11 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -42,10 +40,11 @@ public class MyBatisCommentRepository implements CommentRepository {
     public UUID create(CommentDraft draft) {
         Comment comment = new Comment();
         comment.setId(idGenerator.next());
+        comment.setPostId(draft.postId());
         comment.setUserId(draft.userId());
-        comment.setEntityType(draft.entityType());
-        comment.setEntityId(draft.entityId());
-        comment.setTargetId(draft.targetId());
+        comment.setRootCommentId(draft.rootCommentId() == null ? comment.getId() : draft.rootCommentId());
+        comment.setParentCommentId(draft.parentCommentId());
+        comment.setReplyToUserId(draft.replyToUserId());
         comment.setContent(draft.content());
         comment.setStatus(0);
         comment.setCreateTime(draft.createTime());
@@ -93,23 +92,18 @@ public class MyBatisCommentRepository implements CommentRepository {
 
     @Override
     public CommentDeletionResult markActiveThreadDeleted(UUID commentId, UUID deletedBy, String deletedReason, Date deletedTime) {
-        Comment root = commentMapper.selectCommentById(commentId);
-        if (root == null || root.getStatus() != 0) {
+        Comment target = commentMapper.selectCommentById(commentId);
+        if (target == null || target.getStatus() != 0) {
             return new CommentDeletionResult(List.of());
         }
         List<UUID> candidateIds = new ArrayList<>();
         List<CommentSnapshot> deletedComments = new ArrayList<>();
-        Queue<UUID> queue = new ArrayDeque<>();
         candidateIds.add(commentId);
-        queue.add(commentId);
-        while (!queue.isEmpty()) {
-            UUID parentId = queue.remove();
-            List<UUID> replyIds = commentMapper.selectActiveReplyIds(parentId);
-            if (replyIds == null || replyIds.isEmpty()) {
-                continue;
+        if (target.isRootComment()) {
+            List<UUID> replyIds = commentMapper.selectActiveRepliesByRootComment(commentId);
+            if (replyIds != null && !replyIds.isEmpty()) {
+                candidateIds.addAll(replyIds);
             }
-            candidateIds.addAll(replyIds);
-            queue.addAll(replyIds);
         }
         for (UUID candidateId : candidateIds) {
             Comment comment = commentMapper.selectCommentById(candidateId);
@@ -127,9 +121,10 @@ public class MyBatisCommentRepository implements CommentRepository {
         return new CommentSnapshot(
                 comment.getId(),
                 comment.getUserId(),
-                comment.getEntityType(),
-                comment.getEntityId(),
-                comment.getTargetId(),
+                comment.getPostId(),
+                comment.getRootCommentId(),
+                comment.getParentCommentId(),
+                comment.getReplyToUserId(),
                 comment.getContent(),
                 comment.getStatus(),
                 comment.getCreateTime(),

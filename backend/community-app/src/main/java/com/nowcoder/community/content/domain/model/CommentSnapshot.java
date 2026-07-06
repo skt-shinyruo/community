@@ -6,9 +6,10 @@ import java.util.UUID;
 public record CommentSnapshot(
         UUID id,
         UUID userId,
-        int entityType,
-        UUID entityId,
-        UUID targetId,
+        UUID postId,
+        UUID rootCommentId,
+        UUID parentCommentId,
+        UUID replyToUserId,
         String content,
         int status,
         Date createTime,
@@ -17,5 +18,9 @@ public record CommentSnapshot(
 ) {
     public boolean active() {
         return status == 0;
+    }
+
+    public boolean rootComment() {
+        return parentCommentId == null;
     }
 }

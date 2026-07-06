@@ -1,14 +1,17 @@
 package com.nowcoder.community.content.controller;
 
+import com.nowcoder.community.content.application.command.CreateCommentCommand;
 import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.command.RecordPostViewCommand;
 import com.nowcoder.community.content.application.PostCounterApplicationService;
 import com.nowcoder.community.content.application.PostPublishingApplicationService;
+import com.nowcoder.community.content.application.result.CommentPageResult;
 import com.nowcoder.community.content.application.result.CommentResult;
 import com.nowcoder.community.content.application.result.PostCreateResult;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
+import com.nowcoder.community.content.controller.dto.CommentPageResponse;
 import com.nowcoder.community.content.controller.dto.CommentResponse;
 import com.nowcoder.community.content.controller.dto.BatchPostSummaryRequest;
 import com.nowcoder.community.content.controller.dto.CreateCommentRequest;
@@ -132,13 +135,13 @@ public class PostController {
     }
 
     @GetMapping("/{postId}/comments")
-    public Result<List<CommentResponse>> comments(
+    public Result<CommentPageResponse> comments(
             @PathVariable UUID postId,
-            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer size
     ) {
-        List<CommentResult> comments = commentReadApplicationService.comments(postId, page, size);
-        return Result.ok(toCommentResponses(comments));
+        CommentPageResult comments = commentReadApplicationService.listRootComments(postId, cursor, size);
+        return Result.ok(CommentPageResponse.from(comments));
     }
 
     @PostMapping("/{postId}/comments")
@@ -150,13 +153,14 @@ public class PostController {
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(commentApplicationService.create(
-                userId,
                 idempotencyKey,
-                postId,
-                request.getEntityType(),
-                request.getEntityId(),
-                request.getTargetId(),
-                request.getContent()
+                new CreateCommentCommand(
+                        userId,
+                        postId,
+                        request.getParentCommentId(),
+                        request.getReplyToUserId(),
+                        request.getContent()
+                )
         ).commentId());
     }
 
@@ -194,14 +198,14 @@ public class PostController {
     }
 
     @GetMapping("/{postId}/comments/{commentId}/replies")
-    public Result<List<CommentResponse>> replies(
+    public Result<CommentPageResponse> replies(
             @PathVariable UUID postId,
             @PathVariable UUID commentId,
-            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer size
     ) {
-        List<CommentResult> replies = commentReadApplicationService.replies(postId, commentId, page, size);
-        return Result.ok(toCommentResponses(replies));
+        CommentPageResult replies = commentReadApplicationService.listReplies(postId, commentId, cursor, size);
+        return Result.ok(CommentPageResponse.from(replies));
     }
 
     @PostMapping("/{postId}/top")
@@ -230,13 +234,6 @@ public class PostController {
             return List.of();
         }
         return views.stream().map(PostSummaryResponse::from).toList();
-    }
-
-    private static List<CommentResponse> toCommentResponses(List<CommentResult> views) {
-        if (views == null || views.isEmpty()) {
-            return List.of();
-        }
-        return views.stream().map(CommentResponse::from).toList();
     }
 
     private static List<PostContentBlockCommand> toBlockCommands(List<PostContentBlockRequest> blocks) {

@@ -5,9 +5,10 @@ import java.util.UUID;
 
 public record CommentDraft(
         UUID userId,
-        int entityType,
-        UUID entityId,
-        UUID targetId,
+        UUID postId,
+        UUID rootCommentId,
+        UUID parentCommentId,
+        UUID replyToUserId,
         String content,
         Date createTime
 ) {

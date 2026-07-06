@@ -54,7 +54,7 @@ class BookmarkApplicationServiceTest {
         post.setCreateTime(createTime);
         post.setCategoryId(categoryId);
         Comment lastActivity = new Comment();
-        lastActivity.setEntityId(postId);
+        lastActivity.setPostId(postId);
         lastActivity.setUserId(lastReplyUserId);
         lastActivity.setCreateTime(lastActivityTime);
 

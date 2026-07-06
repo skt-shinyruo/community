@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
-import { createPost, listBoardFeed, listGlobalFeed, listPosts, updatePost } from './postService'
+import { addComment, createPost, listBoardFeed, listGlobalFeed, listPosts, updatePost } from './postService'
 
 describe('api/services/postService', () => {
   let mock
@@ -67,6 +67,30 @@ describe('api/services/postService', () => {
 
     expect(resp.traceId).toBe('trace-board-feed')
     expect(resp.data.items).toEqual([])
+  })
+
+  it('addComment should send parentCommentId and replyToUserId', async () => {
+    const postId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    const parentCommentId = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
+    const replyToUserId = 'dddddddd-dddd-7ddd-8ddd-dddddddddddd'
+    mock = new MockAdapter(http)
+    mock.onPost(`/api/posts/${postId}/comments`).reply((config) => {
+      expect(JSON.parse(config.data)).toEqual({
+        content: '回复内容',
+        parentCommentId,
+        replyToUserId
+      })
+      return [200, { code: 0, message: '', data: { id: 'reply-1' }, traceId: 'trace-add-comment' }]
+    })
+
+    const resp = await addComment(postId, {
+      content: '回复内容',
+      parentCommentId,
+      replyToUserId
+    })
+
+    expect(resp.traceId).toBe('trace-add-comment')
+    expect(resp.data).toEqual({ id: 'reply-1' })
   })
 
   it('createPost and updatePost should normalize block payloads without content shortcuts', async () => {

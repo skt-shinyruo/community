@@ -6,9 +6,10 @@ import java.util.UUID;
 public record CommentResult(
         UUID id,
         UUID userId,
-        int entityType,
-        UUID entityId,
-        UUID targetId,
+        UUID postId,
+        UUID rootCommentId,
+        UUID parentCommentId,
+        UUID replyToUserId,
         String content,
         Date createTime,
         Date updateTime,

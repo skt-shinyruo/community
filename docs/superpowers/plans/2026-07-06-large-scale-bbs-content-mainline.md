@@ -878,7 +878,7 @@ git commit -m "feat: add post counter and view snapshot pipeline"
   - `postService.listComments(postId, { cursor?: string, size?: number }): Promise<{ data: { items: any[], nextCursor: string }, traceId: string }>`
   - `postService.listReplies(postId, rootCommentId, { cursor?: string, size?: number }): Promise<{ data: { items: any[], nextCursor: string }, traceId: string }>`
 
-- [ ] **Step 1: Write the failing backend and frontend comment-thread tests**
+- [x] **Step 1: Write the failing backend and frontend comment-thread tests**
 
 Add to `CommentApplicationServiceTest.java`:
 
@@ -916,7 +916,7 @@ it('addComment should send parentCommentId and replyToUserId', async () => {
 })
 ```
 
-- [ ] **Step 2: Run the comment-thread tests and verify they fail**
+- [x] **Step 2: Run the comment-thread tests and verify they fail**
 
 Run:
 
@@ -929,7 +929,7 @@ npm test -- src/api/services/postService.test.js src/views/PostDetailView.test.j
 
 Expected: FAIL because the new comment command fields, page responses, and cursor reads do not exist.
 
-- [ ] **Step 3: Rewrite the schema, repositories, controller contract, and frontend loaders for two-level comments**
+- [x] **Step 3: Rewrite the schema, repositories, controller contract, and frontend loaders for two-level comments**
 
 In `deploy/mysql/community/040_schema_content_core.sql`, replace the current `comment` table with:
 
@@ -1012,7 +1012,7 @@ async function loadComments({ reset = false } = {}) {
 
 Update `addComment` calls to send `parentCommentId` and `replyToUserId`, never `entityType/entityId/targetId`.
 
-- [ ] **Step 4: Run the comment-thread tests and verify they pass**
+- [x] **Step 4: Run the comment-thread tests and verify they pass**
 
 Run:
 
@@ -1029,7 +1029,7 @@ Expected: PASS with:
 - replies loaded by root-comment cursor
 - reply creation payloads using `parentCommentId` and `replyToUserId`
 
-- [ ] **Step 5: Commit the two-level comment rewrite**
+- [x] **Step 5: Commit the two-level comment rewrite**
 
 ```bash
 git add deploy/mysql/community/040_schema_content_core.sql \

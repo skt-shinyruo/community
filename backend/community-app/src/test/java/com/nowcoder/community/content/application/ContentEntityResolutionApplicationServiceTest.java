@@ -77,15 +77,12 @@ class ContentEntityResolutionApplicationServiceTest {
         UUID replyId = uuid(301);
         UUID replyUserId = uuid(9);
         UUID parentId = uuid(201);
-        UUID parentUserId = uuid(5);
         UUID postId = uuid(101);
         UUID postUserId = uuid(7);
 
-        Comment reply = activeComment(replyId, replyUserId, EntityTypes.COMMENT, parentId);
-        Comment parent = activeComment(parentId, parentUserId, EntityTypes.POST, postId);
+        Comment reply = activeReplyComment(replyId, replyUserId, postId, parentId);
 
         when(commentRepository.getByIdAllowDeleted(replyId)).thenReturn(reply);
-        when(commentRepository.getByIdAllowDeleted(parentId)).thenReturn(parent);
         when(postRepository.getById(postId)).thenReturn(activePost(postId, postUserId));
 
         ContentEntityResolutionApplicationService service = service(postRepository, commentRepository);
@@ -117,7 +114,7 @@ class ContentEntityResolutionApplicationServiceTest {
         UUID commentId = uuid(301);
         UUID postId = uuid(101);
 
-        Comment deleted = activeComment(commentId, uuid(9), EntityTypes.POST, postId);
+        Comment deleted = activeComment(commentId, uuid(9), postId);
         deleted.setStatus(2);
         when(commentRepository.getByIdAllowDeleted(commentId)).thenReturn(deleted);
 
@@ -129,16 +126,14 @@ class ContentEntityResolutionApplicationServiceTest {
     }
 
     @Test
-    void resolveShouldRejectMissingCommentParent() {
+    void resolveShouldRejectCommentWithoutPost() {
         PostContentRepository postRepository = mock(PostContentRepository.class);
         CommentContentRepository commentRepository = mock(CommentContentRepository.class);
         UUID replyId = uuid(301);
-        UUID parentId = uuid(201);
 
-        Comment reply = activeComment(replyId, uuid(9), EntityTypes.COMMENT, parentId);
+        Comment reply = activeReplyComment(replyId, uuid(9), null, uuid(201));
 
         when(commentRepository.getByIdAllowDeleted(replyId)).thenReturn(reply);
-        when(commentRepository.getByIdAllowDeleted(parentId)).thenThrow(new BusinessException(COMMENT_NOT_FOUND));
 
         ContentEntityResolutionApplicationService service = service(postRepository, commentRepository);
 
@@ -156,14 +151,10 @@ class ContentEntityResolutionApplicationServiceTest {
         PostContentRepository postRepository = mock(PostContentRepository.class);
         CommentContentRepository commentRepository = mock(CommentContentRepository.class);
         UUID replyId = uuid(301);
-        UUID parentId = uuid(201);
-        UUID targetId = uuid(101);
 
-        Comment reply = activeComment(replyId, uuid(9), EntityTypes.COMMENT, parentId);
-        Comment parent = activeComment(parentId, uuid(5), EntityTypes.USER, targetId);
+        Comment reply = activeReplyComment(replyId, uuid(9), null, uuid(201));
 
         when(commentRepository.getByIdAllowDeleted(replyId)).thenReturn(reply);
-        when(commentRepository.getByIdAllowDeleted(parentId)).thenReturn(parent);
 
         ContentEntityResolutionApplicationService service = service(postRepository, commentRepository);
 
@@ -183,13 +174,20 @@ class ContentEntityResolutionApplicationServiceTest {
         return new ContentEntityResolutionApplicationService(postRepository, commentRepository);
     }
 
-    private Comment activeComment(UUID id, UUID userId, int entityType, UUID entityId) {
+    private Comment activeComment(UUID id, UUID userId, UUID postId) {
         Comment comment = new Comment();
         comment.setId(id);
         comment.setUserId(userId);
-        comment.setEntityType(entityType);
-        comment.setEntityId(entityId);
+        comment.setPostId(postId);
+        comment.setRootCommentId(id);
+        comment.setParentCommentId(null);
         comment.setStatus(0);
+        return comment;
+    }
+
+    private Comment activeReplyComment(UUID id, UUID userId, UUID postId, UUID parentCommentId) {
+        Comment comment = activeComment(id, userId, postId);
+        comment.setParentCommentId(parentCommentId);
         return comment;
     }
 

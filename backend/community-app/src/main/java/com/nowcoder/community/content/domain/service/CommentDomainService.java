@@ -1,6 +1,5 @@
 package com.nowcoder.community.content.domain.service;
 
-import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.domain.model.CommentDraft;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
@@ -19,60 +18,57 @@ public class CommentDomainService {
 
     public CreateTarget resolveCreateTarget(
             UUID postId,
-            Integer rawEntityType,
-            UUID rawEntityId,
-            UUID rawTargetId,
+            UUID rawParentCommentId,
+            UUID rawReplyToUserId,
             UUID postAuthorUserId,
-            CommentSnapshot targetComment
+            CommentSnapshot parentComment
     ) {
         if (postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "postId 非法");
         }
-        int entityType = rawEntityType == null ? EntityTypes.POST : rawEntityType;
-        if (entityType == EntityTypes.POST) {
-            return new CreateTarget(EntityTypes.POST, postId, null, postAuthorUserId);
+        if (rawParentCommentId == null) {
+            return new CreateTarget(postId, null, null, null, postAuthorUserId);
         }
-        if (entityType != EntityTypes.COMMENT) {
-            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
-        }
-        if (rawEntityId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "回复评论时 entityId(commentId) 不能为空");
-        }
-        if (targetComment == null || !targetComment.active()) {
+        if (parentComment == null || !parentComment.active()) {
             throw new BusinessException(NOT_FOUND, "资源不存在");
         }
-        if (!rawEntityId.equals(targetComment.id())
-                || targetComment.entityType() != EntityTypes.POST
-                || !postId.equals(targetComment.entityId())) {
+        if (!rawParentCommentId.equals(parentComment.id())
+                || !postId.equals(parentComment.postId())
+                || !parentComment.rootComment()) {
             throw new BusinessException(NOT_FOUND, "资源不存在");
         }
-        UUID targetUserId = targetComment.userId();
-        return new CreateTarget(EntityTypes.COMMENT, rawEntityId, targetUserId, targetUserId);
+        UUID targetUserId = rawReplyToUserId == null ? parentComment.userId() : rawReplyToUserId;
+        return new CreateTarget(postId, parentComment.id(), parentComment.id(), targetUserId, targetUserId);
     }
 
     public CommentDraft createDraft(
             UUID actorUserId,
-            int entityType,
-            UUID entityId,
-            UUID targetId,
+            UUID postId,
+            UUID rootCommentId,
+            UUID parentCommentId,
+            UUID replyToUserId,
             String content,
             Date createTime
     ) {
-        if (actorUserId == null || entityId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "actorUserId/entityId 非法");
+        if (actorUserId == null || postId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
         }
-        if (entityType != EntityTypes.POST && entityType != EntityTypes.COMMENT) {
-            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
-        }
-        return new CommentDraft(actorUserId, entityType, entityId, targetId, content, createTime == null ? new Date() : createTime);
+        return new CommentDraft(
+                actorUserId,
+                postId,
+                rootCommentId,
+                parentCommentId,
+                replyToUserId,
+                content,
+                createTime == null ? new Date() : createTime
+        );
     }
 
     public void assertEditableByAuthor(
             CommentSnapshot comment,
             UUID actorUserId,
             UUID postId,
-            Date now,
-            CommentSnapshot parentComment
+            Date now
     ) {
         if (actorUserId == null || postId == null || comment == null || comment.id() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId/commentId 非法");
@@ -90,23 +86,9 @@ public class CommentDomainService {
         if (effectiveNow.getTime() - comment.createTime().getTime() > EDIT_WINDOW_MILLIS) {
             throw new BusinessException(FORBIDDEN, "已超过可编辑时间（15min）");
         }
-        if (comment.entityType() == EntityTypes.POST) {
-            if (!postId.equals(comment.entityId())) {
-                throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
-            }
-            return;
+        if (!postId.equals(comment.postId())) {
+            throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
         }
-        if (comment.entityType() == EntityTypes.COMMENT) {
-            if (parentComment == null
-                    || comment.entityId() == null
-                    || !comment.entityId().equals(parentComment.id())
-                    || parentComment.entityType() != EntityTypes.POST
-                    || !postId.equals(parentComment.entityId())) {
-                throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
-            }
-            return;
-        }
-        throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
     }
 
     public void assertDeletableByAuthor(CommentSnapshot comment, UUID actorUserId, UUID routePostId, UUID actualPostId) {
@@ -125,6 +107,12 @@ public class CommentDomainService {
         throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
     }
 
-    public record CreateTarget(int entityType, UUID entityId, UUID targetId, UUID targetUserId) {
+    public record CreateTarget(
+            UUID postId,
+            UUID rootCommentId,
+            UUID parentCommentId,
+            UUID replyToUserId,
+            UUID targetUserId
+    ) {
     }
 }

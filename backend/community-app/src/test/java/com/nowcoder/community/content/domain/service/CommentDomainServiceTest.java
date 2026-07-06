@@ -1,6 +1,5 @@
 package com.nowcoder.community.content.domain.service;
 
-import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
@@ -18,7 +17,7 @@ class CommentDomainServiceTest {
     private final CommentDomainService service = new CommentDomainService();
 
     @Test
-    void resolveCreateTargetShouldDefaultMissingEntityTypeToPostComment() {
+    void resolveCreateTargetShouldCreateRootCommentWhenParentMissing() {
         UUID postId = uuid(100);
         UUID postAuthorUserId = uuid(200);
 
@@ -26,34 +25,34 @@ class CommentDomainServiceTest {
                 postId,
                 null,
                 null,
-                null,
                 postAuthorUserId,
                 null
         );
 
-        assertThat(target.entityType()).isEqualTo(EntityTypes.POST);
-        assertThat(target.entityId()).isEqualTo(postId);
-        assertThat(target.targetId()).isNull();
+        assertThat(target.postId()).isEqualTo(postId);
+        assertThat(target.rootCommentId()).isNull();
+        assertThat(target.parentCommentId()).isNull();
+        assertThat(target.replyToUserId()).isNull();
         assertThat(target.targetUserId()).isEqualTo(postAuthorUserId);
     }
 
     @Test
-    void resolveCreateTargetShouldRejectReplyTargetThatIsNotFirstLevelCommentUnderPost() {
+    void resolveCreateTargetShouldRejectReplyTargetThatIsNotRootCommentUnderPost() {
         UUID postId = uuid(100);
         UUID targetCommentId = uuid(300);
         CommentSnapshot nestedReply = snapshot(
                 targetCommentId,
                 uuid(301),
-                EntityTypes.COMMENT,
+                postId,
                 uuid(302),
                 uuid(303),
+                uuid(304),
                 0,
                 new Date()
         );
 
         assertThatThrownBy(() -> service.resolveCreateTarget(
                 postId,
-                EntityTypes.COMMENT,
                 targetCommentId,
                 null,
                 uuid(200),
@@ -67,7 +66,6 @@ class CommentDomainServiceTest {
     @Test
     void resolveCreateTargetShouldRejectNullPostId() {
         assertThatThrownBy(() -> service.resolveCreateTarget(
-                null,
                 null,
                 null,
                 null,
@@ -86,8 +84,9 @@ class CommentDomainServiceTest {
         CommentSnapshot targetComment = snapshot(
                 uuid(301),
                 uuid(302),
-                EntityTypes.POST,
                 postId,
+                uuid(301),
+                null,
                 null,
                 0,
                 new Date()
@@ -95,7 +94,6 @@ class CommentDomainServiceTest {
 
         assertThatThrownBy(() -> service.resolveCreateTarget(
                 postId,
-                EntityTypes.COMMENT,
                 targetCommentId,
                 null,
                 uuid(200),
@@ -107,32 +105,32 @@ class CommentDomainServiceTest {
     }
 
     @Test
-    void resolveCreateTargetShouldUseAuthoritativeTargetUserForReplyTarget() {
+    void resolveCreateTargetShouldUseExplicitReplyTargetUserForReply() {
         UUID postId = uuid(100);
         UUID targetCommentId = uuid(300);
         UUID targetUserId = uuid(302);
         CommentSnapshot targetComment = snapshot(
                 targetCommentId,
-                targetUserId,
-                EntityTypes.POST,
+                uuid(401),
                 postId,
-                uuid(999),
+                targetCommentId,
+                null,
+                null,
                 0,
                 new Date()
         );
 
         CommentDomainService.CreateTarget target = service.resolveCreateTarget(
                 postId,
-                EntityTypes.COMMENT,
                 targetCommentId,
-                uuid(888),
+                targetUserId,
                 uuid(200),
                 targetComment
         );
 
-        assertThat(target.entityType()).isEqualTo(EntityTypes.COMMENT);
-        assertThat(target.entityId()).isEqualTo(targetCommentId);
-        assertThat(target.targetId()).isEqualTo(targetUserId);
+        assertThat(target.rootCommentId()).isEqualTo(targetCommentId);
+        assertThat(target.parentCommentId()).isEqualTo(targetCommentId);
+        assertThat(target.replyToUserId()).isEqualTo(targetUserId);
         assertThat(target.targetUserId()).isEqualTo(targetUserId);
     }
 
@@ -145,45 +143,38 @@ class CommentDomainServiceTest {
         CommentSnapshot comment = snapshot(
                 uuid(300),
                 userId,
-                EntityTypes.POST,
                 postId,
+                uuid(300),
+                null,
                 null,
                 0,
                 createTime
         );
 
-        assertThatThrownBy(() -> service.assertEditableByAuthor(comment, userId, postId, afterEditWindow, null))
+        assertThatThrownBy(() -> service.assertEditableByAuthor(comment, userId, postId, afterEditWindow))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
     }
 
     @Test
-    void assertEditableByAuthorShouldRejectMismatchedParentSnapshot() {
+    void assertEditableByAuthorShouldRejectCommentOutsideRequestedPost() {
         Date createTime = new Date(1_000_000L);
         UUID userId = uuid(100);
-        UUID postId = uuid(200);
-        UUID parentCommentId = uuid(300);
+        UUID actualPostId = uuid(200);
+        UUID routePostId = uuid(201);
         CommentSnapshot reply = snapshot(
                 uuid(400),
                 userId,
-                EntityTypes.COMMENT,
-                parentCommentId,
+                actualPostId,
+                uuid(300),
+                uuid(300),
                 uuid(500),
                 0,
                 createTime
         );
-        CommentSnapshot differentParent = snapshot(
-                uuid(301),
-                uuid(600),
-                EntityTypes.POST,
-                postId,
-                null,
-                0,
-                createTime
-        );
 
-        assertThatThrownBy(() -> service.assertEditableByAuthor(reply, userId, postId, createTime, differentParent))
+        assertThatThrownBy(() -> service.assertEditableByAuthor(reply, userId, routePostId, createTime))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.INVALID_ARGUMENT);
@@ -192,12 +183,13 @@ class CommentDomainServiceTest {
     private static CommentSnapshot snapshot(
             UUID id,
             UUID userId,
-            int entityType,
-            UUID entityId,
-            UUID targetId,
+            UUID postId,
+            UUID rootCommentId,
+            UUID parentCommentId,
+            UUID replyToUserId,
             int status,
             Date createTime
     ) {
-        return new CommentSnapshot(id, userId, entityType, entityId, targetId, "content", status, createTime, createTime, 0);
+        return new CommentSnapshot(id, userId, postId, rootCommentId, parentCommentId, replyToUserId, "content", status, createTime, createTime, 0);
     }
 }

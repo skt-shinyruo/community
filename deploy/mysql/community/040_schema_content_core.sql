@@ -66,10 +66,11 @@ create table if not exists post_content_block (
 
 create table if not exists comment (
   id binary(16) primary key,
-  user_id binary(16),
-  entity_type int,
-  entity_id binary(16),
-  target_id binary(16) default null,
+  post_id binary(16) not null,
+  user_id binary(16) not null,
+  root_comment_id binary(16) not null,
+  parent_comment_id binary(16) default null,
+  reply_to_user_id binary(16) default null,
   content text,
   status int default 0,
   create_time timestamp null default current_timestamp,
@@ -78,7 +79,8 @@ create table if not exists comment (
   deleted_by binary(16) default null,
   deleted_reason varchar(255) default '',
   deleted_time timestamp null default null,
-  key idx_comment_entity (entity_type, entity_id)
+  key idx_comment_post_root (post_id, parent_comment_id, create_time, id),
+  key idx_comment_root_reply (root_comment_id, parent_comment_id, create_time, id)
 );
 
 -- taxonomy: categories + tags (Discourse-like)

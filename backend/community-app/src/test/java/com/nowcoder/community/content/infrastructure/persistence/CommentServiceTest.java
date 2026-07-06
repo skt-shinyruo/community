@@ -39,17 +39,17 @@ class CommentServiceTest {
     }
 
     @Test
-    void listByPostShouldRejectDeletedPostBeforeLoadingComments() {
+    void listRootCommentsShouldRejectDeletedPostBeforeLoadingComments() {
         CommentMapper commentMapper = mock(CommentMapper.class);
         PostContentRepository postContentPort = mock(PostContentRepository.class);
         MyBatisCommentContentRepository service = new MyBatisCommentContentRepository(commentMapper, postContentPort);
         UUID postId = uuid(101);
         when(postContentPort.getById(postId)).thenThrow(new BusinessException(POST_NOT_FOUND));
 
-        assertThatThrownBy(() -> service.listByPost(postId, 0, 10))
+        assertThatThrownBy(() -> service.listRootComments(postId, 0, 10))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(POST_NOT_FOUND));
 
-        verify(commentMapper, never()).selectCommentsByEntity(eq(MyBatisCommentContentRepository.ENTITY_TYPE_POST), eq(postId), anyInt(), anyInt());
+        verify(commentMapper, never()).selectRootComments(eq(postId), anyInt(), anyInt());
     }
 }

@@ -8,12 +8,9 @@ import java.util.UUID;
 
 public interface CommentContentRepository {
 
-    int ENTITY_TYPE_POST = 1;
-    int ENTITY_TYPE_COMMENT = 2;
+    List<Comment> listRootComments(UUID postId, int page, int size);
 
-    List<Comment> listByPost(UUID postId, int page, int size);
-
-    List<Comment> listReplies(UUID commentId, int page, int size);
+    List<Comment> listReplies(UUID rootCommentId, int page, int size);
 
     List<Comment> listRecentCommentsByUser(UUID userId, int page, int size);
 

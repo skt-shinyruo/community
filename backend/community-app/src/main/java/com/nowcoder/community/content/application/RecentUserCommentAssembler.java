@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.content.application.result.RecentUserCommentResult;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.application.ContentTextCodec;
@@ -20,9 +21,9 @@ public class RecentUserCommentAssembler {
         return new RecentUserCommentResult(
                 comment.getId(),
                 comment.getUserId(),
-                comment.getEntityType(),
-                comment.getEntityId(),
-                comment.getTargetId(),
+                comment.isRootComment() ? EntityTypes.POST : EntityTypes.COMMENT,
+                comment.isRootComment() ? postId : comment.getParentCommentId(),
+                comment.getReplyToUserId(),
                 postId,
                 textCodec.decodeOnRead(postTitle),
                 textCodec.decodeOnRead(comment.getContent()),

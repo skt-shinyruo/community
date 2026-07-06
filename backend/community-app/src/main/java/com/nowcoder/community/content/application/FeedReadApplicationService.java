@@ -141,6 +141,9 @@ public class FeedReadApplicationService {
             List<PostSummaryResult> items = filterBoardItems(postFeedSummaryLoader.readSummaries(ids), boardId);
             return new LoadedFeedPage(items, hasNextCachedPage(page, limit, boardId), postFeedCache.readRankVersion());
         }
+        if (!policyProperties.isLatestFallbackEnabled()) {
+            return new LoadedFeedPage(List.of(), false, postFeedCache.readRankVersion());
+        }
         List<DiscussPost> fallbackPosts = listFallbackPosts(page, limit, boardId);
         if (fallbackPosts.isEmpty()) {
             return new LoadedFeedPage(List.of(), false, postFeedCache.readRankVersion());

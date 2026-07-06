@@ -27,6 +27,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class FeedReadApplicationServiceTest {
@@ -308,6 +309,53 @@ class FeedReadApplicationServiceTest {
         assertThat(result.nextCursor()).isEmpty();
         verify(postFeedCache).upsertGlobalHot(uuid(31), 91.0, "hot-v2");
         verify(postFeedCache).upsertGlobalHot(uuid(32), 88.0, "hot-v2");
+    }
+
+    @Test
+    void listGlobalHotFeedShouldNotFallbackToRepositoryWhenLatestFallbackDisabled() {
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
+        when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
+        ContentFeedPolicyProperties policyProperties = new ContentFeedPolicyProperties();
+        policyProperties.setLatestFallbackEnabled(false);
+
+        when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
+        when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
+
+        FeedReadApplicationService service = new FeedReadApplicationService(
+                postFeedCache,
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec,
+                policyProperties
+        );
+
+        FeedPageResult result = service.listGlobalHotFeed(null, "", 2);
+
+        assertThat(result.items()).isEmpty();
+        assertThat(result.nextCursor()).isEmpty();
+        assertThat(result.rankVersion()).isEqualTo("hot-v2");
+        verifyNoInteractions(
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector
+        );
     }
 
     @Test

@@ -21,6 +21,7 @@ public class PostHotFeedProjectionApplicationService {
     private final PostFeedCache postFeedCache;
     private final PostSummaryCache postSummaryCache;
     private final PostDetailCache postDetailCache;
+    private final PostCounterCache postCounterCache;
     private final PostHotnessDomainService postHotnessDomainService;
 
     public PostHotFeedProjectionApplicationService(
@@ -29,6 +30,7 @@ public class PostHotFeedProjectionApplicationService {
             PostFeedCache postFeedCache,
             PostSummaryCache postSummaryCache,
             PostDetailCache postDetailCache,
+            PostCounterCache postCounterCache,
             PostHotnessDomainService postHotnessDomainService
     ) {
         this.postContentRepository = postContentRepository;
@@ -36,6 +38,7 @@ public class PostHotFeedProjectionApplicationService {
         this.postFeedCache = postFeedCache;
         this.postSummaryCache = postSummaryCache;
         this.postDetailCache = postDetailCache;
+        this.postCounterCache = postCounterCache;
         this.postHotnessDomainService = postHotnessDomainService;
     }
 
@@ -57,6 +60,7 @@ public class PostHotFeedProjectionApplicationService {
         long likeCount = likeQueryPort.countPostLikes(postId);
         double score = postHotnessDomainService.recomputeScore(post, likeCount, command.signalWeight());
         postContentRepository.updateScore(postId, score);
+        postCounterCache.updateScore(postId, score);
         postFeedCache.remove(postId, null);
         postFeedCache.upsertGlobalHot(postId, score, RANK_VERSION);
         if (boardId != null) {

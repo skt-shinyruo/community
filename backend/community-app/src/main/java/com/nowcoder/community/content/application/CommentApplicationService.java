@@ -44,6 +44,7 @@ public class CommentApplicationService {
     private final CommentDomainService domainService;
     private final CommentRepository commentRepository;
     private final PostContentRepository postContentPort;
+    private final PostCounterCache postCounterCache;
     private final SocialBlockQueryApi blockQueryApi;
     private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private final CommentDomainEventPublisher domainEventPublisher;
@@ -56,6 +57,7 @@ public class CommentApplicationService {
             CommentDomainService domainService,
             CommentRepository commentRepository,
             PostContentRepository postContentPort,
+            PostCounterCache postCounterCache,
             SocialBlockQueryApi blockQueryApi,
             SocialLikeCleanupActionApi socialLikeCleanupActionApi,
             CommentDomainEventPublisher domainEventPublisher
@@ -67,6 +69,7 @@ public class CommentApplicationService {
         this.domainService = domainService;
         this.commentRepository = commentRepository;
         this.postContentPort = postContentPort;
+        this.postCounterCache = postCounterCache;
         this.blockQueryApi = blockQueryApi;
         this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
         this.domainEventPublisher = domainEventPublisher;
@@ -192,6 +195,7 @@ public class CommentApplicationService {
         );
         UUID commentId = commentRepository.create(draft);
         postContentPort.incrementCommentCount(postId, 1);
+        postCounterCache.incrementCommentCount(postId, 1L);
 
         String decodedContent = textCodec.decodeOnRead(safeContent);
         var createdAt = createTime.toInstant();
@@ -236,6 +240,7 @@ public class CommentApplicationService {
             return;
         }
         postContentPort.incrementCommentCount(postId, -deletion.deletedCount());
+        postCounterCache.incrementCommentCount(postId, -deletion.deletedCount());
         AfterCommitExecutor.runAfterCommit(() -> {
             for (UUID deletedCommentId : deletion.deletedCommentIds()) {
                 try {

@@ -61,6 +61,7 @@ class CommentApplicationServiceTest {
     private UserModerationGuard moderationGuard;
     private CommentRepository commentRepository;
     private PostContentRepository postContentPort;
+    private PostCounterCache postCounterCache;
     private SocialBlockQueryApi blockQueryApi;
     private SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private CommentDomainEventPublisher domainEventPublisher;
@@ -77,6 +78,7 @@ class CommentApplicationServiceTest {
         moderationGuard = mock(UserModerationGuard.class);
         commentRepository = mock(CommentRepository.class);
         postContentPort = mock(PostContentRepository.class);
+        postCounterCache = mock(PostCounterCache.class);
         blockQueryApi = mock(SocialBlockQueryApi.class);
         socialLikeCleanupActionApi = mock(SocialLikeCleanupActionApi.class);
         domainEventPublisher = mock(CommentDomainEventPublisher.class);
@@ -88,6 +90,7 @@ class CommentApplicationServiceTest {
                 new CommentDomainService(),
                 commentRepository,
                 postContentPort,
+                postCounterCache,
                 blockQueryApi,
                 socialLikeCleanupActionApi,
                 domainEventPublisher
@@ -137,6 +140,7 @@ class CommentApplicationServiceTest {
                 postContentPort,
                 blockQueryApi,
                 commentRepository,
+                postCounterCache,
                 domainEventPublisher
         );
         inOrder.verify(moderationGuard).assertCanSpeak(userId);
@@ -145,6 +149,7 @@ class CommentApplicationServiceTest {
         ArgumentCaptor<CommentDraft> draftCaptor = ArgumentCaptor.forClass(CommentDraft.class);
         inOrder.verify(commentRepository).create(draftCaptor.capture());
         inOrder.verify(postContentPort).incrementCommentCount(postId, 1);
+        inOrder.verify(postCounterCache).incrementCommentCount(postId, 1L);
         ArgumentCaptor<CommentCreatedDomainEvent> eventCaptor = ArgumentCaptor.forClass(CommentCreatedDomainEvent.class);
         inOrder.verify(domainEventPublisher).commentCreated(eventCaptor.capture());
 
@@ -255,6 +260,7 @@ class CommentApplicationServiceTest {
                 new CommentDomainService(),
                 commentRepository,
                 postContentPort,
+                postCounterCache,
                 blockQueryApi,
                 socialLikeCleanupActionApi,
                 domainEventPublisher
@@ -431,10 +437,11 @@ class CommentApplicationServiceTest {
 
         service.deleteByAuthor(userId, postId, commentId);
 
-        var inOrder = inOrder(commentRepository, postContentPort, socialLikeCleanupActionApi);
+        var inOrder = inOrder(commentRepository, postContentPort, postCounterCache, socialLikeCleanupActionApi);
         inOrder.verify(commentRepository).getRequiredSnapshot(commentId);
         inOrder.verify(commentRepository).markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class));
         inOrder.verify(postContentPort).incrementCommentCount(postId, -3);
+        inOrder.verify(postCounterCache).incrementCommentCount(postId, -3L);
         inOrder.verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, commentId);
         inOrder.verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, replyId);
         inOrder.verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, nestedReplyId);

@@ -21,8 +21,9 @@ public class FeedReadApplicationService {
 
     private static final int DEFAULT_SIZE = 20;
     private static final int MAX_SIZE = 50;
-    private static final String RANK_VERSION = "db-fallback-v1";
+    private static final String RANK_VERSION = "hot-v1";
 
+    private final PostFeedCache postFeedCache;
     private final PostContentRepository postContentRepository;
     private final CommentContentRepository commentContentRepository;
     private final TagContentRepository tagContentRepository;
@@ -33,6 +34,7 @@ public class FeedReadApplicationService {
     private final FeedCursorCodec feedCursorCodec;
 
     public FeedReadApplicationService(
+            PostFeedCache postFeedCache,
             PostContentRepository postContentRepository,
             CommentContentRepository commentContentRepository,
             TagContentRepository tagContentRepository,
@@ -42,6 +44,7 @@ public class FeedReadApplicationService {
             PostSummaryAssembler postSummaryAssembler,
             FeedCursorCodec feedCursorCodec
     ) {
+        this.postFeedCache = postFeedCache;
         this.postContentRepository = postContentRepository;
         this.commentContentRepository = commentContentRepository;
         this.tagContentRepository = tagContentRepository;
@@ -61,28 +64,44 @@ public class FeedReadApplicationService {
     }
 
     private FeedPageResult listHotFeed(String cursor, int size, UUID boardId) {
-        int requestedLimit = normalizeRequestedSize(size);
         FeedCursorCodec.CursorState state = feedCursorCodec.decode(cursor);
-        int limit = state.size() > 0 ? normalizeRequestedSize(state.size()) : requestedLimit;
-        int page = state.page();
-        List<DiscussPost> rows = postContentRepository.listPosts(page, limit, PostContentRepository.ORDER_HOT, boardId, null);
-        List<PostSummaryResult> items = readSummaries(rows);
-        String nextCursor = hasNextPage(rows, page, limit, boardId) ? feedCursorCodec.encodePage(page + 1, limit) : "";
-        return new FeedPageResult(items, nextCursor, RANK_VERSION);
+        int requestedLimit = state.size() > 0 ? normalizeRequestedSize(state.size()) : normalizeRequestedSize(size);
+        LoadedFeedPage page = loadHotPage(cursor, state.page(), requestedLimit, boardId);
+        String nextCursor = page.hasNext()
+                ? feedCursorCodec.encodePage(state.page() + 1, requestedLimit)
+                : "";
+        return new FeedPageResult(page.items(), nextCursor, RANK_VERSION);
     }
 
-    private List<PostSummaryResult> readSummaries(List<DiscussPost> posts) {
-        if (posts == null || posts.isEmpty()) {
+    private List<PostSummaryResult> filterBoardItems(List<PostSummaryResult> items, UUID boardId) {
+        if (boardId == null || items == null || items.isEmpty()) {
+            return items == null ? List.of() : items;
+        }
+        return items.stream()
+                .filter(item -> boardId.equals(item.categoryId()))
+                .toList();
+    }
+
+    private List<UUID> readFeedIds(String cursor, int size, UUID boardId) {
+        if (boardId == null) {
+            List<UUID> ids = postFeedCache.readGlobalHotIds(cursor, size);
+            return ids == null ? List.of() : ids;
+        }
+        List<UUID> ids = postFeedCache.readBoardHotIds(boardId, cursor, size);
+        return ids == null ? List.of() : ids;
+    }
+
+    private List<PostSummaryResult> readSummaries(List<UUID> postIds) {
+        if (postIds == null || postIds.isEmpty()) {
             return List.of();
         }
-        List<UUID> postIds = posts.stream().map(DiscussPost::getId).toList();
         Map<UUID, PostSummaryResult> cachedEntries = postSummaryCache.getAll(postIds);
         Map<UUID, PostSummaryResult> cached = new java.util.LinkedHashMap<>(cachedEntries == null ? Map.of() : cachedEntries);
-        List<DiscussPost> missingPosts = posts.stream()
-                .filter(post -> !cached.containsKey(post.getId()))
+        List<UUID> missingIds = postIds.stream()
+                .filter(id -> !cached.containsKey(id))
                 .toList();
-        if (!missingPosts.isEmpty()) {
-            List<PostSummaryResult> loaded = assembleSummaries(missingPosts);
+        if (!missingIds.isEmpty()) {
+            List<PostSummaryResult> loaded = assembleSummaries(postContentRepository.listPostsByIds(missingIds));
             postSummaryCache.putAll(loaded);
             loaded.forEach(item -> cached.put(item.id(), item));
         }
@@ -92,12 +111,47 @@ public class FeedReadApplicationService {
                 .toList();
     }
 
-    private boolean hasNextPage(List<DiscussPost> rows, int page, int limit, UUID boardId) {
-        if (rows == null || rows.size() < limit) {
-            return false;
+    private LoadedFeedPage loadHotPage(String cursor, int page, int limit, UUID boardId) {
+        String encodedCursor = feedCursorCodec.encodePage(page, limit);
+        List<UUID> ids = readFeedIds(page == 0 ? cursor : encodedCursor, limit, boardId);
+        if (!ids.isEmpty()) {
+            List<PostSummaryResult> items = filterBoardItems(readSummaries(ids), boardId);
+            return new LoadedFeedPage(items, hasNextCachedPage(page, limit, boardId));
         }
-        List<DiscussPost> nextRows = postContentRepository.listPosts(page + 1, limit, PostContentRepository.ORDER_HOT, boardId, null);
-        return nextRows != null && !nextRows.isEmpty();
+        List<DiscussPost> fallbackPosts = listFallbackPosts(page, limit, boardId);
+        if (fallbackPosts.isEmpty()) {
+            return new LoadedFeedPage(List.of(), false);
+        }
+        warmFeedCache(fallbackPosts, boardId);
+        List<PostSummaryResult> items = filterBoardItems(assembleSummaries(fallbackPosts), boardId);
+        postSummaryCache.putAll(items);
+        return new LoadedFeedPage(items, !listFallbackPosts(page + 1, limit, boardId).isEmpty());
+    }
+
+    private boolean hasNextCachedPage(int page, int limit, UUID boardId) {
+        String nextCursor = feedCursorCodec.encodePage(page + 1, limit);
+        List<UUID> nextIds = readFeedIds(nextCursor, limit, boardId);
+        return !nextIds.isEmpty();
+    }
+
+    private List<DiscussPost> listFallbackPosts(int page, int limit, UUID boardId) {
+        if (boardId == null) {
+            return postContentRepository.listPosts(page, limit, PostContentRepository.ORDER_HOT);
+        }
+        return postContentRepository.listPosts(page, limit, PostContentRepository.ORDER_HOT, boardId, null);
+    }
+
+    private void warmFeedCache(List<DiscussPost> posts, UUID boardId) {
+        for (DiscussPost post : posts) {
+            if (post == null || post.getId() == null) {
+                continue;
+            }
+            if (boardId == null) {
+                postFeedCache.upsertGlobalHot(post.getId(), post.getScore(), RANK_VERSION);
+                continue;
+            }
+            postFeedCache.upsertBoardHot(boardId, post.getId(), post.getScore(), RANK_VERSION);
+        }
     }
 
     private int normalizeRequestedSize(int size) {
@@ -120,5 +174,8 @@ public class FeedReadApplicationService {
                         postContentBlockTextProjector.preview(blocksByPostId.get(post.getId()), 240)
                 ))
                 .toList();
+    }
+
+    private record LoadedFeedPage(List<PostSummaryResult> items, boolean hasNext) {
     }
 }

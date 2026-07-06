@@ -188,6 +188,13 @@ class DomainBoundaryArchTest {
                     .should().dependOnClassesThat().resideInAnyPackage("..content.dto..", "..content.contracts.event..")
                     .because("content.api is the synchronous collaboration boundary and must not leak DTOs or async event contracts");
 
+    @ArchTest
+    static final ArchRule domain_must_not_depend_on_spring_framework =
+            noClasses()
+                    .that().resideInAnyPackage("..domain..")
+                    .should().dependOnClassesThat().resideInAnyPackage("org.springframework..")
+                    .because("domain must not depend on Spring framework");
+
     private static ArchCondition<JavaClass> notDependOnForeignPackage(
             String packageLabel,
             Pattern trackedPackage,

@@ -47,7 +47,6 @@ public class CommentApplicationService {
     private final SocialBlockQueryApi blockQueryApi;
     private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private final CommentDomainEventPublisher domainEventPublisher;
-    private final PostWriteSideEffectScheduler postWriteSideEffectScheduler;
 
     public CommentApplicationService(
             ContentSanitizer sensitiveFilter,
@@ -59,8 +58,7 @@ public class CommentApplicationService {
             PostContentRepository postContentPort,
             SocialBlockQueryApi blockQueryApi,
             SocialLikeCleanupActionApi socialLikeCleanupActionApi,
-            CommentDomainEventPublisher domainEventPublisher,
-            PostWriteSideEffectScheduler postWriteSideEffectScheduler
+            CommentDomainEventPublisher domainEventPublisher
     ) {
         this.sensitiveFilter = sensitiveFilter;
         this.idempotencyGuard = idempotencyGuard;
@@ -72,7 +70,6 @@ public class CommentApplicationService {
         this.blockQueryApi = blockQueryApi;
         this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
         this.domainEventPublisher = domainEventPublisher;
-        this.postWriteSideEffectScheduler = postWriteSideEffectScheduler;
     }
 
     @Transactional
@@ -210,7 +207,6 @@ public class CommentApplicationService {
         );
 
         domainEventPublisher.commentCreated(event);
-        postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
         return commentId;
     }
 
@@ -259,7 +255,6 @@ public class CommentApplicationService {
                     deletedTime.toInstant()
             ));
         }
-        postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
     }
 
     private UUID resolvePostId(CommentSnapshot comment) {

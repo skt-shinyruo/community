@@ -517,18 +517,37 @@ git commit -m "feat: add redis summary and detail caches"
 
 ### Task 3: Replace The Legacy Score Queue With Durable Hot Feed Projection
 
+Implementation notes:
+- In the current codebase, `PostFeedCache` / `RedisPostFeedCache` do not exist yet. Task 3 therefore creates them and also updates the feed read runtime to consume ordered hot IDs from Redis instead of continuing to page directly against `PostContentRepository.ORDER_HOT`.
+- `PostCounterCache` is introduced later by Task 4 and is not part of the current editable surface. Task 3 therefore recomputes hotness from the authoritative post row plus existing synchronous counters (`commentCount` on the post row and `LikeQueryPort`) and leaves counter-cache-backed scoring to the later counter task.
+- Redis hot-feed zsets are the primary read path, but Task 3 also keeps a cold-read fallback that loads `ORDER_HOT` pages from `PostContentRepository` and repopulates Redis/summary caches when a requested feed page is absent from Redis.
+- When `content.events.publisher` or `social.events.publisher` is configured as `local`, Task 3 keeps an after-commit same-process listener so durable hot-feed projection still runs without Kafka delivery.
+
 **Files:**
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostHotFeedProjectionApplicationService.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/command/ProjectPostHotFeedCommand.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/domain/service/PostHotnessDomainService.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/PostHotFeedProjectionKafkaListener.java`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostFeedCache.java`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/RedisPostFeedCache.java`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/application/{PostPublishingApplicationService.java,CommentApplicationService.java}`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/PostHotFeedProjectionLocalListener.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostFeedCache.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/RedisPostFeedCache.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/application/FeedReadApplicationService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/application/{PostPublishingApplicationService.java,CommentApplicationService.java,PostModerationApplicationService.java}`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/app/config/DomainServiceConfig.java`
+- Delete or replace: `backend/community-app/src/main/java/com/nowcoder/community/content/application/SocialInteractionProjectionApplicationService.java`
+- Delete or replace: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/{SocialInteractionBackboneKafkaListener.java,SocialInteractionProjectionListener.java}`
 - Delete: `backend/community-app/src/main/java/com/nowcoder/community/content/application/{PostScoreQueue.java,PostScoreRefreshApplicationService.java,PostScoreUpdateApplicationService.java,PostWriteSideEffectScheduler.java}`
 - Delete: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/{job/PostScoreRefresher.java,persistence/RedisPostScoreQueue.java}`
 - Create: `backend/community-app/src/test/java/com/nowcoder/community/content/application/PostHotFeedProjectionApplicationServiceTest.java`
 - Create: `backend/community-app/src/test/java/com/nowcoder/community/content/infrastructure/event/PostHotFeedProjectionKafkaListenerTest.java`
+- Create: `backend/community-app/src/test/java/com/nowcoder/community/content/infrastructure/event/PostHotFeedProjectionLocalListenerTest.java`
+- Create: `backend/community-app/src/test/java/com/nowcoder/community/content/infrastructure/persistence/RedisPostFeedCacheTest.java`
+- Modify: `backend/community-app/src/test/java/com/nowcoder/community/content/application/{CommentApplicationServiceTest.java,PostPublishingApplicationServiceTest.java}`
+- Modify: `backend/community-app/src/test/java/com/nowcoder/community/content/application/FeedReadApplicationServiceTest.java`
+- Modify: `backend/community-app/src/test/java/com/nowcoder/community/content/application/PostModerationApplicationServiceTest.java`
+- Modify: `backend/community-app/src/test/java/com/nowcoder/community/app/arch/DomainBoundaryArchTest.java`
+- Modify: `backend/community-app/src/test/java/com/nowcoder/community/event/EventDeliverySemanticsStructureTest.java`
+- Delete or replace: `backend/community-app/src/test/java/com/nowcoder/community/content/event/{SocialInteractionBackboneKafkaListenerTest.java,SocialInteractionProjectionListenerTest.java}`
 - Delete or update: `backend/community-app/src/test/java/com/nowcoder/community/content/{application/PostScoreRefreshApplicationServiceTest.java,application/PostWriteSideEffectSchedulerTest.java,score/PostScoreRefresherTest.java,score/RedisPostScoreQueueTest.java}`
 
 **Interfaces:**
@@ -538,7 +557,7 @@ git commit -m "feat: add redis summary and detail caches"
   - `PostFeedCache.upsertGlobalHot(UUID postId, double score, String rankVersion): void`
   - `PostFeedCache.upsertBoardHot(UUID boardId, UUID postId, double score, String rankVersion): void`
 
-- [ ] **Step 1: Write the failing hotness projection tests**
+- [x] **Step 1: Write the failing hotness projection tests**
 
 Create `PostHotFeedProjectionApplicationServiceTest.java`:
 
@@ -569,7 +588,7 @@ void contentListenerShouldMapPublishedPostEventsToProjectionCommands() {
 }
 ```
 
-- [ ] **Step 2: Run the hotness tests and verify they fail**
+- [x] **Step 2: Run the hotness tests and verify they fail**
 
 Run:
 
@@ -580,7 +599,7 @@ mvn test -pl :community-app -am -Dtest=PostHotFeedProjectionApplicationServiceTe
 
 Expected: FAIL because the hot projection service/listener do not exist and the legacy score queue is still the active path.
 
-- [ ] **Step 3: Implement durable feed projection and retire the scheduled score queue**
+- [x] **Step 3: Implement durable feed projection and retire the scheduled score queue**
 
 Add `ProjectPostHotFeedCommand`:
 
@@ -631,7 +650,7 @@ postDetailCache.evict(post.getId());
 
 Delete the old score pipeline files and remove `PostWriteSideEffectScheduler` constructor fields/usages from `PostPublishingApplicationService` and `CommentApplicationService`.
 
-- [ ] **Step 4: Run the hotness tests and verify they pass**
+- [x] **Step 4: Run the hotness tests and verify they pass**
 
 Run:
 
@@ -642,7 +661,7 @@ mvn test -pl :community-app -am -Dtest=PostHotFeedProjectionApplicationServiceTe
 
 Expected: PASS, with no remaining references to `PostScoreQueue`, `PostScoreRefresher`, or `PostWriteSideEffectScheduler`.
 
-- [ ] **Step 5: Commit the durable hot feed runtime**
+- [x] **Step 5: Commit the durable hot feed runtime**
 
 ```bash
 git add backend/community-app/src/main/java/com/nowcoder/community/content/application/PostHotFeedProjectionApplicationService.java \

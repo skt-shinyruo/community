@@ -30,17 +30,16 @@ class NoticeProjectionKafkaListenerTest {
     private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
 
     @Test
-    void typedContentEventShouldEnterReliableNoticeProjection() {
+    void contentKafkaListenerShouldProjectCommentCreatedReliably() {
         NoticeProjectionApplicationService applicationService = mock(NoticeProjectionApplicationService.class);
         NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
-        CommentPayload payload = new CommentPayload();
-        payload.setTargetUserId(uuid(9));
+        CommentPayload payload = commentPayload();
 
-        listener.onContentEvent(new ContentContractEvent("evt-comment-typed", ContentEventTypes.COMMENT_CREATED, payload));
+        listener.onContentEvent(contentEvent("evt-comment-1", ContentEventTypes.COMMENT_CREATED, payload));
 
         ArgumentCaptor<ProjectContentNoticeCommand> captor = ArgumentCaptor.forClass(ProjectContentNoticeCommand.class);
         verify(applicationService).projectContentEventReliably(captor.capture());
-        assertThat(captor.getValue().sourceEventId()).isEqualTo("evt-comment-typed");
+        assertThat(captor.getValue().sourceEventId()).isEqualTo("evt-comment-1");
         assertThat(captor.getValue().eventType()).isEqualTo(ContentEventTypes.COMMENT_CREATED);
         assertThat(captor.getValue().payload()).isSameAs(payload);
     }
@@ -164,11 +163,20 @@ class NoticeProjectionKafkaListenerTest {
         NoticeProjectionApplicationService applicationService =
                 new NoticeProjectionApplicationService(jsonCodec, mock(com.nowcoder.community.notice.application.NoticeApplicationService.class));
         NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
-        CommentPayload payload = new CommentPayload();
-        payload.setTargetUserId(uuid(9));
+        CommentPayload payload = commentPayload();
 
         assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(" ", ContentEventTypes.COMMENT_CREATED, payload)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("notice projection source event id is blank");
+    }
+
+    private static ContentContractEvent contentEvent(String eventId, String eventType, Object payload) {
+        return new ContentContractEvent(eventId, eventType, payload);
+    }
+
+    private static CommentPayload commentPayload() {
+        CommentPayload payload = new CommentPayload();
+        payload.setTargetUserId(uuid(9));
+        return payload;
     }
 }

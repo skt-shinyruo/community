@@ -263,13 +263,23 @@ Owner / SSOT：
 
 Entry：
 
-- `GET /api/posts`
+- `GET /api/feed/global`
+- `GET /api/boards/{boardId}/feed`
 - `POST /api/posts`
 - `POST /api/posts/{postId}/comments`
 - `/api/bookmarks`
 - `/api/categories/**`
 - `/api/subscriptions/categories`
 - `/api/tags/**`
+
+Main path: read public feed：
+
+1. public homepage 和板块页分别走 `GET /api/feed/global`、`GET /api/boards/{boardId}/feed`。
+2. `FeedController` 进入 `FeedReadApplicationService`，使用 opaque cursor 分页。
+3. application 先从 Redis hot feed projection 读取帖子 ID：全站 `post:feed:global:hot`，板块 `post:feed:board:hot:{boardId}`。
+4. application 批量读取 `post:summary:{postId}`；缺失时回源 content owner 组装摘要并回填 Redis。
+5. 响应返回摘要列表、`nextCursor` 和 `rankVersion`。
+6. `GET /api/posts` 不再承担 public feed 入口。
 
 Main path: create post：
 
@@ -281,9 +291,8 @@ Main path: create post：
 6. tag 绑定；新 tag 通过 `ensureTagId(...)` 幂等创建。
 7. 发布 content domain event。
 8. domain event bridge 映射为 content contract event，并写入 outbox。
-9. content contract event 进入 Kafka 后，search、user reward 和 growth task 等下游异步追平。
-10. notice projection listener 在 `AFTER_COMMIT` best-effort 生成通知。
-11. 安排帖子分数刷新副作用。
+9. content contract event 进入 Kafka 后，search、notice、user reward 和 growth task 等下游异步追平。
+10. 安排帖子分数刷新和 hot feed projection 副作用。
 
 Main path: create comment：
 
@@ -378,7 +387,7 @@ Consistency：
 
 - 点赞 / 关注主业务写入在当前事务域内。
 - 奖励 / 任务进度通过 social contract event、outbox 和 Kafka listener 异步追平。
-- notice 是 best-effort after-commit。
+- notice 通过 social contract event 和 Kafka durable projection 异步追平。
 
 Key code：
 
@@ -462,7 +471,7 @@ Owner / SSOT：
 Entry：
 
 - `/api/notices/**`
-- content / social / moderation contract events。
+- `content.events` / `social.events` Kafka contract events。
 
 Read path：
 
@@ -474,10 +483,10 @@ Read path：
 Projection path：
 
 1. 上游 content / social / moderation 发布 contract event。
-2. `NoticeProjectionListener` 在事务提交后接收事件。
+2. `NoticeProjectionKafkaListener` 消费 `content.events` / `social.events`。
 3. `NoticeProjectionApplicationService` 判断事件类型、收件人、topic 和 content 快照。
 4. `NoticeProjectionDomainService` 判断是否应该投影。
-5. 写 notice 记录。
+5. 先按 `sourceEventId` 记录投影去重，再写 notice 记录。
 
 Topics / content：
 
@@ -488,9 +497,9 @@ Topics / content：
 
 Failure：
 
-- notice 当前是本地 after-commit best-effort 投影。
-- 失败只记录日志，不回滚源事务。
-- 当前没有 notice outbox adapter。
+- notice 现在是 Kafka-backed durable projection。
+- consumer 侧通过 `sourceEventId` 去重，失败按 Kafka listener 重试语义恢复，不回滚上游已提交事务。
+- 旧的 after-commit best-effort listener 已退休。
 
 Key code：
 
@@ -498,7 +507,7 @@ Key code：
 - `notice.application.NoticeApplicationService`
 - `notice.application.NoticeProjectionApplicationService`
 - `notice.domain.service.NoticeProjectionDomainService`
-- `notice.infrastructure.event.NoticeProjectionListener`
+- `notice.infrastructure.event.NoticeProjectionKafkaListener`
 
 ## IM Private Message
 

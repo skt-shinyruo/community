@@ -4,19 +4,6 @@ import http from '../http'
 import { unwrapResultBody } from '../result'
 import { normalizeOpaqueId, normalizeOpaqueIds, requireOpaqueId } from '../../utils/opaqueId'
 
-export async function listPosts({ order = 'latest', page = 0, size = 10, categoryId, tag, subscribed = false } = {}) {
-  const params = { order, page, size }
-  {
-    const cid = normalizeOpaqueId(categoryId)
-    if (cid) params.categoryId = cid
-  }
-  if (tag != null && String(tag).trim()) params.tag = String(tag).trim()
-  if (subscribed === true) params.subscribed = true
-  const resp = await http.get('/api/posts', { params })
-  const { data, traceId } = unwrapResultBody(resp.data, '查询帖子列表')
-  return { data: Array.isArray(data) ? data : [], traceId }
-}
-
 export async function listGlobalFeed({ cursor = '', size = 20 } = {}) {
   const params = {}
   if (cursor) params.cursor = cursor

@@ -44,8 +44,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -74,21 +74,6 @@ public class PostController {
         this.postModerationApplicationService = postModerationApplicationService;
         this.commentApplicationService = commentApplicationService;
         this.postCounterApplicationService = postCounterApplicationService;
-    }
-
-    @GetMapping
-    public Result<List<PostSummaryResponse>> list(
-            Authentication authentication,
-            @RequestParam(required = false) String order,
-            @RequestParam(required = false) UUID categoryId,
-            @RequestParam(required = false) String tag,
-            @RequestParam(required = false) Boolean subscribed,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size
-    ) {
-        UUID currentUserId = CurrentUser.tryUserUuid(authentication);
-        List<PostSummaryResult> posts = postReadApplicationService.listPosts(currentUserId, order, categoryId, tag, subscribed, page, size);
-        return Result.ok(toPostSummaryResponses(posts));
     }
 
     @PostMapping

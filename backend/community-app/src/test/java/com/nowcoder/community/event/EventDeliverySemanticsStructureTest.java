@@ -1,10 +1,10 @@
 package com.nowcoder.community.event;
 
 import com.nowcoder.community.common.event.BestEffortLocalEventListener;
+import com.nowcoder.community.content.infrastructure.event.PostHotFeedProjectionLocalListener;
 import com.nowcoder.community.content.infrastructure.event.PostHotFeedProjectionKafkaListener;
 import com.nowcoder.community.growth.infrastructure.event.TaskProgressEventBackboneKafkaListener;
 import com.nowcoder.community.im.infrastructure.event.ImPolicyBackboneKafkaListener;
-import com.nowcoder.community.notice.infrastructure.event.NoticeProjectionListener;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -35,7 +35,8 @@ class EventDeliverySemanticsStructureTest {
 
         assertThat(listeners)
                 .extracting(Class::getName)
-                .contains(NoticeProjectionListener.class.getName());
+                .contains(PostHotFeedProjectionLocalListener.class.getName())
+                .doesNotContain("com.nowcoder.community.notice.infrastructure.event.NoticeProjectionListener");
 
         for (Class<?> listener : listeners) {
             BestEffortLocalEventListener annotation = listener.getAnnotation(BestEffortLocalEventListener.class);

@@ -789,7 +789,7 @@ git commit -m "feat: add pull-merge follow feed"
 - Produces: `CommentPageCache.evictPost(UUID postId): void`
 - Produces: `int flushSnapshots(int batchSize)` continuing to persist only dirty post counters
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
 @Test
@@ -818,13 +818,13 @@ void createShouldEvictCommentPageCacheAfterCommit() {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && mvn test -pl :community-app -Dtest=CommentReadApplicationServiceTest,CommentApplicationServiceTest,PostCounterApplicationServiceTest,PostReadApplicationServiceTest`
 
 Expected: FAIL because comment first-page caching and write-side eviction do not exist yet.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 ```java
 public interface CommentPageCache {
@@ -892,13 +892,13 @@ content:
     flush-batch-size: ${CONTENT_COUNTER_FLUSH_BATCH_SIZE:200}
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd backend && mvn test -pl :community-app -Dtest=CommentReadApplicationServiceTest,CommentApplicationServiceTest,PostCounterApplicationServiceTest,PostReadApplicationServiceTest,RedisCommentPageCacheTest`
 
 Expected: PASS with comment read, write-side eviction, and counter flush coverage green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/community-app/src/main/java/com/nowcoder/community/content/application/CommentPageCache.java \

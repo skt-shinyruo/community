@@ -1,16 +1,21 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.content.application.command.RecordPostViewCommand;
+import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
+import com.nowcoder.community.content.domain.repository.PostCounterSnapshotRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class PostCounterApplicationServiceTest {
@@ -35,5 +40,44 @@ class PostCounterApplicationServiceTest {
         service.recordView(command);
 
         verify(postCounterCache, times(1)).incrementViewCount(postId);
+    }
+
+    @Test
+    void flushSnapshotsShouldCapRequestedDirtyBatchSizeAtFiveHundred() {
+        PostCounterSnapshotRepository snapshotRepository = mock(PostCounterSnapshotRepository.class);
+        PostCounterApplicationService flushService = new PostCounterApplicationService(
+                postCounterCache,
+                snapshotRepository,
+                null,
+                null
+        );
+        UUID postId = uuid(301);
+        when(postCounterCache.dirtyPostIds(500)).thenReturn(List.of(postId));
+        when(postCounterCache.get(postId)).thenReturn(new PostCounterSnapshot(postId, 11L, 3L, 5L, 2L, 99.5));
+
+        int flushed = flushService.flushSnapshots(2_000);
+
+        assertThat(flushed).isEqualTo(1);
+        verify(postCounterCache).dirtyPostIds(500);
+        verify(snapshotRepository).upsert(postId, 11L, 3L, 5L, 2L, 99.5);
+        verify(postCounterCache).clearDirtyPostIds(List.of(postId));
+    }
+
+    @Test
+    void flushSnapshotsShouldUseOneAsMinimumDirtyBatchSize() {
+        PostCounterSnapshotRepository snapshotRepository = mock(PostCounterSnapshotRepository.class);
+        PostCounterApplicationService flushService = new PostCounterApplicationService(
+                postCounterCache,
+                snapshotRepository,
+                null,
+                null
+        );
+        when(postCounterCache.dirtyPostIds(1)).thenReturn(List.of());
+
+        int flushed = flushService.flushSnapshots(0);
+
+        assertThat(flushed).isZero();
+        verify(postCounterCache).dirtyPostIds(1);
+        verifyNoInteractions(snapshotRepository);
     }
 }

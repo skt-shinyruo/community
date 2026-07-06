@@ -21,11 +21,11 @@ public class PostCounterSnapshotFlushJob {
     public PostCounterSnapshotFlushJob(
             PostCounterApplicationService postCounterApplicationService,
             @Value("${content.counter.flush.enabled:true}") boolean enabled,
-            @Value("${content.counter.flush.batch-size:200}") int batchSize
+            @Value("${content.counters.flush-batch-size:${content.counter.flush.batch-size:200}}") int batchSize
     ) {
         this.postCounterApplicationService = postCounterApplicationService;
         this.enabled = enabled;
-        this.batchSize = Math.max(1, Math.min(2000, batchSize));
+        this.batchSize = Math.max(1, Math.min(500, batchSize));
     }
 
     @Scheduled(fixedDelayString = "${content.counter.flush.delay-ms:30000}")

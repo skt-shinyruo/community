@@ -235,6 +235,10 @@ xxl:
 
 content:
   storage: redis
+  comments:
+    first-page-cache-ttl-seconds: ${CONTENT_COMMENT_FIRST_PAGE_CACHE_TTL_SECONDS:15}
+  counters:
+    flush-batch-size: ${CONTENT_COUNTER_FLUSH_BATCH_SIZE:200}
   feed:
     hot-rank-version: ${CONTENT_FEED_HOT_RANK_VERSION:hot-v2}
     latest-fallback-enabled: ${CONTENT_FEED_LATEST_FALLBACK_ENABLED:true}

@@ -45,6 +45,7 @@ public class CommentApplicationService {
     private final CommentRepository commentRepository;
     private final PostContentRepository postContentPort;
     private final PostCounterCache postCounterCache;
+    private final CommentPageCache commentPageCache;
     private final SocialBlockQueryApi blockQueryApi;
     private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private final CommentDomainEventPublisher domainEventPublisher;
@@ -58,6 +59,7 @@ public class CommentApplicationService {
             CommentRepository commentRepository,
             PostContentRepository postContentPort,
             PostCounterCache postCounterCache,
+            CommentPageCache commentPageCache,
             SocialBlockQueryApi blockQueryApi,
             SocialLikeCleanupActionApi socialLikeCleanupActionApi,
             CommentDomainEventPublisher domainEventPublisher
@@ -70,6 +72,7 @@ public class CommentApplicationService {
         this.commentRepository = commentRepository;
         this.postContentPort = postContentPort;
         this.postCounterCache = postCounterCache;
+        this.commentPageCache = commentPageCache;
         this.blockQueryApi = blockQueryApi;
         this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
         this.domainEventPublisher = domainEventPublisher;
@@ -130,6 +133,7 @@ public class CommentApplicationService {
                 UUID.class,
                 () -> createInsideTransaction(command)
         );
+        evictCommentPageCacheAfterCommit(postId);
         return new CommentCreateResult(commentId);
     }
 
@@ -147,6 +151,7 @@ public class CommentApplicationService {
         Date now = new Date();
         domainService.assertEditableByAuthor(existing, userId, postId, now);
         commentRepository.updateContent(commentId, sanitize(command.content()), now);
+        evictCommentPageCacheAfterCommit(postId);
     }
 
     @Transactional
@@ -241,6 +246,7 @@ public class CommentApplicationService {
         }
         postContentPort.incrementCommentCount(postId, -deletion.deletedCount());
         postCounterCache.incrementCommentCount(postId, -deletion.deletedCount());
+        evictCommentPageCacheAfterCommit(postId);
         AfterCommitExecutor.runAfterCommit(() -> {
             for (UUID deletedCommentId : deletion.deletedCommentIds()) {
                 try {
@@ -272,5 +278,9 @@ public class CommentApplicationService {
     private String sanitize(String content) {
         String safe = textCodec.escapeOnWrite(content == null ? "" : content.trim());
         return sensitiveFilter.filter(safe);
+    }
+
+    private void evictCommentPageCacheAfterCommit(UUID postId) {
+        AfterCommitExecutor.runAfterCommit(() -> commentPageCache.evictPost(postId));
     }
 }

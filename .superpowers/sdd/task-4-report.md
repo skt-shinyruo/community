@@ -1,78 +1,26 @@
-# Task 4 Report: Harden Dispatch, Projection, And Search Entry Points
+status: DONE
 
-## Status
+implementation_summary:
+- Added CommentPageCache as the application-owned comment page cache port.
+- Added RedisCommentPageCache with JSON payload storage, short TTL, per-post key index, poison-payload cleanup, and post-level eviction.
+- Wired first-page root comment cache read-through behavior into CommentReadApplicationService.
+- Preserved post readability validation before root comment cache hits so deleted/hidden posts cannot be served from cache.
+- Evicted comment page cache after commit on comment create, update, and delete paths.
+- Clamped post counter dirty snapshot flush batches to 1..500 and added the new content.counters.flush-batch-size config key.
+- Updated Task 4 checklist state in the implementation plan.
 
-Completed.
+tests:
+- Red step: mvn test -pl :community-app -Dtest=CommentReadApplicationServiceTest,CommentApplicationServiceTest,PostCounterApplicationServiceTest,PostReadApplicationServiceTest
+  outcome: failed at testCompile because RedisCommentPageCache and service constructor wiring were intentionally absent.
+- Final: mvn test -pl :community-app -Dtest=CommentReadApplicationServiceTest,CommentApplicationServiceTest,PostCounterApplicationServiceTest,PostReadApplicationServiceTest,RedisCommentPageCacheTest
+  outcome: BUILD SUCCESS; Tests run: 43, Failures: 0, Errors: 0, Skipped: 0.
+- Review fix: mvn test -pl :community-app -Dtest=CommentReadApplicationServiceTest,CommentApplicationServiceTest,PostCounterApplicationServiceTest,PostReadApplicationServiceTest,RedisCommentPageCacheTest
+  outcome: BUILD SUCCESS; Tests run: 43, Failures: 0, Errors: 0, Skipped: 0.
 
-## Scope Implemented
+review:
+- Initial review found that first-page comment cache hits bypassed post readability validation.
+- Fixed by validating the post before cache lookup and adding a regression test.
+- Re-review approved with no Critical, Important, or Minor findings.
 
-- Added `Objects.requireNonNull(command, "command must not be null")` at the public same-domain application entry points in:
-  - `ContentEventDispatchApplicationService`
-  - `SocialEventDispatchApplicationService`
-  - `UserEventDispatchApplicationService`
-  - `NoticeApplicationService`
-  - `NoticeProjectionApplicationService`
-  - `SearchApplicationService`
-  - `SearchPostProjectionApplicationService`
-  - `TaskProgressApplicationService`
-  - `TaskProgressOutboxDispatchApplicationService`
-  - `ImPolicyEventDispatchApplicationService`
-- Removed redundant helper-level command-null tolerance in:
-  - `NoticeProjectionApplicationService.commandForContentEvent(...)`
-  - `NoticeProjectionApplicationService.commandForSocialEvent(...)`
-- Kept existing business-invalid behavior intact after the public null guard:
-  - blank payload checks
-  - unsupported event handling
-  - null/blank field checks inside already-non-null commands
-  - no new `if (command == null) return` paths
-
-## Tests Added Or Adjusted
-
-- Added null-command contract tests to all task-owned test classes from the brief.
-- Asserted:
-  - `NullPointerException`
-  - exact message: `command must not be null`
-
-## Red/Green Verification
-
-### Red
-
-Command:
-
-```bash
-cd backend
-mvn test -pl :community-app -Dtest=ContentEventDispatchApplicationServiceTest,SocialEventDispatchApplicationServiceTest,UserEventDispatchApplicationServiceTest,NoticeApplicationServiceTest,NoticeProjectionApplicationServiceTest,SearchApplicationServiceTest,SearchPostProjectionApplicationServiceTest,TaskProgressApplicationServiceTest,TaskProgressOutboxDispatchApplicationServiceTest,ImPolicyEventDispatchApplicationServiceTest
-```
-
-Result:
-
-- Failed as expected.
-- Failures showed the pre-hardening behaviors the brief targeted:
-  - dispatch services converting null command into existing payload-invalid errors
-  - notice/search entry points throwing incidental field-access NPEs with JVM-generated messages
-  - projection/growth/search projection/im dispatch entry points silently returning on null command
-
-### Green
-
-Command:
-
-```bash
-cd backend
-mvn test -pl :community-app -Dtest=ContentEventDispatchApplicationServiceTest,SocialEventDispatchApplicationServiceTest,UserEventDispatchApplicationServiceTest,NoticeApplicationServiceTest,NoticeProjectionApplicationServiceTest,SearchApplicationServiceTest,SearchPostProjectionApplicationServiceTest,TaskProgressApplicationServiceTest,TaskProgressOutboxDispatchApplicationServiceTest,ImPolicyEventDispatchApplicationServiceTest
-```
-
-Result:
-
-- Passed.
-- Summary: `Tests run: 96, Failures: 0, Errors: 0, Skipped: 0`
-
-## Self-Review
-
-- Verified every owned public command entry point now fails fast on null command at method entry.
-- Verified `NoticeProjectionApplicationService` helper methods no longer contain redundant `command == null` branches.
-- Verified unchanged downstream business-invalid behavior by keeping existing tests green.
-- Verified no unrelated files were staged from other workers' changes.
-
-## Concerns
-
-None within task scope.
+concerns:
+- None.

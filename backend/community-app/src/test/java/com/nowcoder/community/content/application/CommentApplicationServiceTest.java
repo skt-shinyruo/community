@@ -62,6 +62,7 @@ class CommentApplicationServiceTest {
     private CommentRepository commentRepository;
     private PostContentRepository postContentPort;
     private PostCounterCache postCounterCache;
+    private CommentPageCache commentPageCache;
     private SocialBlockQueryApi blockQueryApi;
     private SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private CommentDomainEventPublisher domainEventPublisher;
@@ -79,6 +80,7 @@ class CommentApplicationServiceTest {
         commentRepository = mock(CommentRepository.class);
         postContentPort = mock(PostContentRepository.class);
         postCounterCache = mock(PostCounterCache.class);
+        commentPageCache = mock(CommentPageCache.class);
         blockQueryApi = mock(SocialBlockQueryApi.class);
         socialLikeCleanupActionApi = mock(SocialLikeCleanupActionApi.class);
         domainEventPublisher = mock(CommentDomainEventPublisher.class);
@@ -91,6 +93,7 @@ class CommentApplicationServiceTest {
                 commentRepository,
                 postContentPort,
                 postCounterCache,
+                commentPageCache,
                 blockQueryApi,
                 socialLikeCleanupActionApi,
                 domainEventPublisher
@@ -171,6 +174,32 @@ class CommentApplicationServiceTest {
         assertThat(event.targetUserId()).isEqualTo(postAuthorId);
         assertThat(event.content()).isEqualTo("clean & body");
         assertThat(event.createTime()).isEqualTo(draft.createTime().toInstant());
+    }
+
+    @Test
+    void createShouldEvictCommentPageCacheAfterCommit() {
+        UUID userId = uuid(1);
+        UUID postId = uuid(100);
+        UUID postAuthorId = uuid(2);
+        UUID commentId = uuid(200);
+
+        when(idempotencyGuard.executeRequired(
+                eq("content:create_comment"),
+                eq(userId),
+                anyString(),
+                anyString(),
+                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
+                eq(UUID.class),
+                any()
+        )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
+        when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
+        when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
+        when(sensitiveFilter.filter("body")).thenReturn("body");
+        when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
+
+        service.create("idem-cache-evict", new CreateCommentCommand(userId, postId, null, null, "body"));
+
+        verify(commentPageCache).evictPost(postId);
     }
 
     @Test
@@ -262,6 +291,7 @@ class CommentApplicationServiceTest {
                 commentRepository,
                 postContentPort,
                 postCounterCache,
+                commentPageCache,
                 blockQueryApi,
                 socialLikeCleanupActionApi,
                 domainEventPublisher

@@ -77,7 +77,8 @@ public class PostCounterApplicationService {
         if (postCounterSnapshotRepository == null) {
             return 0;
         }
-        List<UUID> requested = postCounterCache.dirtyPostIds(batchSize);
+        int safeBatchSize = Math.max(1, Math.min(batchSize, 500));
+        List<UUID> requested = postCounterCache.dirtyPostIds(safeBatchSize);
         if (requested == null || requested.isEmpty()) {
             return 0;
         }

@@ -5,60 +5,42 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
 import FeedToolbar from './FeedToolbar.vue'
-import UiAutosuggestInput from '../ui/UiAutosuggestInput.vue'
-import UiCheckbox from '../ui/UiCheckbox.vue'
+import UiSelect from '../ui/UiSelect.vue'
 
 function mountToolbar(props = {}) {
   return mount(FeedToolbar, {
     attachTo: document.body,
     props: {
-      order: 'latest',
-      filter: 'all',
-      subscribed: false,
-      showSubscribedToggle: true,
+      boardId: '',
       disabled: false,
-      categories: [],
-      tagSuggestions: ['java', 'spring'],
-      orderOptions: [
-        { label: '最新', value: 'latest' },
-        { label: '热门', value: 'hot' }
-      ],
-      filterOptions: [
-        { label: '全部', value: 'all' },
-        { label: '未读', value: 'unread' }
-      ],
+      categories: [{ id: 'board-1', name: 'Java' }],
       ...props
     }
   })
 }
 
 describe('FeedToolbar', () => {
-  it('emits update:subscribed from the shared checkbox toggle', async () => {
+  it('emits update:boardId from the board select', async () => {
     const wrapper = mountToolbar()
 
-    await wrapper.getComponent(UiCheckbox).vm.$emit('update:modelValue', true)
+    await wrapper.getComponent(UiSelect).vm.$emit('update:modelValue', 'board-1')
 
-    expect(wrapper.emitted('update:subscribed')).toEqual([[true]])
+    expect(wrapper.emitted('update:boardId')).toEqual([['board-1']])
   })
 
-  it('emits update:tag when the shared autosuggest input commits a tag', async () => {
-    const wrapper = mountToolbar()
-    const tagInput = wrapper.getComponent(UiAutosuggestInput)
+  it('only exposes refresh and clear actions in the simplified toolbar contract', async () => {
+    const wrapper = mountToolbar({ showClear: true })
 
-    await tagInput.vm.$emit('update:modelValue', 'java')
+    await wrapper.get('button[title="清空筛选与排序"]').trigger('click')
     await nextTick()
-    await tagInput.vm.$emit('commit', 'java')
+    const buttons = wrapper.findAll('button')
+    await buttons[buttons.length - 1].trigger('click')
 
-    expect(wrapper.emitted('update:tag')).toEqual([['java']])
-  })
-
-  it('keeps keyboard suggestion movement working through the shared autosuggest input', async () => {
-    const wrapper = mountToolbar()
-    const input = wrapper.getComponent(UiAutosuggestInput).get('input')
-
-    await input.trigger('focus')
-    await input.trigger('keydown', { key: 'ArrowDown' })
-
-    expect(wrapper.get('[role="option"][data-value="java"]').classes()).toContain('is-active')
+    expect(wrapper.emitted('clear')).toHaveLength(1)
+    expect(wrapper.emitted('refresh')).toHaveLength(1)
+    expect(wrapper.emitted('update:order')).toBeUndefined()
+    expect(wrapper.emitted('update:filter')).toBeUndefined()
+    expect(wrapper.emitted('update:subscribed')).toBeUndefined()
+    expect(wrapper.emitted('update:tag')).toBeUndefined()
   })
 })

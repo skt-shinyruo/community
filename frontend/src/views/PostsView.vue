@@ -9,23 +9,11 @@
       <main class="posts-main-feed">
         <section class="posts-toolbar-stage">
           <FeedToolbar
-            :order="order"
-            :filter="filter"
-            :subscribed="subscribed"
-            :show-subscribed-toggle="authed"
-            :category-id="categoryId"
-            :tag="tag"
+            :board-id="boardId"
             :categories="categories"
-            :tag-suggestions="tagSuggestions"
-            :order-options="orderOptions"
-            :filter-options="filterOptions"
             :show-clear="showClear"
             :disabled="loading"
-            @update:order="setOrder"
-            @update:filter="setFilter"
-            @update:subscribed="setSubscribed"
-            @update:categoryId="setCategoryId"
-            @update:tag="setTag"
+            @update:boardId="setBoardId"
             @refresh="reload"
             @clear="clearQuery"
           />
@@ -313,13 +301,7 @@ const {
   authed,
   me,
   router,
-  order,
-  filter,
-  subscribed,
-  categoryId,
-  tag,
-  orderOptions,
-  filterOptions,
+  boardId,
   taxonomy,
   categories,
   composerCategoryOptions,
@@ -328,11 +310,7 @@ const {
   blockedSet,
   blockedHiddenCount,
   goLogin,
-  setOrder,
-  setFilter,
-  setCategoryId,
-  setTag,
-  setSubscribed,
+  setBoardId,
   clearQuery,
   page,
   size,
@@ -360,7 +338,6 @@ const {
   commitNewTags,
   onTagDraftKeydown,
   removeNewTag,
-  tagSuggestions,
   lastSeenDividerRef,
   newHintDismissed,
   isDefaultLatestFeed,

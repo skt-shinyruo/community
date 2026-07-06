@@ -2,14 +2,13 @@ import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
-import { listPosts, createPost as apiCreatePost } from '../../api/services/postService'
+import { listBoardFeed, listGlobalFeed, createPost as apiCreatePost } from '../../api/services/postService'
 import { setLike } from '../../api/services/socialService'
 import { suggestTags as apiSuggestTags } from '../../api/services/taxonomyService'
 import {
   canJumpToLastSeenDivider,
   findLastSeenDividerIndex,
   hasLastSeenDivider,
-  isDefaultLatestFeedView,
   resolveAppendPageAfterLoad
 } from '../postsFeedState'
 import {
@@ -22,14 +21,7 @@ import { normalizeOpaqueId } from '../../utils/opaqueId'
 import { useTaxonomyStore } from '../../stores/taxonomy'
 import { usePostMetaCacheStore } from '../../stores/postMetaCache'
 import {
-  POSTS_FILTER,
-  POSTS_FILTER_OPTIONS,
-  POSTS_ORDER,
-  POSTS_ORDER_OPTIONS,
-  normalizePostsCategoryId,
-  normalizePostsFilter,
-  normalizePostsOrder,
-  normalizePostsSubscribed
+  normalizePostsBoardId
 } from '../../router/navigation'
 import { buildComposerCategoryOptions } from './usePostComposer'
 
@@ -44,17 +36,7 @@ export function usePostsFeed(emit) {
   const me = computed(() => auth.me || {})
   const postMetaCache = usePostMetaCacheStore()
 
-  const order = computed(() => normalizePostsOrder(route.query?.order))
-  const filter = computed(() => normalizePostsFilter(route.query?.type))
-  const subscribed = computed(() => normalizePostsSubscribed(route.query?.subscribed))
-  const categoryId = computed(() => normalizePostsCategoryId(route.query?.categoryId))
-  const tag = computed(() => {
-    const raw = String(route.query?.tag || '').trim()
-    return raw.startsWith('#') ? raw.slice(1).trim() : raw
-  })
-
-  const orderOptions = POSTS_ORDER_OPTIONS
-  const filterOptions = POSTS_FILTER_OPTIONS
+  const boardId = computed(() => normalizePostsBoardId(route.query?.boardId))
 
   const taxonomy = useTaxonomyStore()
   const categories = computed(() => (Array.isArray(taxonomy.categories) ? taxonomy.categories : []))
@@ -67,14 +49,7 @@ export function usePostsFeed(emit) {
     return c?.name || `分类#${cid}`
   }
 
-  const showClear = computed(
-    () =>
-      order.value !== POSTS_ORDER.LATEST ||
-      filter.value !== POSTS_FILTER.ALL ||
-      subscribed.value === true ||
-      !!categoryId.value ||
-      !!tag.value
-  )
+  const showClear = computed(() => !!boardId.value)
 
   const socialPrefs = useSocialPrefsStore()
   const blockedSet = computed(() => socialPrefs.blockedSet)
@@ -87,62 +62,21 @@ export function usePostsFeed(emit) {
   function replaceQuery(partial) {
     const next = { ...(route.query || {}) }
 
-    if (Object.prototype.hasOwnProperty.call(partial, 'order')) {
-      const nextOrder = normalizePostsOrder(partial.order)
-      if (nextOrder === POSTS_ORDER.LATEST) delete next.order
-      else next.order = nextOrder
-    }
-
-    if (Object.prototype.hasOwnProperty.call(partial, 'filter')) {
-      const nextFilter = normalizePostsFilter(partial.filter)
-      if (!nextFilter) delete next.type
-      else next.type = nextFilter
-    }
-
-    if (Object.prototype.hasOwnProperty.call(partial, 'categoryId')) {
-      const nextCategoryId = normalizePostsCategoryId(partial.categoryId)
-      if (!nextCategoryId) delete next.categoryId
-      else next.categoryId = String(nextCategoryId)
-    }
-
-    if (Object.prototype.hasOwnProperty.call(partial, 'tag')) {
-      let nextTag = String(partial.tag || '').trim()
-      if (nextTag.startsWith('#')) nextTag = nextTag.slice(1).trim()
-      if (!nextTag) delete next.tag
-      else next.tag = nextTag
-    }
-
-    if (Object.prototype.hasOwnProperty.call(partial, 'subscribed')) {
-      const nextSubscribed = normalizePostsSubscribed(partial.subscribed)
-      if (!nextSubscribed) delete next.subscribed
-      else next.subscribed = '1'
+    if (Object.prototype.hasOwnProperty.call(partial, 'boardId')) {
+      const nextBoardId = normalizePostsBoardId(partial.boardId)
+      if (!nextBoardId) delete next.boardId
+      else next.boardId = String(nextBoardId)
     }
 
     router.replace({ name: 'posts', query: next })
   }
 
-  function setOrder(v) {
-    replaceQuery({ order: v })
-  }
-
-  function setFilter(v) {
-    replaceQuery({ filter: v })
-  }
-
-  function setCategoryId(v) {
-    replaceQuery({ categoryId: v })
-  }
-
-  function setTag(v) {
-    replaceQuery({ tag: v })
-  }
-
-  function setSubscribed(v) {
-    replaceQuery({ subscribed: v })
+  function setBoardId(v) {
+    replaceQuery({ boardId: v })
   }
 
   function clearQuery() {
-    replaceQuery({ order: POSTS_ORDER.LATEST, filter: POSTS_FILTER.ALL, subscribed: false, categoryId: '', tag: '' })
+    replaceQuery({ boardId: '' })
   }
 
   const page = ref(0)
@@ -307,31 +241,15 @@ export function usePostsFeed(emit) {
   watch(isPublishFocused, (v) => {
     if (!v) return
     // 在分类页发帖时，默认带上当前分类
-    if (!newCategoryId.value && categoryId.value) {
-      newCategoryId.value = String(categoryId.value)
+    if (!newCategoryId.value && boardId.value) {
+      newCategoryId.value = String(boardId.value)
     }
   })
-
-  const tagSuggestions = computed(() =>
-    (Array.isArray(taxonomy.hotTags) ? taxonomy.hotTags : [])
-      .map((t) => t?.name)
-      .filter(Boolean)
-      .slice(0, 12)
-  )
 
   const lastSeenDividerRef = ref(null)
   const newHintDismissed = ref(false)
 
-  const isDefaultLatestFeed = computed(() =>
-    isDefaultLatestFeedView({
-      order: order.value,
-      filter: filter.value,
-      subscribed: subscribed.value,
-      categoryId: categoryId.value,
-      tag: tag.value,
-      page: page.value
-    })
-  )
+  const isDefaultLatestFeed = computed(() => !boardId.value && page.value === 0)
 
   const newSinceLastSeenCount = computed(() => {
     if (!isDefaultLatestFeed.value) return 0
@@ -452,11 +370,6 @@ export function usePostsFeed(emit) {
   }
 
   function applyFilter(list) {
-    const ft = filter.value
-    if (!ft) return list
-    if (ft === POSTS_FILTER.UNREAD) return list.filter((p) => isUnread(p))
-    if (ft === POSTS_FILTER.TOP) return list.filter((p) => Number(p?.type || 0) === 1)
-    if (ft === POSTS_FILTER.WONDERFUL) return list.filter((p) => Number(p?.status || 0) === 1)
     return list
   }
 
@@ -477,25 +390,16 @@ export function usePostsFeed(emit) {
         socialPrefs.clear()
       }
 
-      if (subscribed.value === true && !authed.value) {
-        showToast({ type: 'warning', text: '登录后可查看订阅内容' })
-        setSubscribed(false)
-        return false
-      }
-
-      const resp = await listPosts({
-        order: order.value,
-        page: page.value,
-        size: size.value,
-        subscribed: subscribed.value === true,
-        categoryId: categoryId.value,
-        tag: tag.value
-      })
+      const cursor = append ? String(page.value || '') : ''
+      const resp = boardId.value
+        ? await listBoardFeed(boardId.value, { cursor, size: size.value })
+        : await listGlobalFeed({ cursor, size: size.value })
       emit('trace', resp?.traceId || '')
 
       if (token !== lastLoadToken) return
 
-      const base = (Array.isArray(resp?.data) ? resp.data : []).map((p) => ({
+      const pageData = resp?.data && typeof resp.data === 'object' ? resp.data : {}
+      const base = (Array.isArray(pageData.items) ? pageData.items : []).map((p) => ({
         ...p,
         author: p?.author || null,
         liked: !!p?.liked,
@@ -505,15 +409,17 @@ export function usePostsFeed(emit) {
       const afterBlocked = blockedSet.value.size > 0 ? base.filter((p) => !blockedSet.value.has(normalizeOpaqueId(p?.userId))) : base
       blockedHiddenCount.value = Math.max(0, base.length - afterBlocked.length)
       const newItems = applyFilter(afterBlocked)
-      
-      if ((resp?.data || []).length < size.value) hasNext.value = false
-      else hasNext.value = true
-      
+
+      const nextCursor = String(pageData.nextCursor || '')
+      hasNext.value = !!nextCursor
+
       if (append) {
-         items.value = [...items.value, ...newItems]
+        items.value = [...items.value, ...newItems]
       } else {
-         items.value = newItems
+        items.value = newItems
       }
+
+      page.value = nextCursor
 
       scheduleHydrate(newItems, token)
       return true
@@ -531,13 +437,14 @@ export function usePostsFeed(emit) {
 
   async function loadMore() {
     const previousPage = page.value
-    page.value = resolveAppendPageAfterLoad({ previousPage, didLoadSucceed: true })
     const didLoadSucceed = await load(true)
-    page.value = resolveAppendPageAfterLoad({ previousPage, didLoadSucceed })
+    if (!didLoadSucceed) {
+      page.value = resolveAppendPageAfterLoad({ previousPage, didLoadSucceed })
+    }
   }
 
   async function reload() {
-    page.value = 0
+    page.value = ''
     hasNext.value = true
     await load(false)
   }
@@ -629,7 +536,7 @@ export function usePostsFeed(emit) {
     }
   )
 
-  watch([order, filter, subscribed, categoryId, tag], () => {
+  watch(boardId, () => {
     newHintDismissed.value = false
     reload()
   })
@@ -657,13 +564,7 @@ export function usePostsFeed(emit) {
     authed,
     me,
     router,
-    order,
-    filter,
-    subscribed,
-    categoryId,
-    tag,
-    orderOptions,
-    filterOptions,
+    boardId,
     taxonomy,
     categories,
     composerCategoryOptions,
@@ -672,11 +573,7 @@ export function usePostsFeed(emit) {
     blockedSet,
     blockedHiddenCount,
     goLogin,
-    setOrder,
-    setFilter,
-    setCategoryId,
-    setTag,
-    setSubscribed,
+    setBoardId,
     clearQuery,
     page,
     size,
@@ -704,7 +601,6 @@ export function usePostsFeed(emit) {
     commitNewTags,
     onTagDraftKeydown,
     removeNewTag,
-    tagSuggestions,
     lastSeenDividerRef,
     newHintDismissed,
     isDefaultLatestFeed,

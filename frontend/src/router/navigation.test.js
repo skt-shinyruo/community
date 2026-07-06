@@ -9,6 +9,7 @@ import {
   getMobileNavigation,
   getSidebarNavigation,
   isNavItemActive,
+  normalizePostsBoardId,
   normalizePostsCategoryId,
   normalizePostsFilter,
   normalizePostsOrder
@@ -34,6 +35,12 @@ describe('router/navigation', () => {
     const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     expect(normalizePostsCategoryId(categoryId)).toBe(categoryId)
     expect(normalizePostsCategoryId('')).toBe('')
+  })
+
+  it('normalizePostsBoardId should preserve UUID board ids', () => {
+    const boardId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    expect(normalizePostsBoardId(boardId)).toBe(boardId)
+    expect(normalizePostsBoardId('')).toBe('')
   })
 
   it('canAccessNavItem should enforce auth and roles', () => {

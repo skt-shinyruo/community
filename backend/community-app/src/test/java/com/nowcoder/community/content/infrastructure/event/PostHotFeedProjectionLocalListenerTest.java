@@ -15,6 +15,8 @@ import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Instant;
+
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -32,14 +34,18 @@ class PostHotFeedProjectionLocalListenerTest {
 
         listener.onContentEvent(new ContentContractEvent(
                 "evt-post-published-local",
+                uuid(301),
+                "post",
                 ContentEventTypes.POST_PUBLISHED,
+                Instant.parse("2026-07-06T08:10:00Z"),
+                51L,
                 postPayload(uuid(301), uuid(21))
         ));
 
         ArgumentCaptor<ProjectPostHotFeedCommand> captor = ArgumentCaptor.forClass(ProjectPostHotFeedCommand.class);
         verify(applicationService).project(captor.capture());
         assertThat(captor.getValue().sourceEventId()).isEqualTo("evt-post-published-local");
-        assertThat(captor.getValue().sourceEventType()).isEqualTo(ContentEventTypes.POST_PUBLISHED);
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(51L);
         assertThat(captor.getValue().postId()).isEqualTo(uuid(301));
         assertThat(captor.getValue().boardId()).isEqualTo(uuid(21));
     }
@@ -51,7 +57,11 @@ class PostHotFeedProjectionLocalListenerTest {
 
         listener.onSocialEvent(new SocialContractEvent(
                 "evt-like-comment-local",
+                uuid(302),
+                "like",
                 SocialEventTypes.LIKE_CREATED,
+                Instant.parse("2026-07-06T08:11:00Z"),
+                52L,
                 likePayload(EntityTypes.COMMENT, uuid(302))
         ));
 

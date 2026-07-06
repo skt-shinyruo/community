@@ -81,11 +81,11 @@ public class PostHotFeedProjectionKafkaListener {
             return;
         }
         applicationService.project(new ProjectPostHotFeedCommand(
-                event.eventId(),
-                event.type(),
                 postId,
                 null,
-                SocialEventTypes.LIKE_CREATED.equals(event.type()) ? LIKE_CREATED_SIGNAL : LIKE_REMOVED_SIGNAL
+                SocialEventTypes.LIKE_CREATED.equals(event.type()) ? LIKE_CREATED_SIGNAL : LIKE_REMOVED_SIGNAL,
+                event.eventId(),
+                event.version()
         ));
     }
 
@@ -95,15 +95,15 @@ public class PostHotFeedProjectionKafkaListener {
             return null;
         }
         return new ProjectPostHotFeedCommand(
-                event.eventId(),
-                event.type(),
                 payload.getPostId(),
                 payload.getCategoryId(),
                 switch (event.type()) {
                     case ContentEventTypes.POST_PUBLISHED -> POST_PUBLISHED_SIGNAL;
                     case ContentEventTypes.POST_UPDATED -> POST_UPDATED_SIGNAL;
                     default -> POST_DELETED_SIGNAL;
-                }
+                },
+                event.eventId(),
+                event.version()
         );
     }
 
@@ -113,13 +113,13 @@ public class PostHotFeedProjectionKafkaListener {
             return null;
         }
         return new ProjectPostHotFeedCommand(
-                event.eventId(),
-                event.type(),
                 payload.getPostId(),
                 null,
                 ContentEventTypes.COMMENT_CREATED.equals(event.type())
                         ? COMMENT_CREATED_SIGNAL
-                        : COMMENT_DELETED_SIGNAL
+                        : COMMENT_DELETED_SIGNAL,
+                event.eventId(),
+                event.version()
         );
     }
 

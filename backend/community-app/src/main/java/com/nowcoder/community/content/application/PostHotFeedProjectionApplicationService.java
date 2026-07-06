@@ -14,8 +14,6 @@ import java.util.UUID;
 @Service
 public class PostHotFeedProjectionApplicationService {
 
-    private static final String RANK_VERSION = "hot-v1";
-
     private final PostContentRepository postContentRepository;
     private final LikeQueryPort likeQueryPort;
     private final PostFeedCache postFeedCache;
@@ -23,6 +21,27 @@ public class PostHotFeedProjectionApplicationService {
     private final PostDetailCache postDetailCache;
     private final PostCounterCache postCounterCache;
     private final PostHotnessDomainService postHotnessDomainService;
+    private final ContentFeedPolicyProperties policyProperties;
+
+    public PostHotFeedProjectionApplicationService(
+            PostContentRepository postContentRepository,
+            LikeQueryPort likeQueryPort,
+            PostFeedCache postFeedCache,
+            PostSummaryCache postSummaryCache,
+            PostDetailCache postDetailCache,
+            PostCounterCache postCounterCache,
+            PostHotnessDomainService postHotnessDomainService,
+            ContentFeedPolicyProperties policyProperties
+    ) {
+        this.postContentRepository = postContentRepository;
+        this.likeQueryPort = likeQueryPort;
+        this.postFeedCache = postFeedCache;
+        this.postSummaryCache = postSummaryCache;
+        this.postDetailCache = postDetailCache;
+        this.postCounterCache = postCounterCache;
+        this.postHotnessDomainService = postHotnessDomainService;
+        this.policyProperties = policyProperties == null ? new ContentFeedPolicyProperties() : policyProperties;
+    }
 
     public PostHotFeedProjectionApplicationService(
             PostContentRepository postContentRepository,
@@ -33,13 +52,16 @@ public class PostHotFeedProjectionApplicationService {
             PostCounterCache postCounterCache,
             PostHotnessDomainService postHotnessDomainService
     ) {
-        this.postContentRepository = postContentRepository;
-        this.likeQueryPort = likeQueryPort;
-        this.postFeedCache = postFeedCache;
-        this.postSummaryCache = postSummaryCache;
-        this.postDetailCache = postDetailCache;
-        this.postCounterCache = postCounterCache;
-        this.postHotnessDomainService = postHotnessDomainService;
+        this(
+                postContentRepository,
+                likeQueryPort,
+                postFeedCache,
+                postSummaryCache,
+                postDetailCache,
+                postCounterCache,
+                postHotnessDomainService,
+                new ContentFeedPolicyProperties()
+        );
     }
 
     @Transactional
@@ -51,7 +73,9 @@ public class PostHotFeedProjectionApplicationService {
         }
 
         DiscussPost post = postContentRepository.getByIdAllowDeleted(postId);
-        if (post == null || post.isDeleted()) {
+        String rankVersion = policyProperties.getHotRankVersion();
+        postFeedCache.writeRankVersion(rankVersion);
+        if (post == null || post.isDeleted() || post.getStatus() != 0) {
             evictReadModels(postId);
             return;
         }
@@ -62,9 +86,9 @@ public class PostHotFeedProjectionApplicationService {
         postContentRepository.updateScore(postId, score);
         postCounterCache.updateScore(postId, score);
         postFeedCache.remove(postId, null);
-        postFeedCache.upsertGlobalHot(postId, score, RANK_VERSION);
+        postFeedCache.upsertGlobalHot(postId, score, rankVersion);
         if (boardId != null) {
-            postFeedCache.upsertBoardHot(boardId, postId, score, RANK_VERSION);
+            postFeedCache.upsertBoardHot(boardId, postId, score, rankVersion);
         }
         postSummaryCache.evictAll(List.of(postId));
         postDetailCache.evict(postId);

@@ -235,6 +235,9 @@ xxl:
 
 content:
   storage: redis
+  feed:
+    hot-rank-version: ${CONTENT_FEED_HOT_RANK_VERSION:hot-v2}
+    latest-fallback-enabled: ${CONTENT_FEED_LATEST_FALLBACK_ENABLED:true}
   events:
     publisher: ${CONTENT_EVENTS_PUBLISHER:outbox-kafka}
     outbox-topic: ${CONTENT_EVENTS_OUTBOX_TOPIC:eventbus.content}

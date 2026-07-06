@@ -21,7 +21,6 @@ public class FeedReadApplicationService {
 
     private static final int DEFAULT_SIZE = 20;
     private static final int MAX_SIZE = 50;
-    private static final String RANK_VERSION = "hot-v1";
 
     private final PostFeedCache postFeedCache;
     private final PostContentRepository postContentRepository;
@@ -32,6 +31,31 @@ public class FeedReadApplicationService {
     private final PostContentBlockTextProjector postContentBlockTextProjector;
     private final PostSummaryAssembler postSummaryAssembler;
     private final FeedCursorCodec feedCursorCodec;
+    private final ContentFeedPolicyProperties policyProperties;
+
+    public FeedReadApplicationService(
+            PostFeedCache postFeedCache,
+            PostContentRepository postContentRepository,
+            CommentContentRepository commentContentRepository,
+            TagContentRepository tagContentRepository,
+            PostContentBlockRepository postContentBlockRepository,
+            PostSummaryCache postSummaryCache,
+            PostContentBlockTextProjector postContentBlockTextProjector,
+            PostSummaryAssembler postSummaryAssembler,
+            FeedCursorCodec feedCursorCodec,
+            ContentFeedPolicyProperties policyProperties
+    ) {
+        this.postFeedCache = postFeedCache;
+        this.postContentRepository = postContentRepository;
+        this.commentContentRepository = commentContentRepository;
+        this.tagContentRepository = tagContentRepository;
+        this.postContentBlockRepository = postContentBlockRepository;
+        this.postSummaryCache = postSummaryCache;
+        this.postContentBlockTextProjector = postContentBlockTextProjector;
+        this.postSummaryAssembler = postSummaryAssembler;
+        this.feedCursorCodec = feedCursorCodec;
+        this.policyProperties = policyProperties == null ? new ContentFeedPolicyProperties() : policyProperties;
+    }
 
     public FeedReadApplicationService(
             PostFeedCache postFeedCache,
@@ -44,15 +68,18 @@ public class FeedReadApplicationService {
             PostSummaryAssembler postSummaryAssembler,
             FeedCursorCodec feedCursorCodec
     ) {
-        this.postFeedCache = postFeedCache;
-        this.postContentRepository = postContentRepository;
-        this.commentContentRepository = commentContentRepository;
-        this.tagContentRepository = tagContentRepository;
-        this.postContentBlockRepository = postContentBlockRepository;
-        this.postSummaryCache = postSummaryCache;
-        this.postContentBlockTextProjector = postContentBlockTextProjector;
-        this.postSummaryAssembler = postSummaryAssembler;
-        this.feedCursorCodec = feedCursorCodec;
+        this(
+                postFeedCache,
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec,
+                new ContentFeedPolicyProperties()
+        );
     }
 
     public FeedPageResult listGlobalHotFeed(UUID currentUserId, String cursor, int size) {
@@ -70,7 +97,7 @@ public class FeedReadApplicationService {
         String nextCursor = page.hasNext()
                 ? feedCursorCodec.encodePage(state.page() + 1, requestedLimit)
                 : "";
-        return new FeedPageResult(page.items(), nextCursor, RANK_VERSION);
+        return new FeedPageResult(page.items(), nextCursor, page.rankVersion());
     }
 
     private List<PostSummaryResult> filterBoardItems(List<PostSummaryResult> items, UUID boardId) {
@@ -116,16 +143,17 @@ public class FeedReadApplicationService {
         List<UUID> ids = readFeedIds(page == 0 ? cursor : encodedCursor, limit, boardId);
         if (!ids.isEmpty()) {
             List<PostSummaryResult> items = filterBoardItems(readSummaries(ids), boardId);
-            return new LoadedFeedPage(items, hasNextCachedPage(page, limit, boardId));
+            return new LoadedFeedPage(items, hasNextCachedPage(page, limit, boardId), postFeedCache.readRankVersion());
         }
         List<DiscussPost> fallbackPosts = listFallbackPosts(page, limit, boardId);
         if (fallbackPosts.isEmpty()) {
-            return new LoadedFeedPage(List.of(), false);
+            return new LoadedFeedPage(List.of(), false, postFeedCache.readRankVersion());
         }
-        warmFeedCache(fallbackPosts, boardId);
+        String rankVersion = policyProperties.getHotRankVersion();
+        warmFeedCache(fallbackPosts, boardId, rankVersion);
         List<PostSummaryResult> items = filterBoardItems(assembleSummaries(fallbackPosts), boardId);
         postSummaryCache.putAll(items);
-        return new LoadedFeedPage(items, !listFallbackPosts(page + 1, limit, boardId).isEmpty());
+        return new LoadedFeedPage(items, !listFallbackPosts(page + 1, limit, boardId).isEmpty(), rankVersion);
     }
 
     private boolean hasNextCachedPage(int page, int limit, UUID boardId) {
@@ -141,16 +169,17 @@ public class FeedReadApplicationService {
         return postContentRepository.listPosts(page, limit, PostContentRepository.ORDER_HOT, boardId, null);
     }
 
-    private void warmFeedCache(List<DiscussPost> posts, UUID boardId) {
+    private void warmFeedCache(List<DiscussPost> posts, UUID boardId, String rankVersion) {
+        postFeedCache.writeRankVersion(rankVersion);
         for (DiscussPost post : posts) {
             if (post == null || post.getId() == null) {
                 continue;
             }
             if (boardId == null) {
-                postFeedCache.upsertGlobalHot(post.getId(), post.getScore(), RANK_VERSION);
+                postFeedCache.upsertGlobalHot(post.getId(), post.getScore(), rankVersion);
                 continue;
             }
-            postFeedCache.upsertBoardHot(boardId, post.getId(), post.getScore(), RANK_VERSION);
+            postFeedCache.upsertBoardHot(boardId, post.getId(), post.getScore(), rankVersion);
         }
     }
 
@@ -176,6 +205,6 @@ public class FeedReadApplicationService {
                 .toList();
     }
 
-    private record LoadedFeedPage(List<PostSummaryResult> items, boolean hasNext) {
+    private record LoadedFeedPage(List<PostSummaryResult> items, boolean hasNext, String rankVersion) {
     }
 }

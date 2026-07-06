@@ -18,6 +18,7 @@ import java.util.UUID;
 public class RedisPostFeedCache implements PostFeedCache {
 
     private static final String GLOBAL_HOT_KEY = "post:feed:global:hot";
+    private static final String GLOBAL_HOT_RANK_VERSION_KEY = GLOBAL_HOT_KEY + ":rank-version";
     private static final String BOARD_HOT_KEY_PREFIX = "post:feed:board:hot:";
 
     private final StringRedisTemplate redisTemplate;
@@ -61,6 +62,20 @@ public class RedisPostFeedCache implements PostFeedCache {
             return;
         }
         redisTemplate.opsForZSet().add(boardKey(boardId), postId.toString(), score);
+    }
+
+    @Override
+    public void writeRankVersion(String rankVersion) {
+        if (!StringUtils.hasText(rankVersion)) {
+            return;
+        }
+        redisTemplate.opsForValue().set(GLOBAL_HOT_RANK_VERSION_KEY, rankVersion);
+    }
+
+    @Override
+    public String readRankVersion() {
+        String rankVersion = redisTemplate.opsForValue().get(GLOBAL_HOT_RANK_VERSION_KEY);
+        return StringUtils.hasText(rankVersion) ? rankVersion : "hot-v2";
     }
 
     @Override

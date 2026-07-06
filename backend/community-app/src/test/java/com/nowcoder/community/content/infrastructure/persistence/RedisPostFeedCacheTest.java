@@ -5,6 +5,7 @@ import com.nowcoder.community.content.domain.model.Category;
 import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
 
 import java.util.List;
@@ -41,6 +42,31 @@ class RedisPostFeedCacheTest {
         verify(zSetOperations).remove("post:feed:global:hot", postId.toString());
         verify(zSetOperations).remove("post:feed:board:hot:" + first.getId(), postId.toString());
         verify(zSetOperations).remove("post:feed:board:hot:" + second.getId(), postId.toString());
+    }
+
+    @Test
+    void rankVersionShouldRoundTripThroughRedisValueStorage() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ZSetOperations<String, String> zSetOperations = mock(ZSetOperations.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        CategoryContentRepository categoryContentRepository = mock(CategoryContentRepository.class);
+
+        when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("post:feed:global:hot:rank-version")).thenReturn("hot-v2");
+
+        RedisPostFeedCache cache = new RedisPostFeedCache(
+                redisTemplate,
+                new FeedCursorCodec(),
+                categoryContentRepository
+        );
+
+        cache.writeRankVersion("hot-v2");
+
+        verify(valueOperations).set("post:feed:global:hot:rank-version", "hot-v2");
+        org.assertj.core.api.Assertions.assertThat(cache.readRankVersion()).isEqualTo("hot-v2");
     }
 
     private static Category category(UUID id) {

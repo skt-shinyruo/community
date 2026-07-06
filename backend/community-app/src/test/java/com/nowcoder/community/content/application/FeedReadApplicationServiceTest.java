@@ -52,6 +52,7 @@ class FeedReadApplicationServiceTest {
                 .thenReturn(List.of(firstPostId, secondPostId));
         when(postFeedCache.readGlobalHotIds(feedCursorCodec.encodePage(1, 2), 2))
                 .thenReturn(List.of(extraPostId));
+        when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
         when(postContentRepository.listPostsByIds(List.of(firstPostId, secondPostId)))
                 .thenReturn(List.of(post(firstPostId, "<first>"), post(secondPostId, "<second>")));
         when(commentContentRepository.getLatestPostActivitiesByPostIds(List.of(firstPostId, secondPostId)))
@@ -81,7 +82,7 @@ class FeedReadApplicationServiceTest {
         FeedPageResult result = service.listGlobalHotFeed(null, "", 2);
         FeedCursorCodec.CursorState next = feedCursorCodec.decode(result.nextCursor());
 
-        assertThat(result.rankVersion()).isEqualTo("hot-v1");
+        assertThat(result.rankVersion()).isEqualTo("hot-v2");
         assertThat(next.page()).isEqualTo(1);
         assertThat(next.size()).isEqualTo(2);
         assertThat(result.items()).extracting(PostSummaryResult::id).containsExactly(firstPostId, secondPostId);
@@ -240,6 +241,7 @@ class FeedReadApplicationServiceTest {
 
         when(postFeedCache.readGlobalHotIds("%%%not-a-cursor%%%", 2))
                 .thenReturn(List.of(uuid(1), uuid(2)));
+        when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
         when(postContentRepository.listPostsByIds(List.of(uuid(1), uuid(2))))
                 .thenReturn(allPosts);
         mockSummaryDependencies(commentContentRepository, tagContentRepository, postContentBlockRepository, postContentBlockTextProjector, allPosts);
@@ -283,6 +285,7 @@ class FeedReadApplicationServiceTest {
         List<DiscussPost> posts = List.of(firstPost, secondPost);
 
         when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
+        when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
         when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(posts);
         when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
         mockSummaryDependencies(commentContentRepository, tagContentRepository, postContentBlockRepository, postContentBlockTextProjector, posts);
@@ -303,8 +306,53 @@ class FeedReadApplicationServiceTest {
 
         assertThat(result.items()).extracting(PostSummaryResult::id).containsExactly(uuid(31), uuid(32));
         assertThat(result.nextCursor()).isEmpty();
-        verify(postFeedCache).upsertGlobalHot(uuid(31), 91.0, "hot-v1");
-        verify(postFeedCache).upsertGlobalHot(uuid(32), 88.0, "hot-v1");
+        verify(postFeedCache).upsertGlobalHot(uuid(31), 91.0, "hot-v2");
+        verify(postFeedCache).upsertGlobalHot(uuid(32), 88.0, "hot-v2");
+    }
+
+    @Test
+    void listGlobalHotFeedShouldReturnConfiguredRankVersionWhenColdCacheWarmsFeed() {
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
+        when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
+        ContentFeedPolicyProperties policyProperties = new ContentFeedPolicyProperties();
+        policyProperties.setHotRankVersion("hot-v9");
+        DiscussPost firstPost = post(uuid(61), "<first>");
+        firstPost.setScore(123.0);
+        List<DiscussPost> posts = List.of(firstPost);
+
+        when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
+        when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
+        when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(posts);
+        when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
+        mockSummaryDependencies(commentContentRepository, tagContentRepository, postContentBlockRepository, postContentBlockTextProjector, posts);
+
+        FeedReadApplicationService service = new FeedReadApplicationService(
+                postFeedCache,
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec,
+                policyProperties
+        );
+
+        FeedPageResult result = service.listGlobalHotFeed(null, "", 2);
+
+        assertThat(result.rankVersion()).isEqualTo("hot-v9");
+        verify(postFeedCache).writeRankVersion("hot-v9");
+        verify(postFeedCache).upsertGlobalHot(uuid(61), 123.0, "hot-v9");
     }
 
     @Test
@@ -354,7 +402,7 @@ class FeedReadApplicationServiceTest {
 
         assertThat(result.items()).singleElement().satisfies(item -> assertThat(item.id()).isEqualTo(uuid(42)));
         assertThat(result.nextCursor()).isEmpty();
-        verify(postFeedCache).upsertBoardHot(boardId, uuid(42), 77.0, "hot-v1");
+        verify(postFeedCache).upsertBoardHot(boardId, uuid(42), 77.0, "hot-v2");
     }
 
     @Test
@@ -377,6 +425,7 @@ class FeedReadApplicationServiceTest {
 
         when(postFeedCache.readGlobalHotIds("", 2))
                 .thenReturn(List.of(firstPostId, secondPostId));
+        when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
         when(postSummaryCache.getAll(List.of(firstPostId, secondPostId)))
                 .thenReturn(Map.of(firstPostId, summary(firstPostId, "<cached>")));
         when(postContentRepository.listPostsByIds(List.of(secondPostId)))
@@ -406,6 +455,41 @@ class FeedReadApplicationServiceTest {
         assertThat(page.items()).extracting(PostSummaryResult::id).containsExactly(firstPostId, secondPostId);
         assertThat(page.items().get(0).title()).isEqualTo("<cached>");
         assertThat(page.items().get(1).title()).isEqualTo("<second>");
+    }
+
+    @Test
+    void listGlobalHotFeedShouldReturnCacheRankVersion() {
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
+        when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
+
+        when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
+        when(postFeedCache.readGlobalHotIds("", 20)).thenReturn(List.of());
+        when(postContentRepository.listPosts(0, 20, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
+
+        FeedReadApplicationService service = new FeedReadApplicationService(
+                postFeedCache,
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec
+        );
+
+        FeedPageResult page = service.listGlobalHotFeed(null, "", 20);
+
+        assertThat(page.rankVersion()).isEqualTo("hot-v2");
     }
 
     private static DiscussPost post(UUID postId, String title) {

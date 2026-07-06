@@ -15,6 +15,7 @@ import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Instant;
 import java.util.Map;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -34,14 +35,18 @@ class PostHotFeedProjectionKafkaListenerTest {
 
         listener.onContentEvent(new ContentContractEvent(
                 "evt-post-published",
+                uuid(200),
+                "post",
                 ContentEventTypes.POST_PUBLISHED,
+                Instant.parse("2026-07-06T08:00:00Z"),
+                42L,
                 postPayload(uuid(200), uuid(10))
         ));
 
         ArgumentCaptor<ProjectPostHotFeedCommand> captor = ArgumentCaptor.forClass(ProjectPostHotFeedCommand.class);
         verify(applicationService).project(captor.capture());
         assertThat(captor.getValue().sourceEventId()).isEqualTo("evt-post-published");
-        assertThat(captor.getValue().sourceEventType()).isEqualTo(ContentEventTypes.POST_PUBLISHED);
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(42L);
         assertThat(captor.getValue().postId()).isEqualTo(uuid(200));
         assertThat(captor.getValue().boardId()).isEqualTo(uuid(10));
     }
@@ -53,7 +58,11 @@ class PostHotFeedProjectionKafkaListenerTest {
 
         listener.onContentEvent(new ContentContractEvent(
                 "evt-post-map",
+                uuid(201),
+                "post",
                 ContentEventTypes.POST_UPDATED,
+                Instant.parse("2026-07-06T08:01:00Z"),
+                43L,
                 Map.of("postId", uuid(201).toString(), "categoryId", uuid(11).toString())
         ));
 
@@ -61,7 +70,7 @@ class PostHotFeedProjectionKafkaListenerTest {
         verify(applicationService).project(captor.capture());
         assertThat(captor.getValue().postId()).isEqualTo(uuid(201));
         assertThat(captor.getValue().boardId()).isEqualTo(uuid(11));
-        assertThat(captor.getValue().sourceEventType()).isEqualTo(ContentEventTypes.POST_UPDATED);
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(43L);
     }
 
     @Test
@@ -71,14 +80,18 @@ class PostHotFeedProjectionKafkaListenerTest {
 
         listener.onSocialEvent(new SocialContractEvent(
                 "evt-like-created",
+                uuid(202),
+                "like",
                 SocialEventTypes.LIKE_CREATED,
+                Instant.parse("2026-07-06T08:02:00Z"),
+                44L,
                 likePayload(EntityTypes.POST, uuid(202))
         ));
 
         ArgumentCaptor<ProjectPostHotFeedCommand> captor = ArgumentCaptor.forClass(ProjectPostHotFeedCommand.class);
         verify(applicationService).project(captor.capture());
         assertThat(captor.getValue().sourceEventId()).isEqualTo("evt-like-created");
-        assertThat(captor.getValue().sourceEventType()).isEqualTo(SocialEventTypes.LIKE_CREATED);
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(44L);
         assertThat(captor.getValue().postId()).isEqualTo(uuid(202));
         assertThat(captor.getValue().boardId()).isNull();
         assertThat(captor.getValue().signalWeight()).isEqualTo(1.0);
@@ -91,7 +104,11 @@ class PostHotFeedProjectionKafkaListenerTest {
 
         listener.onSocialEvent(new SocialContractEvent(
                 "evt-like-comment",
+                uuid(203),
+                "like",
                 SocialEventTypes.LIKE_CREATED,
+                Instant.parse("2026-07-06T08:03:00Z"),
+                45L,
                 likePayload(EntityTypes.COMMENT, uuid(203))
         ));
 

@@ -386,7 +386,7 @@ git commit -m "feat: add event backbone metadata"
 - Produces: `String readRankVersion()` and `void writeRankVersion(String rankVersion)` on `PostFeedCache`
 - Produces: `FeedPageResult listGlobalHotFeed(UUID currentUserId, String cursor, int size)` returning the cache-backed `rankVersion`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
 @Test
@@ -420,13 +420,13 @@ void listGlobalHotFeedShouldReturnCacheRankVersion() {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && mvn test -pl :community-app -Dtest=PostHotFeedProjectionApplicationServiceTest,FeedReadApplicationServiceTest,PostHotFeedProjectionKafkaListenerTest,RedisPostFeedCacheTest`
 
 Expected: FAIL because the command, cache, and read service do not yet expose source metadata or cache-managed rank version.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 ```java
 @ConfigurationProperties(prefix = "content.feed")
@@ -538,13 +538,13 @@ content:
     latest-fallback-enabled: ${CONTENT_FEED_LATEST_FALLBACK_ENABLED:true}
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd backend && mvn test -pl :community-app -Dtest=PostHotFeedProjectionApplicationServiceTest,FeedReadApplicationServiceTest,PostHotFeedProjectionKafkaListenerTest,RedisPostFeedCacheTest`
 
 Expected: PASS with Redis feed cache, listener, and read service tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/community-app/src/main/java/com/nowcoder/community/content/application/ContentFeedPolicyProperties.java \

@@ -3,7 +3,6 @@ package com.nowcoder.community.growth.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.content.application.HotFeedReadMetrics;
 import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
@@ -42,9 +41,6 @@ class TaskProgressApplicationServiceTest {
 
     @MockBean
     private ClientIpResolver clientIpResolver;
-
-    @MockBean
-    private HotFeedReadMetrics hotFeedReadMetrics;
 
     @BeforeEach
     void setUp() {

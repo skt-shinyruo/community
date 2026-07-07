@@ -220,19 +220,22 @@ class SearchPostProjectionApplicationServiceTest {
     }
 
     @Test
-    void replayedOldEventShouldNotReviveDeletedPost() throws Exception {
+    void replayedOldEventShouldNotReviveDeletedPost() {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
                 new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
         java.util.UUID postId = uuid(205);
 
-        when(postScanQueryApi.getPostProjectionAllowDeleted(postId)).thenReturn(null);
+        when(postScanQueryApi.getPostProjectionAllowDeleted(postId))
+                .thenReturn(postProjection(postId, "visible title", "visible content", 3.0))
+                .thenReturn(null);
 
+        service.projectPostFromOutbox(new ProjectPostOutboxCommand(postId, "evt-current-create", 2L));
         service.projectPostFromOutbox(new ProjectPostOutboxCommand(postId, "evt-old-create-replayed", 1L));
 
+        verify(searchApplicationService).syncPostProjection(org.mockito.ArgumentMatchers.any());
         verify(searchApplicationService).deletePost(new DeleteIndexedPostCommand(postId));
-        verify(searchApplicationService, never()).syncPostProjection(org.mockito.ArgumentMatchers.any());
     }
 
     private static PostScanView.PostProjectionView postProjection(

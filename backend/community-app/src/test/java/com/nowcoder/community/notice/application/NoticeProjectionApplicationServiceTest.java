@@ -44,15 +44,16 @@ class NoticeProjectionApplicationServiceTest {
     }
 
     @Test
-    void replayedSourceEventShouldNotCreateDuplicateNotice() {
+    void replayedSourceEventShouldNotCreateDuplicateNoticeAcrossPayloadChanges() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
         NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
         when(eventRecorder.tryRecord("event-1")).thenReturn(true, false);
         NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
-        ProjectContentNoticeCommand command = commentCommand("event-1");
+        ProjectContentNoticeCommand first = commentCommand("event-1");
+        ProjectContentNoticeCommand replayed = commentCommand("event-1", uuid(101), uuid(10));
 
-        projectionService.projectContentEventReliably(command);
-        projectionService.projectContentEventReliably(command);
+        projectionService.projectContentEventReliably(first);
+        projectionService.projectContentEventReliably(replayed);
 
         verify(eventRecorder, times(2)).tryRecord("event-1");
         verify(noticeService, times(1)).createNotice(any(CreateNoticeCommand.class));
@@ -235,9 +236,13 @@ class NoticeProjectionApplicationServiceTest {
     }
 
     private static ProjectContentNoticeCommand commentCommand(String eventId) {
+        return commentCommand(eventId, uuid(100), uuid(9));
+    }
+
+    private static ProjectContentNoticeCommand commentCommand(String eventId, UUID postId, UUID targetUserId) {
         CommentPayload payload = new CommentPayload();
-        payload.setTargetUserId(uuid(9));
-        payload.setPostId(uuid(100));
+        payload.setTargetUserId(targetUserId);
+        payload.setPostId(postId);
         return new ProjectContentNoticeCommand(eventId, 42L, ContentEventTypes.COMMENT_CREATED, payload);
     }
 

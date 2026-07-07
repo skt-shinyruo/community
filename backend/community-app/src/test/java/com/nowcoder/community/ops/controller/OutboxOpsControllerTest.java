@@ -4,6 +4,8 @@ import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.ops.application.OutboxGovernanceApplicationService;
+import com.nowcoder.community.ops.application.command.FindOutboxEventsCommand;
+import com.nowcoder.community.ops.application.command.ReplayOutboxEventCommand;
 import com.nowcoder.community.ops.application.result.OutboxBacklogResult;
 import com.nowcoder.community.ops.application.result.OutboxEventResult;
 import com.nowcoder.community.ops.application.result.OutboxReplayResult;
@@ -16,6 +18,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.mockito.ArgumentCaptor;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -23,7 +26,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -68,6 +74,8 @@ class OutboxOpsControllerTest {
     void adminShouldQueryBacklogAndEventsAndReplay() throws Exception {
         UUID adminUserId = uuid(99);
         UUID outboxId = uuid(1);
+        Instant createdFrom = Instant.parse("2026-07-01T00:00:00Z");
+        Instant createdTo = Instant.parse("2026-07-08T00:00:00Z");
         when(outboxGovernanceApplicationService.listBacklog())
                 .thenReturn(List.of(new OutboxBacklogResult("projection.search.post", "DEAD", 2L)));
         when(outboxGovernanceApplicationService.findEvents(any()))
@@ -96,7 +104,13 @@ class OutboxOpsControllerTest {
                 .andExpect(jsonPath("$.data[0].status").value("DEAD"))
                 .andExpect(jsonPath("$.data[0].count").value(2));
 
-        mockMvc.perform(get("/api/ops/outbox/events?status=DEAD&topic=projection.search.post&limit=10")
+        mockMvc.perform(get("/api/ops/outbox/events")
+                        .param("status", "DEAD")
+                        .param("topic", "projection.search.post")
+                        .param("eventId", "event-1")
+                        .param("createdFrom", createdFrom.toString())
+                        .param("createdTo", createdTo.toString())
+                        .param("limit", "10")
                         .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].outboxId").value(outboxId.toString()))
@@ -111,8 +125,28 @@ class OutboxOpsControllerTest {
                 .andExpect(jsonPath("$.data.afterStatus").value("PENDING"));
 
         verify(outboxGovernanceApplicationService).listBacklog();
-        verify(outboxGovernanceApplicationService).findEvents(any());
-        verify(outboxGovernanceApplicationService).replay(any());
+        ArgumentCaptor<FindOutboxEventsCommand> findEventsCommandCaptor =
+                ArgumentCaptor.forClass(FindOutboxEventsCommand.class);
+        verify(outboxGovernanceApplicationService).findEvents(findEventsCommandCaptor.capture());
+        FindOutboxEventsCommand findEventsCommand = findEventsCommandCaptor.getValue();
+        assertAll(
+                () -> assertEquals("DEAD", findEventsCommand.status()),
+                () -> assertEquals("projection.search.post", findEventsCommand.topic()),
+                () -> assertEquals("event-1", findEventsCommand.eventId()),
+                () -> assertEquals(createdFrom, findEventsCommand.createdFrom()),
+                () -> assertEquals(createdTo, findEventsCommand.createdTo()),
+                () -> assertEquals(10, findEventsCommand.limit())
+        );
+
+        ArgumentCaptor<ReplayOutboxEventCommand> replayCommandCaptor =
+                ArgumentCaptor.forClass(ReplayOutboxEventCommand.class);
+        verify(outboxGovernanceApplicationService, times(1)).replay(replayCommandCaptor.capture());
+        ReplayOutboxEventCommand replayCommand = replayCommandCaptor.getValue();
+        assertAll(
+                () -> assertEquals(adminUserId, replayCommand.actorUserId()),
+                () -> assertEquals(outboxId, replayCommand.outboxId()),
+                () -> assertEquals("fixed es mapping", replayCommand.reason())
+        );
     }
 
     private static UUID uuid(long suffix) {

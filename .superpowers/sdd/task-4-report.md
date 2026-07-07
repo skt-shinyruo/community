@@ -130,3 +130,28 @@ No functional issues found inside the delivered Task 4 scope.
 
 - The branch already uses `com.nowcoder.community.common.web.Result`, `GlobalExceptionHandler`, and `SecurityExceptionHandler`; the brief's sample imports for those types were stale, so the implementation followed the live codebase.
 - Maven still prints an existing unrelated unchecked-operation warning from `RedisRegistrationCodeRepositoryTest` during `testCompile`. This task did not introduce that warning.
+
+## Review Fix Follow-up
+
+Applied one focused review fix in `OutboxOpsControllerTest` only. No production code change was needed.
+
+Updated coverage:
+
+- captured the `FindOutboxEventsCommand` forwarded by `GET /api/ops/outbox/events`
+- asserted exact forwarding of `status`, `topic`, `eventId`, `createdFrom`, `createdTo`, and `limit`
+- captured the `ReplayOutboxEventCommand` forwarded by `POST /api/ops/outbox/events/{outboxId}/replay`
+- asserted exact forwarding of JWT-subject `actorUserId`, path `outboxId`, and JSON `reason`
+
+Verification for the review fix:
+
+```bash
+cd backend
+mvn test -pl :community-app -Dtest=OutboxOpsControllerTest
+```
+
+Result:
+
+```text
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```

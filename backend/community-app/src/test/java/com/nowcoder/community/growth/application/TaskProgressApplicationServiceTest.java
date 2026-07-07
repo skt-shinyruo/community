@@ -3,6 +3,7 @@ package com.nowcoder.community.growth.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.content.application.HotFeedReadMetrics;
 import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
@@ -41,6 +42,9 @@ class TaskProgressApplicationServiceTest {
 
     @MockBean
     private ClientIpResolver clientIpResolver;
+
+    @MockBean
+    private HotFeedReadMetrics hotFeedReadMetrics;
 
     @BeforeEach
     void setUp() {
@@ -156,12 +160,13 @@ class TaskProgressApplicationServiceTest {
     }
 
     @Test
-    void duplicateSourceEventShouldNotDoubleCountProgress() {
-        service.processEvent(USER_ID, "PostPublished", "post-evt-1", LocalDate.of(2026, 3, 22));
-        service.processEvent(USER_ID, "PostPublished", "post-evt-1", LocalDate.of(2026, 3, 22));
+    void replayedSourceEventShouldNotIncrementTaskTwice() {
+        service.processEvent(USER_ID, "PostPublished", "post-evt-replayed", LocalDate.of(2026, 3, 22));
+        service.processEvent(USER_ID, "PostPublished", "post-evt-replayed", LocalDate.of(2026, 3, 22));
 
         assertThat(countProgressRows("DAILY_POST")).isEqualTo(1);
         assertThat(progressValue("DAILY_POST")).isEqualTo(1);
+        assertThat(eventLogCount("DAILY_POST", "post-evt-replayed")).isEqualTo(1);
         assertThat(walletTxnCountFor("task:" + USER_ID + ":DAILY_POST:2026-03-22")).isEqualTo(1);
     }
 

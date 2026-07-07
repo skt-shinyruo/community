@@ -44,6 +44,21 @@ class NoticeProjectionApplicationServiceTest {
     }
 
     @Test
+    void replayedSourceEventShouldNotCreateDuplicateNotice() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        when(eventRecorder.tryRecord("event-1")).thenReturn(true, false);
+        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
+        ProjectContentNoticeCommand command = commentCommand("event-1");
+
+        projectionService.projectContentEventReliably(command);
+        projectionService.projectContentEventReliably(command);
+
+        verify(eventRecorder, times(2)).tryRecord("event-1");
+        verify(noticeService, times(1)).createNotice(any(CreateNoticeCommand.class));
+    }
+
+    @Test
     void reliableContentProjectionShouldPropagateNoticeCreationFailureForKafkaRetry() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
         NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);

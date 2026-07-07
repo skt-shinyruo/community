@@ -13,6 +13,8 @@ import java.util.UUID;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -278,6 +280,55 @@ class PostHotFeedProjectionApplicationServiceTest {
 
         verify(postFeedCache).upsertGlobalHot(uuid(211), 14.0, "hot-v2");
         verify(projectionGuard).commit(attempt);
+    }
+
+    @Test
+    void outOfOrderProjectionShouldNotRegressVersion() {
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        PostCounterCache postCounterCache = mock(PostCounterCache.class);
+        PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
+        HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
+        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+                postContentRepository,
+                likeQueryPort,
+                postFeedCache,
+                postSummaryCache,
+                postDetailCache,
+                postCounterCache,
+                postHotnessDomainService,
+                policyProperties(),
+                projectionGuard
+        );
+        HotFeedProjectionGuard.ProjectionAttempt accepted = HotFeedProjectionGuard.ProjectionAttempt.accepted(
+                uuid(230),
+                "evt-new",
+                20L,
+                "token-new"
+        );
+        HotFeedProjectionGuard.ProjectionAttempt stale = HotFeedProjectionGuard.ProjectionAttempt.rejected(
+                uuid(230),
+                "evt-old",
+                10L
+        );
+        DiscussPost post = post(uuid(230), uuid(30), 0, 10.0);
+        when(projectionGuard.tryBegin(uuid(230), "evt-new", 20L)).thenReturn(accepted);
+        when(projectionGuard.tryBegin(uuid(230), "evt-old", 10L)).thenReturn(stale);
+        when(postContentRepository.getByIdAllowDeleted(uuid(230))).thenReturn(post);
+        when(likeQueryPort.countPostLikes(uuid(230))).thenReturn(2L);
+        when(postHotnessDomainService.recomputeScore(post, 2L, 1.0)).thenReturn(14.0);
+        when(projectionGuard.isCurrent(accepted)).thenReturn(true);
+
+        service.project(new ProjectPostHotFeedCommand(uuid(230), uuid(30), 1.0, "evt-new", 20L));
+        service.project(new ProjectPostHotFeedCommand(uuid(230), uuid(30), 1.0, "evt-old", 10L));
+
+        verify(postFeedCache).upsertGlobalHot(uuid(230), 14.0, "hot-v2");
+        verify(postHotnessDomainService, times(1)).recomputeScore(post, 2L, 1.0);
+        verify(projectionGuard).commit(accepted);
+        verify(projectionGuard, never()).commit(stale);
     }
 
     @Test

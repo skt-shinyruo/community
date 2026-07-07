@@ -36,6 +36,8 @@
 | Domain event | 领域内部发生的事实事件，先在 owner 内表达。 | 帖子创建、点赞变更、拉黑关系变更。 |
 | Outbox | 事务内写出待投递事件，再由 worker 可靠投递。 | search post projection、IM policy projection。 |
 | Projection | 为查询、推送或快速判定维护的派生视图。它不是 SSOT。 | notice 表、ES 索引、IM policy 本地缓存。 |
+| Feed cursor | Feed 翻页的不透明游标，客户端不能依赖内部结构。 | 全局热榜、板块热榜、关注流翻页。 |
+| Rank version | 一次榜单排序结果或投影批次的版本标识，用于解释 feed 页属于哪次排序视图。 | 热榜刷新后返回新的 `rankVersion`。 |
 | Best-effort | 主事务提交后尽力执行的副作用，失败不回滚主事实。 | 通知投影失败只记录日志。 |
 | Saga command | 跨领域长流程中的状态化命令，不等于最终业务完成。 | market wallet action 的 escrow/release/refund。 |
 | Pending state | 主流程已经接单，但下游动作仍在进行的中间状态。 | 订单等待资金动作完成。 |
@@ -45,6 +47,10 @@
 | 术语 | 含义 | Owner |
 | --- | --- | --- |
 | 帖子 / 评论 | 社区内容主事实，包含正文、分类、标签、媒体引用和治理状态。 | `content` |
+| 全局热榜 | 面向所有访问者的默认首页 feed，由事件驱动预计算热度并写入读模型。 | `content` |
+| 关注流 | 登录用户基于关注作者产生的 feed 入口，优先通过拉取合并候选内容生成。 | `content` + `social` |
+| 两级评论 | 帖子下 root comment 与 root comment 下 reply 的评论结构，不支持无限嵌套。 | `content` |
+| 内容可见性状态 | 内容是否公开、仅作者可见、待审核、拒绝或移除的业务状态。 | `content` |
 | 点赞 / 关注 / 拉黑 | 用户之间或用户对实体的社交关系。 | `social` |
 | 通知 | 点赞、评论、关注、治理等事件形成的站内通知读模型。 | `notice` |
 | 任务进度 | 用户因内容或社交事件推进的成长任务状态。 | `growth` |

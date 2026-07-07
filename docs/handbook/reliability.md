@@ -263,6 +263,23 @@ OutboxWorkerScheduler
 
 `DEAD` 不是业务终点，只是自动重试终点。人工仍需确认副作用、修复 handler 或执行重放。
 
+## Outbox Governance
+
+管理员可靠性治理 API 位于 `/api/ops/outbox/**`，并要求 `ROLE_ADMIN`。
+
+- `GET /api/ops/outbox/backlog` 返回按 topic 分组的 `PENDING`、`PROCESSING` 和 `DEAD` 数量。
+- `GET /api/ops/outbox/events` 支持按 `status`、`topic`、`eventId`、`createdFrom`、`createdTo` 和 `limit` 过滤。
+- `POST /api/ops/outbox/events/{outboxId}/replay` 只会把 `DEAD` 行重新排回 `PENDING`。
+
+Replay 不会直接调用 handler。它会清零 retry count、把 `next_retry_at` 设为当前时间、把操作人原因写入 `last_error`，然后交回正常 `OutboxWorker` 路径去 claim 和处理。
+
+以下情况会拒绝 replay：
+
+- 行状态不是 `DEAD`。
+- topic 没有注册 handler。
+- payload 为空。
+- operator 没有提供非空 reason。
+
 ## Outbox Handler 幂等
 
 worker 不保证 exactly-once，handler 必须自己保证幂等。

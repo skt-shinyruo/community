@@ -397,13 +397,11 @@ mvn test -pl :community-app -Dtest='*ArchTest'
 
 必须能看到这些信号：
 
-- `community_outbox_backlog{topic,status}`
-- `community_outbox_dead_total{topic}`
 - `community_outbox_replay_total{topic,result}`
-- `community_projection_lag_seconds{projection}`
 - `community_http_idempotency_total{op,outcome}`
-- `community_cache_requests_total{cache,result}`
-- `community_cache_degraded_total{cache,reason}`
+- `GET /api/ops/outbox/backlog`
+- `GET /api/ops/projections/lag`
+- `community_cache_requests_total{cache,result,scope}`
 - `community_job_runs_total{job.name,result}`
 
 ### 压测验收
@@ -425,3 +423,13 @@ mvn test -pl :community-app -Dtest='*ArchTest'
 4. content/search/notice/growth 切片验证。
 5. social/notice/growth/hot feed 切片验证。
 6. 热点缓存降级、single-flight 和压测验收。
+
+## Implementation Status
+
+第一波实现已经覆盖：
+
+- outbox governance query 和 replay primitives
+- `/api/ops/outbox/**` 管理治理 API
+- projection lag visibility
+- hot-feed cache reliability metrics
+- search、notice、growth 和 hot feed 的 replay regression tests

@@ -2,6 +2,7 @@ package com.nowcoder.community.content.application;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +11,7 @@ public class HotFeedReadMetrics {
 
     private final MeterRegistry meterRegistry;
 
+    @Autowired
     public HotFeedReadMetrics(ObjectProvider<MeterRegistry> meterRegistryProvider) {
         this(meterRegistryProvider == null ? null : meterRegistryProvider.getIfAvailable());
     }

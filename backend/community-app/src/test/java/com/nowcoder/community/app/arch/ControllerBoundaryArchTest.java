@@ -137,6 +137,22 @@ class ControllerBoundaryArchTest {
                     .because("drive controllers must enter through same-domain application services only");
 
     @ArchTest
+    static final ArchRule ops_controllers_should_enter_ops_application_only =
+            noClasses()
+                    .that().resideInAnyPackage("..ops.controller..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "..ops.domain..",
+                            "..ops.infrastructure..",
+                            "..common.outbox..",
+                            "..content..",
+                            "..social..",
+                            "..search..",
+                            "..notice..",
+                            "..growth.."
+                    )
+                    .because("ops controllers must enter through ops application services only");
+
+    @ArchTest
     static final ArchRule production_code_must_not_use_legacy_app_query_package =
             noClasses()
                     .should().resideInAnyPackage("..app.query..");

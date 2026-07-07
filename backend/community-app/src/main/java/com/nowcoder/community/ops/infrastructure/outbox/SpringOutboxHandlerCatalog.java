@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.Set;
 
 @Component
 public class SpringOutboxHandlerCatalog implements OutboxHandlerCatalog {
@@ -24,7 +24,6 @@ public class SpringOutboxHandlerCatalog implements OutboxHandlerCatalog {
         return StringUtils.hasText(topic) && topics().contains(topic.trim());
     }
 
-    @Override
     public Set<String> topics() {
         List<OutboxHandler> handlers = handlersProvider == null ? null : handlersProvider.getIfAvailable();
         if (handlers == null || handlers.isEmpty()) {

@@ -172,29 +172,58 @@ public class FeedReadApplicationService {
     private LoadedFeedPage loadHotPage(String cursor, int page, int limit, UUID boardId) {
         String scope = boardId == null ? "global" : "board";
         String encodedCursor = feedCursorCodec.encodePage(page, limit);
-        try {
-            List<UUID> ids = readFeedIds(page == 0 ? cursor : encodedCursor, limit, boardId);
-            if (!ids.isEmpty()) {
-                hotFeedReadMetrics.record("hit", scope);
-                List<PostSummaryResult> items = filterBoardItems(postFeedSummaryLoader.readSummaries(ids), boardId);
-                return new LoadedFeedPage(items, hasNextCachedPage(page, limit, boardId), safeRankVersion());
-            }
-        } catch (RuntimeException ex) {
-            hotFeedReadMetrics.record("degraded", scope);
+        CachePageLoad cachePageLoad = loadCachePage(page == 0 ? cursor : encodedCursor, page, limit, boardId);
+        if (cachePageLoad.page() != null) {
+            hotFeedReadMetrics.record(cachePageLoad.result(), scope);
+            return cachePageLoad.page();
         }
+        return loadFallbackPage(page, limit, boardId, scope, cachePageLoad.cacheDegraded());
+    }
+
+    private CachePageLoad loadCachePage(String cursor, int page, int limit, UUID boardId) {
+        List<UUID> ids;
+        try {
+            ids = readFeedIds(cursor, limit, boardId);
+        } catch (RuntimeException ex) {
+            return CachePageLoad.degradedMiss();
+        }
+        if (ids.isEmpty()) {
+            return CachePageLoad.miss();
+        }
+        List<PostSummaryResult> items;
+        try {
+            items = filterBoardItems(postFeedSummaryLoader.readSummaries(ids), boardId);
+        } catch (RuntimeException ex) {
+            return CachePageLoad.miss();
+        }
+        boolean hasNext;
+        try {
+            hasNext = hasNextCachedPage(page, limit, boardId);
+        } catch (RuntimeException ex) {
+            return CachePageLoad.degradedMiss();
+        }
+        RankVersionResult rankVersion = safeRankVersion();
+        String result = rankVersion.degraded() ? "degraded" : "hit";
+        return CachePageLoad.page(new LoadedFeedPage(items, hasNext, rankVersion.value()), result);
+    }
+
+    private LoadedFeedPage loadFallbackPage(int page, int limit, UUID boardId, String scope, boolean cacheDegraded) {
         if (!policyProperties.isLatestFallbackEnabled()) {
-            return new LoadedFeedPage(List.of(), false, safeRankVersion());
+            RankVersionResult rankVersion = safeRankVersion();
+            hotFeedReadMetrics.record(cacheDegraded || rankVersion.degraded() ? "degraded" : "empty", scope);
+            return new LoadedFeedPage(List.of(), false, rankVersion.value());
         }
         List<DiscussPost> fallbackPosts = listFallbackPosts(page, limit, boardId);
         if (fallbackPosts.isEmpty()) {
-            hotFeedReadMetrics.record("empty", scope);
-            return new LoadedFeedPage(List.of(), false, safeRankVersion());
+            RankVersionResult rankVersion = safeRankVersion();
+            hotFeedReadMetrics.record(cacheDegraded || rankVersion.degraded() ? "degraded" : "empty", scope);
+            return new LoadedFeedPage(List.of(), false, rankVersion.value());
         }
-        hotFeedReadMetrics.record("fallback", scope);
         String rankVersion = policyProperties.getHotRankVersion();
         warmFeedCache(fallbackPosts, boardId, rankVersion);
         List<PostSummaryResult> items = filterBoardItems(postFeedSummaryLoader.assembleSummaries(fallbackPosts), boardId);
         postSummaryCache.putAll(items);
+        hotFeedReadMetrics.record(cacheDegraded ? "degraded" : "fallback", scope);
         return new LoadedFeedPage(items, !listFallbackPosts(page + 1, limit, boardId).isEmpty(), rankVersion);
     }
 
@@ -211,12 +240,11 @@ public class FeedReadApplicationService {
         return postContentRepository.listPosts(page, limit, PostContentRepository.ORDER_HOT, boardId, null);
     }
 
-    private String safeRankVersion() {
+    private RankVersionResult safeRankVersion() {
         try {
-            return postFeedCache.readRankVersion();
+            return new RankVersionResult(postFeedCache.readRankVersion(), false);
         } catch (RuntimeException ex) {
-            hotFeedReadMetrics.record("degraded", "rank_version");
-            return policyProperties.getHotRankVersion();
+            return new RankVersionResult(policyProperties.getHotRankVersion(), true);
         }
     }
 
@@ -237,6 +265,25 @@ public class FeedReadApplicationService {
     private int normalizeRequestedSize(int size) {
         return Math.min(MAX_SIZE, Math.max(1, size <= 0 ? DEFAULT_SIZE : size));
     }
+
+    private record CachePageLoad(LoadedFeedPage page, boolean cacheDegraded, String result) {
+
+        private static CachePageLoad page(LoadedFeedPage page, String result) {
+            return new CachePageLoad(page, false, result);
+        }
+
+        private static CachePageLoad miss() {
+            return new CachePageLoad(null, false, null);
+        }
+
+        private static CachePageLoad degradedMiss() {
+            return new CachePageLoad(null, true, null);
+        }
+    }
+
+    private record RankVersionResult(String value, boolean degraded) {
+    }
+
     private record LoadedFeedPage(List<PostSummaryResult> items, boolean hasNext, String rankVersion) {
     }
 }

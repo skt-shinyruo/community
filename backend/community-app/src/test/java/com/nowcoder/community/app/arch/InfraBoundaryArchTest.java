@@ -13,6 +13,7 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 import java.util.Set;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 @AnalyzeClasses(
         packages = "com.nowcoder.community",
@@ -40,6 +41,13 @@ class InfraBoundaryArchTest {
                             true,
                             Set.of()
                     ));
+
+    @ArchTest
+    static final ArchRule ops_application_must_not_depend_on_ops_infrastructure =
+            noClasses()
+                    .that().resideInAnyPackage("..ops.application..")
+                    .should().dependOnClassesThat().resideInAnyPackage("..ops.infrastructure..")
+                    .because("ops application owns ports and infrastructure implements them");
 
     @ArchTest
     static final ArchRule infrastructure_owner_api_implementations_should_be_named_adapters =

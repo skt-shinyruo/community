@@ -195,6 +195,21 @@ class DomainBoundaryArchTest {
                     .should().dependOnClassesThat().resideInAnyPackage("org.springframework..")
                     .because("domain must not depend on Spring framework");
 
+    @ArchTest
+    static final ArchRule ops_domain_must_not_depend_on_framework_or_persistence =
+            noClasses()
+                    .that().resideInAnyPackage("..ops.domain..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "org.springframework..",
+                            "jakarta.servlet..",
+                            "org.mybatis..",
+                            "..mapper..",
+                            "..dataobject..",
+                            "..controller.dto..",
+                            "..infrastructure.."
+                    )
+                    .because("ops domain expresses governance decisions only");
+
     private static ArchCondition<JavaClass> notDependOnForeignPackage(
             String packageLabel,
             Pattern trackedPackage,

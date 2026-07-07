@@ -39,6 +39,11 @@
 | Feed cursor | Feed 翻页的不透明游标，客户端不能依赖内部结构。 | 全局热榜、板块热榜、关注流翻页。 |
 | Rank version | 一次榜单排序结果或投影批次的版本标识，用于解释 feed 页属于哪次排序视图。 | 热榜刷新后返回新的 `rankVersion`。 |
 | Best-effort | 主事务提交后尽力执行的副作用，失败不回滚主事实。 | 通知投影失败只记录日志。 |
+| Reliability governance plane | 面向可靠性状态的治理面，只负责查询、重放、补偿触发、审计和观测，不拥有业务事实。 | outbox `DEAD` 查询和重放、projection lag 查询。 |
+| Replay | 将失败的可靠异步工作恢复到原处理路径再次执行。它不是伪造事件，也不是绕过 owner 规则直接调用 handler。 | outbox `DEAD` 事件重新置为 `PENDING`，由 worker 处理。 |
+| Disposition | 对终态失败或人工处置结果的分类记录。 | `REPLAYED`、`IGNORED`、`FIXED_BY_REBUILD`、`MANUAL_REPAIR_REQUIRED`。 |
+| Projection lag | 投影相对 owner 主事实或 source event 的追平延迟。 | 搜索索引、通知读模型、成长任务进度延迟。 |
+| Hot read degradation | 热点读依赖缓存失败或缺失时的受控回源和降级响应。 | 热榜 Redis 失败后限流回源并记录 degraded 指标。 |
 | Saga command | 跨领域长流程中的状态化命令，不等于最终业务完成。 | market wallet action 的 escrow/release/refund。 |
 | Pending state | 主流程已经接单，但下游动作仍在进行的中间状态。 | 订单等待资金动作完成。 |
 

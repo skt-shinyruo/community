@@ -7,6 +7,7 @@ import com.nowcoder.community.content.domain.repository.CommentContentRepository
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +26,7 @@ public class FeedReadApplicationService {
     private final PostFeedSummaryLoader postFeedSummaryLoader;
     private final FeedCursorCodec feedCursorCodec;
     private final ContentFeedPolicyProperties policyProperties;
+    private final HotFeedReadMetrics hotFeedReadMetrics;
 
     @Autowired
     public FeedReadApplicationService(
@@ -33,7 +35,8 @@ public class FeedReadApplicationService {
             PostSummaryCache postSummaryCache,
             PostFeedSummaryLoader postFeedSummaryLoader,
             FeedCursorCodec feedCursorCodec,
-            ContentFeedPolicyProperties policyProperties
+            ContentFeedPolicyProperties policyProperties,
+            HotFeedReadMetrics hotFeedReadMetrics
     ) {
         this.postFeedCache = postFeedCache;
         this.postContentRepository = postContentRepository;
@@ -41,6 +44,41 @@ public class FeedReadApplicationService {
         this.postFeedSummaryLoader = postFeedSummaryLoader;
         this.feedCursorCodec = feedCursorCodec;
         this.policyProperties = policyProperties == null ? new ContentFeedPolicyProperties() : policyProperties;
+        this.hotFeedReadMetrics = hotFeedReadMetrics == null
+                ? new HotFeedReadMetrics((MeterRegistry) null)
+                : hotFeedReadMetrics;
+    }
+
+    public FeedReadApplicationService(
+            PostFeedCache postFeedCache,
+            PostContentRepository postContentRepository,
+            CommentContentRepository commentContentRepository,
+            TagContentRepository tagContentRepository,
+            PostContentBlockRepository postContentBlockRepository,
+            PostSummaryCache postSummaryCache,
+            PostContentBlockTextProjector postContentBlockTextProjector,
+            PostSummaryAssembler postSummaryAssembler,
+            FeedCursorCodec feedCursorCodec,
+            ContentFeedPolicyProperties policyProperties,
+            HotFeedReadMetrics hotFeedReadMetrics
+    ) {
+        this(
+                postFeedCache,
+                postContentRepository,
+                postSummaryCache,
+                new PostFeedSummaryLoader(
+                        postContentRepository,
+                        commentContentRepository,
+                        tagContentRepository,
+                        postContentBlockRepository,
+                        postSummaryCache,
+                        postContentBlockTextProjector,
+                        postSummaryAssembler
+                ),
+                feedCursorCodec,
+                policyProperties,
+                hotFeedReadMetrics
+        );
     }
 
     public FeedReadApplicationService(
@@ -58,18 +96,15 @@ public class FeedReadApplicationService {
         this(
                 postFeedCache,
                 postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
                 postSummaryCache,
-                new PostFeedSummaryLoader(
-                        postContentRepository,
-                        commentContentRepository,
-                        tagContentRepository,
-                        postContentBlockRepository,
-                        postSummaryCache,
-                        postContentBlockTextProjector,
-                        postSummaryAssembler
-                ),
+                postContentBlockTextProjector,
+                postSummaryAssembler,
                 feedCursorCodec,
-                policyProperties
+                policyProperties,
+                new HotFeedReadMetrics((MeterRegistry) null)
         );
     }
 
@@ -135,19 +170,27 @@ public class FeedReadApplicationService {
     }
 
     private LoadedFeedPage loadHotPage(String cursor, int page, int limit, UUID boardId) {
+        String scope = boardId == null ? "global" : "board";
         String encodedCursor = feedCursorCodec.encodePage(page, limit);
-        List<UUID> ids = readFeedIds(page == 0 ? cursor : encodedCursor, limit, boardId);
-        if (!ids.isEmpty()) {
-            List<PostSummaryResult> items = filterBoardItems(postFeedSummaryLoader.readSummaries(ids), boardId);
-            return new LoadedFeedPage(items, hasNextCachedPage(page, limit, boardId), postFeedCache.readRankVersion());
+        try {
+            List<UUID> ids = readFeedIds(page == 0 ? cursor : encodedCursor, limit, boardId);
+            if (!ids.isEmpty()) {
+                hotFeedReadMetrics.record("hit", scope);
+                List<PostSummaryResult> items = filterBoardItems(postFeedSummaryLoader.readSummaries(ids), boardId);
+                return new LoadedFeedPage(items, hasNextCachedPage(page, limit, boardId), safeRankVersion());
+            }
+        } catch (RuntimeException ex) {
+            hotFeedReadMetrics.record("degraded", scope);
         }
         if (!policyProperties.isLatestFallbackEnabled()) {
-            return new LoadedFeedPage(List.of(), false, postFeedCache.readRankVersion());
+            return new LoadedFeedPage(List.of(), false, safeRankVersion());
         }
         List<DiscussPost> fallbackPosts = listFallbackPosts(page, limit, boardId);
         if (fallbackPosts.isEmpty()) {
-            return new LoadedFeedPage(List.of(), false, postFeedCache.readRankVersion());
+            hotFeedReadMetrics.record("empty", scope);
+            return new LoadedFeedPage(List.of(), false, safeRankVersion());
         }
+        hotFeedReadMetrics.record("fallback", scope);
         String rankVersion = policyProperties.getHotRankVersion();
         warmFeedCache(fallbackPosts, boardId, rankVersion);
         List<PostSummaryResult> items = filterBoardItems(postFeedSummaryLoader.assembleSummaries(fallbackPosts), boardId);
@@ -166,6 +209,15 @@ public class FeedReadApplicationService {
             return postContentRepository.listPosts(page, limit, PostContentRepository.ORDER_HOT);
         }
         return postContentRepository.listPosts(page, limit, PostContentRepository.ORDER_HOT, boardId, null);
+    }
+
+    private String safeRankVersion() {
+        try {
+            return postFeedCache.readRankVersion();
+        } catch (RuntimeException ex) {
+            hotFeedReadMetrics.record("degraded", "rank_version");
+            return policyProperties.getHotRankVersion();
+        }
     }
 
     private void warmFeedCache(List<DiscussPost> posts, UUID boardId, String rankVersion) {

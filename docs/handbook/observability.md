@@ -120,6 +120,8 @@ community_job_runs_total
 community_kafka_consumer_lag
 community_executor_queue_size
 community_executor_rejections_total
+community_outbox_replay_total
+community_cache_requests_total
 ```
 
 Allowed dimensions:
@@ -139,6 +141,10 @@ job.name
 event.type
 pool.name
 consumer.group
+topic
+cache
+scope
+projection
 ```
 
 Forbidden dimensions:
@@ -161,6 +167,24 @@ timestamp
 ```
 
 `trace.id` belongs in logs and traces, not in metric labels.
+
+New reliability governance metrics:
+
+- `community_outbox_replay_total{topic,result}`
+- `community_cache_requests_total{cache="hot_feed",result,scope}`
+
+Allowed `community_outbox_replay_total.result` values:
+
+- `REPLAYED`
+- `MANUAL_REPAIR_REQUIRED`
+- `NOT_REQUEUED`
+
+Allowed `community_cache_requests_total.result` values:
+
+- `hit`
+- `fallback`
+- `empty`
+- `degraded`
 
 ## Trace Contract
 

@@ -383,6 +383,17 @@ Outbox worker 是共享可靠投递底座，当前主要承担：
 
 完整语义见 [reliability.md](reliability.md)。
 
+## Outbox DEAD Triage
+
+1. 用 `GET /api/ops/outbox/backlog` 查看 backlog。
+2. 用 `GET /api/ops/outbox/events?status=DEAD&topic=<topic>&limit=50` 列出终态行。
+3. 检查 `eventId`、`topic`、`eventKey`、`lastError`、`traceId`、`createdAt` 和 `updatedAt`。
+4. 先修复依赖或 handler 问题，再执行 replay。
+5. 用 `POST /api/ops/outbox/events/{outboxId}/replay` 并提供非空 `reason` 重新排队单条事件。
+6. 确认该行进入 `SUCCEEDED`，或者回到 `DEAD` 并带有新的 `lastError`。
+
+Projection lag 可通过 `GET /api/ops/projections/lag` 查看当前 outbox-backed projection topics。对 search 这类派生读模型，如果 payload 已经过时或不兼容，优先使用 owner 当前事实重建，而不是盲目重放旧 payload。hot-feed 读路径降级继续通过 `community_cache_requests_total{cache="hot_feed",result,scope}` 观察。
+
 ## Scheduler 和 XXL-Job
 
 后台任务分两类：

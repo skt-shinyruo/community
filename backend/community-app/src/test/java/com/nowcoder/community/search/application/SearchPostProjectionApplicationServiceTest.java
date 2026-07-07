@@ -219,6 +219,22 @@ class SearchPostProjectionApplicationServiceTest {
         assertThat(syncCaptor.getAllValues().get(1).postId()).isEqualTo(uuid(204));
     }
 
+    @Test
+    void replayedOldEventShouldNotReviveDeletedPost() throws Exception {
+        PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
+        SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
+        SearchPostProjectionApplicationService service =
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+        java.util.UUID postId = uuid(205);
+
+        when(postScanQueryApi.getPostProjectionAllowDeleted(postId)).thenReturn(null);
+
+        service.projectPostFromOutbox(new ProjectPostOutboxCommand(postId, "evt-old-create-replayed", 1L));
+
+        verify(searchApplicationService).deletePost(new DeleteIndexedPostCommand(postId));
+        verify(searchApplicationService, never()).syncPostProjection(org.mockito.ArgumentMatchers.any());
+    }
+
     private static PostScanView.PostProjectionView postProjection(
             java.util.UUID postId,
             String title,

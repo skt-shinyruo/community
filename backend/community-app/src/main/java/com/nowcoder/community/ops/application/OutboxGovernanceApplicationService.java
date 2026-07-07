@@ -19,13 +19,16 @@ public class OutboxGovernanceApplicationService {
 
     private final OutboxGovernancePort outboxGovernancePort;
     private final OutboxHandlerCatalog outboxHandlerCatalog;
+    private final OutboxReplayMetrics outboxReplayMetrics;
 
     public OutboxGovernanceApplicationService(
             OutboxGovernancePort outboxGovernancePort,
-            OutboxHandlerCatalog outboxHandlerCatalog
+            OutboxHandlerCatalog outboxHandlerCatalog,
+            OutboxReplayMetrics outboxReplayMetrics
     ) {
         this.outboxGovernancePort = Objects.requireNonNull(outboxGovernancePort, "outboxGovernancePort must not be null");
         this.outboxHandlerCatalog = Objects.requireNonNull(outboxHandlerCatalog, "outboxHandlerCatalog must not be null");
+        this.outboxReplayMetrics = Objects.requireNonNull(outboxReplayMetrics, "outboxReplayMetrics must not be null");
     }
 
     public List<OutboxBacklogResult> listBacklog() {
@@ -50,9 +53,12 @@ public class OutboxGovernanceApplicationService {
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "outbox event not found"));
         ReplayDecision decision = decideReplay(event);
         if (!decision.allowed()) {
+            outboxReplayMetrics.recordReplay(event.topic(), decision.result());
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, decision.reason());
         }
         boolean requeued = outboxGovernancePort.requeueDead(command.outboxId(), command.normalizedReason());
+        String result = requeued ? decision.result() : "NOT_REQUEUED";
+        outboxReplayMetrics.recordReplay(event.topic(), result);
         return new OutboxReplayResult(
                 event.id(),
                 event.eventId(),
@@ -60,7 +66,7 @@ public class OutboxGovernanceApplicationService {
                 event.status(),
                 requeued ? OutboxEventStatus.PENDING : event.status(),
                 requeued,
-                requeued ? decision.result() : "NOT_REQUEUED"
+                result
         );
     }
 

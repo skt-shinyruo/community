@@ -24,13 +24,15 @@ class OutboxGovernanceApplicationServiceTest {
 
     private OutboxGovernancePort port;
     private OutboxHandlerCatalog handlerCatalog;
+    private OutboxReplayMetrics replayMetrics;
     private OutboxGovernanceApplicationService service;
 
     @BeforeEach
     void setUp() {
         port = mock(OutboxGovernancePort.class);
         handlerCatalog = mock(OutboxHandlerCatalog.class);
-        service = new OutboxGovernanceApplicationService(port, handlerCatalog);
+        replayMetrics = mock(OutboxReplayMetrics.class);
+        service = new OutboxGovernanceApplicationService(port, handlerCatalog, replayMetrics);
     }
 
     @Test
@@ -73,6 +75,7 @@ class OutboxGovernanceApplicationServiceTest {
         assertThatThrownBy(() -> service.replay(new ReplayOutboxEventCommand(uuid(99), outboxId, "retry after fix")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("only DEAD outbox events can be replayed");
+        verify(replayMetrics).recordReplay("projection.search.post", "MANUAL_REPAIR_REQUIRED");
     }
 
     @Test
@@ -84,6 +87,7 @@ class OutboxGovernanceApplicationServiceTest {
         assertThatThrownBy(() -> service.replay(new ReplayOutboxEventCommand(uuid(99), outboxId, "retry after fix")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("no outbox handler registered");
+        verify(replayMetrics).recordReplay("projection.search.post", "MANUAL_REPAIR_REQUIRED");
     }
 
     @Test
@@ -101,6 +105,22 @@ class OutboxGovernanceApplicationServiceTest {
         assertThat(result.afterStatus()).isEqualTo(OutboxEventStatus.PENDING);
         assertThat(result.topic()).isEqualTo("projection.search.post");
         verify(port).requeueDead(outboxId, "retry after fix");
+        verify(replayMetrics).recordReplay("projection.search.post", "REPLAYED");
+    }
+
+    @Test
+    void replayShouldRecordNotRequeuedResultWhenStoreDoesNotRequeue() {
+        UUID outboxId = uuid(1);
+        UUID actorId = uuid(99);
+        when(port.findById(outboxId)).thenReturn(Optional.of(event(outboxId, OutboxEventStatus.DEAD, "{\"postId\":\"p1\"}")));
+        when(handlerCatalog.hasHandler("projection.search.post")).thenReturn(true);
+        when(port.requeueDead(outboxId, "retry after fix")).thenReturn(false);
+
+        var result = service.replay(new ReplayOutboxEventCommand(actorId, outboxId, "retry after fix"));
+
+        assertThat(result.replayed()).isFalse();
+        assertThat(result.result()).isEqualTo("NOT_REQUEUED");
+        verify(replayMetrics).recordReplay("projection.search.post", "NOT_REQUEUED");
     }
 
     private static OutboxEventResult event(UUID id, String status, String payload) {

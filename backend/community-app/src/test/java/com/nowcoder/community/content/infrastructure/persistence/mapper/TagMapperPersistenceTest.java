@@ -3,6 +3,7 @@ package com.nowcoder.community.content.infrastructure.persistence.mapper;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.content.domain.model.HotTag;
 import com.nowcoder.community.content.domain.model.Tag;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -43,6 +45,7 @@ class TagMapperPersistenceTest {
     void setUp() {
         jdbcTemplate.update("delete from post_tag");
         jdbcTemplate.update("delete from tag");
+        jdbcTemplate.update("delete from discuss_post");
     }
 
     @Test
@@ -80,5 +83,50 @@ class TagMapperPersistenceTest {
         );
         assertThat(storedTagId).hasSize(16);
         assertThat(BinaryUuidCodec.fromBytes(storedTagId)).isEqualTo(TAG_ID);
+    }
+
+    @Test
+    void tagUsageCountsShouldIgnoreDeletedPosts() {
+        Date createTime = new Date();
+        UUID activePostId = uuid(88);
+        UUID deletedPostId = uuid(89);
+        Tag tag = new Tag();
+        tag.setId(TAG_ID);
+        tag.setName("spring");
+        tag.setCreateTime(createTime);
+        tagMapper.insertTag(tag);
+        insertPost(activePostId, 0, createTime);
+        insertPost(deletedPostId, 2, createTime);
+        postTagMapper.insertPostTag(activePostId, TAG_ID, createTime);
+        postTagMapper.insertPostTag(deletedPostId, TAG_ID, createTime);
+
+        List<HotTag> hotTags = tagMapper.selectHotTags(10);
+        List<HotTag> suggestTags = tagMapper.selectSuggestTags("spr", 10);
+
+        assertThat(hotTags).singleElement().satisfies(hotTag -> {
+            assertThat(hotTag.getName()).isEqualTo("spring");
+            assertThat(hotTag.getUseCount()).isEqualTo(1);
+        });
+        assertThat(suggestTags).singleElement().satisfies(hotTag -> {
+            assertThat(hotTag.getName()).isEqualTo("spring");
+            assertThat(hotTag.getUseCount()).isEqualTo(1);
+        });
+    }
+
+    private void insertPost(UUID postId, int status, Date createTime) {
+        jdbcTemplate.update(
+                """
+                insert into discuss_post(id, user_id, title, type, status, create_time, comment_count, score)
+                values (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                BinaryUuidCodec.toBytes(postId),
+                BinaryUuidCodec.toBytes(uuid(7)),
+                "post-" + postId,
+                0,
+                status,
+                createTime,
+                0,
+                0.0
+        );
     }
 }

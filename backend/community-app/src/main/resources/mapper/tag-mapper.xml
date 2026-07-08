@@ -26,6 +26,8 @@
             count(*) as use_count
         from post_tag pt
         join tag t on pt.tag_id = t.id
+        join discuss_post p on pt.post_id = p.id
+        where p.status != 2
         group by t.id, t.name
         order by use_count desc, t.id asc
         limit #{limit}
@@ -37,9 +39,11 @@
             coalesce(cnt.use_count, 0) as use_count
         from tag t
         left join (
-            select tag_id, count(*) as use_count
-            from post_tag
-            group by tag_id
+            select pt.tag_id, count(*) as use_count
+            from post_tag pt
+            join discuss_post p on pt.post_id = p.id
+            where p.status != 2
+            group by pt.tag_id
         ) cnt on t.id = cnt.tag_id
         where t.name like concat(#{q}, '%')
         order by cnt.use_count desc, t.id asc

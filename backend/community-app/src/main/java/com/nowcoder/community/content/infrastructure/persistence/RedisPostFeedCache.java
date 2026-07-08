@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -81,7 +82,14 @@ public class RedisPostFeedCache implements PostFeedCache {
     @Override
     public String readRankVersion() {
         String rankVersion = redisTemplate.opsForValue().get(GLOBAL_HOT_RANK_VERSION_KEY);
-        return StringUtils.hasText(rankVersion) ? rankVersion : "hot-v2";
+        if (rankVersion == null) {
+            return "hot-v2";
+        }
+        if (!StringUtils.hasText(rankVersion)) {
+            redisTemplate.delete(GLOBAL_HOT_RANK_VERSION_KEY);
+            return "hot-v2";
+        }
+        return rankVersion;
     }
 
     @Override
@@ -161,10 +169,22 @@ public class RedisPostFeedCache implements PostFeedCache {
         if (rawIds == null || rawIds.isEmpty()) {
             return List.of();
         }
-        return rawIds.stream()
-                .map(this::parseUuid)
-                .filter(id -> id != null)
-                .toList();
+        List<UUID> ids = new ArrayList<>();
+        List<String> poisonMembers = new ArrayList<>();
+        for (String rawId : rawIds) {
+            UUID parsed = parseUuid(rawId);
+            if (parsed == null) {
+                if (StringUtils.hasText(rawId)) {
+                    poisonMembers.add(rawId);
+                }
+                continue;
+            }
+            ids.add(parsed);
+        }
+        if (!poisonMembers.isEmpty()) {
+            redisTemplate.opsForZSet().remove(key, poisonMembers.toArray(Object[]::new));
+        }
+        return List.copyOf(ids);
     }
 
     private int limit(String cursor, int size) {

@@ -2,8 +2,11 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.content.application.CacheTtlPolicy;
+import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.PostSummaryCache;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
@@ -24,10 +27,24 @@ public class RedisPostSummaryCache implements PostSummaryCache {
 
     private final StringRedisTemplate redisTemplate;
     private final JsonCodec jsonCodec;
+    private final CacheTtlPolicy ttlPolicy;
+    private final ContentHotPathProperties hotPathProperties;
 
     public RedisPostSummaryCache(StringRedisTemplate redisTemplate, JsonCodec jsonCodec) {
+        this(redisTemplate, jsonCodec, new CacheTtlPolicy(new ContentHotPathProperties()), new ContentHotPathProperties());
+    }
+
+    @Autowired
+    public RedisPostSummaryCache(
+            StringRedisTemplate redisTemplate,
+            JsonCodec jsonCodec,
+            CacheTtlPolicy ttlPolicy,
+            ContentHotPathProperties hotPathProperties
+    ) {
         this.redisTemplate = redisTemplate;
         this.jsonCodec = jsonCodec;
+        this.ttlPolicy = ttlPolicy == null ? new CacheTtlPolicy(new ContentHotPathProperties()) : ttlPolicy;
+        this.hotPathProperties = hotPathProperties == null ? new ContentHotPathProperties() : hotPathProperties;
     }
 
     @Override
@@ -70,15 +87,16 @@ public class RedisPostSummaryCache implements PostSummaryCache {
         if (summaries == null || summaries.isEmpty()) {
             return;
         }
-        Map<String, String> payloads = new LinkedHashMap<>();
         for (PostSummaryResult summary : summaries) {
             if (summary == null || summary.id() == null) {
                 continue;
             }
-            payloads.put(key(summary.id()), jsonCodec.toJson(summary));
-        }
-        if (!payloads.isEmpty()) {
-            redisTemplate.opsForValue().multiSet(payloads);
+            String key = key(summary.id());
+            redisTemplate.opsForValue().set(
+                    key,
+                    jsonCodec.toJson(summary),
+                    ttlPolicy.jitteredTtl(key, hotPathProperties.getCache().summaryTtl())
+            );
         }
     }
 

@@ -3,7 +3,10 @@ package com.nowcoder.community.content.infrastructure.persistence;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.content.application.CacheTtlPolicy;
+import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.FollowFeedCache;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
@@ -27,10 +30,24 @@ public class RedisFollowFeedCache implements FollowFeedCache {
 
     private final StringRedisTemplate redisTemplate;
     private final JsonCodec jsonCodec;
+    private final CacheTtlPolicy ttlPolicy;
+    private final ContentHotPathProperties hotPathProperties;
 
     public RedisFollowFeedCache(StringRedisTemplate redisTemplate, JsonCodec jsonCodec) {
+        this(redisTemplate, jsonCodec, fixedTtlPolicy(), fixedProperties());
+    }
+
+    @Autowired
+    public RedisFollowFeedCache(
+            StringRedisTemplate redisTemplate,
+            JsonCodec jsonCodec,
+            CacheTtlPolicy ttlPolicy,
+            ContentHotPathProperties hotPathProperties
+    ) {
         this.redisTemplate = redisTemplate;
         this.jsonCodec = jsonCodec;
+        this.ttlPolicy = ttlPolicy == null ? new CacheTtlPolicy(new ContentHotPathProperties()) : ttlPolicy;
+        this.hotPathProperties = hotPathProperties == null ? new ContentHotPathProperties() : hotPathProperties;
     }
 
     @Override
@@ -49,7 +66,7 @@ public class RedisFollowFeedCache implements FollowFeedCache {
         redisTemplate.opsForValue().set(
                 key,
                 jsonCodec.toJson(serialize(loaded)),
-                FOLLOW_FEED_PAGE_TTL
+                ttlPolicy.jitteredTtl(key, hotPathProperties.getCache().followPageTtl())
         );
         return loaded;
     }
@@ -149,6 +166,17 @@ public class RedisFollowFeedCache implements FollowFeedCache {
 
     private String key(UUID userId, String cursor, int size) {
         return FOLLOW_FEED_KEY_PREFIX + userId + ":cursor:" + (StringUtils.hasText(cursor) ? cursor : "initial") + ":size:" + size;
+    }
+
+    private static ContentHotPathProperties fixedProperties() {
+        ContentHotPathProperties properties = new ContentHotPathProperties();
+        properties.getCache().setFollowPageTtlSeconds(FOLLOW_FEED_PAGE_TTL.toSeconds());
+        properties.getCache().setTtlJitterSeconds(0L);
+        return properties;
+    }
+
+    private static CacheTtlPolicy fixedTtlPolicy() {
+        return new CacheTtlPolicy(fixedProperties());
     }
 
     private record CachePage(boolean hit, FollowFeedPageSlice page) {

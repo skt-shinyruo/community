@@ -2,11 +2,14 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.content.application.CacheTtlPolicy;
+import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
+import java.time.Duration;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +25,29 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RedisPostSummaryCacheTest {
+
+    @Test
+    void putAllShouldUseJitteredTtlPerSummaryKey() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        JsonCodec jsonCodec = mock(JsonCodec.class);
+        CacheTtlPolicy ttlPolicy = mock(CacheTtlPolicy.class);
+        ContentHotPathProperties properties = new ContentHotPathProperties();
+        UUID postId = uuid(1);
+        PostSummaryResult summary = summary(postId);
+        String key = "post:summary:" + postId;
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(jsonCodec.toJson(summary)).thenReturn("{\"id\":\"" + postId + "\"}");
+        when(ttlPolicy.jitteredTtl(key, properties.getCache().summaryTtl())).thenReturn(Duration.ofSeconds(321));
+
+        RedisPostSummaryCache cache = new RedisPostSummaryCache(redisTemplate, jsonCodec, ttlPolicy, properties);
+
+        cache.putAll(List.of(summary));
+
+        verify(valueOps).set(key, "{\"id\":\"" + postId + "\"}", Duration.ofSeconds(321));
+    }
 
     @Test
     void getAllShouldDropMalformedJsonAndDeletePoisonKeys() {

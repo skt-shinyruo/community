@@ -2,8 +2,11 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.content.application.CacheTtlPolicy;
+import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.PostDetailCache;
 import com.nowcoder.community.content.application.result.PostDetailResult;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
@@ -19,10 +22,24 @@ public class RedisPostDetailCache implements PostDetailCache {
 
     private final StringRedisTemplate redisTemplate;
     private final JsonCodec jsonCodec;
+    private final CacheTtlPolicy ttlPolicy;
+    private final ContentHotPathProperties hotPathProperties;
 
     public RedisPostDetailCache(StringRedisTemplate redisTemplate, JsonCodec jsonCodec) {
+        this(redisTemplate, jsonCodec, new CacheTtlPolicy(new ContentHotPathProperties()), new ContentHotPathProperties());
+    }
+
+    @Autowired
+    public RedisPostDetailCache(
+            StringRedisTemplate redisTemplate,
+            JsonCodec jsonCodec,
+            CacheTtlPolicy ttlPolicy,
+            ContentHotPathProperties hotPathProperties
+    ) {
         this.redisTemplate = redisTemplate;
         this.jsonCodec = jsonCodec;
+        this.ttlPolicy = ttlPolicy == null ? new CacheTtlPolicy(new ContentHotPathProperties()) : ttlPolicy;
+        this.hotPathProperties = hotPathProperties == null ? new ContentHotPathProperties() : hotPathProperties;
     }
 
     @Override
@@ -47,7 +64,12 @@ public class RedisPostDetailCache implements PostDetailCache {
         if (postId == null || detail == null) {
             return;
         }
-        redisTemplate.opsForValue().set(key(postId), jsonCodec.toJson(detail));
+        String key = key(postId);
+        redisTemplate.opsForValue().set(
+                key,
+                jsonCodec.toJson(detail),
+                ttlPolicy.jitteredTtl(key, hotPathProperties.getCache().detailTtl())
+        );
     }
 
     @Override

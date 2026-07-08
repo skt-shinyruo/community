@@ -27,6 +27,8 @@ public class FeedReadApplicationService {
     private final FeedCursorCodec feedCursorCodec;
     private final ContentFeedPolicyProperties policyProperties;
     private final HotFeedReadMetrics hotFeedReadMetrics;
+    private final ContentHotPathProperties hotPathProperties;
+    private final HotPathSingleFlight hotPathSingleFlight;
 
     @Autowired
     public FeedReadApplicationService(
@@ -36,7 +38,9 @@ public class FeedReadApplicationService {
             PostFeedSummaryLoader postFeedSummaryLoader,
             FeedCursorCodec feedCursorCodec,
             ContentFeedPolicyProperties policyProperties,
-            HotFeedReadMetrics hotFeedReadMetrics
+            HotFeedReadMetrics hotFeedReadMetrics,
+            ContentHotPathProperties hotPathProperties,
+            HotPathSingleFlight hotPathSingleFlight
     ) {
         this.postFeedCache = postFeedCache;
         this.postContentRepository = postContentRepository;
@@ -47,6 +51,30 @@ public class FeedReadApplicationService {
         this.hotFeedReadMetrics = hotFeedReadMetrics == null
                 ? new HotFeedReadMetrics((MeterRegistry) null)
                 : hotFeedReadMetrics;
+        this.hotPathProperties = hotPathProperties == null ? new ContentHotPathProperties() : hotPathProperties;
+        this.hotPathSingleFlight = hotPathSingleFlight == null ? loaderSingleFlight() : hotPathSingleFlight;
+    }
+
+    public FeedReadApplicationService(
+            PostFeedCache postFeedCache,
+            PostContentRepository postContentRepository,
+            PostSummaryCache postSummaryCache,
+            PostFeedSummaryLoader postFeedSummaryLoader,
+            FeedCursorCodec feedCursorCodec,
+            ContentFeedPolicyProperties policyProperties,
+            HotFeedReadMetrics hotFeedReadMetrics
+    ) {
+        this(
+                postFeedCache,
+                postContentRepository,
+                postSummaryCache,
+                postFeedSummaryLoader,
+                feedCursorCodec,
+                policyProperties,
+                hotFeedReadMetrics,
+                new ContentHotPathProperties(),
+                loaderSingleFlight()
+        );
     }
 
     public FeedReadApplicationService(
@@ -208,6 +236,23 @@ public class FeedReadApplicationService {
     }
 
     private LoadedFeedPage loadFallbackPage(int page, int limit, UUID boardId, String scope, boolean cacheDegraded) {
+        String singleFlightKey = boardId == null
+                ? "global:" + page + ":" + limit
+                : "board:" + boardId + ":" + page + ":" + limit;
+        return hotPathSingleFlight.execute(
+                "feed",
+                singleFlightKey,
+                hotPathProperties.getSingleFlight().ttl(),
+                () -> loadFallbackPageUnlocked(page, limit, boardId, scope, cacheDegraded),
+                () -> {
+                    RankVersionResult rankVersion = safeRankVersion();
+                    hotFeedReadMetrics.record("singleflight_busy", scope);
+                    return new LoadedFeedPage(List.of(), false, rankVersion.value());
+                }
+        );
+    }
+
+    private LoadedFeedPage loadFallbackPageUnlocked(int page, int limit, UUID boardId, String scope, boolean cacheDegraded) {
         if (!policyProperties.isLatestFallbackEnabled()) {
             RankVersionResult rankVersion = safeRankVersion();
             hotFeedReadMetrics.record(cacheDegraded || rankVersion.degraded() ? "degraded" : "empty", scope);
@@ -280,6 +325,15 @@ public class FeedReadApplicationService {
 
     private int normalizeRequestedSize(int size) {
         return Math.min(MAX_SIZE, Math.max(1, size <= 0 ? DEFAULT_SIZE : size));
+    }
+
+    private static HotPathSingleFlight loaderSingleFlight() {
+        return new HotPathSingleFlight() {
+            @Override
+            public <T> T execute(String scope, String key, java.time.Duration ttl, java.util.function.Supplier<T> loader, java.util.function.Supplier<T> fallbackWhenBusy) {
+                return loader.get();
+            }
+        };
     }
 
     private record CachePageLoad(LoadedFeedPage page, boolean cacheDegraded, String result) {

@@ -15,6 +15,7 @@ import java.util.UUID;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class FeedReadApplicationServiceReliabilityTest {
@@ -110,6 +111,36 @@ class FeedReadApplicationServiceReliabilityTest {
         assertThat(result.items()).extracting(PostSummaryResult::id).containsExactly(fallbackPost.getId());
         assertThat(countMetric(registry, "fallback", "global")).isEqualTo(1.0);
         assertThat(totalMetricCount(registry)).isEqualTo(1.0);
+    }
+
+    @Test
+    void listGlobalHotFeedShouldSkipRepositoryFallbackWhenSingleFlightIsBusy() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
+        HotPathSingleFlight singleFlight = busySingleFlight();
+
+        when(postFeedCache.readGlobalHotIds("", 20)).thenReturn(List.of());
+        when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
+
+        FeedReadApplicationService service = service(
+                postFeedCache,
+                postContentRepository,
+                postSummaryCache,
+                postFeedSummaryLoader,
+                registry,
+                new ContentFeedPolicyProperties(),
+                new ContentHotPathProperties(),
+                singleFlight
+        );
+
+        FeedPageResult result = service.listGlobalHotFeed(null, "", 20);
+
+        assertThat(result.items()).isEmpty();
+        verifyNoInteractions(postContentRepository);
+        assertThat(countMetric(registry, "singleflight_busy", "global")).isEqualTo(1.0);
     }
 
     @Test
@@ -358,6 +389,28 @@ class FeedReadApplicationServiceReliabilityTest {
             SimpleMeterRegistry registry,
             ContentFeedPolicyProperties policyProperties
     ) {
+        return service(
+                postFeedCache,
+                postContentRepository,
+                postSummaryCache,
+                postFeedSummaryLoader,
+                registry,
+                policyProperties,
+                new ContentHotPathProperties(),
+                loaderSingleFlight()
+        );
+    }
+
+    private static FeedReadApplicationService service(
+            PostFeedCache postFeedCache,
+            PostContentRepository postContentRepository,
+            PostSummaryCache postSummaryCache,
+            PostFeedSummaryLoader postFeedSummaryLoader,
+            SimpleMeterRegistry registry,
+            ContentFeedPolicyProperties policyProperties,
+            ContentHotPathProperties hotPathProperties,
+            HotPathSingleFlight hotPathSingleFlight
+    ) {
         return new FeedReadApplicationService(
                 postFeedCache,
                 postContentRepository,
@@ -365,7 +418,9 @@ class FeedReadApplicationServiceReliabilityTest {
                 postFeedSummaryLoader,
                 new FeedCursorCodec(),
                 policyProperties,
-                new HotFeedReadMetrics(registry)
+                new HotFeedReadMetrics(registry),
+                hotPathProperties,
+                hotPathSingleFlight
         );
     }
 
@@ -382,6 +437,24 @@ class FeedReadApplicationServiceReliabilityTest {
                 .stream()
                 .mapToDouble(Counter::count)
                 .sum();
+    }
+
+    private static HotPathSingleFlight loaderSingleFlight() {
+        return new HotPathSingleFlight() {
+            @Override
+            public <T> T execute(String scope, String key, java.time.Duration ttl, java.util.function.Supplier<T> loader, java.util.function.Supplier<T> fallbackWhenBusy) {
+                return loader.get();
+            }
+        };
+    }
+
+    private static HotPathSingleFlight busySingleFlight() {
+        return new HotPathSingleFlight() {
+            @Override
+            public <T> T execute(String scope, String key, java.time.Duration ttl, java.util.function.Supplier<T> loader, java.util.function.Supplier<T> fallbackWhenBusy) {
+                return fallbackWhenBusy.get();
+            }
+        };
     }
 
     private static DiscussPost post(UUID postId, String title) {

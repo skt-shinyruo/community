@@ -16,6 +16,7 @@ import com.nowcoder.community.content.application.result.RecentUserCommentResult
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -42,6 +43,47 @@ public class PostReadApplicationService {
     private final PostSummaryAssembler postSummaryAssembler;
     private final PostDetailAssembler postDetailAssembler;
     private final RecentUserCommentAssembler recentUserCommentAssembler;
+    private final ContentHotPathProperties hotPathProperties;
+    private final HotPathSingleFlight hotPathSingleFlight;
+
+    @Autowired
+    public PostReadApplicationService(
+            PostContentRepository postContentPort,
+            CommentContentRepository commentContentPort,
+            LikeQueryPort likeQueryService,
+            TagContentRepository tagContentPort,
+            BookmarkRepository bookmarkContentPort,
+            SubscriptionRepository subscriptionContentPort,
+            PostCounterApplicationService postCounterApplicationService,
+            PostContentBlockRepository postContentBlockRepository,
+            PostMediaAssetRepository postMediaAssetRepository,
+            PostDetailCache postDetailCache,
+            PostContentBlockTextProjector postContentBlockTextProjector,
+            ContentTextCodec textCodec,
+            PostSummaryAssembler postSummaryAssembler,
+            PostDetailAssembler postDetailAssembler,
+            RecentUserCommentAssembler recentUserCommentAssembler,
+            ContentHotPathProperties hotPathProperties,
+            HotPathSingleFlight hotPathSingleFlight
+    ) {
+        this.postContentPort = postContentPort;
+        this.commentContentPort = commentContentPort;
+        this.likeQueryService = likeQueryService;
+        this.tagContentPort = tagContentPort;
+        this.bookmarkContentPort = bookmarkContentPort;
+        this.subscriptionContentPort = subscriptionContentPort;
+        this.postCounterApplicationService = postCounterApplicationService;
+        this.postContentBlockRepository = postContentBlockRepository;
+        this.postMediaAssetRepository = postMediaAssetRepository;
+        this.postDetailCache = postDetailCache;
+        this.postContentBlockTextProjector = postContentBlockTextProjector;
+        this.textCodec = textCodec;
+        this.postSummaryAssembler = postSummaryAssembler;
+        this.postDetailAssembler = postDetailAssembler;
+        this.recentUserCommentAssembler = recentUserCommentAssembler;
+        this.hotPathProperties = hotPathProperties == null ? new ContentHotPathProperties() : hotPathProperties;
+        this.hotPathSingleFlight = hotPathSingleFlight == null ? loaderSingleFlight() : hotPathSingleFlight;
+    }
 
     public PostReadApplicationService(
             PostContentRepository postContentPort,
@@ -60,21 +102,25 @@ public class PostReadApplicationService {
             PostDetailAssembler postDetailAssembler,
             RecentUserCommentAssembler recentUserCommentAssembler
     ) {
-        this.postContentPort = postContentPort;
-        this.commentContentPort = commentContentPort;
-        this.likeQueryService = likeQueryService;
-        this.tagContentPort = tagContentPort;
-        this.bookmarkContentPort = bookmarkContentPort;
-        this.subscriptionContentPort = subscriptionContentPort;
-        this.postCounterApplicationService = postCounterApplicationService;
-        this.postContentBlockRepository = postContentBlockRepository;
-        this.postMediaAssetRepository = postMediaAssetRepository;
-        this.postDetailCache = postDetailCache;
-        this.postContentBlockTextProjector = postContentBlockTextProjector;
-        this.textCodec = textCodec;
-        this.postSummaryAssembler = postSummaryAssembler;
-        this.postDetailAssembler = postDetailAssembler;
-        this.recentUserCommentAssembler = recentUserCommentAssembler;
+        this(
+                postContentPort,
+                commentContentPort,
+                likeQueryService,
+                tagContentPort,
+                bookmarkContentPort,
+                subscriptionContentPort,
+                postCounterApplicationService,
+                postContentBlockRepository,
+                postMediaAssetRepository,
+                postDetailCache,
+                postContentBlockTextProjector,
+                textCodec,
+                postSummaryAssembler,
+                postDetailAssembler,
+                recentUserCommentAssembler,
+                new ContentHotPathProperties(),
+                loaderSingleFlight()
+        );
     }
 
     public List<PostSummaryResult> listPosts(UUID currentUserId, String order, UUID categoryId, String tag, Boolean subscribed, Integer page, Integer size) {
@@ -111,7 +157,13 @@ public class PostReadApplicationService {
         if (cached != null) {
             return applyViewerOverlay(currentUserId, applyCounterOverlay(cached));
         }
-        PostDetailResult loaded = loadPostDetailShell(postId);
+        PostDetailResult loaded = hotPathSingleFlight.execute(
+                "post_detail",
+                postId.toString(),
+                hotPathProperties.getSingleFlight().ttl(),
+                () -> loadPostDetailShell(postId),
+                () -> loadPostDetailShell(postId)
+        );
         safePutDetailCache(postId, loaded);
         return applyViewerOverlay(currentUserId, applyCounterOverlay(loaded));
     }
@@ -303,5 +355,14 @@ public class PostReadApplicationService {
             return Math.max(0, fallback);
         }
         return rawCount >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) rawCount;
+    }
+
+    private static HotPathSingleFlight loaderSingleFlight() {
+        return new HotPathSingleFlight() {
+            @Override
+            public <T> T execute(String scope, String key, java.time.Duration ttl, java.util.function.Supplier<T> loader, java.util.function.Supplier<T> fallbackWhenBusy) {
+                return loader.get();
+            }
+        };
     }
 }

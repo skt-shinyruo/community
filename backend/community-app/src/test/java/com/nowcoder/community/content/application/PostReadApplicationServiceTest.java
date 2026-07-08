@@ -332,6 +332,59 @@ class PostReadApplicationServiceTest {
     }
 
     @Test
+    void getPostDetailShouldLoadShellThroughSingleFlightOnCacheMiss() {
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
+        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        PostCounterApplicationService postCounterApplicationService = mock(PostCounterApplicationService.class);
+        HotPathSingleFlight singleFlight = mock(HotPathSingleFlight.class);
+        UUID postId = uuid(10);
+        UUID authorUserId = uuid(8);
+
+        DiscussPost post = new DiscussPost();
+        post.setId(postId);
+        post.setUserId(authorUserId);
+        post.setTitle("&lt;title&gt;");
+        post.setCreateTime(new Date(1_000));
+
+        when(postDetailCache.get(postId)).thenReturn(null);
+        when(singleFlight.execute(eq("post_detail"), eq(postId.toString()), any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    java.util.function.Supplier<PostDetailResult> loader = invocation.getArgument(3);
+                    return loader.get();
+                });
+        when(postService.getById(postId)).thenReturn(post);
+        when(blockRepository.listByPostId(postId)).thenReturn(List.of(paragraphBlock(postId, "&lt;body&gt;")));
+        when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java")));
+        when(postCounterApplicationService.read(postId)).thenReturn(PostCounterSnapshot.empty());
+
+        PostReadApplicationService service = service(
+                postService,
+                commentService,
+                likeQueryService,
+                tagService,
+                bookmarkService,
+                subscriptionService,
+                blockRepository,
+                mediaAssetRepository,
+                postDetailCache,
+                postCounterApplicationService,
+                singleFlight
+        );
+
+        PostDetailResult result = service.getPostDetail(null, postId);
+
+        assertThat(result.id()).isEqualTo(postId);
+        verify(singleFlight).execute(eq("post_detail"), eq(postId.toString()), any(), any(), any());
+    }
+
+    @Test
     void detailShouldFailOpenToSourceWhenCacheReadFails() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
@@ -721,6 +774,34 @@ class PostReadApplicationServiceTest {
             PostDetailCache postDetailCache,
             PostCounterApplicationService postCounterApplicationService
     ) {
+        return service(
+                postService,
+                commentService,
+                likeQueryService,
+                tagService,
+                bookmarkService,
+                subscriptionService,
+                blockRepository,
+                mediaAssetRepository,
+                postDetailCache,
+                postCounterApplicationService,
+                loaderSingleFlight()
+        );
+    }
+
+    private static PostReadApplicationService service(
+            PostContentRepository postService,
+            CommentContentRepository commentService,
+            LikeQueryPort likeQueryService,
+            TagContentRepository tagService,
+            BookmarkRepository bookmarkService,
+            SubscriptionRepository subscriptionService,
+            PostContentBlockRepository blockRepository,
+            PostMediaAssetRepository mediaAssetRepository,
+            PostDetailCache postDetailCache,
+            PostCounterApplicationService postCounterApplicationService,
+            HotPathSingleFlight hotPathSingleFlight
+    ) {
         return new PostReadApplicationService(
                 postService,
                 commentService,
@@ -736,7 +817,9 @@ class PostReadApplicationServiceTest {
                 textCodec(),
                 new PostSummaryAssembler(textCodec()),
                 new PostDetailAssembler(textCodec()),
-                new RecentUserCommentAssembler(textCodec())
+                new RecentUserCommentAssembler(textCodec()),
+                new ContentHotPathProperties(),
+                hotPathSingleFlight
         );
     }
 
@@ -758,6 +841,15 @@ class PostReadApplicationServiceTest {
         post.setScore(12.5);
         post.setCategoryId(categoryId);
         return post;
+    }
+
+    private static HotPathSingleFlight loaderSingleFlight() {
+        return new HotPathSingleFlight() {
+            @Override
+            public <T> T execute(String scope, String key, java.time.Duration ttl, java.util.function.Supplier<T> loader, java.util.function.Supplier<T> fallbackWhenBusy) {
+                return loader.get();
+            }
+        };
     }
 
     private static PostDetailResult detail(UUID postId) {

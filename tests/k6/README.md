@@ -35,6 +35,22 @@ npm run spike
 
 Results are exported under `temp/k6-results`.
 
+## Hot Path Scenario
+
+Run:
+
+```bash
+npm run hot-path
+```
+
+The scenario always calls `/api/feed/global?size=<K6_READ_SIZE>`.
+Set `K6_BOARD_ID=<uuid>` to include `/api/boards/{boardId}/feed`.
+Set `K6_POST_ID=<uuid>` to include `/api/posts/{postId}`.
+
+Use it after prewarm runs and after Redis flush/restart drills to compare hit,
+fallback, degraded, and single-flight behavior through
+`community_cache_requests_total`.
+
 ## Data And Accounts
 
 Local seed data includes activated users. Defaults:
@@ -55,6 +71,8 @@ Useful environment variables:
 - `K6_WS_URL`: WebSocket URL, default derived as `/ws/im`.
 - `K6_DOCKER_IMAGE`: k6 image for the runner, default `grafana/k6:0.51.0`.
 - `K6_WRITE_RATIO`: percentage of iterations that execute write flows in `write-paths`, default `10`.
+- `K6_BOARD_ID`: optional board UUID used by `hot-path`.
+- `K6_POST_ID`: optional post UUID used by `hot-path`.
 - `K6_ALLOW_WRITES`: set `false` to disable write operations.
 - `K6_IM_HOLD_SECONDS`: per-connection WebSocket hold time, default `20`.
 - `K6_IM_SEND_MESSAGES`: set `true` to send room messages over WebSocket.

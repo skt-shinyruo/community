@@ -2,7 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs'
 import process from 'node:process'
 import path from 'node:path'
 
-export const supportedProfiles = ['smoke', 'api-mix', 'write-paths', 'im-ws', 'soak', 'stress', 'spike']
+export const supportedProfiles = ['smoke', 'api-mix', 'hot-path', 'write-paths', 'im-ws', 'soak', 'stress', 'spike']
 export const defaultK6DockerImage = 'grafana/k6:0.51.0'
 
 export const forwardedEnvNames = [
@@ -17,6 +17,8 @@ export const forwardedEnvNames = [
   'K6_LOGIN_EACH_ITERATION',
   'K6_WRITE_RATIO',
   'K6_READ_SIZE',
+  'K6_BOARD_ID',
+  'K6_POST_ID',
   'K6_THINK_MIN_MS',
   'K6_THINK_MAX_MS',
   'K6_IM_HOLD_SECONDS',

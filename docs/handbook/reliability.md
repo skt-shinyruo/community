@@ -18,6 +18,18 @@
 | 市场到钱包资金动作 | `market_wallet_action` saga command | 钱包落账脱离 market 事务，可重试、可恢复、可排查 |
 | 清理/补偿任务 | 幂等任务设计 | 重跑不会产生错误副作用 |
 
+## P3 Hot Path Cache Protection
+
+P3-A 保护 BBS 热路径读链路：hot feed、board hot feed 和 post detail 使用 hot key 预热、TTL jitter、single-flight 回源保护和 poison payload cleanup。Redis 仍然只是派生缓存，不是业务事实源。
+
+失败语义：
+
+- Redis 正常但热 feed cache miss：可按配置使用 latest fallback 回源并回填 hot feed / summary cache。
+- Redis 读失败：feed 返回 degraded 结果或 fallback 结果，metric 记录 `degraded`。
+- fallback 已被其他节点 single-flight 占用：feed 返回空 degraded-safe 页面并记录 `singleflight_busy`，不继续打 repository。
+- post detail cache miss：仍从 owner repository 装配 viewer-neutral shell；不能因为 single-flight busy 返回空 detail。
+- malformed summary/detail/feed/counter cache payload：读取时按 key/member/field 做 best-effort cleanup，不把异常 payload 当成业务事实。
+
 ## HTTP Idempotency-Key
 
 `common-idempotency` 不是 servlet filter，而是业务显式调用的 guard。只有被 owner `ApplicationService` 用 `IdempotencyGuard.executeRequired(...)` 包裹的写操作才受保护。

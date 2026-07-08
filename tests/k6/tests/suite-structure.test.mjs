@@ -26,6 +26,7 @@ describe('k6 load testing suite structure', () => {
     'lib/im.js',
     'scenarios/smoke.js',
     'scenarios/api-mix.js',
+    'scenarios/hot-path.js',
     'scenarios/write-paths.js',
     'scenarios/im-ws.js',
     'scenarios/soak.js',
@@ -45,7 +46,7 @@ describe('k6 load testing suite structure', () => {
 
     assert.equal(packageJson.type, 'module')
     assert.equal(packageJson.scripts.test, 'node --test tests/*.test.mjs')
-    for (const profile of ['smoke', 'api-mix', 'write-paths', 'im-ws', 'soak', 'stress', 'spike']) {
+    for (const profile of ['smoke', 'api-mix', 'hot-path', 'write-paths', 'im-ws', 'soak', 'stress', 'spike']) {
       assert.equal(packageJson.scripts[profile], `node scripts/run-k6.mjs ${profile}`)
     }
   })
@@ -54,7 +55,7 @@ describe('k6 load testing suite structure', () => {
     const optionsSource = await read('config/options.js')
     const profilesSource = await read('config/profiles.js')
 
-    for (const profile of ['smoke', 'api-mix', 'write-paths', 'im-ws', 'soak', 'stress', 'spike']) {
+    for (const profile of ['smoke', 'api-mix', 'hot-path', 'write-paths', 'im-ws', 'soak', 'stress', 'spike']) {
       assert.match(profilesSource, new RegExp(`['"]?${profile.replace('-', '\\-')}['"]?:`))
     }
 

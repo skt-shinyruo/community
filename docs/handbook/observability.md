@@ -202,6 +202,18 @@ Allowed `community_cache_requests_total.result` values:
 - `fallback`
 - `empty`
 - `degraded`
+- `singleflight_busy`
+- `singleflight_error`
+- `poison_cleanup`
+- `prewarm`
+
+P3 hot-path metrics must keep labels bounded:
+
+- `cache`: examples `hot_feed`, `post_detail`, `post_summary`, `comment_page`, `follow_feed`
+- `scope`: examples `global`, `board`, `detail`, `summary`
+- `result`: one of the allowed values above
+
+Never put post IDs, board IDs, Redis keys, trace IDs, exception messages, or raw payload values in cache metric labels.
 
 Allowed governance result values:
 

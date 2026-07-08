@@ -23,6 +23,22 @@ export const profiles = {
     gracefulStop: '30s',
     tags: { profile: 'api-mix' }
   },
+  'hot-path': {
+    scenario: 'hot-path',
+    executor: 'ramping-arrival-rate',
+    startRate: 10,
+    timeUnit: '1s',
+    preAllocatedVUs: 60,
+    maxVUs: 200,
+    stages: [
+      { target: 40, duration: '2m' },
+      { target: 100, duration: '5m' },
+      { target: 100, duration: '10m' },
+      { target: 10, duration: '2m' }
+    ],
+    gracefulStop: '30s',
+    tags: { profile: 'hot-path' }
+  },
   'write-paths': {
     scenario: 'write-paths',
     executor: 'ramping-arrival-rate',

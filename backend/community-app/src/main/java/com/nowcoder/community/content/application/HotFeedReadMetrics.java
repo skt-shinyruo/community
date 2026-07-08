@@ -21,13 +21,17 @@ public class HotFeedReadMetrics {
     }
 
     public void record(String result, String scope) {
+        recordCache("hot_feed", result, scope);
+    }
+
+    public void recordCache(String cache, String result, String scope) {
         if (meterRegistry == null) {
             return;
         }
         meterRegistry.counter(
                 "community_cache_requests_total",
                 Tags.of(
-                        "cache", "hot_feed",
+                        "cache", bounded(cache),
                         "result", bounded(result),
                         "scope", bounded(scope)
                 )

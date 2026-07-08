@@ -2,8 +2,7 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.HotPathSingleFlight;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
@@ -15,8 +14,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 @Repository
-@ConditionalOnBean(StringRedisTemplate.class)
-@ConditionalOnProperty(name = "content.hot-path.single-flight.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnExpression("'${content.storage:redis}' == 'redis' && '${content.hot-path.single-flight.enabled:true}' == 'true'")
 public class RedisHotPathSingleFlight implements HotPathSingleFlight {
 
     private static final DefaultRedisScript<Long> UNLOCK_SCRIPT = new DefaultRedisScript<>(

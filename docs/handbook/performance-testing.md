@@ -33,6 +33,7 @@ cd tests/k6
 npm test
 npm run smoke
 npm run api-mix
+npm run hot-path
 npm run write-paths
 npm run im-ws
 npm run soak
@@ -41,6 +42,25 @@ npm run spike
 ```
 
 默认账号来自本地种子数据：`aaa / aaa`、`bbb / aaa`、`admin / aaa`。通过 `K6_USERNAME`、`K6_PASSWORD`、`K6_BASE_URL`、`K6_WS_URL` 可覆盖目标环境；通过 `K6_DOCKER_IMAGE` 可覆盖 runner 使用的 k6 镜像。
+
+## Hot Path Capacity
+
+P3 feed/detail cache 优化使用 `hot-path` 场景做本地容量验收：
+
+```bash
+cd tests/k6
+K6_BOARD_ID=<board-uuid> K6_POST_ID=<post-uuid> npm run hot-path
+```
+
+场景固定访问 global hot feed；配置 `K6_BOARD_ID` 后访问 board hot feed，配置 `K6_POST_ID` 后访问 post detail。建议在热 key 预热完成后跑一次 warm-cache 基线，再在 Redis flush / restart 演练后跑一次恢复基线。
+
+本地 cluster 验收门槛：
+
+- hot feed/detail HTTP 错误率 `< 1%`
+- hot path p95 `< 800ms`
+- hot path p99 `< 1500ms`
+- warm-cache 运行中无持续 Hikari pending pressure
+- Redis 故障时出现 `degraded` 或 `singleflight_busy` cache outcome，而不是大面积 HTTP failure spike
 
 ## 建议流程
 

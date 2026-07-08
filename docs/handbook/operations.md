@@ -244,6 +244,27 @@ Interpretation: Redis slow operations or pool pressure can cause application lat
 
 Next action: check whether the issue is isolated to one service and compare with request traces. Enable diagnostics `redis` only for a short run; raw keys and values must remain absent.
 
+### Content Hot Path Degradation
+
+Query:
+
+```text
+community_cache_requests_total{cache="hot_feed",result=~"degraded|singleflight_busy"}
+```
+
+Inspect: `result`, `scope`, Redis runtime events, Hikari pending, and hot-path k6 p95/p99. Do not inspect raw Redis keys or payload values.
+
+Interpretation: `singleflight_busy` during a Redis flush or cold start means one node is allowed to rebuild a hot feed page while peers avoid a repository stampede. `degraded` means the cache path failed or rank version fell back.
+
+Next action: confirm `HotPathPrewarmJob` is enabled with `content.hot-path.prewarm.enabled=true`, wait one scheduled interval, then run:
+
+```bash
+cd tests/k6
+K6_BOARD_ID=<board-uuid> K6_POST_ID=<post-uuid> npm run hot-path
+```
+
+If Hikari pending rises during warm-cache runs, reduce k6 arrival rate or prewarm page/board limits before changing repository queries.
+
 ### Kafka Lag Or Rebalance
 
 Query:

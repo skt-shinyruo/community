@@ -107,13 +107,29 @@ public class PostReadApplicationService {
     }
 
     public PostDetailResult getPostDetail(UUID currentUserId, UUID postId) {
-        PostDetailResult cached = postDetailCache.get(postId);
+        PostDetailResult cached = safeGetDetailCache(postId);
         if (cached != null) {
             return applyViewerOverlay(currentUserId, applyCounterOverlay(cached));
         }
         PostDetailResult loaded = loadPostDetailShell(postId);
-        postDetailCache.put(postId, loaded);
+        safePutDetailCache(postId, loaded);
         return applyViewerOverlay(currentUserId, applyCounterOverlay(loaded));
+    }
+
+    private PostDetailResult safeGetDetailCache(UUID postId) {
+        try {
+            return postDetailCache.get(postId);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private void safePutDetailCache(UUID postId, PostDetailResult detail) {
+        try {
+            postDetailCache.put(postId, detail);
+        } catch (RuntimeException ignored) {
+            // Detail cache writes are best-effort for read responses.
+        }
     }
 
     private PostDetailResult loadPostDetailShell(UUID postId) {

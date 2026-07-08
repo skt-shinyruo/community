@@ -4,6 +4,7 @@ import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.content.application.ContentEventDispatchApplicationService;
 import com.nowcoder.community.content.application.command.DispatchContentEventCommand;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
 import java.util.UUID;
@@ -45,6 +46,21 @@ class ContentEventKafkaOutboxHandlerTest {
         handler.handle(outboxEvent("{\"eventId\":\"event-id\"}", "key-1"));
 
         verify(applicationService).dispatch(new DispatchContentEventCommand("key-1", "{\"eventId\":\"event-id\"}"));
+    }
+
+    @Test
+    void handleShouldPreserveStoredPayloadAndEventKeyForOutboxReplayDispatch() {
+        ContentEventDispatchApplicationService applicationService = mock(ContentEventDispatchApplicationService.class);
+        ContentEventKafkaOutboxHandler handler = new ContentEventKafkaOutboxHandler(applicationService, OUTBOX_TOPIC);
+        String payload = "{\"eventId\":\"content:PostPublished:post-1\",\"type\":\"PostPublished\"}";
+
+        handler.handle(outboxEvent(payload, "post-1"));
+
+        ArgumentCaptor<DispatchContentEventCommand> commandCaptor = ArgumentCaptor.forClass(DispatchContentEventCommand.class);
+        verify(applicationService).dispatch(commandCaptor.capture());
+        assertThat(commandCaptor.getValue().eventKey()).isEqualTo("post-1");
+        assertThat(commandCaptor.getValue().payloadJson()).isEqualTo(payload);
+        assertThat(commandCaptor.getValue().payloadJson()).contains("content:PostPublished:post-1");
     }
 
     @Test

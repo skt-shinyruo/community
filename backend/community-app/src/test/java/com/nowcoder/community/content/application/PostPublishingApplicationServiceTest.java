@@ -1,7 +1,13 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.common.idempotency.IdempotencyProperties;
+import com.nowcoder.community.common.idempotency.IdempotencyStore;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.PostMediaStoragePort;
@@ -34,8 +40,11 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -70,6 +79,10 @@ class PostPublishingApplicationServiceTest {
     private PostDomainEventPublisher domainEventPublisher;
     private SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private PostPublishingApplicationService service;
+
+    private static JsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JsonMappers.standard());
+    }
 
     @BeforeEach
     void setUp() {
@@ -171,6 +184,65 @@ class PostPublishingApplicationServiceTest {
         assertThatThrownBy(() -> service.create("idem-null", null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
+    }
+
+    @Test
+    void createShouldReplayRecordedResultForSameIdempotencyKeyWithoutDuplicatingFact() {
+        useRealIdempotencyGuard(new InMemoryIdempotencyStore());
+        UUID userId = uuid(7);
+        UUID categoryId = uuid(1);
+        UUID postId = uuid(99);
+        Date createTime = Date.from(Instant.parse("2026-04-27T08:00:00Z"));
+        PostDraft draft = new PostDraft(userId, "title", categoryId, createTime);
+        List<PostContentBlockCommand> blocks = List.of(new PostContentBlockCommand("paragraph", "body", null, null, "", "", null));
+        List<PostContentBlockCommand> normalizedBlocks = List.of(new PostContentBlockCommand("paragraph", "body", null, "", "", "", null));
+        CreatePostCommand command = new CreatePostCommand(userId, "title", categoryId, List.of("java"), blocks);
+
+        when(sensitiveFilter.filter("title")).thenReturn("title");
+        when(sensitiveFilter.filter("body")).thenReturn("body");
+        when(blockPolicy.validateAndNormalize(blocks)).thenReturn(normalizedBlocks);
+        when(domainService.createDraft(userId, "title", categoryId)).thenReturn(draft);
+        when(postRepository.create(draft)).thenReturn(postId);
+
+        PostCreateResult first = service.create("idem-replay-post", command);
+        PostCreateResult replay = service.create("idem-replay-post", command);
+
+        assertThat(first.postId()).isEqualTo(postId);
+        assertThat(replay.postId()).isEqualTo(postId);
+        verify(postRepository, times(1)).create(draft);
+        verify(postContentBlockRepository, times(1)).replaceBlocks(eq(postId), any());
+        verify(postTagRepository, times(1)).bindTagsToPost(postId, List.of("java"));
+        verify(domainEventPublisher, times(1)).postPublished(postId);
+    }
+
+    @Test
+    void createShouldRejectSameIdempotencyKeyWithDifferentPostFingerprint() {
+        useRealIdempotencyGuard(new InMemoryIdempotencyStore());
+        UUID userId = uuid(7);
+        UUID categoryId = uuid(1);
+        UUID postId = uuid(99);
+        Date createTime = Date.from(Instant.parse("2026-04-27T08:00:00Z"));
+        PostDraft draft = new PostDraft(userId, "title", categoryId, createTime);
+        List<PostContentBlockCommand> blocks = List.of(new PostContentBlockCommand("paragraph", "body", null, null, "", "", null));
+        List<PostContentBlockCommand> normalizedBlocks = List.of(new PostContentBlockCommand("paragraph", "body", null, "", "", "", null));
+
+        when(sensitiveFilter.filter("title")).thenReturn("title");
+        when(sensitiveFilter.filter("body")).thenReturn("body");
+        when(blockPolicy.validateAndNormalize(blocks)).thenReturn(normalizedBlocks);
+        when(domainService.createDraft(userId, "title", categoryId)).thenReturn(draft);
+        when(postRepository.create(draft)).thenReturn(postId);
+
+        service.create("idem-conflict-post", new CreatePostCommand(userId, "title", categoryId, List.of("java"), blocks));
+
+        assertThatThrownBy(() -> service.create(
+                "idem-conflict-post",
+                new CreatePostCommand(userId, "changed title", categoryId, List.of("java"), blocks)
+        ))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(ContentErrorCode.REQUEST_REPLAY_CONFLICT));
+        verify(postRepository, times(1)).create(draft);
+        verify(domainEventPublisher, times(1)).postPublished(postId);
     }
 
     @Test
@@ -454,5 +526,74 @@ class PostPublishingApplicationServiceTest {
                 now,
                 now
         );
+    }
+
+    private void useRealIdempotencyGuard(IdempotencyStore store) {
+        idempotencyGuard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
+        service = new PostPublishingApplicationService(
+                sensitiveFilter,
+                idempotencyGuard,
+                new SpringHtmlContentTextCodec(),
+                new PostBusinessEventLogger(),
+                moderationGuard,
+                domainService,
+                blockPolicy,
+                postRepository,
+                postContentBlockRepository,
+                postMediaAssetRepository,
+                postMediaStoragePort,
+                categoryRepository,
+                postTagRepository,
+                domainEventPublisher,
+                socialLikeCleanupActionApi
+        );
+    }
+
+    private static final class InMemoryIdempotencyStore implements IdempotencyStore {
+
+        private final Map<String, Entry> entries = new HashMap<>();
+
+        @Override
+        public boolean tryAcquireProcessing(String operation, UUID userId, String key, Duration ttl) {
+            return tryAcquireProcessing(operation, userId, key, null, ttl);
+        }
+
+        @Override
+        public boolean tryAcquireProcessing(String operation, UUID userId, String key, String requestHash, Duration ttl) {
+            String storageKey = storageKey(operation, userId, key);
+            if (entries.containsKey(storageKey)) {
+                return false;
+            }
+            entries.put(storageKey, new Entry(Status.PROCESSING, null, requestHash));
+            return true;
+        }
+
+        @Override
+        public Entry get(String operation, UUID userId, String key) {
+            return entries.get(storageKey(operation, userId, key));
+        }
+
+        @Override
+        public void saveSuccess(String operation, UUID userId, String key, String successJson, Duration ttl) {
+            saveSuccess(operation, userId, key, null, successJson, ttl);
+        }
+
+        @Override
+        public void saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl) {
+            entries.put(storageKey(operation, userId, key), new Entry(Status.SUCCESS, successJson, requestHash));
+        }
+
+        @Override
+        public void extendProcessing(String operation, UUID userId, String key, Duration ttl) {
+        }
+
+        @Override
+        public void delete(String operation, UUID userId, String key) {
+            entries.remove(storageKey(operation, userId, key));
+        }
+
+        private String storageKey(String operation, UUID userId, String key) {
+            return operation + "|" + userId + "|" + key;
+        }
     }
 }

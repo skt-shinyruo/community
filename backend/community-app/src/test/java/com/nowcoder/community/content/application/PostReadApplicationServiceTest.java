@@ -332,6 +332,110 @@ class PostReadApplicationServiceTest {
     }
 
     @Test
+    void detailShouldFailOpenToSourceWhenCacheReadFails() {
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
+        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        PostCounterApplicationService postCounterApplicationService = mock(PostCounterApplicationService.class);
+        UUID currentUserId = uuid(7);
+        UUID postId = uuid(120);
+        UUID authorUserId = uuid(8);
+        UUID categoryId = uuid(3);
+        DiscussPost post = post(postId, authorUserId, categoryId);
+
+        when(postDetailCache.get(postId)).thenThrow(new RuntimeException("redis read failed"));
+        when(postService.getById(postId)).thenReturn(post);
+        when(blockRepository.listByPostId(postId)).thenReturn(List.of(paragraphBlock(postId, "&lt;body&gt;")));
+        when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java", "spring")));
+        when(postCounterApplicationService.read(postId)).thenReturn(new PostCounterSnapshot(postId, 3L, 9L, 7L, 0L, 33.5));
+        when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
+        when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
+        PostReadApplicationService service = service(
+                postService,
+                commentService,
+                likeQueryService,
+                tagService,
+                bookmarkService,
+                subscriptionService,
+                blockRepository,
+                mediaAssetRepository,
+                postDetailCache,
+                postCounterApplicationService
+        );
+
+        PostDetailResult result = service.getPostDetail(currentUserId, postId);
+
+        assertThat(result.id()).isEqualTo(postId);
+        assertThat(result.title()).isEqualTo("<title>");
+        assertThat(result.blocks()).singleElement().satisfies(block -> assertThat(block.text()).isEqualTo("<body>"));
+        assertThat(result.tags()).containsExactly("java", "spring");
+        assertThat(result.likeCount()).isEqualTo(9L);
+        assertThat(result.commentCount()).isEqualTo(7);
+        assertThat(result.score()).isEqualTo(33.5);
+        assertThat(result.liked()).isTrue();
+        assertThat(result.bookmarked()).isTrue();
+    }
+
+    @Test
+    void detailShouldIgnoreCacheWriteFailureOnMiss() {
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
+        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        PostCounterApplicationService postCounterApplicationService = mock(PostCounterApplicationService.class);
+        UUID currentUserId = uuid(7);
+        UUID postId = uuid(121);
+        UUID authorUserId = uuid(8);
+        UUID categoryId = uuid(3);
+        DiscussPost post = post(postId, authorUserId, categoryId);
+
+        when(postDetailCache.get(postId)).thenReturn(null);
+        org.mockito.Mockito.doThrow(new RuntimeException("redis write failed"))
+                .when(postDetailCache).put(eq(postId), any(PostDetailResult.class));
+        when(postService.getById(postId)).thenReturn(post);
+        when(blockRepository.listByPostId(postId)).thenReturn(List.of(paragraphBlock(postId, "&lt;body&gt;")));
+        when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java", "spring")));
+        when(postCounterApplicationService.read(postId)).thenReturn(new PostCounterSnapshot(postId, 3L, 9L, 7L, 0L, 33.5));
+        when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
+        when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
+        PostReadApplicationService service = service(
+                postService,
+                commentService,
+                likeQueryService,
+                tagService,
+                bookmarkService,
+                subscriptionService,
+                blockRepository,
+                mediaAssetRepository,
+                postDetailCache,
+                postCounterApplicationService
+        );
+
+        PostDetailResult result = service.getPostDetail(currentUserId, postId);
+
+        assertThat(result.id()).isEqualTo(postId);
+        assertThat(result.title()).isEqualTo("<title>");
+        assertThat(result.blocks()).singleElement().satisfies(block -> assertThat(block.text()).isEqualTo("<body>"));
+        assertThat(result.tags()).containsExactly("java", "spring");
+        assertThat(result.likeCount()).isEqualTo(9L);
+        assertThat(result.commentCount()).isEqualTo(7);
+        assertThat(result.score()).isEqualTo(33.5);
+        assertThat(result.liked()).isTrue();
+        assertThat(result.bookmarked()).isTrue();
+    }
+
+    @Test
     void listPostsByUserShouldAssembleRecentSummaries() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
@@ -638,6 +742,22 @@ class PostReadApplicationServiceTest {
 
     private static PostContentBlock paragraphBlock(UUID postId, String text) {
         return new PostContentBlock(uuid(501), postId, 0, "paragraph", text, null, "", "", "", null);
+    }
+
+    private static DiscussPost post(UUID postId, UUID authorUserId, UUID categoryId) {
+        DiscussPost post = new DiscussPost();
+        post.setId(postId);
+        post.setUserId(authorUserId);
+        post.setTitle("&lt;title&gt;");
+        post.setType(1);
+        post.setStatus(0);
+        post.setCreateTime(new Date(1_000));
+        post.setUpdateTime(new Date(2_000));
+        post.setEditCount(2);
+        post.setCommentCount(5);
+        post.setScore(12.5);
+        post.setCategoryId(categoryId);
+        return post;
     }
 
     private static PostDetailResult detail(UUID postId) {

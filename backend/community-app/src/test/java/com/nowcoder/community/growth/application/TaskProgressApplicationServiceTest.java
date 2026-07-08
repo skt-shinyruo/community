@@ -167,6 +167,17 @@ class TaskProgressApplicationServiceTest {
     }
 
     @Test
+    void replayedLikeCreatedSourceEventShouldNotIncrementTaskTwice() {
+        service.processEvent(USER_ID, "LikeCreated", "like-evt-replayed", LocalDate.of(2026, 3, 22));
+        service.processEvent(USER_ID, "LikeCreated", "like-evt-replayed", LocalDate.of(2026, 3, 22));
+
+        assertThat(countProgressRows("LIFETIME_RECEIVE_LIKE")).isEqualTo(1);
+        assertThat(progressValue("LIFETIME_RECEIVE_LIKE")).isEqualTo(1);
+        assertThat(eventLogCount("LIFETIME_RECEIVE_LIKE", "like-evt-replayed")).isEqualTo(1);
+        assertThat(walletTxnCountFor("task:" + USER_ID + ":LIFETIME_RECEIVE_LIKE:LIFETIME")).isZero();
+    }
+
+    @Test
     void walletRewardShouldUseBalanceDeltaOnly() {
         String requestId = "task:" + USER_ID + ":DAILY_POST:2026-03-22";
 

@@ -12,10 +12,12 @@ import com.nowcoder.community.notice.domain.service.NoticeProjectionDomainServic
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -123,6 +125,38 @@ class NoticeProjectionApplicationServiceTest {
 
         verify(eventRecorder).tryRecord("evt-like-removed-1");
         verify(noticeService).revokeLikeNotice(payload.getEntityUserId(), payload.getRelationKey());
+    }
+
+    @Test
+    void reliableLikeCreatedProjectionShouldCreateOneNoticeForDuplicateSocialEventId() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        when(eventRecorder.tryRecord("evt-like-created-duplicate")).thenReturn(true, false);
+        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
+        LikePayload payload = new LikePayload();
+        payload.setActorUserId(uuid(44));
+        payload.setEntityType(3);
+        payload.setEntityId(uuid(100));
+        payload.setEntityUserId(uuid(55));
+        payload.setPostId(uuid(100));
+        payload.setRelationKey("like:" + uuid(44) + ":3:" + uuid(100));
+        ProjectSocialNoticeCommand command = new ProjectSocialNoticeCommand(
+                "evt-like-created-duplicate",
+                21L,
+                SocialEventTypes.LIKE_CREATED,
+                payload
+        );
+
+        projectionService.projectSocialEventReliably(command);
+        projectionService.projectSocialEventReliably(command);
+
+        ArgumentCaptor<CreateNoticeCommand> noticeCaptor = ArgumentCaptor.forClass(CreateNoticeCommand.class);
+        verify(eventRecorder, times(2)).tryRecord("evt-like-created-duplicate");
+        verify(noticeService, times(1)).createNotice(noticeCaptor.capture());
+        assertThat(noticeCaptor.getValue().toUserId()).isEqualTo(uuid(55));
+        assertThat(noticeCaptor.getValue().sourceEventType()).isEqualTo(SocialEventTypes.LIKE_CREATED);
+        assertThat(noticeCaptor.getValue().sourceRelationKey()).isEqualTo("like:" + uuid(44) + ":3:" + uuid(100));
+        assertThat(noticeCaptor.getValue().contentJson()).contains("evt-like-created-duplicate");
     }
 
     @Test

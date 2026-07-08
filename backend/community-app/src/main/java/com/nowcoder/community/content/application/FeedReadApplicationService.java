@@ -220,9 +220,9 @@ public class FeedReadApplicationService {
             return new LoadedFeedPage(List.of(), false, rankVersion.value());
         }
         String rankVersion = policyProperties.getHotRankVersion();
-        warmFeedCache(fallbackPosts, boardId, rankVersion);
+        safeWarmFeedCache(fallbackPosts, boardId, rankVersion);
         List<PostSummaryResult> items = filterBoardItems(postFeedSummaryLoader.assembleSummaries(fallbackPosts), boardId);
-        postSummaryCache.putAll(items);
+        safePutSummaryCache(items);
         hotFeedReadMetrics.record(cacheDegraded ? "degraded" : "fallback", scope);
         return new LoadedFeedPage(items, !listFallbackPosts(page + 1, limit, boardId).isEmpty(), rankVersion);
     }
@@ -259,6 +259,22 @@ public class FeedReadApplicationService {
                 continue;
             }
             postFeedCache.upsertBoardHot(boardId, post.getId(), post.getScore(), rankVersion);
+        }
+    }
+
+    private void safeWarmFeedCache(List<DiscussPost> posts, UUID boardId, String rankVersion) {
+        try {
+            warmFeedCache(posts, boardId, rankVersion);
+        } catch (RuntimeException ignored) {
+            // Feed cache warm-up is best-effort for fallback reads.
+        }
+    }
+
+    private void safePutSummaryCache(List<PostSummaryResult> items) {
+        try {
+            postSummaryCache.putAll(items);
+        } catch (RuntimeException ignored) {
+            // Summary cache backfill is best-effort for fallback reads.
         }
     }
 

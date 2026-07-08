@@ -242,6 +242,80 @@ class FeedReadApplicationServiceReliabilityTest {
     }
 
     @Test
+    void listGlobalHotFeedShouldReturnFallbackWhenFeedCacheWarmupFails() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
+        ContentFeedPolicyProperties policyProperties = new ContentFeedPolicyProperties();
+        policyProperties.setHotRankVersion("hot-v2");
+        DiscussPost fallbackPost = post(uuid(26), "<fallback>");
+        fallbackPost.setScore(79.0);
+
+        when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
+        org.mockito.Mockito.doThrow(new IllegalStateException("feed cache warmup failed"))
+                .when(postFeedCache).writeRankVersion("hot-v2");
+        when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of(fallbackPost));
+        when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
+        when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost)))
+                .thenReturn(List.of(summary(fallbackPost.getId(), fallbackPost.getTitle())));
+
+        FeedReadApplicationService service = service(
+                postFeedCache,
+                postContentRepository,
+                postSummaryCache,
+                postFeedSummaryLoader,
+                registry,
+                policyProperties
+        );
+
+        FeedPageResult result = service.listGlobalHotFeed(null, "", 2);
+
+        assertThat(result.items()).extracting(PostSummaryResult::id).containsExactly(fallbackPost.getId());
+        assertThat(result.rankVersion()).isEqualTo("hot-v2");
+        assertThat(countMetric(registry, "fallback", "global")).isEqualTo(1.0);
+        assertThat(totalMetricCount(registry)).isEqualTo(1.0);
+    }
+
+    @Test
+    void listGlobalHotFeedShouldReturnFallbackWhenSummaryCacheBackfillFails() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
+        ContentFeedPolicyProperties policyProperties = new ContentFeedPolicyProperties();
+        policyProperties.setHotRankVersion("hot-v2");
+        DiscussPost fallbackPost = post(uuid(27), "<fallback>");
+        fallbackPost.setScore(80.0);
+        List<PostSummaryResult> summaries = List.of(summary(fallbackPost.getId(), fallbackPost.getTitle()));
+
+        when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
+        when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of(fallbackPost));
+        when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
+        when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost))).thenReturn(summaries);
+        org.mockito.Mockito.doThrow(new IllegalStateException("summary cache backfill failed"))
+                .when(postSummaryCache).putAll(summaries);
+
+        FeedReadApplicationService service = service(
+                postFeedCache,
+                postContentRepository,
+                postSummaryCache,
+                postFeedSummaryLoader,
+                registry,
+                policyProperties
+        );
+
+        FeedPageResult result = service.listGlobalHotFeed(null, "", 2);
+
+        assertThat(result.items()).extracting(PostSummaryResult::id).containsExactly(fallbackPost.getId());
+        assertThat(result.rankVersion()).isEqualTo("hot-v2");
+        assertThat(countMetric(registry, "fallback", "global")).isEqualTo(1.0);
+        assertThat(totalMetricCount(registry)).isEqualTo(1.0);
+    }
+
+    @Test
     void listGlobalHotFeedShouldRecordDegradedOnceWhenRankVersionFallsBack() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         PostFeedCache postFeedCache = mock(PostFeedCache.class);

@@ -39,8 +39,8 @@ operation + userId + Idempotency-Key
 
 | 功能 | HTTP 接口 | operation | 请求指纹 |
 | --- | --- | --- | --- |
-| 发帖 | `POST /api/posts` | `content:create_post` | 无 |
-| 发表评论 | `POST /api/posts/{postId}/comments` | `content:create_comment` | 无 |
+| 发帖 | `POST /api/posts` | `content:create_post` | `title`, `categoryId`, `tags`, `blocks` |
+| 发表评论 | `POST /api/posts/{postId}/comments` | `content:create_comment` | `postId`, `parentCommentId`, `replyToUserId`, `content` |
 | 钱包充值 | `POST /api/wallet/recharges` | `wallet:recharge` | `amount` |
 | 钱包提现 | `POST /api/wallet/withdrawals` | `wallet:withdraw` | `amount` |
 | 钱包转账 | `POST /api/wallet/transfers` | `wallet:transfer` | `toUserId`, `amount` |
@@ -75,6 +75,8 @@ operation + userId + Idempotency-Key
 当前 canonical string：
 
 ```text
+content:create_post|title=<title>|categoryId=<categoryId>|tags=[<tag>,...]|blocks=[type=<type>;text=<text>;assetId=<assetId>;language=<language>;caption=<caption>;displayName=<displayName>;metadata={<key>=<value>,...},...]
+content:create_comment|postId=<postId>|parentCommentId=<parentCommentId>|replyToUserId=<replyToUserId>|content=<content>
 wallet:recharge|amount=<amount>
 wallet:withdraw|amount=<amount>
 wallet:transfer|toUserId=<toUserId>|amount=<amount>
@@ -86,7 +88,7 @@ market:create_order|listingId=<listingId>|quantity=<quantity>|addressId=<address
 - 同 key、同指纹、`SUCCESS`：返回缓存响应。
 - 同 key、同指纹、`PROCESSING`：返回 `409`。
 - 同 key、不同指纹：replay conflict，通常为 `409`。
-- 内容类接口当前不传指纹，只按 `operation + userId + key` 去重。
+- 内容类接口使用 owner `ApplicationService` 拼出的业务语义指纹；重复 key 且业务语义变化会被拒绝。
 
 ## Idempotency 执行流程
 
@@ -215,6 +217,8 @@ Outbox 用于需要可靠追平的异步副作用。
 
 当前接入：
 
+- `eventbus.content`：content owner 的帖子 / 评论 contract event，通过 outbox handler dispatch 到 Kafka。
+- `eventbus.social`：social owner 的点赞 / 关注 / 拉黑 contract event，通过 outbox handler dispatch 到 Kafka。
 - `projection.search.post`：帖子事件投影到搜索索引。
 - IM policy projection：用户处罚 / 拉黑变化投递给 `im-realtime`。
 
@@ -263,6 +267,14 @@ OutboxWorkerScheduler
 
 `DEAD` 不是业务终点，只是自动重试终点。人工仍需确认副作用、修复 handler 或执行重放。
 
+P2 BBS 业务切片的 replay 边界：
+
+| 切片 | outbox topic | replay 能力 | 不包含 |
+| --- | --- | --- | --- |
+| 发帖 / 评论事实事件 | `eventbus.content` | `DEAD` outbox row 可由 `/api/ops/outbox/events/{outboxId}/replay` 排回 `PENDING`，再由正常 worker 重新 dispatch | Kafka consumer 内部失败不会自动变成 common-outbox `DEAD`，除非 consumer 自己写入下游 outbox row |
+| 点赞 / 关注事实事件 | `eventbus.social` | 同上，重放保持原 outbox payload 和 source event identity | 同上 |
+| 下游 projection outbox | 例如 `projection.search.post`、`projection.growth.*` | 下游已落 outbox row 的失败可按 common-outbox 状态机重试 / DEAD / replay | 未落 outbox 的 consumer retry / DLQ 由对应 Kafka consumer 负责 |
+
 ## Outbox Governance
 
 管理员可靠性治理 API 位于 `/api/ops/outbox/**`，并要求 `ROLE_ADMIN`。
@@ -287,6 +299,8 @@ worker 不保证 exactly-once，handler 必须自己保证幂等。
 当前做法：
 
 - 搜索投影 handler 不信任事件中的旧快照，而是回源 content owner 当前状态，再 upsert/delete ES。这样乱序事件不会让已删除帖子复活。
+- content eventbus payload 使用稳定 source event id、aggregate metadata 和 owner fact fields。Search / notice / growth projection 以 source event id 或回源当前状态处理重复和乱序重放。
+- social eventbus payload 使用稳定 source event id、relation key、actor、target 和 state change 语义。Notice / growth / hot-feed projection 以 source event id、relation key 或 source version 处理重复和乱序重放。
 - IM policy projection 先写 `projection.im.policy` outbox，再由 handler 发布 Kafka 增量事件。`USER_POLICY` 使用 user owner 持久版本覆盖 userId 的消息权限；`BLOCK` 使用 social owner 持久版本覆盖 blocker / blocked 拉黑关系，重复或乱序投递不会产生累计副作用。
 - IM 私信持久化不信任 realtime 本地 projection；`im-core` 在写权威消息表前回源 `community-app` owner decision。业务拒绝发布 `im.event.private-rejected` 并提交 offset，不进入 DLQ；owner API 不可用等系统失败仍按 Kafka retry / DLQ 处理。
 - IM 消息事实 event 和发送结果 event 使用不同 outbox event id 空间。重复 `clientMsgId` 不会重复创建或发布消息事实；不同 `requestId` 的发送尝试会生成各自的 committed / rejected 回执事件。
@@ -391,6 +405,8 @@ MarketWalletActionProcessorHandler
 - Outbox 开启但缺 store：fail-closed。
 - 搜索投影失败：不阻断主写路径，交给 outbox 重试。
 - 通知投影失败：best-effort，记录日志，不回滚主事务。
+- 帖子详情缓存读 / 写失败：fail-open 到 content 源数据，响应仍叠加 counter 和 viewer state。
+- 热榜 fallback 读路径的 feed cache warm-up / summary cache backfill 失败：fail-open，返回源数据 fallback 结果和 rank version。
 - analytics 采集失败：应避免影响主业务响应，具体以当前实现为准。
 - 市场钱包 release / refund 失败：优先保留 pending / retryable 状态，不把订单静默完成。
 - 市场钱包 escrow 业务失败：订单进入失败或无退款取消路径，并恢复 market 侧库存 / 预加载库存。

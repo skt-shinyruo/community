@@ -98,6 +98,71 @@ class OutboxContentEventPublisherTest {
     }
 
     @Test
+    void contentEventbusPayloadShouldCarryOwnerFactFieldsForP2Projections() throws Exception {
+        ObjectMapper objectMapper = JsonMappers.standard();
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxContentEventPublisher publisher = new OutboxContentEventPublisher(
+                new JacksonJsonCodec(JsonMappers.standard()),
+                store,
+                "eventbus.content"
+        );
+        UUID postId = uuid(701);
+        UUID postAuthorId = uuid(7);
+        UUID categoryId = uuid(3);
+        UUID commentId = uuid(702);
+        UUID commenterId = uuid(8);
+        UUID targetUserId = uuid(9);
+        PostPayload postPayload = postPayload(postId);
+        postPayload.setUserId(postAuthorId);
+        postPayload.setCategoryId(categoryId);
+        postPayload.setTags(List.of("java", "reliability"));
+        postPayload.setTitle("P2 post");
+        postPayload.setContent("source content");
+        postPayload.setStatus(0);
+        postPayload.setScore(1.5);
+        CommentPayload commentPayload = commentPayload(commentId);
+        commentPayload.setPostId(postId);
+        commentPayload.setUserId(commenterId);
+        commentPayload.setEntityType(1);
+        commentPayload.setEntityId(postId);
+        commentPayload.setTargetUserId(targetUserId);
+        commentPayload.setContent("comment body");
+
+        publisher.publishPostPublished(postPayload);
+        publisher.publishCommentCreated(commentPayload);
+
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(store, times(2)).enqueue(org.mockito.ArgumentMatchers.anyString(), eq("eventbus.content"), org.mockito.ArgumentMatchers.anyString(), payloadCaptor.capture());
+        JsonNode postEvent = objectMapper.readTree(payloadCaptor.getAllValues().get(0));
+        JsonNode commentEvent = objectMapper.readTree(payloadCaptor.getAllValues().get(1));
+        assertThat(postEvent.path("eventId").asText()).isEqualTo("content:PostPublished:" + postId);
+        assertThat(postEvent.path("aggregateId").asText()).isEqualTo(postId.toString());
+        assertThat(postEvent.path("aggregateType").asText()).isEqualTo("post");
+        assertThat(postEvent.path("type").asText()).isEqualTo(ContentEventTypes.POST_PUBLISHED);
+        assertThat(postEvent.path("version").asLong()).isPositive();
+        assertThat(postEvent.path("payload").path("postId").asText()).isEqualTo(postId.toString());
+        assertThat(postEvent.path("payload").path("userId").asText()).isEqualTo(postAuthorId.toString());
+        assertThat(postEvent.path("payload").path("categoryId").asText()).isEqualTo(categoryId.toString());
+        assertThat(postEvent.path("payload").path("tags")).hasSize(2);
+        assertThat(postEvent.path("payload").path("tags").get(0).asText()).isEqualTo("java");
+        assertThat(postEvent.path("payload").path("tags").get(1).asText()).isEqualTo("reliability");
+        assertThat(postEvent.path("payload").path("title").asText()).isEqualTo("P2 post");
+        assertThat(postEvent.path("payload").path("content").asText()).isEqualTo("source content");
+        assertThat(postEvent.path("payload").path("status").asInt()).isZero();
+        assertThat(postEvent.path("payload").path("score").asDouble()).isEqualTo(1.5);
+        assertThat(commentEvent.path("eventId").asText()).isEqualTo("content:CommentCreated:" + commentId);
+        assertThat(commentEvent.path("aggregateId").asText()).isEqualTo(commentId.toString());
+        assertThat(commentEvent.path("aggregateType").asText()).isEqualTo("comment");
+        assertThat(commentEvent.path("type").asText()).isEqualTo(ContentEventTypes.COMMENT_CREATED);
+        assertThat(commentEvent.path("version").asLong()).isPositive();
+        assertThat(commentEvent.path("payload").path("commentId").asText()).isEqualTo(commentId.toString());
+        assertThat(commentEvent.path("payload").path("postId").asText()).isEqualTo(postId.toString());
+        assertThat(commentEvent.path("payload").path("userId").asText()).isEqualTo(commenterId.toString());
+        assertThat(commentEvent.path("payload").path("targetUserId").asText()).isEqualTo(targetUserId.toString());
+        assertThat(commentEvent.path("payload").path("content").asText()).isEqualTo("comment body");
+    }
+
+    @Test
     void publishPostPublishedShouldRejectMissingSourceTimestamp() {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID postId = uuid(612);

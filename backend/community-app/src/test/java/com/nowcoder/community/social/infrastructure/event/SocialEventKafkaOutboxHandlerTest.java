@@ -4,6 +4,7 @@ import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.social.application.SocialEventDispatchApplicationService;
 import com.nowcoder.community.social.application.command.DispatchSocialEventCommand;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
 import java.util.UUID;
@@ -45,6 +46,21 @@ class SocialEventKafkaOutboxHandlerTest {
         handler.handle(outboxEvent("{\"eventId\":\"event-id\"}", "key-1"));
 
         verify(applicationService).dispatch(new DispatchSocialEventCommand("key-1", "{\"eventId\":\"event-id\"}"));
+    }
+
+    @Test
+    void handleShouldPreserveStoredPayloadAndEventKeyForOutboxReplayDispatch() {
+        SocialEventDispatchApplicationService applicationService = mock(SocialEventDispatchApplicationService.class);
+        SocialEventKafkaOutboxHandler handler = new SocialEventKafkaOutboxHandler(applicationService, OUTBOX_TOPIC);
+        String payload = "{\"eventId\":\"se:like:created:source-1\",\"type\":\"LikeCreated\"}";
+
+        handler.handle(outboxEvent(payload, "3:post-1"));
+
+        ArgumentCaptor<DispatchSocialEventCommand> commandCaptor = ArgumentCaptor.forClass(DispatchSocialEventCommand.class);
+        verify(applicationService).dispatch(commandCaptor.capture());
+        assertThat(commandCaptor.getValue().eventKey()).isEqualTo("3:post-1");
+        assertThat(commandCaptor.getValue().payloadJson()).isEqualTo(payload);
+        assertThat(commandCaptor.getValue().payloadJson()).contains("se:like:created:source-1");
     }
 
     @Test

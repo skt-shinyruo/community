@@ -35,8 +35,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Date;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -317,6 +319,57 @@ class CommentApplicationServiceTest {
         );
         assertThat(hashCaptor.getValue()).isNotBlank();
         assertThat(jsonCaptor.getValue()).isEqualTo("\"" + commentId + "\"");
+    }
+
+    @Test
+    void createShouldReplayRecordedResultForSameIdempotencyKeyWithoutDuplicatingFact() {
+        useRealIdempotencyGuard(new InMemoryIdempotencyStore());
+        UUID userId = uuid(1);
+        UUID postId = uuid(100);
+        UUID postAuthorId = uuid(2);
+        UUID commentId = uuid(200);
+        CreateCommentCommand command = new CreateCommentCommand(userId, postId, null, null, "body");
+
+        when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
+        when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
+        when(sensitiveFilter.filter("body")).thenReturn("body");
+        when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
+
+        CommentCreateResult first = service.create("idem-replay-comment", command);
+        CommentCreateResult replay = service.create("idem-replay-comment", command);
+
+        assertThat(first.commentId()).isEqualTo(commentId);
+        assertThat(replay.commentId()).isEqualTo(commentId);
+        verify(commentRepository, times(1)).create(any(CommentDraft.class));
+        verify(postContentPort, times(1)).incrementCommentCount(postId, 1);
+        verify(postCounterCache, times(1)).incrementCommentCount(postId, 1L);
+        verify(domainEventPublisher, times(1)).commentCreated(any(CommentCreatedDomainEvent.class));
+    }
+
+    @Test
+    void createShouldRejectSameIdempotencyKeyWithDifferentCommentFingerprint() {
+        useRealIdempotencyGuard(new InMemoryIdempotencyStore());
+        UUID userId = uuid(1);
+        UUID postId = uuid(100);
+        UUID postAuthorId = uuid(2);
+        UUID commentId = uuid(200);
+
+        when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
+        when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
+        when(sensitiveFilter.filter("body")).thenReturn("body");
+        when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
+
+        service.create("idem-conflict-comment", new CreateCommentCommand(userId, postId, null, null, "body"));
+
+        assertThatThrownBy(() -> service.create(
+                "idem-conflict-comment",
+                new CreateCommentCommand(userId, postId, null, null, "changed body")
+        ))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(ContentErrorCode.REQUEST_REPLAY_CONFLICT));
+        verify(commentRepository, times(1)).create(any(CommentDraft.class));
+        verify(domainEventPublisher, times(1)).commentCreated(any(CommentCreatedDomainEvent.class));
     }
 
     @Test
@@ -704,5 +757,71 @@ class CommentApplicationServiceTest {
                 null,
                 0
         );
+    }
+
+    private void useRealIdempotencyGuard(IdempotencyStore store) {
+        idempotencyGuard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
+        service = new CommentApplicationService(
+                sensitiveFilter,
+                idempotencyGuard,
+                new SpringHtmlContentTextCodec(),
+                moderationGuard,
+                new CommentDomainService(),
+                commentRepository,
+                postContentPort,
+                postCounterCache,
+                commentPageCache,
+                blockQueryApi,
+                socialLikeCleanupActionApi,
+                domainEventPublisher
+        );
+    }
+
+    private static final class InMemoryIdempotencyStore implements IdempotencyStore {
+
+        private final Map<String, Entry> entries = new HashMap<>();
+
+        @Override
+        public boolean tryAcquireProcessing(String operation, UUID userId, String key, Duration ttl) {
+            return tryAcquireProcessing(operation, userId, key, null, ttl);
+        }
+
+        @Override
+        public boolean tryAcquireProcessing(String operation, UUID userId, String key, String requestHash, Duration ttl) {
+            String storageKey = storageKey(operation, userId, key);
+            if (entries.containsKey(storageKey)) {
+                return false;
+            }
+            entries.put(storageKey, new Entry(Status.PROCESSING, null, requestHash));
+            return true;
+        }
+
+        @Override
+        public Entry get(String operation, UUID userId, String key) {
+            return entries.get(storageKey(operation, userId, key));
+        }
+
+        @Override
+        public void saveSuccess(String operation, UUID userId, String key, String successJson, Duration ttl) {
+            saveSuccess(operation, userId, key, null, successJson, ttl);
+        }
+
+        @Override
+        public void saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl) {
+            entries.put(storageKey(operation, userId, key), new Entry(Status.SUCCESS, successJson, requestHash));
+        }
+
+        @Override
+        public void extendProcessing(String operation, UUID userId, String key, Duration ttl) {
+        }
+
+        @Override
+        public void delete(String operation, UUID userId, String key) {
+            entries.remove(storageKey(operation, userId, key));
+        }
+
+        private String storageKey(String operation, UUID userId, String key) {
+            return operation + "|" + userId + "|" + key;
+        }
     }
 }

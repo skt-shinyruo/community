@@ -89,7 +89,7 @@ class UserRoleDomainServiceTest {
     }
 
     private static UserAccount user(UUID userId, int type) {
-        return new UserAccount(userId, "admin", "pw", "salt", "admin@example.com", type, 0, "h", new Date(), null, null, 0L);
+        return new UserAccount(userId, "admin", "pw", "salt", "admin@example.com", type, 0, "h", new Date(), null, null, 0L, 0L);
     }
 
     private static UUID uuid(long suffix) {

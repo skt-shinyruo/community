@@ -333,7 +333,8 @@ class RedisRefreshTokenRepositoryTest {
                 .contains("PENDING_ROTATION")
                 .contains("CONSUMED")
                 .contains("auth:refresh:revoked:")
-                .contains("redis.call('sadd', KEYS[3], ARGV[3])");
+                .contains("redis.call('sadd', KEYS[3], ARGV[3])")
+                .doesNotContain("oldToken = ARGV[5]");
         assertThat(keysCaptor.getValue()).containsExactly(
                 "auth:refresh:t1",
                 "auth:refresh:t2",

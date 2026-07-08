@@ -97,9 +97,6 @@ public class RefreshTokenSessionApplicationPortAdapter implements RefreshTokenSe
     }
 
     private RefreshTokenSessionState toState(RefreshTokenSessionStateView state) {
-        if (state == null) {
-            return RefreshTokenSessionState.ACTIVE;
-        }
         return RefreshTokenSessionState.valueOf(state.name());
     }
 }

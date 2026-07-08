@@ -41,11 +41,7 @@ class ContentEventKafkaSenderAdapterTest {
         ContentEventKafkaSenderAdapter adapter = new ContentEventKafkaSenderAdapter(kafkaTemplate, KAFKA_TOPIC);
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(101));
-        ContentContractEvent event = new ContentContractEvent(
-                "content:PostPublished:" + uuid(101),
-                ContentEventTypes.POST_PUBLISHED,
-                payload
-        );
+        ContentContractEvent event = new ContentContractEvent("content:PostPublished:" + uuid(101), null, null, ContentEventTypes.POST_PUBLISHED, java.time.Instant.EPOCH, 1L, payload);
 
         adapter.dispatch(uuid(101).toString(), event);
 
@@ -63,7 +59,7 @@ class ContentEventKafkaSenderAdapterTest {
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(failedSend());
         ContentEventKafkaSenderAdapter adapter = new ContentEventKafkaSenderAdapter(kafkaTemplate, KAFKA_TOPIC);
 
-        assertThatThrownBy(() -> adapter.dispatch("key", new ContentContractEvent("event-1", "Type", new Object())))
+        assertThatThrownBy(() -> adapter.dispatch("key", new ContentContractEvent("event-1", null, null, "Type", java.time.Instant.EPOCH, 1L, new Object())))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("content event kafka publish failed: " + KAFKA_TOPIC)
                 .hasCauseInstanceOf(RuntimeException.class);

@@ -1,7 +1,6 @@
 package com.nowcoder.community.social.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEvent;
 import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.exception.SocialErrorCode;
 import org.junit.jupiter.api.Test;
@@ -53,16 +52,5 @@ class BlockDomainServiceTest {
 
         verify(repository).hasBlocked(uuid(1), uuid(2));
         verify(repository).hasBlocked(uuid(2), uuid(1));
-    }
-
-    @Test
-    void blockChangedEventShouldCarryRelationState() {
-        BlockDomainService service = new BlockDomainService();
-
-        BlockRelationChangedDomainEvent event = service.blockChangedEvent(uuid(1), uuid(2), true);
-
-        assertThat(event.blockerUserId()).isEqualTo(uuid(1));
-        assertThat(event.blockedUserId()).isEqualTo(uuid(2));
-        assertThat(event.blocked()).isTrue();
     }
 }

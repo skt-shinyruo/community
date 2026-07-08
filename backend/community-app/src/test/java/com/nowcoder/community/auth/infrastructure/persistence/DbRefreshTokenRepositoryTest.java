@@ -42,6 +42,8 @@ class DbRefreshTokenRepositoryTest {
                         USER_ID,
                         "family-1",
                         expiresAt,
+                        null,
+                        RefreshTokenSessionPort.RefreshTokenSessionState.ACTIVE,
                         null
                 )
         );
@@ -62,7 +64,9 @@ class DbRefreshTokenRepositoryTest {
                         USER_ID,
                         "family-1",
                         now.plusSeconds(300),
-                        now.minusSeconds(3)
+                        now.minusSeconds(3),
+                        RefreshTokenSessionPort.RefreshTokenSessionState.REVOKED,
+                        null
                 )
         );
 
@@ -101,6 +105,8 @@ class DbRefreshTokenRepositoryTest {
                         USER_ID,
                         "family-1",
                         Instant.now().plusSeconds(300),
+                        null,
+                        RefreshTokenSessionPort.RefreshTokenSessionState.ACTIVE,
                         null
                 )
         );

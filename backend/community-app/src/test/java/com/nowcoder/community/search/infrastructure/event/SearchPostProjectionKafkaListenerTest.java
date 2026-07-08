@@ -69,11 +69,7 @@ class SearchPostProjectionKafkaListenerTest {
         SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
         SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(jsonCodec, applicationService);
 
-        listener.onContentEvent(new ContentContractEvent(
-                "evt-comment-created",
-                ContentEventTypes.COMMENT_CREATED,
-                new CommentPayload()
-        ));
+        listener.onContentEvent(new ContentContractEvent("evt-comment-created", null, null, ContentEventTypes.COMMENT_CREATED, java.time.Instant.EPOCH, 1L, new CommentPayload()));
 
         verifyNoInteractions(applicationService);
     }
@@ -84,8 +80,8 @@ class SearchPostProjectionKafkaListenerTest {
         SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(jsonCodec, applicationService);
 
         listener.onContentEvent(null);
-        listener.onContentEvent(new ContentContractEvent("evt-post-missing", ContentEventTypes.POST_UPDATED, new PostPayload()));
-        listener.onContentEvent(new ContentContractEvent("evt-post-map-missing", ContentEventTypes.POST_DELETED, Map.of("userId", uuid(7).toString())));
+        listener.onContentEvent(new ContentContractEvent("evt-post-missing", null, null, ContentEventTypes.POST_UPDATED, java.time.Instant.EPOCH, 1L, new PostPayload()));
+        listener.onContentEvent(new ContentContractEvent("evt-post-map-missing", null, null, ContentEventTypes.POST_DELETED, java.time.Instant.EPOCH, 1L, Map.of("userId", uuid(7).toString())));
 
         verifyNoInteractions(applicationService);
     }

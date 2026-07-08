@@ -117,6 +117,6 @@ class UserModerationDomainServiceTest {
     }
 
     private static UserModerationStatus status(Instant muteUntil, Instant banUntil) {
-        return new UserModerationStatus(USER_ID, muteUntil, banUntil);
+        return new UserModerationStatus(USER_ID, muteUntil, banUntil, 0L);
     }
 }

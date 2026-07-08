@@ -22,7 +22,7 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisCommentPageCache implements CommentPageCache {
 
-    private static final String ROOT_PAGE_KEY_PREFIX = "comment:root-page:";
+    private static final String ROOT_PAGE_KEY_PREFIX = "comment:root-page:v2:";
 
     private final StringRedisTemplate redisTemplate;
     private final JsonCodec jsonCodec;

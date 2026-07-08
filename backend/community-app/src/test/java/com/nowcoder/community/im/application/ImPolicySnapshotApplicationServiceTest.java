@@ -117,9 +117,9 @@ class ImPolicySnapshotApplicationServiceTest {
         when(userLookupQueryApi.getSummaryById(uuid(1))).thenReturn(summary(uuid(1)));
         when(userLookupQueryApi.getSummaryById(uuid(2))).thenReturn(summary(uuid(2)));
         when(moderationQueryApi.getModerationState(uuid(1)))
-                .thenReturn(new UserModerationStateView(uuid(1), Instant.now().plusSeconds(60), null));
+                .thenReturn(new UserModerationStateView(uuid(1), Instant.now().plusSeconds(60), null, 0L));
         when(moderationQueryApi.getModerationState(uuid(2)))
-                .thenReturn(new UserModerationStateView(uuid(2), null, null));
+                .thenReturn(new UserModerationStateView(uuid(2), null, null, 0L));
 
         ImPolicySnapshotApplicationService service = new ImPolicySnapshotApplicationService(
                 moderationQueryApi,
@@ -143,9 +143,9 @@ class ImPolicySnapshotApplicationServiceTest {
         when(userLookupQueryApi.getSummaryById(uuid(1))).thenReturn(summary(uuid(1)));
         when(userLookupQueryApi.getSummaryById(uuid(2))).thenReturn(summary(uuid(2)));
         when(moderationQueryApi.getModerationState(uuid(1)))
-                .thenReturn(new UserModerationStateView(uuid(1), null, null));
+                .thenReturn(new UserModerationStateView(uuid(1), null, null, 0L));
         when(moderationQueryApi.getModerationState(uuid(2)))
-                .thenReturn(new UserModerationStateView(uuid(2), null, null));
+                .thenReturn(new UserModerationStateView(uuid(2), null, null, 0L));
         when(blockQueryApi.isEitherBlocked(uuid(1), uuid(2))).thenReturn(true);
 
         ImPolicySnapshotApplicationService service = new ImPolicySnapshotApplicationService(

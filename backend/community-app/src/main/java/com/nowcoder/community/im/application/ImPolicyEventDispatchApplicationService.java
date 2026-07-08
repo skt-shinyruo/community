@@ -42,7 +42,7 @@ public class ImPolicyEventDispatchApplicationService {
         }
 
         String kind = text(payload, "kind");
-        if ("USER_POLICY".equalsIgnoreCase(kind) || "MODERATION".equalsIgnoreCase(kind)) {
+        if ("USER_POLICY".equalsIgnoreCase(kind)) {
             publishModerationState(command.outboxEventId(), payload);
             return;
         }
@@ -52,7 +52,7 @@ public class ImPolicyEventDispatchApplicationService {
     }
 
     private void publishModerationState(String eventId, JsonNode payload) {
-        UUID userId = firstUuid(payload, "primaryUserId", "userId");
+        UUID userId = uuid(payload, "primaryUserId");
         if (userId == null) {
             return;
         }
@@ -72,8 +72,8 @@ public class ImPolicyEventDispatchApplicationService {
     }
 
     private void publishBlockState(String eventId, JsonNode payload) {
-        UUID blockerUserId = firstUuid(payload, "primaryUserId", "blockerUserId");
-        UUID blockedUserId = firstUuid(payload, "secondaryUserId", "blockedUserId");
+        UUID blockerUserId = uuid(payload, "primaryUserId");
+        UUID blockedUserId = uuid(payload, "secondaryUserId");
         if (blockerUserId == null || blockedUserId == null) {
             return;
         }
@@ -96,18 +96,16 @@ public class ImPolicyEventDispatchApplicationService {
         return value == null || value.isNull() ? null : value.asText(null);
     }
 
-    private UUID firstUuid(JsonNode node, String... fieldNames) {
-        for (String fieldName : fieldNames) {
-            String value = text(node, fieldName);
-            if (!StringUtils.hasText(value)) {
-                continue;
-            }
-            try {
-                return UUID.fromString(value.trim());
-            } catch (IllegalArgumentException ignored) {
-            }
+    private UUID uuid(JsonNode node, String fieldName) {
+        String value = text(node, fieldName);
+        if (!StringUtils.hasText(value)) {
+            return null;
         }
-        return null;
+        try {
+            return UUID.fromString(value.trim());
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     private boolean booleanValue(JsonNode node, String fieldName) {

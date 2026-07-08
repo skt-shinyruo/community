@@ -31,15 +31,39 @@ class RefreshTokenSessionApplicationServiceTest {
     @Test
     void findAndConsumeShouldMapDomainSessionToResult() {
         RefreshTokenSessionApplicationService service = new RefreshTokenSessionApplicationService(repository);
-        RefreshTokenSession session = new RefreshTokenSession(TOKEN_HASH, USER_ID, "family-1", EXPIRES_AT, REVOKED_AT);
+        RefreshTokenSession session = new RefreshTokenSession(
+                TOKEN_HASH,
+                USER_ID,
+                "family-1",
+                EXPIRES_AT,
+                REVOKED_AT,
+                RefreshTokenSessionState.REVOKED,
+                null
+        );
         when(repository.find(TOKEN_HASH)).thenReturn(session);
         when(repository.consumeActive(TOKEN_HASH)).thenReturn(session);
 
         RefreshTokenSessionResult found = service.find(TOKEN_HASH);
         RefreshTokenSessionResult consumed = service.consume(TOKEN_HASH);
 
-        assertThat(found).isEqualTo(new RefreshTokenSessionResult(TOKEN_HASH, USER_ID, "family-1", EXPIRES_AT, REVOKED_AT));
-        assertThat(consumed).isEqualTo(new RefreshTokenSessionResult(TOKEN_HASH, USER_ID, "family-1", EXPIRES_AT, REVOKED_AT));
+        assertThat(found).isEqualTo(new RefreshTokenSessionResult(
+                TOKEN_HASH,
+                USER_ID,
+                "family-1",
+                EXPIRES_AT,
+                REVOKED_AT,
+                RefreshTokenSessionState.REVOKED,
+                null
+        ));
+        assertThat(consumed).isEqualTo(new RefreshTokenSessionResult(
+                TOKEN_HASH,
+                USER_ID,
+                "family-1",
+                EXPIRES_AT,
+                REVOKED_AT,
+                RefreshTokenSessionState.REVOKED,
+                null
+        ));
     }
 
     @Test

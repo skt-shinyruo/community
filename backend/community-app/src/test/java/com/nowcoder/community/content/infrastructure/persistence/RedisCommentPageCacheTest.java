@@ -162,10 +162,10 @@ class RedisCommentPageCacheTest {
     }
 
     private static String pageKey(UUID postId, int size) {
-        return "comment:root-page:" + postId + ":cursor:initial:size:" + size;
+        return "comment:root-page:v2:" + postId + ":cursor:initial:size:" + size;
     }
 
     private static String indexKey(UUID postId) {
-        return "comment:root-page:" + postId + ":keys";
+        return "comment:root-page:v2:" + postId + ":keys";
     }
 }

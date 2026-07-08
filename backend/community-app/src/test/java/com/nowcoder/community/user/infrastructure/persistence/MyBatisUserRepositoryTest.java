@@ -51,6 +51,8 @@ class MyBatisUserRepositoryTest {
     void setUp() {
         jdbcTemplate.update("delete from auth_refresh_token");
         jdbcTemplate.update("delete from user");
+        jdbcTemplate.update("update user_policy_version_counter set current_version = 0 where id = 1");
+        jdbcTemplate.update("update user_security_version_counter set current_version = 0 where id = 1");
     }
 
     @Test
@@ -118,7 +120,7 @@ class MyBatisUserRepositoryTest {
         long passwordSecurityVersion = userRepository.currentUserSecurityVersion();
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(passwordSecurityVersion);
         long policyVersion = userRepository.nextUserPolicyVersion(ALICE_ID);
-        userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, policyVersion);
+        userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, policyVersion, 0L);
 
         UserAccount updated = userRepository.findById(ALICE_ID).orElseThrow();
         assertThat(updated.headerUrl()).isEqualTo("new-header");
@@ -168,11 +170,12 @@ class MyBatisUserRepositoryTest {
         insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "h7", createTime, null, null);
 
         long first = userRepository.nextUserPolicyVersion(ALICE_ID);
-        userRepository.updateModerationUntil(ALICE_ID, muteUntil, null, first);
+        userRepository.updateModerationUntil(ALICE_ID, muteUntil, null, first, 0L);
         long second = userRepository.nextUserPolicyVersion(ALICE_ID);
-        userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, second);
+        userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, second, 0L);
 
-        assertThat(second).isGreaterThan(first);
+        assertThat(first).isEqualTo(1L);
+        assertThat(second).isEqualTo(2L);
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().policyVersion()).isEqualTo(second);
         assertThat(userRepository.scanModerationStatesAfterId(new UUID(0L, 0L), 20).get(0).version())
                 .isEqualTo(second);
@@ -189,7 +192,8 @@ class MyBatisUserRepositoryTest {
         long second = userRepository.nextUserSecurityVersion(ALICE_ID);
         userRepository.updatePassword(ALICE_ID, "new-password", second);
 
-        assertThat(second).isGreaterThan(first);
+        assertThat(first).isEqualTo(1L);
+        assertThat(second).isEqualTo(2L);
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(second);
         assertThat(userRepository.currentUserSecurityVersion()).isEqualTo(second);
     }

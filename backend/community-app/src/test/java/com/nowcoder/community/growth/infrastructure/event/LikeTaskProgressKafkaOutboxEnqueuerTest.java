@@ -36,8 +36,7 @@ class LikeTaskProgressKafkaOutboxEnqueuerTest {
 
         LikeTaskProgressKafkaOutboxEnqueuer enqueuer =
                 new LikeTaskProgressKafkaOutboxEnqueuer(new JacksonJsonCodec(JsonMappers.standard()), store, topic);
-        enqueuer.onSocialEvent(new SocialContractEvent("local-like-event", SocialEventTypes.LIKE_CREATED,
-                likePayload(actorUserId, entityId, entityUserId, createTime)));
+        enqueuer.onSocialEvent(new SocialContractEvent("local-like-event", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, likePayload(actorUserId, entityId, entityUserId, createTime)));
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
         verify(store).enqueue(
@@ -66,7 +65,7 @@ class LikeTaskProgressKafkaOutboxEnqueuerTest {
 
         LikeTaskProgressKafkaOutboxEnqueuer enqueuer =
                 new LikeTaskProgressKafkaOutboxEnqueuer(new JacksonJsonCodec(JsonMappers.standard()), store, topic);
-        enqueuer.onSocialEvent(new SocialContractEvent("local-like-event", SocialEventTypes.LIKE_CREATED, payload));
+        enqueuer.onSocialEvent(new SocialContractEvent("local-like-event", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, payload));
 
         verify(store).enqueue(
                 eq("like-created:" + actorUserId + ":" + POST + ":" + entityId + ":growth_task"),
@@ -88,8 +87,7 @@ class LikeTaskProgressKafkaOutboxEnqueuerTest {
 
         LikeTaskProgressKafkaOutboxEnqueuer enqueuer =
                 new LikeTaskProgressKafkaOutboxEnqueuer(new JacksonJsonCodec(JsonMappers.standard()), store, topic);
-        enqueuer.onSocialEvent(new SocialContractEvent("local-like-removed-event", SocialEventTypes.LIKE_REMOVED,
-                likePayload(actorUserId, entityId, entityUserId, createTime)));
+        enqueuer.onSocialEvent(new SocialContractEvent("local-like-removed-event", null, null, SocialEventTypes.LIKE_REMOVED, java.time.Instant.EPOCH, 1L, likePayload(actorUserId, entityId, entityUserId, createTime)));
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
         verify(store).enqueue(
@@ -110,8 +108,7 @@ class LikeTaskProgressKafkaOutboxEnqueuerTest {
         LikeTaskProgressKafkaOutboxEnqueuer enqueuer =
                 new LikeTaskProgressKafkaOutboxEnqueuer(new JacksonJsonCodec(JsonMappers.standard()), store, "topic");
 
-        enqueuer.onSocialEvent(new SocialContractEvent("local-like-event", SocialEventTypes.LIKE_CREATED,
-                likePayload(userId, uuid(100), userId, Instant.parse("2026-05-18T10:30:00Z"))));
+        enqueuer.onSocialEvent(new SocialContractEvent("local-like-event", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, likePayload(userId, uuid(100), userId, Instant.parse("2026-05-18T10:30:00Z"))));
 
         verifyNoInteractions(store);
     }

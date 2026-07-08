@@ -133,7 +133,7 @@ class LoginApplicationServiceTest {
 
     @Test
     void loginShouldRecordFailureWhenUserIsDisabled(CapturedOutput output) {
-        UserCredentialView disabledUser = new UserCredentialView(uuid(7), "alice", 0, 0, "h1", 0L);
+        UserCredentialView disabledUser = new UserCredentialView(uuid(7), "alice", 0, 0, "h1", 0L, false, false);
         when(userCredentialQueryApi.authenticate("alice", "secret"))
                 .thenReturn(UserAuthenticationResultView.userDisabled(disabledUser));
 
@@ -154,7 +154,7 @@ class LoginApplicationServiceTest {
     @Test
     void loginShouldResetRateLimitAfterSuccessfulAuthentication(CapturedOutput output) {
         UUID userId = uuid(7);
-        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1", 0L);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1", 0L, true, true);
         when(userCredentialQueryApi.authenticate("alice", "secret")).thenReturn(UserAuthenticationResultView.authenticated(user));
 
         RefreshCookieSpec cookie = issuedCookie("rt");
@@ -180,7 +180,7 @@ class LoginApplicationServiceTest {
     @Test
     void loginShouldRecordDauSupplementAfterSuccessfulAuthentication() {
         UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
-        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 0L);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 0L, true, true);
         when(userCredentialQueryApi.authenticate("alice", "pw"))
                 .thenReturn(UserAuthenticationResultView.authenticated(user));
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
@@ -240,7 +240,7 @@ class LoginApplicationServiceTest {
     @Test
     void loginShouldNotLogSuccessWhenTokenIssuanceFails(CapturedOutput output) {
         UUID userId = uuid(7);
-        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1", 0L);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1", 0L, true, true);
         when(userCredentialQueryApi.authenticate("alice", "secret")).thenReturn(UserAuthenticationResultView.authenticated(user));
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
         when(authTokenPort.createAccessToken(eq(userId), eq("alice"), eq(List.of("ROLE_USER")), eq(0L))).thenReturn("access-token");
@@ -277,7 +277,7 @@ class LoginApplicationServiceTest {
         UUID userId = uuid(9);
         RefreshTokenRepository.StoredRefreshToken consumed =
                 new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-1", Instant.now().plusSeconds(600));
-        UserCredentialView disabled = new UserCredentialView(userId, "alice", 0, 0, "h1", 0L);
+        UserCredentialView disabled = new UserCredentialView(userId, "alice", 0, 0, "h1", 0L, false, false);
         when(refreshTokenService.beginRotation("old-refresh")).thenReturn(consumed);
         when(userCredentialQueryApi.getByUserId(userId)).thenReturn(disabled);
 
@@ -325,7 +325,7 @@ class LoginApplicationServiceTest {
     @Test
     void refreshShouldIssueReplacementOnlyAfterUserIsActive() {
         UUID userId = uuid(11);
-        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1", 0L);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1", 0L, true, true);
         RefreshCookieSpec cookie = issuedCookie("new-refresh");
         RefreshTokenRepository.StoredRefreshToken consumed =
                 new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-3", Instant.now().plusSeconds(600));

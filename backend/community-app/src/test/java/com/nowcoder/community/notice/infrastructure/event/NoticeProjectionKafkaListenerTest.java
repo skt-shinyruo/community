@@ -102,7 +102,7 @@ class NoticeProjectionKafkaListenerTest {
         NoticeProjectionApplicationService applicationService = mock(NoticeProjectionApplicationService.class);
         NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
 
-        listener.onContentEvent(new ContentContractEvent("evt-post-updated", ContentEventTypes.POST_UPDATED, Map.of("postId", uuid(100).toString())));
+        listener.onContentEvent(new ContentContractEvent("evt-post-updated", null, null, ContentEventTypes.POST_UPDATED, java.time.Instant.EPOCH, 1L, Map.of("postId", uuid(100).toString())));
         listener.onContentEvent(null);
         listener.onSocialEvent(null);
 
@@ -141,20 +141,12 @@ class NoticeProjectionKafkaListenerTest {
         NoticeProjectionApplicationService applicationService = mock(NoticeProjectionApplicationService.class);
         NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
 
-        listener.onContentEvent(new ContentContractEvent(
-                "evt-comment-missing-target",
-                ContentEventTypes.COMMENT_CREATED,
-                Map.of("postId", uuid(100).toString())
-        ));
-        listener.onSocialEvent(new SocialContractEvent(
-                "evt-like-missing-owner",
-                SocialEventTypes.LIKE_CREATED,
-                Map.of(
+        listener.onContentEvent(new ContentContractEvent("evt-comment-missing-target", null, null, ContentEventTypes.COMMENT_CREATED, java.time.Instant.EPOCH, 1L, Map.of("postId", uuid(100).toString())));
+        listener.onSocialEvent(new SocialContractEvent("evt-like-missing-owner", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, Map.of(
                         "actorUserId", uuid(1).toString(),
                         "entityType", EntityTypes.POST,
                         "entityId", uuid(100).toString()
-                )
-        ));
+                )));
 
         ArgumentCaptor<ProjectContentNoticeCommand> contentCaptor = ArgumentCaptor.forClass(ProjectContentNoticeCommand.class);
         ArgumentCaptor<ProjectSocialNoticeCommand> socialCaptor = ArgumentCaptor.forClass(ProjectSocialNoticeCommand.class);
@@ -173,7 +165,7 @@ class NoticeProjectionKafkaListenerTest {
         NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
         CommentPayload payload = commentPayload();
 
-        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(" ", ContentEventTypes.COMMENT_CREATED, payload)))
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(" ", null, null, ContentEventTypes.COMMENT_CREATED, java.time.Instant.EPOCH, 1L, payload)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("notice projection source event id is blank");
     }

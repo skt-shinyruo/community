@@ -22,7 +22,7 @@ class UserModerationGuardTest {
     void constructorShouldUseUserModerationQueryApiForActiveBan() {
         UUID userId = uuid(7);
         UserModerationQueryApi userModerationQueryApi = mock(UserModerationQueryApi.class);
-        UserModerationStateView status = new UserModerationStateView(userId, null, Instant.now().plusSeconds(60));
+        UserModerationStateView status = new UserModerationStateView(userId, null, Instant.now().plusSeconds(60), 0L);
         when(userModerationQueryApi.getModerationState(userId)).thenReturn(status);
         UserModerationGuard guard = new UserModerationGuard(userModerationQueryApi);
 

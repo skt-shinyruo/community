@@ -68,20 +68,7 @@ public class UserRegistrationDomainService {
             String encodedPassword,
             String headerUrl
     ) {
-        return new UserAccount(
-                userId,
-                input.username(),
-                encodedPassword,
-                "",
-                input.email(),
-                0,
-                0,
-                headerUrl,
-                Date.from(Instant.now(clock)),
-                null,
-                null,
-                0L
-        );
+        return new UserAccount(userId, input.username(), encodedPassword, "", input.email(), 0, 0, headerUrl, Date.from(Instant.now(clock)), null, null, 0L, 0L);
     }
 
     public UserAccount verifiedUser(
@@ -91,20 +78,7 @@ public class UserRegistrationDomainService {
             String email,
             String headerUrl
     ) {
-        return new UserAccount(
-                userId,
-                safeTrim(username),
-                safeTrim(encodedPassword),
-                "",
-                safeTrim(email),
-                0,
-                1,
-                safeTrim(headerUrl),
-                Date.from(Instant.now(clock)),
-                null,
-                null,
-                0L
-        );
+        return new UserAccount(userId, safeTrim(username), safeTrim(encodedPassword), "", safeTrim(email), 0, 1, safeTrim(headerUrl), Date.from(Instant.now(clock)), null, null, 0L, 0L);
     }
 
     private String safeTrim(String value) {

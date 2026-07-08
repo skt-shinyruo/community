@@ -38,11 +38,8 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
 
                     local raw = redis.call('GET', KEYS[1])
                     if raw and raw ~= '' then
-                      local storedCode, expiresAtMs, failures, issuedAtMs, state = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
-                      if not storedCode then
-                        storedCode, expiresAtMs, failures, issuedAtMs = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
-                      end
-                      if not storedCode or not expiresAtMs or not failures or not issuedAtMs then
+                      local storedCode, expiresAtMs, failures, issuedAtMs, state, pendingCode, pendingExpiresAtMs, pendingIssuedAtMs = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
+                      if not storedCode or not expiresAtMs or not failures or not issuedAtMs or not state then
                         redis.call('DEL', KEYS[1])
                         storedCode = nil
                         expiresAtMs = nil
@@ -94,12 +91,6 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
                         pendingCode = parts[6]
                         pendingExpiresAtMs = parts[7]
                         pendingIssuedAtMs = parts[8]
-                      elseif #parts == 5 or #parts == 4 then
-                        activeCode = parts[1]
-                        activeExpiresAtMs = parts[2]
-                        failures = parts[3]
-                        issuedAtMs = parts[4]
-                        if #parts == 5 then consumeState = parts[5] end
                       else
                         redis.call('DEL', KEYS[1])
                         activeCode = ''
@@ -197,25 +188,9 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
                     end
 
                     local storedCode, expiresAtMs, failures, issuedAtMs, state, pendingCode, pendingExpiresAtMs, pendingIssuedAtMs = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
-                    if not storedCode then
-                      storedCode, expiresAtMs, failures, issuedAtMs, state = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
-                      pendingCode = ''
-                      pendingExpiresAtMs = ''
-                      pendingIssuedAtMs = ''
-                    end
-                    if not storedCode then
-                      storedCode, expiresAtMs, failures, issuedAtMs = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
-                      state = 'ACTIVE'
-                      pendingCode = ''
-                      pendingExpiresAtMs = ''
-                      pendingIssuedAtMs = ''
-                    end
-                    if not storedCode or not expiresAtMs or not failures or not issuedAtMs then
+                    if not storedCode or not expiresAtMs or not failures or not issuedAtMs or not state then
                       redis.call('DEL', KEYS[1])
                       return 'NOT_FOUND'
-                    end
-                    if not state or state == '' then
-                      state = 'ACTIVE'
                     end
 
                     local expires = tonumber(expiresAtMs)
@@ -279,20 +254,7 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
                     end
 
                     local storedCode, expiresAtMs, failures, issuedAtMs, state, pendingCode, pendingExpiresAtMs, pendingIssuedAtMs = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
-                    if not storedCode then
-                      storedCode, expiresAtMs, failures, issuedAtMs, state = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
-                      pendingCode = ''
-                      pendingExpiresAtMs = ''
-                      pendingIssuedAtMs = ''
-                    end
-                    if not storedCode then
-                      storedCode, expiresAtMs, failures, issuedAtMs = string.match(raw, '^([^|]*)|([^|]*)|([^|]*)|([^|]*)$')
-                      state = 'ACTIVE'
-                      pendingCode = ''
-                      pendingExpiresAtMs = ''
-                      pendingIssuedAtMs = ''
-                    end
-                    if not storedCode or not expiresAtMs or not failures or not issuedAtMs then
+                    if not storedCode or not expiresAtMs or not failures or not issuedAtMs or not state then
                       redis.call('DEL', KEYS[1])
                       return 0
                     end
@@ -493,7 +455,7 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         }
 
         String[] parts = raw.split("\\|", -1);
-        if (parts.length != 4 && parts.length != 5 && parts.length != 8) {
+        if (parts.length != 8) {
             return null;
         }
 

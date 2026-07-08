@@ -103,8 +103,9 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         payload.setBlockedUserId(event.blockedUserId());
         payload.setBlocked(event.blocked());
         Instant occurredAt = requiredOccurredAt(SocialEventTypes.BLOCK_RELATION_CHANGED, event.occurredAt());
+        long version = requiredVersion(SocialEventTypes.BLOCK_RELATION_CHANGED, event.version());
         payload.setOccurredAt(occurredAt);
-        payload.setVersion(event.version() > 0L ? event.version() : positiveVersion(occurredAt));
+        payload.setVersion(version);
 
         publish(
                 "se:block:" + idGenerator.next(),
@@ -113,7 +114,7 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
                 event.blockerUserId(),
                 "user",
                 occurredAt,
-                payload.getVersion(),
+                version,
                 payload
         );
     }
@@ -150,6 +151,13 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
             throw new IllegalStateException("social event source occurredAt missing: " + type);
         }
         return occurredAt;
+    }
+
+    private long requiredVersion(String type, long version) {
+        if (version <= 0L) {
+            throw new IllegalStateException("social event source version missing: " + type);
+        }
+        return version;
     }
 
     private long positiveVersion(Instant occurredAt) {

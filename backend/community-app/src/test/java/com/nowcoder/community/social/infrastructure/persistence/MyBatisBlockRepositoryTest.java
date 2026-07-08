@@ -49,6 +49,7 @@ class MyBatisBlockRepositoryTest {
     void blockProjectionVersionShouldMonotonicallyIncreaseAndPersistActiveAndDeleteFacts() {
         long blockVersion = blockRepository.nextBlockProjectionVersion();
 
+        assertThat(blockVersion).isEqualTo(1L);
         assertThat(blockRepository.block(BLOCKER_ID, BLOCKED_ID, blockVersion)).isTrue();
 
         List<BlockRelation> activeRelations = blockRepository.scanBlocksAfter(ZERO_UUID, ZERO_UUID, 20);
@@ -60,7 +61,7 @@ class MyBatisBlockRepositoryTest {
         assertThat(blockRepository.currentBlockProjectionVersion()).isEqualTo(blockVersion);
 
         long unblockVersion = blockRepository.nextBlockProjectionVersion();
-        assertThat(unblockVersion).isGreaterThan(blockVersion);
+        assertThat(unblockVersion).isEqualTo(2L);
         assertThat(blockRepository.unblock(BLOCKER_ID, BLOCKED_ID, unblockVersion)).isTrue();
 
         assertThat(blockRepository.scanBlocksAfter(ZERO_UUID, ZERO_UUID, 20)).isEmpty();

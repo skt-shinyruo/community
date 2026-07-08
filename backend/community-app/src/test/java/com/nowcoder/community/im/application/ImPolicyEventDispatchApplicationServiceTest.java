@@ -55,7 +55,7 @@ class ImPolicyEventDispatchApplicationServiceTest {
     }
 
     @Test
-    void dispatchShouldTreatModerationKindAsUserPolicy() {
+    void dispatchShouldIgnoreLegacyModerationKind() {
         service.dispatch(new DispatchImPolicyEventCommand(
                 "evt-policy-2",
                 "key",
@@ -63,10 +63,7 @@ class ImPolicyEventDispatchApplicationServiceTest {
                         + "\",\"userExists\":true,\"occurredAtEpochMillis\":1712345678901}"
         ));
 
-        verify(dispatcher).dispatchUserMessagingPolicyChanged(
-                org.mockito.ArgumentMatchers.eq(uuid(7).toString()),
-                org.mockito.ArgumentMatchers.isA(UserMessagingPolicyChanged.class)
-        );
+        verifyNoInteractions(dispatcher);
     }
 
     @Test
@@ -90,7 +87,7 @@ class ImPolicyEventDispatchApplicationServiceTest {
     }
 
     @Test
-    void dispatchShouldUseLegacyFallbackFieldNames() {
+    void dispatchShouldIgnoreLegacyFallbackFieldNames() {
         service.dispatch(new DispatchImPolicyEventCommand(
                 "evt-policy-4",
                 "key",
@@ -99,10 +96,7 @@ class ImPolicyEventDispatchApplicationServiceTest {
                         + "\",\"active\":true,\"occurredAtEpochMillis\":1712345678902}"
         ));
 
-        verify(dispatcher).dispatchUserBlockRelationChanged(
-                org.mockito.ArgumentMatchers.eq(uuid(7).toString()),
-                org.mockito.ArgumentMatchers.isA(UserBlockRelationChanged.class)
-        );
+        verifyNoInteractions(dispatcher);
     }
 
     @Test

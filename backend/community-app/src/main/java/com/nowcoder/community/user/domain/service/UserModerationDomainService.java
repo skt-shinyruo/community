@@ -47,7 +47,7 @@ public class UserModerationDomainService {
             throw new BusinessException(INVALID_ARGUMENT, "action 非法");
         }
 
-        return new UserModerationStatus(current.userId(), muteUntil, banUntil);
+        return new UserModerationStatus(current.userId(), muteUntil, banUntil, 0L);
     }
 
     private int clampDurationSeconds(int seconds) {

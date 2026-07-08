@@ -48,11 +48,7 @@ class SocialEventKafkaSenderAdapterTest {
         payload.setActorUserId(uuid(101));
         payload.setEntityType(EntityTypes.POST);
         payload.setEntityId(uuid(102));
-        SocialContractEvent event = new SocialContractEvent(
-                "social:LikeCreated:" + uuid(101) + ":" + EntityTypes.POST + ":" + uuid(102),
-                SocialEventTypes.LIKE_CREATED,
-                payload
-        );
+        SocialContractEvent event = new SocialContractEvent("social:LikeCreated:" + uuid(101) + ":" + EntityTypes.POST + ":" + uuid(102), null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, payload);
 
         adapter.dispatch(uuid(101).toString(), event);
 
@@ -70,7 +66,7 @@ class SocialEventKafkaSenderAdapterTest {
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(failedSend());
         SocialEventKafkaSenderAdapter adapter = new SocialEventKafkaSenderAdapter(kafkaTemplate, KAFKA_TOPIC);
 
-        assertThatThrownBy(() -> adapter.dispatch("key", new SocialContractEvent("event-1", "Type", new Object())))
+        assertThatThrownBy(() -> adapter.dispatch("key", new SocialContractEvent("event-1", null, null, "Type", java.time.Instant.EPOCH, 1L, new Object())))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event kafka publish failed: " + KAFKA_TOPIC)
                 .hasCauseInstanceOf(RuntimeException.class);

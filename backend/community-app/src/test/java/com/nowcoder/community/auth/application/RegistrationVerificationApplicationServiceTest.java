@@ -161,7 +161,7 @@ class RegistrationVerificationApplicationServiceTest {
     @Test
     void verifyAndLoginShouldCreateVerifiedUserAndReturnLoginResult(CapturedOutput output) {
         UUID userId = uuid(7);
-        UserCredentialView activatedUser = new UserCredentialView(userId, "alice", 1, 0, null, 0L);
+        UserCredentialView activatedUser = new UserCredentialView(userId, "alice", 1, 0, null, 0L, true, true);
 
         RefreshCookieSpec cookie = issuedCookie("rt");
 
@@ -197,7 +197,7 @@ class RegistrationVerificationApplicationServiceTest {
     @Test
     void verifyAndLoginShouldDeleteDraftWhenLoginIssuanceFailsAfterUserCreation() {
         UUID userId = uuid(7);
-        UserCredentialView activatedUser = new UserCredentialView(userId, "alice", 1, 0, null, 0L);
+        UserCredentialView activatedUser = new UserCredentialView(userId, "alice", 1, 0, null, 0L, true, true);
 
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
         when(registrationCodeStore.verifyForConsumption(userId, "222222", Duration.ofSeconds(60)))

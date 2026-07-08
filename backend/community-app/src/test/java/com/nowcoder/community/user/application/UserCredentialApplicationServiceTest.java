@@ -195,9 +195,9 @@ class UserCredentialApplicationServiceTest {
     @Test
     void authoritiesOfShouldMapUserTypesToExpectedRoles() {
         UserCredentialApplicationService service = service();
-        UserCredentialResult admin = new UserCredentialResult(uuid(1), "admin", 1, 1, "h1", 0L);
-        UserCredentialResult moderator = new UserCredentialResult(uuid(2), "mod", 1, 2, "h2", 0L);
-        UserCredentialResult regular = new UserCredentialResult(uuid(3), "user", 1, 0, "h3", 0L);
+        UserCredentialResult admin = new UserCredentialResult(uuid(1), "admin", 1, 1, "h1", 0L, true, true);
+        UserCredentialResult moderator = new UserCredentialResult(uuid(2), "mod", 1, 2, "h2", 0L, true, true);
+        UserCredentialResult regular = new UserCredentialResult(uuid(3), "user", 1, 0, "h3", 0L, true, true);
 
         assertThat(service.authoritiesOf(null)).isEmpty();
         assertThat(service.authoritiesOf(admin)).isEqualTo(List.of("ROLE_ADMIN"));
@@ -261,38 +261,12 @@ class UserCredentialApplicationServiceTest {
     }
 
     private UserAccount activeUser(UUID id, String username, String password, String salt) {
-        return new UserAccount(
-                id,
-                username,
-                password,
-                salt,
-                username + "@example.com",
-                0,
-                1,
-                "h7",
-                Date.from(Instant.now()),
-                null,
-                null,
-                0L
-        );
+        return new UserAccount(id, username, password, salt, username + "@example.com", 0, 1, "h7", Date.from(Instant.now()), null, null, 0L, 0L);
     }
 
     private UserAccount disabledUser(UUID id, String username) {
         UserAccount user = activeUser(id, username, "encoded", "");
-        return new UserAccount(
-                user.id(),
-                user.username(),
-                user.encodedPassword(),
-                user.salt(),
-                user.email(),
-                user.type(),
-                0,
-                user.headerUrl(),
-                user.createTime(),
-                user.muteUntil(),
-                user.banUntil(),
-                user.policyVersion()
-        );
+        return new UserAccount(user.id(), user.username(), user.encodedPassword(), user.salt(), user.email(), user.type(), 0, user.headerUrl(), user.createTime(), user.muteUntil(), user.banUntil(), user.policyVersion(), 0L);
     }
 
     private static UUID uuid(long suffix) {

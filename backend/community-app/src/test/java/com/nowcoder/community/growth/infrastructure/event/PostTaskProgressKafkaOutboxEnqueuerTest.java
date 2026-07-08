@@ -34,8 +34,7 @@ class PostTaskProgressKafkaOutboxEnqueuerTest {
 
         PostTaskProgressKafkaOutboxEnqueuer enqueuer =
                 new PostTaskProgressKafkaOutboxEnqueuer(new JacksonJsonCodec(JsonMappers.standard()), store, topic);
-        enqueuer.onContentEvent(new ContentContractEvent("local-post-event", ContentEventTypes.POST_PUBLISHED,
-                postPayload(postId, userId, createTime)));
+        enqueuer.onContentEvent(new ContentContractEvent("local-post-event", null, null, ContentEventTypes.POST_PUBLISHED, java.time.Instant.EPOCH, 1L, postPayload(postId, userId, createTime)));
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
         verify(store).enqueue(
@@ -56,7 +55,7 @@ class PostTaskProgressKafkaOutboxEnqueuerTest {
         PostTaskProgressKafkaOutboxEnqueuer enqueuer =
                 new PostTaskProgressKafkaOutboxEnqueuer(new JacksonJsonCodec(JsonMappers.standard()), store, "topic");
 
-        enqueuer.onContentEvent(new ContentContractEvent("local-post-event", ContentEventTypes.POST_PUBLISHED, new PostPayload()));
+        enqueuer.onContentEvent(new ContentContractEvent("local-post-event", null, null, ContentEventTypes.POST_PUBLISHED, java.time.Instant.EPOCH, 1L, new PostPayload()));
 
         verifyNoInteractions(store);
     }

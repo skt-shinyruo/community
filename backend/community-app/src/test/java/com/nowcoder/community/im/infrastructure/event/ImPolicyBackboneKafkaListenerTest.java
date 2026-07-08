@@ -30,11 +30,7 @@ class ImPolicyBackboneKafkaListenerTest {
         payload.setBlocked(Boolean.TRUE);
         payload.setVersion(123L);
 
-        listener.onSocialEvent(new SocialContractEvent(
-                "evt-block-1",
-                SocialEventTypes.BLOCK_RELATION_CHANGED,
-                payload
-        ));
+        listener.onSocialEvent(new SocialContractEvent("evt-block-1", null, null, SocialEventTypes.BLOCK_RELATION_CHANGED, java.time.Instant.EPOCH, 1L, payload));
 
         verify(publisher).publishBlockRelationChanged(
                 payload.getBlockerUserId(),
@@ -49,16 +45,12 @@ class ImPolicyBackboneKafkaListenerTest {
         ImPolicyChangePublisher publisher = mock(ImPolicyChangePublisher.class);
         ImPolicyBackboneKafkaListener listener = new ImPolicyBackboneKafkaListener(publisher, jsonCodec);
 
-        listener.onSocialEvent(new SocialContractEvent(
-                "evt-block-1",
-                SocialEventTypes.BLOCK_RELATION_CHANGED,
-                Map.of(
+        listener.onSocialEvent(new SocialContractEvent("evt-block-1", null, null, SocialEventTypes.BLOCK_RELATION_CHANGED, java.time.Instant.EPOCH, 1L, Map.of(
                         "blockerUserId", uuid(11).toString(),
                         "blockedUserId", uuid(22).toString(),
                         "blocked", Boolean.TRUE,
                         "version", 123L
-                )
-        ));
+                )));
 
         verify(publisher).publishBlockRelationChanged(
                 uuid(11),
@@ -74,15 +66,11 @@ class ImPolicyBackboneKafkaListenerTest {
         ImPolicyBackboneKafkaListener listener = new ImPolicyBackboneKafkaListener(publisher, jsonCodec);
 
         listener.onSocialEvent(null);
-        listener.onSocialEvent(new SocialContractEvent("evt-follow-1", SocialEventTypes.FOLLOW_CREATED, new Object()));
+        listener.onSocialEvent(new SocialContractEvent("evt-follow-1", null, null, SocialEventTypes.FOLLOW_CREATED, java.time.Instant.EPOCH, 1L, new Object()));
 
         BlockPayload missingUsers = new BlockPayload();
         missingUsers.setBlocked(Boolean.TRUE);
-        listener.onSocialEvent(new SocialContractEvent(
-                "evt-block-invalid",
-                SocialEventTypes.BLOCK_RELATION_CHANGED,
-                missingUsers
-        ));
+        listener.onSocialEvent(new SocialContractEvent("evt-block-invalid", null, null, SocialEventTypes.BLOCK_RELATION_CHANGED, java.time.Instant.EPOCH, 1L, missingUsers));
 
         verifyNoInteractions(publisher);
     }

@@ -1,6 +1,7 @@
 package com.nowcoder.community.auth.application.port;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 public interface RefreshTokenSessionPort {
@@ -38,16 +39,8 @@ public interface RefreshTokenSessionPort {
             RefreshTokenSessionState state,
             Instant pendingExpiresAt
     ) {
-        public RefreshTokenSession(String tokenHash, UUID userId, String familyId, Instant expiresAt, Instant revokedAt) {
-            this(
-                    tokenHash,
-                    userId,
-                    familyId,
-                    expiresAt,
-                    revokedAt,
-                    revokedAt == null ? RefreshTokenSessionState.ACTIVE : RefreshTokenSessionState.REVOKED,
-                    null
-            );
+        public RefreshTokenSession {
+            Objects.requireNonNull(state, "state must not be null");
         }
     }
 

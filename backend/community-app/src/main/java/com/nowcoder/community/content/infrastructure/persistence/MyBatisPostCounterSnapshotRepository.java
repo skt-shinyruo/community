@@ -9,7 +9,7 @@ import java.util.UUID;
 @Repository
 public class MyBatisPostCounterSnapshotRepository implements PostCounterSnapshotRepository {
 
-    private static final String RANK_VERSION = "hot-v1";
+    private static final String RANK_VERSION = "hot-v2";
 
     private final PostCounterSnapshotMapper postCounterSnapshotMapper;
 

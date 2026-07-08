@@ -17,12 +17,7 @@ public class RefreshTokenSessionDataObject {
     private Instant revokedAt;
 
     public RefreshTokenSession toDomain() {
-        RefreshTokenSessionState normalizedState = state == null ? legacyState() : state;
-        return new RefreshTokenSession(tokenHash, userId, familyId, expiresAt, revokedAt, normalizedState, pendingExpiresAt);
-    }
-
-    private RefreshTokenSessionState legacyState() {
-        return revokedAt == null ? RefreshTokenSessionState.ACTIVE : RefreshTokenSessionState.REVOKED;
+        return new RefreshTokenSession(tokenHash, userId, familyId, expiresAt, revokedAt, state, pendingExpiresAt);
     }
 
     public String getTokenHash() {

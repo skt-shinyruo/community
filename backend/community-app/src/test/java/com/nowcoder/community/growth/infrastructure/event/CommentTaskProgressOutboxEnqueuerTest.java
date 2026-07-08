@@ -36,8 +36,7 @@ class CommentTaskProgressOutboxEnqueuerTest {
 
         CommentTaskProgressOutboxEnqueuer enqueuer =
                 new CommentTaskProgressOutboxEnqueuer(new JacksonJsonCodec(JsonMappers.standard()), store, topic);
-        enqueuer.onContentEvent(new ContentContractEvent("random-local-event-id", ContentEventTypes.COMMENT_CREATED,
-                commentPayload(commentId, userId, createTime)));
+        enqueuer.onContentEvent(new ContentContractEvent("random-local-event-id", null, null, ContentEventTypes.COMMENT_CREATED, java.time.Instant.EPOCH, 1L, commentPayload(commentId, userId, createTime)));
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
         verify(store).enqueue(

@@ -10,8 +10,4 @@ public interface UserPolicyEventPublisher {
     void publishUserPolicyChanged(UserModerationStatus status, Instant occurredAt);
 
     void publishUserPolicyChanged(UUID userId, boolean userExists, Instant occurredAt, long version);
-
-    default void publishUserPolicyChanged(UUID userId, boolean userExists, Instant occurredAt) {
-        publishUserPolicyChanged(userId, userExists, occurredAt, 0L);
-    }
 }

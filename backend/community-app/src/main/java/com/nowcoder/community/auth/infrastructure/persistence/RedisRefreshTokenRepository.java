@@ -56,7 +56,6 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                         "local tombstone = cjson.encode({userId = record.userId, familyId = record.familyId, expiresAt = record.expiresAt, revokedAt = revokedAt, state = 'CONSUMED'}) " +
                         "if ttl and ttl > 0 then redis.call('set', KEYS[2], tombstone, 'px', ttl) end " +
                         "local member = record.refreshToken " +
-                        "if not member or member == '' then member = ARGV[2] end " +
                         "if record.familyId and member and member ~= '' then redis.call('srem', KEYS[4] .. record.familyId, member) end " +
                         "return json"
         );
@@ -98,7 +97,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                         "if not ttl or ttl <= 0 then return 0 end " +
                         "local revokedAt = ARGV[4] " +
                         "local oldToken = record.refreshToken " +
-                        "if not oldToken or oldToken == '' then oldToken = ARGV[5] end " +
+                        "if not oldToken or oldToken == '' then return 0 end " +
                         "local tombstone = cjson.encode({userId = record.userId, familyId = record.familyId, expiresAt = record.expiresAt, revokedAt = revokedAt, state = 'CONSUMED'}) " +
                         "redis.call('set', 'auth:refresh:revoked:' .. oldToken, tombstone, 'px', ttl) " +
                         "redis.call('set', KEYS[2], ARGV[1], 'EX', ARGV[2]) " +

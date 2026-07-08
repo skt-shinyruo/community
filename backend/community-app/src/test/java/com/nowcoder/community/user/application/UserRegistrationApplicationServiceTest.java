@@ -94,7 +94,7 @@ class UserRegistrationApplicationServiceTest {
         assertThat(result.userId()).isEqualTo(userId);
         assertThat(result.status()).isEqualTo(1);
         verify(userRepository).nextUserPolicyVersion(userId);
-        verify(userRepository).updateModerationUntil(eq(userId), eq(null), eq(null), anyLong());
+        verify(userRepository).updateModerationUntil(eq(userId), eq(null), eq(null), anyLong(), eq(0L));
         verify(userPolicyEventPublisher).publishUserPolicyChanged(eq(userId), eq(true), any(Instant.class), anyLong());
     }
 
@@ -200,19 +200,6 @@ class UserRegistrationApplicationServiceTest {
     }
 
     private UserAccount existingUser(String username, String email) {
-        return new UserAccount(
-                userId(99),
-                username,
-                new BCryptPasswordEncoder().encode("secret12"),
-                "",
-                email,
-                0,
-                1,
-                "h",
-                Date.from(NOW),
-                null,
-                null,
-                0L
-        );
+        return new UserAccount(userId(99), username, new BCryptPasswordEncoder().encode("secret12"), "", email, 0, 1, "h", Date.from(NOW), null, null, 0L, 0L);
     }
 }

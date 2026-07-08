@@ -97,16 +97,18 @@ class RedisRegistrationCodeRepositoryTest {
         assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);
         DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
         assertThat(script.getScriptAsString())
-                .contains("([^|]*)|([^|]*)|([^|]*)|([^|]*)")
+                .contains("([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)")
+                .doesNotContain("#parts == 5")
+                .doesNotContain("#parts == 4")
                 .doesNotContain("storedCode, expiresAtMs, failures = string.match")
                 .doesNotContain("issued = 0");
     }
 
     @Test
-    void lastSentAtMillisShouldRejectPayloadWithoutIssuedTimestamp() {
+    void lastSentAtMillisShouldRejectPayloadThatIsNotCurrentEightFieldFormat() {
         UUID userId = uuid(7);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.get("auth:regcode:" + userId)).thenReturn("222222|4102444800000|0");
+        when(valueOperations.get("auth:regcode:" + userId)).thenReturn("222222|4102444800000|0|1712345678901|ACTIVE");
 
         RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
 
@@ -208,7 +210,8 @@ class RedisRegistrationCodeRepositoryTest {
         verify(redisTemplate).execute(restoreScriptCaptor.capture(), eq(List.of("auth:regcode:" + userId)));
         assertThat(((DefaultRedisScript<?>) restoreScriptCaptor.getValue()).getScriptAsString())
                 .contains("|ACTIVE")
-                .contains("PENDING");
+                .contains("PENDING")
+                .doesNotContain("storedCode, expiresAtMs, failures, issuedAtMs, state = string.match(raw");
 
         verify(redisTemplate).delete("auth:regcode:" + userId);
     }

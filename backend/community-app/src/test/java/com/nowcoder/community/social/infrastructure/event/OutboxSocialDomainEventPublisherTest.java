@@ -382,8 +382,8 @@ class OutboxSocialDomainEventPublisherTest {
         publisher.publishLikeChanged(new LikeChangedDomainEvent(uuid(1), EntityTypes.POST, null, uuid(2), uuid(10), null, true, Instant.EPOCH));
         publisher.publishFollowCreated(new FollowCreatedDomainEvent(null, EntityTypes.USER, uuid(2), uuid(2), Instant.EPOCH));
         publisher.publishFollowCreated(new FollowCreatedDomainEvent(uuid(1), EntityTypes.USER, null, uuid(2), Instant.EPOCH));
-        publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(null, uuid(2), true, 0L));
-        publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(uuid(1), null, true, 0L));
+        publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(null, uuid(2), true, Instant.EPOCH, 0L));
+        publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(uuid(1), null, true, Instant.EPOCH, 0L));
 
         verifyNoInteractions(store);
     }
@@ -424,7 +424,7 @@ class OutboxSocialDomainEventPublisherTest {
                 uuid(2),
                 true,
                 Instant.EPOCH,
-                0L
+                1L
         )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload serialization failed");

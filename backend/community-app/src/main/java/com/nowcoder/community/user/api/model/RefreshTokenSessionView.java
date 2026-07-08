@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.api.model;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 public record RefreshTokenSessionView(
@@ -12,15 +13,7 @@ public record RefreshTokenSessionView(
         RefreshTokenSessionStateView state,
         Instant pendingExpiresAt
 ) {
-    public RefreshTokenSessionView(String tokenHash, UUID userId, String familyId, Instant expiresAt, Instant revokedAt) {
-        this(
-                tokenHash,
-                userId,
-                familyId,
-                expiresAt,
-                revokedAt,
-                revokedAt == null ? RefreshTokenSessionStateView.ACTIVE : RefreshTokenSessionStateView.REVOKED,
-                null
-        );
+    public RefreshTokenSessionView {
+        Objects.requireNonNull(state, "state must not be null");
     }
 }

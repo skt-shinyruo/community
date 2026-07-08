@@ -1,7 +1,6 @@
 package com.nowcoder.community.social.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEvent;
 import com.nowcoder.community.social.domain.repository.BlockRepository;
 
 import java.util.UUID;
@@ -30,10 +29,6 @@ public class BlockDomainService {
             return false;
         }
         return repository.hasBlocked(userIdA, userIdB) || repository.hasBlocked(userIdB, userIdA);
-    }
-
-    public BlockRelationChangedDomainEvent blockChangedEvent(UUID actorUserId, UUID targetUserId, boolean blocked) {
-        return new BlockRelationChangedDomainEvent(actorUserId, targetUserId, blocked);
     }
 
     private void validateUserIds(UUID actorUserId, UUID targetUserId) {

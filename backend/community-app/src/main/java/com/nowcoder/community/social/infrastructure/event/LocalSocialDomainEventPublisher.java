@@ -76,15 +76,16 @@ public class LocalSocialDomainEventPublisher implements SocialDomainEventPublish
         payload.setBlockedUserId(event.blockedUserId());
         payload.setBlocked(event.blocked());
         Instant occurredAt = requiredOccurredAt(SocialEventTypes.BLOCK_RELATION_CHANGED, event.occurredAt());
+        long version = requiredVersion(SocialEventTypes.BLOCK_RELATION_CHANGED, event.version());
         payload.setOccurredAt(occurredAt);
-        payload.setVersion(event.version() > 0L ? event.version() : positiveVersion(occurredAt));
+        payload.setVersion(version);
         publish(
                 UUID.randomUUID().toString(),
                 SocialEventTypes.BLOCK_RELATION_CHANGED,
                 event.blockerUserId(),
                 "user",
                 occurredAt,
-                payload.getVersion(),
+                version,
                 payload
         );
     }
@@ -127,6 +128,13 @@ public class LocalSocialDomainEventPublisher implements SocialDomainEventPublish
             throw new IllegalStateException("social event source occurredAt missing: " + type);
         }
         return occurredAt;
+    }
+
+    private long requiredVersion(String type, long version) {
+        if (version <= 0L) {
+            throw new IllegalStateException("social event source version missing: " + type);
+        }
+        return version;
     }
 
     private long positiveVersion(Instant occurredAt) {

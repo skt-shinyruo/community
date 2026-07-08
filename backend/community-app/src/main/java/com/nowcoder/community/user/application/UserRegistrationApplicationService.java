@@ -114,7 +114,7 @@ public class UserRegistrationApplicationService {
             translateDuplicateInsert(user.username(), user.email(), ex);
         }
         long version = userRepository.nextUserPolicyVersion(user.id());
-        userRepository.updateModerationUntil(user.id(), user.muteUntil(), user.banUntil(), version);
+        userRepository.updateModerationUntil(user.id(), user.muteUntil(), user.banUntil(), version, 0L);
         publishUserPolicyChanged(user.id(), true, version);
         return toCredentialResult(user, 1);
     }
@@ -136,7 +136,17 @@ public class UserRegistrationApplicationService {
     }
 
     private UserCredentialResult toCredentialResult(UserAccount user, int status) {
-        return new UserCredentialResult(user.id(), user.username(), status, user.type(), user.headerUrl(), user.securityVersion());
+        boolean allowed = status != 0;
+        return new UserCredentialResult(
+                user.id(),
+                user.username(),
+                status,
+                user.type(),
+                user.headerUrl(),
+                user.securityVersion(),
+                allowed,
+                allowed
+        );
     }
 
     private void publishUserPolicyChanged(UUID userId, boolean userExists, long version) {

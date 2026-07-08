@@ -108,7 +108,7 @@ class PasswordResetApplicationServiceTest {
     @Test
     void requestResetShouldLogIssuedEventWithoutResetLink(CapturedOutput output) {
         UUID userId = uuid(7);
-        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 0L);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 0L, true, true);
 
         doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(user);
@@ -129,7 +129,7 @@ class PasswordResetApplicationServiceTest {
     @Test
     void requestResetShouldIssueAtLeast256BitUrlSafeToken() {
         UUID userId = uuid(7);
-        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 0L);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 0L, true, true);
         String[] capturedToken = new String[1];
 
         doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
@@ -151,7 +151,7 @@ class PasswordResetApplicationServiceTest {
     @Test
     void requestResetShouldDeleteIssuedTokenWhenMailSendingFails() {
         UUID userId = uuid(7);
-        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 0L);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null, 0L, true, true);
         String[] capturedToken = new String[1];
 
         doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");

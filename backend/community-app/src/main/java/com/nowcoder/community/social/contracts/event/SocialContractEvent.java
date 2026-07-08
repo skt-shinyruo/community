@@ -12,8 +12,4 @@ public record SocialContractEvent(
         long version,
         Object payload
 ) {
-
-    public SocialContractEvent(String eventId, String type, Object payload) {
-        this(eventId, null, null, type, null, 0L, payload);
-    }
 }

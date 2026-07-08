@@ -12,8 +12,4 @@ public record ContentContractEvent(
         long version,
         Object payload
 ) {
-
-    public ContentContractEvent(String eventId, String type, Object payload) {
-        this(eventId, null, null, type, null, 0L, payload);
-    }
 }

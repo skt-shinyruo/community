@@ -43,15 +43,39 @@ class RefreshTokenSessionApiAdapterTest {
     @Test
     void findAndConsumeShouldDelegateToApplicationServiceAndMapView() {
         RefreshTokenSessionApiAdapter adapter = new RefreshTokenSessionApiAdapter(applicationService);
-        RefreshTokenSessionResult result = new RefreshTokenSessionResult(TOKEN_HASH, USER_ID, "family-1", EXPIRES_AT, REVOKED_AT);
+        RefreshTokenSessionResult result = new RefreshTokenSessionResult(
+                TOKEN_HASH,
+                USER_ID,
+                "family-1",
+                EXPIRES_AT,
+                REVOKED_AT,
+                RefreshTokenSessionState.REVOKED,
+                null
+        );
         when(applicationService.find(TOKEN_HASH)).thenReturn(result);
         when(applicationService.consume(TOKEN_HASH)).thenReturn(result);
 
         RefreshTokenSessionView found = adapter.find(TOKEN_HASH);
         RefreshTokenSessionView consumed = adapter.consume(TOKEN_HASH);
 
-        assertThat(found).isEqualTo(new RefreshTokenSessionView(TOKEN_HASH, USER_ID, "family-1", EXPIRES_AT, REVOKED_AT));
-        assertThat(consumed).isEqualTo(new RefreshTokenSessionView(TOKEN_HASH, USER_ID, "family-1", EXPIRES_AT, REVOKED_AT));
+        assertThat(found).isEqualTo(new RefreshTokenSessionView(
+                TOKEN_HASH,
+                USER_ID,
+                "family-1",
+                EXPIRES_AT,
+                REVOKED_AT,
+                RefreshTokenSessionStateView.REVOKED,
+                null
+        ));
+        assertThat(consumed).isEqualTo(new RefreshTokenSessionView(
+                TOKEN_HASH,
+                USER_ID,
+                "family-1",
+                EXPIRES_AT,
+                REVOKED_AT,
+                RefreshTokenSessionStateView.REVOKED,
+                null
+        ));
         verify(applicationService).find(TOKEN_HASH);
         verify(applicationService).consume(TOKEN_HASH);
     }

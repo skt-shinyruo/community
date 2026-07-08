@@ -130,7 +130,7 @@ public class RefreshTokenSessionApiAdapter implements UserRefreshTokenSessionQue
                 result.familyId(),
                 result.expiresAt(),
                 result.revokedAt(),
-                result.state() == null ? RefreshTokenSessionStateView.ACTIVE : RefreshTokenSessionStateView.valueOf(result.state().name()),
+                RefreshTokenSessionStateView.valueOf(result.state().name()),
                 result.pendingExpiresAt()
         );
     }

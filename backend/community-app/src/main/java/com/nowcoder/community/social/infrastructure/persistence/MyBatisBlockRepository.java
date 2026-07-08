@@ -20,7 +20,6 @@ public class MyBatisBlockRepository implements BlockRepository {
 
     private static final UUID ZERO_UUID = new UUID(0L, 0L);
     private static final int BLOCK_VERSION_COUNTER_ID = 1;
-    private static final int LEGACY_COMPATIBLE_LOGICAL_BITS = 12;
 
     private final BlockMapper mapper;
 
@@ -80,7 +79,7 @@ public class MyBatisBlockRepository implements BlockRepository {
     public long nextBlockProjectionVersion() {
         mapper.upsertVersionCounter(BLOCK_VERSION_COUNTER_ID);
         long current = mapper.selectVersionCounterForUpdate(BLOCK_VERSION_COUNTER_ID);
-        long next = Math.max(current + 1L, legacyCompatibleVersionFloor());
+        long next = current + 1L;
         mapper.updateVersionCounter(BLOCK_VERSION_COUNTER_ID, next);
         return next;
     }
@@ -91,8 +90,4 @@ public class MyBatisBlockRepository implements BlockRepository {
         return mapper.selectVersionCounter(BLOCK_VERSION_COUNTER_ID);
     }
 
-    private static long legacyCompatibleVersionFloor() {
-        long epochMillis = System.currentTimeMillis();
-        return epochMillis <= 0L ? 1L : epochMillis << LEGACY_COMPATIBLE_LOGICAL_BITS;
-    }
 }

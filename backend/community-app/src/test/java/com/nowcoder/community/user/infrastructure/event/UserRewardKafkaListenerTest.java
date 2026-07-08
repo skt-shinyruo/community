@@ -35,7 +35,7 @@ class UserRewardKafkaListenerTest {
         payload.setPostId(uuid(100));
         payload.setUserId(uuid(7));
 
-        listener.onContentEvent(new ContentContractEvent("ce:post:published:1", ContentEventTypes.POST_PUBLISHED, payload));
+        listener.onContentEvent(new ContentContractEvent("ce:post:published:1", null, null, ContentEventTypes.POST_PUBLISHED, java.time.Instant.EPOCH, 1L, payload));
 
         verify(walletRewardActionApi).applyDelta(
                 "wallet-reward:post-published:" + uuid(100),
@@ -53,7 +53,7 @@ class UserRewardKafkaListenerTest {
         payload.setCommentId(uuid(200));
         payload.setUserId(uuid(3));
 
-        listener.onContentEvent(new ContentContractEvent("ce:comment:created:1", ContentEventTypes.COMMENT_CREATED, payload));
+        listener.onContentEvent(new ContentContractEvent("ce:comment:created:1", null, null, ContentEventTypes.COMMENT_CREATED, java.time.Instant.EPOCH, 1L, payload));
 
         verify(walletRewardActionApi).applyDelta(
                 "wallet-reward:comment-created:" + uuid(200),
@@ -68,11 +68,7 @@ class UserRewardKafkaListenerTest {
         WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
         UserRewardKafkaListener listener = listener(walletRewardActionApi);
 
-        listener.onContentEvent(new ContentContractEvent(
-                "ce:post:published:map",
-                ContentEventTypes.POST_PUBLISHED,
-                Map.of("postId", uuid(101).toString(), "userId", uuid(8).toString())
-        ));
+        listener.onContentEvent(new ContentContractEvent("ce:post:published:map", null, null, ContentEventTypes.POST_PUBLISHED, java.time.Instant.EPOCH, 1L, Map.of("postId", uuid(101).toString(), "userId", uuid(8).toString())));
 
         verify(walletRewardActionApi).applyDelta(
                 "wallet-reward:post-published:" + uuid(101),
@@ -88,8 +84,8 @@ class UserRewardKafkaListenerTest {
         UserRewardKafkaListener listener = listener(walletRewardActionApi);
         LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
 
-        listener.onSocialEvent(new SocialContractEvent("se:like:created:01965429-b34a-7000-8000-000000000041", SocialEventTypes.LIKE_CREATED, payload));
-        listener.onSocialEvent(new SocialContractEvent("se:like:created:01965429-b34a-7000-8000-000000000042", SocialEventTypes.LIKE_CREATED, payload));
+        listener.onSocialEvent(new SocialContractEvent("se:like:created:01965429-b34a-7000-8000-000000000041", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, payload));
+        listener.onSocialEvent(new SocialContractEvent("se:like:created:01965429-b34a-7000-8000-000000000042", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, payload));
 
         verify(walletRewardActionApi, org.mockito.Mockito.times(2)).applyDelta(
                 "wallet-reward:" + payload.getRelationKey() + ":created",
@@ -115,7 +111,7 @@ class UserRewardKafkaListenerTest {
         UserRewardKafkaListener listener = listener(walletRewardActionApi);
         LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
 
-        listener.onSocialEvent(new SocialContractEvent("se:like:removed:01965429-b34a-7000-8000-000000000042", SocialEventTypes.LIKE_REMOVED, payload));
+        listener.onSocialEvent(new SocialContractEvent("se:like:removed:01965429-b34a-7000-8000-000000000042", null, null, SocialEventTypes.LIKE_REMOVED, java.time.Instant.EPOCH, 1L, payload));
 
         verify(walletRewardActionApi).applyDelta(
                 "wallet-reward:" + payload.getRelationKey() + ":removed",
@@ -129,17 +125,13 @@ class UserRewardKafkaListenerTest {
     void mapLikeSocialPayloadShouldConvertBeforeApplyingReward() {
         WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
         UserRewardKafkaListener listener = listener(walletRewardActionApi);
-        listener.onSocialEvent(new SocialContractEvent(
-                "se:like:created:01965429-b34a-7000-8000-000000000043",
-                SocialEventTypes.LIKE_CREATED,
-                Map.of(
+        listener.onSocialEvent(new SocialContractEvent("se:like:created:01965429-b34a-7000-8000-000000000043", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, Map.of(
                         "actorUserId", uuid(1).toString(),
                         "entityType", POST,
                         "entityId", uuid(100).toString(),
                         "entityUserId", uuid(2).toString(),
                         "createTime", "2026-05-18T10:30:00Z"
-                )
-        ));
+                )));
 
         verify(walletRewardActionApi).applyDelta(
                 "wallet-reward:like-created:" + dashless(uuid(1)) + ":" + POST + ":" + dashless(uuid(100)),
@@ -154,16 +146,12 @@ class UserRewardKafkaListenerTest {
         WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
         UserRewardKafkaListener listener = listener(walletRewardActionApi);
 
-        listener.onSocialEvent(new SocialContractEvent(
-                "se:like:created:missing-entity-type",
-                SocialEventTypes.LIKE_CREATED,
-                Map.of(
+        listener.onSocialEvent(new SocialContractEvent("se:like:created:missing-entity-type", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, Map.of(
                         "actorUserId", uuid(1).toString(),
                         "entityId", uuid(100).toString(),
                         "entityUserId", uuid(2).toString(),
                         "createTime", "2026-05-18T10:30:00Z"
-                )
-        ));
+                )));
 
         verifyNoInteractions(walletRewardActionApi);
     }
@@ -173,11 +161,7 @@ class UserRewardKafkaListenerTest {
         WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
         UserRewardKafkaListener listener = listener(walletRewardActionApi);
 
-        listener.onSocialEvent(new SocialContractEvent(
-                "se:like:created:self",
-                SocialEventTypes.LIKE_CREATED,
-                likePayload(uuid(1), uuid(100), uuid(1))
-        ));
+        listener.onSocialEvent(new SocialContractEvent("se:like:created:self", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, likePayload(uuid(1), uuid(100), uuid(1))));
 
         verifyNoInteractions(walletRewardActionApi);
     }
@@ -188,9 +172,9 @@ class UserRewardKafkaListenerTest {
         UserRewardKafkaListener listener = listener(walletRewardActionApi);
         LikePayload missingEntityOwner = likePayload(uuid(1), uuid(100), null);
 
-        listener.onContentEvent(new ContentContractEvent("ce:post:updated", ContentEventTypes.POST_UPDATED, new PostPayload()));
-        listener.onSocialEvent(new SocialContractEvent("se:follow:created", SocialEventTypes.FOLLOW_CREATED, new Object()));
-        listener.onSocialEvent(new SocialContractEvent("se:like:created:missing", SocialEventTypes.LIKE_CREATED, missingEntityOwner));
+        listener.onContentEvent(new ContentContractEvent("ce:post:updated", null, null, ContentEventTypes.POST_UPDATED, java.time.Instant.EPOCH, 1L, new PostPayload()));
+        listener.onSocialEvent(new SocialContractEvent("se:follow:created", null, null, SocialEventTypes.FOLLOW_CREATED, java.time.Instant.EPOCH, 1L, new Object()));
+        listener.onSocialEvent(new SocialContractEvent("se:like:created:missing", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, missingEntityOwner));
 
         verifyNoInteractions(walletRewardActionApi);
     }

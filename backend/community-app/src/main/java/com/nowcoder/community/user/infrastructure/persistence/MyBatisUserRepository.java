@@ -27,7 +27,6 @@ public class MyBatisUserRepository implements UserRepository {
 
     private static final int USER_POLICY_VERSION_COUNTER_ID = 1;
     private static final int USER_SECURITY_VERSION_COUNTER_ID = 1;
-    private static final int LEGACY_COMPATIBLE_LOGICAL_BITS = 12;
 
     private final UserMapper userMapper;
 
@@ -188,7 +187,7 @@ public class MyBatisUserRepository implements UserRepository {
     public long nextUserPolicyVersion(UUID userId) {
         userMapper.upsertPolicyVersionCounter(USER_POLICY_VERSION_COUNTER_ID);
         long current = userMapper.selectPolicyVersionCounterForUpdate(USER_POLICY_VERSION_COUNTER_ID);
-        long next = Math.max(current + 1L, legacyCompatibleVersionFloor());
+        long next = current + 1L;
         userMapper.updatePolicyVersionCounter(USER_POLICY_VERSION_COUNTER_ID, next);
         return next;
     }
@@ -204,7 +203,7 @@ public class MyBatisUserRepository implements UserRepository {
     public long nextUserSecurityVersion(UUID userId) {
         userMapper.upsertSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID);
         long current = userMapper.selectSecurityVersionCounterForUpdate(USER_SECURITY_VERSION_COUNTER_ID);
-        long next = Math.max(current + 1L, legacyCompatibleVersionFloor());
+        long next = current + 1L;
         userMapper.updateSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID, next);
         return next;
     }
@@ -287,8 +286,4 @@ public class MyBatisUserRepository implements UserRepository {
         return value == null ? null : value.toInstant();
     }
 
-    private static long legacyCompatibleVersionFloor() {
-        long epochMillis = System.currentTimeMillis();
-        return epochMillis <= 0L ? 1L : epochMillis << LEGACY_COMPATIBLE_LOGICAL_BITS;
-    }
 }

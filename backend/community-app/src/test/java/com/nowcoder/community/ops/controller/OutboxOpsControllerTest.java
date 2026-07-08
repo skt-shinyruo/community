@@ -5,8 +5,11 @@ import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.ops.application.OutboxGovernanceApplicationService;
 import com.nowcoder.community.ops.application.command.FindOutboxEventsCommand;
+import com.nowcoder.community.ops.application.command.ReplayOutboxBatchCommand;
 import com.nowcoder.community.ops.application.command.ReplayOutboxEventCommand;
 import com.nowcoder.community.ops.application.result.OutboxBacklogResult;
+import com.nowcoder.community.ops.application.result.OutboxBatchReplayItemResult;
+import com.nowcoder.community.ops.application.result.OutboxBatchReplayResult;
 import com.nowcoder.community.ops.application.result.OutboxEventResult;
 import com.nowcoder.community.ops.application.result.OutboxReplayResult;
 import com.nowcoder.community.ops.security.OpsSecurityRules;
@@ -67,6 +70,11 @@ class OutboxOpsControllerTest {
     void nonAdminRequestsShouldBeRejected() throws Exception {
         mockMvc.perform(get("/api/ops/outbox/backlog")
                         .with(jwt().jwt(jwt -> jwt.subject(uuid(2).toString())).authorities(() -> "ROLE_USER")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/ops/outbox/replay-batch")
+                        .with(jwt().jwt(jwt -> jwt.subject(uuid(2).toString())).authorities(() -> "ROLE_USER"))
+                        .contentType("application/json")
+                        .content("{\"topic\":\"projection.search.post\",\"status\":\"DEAD\",\"createdFrom\":\"2026-07-07T00:00:00Z\",\"createdTo\":\"2026-07-08T00:00:00Z\",\"limit\":10,\"reason\":\"retry\"}"))
                 .andExpect(status().isForbidden());
     }
 
@@ -147,6 +155,72 @@ class OutboxOpsControllerTest {
                 () -> assertEquals(outboxId, replayCommand.outboxId()),
                 () -> assertEquals("fixed es mapping", replayCommand.reason())
         );
+    }
+
+    @Test
+    void adminShouldBatchReplayWithBoundedScope() throws Exception {
+        UUID adminUserId = uuid(99);
+        UUID replayedId = uuid(1);
+        UUID rejectedId = uuid(2);
+        when(outboxGovernanceApplicationService.replayBatch(any()))
+                .thenReturn(new OutboxBatchReplayResult(
+                        "projection.search.post",
+                        2,
+                        1,
+                        1,
+                        0,
+                        "PARTIAL",
+                        List.of(
+                                new OutboxBatchReplayItemResult(replayedId, "event-1", "projection.search.post", "DEAD", "PENDING", true, "REPLAYED", "requeued"),
+                                new OutboxBatchReplayItemResult(rejectedId, "event-2", "projection.search.post", "PENDING", "PENDING", false, "MANUAL_REPAIR_REQUIRED", "only DEAD outbox events can be replayed")
+                        )
+                ));
+
+        mockMvc.perform(post("/api/ops/outbox/replay-batch")
+                        .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "topic": "projection.search.post",
+                                  "status": "DEAD",
+                                  "createdFrom": "2026-07-07T00:00:00Z",
+                                  "createdTo": "2026-07-08T00:00:00Z",
+                                  "limit": 20,
+                                  "reason": "fixed handler"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.topic").value("projection.search.post"))
+                .andExpect(jsonPath("$.data.requestedCount").value(2))
+                .andExpect(jsonPath("$.data.replayedCount").value(1))
+                .andExpect(jsonPath("$.data.rejectedCount").value(1))
+                .andExpect(jsonPath("$.data.result").value("PARTIAL"))
+                .andExpect(jsonPath("$.data.items[0].outboxId").value(replayedId.toString()))
+                .andExpect(jsonPath("$.data.items[0].replayed").value(true))
+                .andExpect(jsonPath("$.data.items[1].result").value("MANUAL_REPAIR_REQUIRED"));
+
+        ArgumentCaptor<ReplayOutboxBatchCommand> commandCaptor =
+                ArgumentCaptor.forClass(ReplayOutboxBatchCommand.class);
+        verify(outboxGovernanceApplicationService).replayBatch(commandCaptor.capture());
+        ReplayOutboxBatchCommand command = commandCaptor.getValue();
+        assertAll(
+                () -> assertEquals(adminUserId, command.actorUserId()),
+                () -> assertEquals("projection.search.post", command.topic()),
+                () -> assertEquals("DEAD", command.status()),
+                () -> assertEquals(Instant.parse("2026-07-07T00:00:00Z"), command.createdFrom()),
+                () -> assertEquals(Instant.parse("2026-07-08T00:00:00Z"), command.createdTo()),
+                () -> assertEquals(20, command.limit()),
+                () -> assertEquals("fixed handler", command.reason())
+        );
+    }
+
+    @Test
+    void batchReplayShouldRejectInvalidRequestBody() throws Exception {
+        mockMvc.perform(post("/api/ops/outbox/replay-batch")
+                        .with(jwt().jwt(jwt -> jwt.subject(uuid(99).toString())).authorities(() -> "ROLE_ADMIN"))
+                        .contentType("application/json")
+                        .content("{\"topic\":\"\",\"status\":\"DEAD\",\"limit\":0,\"reason\":\"\"}"))
+                .andExpect(status().isBadRequest());
     }
 
     private static UUID uuid(long suffix) {

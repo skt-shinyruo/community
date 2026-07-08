@@ -2,6 +2,7 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.content.application.FeedCursorCodec;
 import com.nowcoder.community.content.application.PostFeedCache;
+import com.nowcoder.community.content.application.result.HotFeedDegradationSignalResult;
 import com.nowcoder.community.content.domain.model.Category;
 import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -9,6 +10,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -20,6 +22,10 @@ public class RedisPostFeedCache implements PostFeedCache {
     private static final String GLOBAL_HOT_KEY = "post:feed:global:hot";
     private static final String GLOBAL_HOT_RANK_VERSION_KEY = GLOBAL_HOT_KEY + ":rank-version";
     private static final String BOARD_HOT_KEY_PREFIX = "post:feed:board:hot:";
+    private static final String HOT_DEGRADATION_DEGRADED_KEY = "post:feed:hot:degradation:degraded";
+    private static final String HOT_DEGRADATION_REASON_KEY = "post:feed:hot:degradation:reason";
+    private static final String HOT_DEGRADATION_UPDATED_AT_KEY = "post:feed:hot:degradation:updated-at";
+    private static final String LAST_PREWARM_KEY_PREFIX = "post:feed:hot:prewarm:last:";
 
     private final StringRedisTemplate redisTemplate;
     private final FeedCursorCodec feedCursorCodec;
@@ -79,6 +85,56 @@ public class RedisPostFeedCache implements PostFeedCache {
     }
 
     @Override
+    public long countGlobalHot() {
+        Long size = redisTemplate.opsForZSet().zCard(GLOBAL_HOT_KEY);
+        return size == null ? 0L : size;
+    }
+
+    @Override
+    public long countBoardHot(UUID boardId) {
+        if (boardId == null) {
+            return 0L;
+        }
+        Long size = redisTemplate.opsForZSet().zCard(boardKey(boardId));
+        return size == null ? 0L : size;
+    }
+
+    @Override
+    public HotFeedDegradationSignalResult readDegradationSignal() {
+        String degradedValue = redisTemplate.opsForValue().get(HOT_DEGRADATION_DEGRADED_KEY);
+        String reason = redisTemplate.opsForValue().get(HOT_DEGRADATION_REASON_KEY);
+        String updatedAt = redisTemplate.opsForValue().get(HOT_DEGRADATION_UPDATED_AT_KEY);
+        return new HotFeedDegradationSignalResult(
+                Boolean.parseBoolean(degradedValue),
+                StringUtils.hasText(reason) ? reason : "",
+                parseInstant(updatedAt)
+        );
+    }
+
+    @Override
+    public HotFeedDegradationSignalResult writeDegradationSignal(boolean degraded, String reason) {
+        Instant now = Instant.now();
+        String normalizedReason = StringUtils.hasText(reason) ? reason.trim() : "";
+        redisTemplate.opsForValue().set(HOT_DEGRADATION_DEGRADED_KEY, Boolean.toString(degraded));
+        redisTemplate.opsForValue().set(HOT_DEGRADATION_REASON_KEY, degraded ? normalizedReason : "");
+        redisTemplate.opsForValue().set(HOT_DEGRADATION_UPDATED_AT_KEY, now.toString());
+        return new HotFeedDegradationSignalResult(degraded, degraded ? normalizedReason : "", now);
+    }
+
+    @Override
+    public Instant readLastPrewarmAt(String scope, UUID boardId) {
+        return parseInstant(redisTemplate.opsForValue().get(lastPrewarmKey(scope, boardId)));
+    }
+
+    @Override
+    public void writeLastPrewarmAt(String scope, UUID boardId, Instant prewarmAt) {
+        if (prewarmAt == null) {
+            return;
+        }
+        redisTemplate.opsForValue().set(lastPrewarmKey(scope, boardId), prewarmAt.toString());
+    }
+
+    @Override
     public void remove(UUID postId, UUID boardId) {
         if (postId == null) {
             return;
@@ -130,5 +186,23 @@ public class RedisPostFeedCache implements PostFeedCache {
 
     private String boardKey(UUID boardId) {
         return BOARD_HOT_KEY_PREFIX + boardId;
+    }
+
+    private String lastPrewarmKey(String scope, UUID boardId) {
+        if ("board".equals(scope) && boardId != null) {
+            return LAST_PREWARM_KEY_PREFIX + "board:" + boardId;
+        }
+        return LAST_PREWARM_KEY_PREFIX + "global";
+    }
+
+    private Instant parseInstant(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Instant.parse(value.trim());
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 }

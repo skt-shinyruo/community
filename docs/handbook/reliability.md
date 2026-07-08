@@ -282,8 +282,11 @@ P2 BBS 业务切片的 replay 边界：
 - `GET /api/ops/outbox/backlog` 返回按 topic 分组的 `PENDING`、`PROCESSING` 和 `DEAD` 数量。
 - `GET /api/ops/outbox/events` 支持按 `status`、`topic`、`eventId`、`createdFrom`、`createdTo` 和 `limit` 过滤。
 - `POST /api/ops/outbox/events/{outboxId}/replay` 只会把 `DEAD` 行重新排回 `PENDING`。
+- `POST /api/ops/outbox/replay-batch` 只允许在显式 `topic`、`status=DEAD`、`createdFrom`、`createdTo` 和 `limit` 范围内批量重新排队。
 
 Replay 不会直接调用 handler。它会清零 retry count、把 `next_retry_at` 设为当前时间、把操作人原因写入 `last_error`，然后交回正常 `OutboxWorker` 路径去 claim 和处理。
+
+批量 replay 复用单行 replay 判定，不做 SQL 批量盲改，也不直接调用 handler。它会返回每行的 `REPLAYED`、`REJECTED` 或 `NOT_REQUEUED` 结果，并允许部分成功。范围和限额是强制条件，`limit` 最大为 `500`。
 
 以下情况会拒绝 replay：
 
@@ -291,6 +294,15 @@ Replay 不会直接调用 handler。它会清零 retry count、把 `next_retry_a
 - topic 没有注册 handler。
 - payload 为空。
 - operator 没有提供非空 reason。
+
+批量 replay 还会拒绝：
+
+- `status` 不是 `DEAD`。
+- 缺少创建时间范围。
+- `createdFrom` 晚于 `createdTo`。
+- `limit` 不在 `1..500`。
+
+单条和批量 replay 都写治理审计，并记录 outbox replay 指标。批量 replay 会写一条父审计和逐行子审计，审计摘要只保存治理结果，不保存原始 payload。
 
 ## Outbox Handler 幂等
 
@@ -396,6 +408,49 @@ MarketWalletActionProcessorHandler
 - 重跑任务不应产生错误累计副作用。
 - 任务失败要留下可检索日志和必要状态。
 
+## Compensation Governance
+
+管理员可通过 `POST /api/ops/compensations/{jobName}/trigger` 触发允许列表内的补偿入口。请求必须提供 `limit` 和非空 `reason`，`limit` 最大为 `500`。当前 P1 允许列表为：
+
+- `outboxRecoverExpiredLeases`
+- `searchPostProjectionRepair`
+- `hotFeedProjectionRepair`
+- `growthTaskProjectionRepair`
+- `noticeProjectionRepair`
+
+`outboxRecoverExpiredLeases` 是技术 outbox 恢复动作，可以通过 ops-owned technical port 回收过期 `PROCESSING` lease。projection repair 是 owner domain 能力，必须由对应 owner `api.action` 进入 owner `ApplicationService` 后决定如何修复。没有接入 owner repair action 的作业会返回 `SKIPPED` 并写审计；ops 不允许直接扫描 owner repository、mapper 或修改业务事实。
+
+补偿触发结果包含 `jobName`、`accepted`、`processedCount`、`repairedCount`、`skippedCount`、`result` 和 `message`。所有触发都会记录 `community_compensation_trigger_total{job.name,result}`、`community_governance_action_total{action,result}` 和治理审计。
+
+## Hot-Cache Governance
+
+Hot-feed 缓存治理入口位于 `/api/ops/hot-cache/**`，由 ops 应用层调用 content owner 的 `api.query` / `api.action` 合同：
+
+- `GET /api/ops/hot-cache/status?scope=global|board&boardId=<uuid?>` 查询 rank version、缓存条数、summary cache 可用性、降级信号和最近预热时间。
+- `POST /api/ops/hot-cache/prewarm` 按 `scope`、可选 `boardId` 和 `limit` 预热 hot-feed 缓存，`limit` 最大为 `500`。
+- `GET /api/ops/hot-cache/degradation` 查询当前手工降级信号。
+- `POST /api/ops/hot-cache/degradation` 设置或清除手工降级信号。
+
+预热由 content owner 使用当前帖子事实写入 hot-feed 和 summary cache。降级信号是运行态状态，不是帖子、评论、点赞或分数事实。ops 只记录治理审计和指标，不直接修改 content 业务事实。
+
+## Governance Audit
+
+治理审计表记录高风险可靠性操作。字段包括：
+
+- `action`
+- `actor_user_id`
+- `target_type`
+- `target_id`
+- `scope`
+- `reason`
+- `request_json`
+- `result`
+- `summary_json`
+- `trace_id`
+- `created_at`
+
+每个变更型治理操作必须提供非空 `reason` 并写审计。审计不能保存 token、cookie、authorization header、Redis key、原始 outbox payload 或用户生成内容。读状态接口默认只记录指标，不写低价值审计行。
+
 ## Fail-open / Fail-closed 选择
 
 默认规则：
@@ -434,6 +489,20 @@ Outbox 和 scheduler：
 
 - `backend/community-common/common-outbox/src/test/...`
 - `backend/community-app/src/test/...` 中 search / IM policy / scheduler 相关测试。
+- `OutboxGovernanceApplicationServiceTest`
+- `OutboxOpsControllerTest`
+- `CompensationGovernanceApplicationServiceTest`
+- `CompensationOpsControllerTest`
+- `DefaultCompensationTriggerAdapterTest`
+- `MyBatisGovernanceAuditRepositoryTest`
+- `ReliabilityGovernanceMetricsTest`
+
+Hot-cache governance：
+
+- `HotFeedCacheGovernanceApplicationServiceTest`
+- `HotFeedCacheGovernanceApiAdapterTest`
+- `HotCacheGovernanceApplicationServiceTest`
+- `HotCacheOpsControllerTest`
 
 Market wallet action saga：
 

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.ops.infrastructure.persistence.mapper.GovernanceAuditMapper">
+
+    <sql id="BaseColumns">
+        id, action, actor_user_id, target_type, target_id, scope, reason,
+        request_json, result, summary_json, trace_id, created_at
+    </sql>
+
+    <insert id="insert" parameterType="com.nowcoder.community.ops.infrastructure.persistence.dataobject.GovernanceAuditDataObject">
+        insert into ops_governance_audit(
+            id, action, actor_user_id, target_type, target_id, scope, reason,
+            request_json, result, summary_json, trace_id, created_at
+        )
+        values(
+            #{id, jdbcType=BINARY},
+            #{action},
+            #{actorUserId, jdbcType=BINARY},
+            #{targetType},
+            #{targetId},
+            #{scope},
+            #{reason},
+            #{requestJson},
+            #{result},
+            #{summaryJson},
+            #{traceId},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectById" resultType="com.nowcoder.community.ops.infrastructure.persistence.dataobject.GovernanceAuditDataObject">
+        select <include refid="BaseColumns"/>
+        from ops_governance_audit
+        where id = #{id, jdbcType=BINARY}
+    </select>
+
+</mapper>

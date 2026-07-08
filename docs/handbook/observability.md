@@ -121,7 +121,11 @@ community_kafka_consumer_lag
 community_executor_queue_size
 community_executor_rejections_total
 community_outbox_replay_total
+community_outbox_batch_replay_total
 community_cache_requests_total
+community_governance_action_total
+community_hot_cache_governance_total
+community_compensation_trigger_total
 ```
 
 Allowed dimensions:
@@ -171,7 +175,11 @@ timestamp
 New reliability governance metrics:
 
 - `community_outbox_replay_total{topic,result}`
+- `community_outbox_batch_replay_total{topic,result}`
 - `community_cache_requests_total{cache="hot_feed",result,scope}`
+- `community_governance_action_total{action,result}`
+- `community_hot_cache_governance_total{operation,result,scope}`
+- `community_compensation_trigger_total{job.name,result}`
 
 Allowed `community_outbox_replay_total.result` values:
 
@@ -179,12 +187,38 @@ Allowed `community_outbox_replay_total.result` values:
 - `MANUAL_REPAIR_REQUIRED`
 - `NOT_REQUEUED`
 
+Allowed `community_outbox_batch_replay_total.result` values:
+
+- `ACCEPTED`
+- `REPLAYED`
+- `PARTIAL`
+- `REJECTED`
+- `NOT_REQUEUED`
+- `FAILED`
+
 Allowed `community_cache_requests_total.result` values:
 
 - `hit`
 - `fallback`
 - `empty`
 - `degraded`
+
+Allowed governance result values:
+
+- `ACCEPTED`
+- `REPLAYED`
+- `PARTIAL`
+- `REJECTED`
+- `NOT_REQUEUED`
+- `FAILED`
+- `DEGRADED`
+- `SKIPPED`
+
+Allowed `community_governance_action_total.action` values are bounded governance action names such as `OUTBOX_REPLAY_SINGLE`, `OUTBOX_REPLAY_BATCH`, `COMPENSATION_TRIGGER`, `HOT_CACHE_PREWARM`, and `HOT_CACHE_DEGRADATION_SIGNAL`.
+
+Allowed `community_hot_cache_governance_total.operation` values are bounded operation names such as `HOT_CACHE_STATUS`, `HOT_CACHE_PREWARM`, and `HOT_CACHE_DEGRADATION_SIGNAL`.
+
+Allowed `community_compensation_trigger_total.job.name` values are the compensation allowlist names. Do not use actor ids, board ids, outbox ids, event ids, trace ids, Redis keys, or raw topics as metric labels.
 
 ## Trace Contract
 

@@ -20,6 +20,8 @@ import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_
 @Service
 public class MyBatisCommentContentRepository implements CommentContentRepository {
 
+    private static final int MAX_PAGE_SIZE = 50;
+
     private final CommentMapper commentMapper;
     private final PostContentRepository postContentPort;
 
@@ -30,23 +32,35 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
 
     @Override
     public List<Comment> listRootComments(UUID postId, int page, int size) {
+        return listRootComments(postId, page, size, normalizePageSize(size));
+    }
+
+    @Override
+    public List<Comment> listRootComments(UUID postId, int page, int size, int limit) {
         if (postId == null) {
             return List.of();
         }
         postContentPort.getById(postId);
         int p = Math.max(0, page);
-        int s = Math.min(50, Math.max(1, size));
-        return commentMapper.selectRootComments(postId, Pagination.safeOffset(p, s), s);
+        int s = normalizePageSize(size);
+        int fetchLimit = normalizeFetchLimit(limit, s);
+        return commentMapper.selectRootComments(postId, Pagination.safeOffset(p, s), fetchLimit);
     }
 
     @Override
     public List<Comment> listReplies(UUID rootCommentId, int page, int size) {
+        return listReplies(rootCommentId, page, size, normalizePageSize(size));
+    }
+
+    @Override
+    public List<Comment> listReplies(UUID rootCommentId, int page, int size, int limit) {
         if (rootCommentId == null) {
             return List.of();
         }
         int p = Math.max(0, page);
-        int s = Math.min(50, Math.max(1, size));
-        return commentMapper.selectRepliesByRootComment(rootCommentId, Pagination.safeOffset(p, s), s);
+        int s = normalizePageSize(size);
+        int fetchLimit = normalizeFetchLimit(limit, s);
+        return commentMapper.selectRepliesByRootComment(rootCommentId, Pagination.safeOffset(p, s), fetchLimit);
     }
 
     @Override
@@ -108,5 +122,13 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
             map.putIfAbsent(comment.getPostId(), comment);
         }
         return map;
+    }
+
+    private static int normalizePageSize(int size) {
+        return Math.min(MAX_PAGE_SIZE, Math.max(1, size));
+    }
+
+    private static int normalizeFetchLimit(int limit, int pageSize) {
+        return Math.min(pageSize + 1, Math.max(1, limit));
     }
 }

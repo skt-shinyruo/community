@@ -52,4 +52,36 @@ class CommentServiceTest {
 
         verify(commentMapper, never()).selectRootComments(eq(postId), anyInt(), anyInt());
     }
+
+    @Test
+    void listRootCommentsWithFetchLimitShouldUsePageSizeForOffset() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        PostContentRepository postContentPort = mock(PostContentRepository.class);
+        MyBatisCommentContentRepository service = new MyBatisCommentContentRepository(commentMapper, postContentPort);
+        UUID postId = uuid(101);
+        Comment comment = new Comment();
+        comment.setId(uuid(11));
+        when(commentMapper.selectRootComments(postId, 20, 11)).thenReturn(List.of(comment));
+
+        List<Comment> rows = service.listRootComments(postId, 2, 10, 11);
+
+        assertThat(rows).containsExactly(comment);
+        verify(commentMapper).selectRootComments(postId, 20, 11);
+    }
+
+    @Test
+    void listRepliesWithFetchLimitShouldUsePageSizeForOffset() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        PostContentRepository postContentPort = mock(PostContentRepository.class);
+        MyBatisCommentContentRepository service = new MyBatisCommentContentRepository(commentMapper, postContentPort);
+        UUID rootCommentId = uuid(201);
+        Comment comment = new Comment();
+        comment.setId(uuid(11));
+        when(commentMapper.selectRepliesByRootComment(rootCommentId, 20, 11)).thenReturn(List.of(comment));
+
+        List<Comment> rows = service.listReplies(rootCommentId, 2, 10, 11);
+
+        assertThat(rows).containsExactly(comment);
+        verify(commentMapper).selectRepliesByRootComment(rootCommentId, 20, 11);
+    }
 }

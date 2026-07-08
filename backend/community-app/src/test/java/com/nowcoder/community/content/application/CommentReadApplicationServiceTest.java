@@ -26,29 +26,58 @@ import static org.mockito.Mockito.when;
 class CommentReadApplicationServiceTest {
 
     @Test
-    void listRootCommentsShouldReturnCursorPageOfTopLevelThreads() {
+    void listRootCommentsShouldUseProbeRowToReturnNextCursor() {
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
         CommentPageCache commentPageCache = mock(CommentPageCache.class);
         CommentReadApplicationService service = service(commentContentRepository, postContentRepository, commentPageCache);
         UUID postId = uuid(100);
-        UUID rootCommentId = uuid(200);
-        Comment rootComment = comment(rootCommentId, uuid(7), postId, rootCommentId, null, null, "root &amp; comment");
-        when(commentContentRepository.listRootComments(postId, 0, 2)).thenReturn(List.of(rootComment));
+        UUID firstCommentId = uuid(200);
+        UUID secondCommentId = uuid(201);
+        UUID probeCommentId = uuid(202);
+        Comment firstComment = comment(firstCommentId, uuid(7), postId, firstCommentId, null, null, "root &amp; comment");
+        Comment secondComment = comment(secondCommentId, uuid(8), postId, secondCommentId, null, null, "second");
+        Comment probeComment = comment(probeCommentId, uuid(9), postId, probeCommentId, null, null, "probe");
+        when(commentContentRepository.listRootComments(postId, 0, 2, 3))
+                .thenReturn(List.of(firstComment, secondComment, probeComment));
 
         CommentPageResult page = service.listRootComments(postId, "", 2);
 
-        assertThat(page.items()).singleElement().satisfies(item -> {
-            assertThat(item.id()).isEqualTo(rootCommentId);
+        assertThat(page.items()).hasSize(2);
+        assertThat(page.items()).extracting(CommentResult::id).containsExactly(firstCommentId, secondCommentId);
+        assertThat(page.items().get(0)).satisfies(item -> {
             assertThat(item.postId()).isEqualTo(postId);
-            assertThat(item.rootCommentId()).isEqualTo(rootCommentId);
+            assertThat(item.rootCommentId()).isEqualTo(firstCommentId);
             assertThat(item.parentCommentId()).isNull();
             assertThat(item.replyToUserId()).isNull();
             assertThat(item.content()).isEqualTo("root & comment");
         });
         assertThat(page.nextCursor()).isNotBlank();
         verify(postContentRepository).getById(postId);
-        verify(commentContentRepository).listRootComments(postId, 0, 2);
+        verify(commentContentRepository).listRootComments(postId, 0, 2, 3);
+        verify(commentPageCache).putRootPage(postId, "", 2, page);
+    }
+
+    @Test
+    void listRootCommentsShouldNotReturnNextCursorWithoutProbeRow() {
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentPageCache commentPageCache = mock(CommentPageCache.class);
+        CommentReadApplicationService service = service(commentContentRepository, postContentRepository, commentPageCache);
+        UUID postId = uuid(100);
+        UUID firstCommentId = uuid(200);
+        UUID secondCommentId = uuid(201);
+        Comment firstComment = comment(firstCommentId, uuid(7), postId, firstCommentId, null, null, "first");
+        Comment secondComment = comment(secondCommentId, uuid(8), postId, secondCommentId, null, null, "second");
+        when(commentContentRepository.listRootComments(postId, 0, 2, 3))
+                .thenReturn(List.of(firstComment, secondComment));
+
+        CommentPageResult page = service.listRootComments(postId, "", 2);
+
+        assertThat(page.items()).extracting(CommentResult::id).containsExactly(firstCommentId, secondCommentId);
+        assertThat(page.nextCursor()).isBlank();
+        verify(postContentRepository).getById(postId);
+        verify(commentContentRepository).listRootComments(postId, 0, 2, 3);
         verify(commentPageCache).putRootPage(postId, "", 2, page);
     }
 
@@ -105,12 +134,12 @@ class CommentReadApplicationServiceTest {
         service.listRootComments(postId, cursor, 10);
 
         verify(postContentRepository).getById(postId);
-        verify(commentContentRepository).listRootComments(postId, 1, 10);
+        verify(commentContentRepository).listRootComments(postId, 1, 10, 11);
         verifyNoInteractions(commentPageCache);
     }
 
     @Test
-    void listRepliesShouldReturnCursorPageScopedByRootComment() {
+    void listRepliesShouldUseProbeRowToReturnNextCursor() {
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
         CommentReadApplicationService service = service(commentContentRepository, mock(CommentPageCache.class));
         UUID postId = uuid(100);
@@ -119,9 +148,10 @@ class CommentReadApplicationServiceTest {
         UUID parentCommentId = uuid(202);
         UUID replyToUserId = uuid(9);
         Comment replyComment = comment(replyId, uuid(8), postId, rootCommentId, parentCommentId, replyToUserId, "reply");
-        when(commentContentRepository.listReplies(rootCommentId, 0, 3)).thenReturn(List.of(replyComment));
+        Comment probeComment = comment(uuid(203), uuid(10), postId, rootCommentId, replyId, uuid(8), "probe");
+        when(commentContentRepository.listReplies(rootCommentId, 0, 1, 2)).thenReturn(List.of(replyComment, probeComment));
 
-        CommentPageResult page = service.listReplies(postId, rootCommentId, "", 3);
+        CommentPageResult page = service.listReplies(postId, rootCommentId, "", 1);
 
         assertThat(page.items()).singleElement().satisfies(item -> {
             assertThat(item.id()).isEqualTo(replyId);
@@ -132,7 +162,25 @@ class CommentReadApplicationServiceTest {
         });
         assertThat(page.nextCursor()).isNotBlank();
         verify(commentContentRepository).assertCommentBelongsToPost(postId, rootCommentId);
-        verify(commentContentRepository).listReplies(rootCommentId, 0, 3);
+        verify(commentContentRepository).listReplies(rootCommentId, 0, 1, 2);
+    }
+
+    @Test
+    void listRepliesShouldNotReturnNextCursorWithoutProbeRow() {
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        CommentReadApplicationService service = service(commentContentRepository, mock(CommentPageCache.class));
+        UUID postId = uuid(100);
+        UUID rootCommentId = uuid(200);
+        UUID replyId = uuid(201);
+        Comment replyComment = comment(replyId, uuid(8), postId, rootCommentId, uuid(202), uuid(9), "reply");
+        when(commentContentRepository.listReplies(rootCommentId, 0, 1, 2)).thenReturn(List.of(replyComment));
+
+        CommentPageResult page = service.listReplies(postId, rootCommentId, "", 1);
+
+        assertThat(page.items()).singleElement().satisfies(item -> assertThat(item.id()).isEqualTo(replyId));
+        assertThat(page.nextCursor()).isBlank();
+        verify(commentContentRepository).assertCommentBelongsToPost(postId, rootCommentId);
+        verify(commentContentRepository).listReplies(rootCommentId, 0, 1, 2);
     }
 
     private static CommentReadApplicationService service(

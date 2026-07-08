@@ -10,7 +10,11 @@ public interface CommentContentRepository {
 
     List<Comment> listRootComments(UUID postId, int page, int size);
 
+    List<Comment> listRootComments(UUID postId, int page, int size, int limit);
+
     List<Comment> listReplies(UUID rootCommentId, int page, int size);
+
+    List<Comment> listReplies(UUID rootCommentId, int page, int size, int limit);
 
     List<Comment> listRecentCommentsByUser(UUID userId, int page, int size);
 

@@ -14,6 +14,9 @@ import java.util.UUID;
 @Service
 public class CommentReadApplicationService {
 
+    private static final int DEFAULT_SIZE = 10;
+    private static final int MAX_SIZE = 50;
+
     private final CommentContentRepository commentContentPort;
     private final PostContentRepository postContentPort;
     private final ContentTextCodec textCodec;
@@ -47,10 +50,9 @@ public class CommentReadApplicationService {
 
         FeedCursorCodec.CursorState state = feedCursorCodec.decode(cursor);
         int p = state.page();
-        int s = state.size() > 0 ? state.size() : requestedSize;
-        List<Comment> rows = commentContentPort.listRootComments(postId, p, s);
-        List<CommentResult> items = rows == null ? List.of() : rows.stream().map(this::toResult).toList();
-        CommentPageResult result = new CommentPageResult(items, nextCursor(cursor, p, s, items.size()));
+        int s = state.size() > 0 ? requestedSize(state.size()) : requestedSize;
+        List<Comment> rows = commentContentPort.listRootComments(postId, p, s, s + 1);
+        CommentPageResult result = toPageResult(rows, p, s);
         if (safeCursor.isEmpty() && p == 0) {
             commentPageCache.putRootPage(postId, "", s, result);
         }
@@ -61,22 +63,31 @@ public class CommentReadApplicationService {
         commentContentPort.assertCommentBelongsToPost(postId, rootCommentId);
         FeedCursorCodec.CursorState state = feedCursorCodec.decode(cursor);
         int p = state.page();
-        int s = state.size() > 0 ? state.size() : (size == null ? 10 : size);
-        List<Comment> rows = commentContentPort.listReplies(rootCommentId, p, s);
-        List<CommentResult> items = rows == null ? List.of() : rows.stream().map(this::toResult).toList();
-        return new CommentPageResult(items, nextCursor(cursor, p, s, items.size()));
+        int s = state.size() > 0 ? requestedSize(state.size()) : requestedSize(size);
+        List<Comment> rows = commentContentPort.listReplies(rootCommentId, p, s, s + 1);
+        return toPageResult(rows, p, s);
     }
 
     public List<CommentResult> comments(UUID postId, Integer page, Integer size) {
         int p = page == null ? 0 : page;
-        int s = size == null ? 10 : size;
+        int s = requestedSize(size);
         return listRootComments(postId, feedCursorCodec.encodePage(p, s), s).items();
     }
 
     public List<CommentResult> replies(UUID postId, UUID rootCommentId, Integer page, Integer size) {
         int p = page == null ? 0 : page;
-        int s = size == null ? 10 : size;
+        int s = requestedSize(size);
         return listReplies(postId, rootCommentId, feedCursorCodec.encodePage(p, s), s).items();
+    }
+
+    private CommentPageResult toPageResult(List<Comment> rows, int page, int size) {
+        List<Comment> candidates = rows == null ? List.of() : rows;
+        boolean hasNext = candidates.size() > size;
+        List<CommentResult> items = candidates.stream()
+                .limit(size)
+                .map(this::toResult)
+                .toList();
+        return new CommentPageResult(items, nextCursor(page, size, hasNext));
     }
 
     private CommentResult toResult(Comment comment) {
@@ -94,11 +105,8 @@ public class CommentReadApplicationService {
         );
     }
 
-    private String nextCursor(String cursor, int page, int size, int actualSize) {
-        if (actualSize <= 0) {
-            return "";
-        }
-        return feedCursorCodec.encodePage(page + 1, size);
+    private String nextCursor(int page, int size, boolean hasNext) {
+        return hasNext ? feedCursorCodec.encodePage(page + 1, size) : "";
     }
 
     private static String normalizeCursor(String cursor) {
@@ -106,7 +114,7 @@ public class CommentReadApplicationService {
     }
 
     private static int requestedSize(Integer size) {
-        return Math.max(1, size == null ? 10 : size);
+        return Math.min(MAX_SIZE, Math.max(1, size == null ? DEFAULT_SIZE : size));
     }
 
     private void assertPostReadable(UUID postId) {

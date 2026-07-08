@@ -1,5 +1,8 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.content.application.result.HotFeedDegradationSignalResult;
+
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,6 +19,18 @@ public interface PostFeedCache {
     void writeRankVersion(String rankVersion);
 
     String readRankVersion();
+
+    long countGlobalHot();
+
+    long countBoardHot(UUID boardId);
+
+    HotFeedDegradationSignalResult readDegradationSignal();
+
+    HotFeedDegradationSignalResult writeDegradationSignal(boolean degraded, String reason);
+
+    Instant readLastPrewarmAt(String scope, UUID boardId);
+
+    void writeLastPrewarmAt(String scope, UUID boardId, Instant prewarmAt);
 
     /**
      * Removes the post from the global hot feed and, when {@code boardId} is null,

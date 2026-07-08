@@ -392,7 +392,56 @@ Outbox worker 是共享可靠投递底座，当前主要承担：
 5. 用 `POST /api/ops/outbox/events/{outboxId}/replay` 并提供非空 `reason` 重新排队单条事件。
 6. 确认该行进入 `SUCCEEDED`，或者回到 `DEAD` 并带有新的 `lastError`。
 
+批量 replay 只用于已确认同一 topic、同一时间窗口的 `DEAD` 行可以交回 worker 处理的场景：
+
+1. 先用 `GET /api/ops/outbox/events?status=DEAD&topic=<topic>&createdFrom=<from>&createdTo=<to>&limit=<n>` 抽样确认 `lastError` 和 handler 修复状态。
+2. 执行 `POST /api/ops/outbox/replay-batch`，body 必须包含 `topic`、`status="DEAD"`、`createdFrom`、`createdTo`、`limit` 和非空 `reason`。
+3. 检查响应里的逐行 `result`。`REPLAYED` 表示已回到 `PENDING`；`REJECTED` 和 `NOT_REQUEUED` 需要按行继续人工判断。
+4. 观察 `community_outbox_batch_replay_total{topic,result}` 和 `community_governance_action_total{action="OUTBOX_REPLAY_BATCH",result}`。
+5. 再次查看 backlog，确认 `PENDING` 被 worker 消化，失败行有新的 `lastError`。
+
 Projection lag 可通过 `GET /api/ops/projections/lag` 查看当前 outbox-backed projection topics。对 search 这类派生读模型，如果 payload 已经过时或不兼容，优先使用 owner 当前事实重建，而不是盲目重放旧 payload。hot-feed 读路径降级继续通过 `community_cache_requests_total{cache="hot_feed",result,scope}` 观察。
+
+## Compensation Trigger Runbook
+
+管理员触发入口：
+
+```text
+POST /api/ops/compensations/{jobName}/trigger
+```
+
+请求体必须包含 `limit` 和非空 `reason`。允许列表：
+
+- `outboxRecoverExpiredLeases`
+- `searchPostProjectionRepair`
+- `hotFeedProjectionRepair`
+- `growthTaskProjectionRepair`
+- `noticeProjectionRepair`
+
+操作步骤：
+
+1. 先定位症状：outbox lease 卡住、projection lag、缓存热榜异常或 notice/growth 投影缺口。
+2. 选择允许列表里的最小 job，并把 `limit` 控制在本次排障需要的范围内。
+3. 触发后检查响应里的 `accepted`、`processedCount`、`repairedCount`、`skippedCount`、`result` 和 `message`。
+4. `outboxRecoverExpiredLeases` 会尝试回收过期 `PROCESSING` lease；其余 projection repair 必须依赖 owner action API。未接入 owner repair action 的作业会返回 `SKIPPED`，不要在 ops 侧绕过 owner 层直接修数据。
+5. 检查 `community_compensation_trigger_total{job.name,result}` 和治理审计。
+
+## Hot-Cache Governance Runbook
+
+入口：
+
+- `GET /api/ops/hot-cache/status?scope=global|board&boardId=<uuid?>`
+- `POST /api/ops/hot-cache/prewarm`
+- `GET /api/ops/hot-cache/degradation`
+- `POST /api/ops/hot-cache/degradation`
+
+操作步骤：
+
+1. 热榜异常时先查 status。`scope=board` 必须带 `boardId`。
+2. 如果缓存为空或 rank version 落后，执行 prewarm，body 包含 `scope`、可选 `boardId`、`limit` 和非空 `reason`。
+3. 如果 Redis 或 summary cache 明显不稳定，可以设置降级信号；恢复后用同一入口清除。
+4. 观察 `community_hot_cache_governance_total{operation,result,scope}`、`community_governance_action_total{action,result}` 和读路径的 `community_cache_requests_total{cache="hot_feed",result,scope}`。
+5. 预热和降级都只改变运行态缓存/信号，不改变帖子、评论、点赞、分数等业务事实。
 
 ## Scheduler 和 XXL-Job
 

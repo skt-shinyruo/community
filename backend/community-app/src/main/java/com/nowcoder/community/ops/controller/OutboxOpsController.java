@@ -4,10 +4,16 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.ops.application.OutboxGovernanceApplicationService;
 import com.nowcoder.community.ops.application.command.FindOutboxEventsCommand;
+import com.nowcoder.community.ops.application.command.ReplayOutboxBatchCommand;
 import com.nowcoder.community.ops.application.command.ReplayOutboxEventCommand;
 import com.nowcoder.community.ops.application.result.OutboxBacklogResult;
+import com.nowcoder.community.ops.application.result.OutboxBatchReplayItemResult;
+import com.nowcoder.community.ops.application.result.OutboxBatchReplayResult;
 import com.nowcoder.community.ops.application.result.OutboxEventResult;
 import com.nowcoder.community.ops.application.result.OutboxReplayResult;
+import com.nowcoder.community.ops.controller.dto.OutboxBatchReplayItemResponse;
+import com.nowcoder.community.ops.controller.dto.OutboxBatchReplayRequest;
+import com.nowcoder.community.ops.controller.dto.OutboxBatchReplayResponse;
 import com.nowcoder.community.ops.controller.dto.OutboxBacklogResponse;
 import com.nowcoder.community.ops.controller.dto.OutboxEventResponse;
 import com.nowcoder.community.ops.controller.dto.OutboxReplayRequest;
@@ -78,6 +84,23 @@ public class OutboxOpsController {
         ))));
     }
 
+    @PostMapping("/replay-batch")
+    public Result<OutboxBatchReplayResponse> replayBatch(
+            Authentication authentication,
+            @RequestBody @Valid OutboxBatchReplayRequest request
+    ) {
+        UUID actorUserId = CurrentUser.requireUserUuid(authentication);
+        return Result.ok(toBatchReplayResponse(outboxGovernanceApplicationService.replayBatch(new ReplayOutboxBatchCommand(
+                actorUserId,
+                request.getTopic(),
+                request.getStatus(),
+                request.getCreatedFrom(),
+                request.getCreatedTo(),
+                request.getLimit(),
+                request.getReason()
+        ))));
+    }
+
     private OutboxBacklogResponse toBacklogResponse(OutboxBacklogResult result) {
         return new OutboxBacklogResponse(result.topic(), result.status(), result.count());
     }
@@ -107,6 +130,33 @@ public class OutboxOpsController {
                 result.afterStatus(),
                 result.replayed(),
                 result.result()
+        );
+    }
+
+    private OutboxBatchReplayResponse toBatchReplayResponse(OutboxBatchReplayResult result) {
+        return new OutboxBatchReplayResponse(
+                result.topic(),
+                result.requestedCount(),
+                result.replayedCount(),
+                result.rejectedCount(),
+                result.notRequeuedCount(),
+                result.result(),
+                result.items().stream()
+                        .map(this::toBatchReplayItemResponse)
+                        .toList()
+        );
+    }
+
+    private OutboxBatchReplayItemResponse toBatchReplayItemResponse(OutboxBatchReplayItemResult result) {
+        return new OutboxBatchReplayItemResponse(
+                result.outboxId(),
+                result.eventId(),
+                result.topic(),
+                result.beforeStatus(),
+                result.afterStatus(),
+                result.replayed(),
+                result.result(),
+                result.message()
         );
     }
 }

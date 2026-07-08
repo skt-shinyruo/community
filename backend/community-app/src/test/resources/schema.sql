@@ -610,6 +610,26 @@ create index if not exists idx_outbox_status_next on outbox_event(status, next_r
 create index if not exists idx_outbox_status_updated on outbox_event(status, updated_at, id);
 create index if not exists idx_outbox_status_created on outbox_event(status, created_at, id);
 
+create table if not exists ops_governance_audit (
+  id binary(16) primary key,
+  action varchar(64) not null,
+  actor_user_id binary(16) not null,
+  target_type varchar(64) not null,
+  target_id varchar(255),
+  scope varchar(255),
+  reason varchar(512),
+  request_json clob,
+  result varchar(64) not null,
+  summary_json clob,
+  trace_id varchar(32),
+  created_at timestamp default current_timestamp
+);
+
+create index if not exists idx_ops_governance_action_created on ops_governance_audit(action, created_at, id);
+create index if not exists idx_ops_governance_actor_created on ops_governance_audit(actor_user_id, created_at, id);
+create index if not exists idx_ops_governance_target_created on ops_governance_audit(target_type, target_id, created_at);
+create index if not exists idx_ops_governance_result_created on ops_governance_audit(result, created_at, id);
+
 create table if not exists drive_space (
   space_id binary(16) primary key,
   user_id binary(16) not null,

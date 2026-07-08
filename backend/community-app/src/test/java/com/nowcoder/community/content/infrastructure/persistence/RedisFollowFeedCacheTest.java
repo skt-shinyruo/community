@@ -3,6 +3,8 @@ package com.nowcoder.community.content.infrastructure.persistence;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.content.application.CacheTtlPolicy;
+import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.FollowFeedCache;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -24,6 +26,50 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RedisFollowFeedCacheTest {
+
+    @Test
+    void getOrLoadPageShouldUseJitteredTtlWhenPolicyIsProvided() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        CacheTtlPolicy ttlPolicy = mock(CacheTtlPolicy.class);
+        ContentHotPathProperties properties = new ContentHotPathProperties();
+        UUID viewerId = UUID.randomUUID();
+        UUID postId = UUID.randomUUID();
+        String key = "post:feed:follow:" + viewerId + ":cursor:initial:size:20";
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(key)).thenReturn(null);
+        when(ttlPolicy.jitteredTtl(key, properties.getCache().followPageTtl()))
+                .thenReturn(Duration.ofSeconds(144));
+
+        FollowFeedCache cache = new RedisFollowFeedCache(redisTemplate, jsonCodec, ttlPolicy, properties);
+
+        cache.getOrLoadPage(viewerId, "", 20, () -> new FollowFeedCache.FollowFeedPageSlice(List.of(postId), null, null));
+
+        verify(valueOperations).set(eq(key), anyString(), eq(Duration.ofSeconds(144)));
+    }
+
+    @Test
+    void getOrLoadPageShouldKeepDefaultConstructorTtlDeterministic() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        UUID viewerId = UUID.fromString("00000000-0000-7000-8000-000000000001");
+        UUID postId = UUID.randomUUID();
+        String key = "post:feed:follow:" + viewerId + ":cursor:cursor-token:size:2";
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(key)).thenReturn(null);
+
+        FollowFeedCache cache = new RedisFollowFeedCache(redisTemplate, jsonCodec);
+
+        cache.getOrLoadPage(viewerId, "cursor-token", 2, () -> new FollowFeedCache.FollowFeedPageSlice(List.of(postId), null, null));
+
+        verify(valueOperations).set(eq(key), anyString(), eq(Duration.ofSeconds(60)));
+    }
 
     @Test
     void getOrLoadPageShouldCacheLoadedIdsInRedisWithTtl() {

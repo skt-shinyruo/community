@@ -2,8 +2,11 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.content.application.CacheTtlPolicy;
 import com.nowcoder.community.content.application.CommentPageCache;
+import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.result.CommentPageResult;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -24,15 +27,28 @@ public class RedisCommentPageCache implements CommentPageCache {
     private final StringRedisTemplate redisTemplate;
     private final JsonCodec jsonCodec;
     private final Duration ttl;
+    private final CacheTtlPolicy ttlPolicy;
 
     public RedisCommentPageCache(
             StringRedisTemplate redisTemplate,
             JsonCodec jsonCodec,
             @Value("${content.comments.first-page-cache-ttl-seconds:15}") long ttlSeconds
     ) {
+        this(redisTemplate, jsonCodec, fixedTtlPolicy(ttlSeconds), fixedProperties(ttlSeconds));
+    }
+
+    @Autowired
+    public RedisCommentPageCache(
+            StringRedisTemplate redisTemplate,
+            JsonCodec jsonCodec,
+            CacheTtlPolicy ttlPolicy,
+            ContentHotPathProperties hotPathProperties
+    ) {
         this.redisTemplate = redisTemplate;
         this.jsonCodec = jsonCodec;
-        this.ttl = Duration.ofSeconds(Math.max(1L, ttlSeconds));
+        this.ttlPolicy = ttlPolicy == null ? new CacheTtlPolicy(new ContentHotPathProperties()) : ttlPolicy;
+        ContentHotPathProperties safeProperties = hotPathProperties == null ? new ContentHotPathProperties() : hotPathProperties;
+        this.ttl = safeProperties.getCache().commentPageTtl();
     }
 
     @Override
@@ -60,9 +76,10 @@ public class RedisCommentPageCache implements CommentPageCache {
         }
         String key = pageKey(postId, cursor, size);
         String indexKey = indexKey(postId);
-        redisTemplate.opsForValue().set(key, jsonCodec.toJson(result), ttl);
+        Duration effectiveTtl = ttlPolicy.jitteredTtl(key, ttl);
+        redisTemplate.opsForValue().set(key, jsonCodec.toJson(result), effectiveTtl);
         redisTemplate.opsForSet().add(indexKey, key);
-        redisTemplate.expire(indexKey, ttl);
+        redisTemplate.expire(indexKey, effectiveTtl);
     }
 
     @Override
@@ -95,5 +112,16 @@ public class RedisCommentPageCache implements CommentPageCache {
 
     private static String indexKey(UUID postId) {
         return ROOT_PAGE_KEY_PREFIX + postId + ":keys";
+    }
+
+    private static ContentHotPathProperties fixedProperties(long ttlSeconds) {
+        ContentHotPathProperties properties = new ContentHotPathProperties();
+        properties.getCache().setCommentPageTtlSeconds(Math.max(1L, ttlSeconds));
+        properties.getCache().setTtlJitterSeconds(0L);
+        return properties;
+    }
+
+    private static CacheTtlPolicy fixedTtlPolicy(long ttlSeconds) {
+        return new CacheTtlPolicy(fixedProperties(ttlSeconds));
     }
 }

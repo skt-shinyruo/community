@@ -79,13 +79,22 @@ public class RedisPostCounterCache implements PostCounterCache {
         if (values == null || values.isEmpty()) {
             return new PostCounterSnapshot(postId, 0L, 0L, 0L, 0L, 0.0);
         }
+        List<Object> invalidFields = new ArrayList<>();
+        long viewCount = longValue(values.get(FIELD_VIEW), FIELD_VIEW, invalidFields);
+        long likeCount = longValue(values.get(FIELD_LIKE), FIELD_LIKE, invalidFields);
+        long commentCount = longValue(values.get(FIELD_COMMENT), FIELD_COMMENT, invalidFields);
+        long bookmarkCount = longValue(values.get(FIELD_BOOKMARK), FIELD_BOOKMARK, invalidFields);
+        double score = doubleValue(values.get(FIELD_SCORE), FIELD_SCORE, invalidFields);
+        if (!invalidFields.isEmpty()) {
+            redisTemplate.opsForHash().delete(counterKey(postId), invalidFields.toArray());
+        }
         return new PostCounterSnapshot(
                 postId,
-                longValue(values.get(FIELD_VIEW)),
-                longValue(values.get(FIELD_LIKE)),
-                longValue(values.get(FIELD_COMMENT)),
-                longValue(values.get(FIELD_BOOKMARK)),
-                doubleValue(values.get(FIELD_SCORE))
+                viewCount,
+                likeCount,
+                commentCount,
+                bookmarkCount,
+                score
         );
     }
 
@@ -193,23 +202,37 @@ public class RedisPostCounterCache implements PostCounterCache {
     }
 
     private static long longValue(Object raw) {
+        return longValue(raw, null, null);
+    }
+
+    private static long longValue(Object raw, String field, List<Object> invalidFields) {
         if (raw == null) {
             return 0L;
         }
         try {
             return Long.parseLong(raw.toString());
         } catch (NumberFormatException ex) {
+            if (field != null && invalidFields != null) {
+                invalidFields.add(field);
+            }
             return 0L;
         }
     }
 
     private static double doubleValue(Object raw) {
+        return doubleValue(raw, null, null);
+    }
+
+    private static double doubleValue(Object raw, String field, List<Object> invalidFields) {
         if (raw == null) {
             return 0.0;
         }
         try {
             return Double.parseDouble(raw.toString());
         } catch (NumberFormatException ex) {
+            if (field != null && invalidFields != null) {
+                invalidFields.add(field);
+            }
             return 0.0;
         }
     }

@@ -8,15 +8,61 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RedisPostFeedCacheTest {
+
+    @Test
+    void readGlobalHotIdsShouldRemoveInvalidUuidMembers() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ZSetOperations<String, String> zSetOperations = mock(ZSetOperations.class);
+        CategoryContentRepository categoryContentRepository = mock(CategoryContentRepository.class);
+        UUID postId = uuid(3);
+
+        when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
+        when(zSetOperations.reverseRange("post:feed:global:hot", 0L, 1L))
+                .thenReturn(new LinkedHashSet<>(List.of("not-a-uuid", postId.toString())));
+
+        RedisPostFeedCache cache = new RedisPostFeedCache(
+                redisTemplate,
+                new FeedCursorCodec(),
+                categoryContentRepository
+        );
+
+        List<UUID> result = cache.readGlobalHotIds("", 2);
+
+        assertThat(result).containsExactly(postId);
+        verify(zSetOperations).remove("post:feed:global:hot", "not-a-uuid");
+    }
+
+    @Test
+    void readRankVersionShouldDeleteBlankPayloadAndReturnDefault() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        CategoryContentRepository categoryContentRepository = mock(CategoryContentRepository.class);
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("post:feed:global:hot:rank-version")).thenReturn(" ");
+
+        RedisPostFeedCache cache = new RedisPostFeedCache(
+                redisTemplate,
+                new FeedCursorCodec(),
+                categoryContentRepository
+        );
+
+        assertThat(cache.readRankVersion()).isEqualTo("hot-v2");
+        verify(redisTemplate).delete("post:feed:global:hot:rank-version");
+    }
 
     @Test
     void removeShouldDeletePostFromAllKnownBoardFeedsWhenBoardIdMissing() {

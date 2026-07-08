@@ -2,11 +2,14 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.content.application.CacheTtlPolicy;
+import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
+import java.time.Duration;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -19,6 +22,29 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RedisPostDetailCacheTest {
+
+    @Test
+    void putShouldUseJitteredTtl() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        JsonCodec jsonCodec = mock(JsonCodec.class);
+        CacheTtlPolicy ttlPolicy = mock(CacheTtlPolicy.class);
+        ContentHotPathProperties properties = new ContentHotPathProperties();
+        UUID postId = uuid(10);
+        PostDetailResult detail = detail(postId);
+        String key = "post:detail:" + postId;
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(jsonCodec.toJson(detail)).thenReturn("{\"id\":\"" + postId + "\"}");
+        when(ttlPolicy.jitteredTtl(key, properties.getCache().detailTtl())).thenReturn(Duration.ofSeconds(333));
+
+        RedisPostDetailCache cache = new RedisPostDetailCache(redisTemplate, jsonCodec, ttlPolicy, properties);
+
+        cache.put(postId, detail);
+
+        verify(valueOps).set(key, "{\"id\":\"" + postId + "\"}", Duration.ofSeconds(333));
+    }
 
     @Test
     void getShouldReturnNullAndDeleteMalformedJson() {

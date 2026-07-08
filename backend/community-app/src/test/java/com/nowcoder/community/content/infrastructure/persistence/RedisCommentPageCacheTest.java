@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.content.application.CacheTtlPolicy;
+import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.result.CommentPageResult;
 import com.nowcoder.community.content.application.result.CommentResult;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,32 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RedisCommentPageCacheTest {
+
+    @Test
+    void putRootPageShouldUseJitteredTtlWhenPolicyIsProvided() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        @SuppressWarnings("unchecked")
+        SetOperations<String, String> setOps = mock(SetOperations.class);
+        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        CacheTtlPolicy ttlPolicy = mock(CacheTtlPolicy.class);
+        ContentHotPathProperties properties = new ContentHotPathProperties();
+        UUID postId = uuid(100);
+        CommentPageResult page = new CommentPageResult(List.of(commentResult(postId)), "next");
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(redisTemplate.opsForSet()).thenReturn(setOps);
+        when(ttlPolicy.jitteredTtl(pageKey(postId, 10), properties.getCache().commentPageTtl()))
+                .thenReturn(Duration.ofSeconds(177));
+
+        RedisCommentPageCache cache = new RedisCommentPageCache(redisTemplate, jsonCodec, ttlPolicy, properties);
+
+        cache.putRootPage(postId, "", 10, page);
+
+        verify(valueOps).set(eq(pageKey(postId, 10)), anyString(), eq(Duration.ofSeconds(177)));
+        verify(redisTemplate).expire(indexKey(postId), Duration.ofSeconds(177));
+    }
 
     @Test
     void getRootPageShouldReturnCachedFirstPage() {

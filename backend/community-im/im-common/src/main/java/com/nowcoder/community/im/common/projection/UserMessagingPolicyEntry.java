@@ -25,6 +25,7 @@ public record UserMessagingPolicyEntry(
 
     public UserMessagingPolicyEntry {
         schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
+        version = ProjectionVersions.requirePositive(version, "version");
     }
 
     public UserMessagingPolicyEntry(
@@ -42,16 +43,4 @@ public record UserMessagingPolicyEntry(
                 ImContractVersions.PROJECTION_SCHEMA_VERSION);
     }
 
-    public UserMessagingPolicyEntry(
-            UUID userId,
-            boolean userExists,
-            boolean suspended,
-            boolean muted,
-            Long muteUntil,
-            Long banUntil,
-            boolean canSendPrivate
-    ) {
-        this(userId, userExists, suspended, muted, muteUntil, banUntil, canSendPrivate, null, null,
-                ImContractVersions.PROJECTION_SCHEMA_VERSION);
-    }
 }

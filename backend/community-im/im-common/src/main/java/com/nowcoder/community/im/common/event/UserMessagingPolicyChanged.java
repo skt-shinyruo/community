@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.nowcoder.community.im.common.ImContractVersions;
 import com.nowcoder.community.im.common.ImJsonContract;
 import com.nowcoder.community.im.common.ImSchemaVersion;
+import com.nowcoder.community.im.common.projection.ProjectionVersions;
 
 import java.util.UUID;
 
@@ -26,6 +27,7 @@ public record UserMessagingPolicyChanged(
 
     public UserMessagingPolicyChanged {
         schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
+        version = ProjectionVersions.requirePositive(version, "version");
     }
 
     public UserMessagingPolicyChanged(
@@ -44,18 +46,4 @@ public record UserMessagingPolicyChanged(
                 ImContractVersions.KAFKA_EVENT_SCHEMA_VERSION);
     }
 
-    public UserMessagingPolicyChanged(
-            String eventId,
-            UUID userId,
-            boolean userExists,
-            boolean suspended,
-            boolean muted,
-            Long muteUntil,
-            Long banUntil,
-            boolean canSendPrivate,
-            long occurredAtEpochMillis
-    ) {
-        this(eventId, userId, userExists, suspended, muted, muteUntil, banUntil, canSendPrivate, occurredAtEpochMillis, null,
-                ImContractVersions.KAFKA_EVENT_SCHEMA_VERSION);
-    }
 }

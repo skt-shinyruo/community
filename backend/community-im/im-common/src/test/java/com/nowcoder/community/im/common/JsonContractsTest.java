@@ -443,7 +443,7 @@ class JsonContractsTest {
 
     @Test
     void shouldRoundTripRoomMembershipEntry() throws Exception {
-        RoomMembershipEntry entry = new RoomMembershipEntry(uuid(10), uuid(1));
+        RoomMembershipEntry entry = new RoomMembershipEntry(uuid(10), uuid(1), 10L, null);
 
         RoomMembershipEntry back = roundTrip(entry, RoomMembershipEntry.class);
         assertEquals(entry, back);
@@ -455,7 +455,9 @@ class JsonContractsTest {
         RoomMembershipSnapshot snapshot = new RoomMembershipSnapshot(
                 List.of(new RoomMembershipEntry(
                         UUID.fromString("00000000-0000-7000-8000-000000000010"),
-                        UUID.fromString("00000000-0000-7000-8000-000000000001")
+                        UUID.fromString("00000000-0000-7000-8000-000000000001"),
+                        1_712_345_678_904L,
+                        null
                 )),
                 UUID.fromString("00000000-0000-7000-8000-000000000010"),
                 UUID.fromString("00000000-0000-7000-8000-000000000001"),
@@ -566,6 +568,52 @@ class JsonContractsTest {
     }
 
     @Test
+    void projectionDeltasShouldRequirePositiveVersion() throws Exception {
+        for (Class<?> contractType : List.of(
+                RoomMemberChanged.class,
+                UserMessagingPolicyChanged.class,
+                UserBlockRelationChanged.class
+        )) {
+            assertPositiveVersionRequired(contractType);
+        }
+    }
+
+    @Test
+    void projectionEntriesShouldRequirePositiveVersion() throws Exception {
+        for (Class<?> contractType : List.of(
+                RoomMembershipEntry.class,
+                UserMessagingPolicyEntry.class,
+                UserBlockRelationEntry.class
+        )) {
+            assertPositiveVersionRequired(contractType);
+        }
+    }
+
+    @Test
+    void projectionSnapshotsShouldRequireNonNegativeWatermark() throws Exception {
+        for (Class<?> contractType : List.of(
+                RoomMembershipSnapshot.class,
+                UserMessagingPolicySnapshot.class,
+                UserBlockRelationSnapshot.class
+        )) {
+            String validJson = genericValidJson(contractType);
+
+            assertJsonRejected(withoutField(validJson, "snapshotHighWatermark"), contractType);
+            assertJsonRejected(withField(validJson, "snapshotHighWatermark", null), contractType);
+            assertJsonRejected(withField(validJson, "snapshotHighWatermark", -1), contractType);
+        }
+    }
+
+    @Test
+    void emptyProjectionSnapshotShouldAllowZeroWatermark() throws Exception {
+        RoomMembershipSnapshot empty = objectMapper.readValue("""
+                {"schemaVersion":1,"entries":[],"nextRoomId":null,"nextUserId":null,
+                 "hasMore":false,"snapshotHighWatermark":0}
+                """, RoomMembershipSnapshot.class);
+        assertEquals(0L, empty.snapshotHighWatermark());
+    }
+
+    @Test
     void shouldRoundTripPrivateMessagePolicyDecision() throws Exception {
         PrivateMessagePolicyDecision decision = new PrivateMessagePolicyDecision(
                 false,
@@ -631,7 +679,8 @@ class JsonContractsTest {
                   "suspended": false,
                   "muted": false,
                   "unknownPolicyFlag": true,
-                  "occurredAtEpochMillis": 1712345678905
+                  "occurredAtEpochMillis": 1712345678905,
+                  "version": 1712345678906
                 }
                 """, UserMessagingPolicyChanged.class);
 
@@ -741,6 +790,23 @@ class JsonContractsTest {
                 JsonMappingException.class,
                 () -> objectMapper.readValue(json, type),
                 () -> type.getSimpleName() + " accepted invalid schema JSON: " + json
+        );
+    }
+
+    private void assertPositiveVersionRequired(Class<?> contractType) throws Exception {
+        String validJson = genericValidJson(contractType);
+
+        assertJsonRejected(withoutField(validJson, "version"), contractType);
+        assertJsonRejected(withField(validJson, "version", null), contractType);
+        assertJsonRejected(withField(validJson, "version", 0), contractType);
+        assertJsonRejected(withField(validJson, "version", -1), contractType);
+    }
+
+    private <T> void assertJsonRejected(String json, Class<T> type) {
+        assertThrows(
+                JsonMappingException.class,
+                () -> objectMapper.readValue(json, type),
+                () -> type.getSimpleName() + " accepted invalid contract JSON: " + json
         );
     }
 

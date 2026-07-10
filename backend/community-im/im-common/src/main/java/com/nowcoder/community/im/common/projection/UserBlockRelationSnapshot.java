@@ -20,6 +20,10 @@ public record UserBlockRelationSnapshot(
 
     public UserBlockRelationSnapshot {
         schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
+        snapshotHighWatermark = ProjectionVersions.requireNonNegative(
+                snapshotHighWatermark,
+                "snapshotHighWatermark"
+        );
     }
 
     public UserBlockRelationSnapshot(
@@ -33,13 +37,4 @@ public record UserBlockRelationSnapshot(
                 ImContractVersions.PROJECTION_SCHEMA_VERSION);
     }
 
-    public UserBlockRelationSnapshot(
-            List<UserBlockRelationEntry> entries,
-            UUID nextBlockerUserId,
-            UUID nextBlockedUserId,
-            boolean hasMore
-    ) {
-        this(entries, nextBlockerUserId, nextBlockedUserId, hasMore, null,
-                ImContractVersions.PROJECTION_SCHEMA_VERSION);
-    }
 }

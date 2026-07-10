@@ -1,7 +1,6 @@
 package com.nowcoder.community.im.realtime.projection;
 
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
-import com.nowcoder.community.im.common.projection.ProjectionVersions;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
@@ -17,54 +16,12 @@ import static org.mockito.Mockito.when;
 class MembershipProjectionServiceTest {
 
     @Test
-    void snapshotThenNewerLeaveDeltaShouldIgnoreOutOfOrderAndDuplicateJoin() {
+    void higherVersionShouldWinDespiteEarlierTimestamp() {
         MembershipSnapshotClient snapshotClient = mock(MembershipSnapshotClient.class);
         when(snapshotClient.fetchSnapshot()).thenReturn(Mono.just(
                 new MembershipSnapshotClient.FetchedMembershipSnapshot(
-                        List.of(new RoomMembershipEntry(room(1), user(1), 100L, 100L)),
-                        100L
-                )
-        ));
-        MembershipProjectionService service = new MembershipProjectionService(snapshotClient);
-
-        StepVerifier.create(service.refreshNow()).verifyComplete();
-        assertThat(service.isMember(room(1), user(1))).isTrue();
-
-        assertThat(service.applyRoomMemberChanged(roomMemberEvent(room(1), user(1), "LEFT", 200L))).isTrue();
-        assertThat(service.isMember(room(1), user(1))).isFalse();
-
-        assertThat(service.applyRoomMemberChanged(roomMemberEvent(room(1), user(1), "JOINED", 150L))).isFalse();
-        assertThat(service.applyRoomMemberChanged(roomMemberEvent(room(1), user(1), "LEFT", 200L))).isFalse();
-        assertThat(service.isMember(room(1), user(1))).isFalse();
-    }
-
-    @Test
-    void eventThenOlderSnapshotShouldNotRollbackButNewerSnapshotCanReplaceState() {
-        MembershipSnapshotClient snapshotClient = mock(MembershipSnapshotClient.class);
-        when(snapshotClient.fetchSnapshot()).thenReturn(
-                Mono.just(new MembershipSnapshotClient.FetchedMembershipSnapshot(List.of(), 100L)),
-                Mono.just(new MembershipSnapshotClient.FetchedMembershipSnapshot(List.of(), 300L))
-        );
-        MembershipProjectionService service = new MembershipProjectionService(snapshotClient);
-
-        service.applyRoomMemberChanged(roomMemberEvent(room(1), user(1), "JOINED", 200L));
-        assertThat(service.isMember(room(1), user(1))).isTrue();
-
-        StepVerifier.create(service.refreshNow()).verifyComplete();
-        assertThat(service.isMember(room(1), user(1))).isTrue();
-
-        StepVerifier.create(service.refreshNow()).verifyComplete();
-        assertThat(service.isMember(room(1), user(1))).isFalse();
-    }
-
-    @Test
-    void snapshotWatermarkShouldProtectLegacyMembershipEntriesWithoutExplicitVersion() {
-        long snapshotWatermark = ProjectionVersions.snapshotHighWatermarkFromEpochMillis(300L);
-        MembershipSnapshotClient snapshotClient = mock(MembershipSnapshotClient.class);
-        when(snapshotClient.fetchSnapshot()).thenReturn(Mono.just(
-                new MembershipSnapshotClient.FetchedMembershipSnapshot(
-                        List.of(new RoomMembershipEntry(room(1), user(1), null, 100L)),
-                        snapshotWatermark
+                        List.of(membershipEntry(room(1), user(1), 10L, 9_000L)),
+                        10L
                 )
         ));
         MembershipProjectionService service = new MembershipProjectionService(snapshotClient);
@@ -73,17 +30,80 @@ class MembershipProjectionServiceTest {
         assertThat(service.isMember(room(1), user(1))).isTrue();
 
         assertThat(service.applyRoomMemberChanged(roomMemberEvent(
-                room(1),
-                user(1),
-                "LEFT",
-                200L,
-                ProjectionVersions.fromEpochMillis(200L)
+                room(1), user(1), "LEFT", 100L, 11L
+        ))).isTrue();
+        assertThat(service.isMember(room(1), user(1))).isFalse();
+
+        assertThat(service.applyRoomMemberChanged(roomMemberEvent(
+                room(1), user(1), "JOINED", 10_000L, 10L
         ))).isFalse();
-        assertThat(service.isMember(room(1), user(1))).isTrue();
+        assertThat(service.isMember(room(1), user(1))).isFalse();
     }
 
-    private static RoomMemberChanged roomMemberEvent(UUID roomId, UUID userId, String action, long version) {
-        return roomMemberEvent(roomId, userId, action, version, version);
+    @Test
+    void snapshotWatermarkShouldOrderRemovalAgainstDelta() {
+        MembershipSnapshotClient snapshotClient = mock(MembershipSnapshotClient.class);
+        when(snapshotClient.fetchSnapshot())
+                .thenReturn(Mono.just(new MembershipSnapshotClient.FetchedMembershipSnapshot(List.of(), 10L)))
+                .thenReturn(Mono.just(new MembershipSnapshotClient.FetchedMembershipSnapshot(List.of(), 12L)));
+        MembershipProjectionService service = new MembershipProjectionService(snapshotClient);
+
+        service.applyRoomMemberChanged(roomMemberEvent(room(1), user(1), "JOINED", 500L, 11L));
+        assertThat(service.isMember(room(1), user(1))).isTrue();
+
+        StepVerifier.create(service.refreshNow()).verifyComplete();
+        assertThat(service.isMember(room(1), user(1))).isTrue();
+
+        StepVerifier.create(service.refreshNow()).verifyComplete();
+        assertThat(service.isMember(room(1), user(1))).isFalse();
+    }
+
+    @Test
+    void snapshotEntryVersionShouldBeMergedWithWatermark() {
+        MembershipSnapshotClient snapshotClient = mock(MembershipSnapshotClient.class);
+        when(snapshotClient.fetchSnapshot()).thenReturn(Mono.just(
+                new MembershipSnapshotClient.FetchedMembershipSnapshot(
+                        List.of(membershipEntry(room(1), user(1), 10L, 9_000L)),
+                        11L
+                )
+        ));
+        MembershipProjectionService service = new MembershipProjectionService(snapshotClient);
+
+        StepVerifier.create(service.refreshNow()).verifyComplete();
+        assertThat(service.isMember(room(1), user(1))).isTrue();
+
+        assertThat(service.applyRoomMemberChanged(roomMemberEvent(
+                room(1), user(1), "LEFT", 10_000L, 11L
+        ))).isFalse();
+        assertThat(service.isMember(room(1), user(1))).isTrue();
+
+        assertThat(service.applyRoomMemberChanged(roomMemberEvent(
+                room(1), user(1), "LEFT", 100L, 12L
+        ))).isTrue();
+        assertThat(service.isMember(room(1), user(1))).isFalse();
+    }
+
+    @Test
+    void explicitZeroWatermarkShouldReplaceEmptyInitialSnapshot() {
+        MembershipSnapshotClient snapshotClient = mock(MembershipSnapshotClient.class);
+        when(snapshotClient.fetchSnapshot()).thenReturn(Mono.just(
+                new MembershipSnapshotClient.FetchedMembershipSnapshot(List.of(), 0L)
+        ));
+        MembershipProjectionService service = new MembershipProjectionService(snapshotClient);
+
+        StepVerifier.create(service.refreshNow()).verifyComplete();
+
+        assertThat(service.roomIdsForUser(user(1))).isEmpty();
+        assertThat(service.isMember(room(1), user(1))).isFalse();
+    }
+
+    private static RoomMembershipEntry membershipEntry(
+            UUID roomId,
+            UUID userId,
+            long version,
+            long occurredAtEpochMillis
+    ) {
+        return new RoomMembershipEntry(roomId, userId, version, occurredAtEpochMillis);
     }
 
     private static RoomMemberChanged roomMemberEvent(

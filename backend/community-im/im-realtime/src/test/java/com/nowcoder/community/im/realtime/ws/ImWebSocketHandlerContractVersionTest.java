@@ -219,7 +219,8 @@ class ImWebSocketHandlerContractVersionTest {
                 null,
                 null,
                 canSendPrivate,
-                System.currentTimeMillis()
+                System.currentTimeMillis(),
+                1L
         );
     }
 

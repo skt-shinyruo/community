@@ -3,6 +3,7 @@ package com.nowcoder.community.im.common.event;
 import com.nowcoder.community.im.common.ImContractVersions;
 import com.nowcoder.community.im.common.ImJsonContract;
 import com.nowcoder.community.im.common.ImSchemaVersion;
+import com.nowcoder.community.im.common.projection.ProjectionVersions;
 
 import java.util.UUID;
 
@@ -20,6 +21,7 @@ public record UserBlockRelationChanged(
 
     public UserBlockRelationChanged {
         schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
+        version = ProjectionVersions.requirePositive(version, "version");
     }
 
     public UserBlockRelationChanged(
@@ -34,14 +36,4 @@ public record UserBlockRelationChanged(
                 ImContractVersions.KAFKA_EVENT_SCHEMA_VERSION);
     }
 
-    public UserBlockRelationChanged(
-            String eventId,
-            UUID blockerUserId,
-            UUID blockedUserId,
-            boolean active,
-            long occurredAtEpochMillis
-    ) {
-        this(eventId, blockerUserId, blockedUserId, active, occurredAtEpochMillis, null,
-                ImContractVersions.KAFKA_EVENT_SCHEMA_VERSION);
-    }
 }

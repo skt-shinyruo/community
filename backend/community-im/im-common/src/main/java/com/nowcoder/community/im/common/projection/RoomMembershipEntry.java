@@ -18,13 +18,11 @@ public record RoomMembershipEntry(
 
     public RoomMembershipEntry {
         schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
+        version = ProjectionVersions.requirePositive(version, "version");
     }
 
     public RoomMembershipEntry(UUID roomId, UUID userId, Long version, Long occurredAtEpochMillis) {
         this(roomId, userId, version, occurredAtEpochMillis, ImContractVersions.PROJECTION_SCHEMA_VERSION);
     }
 
-    public RoomMembershipEntry(UUID roomId, UUID userId) {
-        this(roomId, userId, null, null, ImContractVersions.PROJECTION_SCHEMA_VERSION);
-    }
 }

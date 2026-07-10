@@ -3,6 +3,7 @@ package com.nowcoder.community.im.realtime.security;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.common.security.autoconfig.SecurityCommonAutoConfiguration;
+import com.nowcoder.community.im.common.ImContractVersions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -84,13 +85,14 @@ class ImRealtimeSecurityIntegrationTest {
     void internalFanoutEndpoint_requiresRealtimeInternalScope() {
         String body = """
                 {
+                  "schemaVersion": %d,
                   "targetWorkerId": "worker-a",
                   "roomId": "00000000-0000-7000-8000-000000000001",
                   "lastSeq": 42,
                   "sourceEventId": "evt-1",
                   "createdAtEpochMs": 1000
                 }
-                """;
+                """.formatted(ImContractVersions.KAFKA_COMMAND_SCHEMA_VERSION);
 
         client()
                 .post()

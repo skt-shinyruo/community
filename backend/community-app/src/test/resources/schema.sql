@@ -739,10 +739,12 @@ delete from drive_entry;
 delete from drive_space;
 delete from user;
 
-merge into user (id, username, password, salt, email, type, status, header_url, create_time)
+merge into user (id, username, password, salt, email, type, status, header_url, create_time, policy_version)
 key(id) values
-  (X'00000000000070008000000000000001', 'u1', 'p', 's', 'u1@example.com', 0, 1, 'http://old.local/a.png', CURRENT_TIMESTAMP()),
-  (X'00000000000070008000000000000002', 'u2', 'p', 's', 'u2@example.com', 0, 1, 'http://old.local/b.png', CURRENT_TIMESTAMP());
+  (X'00000000000070008000000000000001', 'u1', 'p', 's', 'u1@example.com', 0, 1, 'http://old.local/a.png', CURRENT_TIMESTAMP(), 1),
+  (X'00000000000070008000000000000002', 'u2', 'p', 's', 'u2@example.com', 0, 1, 'http://old.local/b.png', CURRENT_TIMESTAMP(), 2);
+
+update user_policy_version_counter set current_version = 2 where id = 1;
 
 merge into category (id, name, description, position, create_time)
 key(id) values

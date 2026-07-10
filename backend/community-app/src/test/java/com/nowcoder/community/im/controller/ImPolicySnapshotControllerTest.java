@@ -10,6 +10,7 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.social.application.BlockApplicationService;
 import com.nowcoder.community.social.application.command.BlockCommand;
 import com.nowcoder.community.user.api.action.UserModerationActionApi;
+import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject;
 import com.nowcoder.community.user.infrastructure.persistence.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,9 @@ class ImPolicySnapshotControllerTest {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @MockBean
     private KafkaTemplate<String, Object> kafkaTemplate;
@@ -179,6 +183,7 @@ class ImPolicySnapshotControllerTest {
         user.setStatus(0);
         user.setHeaderUrl("/avatar.png");
         user.setCreateTime(new Date());
+        user.setPolicyVersion(userRepository.nextUserPolicyVersion(userId));
         userMapper.insertUser(user);
     }
 

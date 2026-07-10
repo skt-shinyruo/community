@@ -113,26 +113,20 @@ public class MembershipSnapshotClient {
 
     private static long watermark(List<RoomMembershipSnapshot> pages) {
         if (pages == null || pages.isEmpty()) {
-            return 0L;
+            throw new IllegalStateException("projection snapshot returned no pages");
         }
         RoomMembershipSnapshot firstPage = pages.get(0);
-        if (firstPage != null && firstPage.snapshotHighWatermark() != null && firstPage.snapshotHighWatermark() > 0L) {
-            return firstPage.snapshotHighWatermark();
-        }
-        long watermark = 0L;
+        long watermark = ProjectionVersions.requireNonNegative(
+                firstPage == null ? null : firstPage.snapshotHighWatermark(),
+                "snapshotHighWatermark"
+        );
         for (RoomMembershipSnapshot page : pages) {
-            if (page == null) {
-                continue;
-            }
-            if (page.entries() == null) {
-                continue;
-            }
-            for (RoomMembershipEntry entry : page.entries()) {
-                watermark = Math.max(watermark, ProjectionVersions.resolve(
-                        entry.version(),
-                        entry.occurredAtEpochMillis(),
-                        null
-                ));
+            long pageWatermark = ProjectionVersions.requireNonNegative(
+                    page == null ? null : page.snapshotHighWatermark(),
+                    "snapshotHighWatermark"
+            );
+            if (pageWatermark != watermark) {
+                throw new IllegalStateException("projection snapshot watermark changed between pages");
             }
         }
         return watermark;

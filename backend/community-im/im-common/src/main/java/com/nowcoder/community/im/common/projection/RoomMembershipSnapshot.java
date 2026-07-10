@@ -20,6 +20,10 @@ public record RoomMembershipSnapshot(
 
     public RoomMembershipSnapshot {
         schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
+        snapshotHighWatermark = ProjectionVersions.requireNonNegative(
+                snapshotHighWatermark,
+                "snapshotHighWatermark"
+        );
     }
 
     public RoomMembershipSnapshot(
@@ -33,13 +37,4 @@ public record RoomMembershipSnapshot(
                 ImContractVersions.PROJECTION_SCHEMA_VERSION);
     }
 
-    public RoomMembershipSnapshot(
-            List<RoomMembershipEntry> entries,
-            UUID nextRoomId,
-            UUID nextUserId,
-            boolean hasMore
-    ) {
-        this(entries, nextRoomId, nextUserId, hasMore, null,
-                ImContractVersions.PROJECTION_SCHEMA_VERSION);
-    }
 }

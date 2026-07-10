@@ -68,7 +68,7 @@ public class PolicyProjectionService {
         if (event == null || event.userId() == null) {
             return;
         }
-        long version = ProjectionVersions.resolve(event.version(), event.occurredAtEpochMillis(), null);
+        long version = event.version();
         UserMessagingPolicyEntry current = policiesByUser.get().get(event.userId());
         if (!isNewer(version, currentVersion(current))) {
             return;
@@ -93,7 +93,7 @@ public class PolicyProjectionService {
             return false;
         }
         String key = blockKey(event.blockerUserId(), event.blockedUserId());
-        long version = ProjectionVersions.resolve(event.version(), event.occurredAtEpochMillis(), null);
+        long version = event.version();
         BlockProjectionEntry current = blockRelations.get().get(key);
         if (!isNewer(version, current == null ? null : current.version())) {
             return false;
@@ -123,9 +123,8 @@ public class PolicyProjectionService {
             if (entry == null || entry.userId() == null) {
                 continue;
             }
-            long version = ProjectionVersions.resolve(
+            long version = ProjectionVersions.snapshotEntryVersion(
                     entry.version(),
-                    entry.occurredAtEpochMillis(),
                     snapshot.snapshotHighWatermark()
             );
             seenUserIds.add(entry.userId());
@@ -158,9 +157,8 @@ public class PolicyProjectionService {
                 continue;
             }
             String key = blockKey(entry.blockerUserId(), entry.blockedUserId());
-            long version = ProjectionVersions.resolve(
+            long version = ProjectionVersions.snapshotEntryVersion(
                     entry.version(),
-                    entry.occurredAtEpochMillis(),
                     snapshot.snapshotHighWatermark()
             );
             seenKeys.add(key);
@@ -198,7 +196,7 @@ public class PolicyProjectionService {
         if (entry == null) {
             return Long.MIN_VALUE;
         }
-        return ProjectionVersions.resolve(entry.version(), entry.occurredAtEpochMillis(), null);
+        return entry.version();
     }
 
     private static UserMessagingPolicyEntry withVersion(UserMessagingPolicyEntry entry, long version) {

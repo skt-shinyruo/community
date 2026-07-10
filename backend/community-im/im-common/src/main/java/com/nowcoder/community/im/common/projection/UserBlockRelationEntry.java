@@ -19,6 +19,7 @@ public record UserBlockRelationEntry(
 
     public UserBlockRelationEntry {
         schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
+        version = ProjectionVersions.requirePositive(version, "version");
     }
 
     public UserBlockRelationEntry(
@@ -32,12 +33,4 @@ public record UserBlockRelationEntry(
                 ImContractVersions.PROJECTION_SCHEMA_VERSION);
     }
 
-    public UserBlockRelationEntry(
-            UUID blockerUserId,
-            UUID blockedUserId,
-            boolean active
-    ) {
-        this(blockerUserId, blockedUserId, active, null, null,
-                ImContractVersions.PROJECTION_SCHEMA_VERSION);
-    }
 }

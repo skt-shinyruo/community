@@ -63,7 +63,7 @@ public class MembershipProjectionService {
             return false;
         }
         String key = membershipKey(event.roomId(), event.userId());
-        long version = ProjectionVersions.resolve(event.version(), event.occurredAtEpochMillis(), null);
+        long version = event.version();
         MembershipProjectionEntry current = memberships.get().get(key);
         if (!isNewer(version, current == null ? null : current.version())) {
             return false;
@@ -93,9 +93,8 @@ public class MembershipProjectionService {
                 continue;
             }
             String key = membershipKey(entry.roomId(), entry.userId());
-            long version = ProjectionVersions.resolve(
+            long version = ProjectionVersions.snapshotEntryVersion(
                     entry.version(),
-                    entry.occurredAtEpochMillis(),
                     snapshot.snapshotHighWatermark()
             );
             seenKeys.add(key);

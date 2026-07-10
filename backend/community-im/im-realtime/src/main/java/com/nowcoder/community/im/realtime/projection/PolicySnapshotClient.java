@@ -161,26 +161,20 @@ public class PolicySnapshotClient {
 
     private static long userPolicyWatermark(List<UserMessagingPolicySnapshot> pages) {
         if (pages == null || pages.isEmpty()) {
-            return 0L;
+            throw new IllegalStateException("projection snapshot returned no pages");
         }
         UserMessagingPolicySnapshot firstPage = pages.get(0);
-        if (firstPage != null && firstPage.snapshotHighWatermark() != null && firstPage.snapshotHighWatermark() > 0L) {
-            return firstPage.snapshotHighWatermark();
-        }
-        long watermark = 0L;
+        long watermark = ProjectionVersions.requireNonNegative(
+                firstPage == null ? null : firstPage.snapshotHighWatermark(),
+                "snapshotHighWatermark"
+        );
         for (UserMessagingPolicySnapshot page : pages) {
-            if (page == null) {
-                continue;
-            }
-            if (page.entries() == null) {
-                continue;
-            }
-            for (UserMessagingPolicyEntry entry : page.entries()) {
-                watermark = Math.max(watermark, ProjectionVersions.resolve(
-                        entry.version(),
-                        entry.occurredAtEpochMillis(),
-                        null
-                ));
+            long pageWatermark = ProjectionVersions.requireNonNegative(
+                    page == null ? null : page.snapshotHighWatermark(),
+                    "snapshotHighWatermark"
+            );
+            if (pageWatermark != watermark) {
+                throw new IllegalStateException("projection snapshot watermark changed between pages");
             }
         }
         return watermark;
@@ -188,26 +182,20 @@ public class PolicySnapshotClient {
 
     private static long blockRelationWatermark(List<UserBlockRelationSnapshot> pages) {
         if (pages == null || pages.isEmpty()) {
-            return 0L;
+            throw new IllegalStateException("projection snapshot returned no pages");
         }
         UserBlockRelationSnapshot firstPage = pages.get(0);
-        if (firstPage != null && firstPage.snapshotHighWatermark() != null && firstPage.snapshotHighWatermark() > 0L) {
-            return firstPage.snapshotHighWatermark();
-        }
-        long watermark = 0L;
+        long watermark = ProjectionVersions.requireNonNegative(
+                firstPage == null ? null : firstPage.snapshotHighWatermark(),
+                "snapshotHighWatermark"
+        );
         for (UserBlockRelationSnapshot page : pages) {
-            if (page == null) {
-                continue;
-            }
-            if (page.entries() == null) {
-                continue;
-            }
-            for (UserBlockRelationEntry entry : page.entries()) {
-                watermark = Math.max(watermark, ProjectionVersions.resolve(
-                        entry.version(),
-                        entry.occurredAtEpochMillis(),
-                        null
-                ));
+            long pageWatermark = ProjectionVersions.requireNonNegative(
+                    page == null ? null : page.snapshotHighWatermark(),
+                    "snapshotHighWatermark"
+            );
+            if (pageWatermark != watermark) {
+                throw new IllegalStateException("projection snapshot watermark changed between pages");
             }
         }
         return watermark;

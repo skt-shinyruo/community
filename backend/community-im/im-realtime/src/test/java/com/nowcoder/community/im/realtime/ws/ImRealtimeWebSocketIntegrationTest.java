@@ -215,7 +215,8 @@ class ImRealtimeWebSocketIntegrationTest {
                             null,
                             null,
                             false,
-                            System.currentTimeMillis()
+                            System.currentTimeMillis(),
+                            1L
                     )
             ).get(5, TimeUnit.SECONDS);
 
@@ -535,7 +536,7 @@ class ImRealtimeWebSocketIntegrationTest {
     }
 
     private static UserMessagingPolicyEntry policy(UUID userId, boolean canSendPrivate) {
-        return new UserMessagingPolicyEntry(userId, true, false, false, null, null, canSendPrivate);
+        return new UserMessagingPolicyEntry(userId, true, false, false, null, null, canSendPrivate, 1L, null);
     }
 
     private OpenSessionData newSession(UUID userId, String workerId) {

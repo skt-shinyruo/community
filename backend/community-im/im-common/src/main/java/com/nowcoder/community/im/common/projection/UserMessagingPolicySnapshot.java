@@ -19,6 +19,10 @@ public record UserMessagingPolicySnapshot(
 
     public UserMessagingPolicySnapshot {
         schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
+        snapshotHighWatermark = ProjectionVersions.requireNonNegative(
+                snapshotHighWatermark,
+                "snapshotHighWatermark"
+        );
     }
 
     public UserMessagingPolicySnapshot(
@@ -31,11 +35,4 @@ public record UserMessagingPolicySnapshot(
                 ImContractVersions.PROJECTION_SCHEMA_VERSION);
     }
 
-    public UserMessagingPolicySnapshot(
-            List<UserMessagingPolicyEntry> entries,
-            UUID nextUserId,
-            boolean hasMore
-    ) {
-        this(entries, nextUserId, hasMore, null, ImContractVersions.PROJECTION_SCHEMA_VERSION);
-    }
 }

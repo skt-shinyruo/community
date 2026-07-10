@@ -2,6 +2,8 @@
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import imCoreHttp from '../api/imCoreHttp'
 
+const IM_SCHEMA_VERSION = 1
+
 function safeJsonParse(s) {
   try {
     return JSON.parse(s)
@@ -199,6 +201,11 @@ class ImRealtimeClient {
 
     this.ws.onmessage = (evt) => {
       const msg = safeJsonParse(evt?.data)
+      if (!msg || typeof msg !== 'object' || Array.isArray(msg) || msg.schemaVersion !== IM_SCHEMA_VERSION) {
+        this.emitter.emit('protocolError', { reasonCode: 'unsupported_schema_version' })
+        this.ws?.close?.(1002, 'unsupported_schema_version')
+        return
+      }
       const type = String(msg?.type || '')
       if (!type) return
       if (type === 'connected') {
@@ -234,7 +241,7 @@ class ImRealtimeClient {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error('IM 未连接')
     }
-    this.ws.send(JSON.stringify(obj || {}))
+    this.ws.send(JSON.stringify({ ...(obj || {}), schemaVersion: IM_SCHEMA_VERSION }))
   }
 
   _sendCommand(obj) {

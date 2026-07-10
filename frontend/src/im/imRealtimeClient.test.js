@@ -138,23 +138,85 @@ describe('imRealtimeClient URL resolution', () => {
     ws.onmessage?.({
       data: JSON.stringify({
         type: 'connected',
-        sessionId: 'sess-1'
+        sessionId: 'sess-1',
+        schemaVersion: 1
       })
     })
 
     imRealtimeClient.sendPrivateText({
       toUserId: '22222222-2222-7222-8222-222222222222',
-      content: 'hello'
+      content: 'hello',
+      clientMsgId: 'private-1'
+    })
+    imRealtimeClient.sendRoomText({
+      roomId: 42,
+      content: 'hello room',
+      clientMsgId: 'room-1'
     })
 
     expect(imCoreHttp.post).toHaveBeenCalledTimes(1)
     expect(imRealtimeClient.state.authed).toBe(true)
+    expect(sent[0]).toEqual(expect.objectContaining({ schemaVersion: 1 }))
+    expect(sent[1]).toEqual(expect.objectContaining({ schemaVersion: 1 }))
+    expect(sent[2]).toEqual(expect.objectContaining({ schemaVersion: 1 }))
     expect(sent[0]).toMatchObject({ type: 'connect', ticket: 'ticket-1' })
     expect(sent[1]).toMatchObject({
       type: 'sendPrivateText',
       toUserId: '22222222-2222-7222-8222-222222222222',
-      content: 'hello'
+      content: 'hello',
+      clientMsgId: 'private-1'
     })
+    expect(sent[2]).toMatchObject({
+      type: 'sendRoomText',
+      roomId: 42,
+      content: 'hello room',
+      clientMsgId: 'room-1'
+    })
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+    ['zero', 0],
+    ['negative', -1],
+    ['future', 2],
+    ['string', '1']
+  ])('should reject %s inbound schema before business callbacks', async (_label, schemaVersion) => {
+    const { imRealtimeClient, imCoreHttp } = await loadClient()
+    imCoreHttp.post.mockResolvedValue({
+      data: {
+        data: {
+          sessionId: 'sess-1',
+          wsUrl: 'wss://edge.example.com/ws/im',
+          ticket: 'ticket-1'
+        }
+      }
+    })
+    const protocolErrors = []
+    const businessEvents = []
+    imRealtimeClient.on('protocolError', (error) => protocolErrors.push(error))
+    imRealtimeClient.on('connected', (message) => businessEvents.push(message))
+
+    await imRealtimeClient.connect('token-1')
+    await flushMicrotasks()
+
+    const ws = FakeWebSocket.instances[0]
+    ws.readyState = FakeWebSocket.OPEN
+    ws.close = vi.fn()
+    ws.onopen?.()
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'connected',
+        sessionId: 'sess-1',
+        schemaVersion
+      })
+    })
+
+    expect(protocolErrors).toHaveLength(1)
+    expect(protocolErrors[0]).toEqual({ reasonCode: 'unsupported_schema_version' })
+    expect(businessEvents).toHaveLength(0)
+    expect(imRealtimeClient.state.authed).toBe(false)
+    expect(ws.close).toHaveBeenCalledWith(1002, 'unsupported_schema_version')
   })
 
   it('should reject command sends while websocket is open but not authenticated', async () => {
@@ -222,7 +284,8 @@ describe('imRealtimeClient URL resolution', () => {
     ws.onmessage?.({
       data: JSON.stringify({
         type: 'connected',
-        sessionId: 'sess-1'
+        sessionId: 'sess-1',
+        schemaVersion: 1
       })
     })
     ws.onmessage?.({
@@ -230,7 +293,8 @@ describe('imRealtimeClient URL resolution', () => {
         type: 'reject',
         cmd: 'sendPrivateText',
         clientMsgId: 'client-msg-1',
-        message: 'connect required'
+        message: 'connect required',
+        schemaVersion: 1
       })
     })
 
@@ -265,7 +329,8 @@ describe('imRealtimeClient URL resolution', () => {
     ws.onmessage?.({
       data: JSON.stringify({
         type: 'connected',
-        sessionId: 'sess-1'
+        sessionId: 'sess-1',
+        schemaVersion: 1
       })
     })
     ws.onclose?.()

@@ -3,6 +3,7 @@ package com.nowcoder.community.im.realtime.ws;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.im.common.ImContractVersions;
 import com.nowcoder.community.im.common.ImUnsupportedSchemaVersionException;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,20 @@ public class ImFrameCodec {
             return jsonCodec.readTree(text);
         } catch (JsonCodecException e) {
             throw new IllegalArgumentException("invalid websocket frame json", e);
+        }
+    }
+
+    public void requireSupportedSchemaVersion(JsonNode node) {
+        JsonNode schemaVersionNode = node == null ? null : node.get("schemaVersion");
+        if (schemaVersionNode == null
+                || !schemaVersionNode.isIntegralNumber()
+                || !schemaVersionNode.canConvertToInt()) {
+            throw new ImUnsupportedSchemaVersionException(0, ImContractVersions.WS_FRAME_VERSION);
+        }
+
+        int schemaVersion = schemaVersionNode.intValue();
+        if (schemaVersion != ImContractVersions.WS_FRAME_VERSION) {
+            throw new ImUnsupportedSchemaVersionException(schemaVersion, ImContractVersions.WS_FRAME_VERSION);
         }
     }
 

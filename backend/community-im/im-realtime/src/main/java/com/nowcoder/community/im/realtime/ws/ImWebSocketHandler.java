@@ -133,6 +133,13 @@ public class ImWebSocketHandler implements WebSocketHandler {
             return Mono.empty();
         }
 
+        try {
+            frameCodec.requireSupportedSchemaVersion(node);
+        } catch (ImUnsupportedSchemaVersionException e) {
+            rejectAndClose(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
+            return Mono.empty();
+        }
+
         String type = node.path("type").asText("");
         if (!StringUtils.hasText(type)) {
             sendReject(conn, "protocol", "", "", 400, "missing_type", "missing type");

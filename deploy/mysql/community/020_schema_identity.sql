@@ -85,11 +85,6 @@ prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
 
-set @user_policy_seed_version := cast(floor(unix_timestamp(current_timestamp(3)) * 1000) * 4096 as unsigned);
-update user
-set policy_version = @user_policy_seed_version
-where policy_version = 0;
-
 set @user_security_seed_version := cast(floor(unix_timestamp(current_timestamp(3)) * 1000) * 4096 as unsigned);
 set @has_security_seed_column := (
   select count(*)
@@ -156,9 +151,8 @@ create table if not exists user_policy_version_counter (
   current_version bigint not null default 0
 );
 
-set @user_policy_current_version := greatest(
-  @user_policy_seed_version,
-  (select coalesce(max(policy_version), 0) from user)
+set @user_policy_current_version := (
+  select coalesce(max(policy_version), 0) from user
 );
 
 insert into user_policy_version_counter(id, current_version)

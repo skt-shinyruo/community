@@ -13,7 +13,6 @@ import java.util.UUID;
 public class MyBatisRoomMemberRepository implements RoomMemberRepository {
 
     private static final int MEMBERSHIP_VERSION_COUNTER_ID = 1;
-    private static final int LEGACY_COMPATIBLE_LOGICAL_BITS = 12;
 
     private final RoomMemberMapper mapper;
 
@@ -79,7 +78,7 @@ public class MyBatisRoomMemberRepository implements RoomMemberRepository {
     private long nextMembershipProjectionVersion() {
         ensureMembershipVersionCounter();
         Long current = mapper.selectMembershipVersionForUpdate(MEMBERSHIP_VERSION_COUNTER_ID);
-        long next = Math.max((current == null ? 0L : current) + 1L, legacyCompatibleVersionFloor());
+        long next = Math.addExact(current == null ? 0L : current, 1L);
         mapper.updateMembershipVersion(MEMBERSHIP_VERSION_COUNTER_ID, next);
         return next;
     }
@@ -94,10 +93,5 @@ public class MyBatisRoomMemberRepository implements RoomMemberRepository {
 
     private void insertMembershipVersionLog(long version, UUID roomId, UUID userId, boolean active) {
         mapper.insertMembershipVersionLog(version, roomId, userId, active);
-    }
-
-    private static long legacyCompatibleVersionFloor() {
-        long epochMillis = System.currentTimeMillis();
-        return epochMillis <= 0L ? 1L : epochMillis << LEGACY_COMPATIBLE_LOGICAL_BITS;
     }
 }

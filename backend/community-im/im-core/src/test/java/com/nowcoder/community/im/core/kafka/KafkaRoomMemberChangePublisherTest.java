@@ -8,8 +8,10 @@ import org.mockito.ArgumentCaptor;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class KafkaRoomMemberChangePublisherTest {
 
@@ -32,6 +34,20 @@ class KafkaRoomMemberChangePublisherTest {
         assertThat(event.action()).isEqualTo("JOINED");
         assertThat(event.occurredAtEpochMillis()).isPositive();
         assertThat(event.version()).isEqualTo(42L);
+    }
+
+    @Test
+    void publishShouldRejectZeroVersionBeforeEnqueue() {
+        ImMessageOutboxEnqueuer outboxEnqueuer = mock(ImMessageOutboxEnqueuer.class);
+        KafkaRoomMemberChangePublisher publisher = new KafkaRoomMemberChangePublisher(outboxEnqueuer);
+
+        assertThatThrownBy(() -> publisher.publishJoined(uuid(1), uuid(2), 0L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("version must be positive");
+        assertThatThrownBy(() -> publisher.publishLeft(uuid(1), uuid(2), 0L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("version must be positive");
+        verifyNoInteractions(outboxEnqueuer);
     }
 
     private static UUID uuid(long suffix) {

@@ -77,19 +77,13 @@ prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
 
-set @social_block_seed_version := cast(floor(unix_timestamp(current_timestamp(3)) * 1000) * 4096 as unsigned);
-update social_block
-set version = @social_block_seed_version
-where version = 0;
-
 create table if not exists social_block_version_counter (
   id int primary key,
   current_version bigint not null default 0
 );
 
-set @social_block_current_version := greatest(
-  @social_block_seed_version,
-  (select coalesce(max(version), 0) from social_block)
+set @social_block_current_version := (
+  select coalesce(max(version), 0) from social_block
 );
 
 insert into social_block_version_counter(id, current_version)

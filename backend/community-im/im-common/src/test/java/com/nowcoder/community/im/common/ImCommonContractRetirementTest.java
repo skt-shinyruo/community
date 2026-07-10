@@ -10,6 +10,9 @@ class ImCommonContractRetirementTest {
     void retiredImCommonContractsShouldStayAbsent() {
         assertClassRetired(cn("com.nowcoder.community.im.common.session.", "Open", "ImSessionRequest"));
         assertClassRetired(cn("com.nowcoder.community.im.common.event.", "RoomMemberChanged", "EventV1"));
+        assertClassRetired(cn("com.nowcoder.community.im.common.", "CurrentSchemaVersion", "Filter"));
+        assertThatThrownBy(() -> ImContractVersions.requireSupportedSchemaVersion(0))
+                .isInstanceOf(ImUnsupportedSchemaVersionException.class);
     }
 
     private void assertClassRetired(String className) {

@@ -17,7 +17,7 @@ public record SendPrivateTextFrame(
 ) {
 
     public SendPrivateTextFrame {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
         requireType(type, "sendPrivateText");
     }
 

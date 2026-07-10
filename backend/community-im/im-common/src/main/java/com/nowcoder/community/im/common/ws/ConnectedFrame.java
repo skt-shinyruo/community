@@ -13,7 +13,7 @@ public record ConnectedFrame(
 ) {
 
     public ConnectedFrame {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
         requireType(type, "connected");
     }
 

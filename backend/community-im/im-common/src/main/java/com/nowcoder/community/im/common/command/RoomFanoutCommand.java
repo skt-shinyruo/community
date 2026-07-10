@@ -21,7 +21,7 @@ public record RoomFanoutCommand(
 ) {
 
     public RoomFanoutCommand {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public RoomFanoutCommand(

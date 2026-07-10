@@ -18,7 +18,7 @@ public record RejectFrame(
 ) {
 
     public RejectFrame {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
         requireType(type, "reject");
     }
 

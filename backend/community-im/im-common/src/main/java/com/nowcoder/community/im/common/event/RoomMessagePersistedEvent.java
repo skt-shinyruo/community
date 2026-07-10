@@ -24,7 +24,7 @@ public record RoomMessagePersistedEvent(
 ) {
 
     public RoomMessagePersistedEvent {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public RoomMessagePersistedEvent(

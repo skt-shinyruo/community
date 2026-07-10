@@ -18,7 +18,7 @@ public record UserMessagingPolicySnapshot(
 ) {
 
     public UserMessagingPolicySnapshot {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public UserMessagingPolicySnapshot(

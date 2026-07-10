@@ -26,7 +26,7 @@ public record PrivateMessageRejectedEvent(
 ) {
 
     public PrivateMessageRejectedEvent {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public PrivateMessageRejectedEvent(

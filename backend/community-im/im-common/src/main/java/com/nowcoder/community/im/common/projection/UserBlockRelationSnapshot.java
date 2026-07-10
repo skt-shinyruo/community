@@ -19,7 +19,7 @@ public record UserBlockRelationSnapshot(
 ) {
 
     public UserBlockRelationSnapshot {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public UserBlockRelationSnapshot(

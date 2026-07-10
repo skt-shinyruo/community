@@ -19,7 +19,7 @@ public record RoomMemberChanged(
 ) {
 
     public RoomMemberChanged {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public RoomMemberChanged(

@@ -25,7 +25,7 @@ public record RoomMessageRejectedEvent(
 ) {
 
     public RoomMessageRejectedEvent {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public RoomMessageRejectedEvent(

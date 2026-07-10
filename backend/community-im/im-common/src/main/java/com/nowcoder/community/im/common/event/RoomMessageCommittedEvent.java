@@ -24,7 +24,7 @@ public record RoomMessageCommittedEvent(
 ) {
 
     public RoomMessageCommittedEvent {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public RoomMessageCommittedEvent(

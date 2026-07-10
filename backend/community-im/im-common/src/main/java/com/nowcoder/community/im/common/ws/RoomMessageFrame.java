@@ -19,7 +19,7 @@ public record RoomMessageFrame(
 ) {
 
     public RoomMessageFrame {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
         requireType(type, "roomMessage");
     }
 

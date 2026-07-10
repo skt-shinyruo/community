@@ -1,9 +1,11 @@
 package com.nowcoder.community.im.common;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nowcoder.community.im.common.command.RoomFanoutCommand;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.event.PrivateMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
@@ -38,8 +40,8 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.RecordComponent;
-import java.util.List;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -69,7 +71,6 @@ class JsonContractsTest {
         SendPrivateTextCommand back = roundTrip(cmd, SendPrivateTextCommand.class);
         assertEquals(cmd, back);
         assertEquals(1, recordComponentValue(back, "schemaVersion"));
-        assertFalse(objectMapper.writeValueAsString(cmd).contains("schemaVersion"));
     }
 
     @Test
@@ -102,31 +103,6 @@ class JsonContractsTest {
         RoomFanoutCommand back = roundTrip(cmd, RoomFanoutCommand.class);
 
         assertEquals(cmd, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
-    }
-
-    @Test
-    void command_shouldReadLegacyPrivateTextWithoutSchemaVersion() throws Exception {
-        UUID fromUserId = uuid(12);
-        UUID toUserId = uuid(99);
-
-        SendPrivateTextCommand back = objectMapper.readValue("""
-                {
-                  "requestId": "req-legacy-private",
-                  "clientMsgId": "cmsg-legacy-private",
-                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
-                  "toUserId": "00000000-0000-7000-8000-000000000063",
-                  "conversationId": "%s",
-                  "content": "legacy hello",
-                  "clientSentAtEpochMs": 1700000000000
-                }
-                """.formatted(conversationId(fromUserId, toUserId)), SendPrivateTextCommand.class);
-
-        assertEquals("req-legacy-private", back.requestId());
-        assertEquals("cmsg-legacy-private", back.clientMsgId());
-        assertEquals(fromUserId, back.fromUserId());
-        assertEquals(toUserId, back.toUserId());
-        assertEquals("legacy hello", back.content());
         assertEquals(1, recordComponentValue(back, "schemaVersion"));
     }
 
@@ -272,33 +248,6 @@ class JsonContractsTest {
     }
 
     @Test
-    void event_shouldReadLegacyCommittedEventWithoutSchemaVersion() throws Exception {
-        UUID fromUserId = uuid(12);
-        UUID toUserId = uuid(99);
-
-        PrivateMessageCommittedEvent back = objectMapper.readValue("""
-                {
-                  "eventId": "evt-legacy-committed",
-                  "requestId": "req-legacy-committed",
-                  "clientMsgId": "cmsg-legacy-committed",
-                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
-                  "toUserId": "00000000-0000-7000-8000-000000000063",
-                  "conversationId": "%s",
-                  "messageId": "00000000-0000-7000-8000-000000002711",
-                  "seq": 7,
-                  "createdAtEpochMs": 1700000001000
-                }
-                """.formatted(conversationId(fromUserId, toUserId)), PrivateMessageCommittedEvent.class);
-
-        assertEquals("evt-legacy-committed", back.eventId());
-        assertEquals("req-legacy-committed", back.requestId());
-        assertEquals("cmsg-legacy-committed", back.clientMsgId());
-        assertEquals(uuid(10001), back.messageId());
-        assertEquals(7L, back.seq());
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
-    }
-
-    @Test
     void event_shouldIgnoreFutureFieldsAndKeepPersistedEventFieldsReadable() throws Exception {
         RoomMessagePersistedEvent back = objectMapper.readValue("""
                 {
@@ -344,7 +293,6 @@ class JsonContractsTest {
         ConnectFrame back = roundTrip(frame, ConnectFrame.class);
         assertEquals(frame, back);
         assertEquals(1, recordComponentValue(back, "schemaVersion"));
-        assertFalse(objectMapper.writeValueAsString(frame).contains("schemaVersion"));
     }
 
     @Test
@@ -468,24 +416,6 @@ class JsonContractsTest {
     }
 
     @Test
-    void frame_shouldReadLegacyInboundFrameWithoutSchemaVersion() throws Exception {
-        SendPrivateTextFrame back = objectMapper.readValue("""
-                {
-                  "type": "sendPrivateText",
-                  "clientMsgId": "cmsg-legacy-frame",
-                  "toUserId": "00000000-0000-7000-8000-000000000015",
-                  "content": "legacy frame hello"
-                }
-                """, SendPrivateTextFrame.class);
-
-        assertEquals("sendPrivateText", back.type());
-        assertEquals("cmsg-legacy-frame", back.clientMsgId());
-        assertEquals(uuid(21), back.toUserId());
-        assertEquals("legacy frame hello", back.content());
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
-    }
-
-    @Test
     void frame_shouldIgnoreFutureFieldsAndKeepCommittedFieldsReadable() throws Exception {
         CommittedFrame back = objectMapper.readValue("""
                 {
@@ -604,34 +534,6 @@ class JsonContractsTest {
     }
 
     @Test
-    void projection_shouldReadLegacySnapshotWithoutSchemaVersion() throws Exception {
-        UserBlockRelationSnapshot back = objectMapper.readValue("""
-                {
-                  "entries": [
-                    {
-                      "blockerUserId": "00000000-0000-7000-8000-00000000003d",
-                      "blockedUserId": "00000000-0000-7000-8000-00000000003e",
-                      "active": true,
-                      "version": 1712345678902,
-                      "occurredAtEpochMillis": 1712345678901
-                    }
-                  ],
-                  "nextBlockerUserId": "00000000-0000-7000-8000-00000000003f",
-                  "nextBlockedUserId": "00000000-0000-7000-8000-000000000040",
-                  "hasMore": false,
-                  "snapshotHighWatermark": 1712345678902
-                }
-                """, UserBlockRelationSnapshot.class);
-
-        assertEquals(1, back.entries().size());
-        assertEquals(uuid(61), back.entries().get(0).blockerUserId());
-        assertEquals(uuid(62), back.entries().get(0).blockedUserId());
-        assertEquals(1_712_345_678_902L, back.snapshotHighWatermark());
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
-        assertEquals(1, recordComponentValue(back.entries().get(0), "schemaVersion"));
-    }
-
-    @Test
     void projection_shouldIgnoreFutureFieldsAndKeepSnapshotFieldsReadable() throws Exception {
         RoomMembershipSnapshot back = objectMapper.readValue("""
                 {
@@ -722,6 +624,7 @@ class JsonContractsTest {
     void shouldIgnoreUnknownUserMessagingPolicyFieldNames() throws Exception {
         UserMessagingPolicyChanged back = objectMapper.readValue("""
                 {
+                  "schemaVersion": 1,
                   "eventId": "evt-policy-unknown",
                   "userId": "00000000-0000-7000-8000-000000000081",
                   "userExists": true,
@@ -778,118 +681,9 @@ class JsonContractsTest {
     }
 
     @Test
-    void shouldReadNonPositiveSchemaVersionAsCurrentVersion() throws Exception {
-        SendRoomTextCommand zeroVersionCommand = objectMapper.readValue("""
-                {
-                  "schemaVersion": 0,
-                  "requestId": "req-zero-version",
-                  "clientMsgId": "cmsg-zero-version",
-                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
-                  "roomId": "00000000-0000-7000-8000-0000000003e9",
-                  "content": "hello zero",
-                  "clientSentAtEpochMs": 1700000000001
-                }
-                """, SendRoomTextCommand.class);
-        assertEquals(1, recordComponentValue(zeroVersionCommand, "schemaVersion"));
-
-        RoomMessagePersistedEvent negativeVersionEvent = objectMapper.readValue("""
-                {
-                  "schemaVersion": -1,
-                  "eventId": "evt-negative-version",
-                  "roomId": "00000000-0000-7000-8000-0000000003e9",
-                  "seq": 11,
-                  "messageId": "00000000-0000-7000-8000-000000004e21",
-                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
-                  "createdAtEpochMs": 1700000002000
-                }
-                """, RoomMessagePersistedEvent.class);
-        assertEquals(1, recordComponentValue(negativeVersionEvent, "schemaVersion"));
-
-        PingFrame zeroVersionFrame = objectMapper.readValue("""
-                {
-                  "schemaVersion": 0,
-                  "type": "ping",
-                  "sentAtEpochMillis": 1712345678903
-                }
-                """, PingFrame.class);
-        assertEquals(1, recordComponentValue(zeroVersionFrame, "schemaVersion"));
-
-        RoomMembershipEntry negativeVersionProjection = objectMapper.readValue("""
-                {
-                  "schemaVersion": -1,
-                  "roomId": "00000000-0000-7000-8000-00000000000a",
-                  "userId": "00000000-0000-7000-8000-000000000001",
-                  "version": 1712345678904,
-                  "occurredAtEpochMillis": 1712345678903
-                }
-                """, RoomMembershipEntry.class);
-        assertEquals(1, recordComponentValue(negativeVersionProjection, "schemaVersion"));
-    }
-
-    @Test
-    void shouldRejectUnsupportedFutureSchemaVersionAcrossContractAreas() {
-        assertUnsupportedVersion("""
-                {
-                  "schemaVersion": 2,
-                  "requestId": "req-future-version",
-                  "clientMsgId": "cmsg-future-version",
-                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
-                  "roomId": "00000000-0000-7000-8000-0000000003e9",
-                  "content": "hello v2",
-                  "clientSentAtEpochMs": 1700000000001
-                }
-                """, SendRoomTextCommand.class);
-        assertUnsupportedVersion("""
-                {
-                  "schemaVersion": 2,
-                  "eventId": "evt-future-version",
-                  "roomId": "00000000-0000-7000-8000-0000000003e9",
-                  "seq": 11,
-                  "messageId": "00000000-0000-7000-8000-000000004e21",
-                  "fromUserId": "00000000-0000-7000-8000-00000000000c",
-                  "createdAtEpochMs": 1700000002000
-                }
-                """, RoomMessagePersistedEvent.class);
-        assertUnsupportedVersion("""
-                {
-                  "schemaVersion": 2,
-                  "type": "sendPrivateText",
-                  "clientMsgId": "cmsg-future-frame",
-                  "toUserId": "00000000-0000-7000-8000-000000000015",
-                  "content": "future frame hello"
-                }
-                """, SendPrivateTextFrame.class);
-        assertUnsupportedVersion("""
-                {
-                  "schemaVersion": 2,
-                  "entries": [
-                    {
-                      "roomId": "00000000-0000-7000-8000-00000000000a",
-                      "userId": "00000000-0000-7000-8000-000000000001",
-                      "version": 1712345678904,
-                      "occurredAtEpochMillis": 1712345678903
-                    }
-                  ],
-                  "nextRoomId": null,
-                  "nextUserId": null,
-                  "hasMore": false,
-                  "snapshotHighWatermark": 1712345678904
-                }
-                """, RoomMembershipSnapshot.class);
-        assertUnsupportedVersion("""
-                {
-                  "schemaVersion": 2,
-                  "roomId": "00000000-0000-7000-8000-00000000000a",
-                  "userId": "00000000-0000-7000-8000-000000000001",
-                  "version": 1712345678904,
-                  "occurredAtEpochMillis": 1712345678903
-                }
-                """, RoomMembershipEntry.class);
-    }
-
-    @Test
-    void shouldRejectUnsupportedFutureSchemaVersionForEveryVersionedRecord() {
+    void shouldRequireExplicitV1SchemaVersionForEveryVersionedRecord() throws Exception {
         for (Class<?> contractType : List.of(
+                RoomFanoutCommand.class,
                 SendPrivateTextCommand.class,
                 SendRoomTextCommand.class,
                 PrivateMessagePersistedEvent.class,
@@ -919,7 +713,21 @@ class JsonContractsTest {
                 PingFrame.class,
                 PongFrame.class
         )) {
-            assertUnsupportedVersion(genericJsonWithFutureSchemaVersion(contractType), contractType);
+            String validJson = genericValidJson(contractType);
+
+            assertSchemaRejected(withoutField(validJson, "schemaVersion"), contractType);
+            assertSchemaRejected(withField(validJson, "schemaVersion", null), contractType);
+            assertSchemaRejected(withField(validJson, "schemaVersion", 0), contractType);
+            assertSchemaRejected(withField(validJson, "schemaVersion", -1), contractType);
+            assertSchemaRejected(withField(validJson, "schemaVersion", 2), contractType);
+            assertSchemaRejected(withField(validJson, "schemaVersion", "1"), contractType);
+
+            Object fixture = objectMapper.readValue(validJson, contractType);
+            String json = objectMapper.writeValueAsString(fixture);
+            JsonNode serialized = objectMapper.readTree(json);
+            assertTrue(serialized.has("schemaVersion"),
+                    contractType.getSimpleName() + " must serialize schemaVersion");
+            assertEquals(1, serialized.get("schemaVersion").intValue(), contractType.getSimpleName());
         }
     }
 
@@ -928,23 +736,27 @@ class JsonContractsTest {
         return objectMapper.readValue(json, type);
     }
 
-    private <T> void assertUnsupportedVersion(String json, Class<T> type) {
-        JsonMappingException exception = assertThrows(
+    private <T> void assertSchemaRejected(String json, Class<T> type) {
+        assertThrows(
                 JsonMappingException.class,
-                () -> objectMapper.readValue(json, type)
+                () -> objectMapper.readValue(json, type),
+                () -> type.getSimpleName() + " accepted invalid schema JSON: " + json
         );
-        assertTrue(rootMessage(exception).contains("unsupported IM schemaVersion"));
     }
 
-    private static String rootMessage(Throwable throwable) {
-        Throwable current = throwable;
-        while (current.getCause() != null) {
-            current = current.getCause();
-        }
-        return current.getMessage();
+    private String withoutField(String json, String fieldName) throws Exception {
+        ObjectNode root = (ObjectNode) objectMapper.readTree(json);
+        root.remove(fieldName);
+        return objectMapper.writeValueAsString(root);
     }
 
-    private String genericJsonWithFutureSchemaVersion(Class<?> recordType) {
+    private String withField(String json, String fieldName, Object value) throws Exception {
+        ObjectNode root = (ObjectNode) objectMapper.readTree(json);
+        root.set(fieldName, objectMapper.valueToTree(value));
+        return objectMapper.writeValueAsString(root);
+    }
+
+    private String genericValidJson(Class<?> recordType) {
         Map<String, Object> values = new LinkedHashMap<>();
         for (RecordComponent component : recordType.getRecordComponents()) {
             values.put(component.getName(), genericJsonValue(recordType, component));
@@ -958,7 +770,7 @@ class JsonContractsTest {
 
     private static Object genericJsonValue(Class<?> recordType, RecordComponent component) {
         if ("schemaVersion".equals(component.getName())) {
-            return ImContractVersions.CURRENT_SCHEMA_VERSION + 1;
+            return ImContractVersions.CURRENT_SCHEMA_VERSION;
         }
         if ("type".equals(component.getName())) {
             return expectedFrameType(recordType);
@@ -1044,6 +856,7 @@ class JsonContractsTest {
         values.put("canSendPrivate", canSendPrivate);
         values.put("version", version);
         values.put("occurredAtEpochMillis", occurredAtEpochMillis);
+        values.put("schemaVersion", ImContractVersions.PROJECTION_SCHEMA_VERSION);
         return values;
     }
 
@@ -1070,6 +883,7 @@ class JsonContractsTest {
         values.put("canSendPrivate", canSendPrivate);
         values.put("occurredAtEpochMillis", occurredAtEpochMillis);
         values.put("version", version);
+        values.put("schemaVersion", ImContractVersions.KAFKA_EVENT_SCHEMA_VERSION);
         return values;
     }
 

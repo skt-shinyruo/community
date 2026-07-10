@@ -21,10 +21,14 @@ import com.nowcoder.community.im.realtime.service.MessageCommandIngressService;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
 import com.nowcoder.community.im.realtime.session.SessionTicketCodec;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.reactive.socket.HandshakeInfo;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -39,12 +43,62 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ImWebSocketHandlerContractVersionTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{}",
+            "{\"schemaVersion\":null}",
+            "{\"schemaVersion\":0}",
+            "{\"schemaVersion\":-1}",
+            "{\"schemaVersion\":\"1\"}",
+            "{\"schemaVersion\":2}"
+    })
+    void shouldRejectInvalidSchemaVersionBeforeDispatch(String frameJson) throws Exception {
+        Sinks.Many<String> inbound = Sinks.many().unicast().onBackpressureBuffer();
+        LinkedBlockingQueue<String> sentMessages = new LinkedBlockingQueue<>();
+        WebSocketSession session = session(inbound, sentMessages);
+        JwtProperties jwtProperties = jwtProperties();
+        ImSessionProperties sessionProperties = sessionProperties();
+        ProjectionSyncCoordinator projectionSyncCoordinator = mock(ProjectionSyncCoordinator.class);
+        doThrow(new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "projection not ready"))
+                .when(projectionSyncCoordinator).requireReady();
+        MessageCommandIngressService commandIngressService = mock(MessageCommandIngressService.class);
+
+        ImWebSocketHandler handler = new ImWebSocketHandler(
+                new ImFrameCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new SessionTicketCodec(jwtProperties, JwtCodecs.jwtDecoder(jwtProperties)),
+                sessionProperties,
+                projectionSyncCoordinator,
+                new MembershipProjectionService(mock(MembershipSnapshotClient.class)),
+                new PolicyProjectionService(mock(PolicySnapshotClient.class)),
+                commandIngressService,
+                new ConnectionRegistry(),
+                new RoomLocalPresenceService(
+                        new RoomLocalIndex(),
+                        mock(RoomPresenceDirectory.class),
+                        sessionProperties.getWorkerId()
+                ),
+                10_000,
+                256
+        );
+
+        handler.handle(session).subscribe();
+        inbound.tryEmitNext(frameJson);
+        inbound.tryEmitComplete();
+
+        JsonNode reject = awaitNextFrame(sentMessages);
+        assertThat(reject.path("type").asText()).isEqualTo("reject");
+        assertThat(reject.path("reasonCode").asText()).isEqualTo("unsupported_schema_version");
+        verifyNoInteractions(projectionSyncCoordinator, commandIngressService);
+    }
 
     @Test
     void shouldRejectUnsupportedFutureSchemaVersionAsProtocolError() throws Exception {
@@ -145,6 +199,14 @@ class ImWebSocketHandlerContractVersionTest {
             }
         }
         throw new AssertionError("Timed out waiting for websocket frame type=" + type);
+    }
+
+    private static JsonNode awaitNextFrame(LinkedBlockingQueue<String> sentMessages) throws Exception {
+        String message = sentMessages.poll(Duration.ofSeconds(5).toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+        if (message == null) {
+            throw new AssertionError("Timed out waiting for websocket frame");
+        }
+        return OBJECT_MAPPER.readTree(message);
     }
 
     private static UserMessagingPolicyChanged policyEvent(UUID userId, boolean canSendPrivate) {

@@ -2,6 +2,7 @@ package com.nowcoder.community.im.realtime.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.im.common.ImContractVersions;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
@@ -9,6 +10,7 @@ import com.nowcoder.community.im.common.projection.UserBlockRelationEntry;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicyEntry;
 import com.nowcoder.community.im.common.ws.ConnectFrame;
 import com.nowcoder.community.im.common.ws.SendPrivateTextFrame;
+import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
 import com.nowcoder.community.im.realtime.projection.ProjectionSyncCoordinator;
 import com.nowcoder.community.im.realtime.session.SessionTicketCodec;
@@ -113,6 +115,9 @@ class ImRealtimeWebSocketIntegrationTest {
 
     @Autowired
     private PolicyProjectionService policyProjectionService;
+
+    @Autowired
+    private ConnectionRegistry connectionRegistry;
 
     @Autowired
     private SessionTicketCodec sessionTicketCodec;
@@ -257,6 +262,44 @@ class ImRealtimeWebSocketIntegrationTest {
             assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("connect");
             assertThat(rejectFrame.path("code").asInt()).isEqualTo(403);
             assertThat(rejectFrame.path("reasonCode").asText("")).isEqualTo("wrong_worker");
+        } finally {
+            done.tryEmitEmpty();
+            outbound.tryEmitComplete();
+            if (websocket != null) {
+                websocket.dispose();
+            }
+        }
+    }
+
+    @Test
+    void websocket_shouldRejectMissingSchemaVersionBeforeBindingSession() throws Exception {
+        UUID userId = uuid(303);
+        MEMBERSHIP_ENTRIES.set(List.of());
+        POLICY_ENTRIES.set(List.of(policy(userId, true)));
+        BLOCK_ENTRIES.set(List.of());
+
+        projectionSyncCoordinator.refreshNow().block(Duration.ofSeconds(5));
+
+        OpenSessionData sessionData = newSession(userId, WORKER_ID);
+        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
+        Sinks.Empty<Void> done = Sinks.empty();
+        CountDownLatch connected = new CountDownLatch(1);
+
+        Disposable websocket = openWebSocket(sessionData.wsUrl(), received, outbound, done, connected);
+        try {
+            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+
+            outbound.tryEmitNext(JSON.writeValueAsString(Map.of(
+                    "type", "connect",
+                    "ticket", sessionData.ticket()
+            )));
+
+            JsonNode rejectFrame = awaitType(received, "reject", Duration.ofSeconds(5));
+            assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("protocol");
+            assertThat(rejectFrame.path("reasonCode").asText(""))
+                    .isEqualTo("unsupported_schema_version");
+            assertThat(connectionRegistry.listByUserId(userId)).isEmpty();
         } finally {
             done.tryEmitEmpty();
             outbound.tryEmitComplete();
@@ -453,6 +496,7 @@ class ImRealtimeWebSocketIntegrationTest {
 
     private static void handleMembershipSnapshot(HttpExchange exchange) throws IOException {
         LinkedHashMap<String, Object> body = new LinkedHashMap<>();
+        body.put("schemaVersion", ImContractVersions.PROJECTION_SCHEMA_VERSION);
         body.put("entries", MEMBERSHIP_ENTRIES.get());
         body.put("nextRoomId", null);
         body.put("nextUserId", null);
@@ -462,6 +506,7 @@ class ImRealtimeWebSocketIntegrationTest {
 
     private static void handlePolicySnapshot(HttpExchange exchange) throws IOException {
         LinkedHashMap<String, Object> body = new LinkedHashMap<>();
+        body.put("schemaVersion", ImContractVersions.PROJECTION_SCHEMA_VERSION);
         body.put("entries", POLICY_ENTRIES.get());
         body.put("nextUserId", null);
         body.put("hasMore", false);
@@ -470,6 +515,7 @@ class ImRealtimeWebSocketIntegrationTest {
 
     private static void handleBlockSnapshot(HttpExchange exchange) throws IOException {
         LinkedHashMap<String, Object> body = new LinkedHashMap<>();
+        body.put("schemaVersion", ImContractVersions.PROJECTION_SCHEMA_VERSION);
         body.put("entries", BLOCK_ENTRIES.get());
         body.put("nextBlockerUserId", null);
         body.put("nextBlockedUserId", null);

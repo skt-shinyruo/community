@@ -216,7 +216,7 @@ class ImRealtimeWebSocketIntegrationTest {
                             null,
                             false,
                             System.currentTimeMillis(),
-                            1L
+                            2L
                     )
             ).get(5, TimeUnit.SECONDS);
 
@@ -502,6 +502,7 @@ class ImRealtimeWebSocketIntegrationTest {
         body.put("nextRoomId", null);
         body.put("nextUserId", null);
         body.put("hasMore", false);
+        body.put("snapshotHighWatermark", 0L);
         writeJson(exchange, 200, body);
     }
 
@@ -511,6 +512,7 @@ class ImRealtimeWebSocketIntegrationTest {
         body.put("entries", POLICY_ENTRIES.get());
         body.put("nextUserId", null);
         body.put("hasMore", false);
+        body.put("snapshotHighWatermark", 0L);
         writeJson(exchange, 200, body);
     }
 
@@ -521,6 +523,7 @@ class ImRealtimeWebSocketIntegrationTest {
         body.put("nextBlockerUserId", null);
         body.put("nextBlockedUserId", null);
         body.put("hasMore", false);
+        body.put("snapshotHighWatermark", 0L);
         writeJson(exchange, 200, body);
     }
 

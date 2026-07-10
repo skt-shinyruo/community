@@ -99,19 +99,13 @@ prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
 
-set @im_membership_seed_version := cast(floor(unix_timestamp(current_timestamp(3)) * 1000) * 4096 as unsigned);
-update im_room_member
-set version = @im_membership_seed_version
-where version = 0;
-
 create table if not exists im_membership_version_counter (
   id int primary key,
   current_version bigint not null default 0
 );
 
-set @im_membership_current_version := greatest(
-  @im_membership_seed_version,
-  (select coalesce(max(version), 0) from im_room_member)
+set @im_membership_current_version := (
+  select coalesce(max(version), 0) from im_room_member
 );
 
 insert into im_membership_version_counter(id, current_version)

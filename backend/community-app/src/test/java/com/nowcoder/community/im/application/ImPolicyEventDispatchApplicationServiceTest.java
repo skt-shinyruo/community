@@ -135,6 +135,28 @@ class ImPolicyEventDispatchApplicationServiceTest {
     }
 
     @Test
+    void dispatchShouldFailMissingVersionForRecognizedDispatchablePayloads() {
+        assertThatThrownBy(() -> service.dispatch(new DispatchImPolicyEventCommand(
+                "evt-user",
+                "key",
+                "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
+                        + "\",\"occurredAtEpochMillis\":1712345678901}"
+        )))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("version");
+        assertThatThrownBy(() -> service.dispatch(new DispatchImPolicyEventCommand(
+                "evt-block",
+                "key",
+                "{\"kind\":\"BLOCK\",\"primaryUserId\":\"" + uuid(7)
+                        + "\",\"secondaryUserId\":\"" + uuid(8)
+                        + "\",\"occurredAtEpochMillis\":1712345678901}"
+        )))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("version");
+        verifyNoInteractions(dispatcher);
+    }
+
+    @Test
     void dispatchShouldPropagatePortFailureForOutboxRetry() {
         RuntimeException failure = new RuntimeException("kafka down");
         doThrow(failure).when(dispatcher).dispatchUserMessagingPolicyChanged(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
@@ -143,7 +165,7 @@ class ImPolicyEventDispatchApplicationServiceTest {
                 "evt",
                 "key",
                 "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
-                        + "\",\"occurredAtEpochMillis\":1712345678901}"
+                        + "\",\"occurredAtEpochMillis\":1712345678901,\"version\":7007}"
         )))
                 .isSameAs(failure);
     }

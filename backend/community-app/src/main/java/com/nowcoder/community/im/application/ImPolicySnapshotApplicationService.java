@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.application;
 
+import com.nowcoder.community.im.common.projection.ProjectionVersions;
 import com.nowcoder.community.im.common.projection.UserBlockRelationEntry;
 import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicyEntry;
@@ -104,18 +105,25 @@ public class ImPolicySnapshotApplicationService {
     }
 
     private UserMessagingPolicyEntry toUserPolicyEntry(UserModerationStateView state, Instant now) {
-        boolean suspended = state != null && state.banUntil() != null && state.banUntil().isAfter(now);
-        boolean muted = state != null && state.muteUntil() != null && state.muteUntil().isAfter(now);
-        boolean canSendPrivate = state != null && state.userId() != null && !suspended && !muted;
+        if (state == null) {
+            throw new IllegalStateException("user moderation state must not be null");
+        }
+        if (state.userId() == null) {
+            throw new IllegalStateException("user moderation state userId must not be null");
+        }
+        long version = ProjectionVersions.requirePositive(state.version(), "version");
+        boolean suspended = state.banUntil() != null && state.banUntil().isAfter(now);
+        boolean muted = state.muteUntil() != null && state.muteUntil().isAfter(now);
+        boolean canSendPrivate = !suspended && !muted;
         return new UserMessagingPolicyEntry(
-                state == null ? null : state.userId(),
-                state != null && state.userId() != null,
+                state.userId(),
+                true,
                 suspended,
                 muted,
-                toEpochMillis(state == null ? null : state.muteUntil()),
-                toEpochMillis(state == null ? null : state.banUntil()),
+                toEpochMillis(state.muteUntil()),
+                toEpochMillis(state.banUntil()),
                 canSendPrivate,
-                state == null ? 0L : state.version(),
+                version,
                 now.toEpochMilli()
         );
     }
@@ -124,11 +132,21 @@ public class ImPolicySnapshotApplicationService {
             SocialBlockRelationView view,
             long occurredAtEpochMillis
     ) {
+        if (view == null) {
+            throw new IllegalStateException("social block snapshot relation must not be null");
+        }
+        if (view.blockerUserId() == null) {
+            throw new IllegalStateException("social block relation blockerUserId must not be null");
+        }
+        if (view.blockedUserId() == null) {
+            throw new IllegalStateException("social block relation blockedUserId must not be null");
+        }
+        long version = ProjectionVersions.requirePositive(view.version(), "version");
         return new UserBlockRelationEntry(
                 view.blockerUserId(),
                 view.blockedUserId(),
                 true,
-                view.version(),
+                version,
                 occurredAtEpochMillis
         );
     }

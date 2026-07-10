@@ -66,7 +66,7 @@ public class ImPolicyEventDispatchApplicationService {
                 longValue(payload, "banUntil"),
                 booleanValue(payload, "canSendPrivate"),
                 requiredLongValue(payload, "occurredAtEpochMillis"),
-                longValue(payload, "version")
+                requiredLongValue(payload, "version")
         );
         dispatcher.dispatchUserMessagingPolicyChanged(userId.toString(), changed);
     }
@@ -83,7 +83,7 @@ public class ImPolicyEventDispatchApplicationService {
                 blockedUserId,
                 booleanValue(payload, "active"),
                 requiredLongValue(payload, "occurredAtEpochMillis"),
-                longValue(payload, "version")
+                requiredLongValue(payload, "version")
         );
         dispatcher.dispatchUserBlockRelationChanged(blockerUserId.toString(), changed);
     }

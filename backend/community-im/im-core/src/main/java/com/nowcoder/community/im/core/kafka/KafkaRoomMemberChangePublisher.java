@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.core.kafka;
 
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
+import com.nowcoder.community.im.common.projection.ProjectionVersions;
 import com.nowcoder.community.im.core.domain.event.RoomMemberChangePublisher;
 import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,6 +22,7 @@ public class KafkaRoomMemberChangePublisher implements RoomMemberChangePublisher
 
     @Override
     public void publishJoined(UUID roomId, UUID userId, long version) {
+        ProjectionVersions.requirePositive(version, "version");
         Instant now = Instant.now();
         outboxEnqueuer.enqueueRoomMemberChanged(new RoomMemberChanged(
                 newEventId(),
@@ -34,6 +36,7 @@ public class KafkaRoomMemberChangePublisher implements RoomMemberChangePublisher
 
     @Override
     public void publishLeft(UUID roomId, UUID userId, long version) {
+        ProjectionVersions.requirePositive(version, "version");
         Instant now = Instant.now();
         outboxEnqueuer.enqueueRoomMemberChanged(new RoomMemberChanged(
                 newEventId(),

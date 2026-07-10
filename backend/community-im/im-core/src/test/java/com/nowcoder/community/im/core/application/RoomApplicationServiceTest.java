@@ -65,7 +65,8 @@ class RoomApplicationServiceTest {
     }
 
     @Test
-    void roomMembershipProjectionVersionShouldAdvanceWithOwnerMembershipFacts() {
+    void roomMembershipProjectionVersionShouldStartAtOneAndAdvanceWithOwnerMembershipFacts() {
+        jdbcTemplate.update("update im_membership_version_counter set current_version = 0 where id = 1");
         UUID owner = uuid(21);
         UUID member = uuid(22);
         UUID roomId = roomApplicationService.createRoom(owner, "room").roomId();
@@ -92,8 +93,8 @@ class RoomApplicationServiceTest {
         roomApplicationService.leaveRoom(member, roomId);
         long leftWatermark = roomApplicationService.membershipSnapshot(null, null, 10).snapshotHighWatermark();
 
-        assertThat(ownerVersion).isPositive();
-        assertThat(initialWatermark).isGreaterThanOrEqualTo(ownerVersion);
+        assertThat(ownerVersion).isEqualTo(1L);
+        assertThat(initialWatermark).isEqualTo(1L);
         assertThat(joinedVersion).isGreaterThan(initialWatermark);
         assertThat(joinedWatermark).isEqualTo(joinedVersion);
         assertThat(leftWatermark).isGreaterThan(joinedVersion);

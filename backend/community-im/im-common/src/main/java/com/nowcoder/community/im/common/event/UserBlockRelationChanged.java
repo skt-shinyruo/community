@@ -19,7 +19,7 @@ public record UserBlockRelationChanged(
 ) {
 
     public UserBlockRelationChanged {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public UserBlockRelationChanged(

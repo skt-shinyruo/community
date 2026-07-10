@@ -15,7 +15,7 @@ public record AckFrame(
 ) {
 
     public AckFrame {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
         requireType(type, "ack");
     }
 

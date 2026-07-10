@@ -19,7 +19,7 @@ public record RoomMembershipSnapshot(
 ) {
 
     public RoomMembershipSnapshot {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public RoomMembershipSnapshot(

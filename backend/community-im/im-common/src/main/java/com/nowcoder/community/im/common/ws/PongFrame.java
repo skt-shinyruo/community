@@ -13,7 +13,7 @@ public record PongFrame(
 ) {
 
     public PongFrame {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
         requireType(type, "pong");
     }
 

@@ -22,7 +22,7 @@ public record SendRoomTextCommand(
 ) {
 
     public SendRoomTextCommand {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public SendRoomTextCommand(

@@ -25,7 +25,7 @@ public record SendPrivateTextCommand(
 ) {
 
     public SendPrivateTextCommand {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public SendPrivateTextCommand(

@@ -17,7 +17,7 @@ public record SendRoomTextFrame(
 ) {
 
     public SendRoomTextFrame {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
         requireType(type, "sendRoomText");
     }
 

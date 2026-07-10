@@ -25,7 +25,7 @@ public record PrivateMessageCommittedEvent(
 ) {
 
     public PrivateMessageCommittedEvent {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public PrivateMessageCommittedEvent(

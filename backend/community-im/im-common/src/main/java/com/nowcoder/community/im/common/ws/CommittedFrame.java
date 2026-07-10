@@ -21,7 +21,7 @@ public record CommittedFrame(
 ) {
 
     public CommittedFrame {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
         requireType(type, "committed");
     }
 

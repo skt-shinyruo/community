@@ -13,7 +13,7 @@ public record PingFrame(
 ) {
 
     public PingFrame {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
         requireType(type, "ping");
     }
 

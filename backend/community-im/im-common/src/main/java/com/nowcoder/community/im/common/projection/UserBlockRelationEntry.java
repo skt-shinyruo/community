@@ -18,7 +18,7 @@ public record UserBlockRelationEntry(
 ) {
 
     public UserBlockRelationEntry {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public UserBlockRelationEntry(

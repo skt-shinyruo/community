@@ -17,7 +17,7 @@ public record RoomMembershipEntry(
 ) {
 
     public RoomMembershipEntry {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public RoomMembershipEntry(UUID roomId, UUID userId, Long version, Long occurredAtEpochMillis) {

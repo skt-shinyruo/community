@@ -21,7 +21,7 @@ public record PrivateMessageFrame(
 ) {
 
     public PrivateMessageFrame {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
         requireType(type, "privateMessage");
     }
 

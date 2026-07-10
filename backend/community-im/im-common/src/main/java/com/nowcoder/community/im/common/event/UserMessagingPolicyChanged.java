@@ -25,7 +25,7 @@ public record UserMessagingPolicyChanged(
 ) {
 
     public UserMessagingPolicyChanged {
-        schemaVersion = ImContractVersions.schemaVersionOrCurrent(schemaVersion);
+        schemaVersion = ImContractVersions.requireSupportedSchemaVersion(schemaVersion);
     }
 
     public UserMessagingPolicyChanged(

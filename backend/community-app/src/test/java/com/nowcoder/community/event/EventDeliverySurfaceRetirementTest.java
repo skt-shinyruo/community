@@ -23,6 +23,11 @@ class EventDeliverySurfaceRetirementTest {
         assertClassRetired("com.nowcoder.community.growth.event.LocalGrowthEventPublisher");
         assertClassRetired("com.nowcoder.community.growth.event.GrowthLocalEvent");
         assertClassRetired("com.nowcoder.community.growth.event.payload.CheckInPayload");
+        assertClassRetired("com.nowcoder.community.content.infrastructure.event.Local" + "ContentEventPublisher");
+        assertClassRetired("com.nowcoder.community.social.infrastructure.event.Local" + "SocialDomainEventPublisher");
+        assertClassRetired("com.nowcoder.community.user.infrastructure.event.Local" + "UserPolicyEventPublisher");
+        assertClassRetired("com.nowcoder.community.user.infrastructure.event.Local" + "UserEventPublisher");
+        assertClassRetired("com.nowcoder.community.content.infrastructure.event.PostHotFeedProjection" + "LocalListener");
     }
 
     private void assertClassRetired(String className) {

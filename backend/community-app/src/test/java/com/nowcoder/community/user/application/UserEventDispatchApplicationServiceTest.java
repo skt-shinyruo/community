@@ -9,7 +9,6 @@ import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
 import java.util.Map;
 import java.util.UUID;
@@ -30,16 +29,6 @@ class UserEventDispatchApplicationServiceTest {
     private final UserIntegrationEventDispatcher dispatcher = mock(UserIntegrationEventDispatcher.class);
     private final UserEventDispatchApplicationService service =
             new UserEventDispatchApplicationService(jsonCodec, dispatcher);
-
-    @Test
-    void serviceShouldOnlyLoadForUserOutboxKafkaPublisher() {
-        ConditionalOnExpression conditional = UserEventDispatchApplicationService.class.getAnnotation(ConditionalOnExpression.class);
-
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.value()).isEqualTo(
-                "'${user.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'"
-        );
-    }
 
     @Test
     void dispatchShouldConvertPolicyPayloadAndSendThroughPort() {

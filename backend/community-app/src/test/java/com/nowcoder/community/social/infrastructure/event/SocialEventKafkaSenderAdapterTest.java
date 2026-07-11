@@ -8,7 +8,6 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
@@ -27,16 +26,11 @@ class SocialEventKafkaSenderAdapterTest {
     private static final String KAFKA_TOPIC = "social.events";
 
     @Test
-    void senderShouldOnlyLoadForSocialOutboxKafkaPublisher() {
+    void senderShouldRemainKafkaClasspathConditional() {
         ConditionalOnClass conditionalOnClass = SocialEventKafkaSenderAdapter.class.getAnnotation(ConditionalOnClass.class);
-        ConditionalOnExpression conditional = SocialEventKafkaSenderAdapter.class.getAnnotation(ConditionalOnExpression.class);
 
         assertThat(conditionalOnClass).isNotNull();
         assertThat(conditionalOnClass.value()).contains(KafkaTemplate.class);
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.value()).isEqualTo(
-                "'${social.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'"
-        );
     }
 
     @Test

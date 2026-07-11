@@ -243,7 +243,6 @@ content:
     hot-rank-version: ${CONTENT_FEED_HOT_RANK_VERSION:hot-v2}
     latest-fallback-enabled: ${CONTENT_FEED_LATEST_FALLBACK_ENABLED:true}
   events:
-    publisher: ${CONTENT_EVENTS_PUBLISHER:outbox-kafka}
     outbox-topic: ${CONTENT_EVENTS_OUTBOX_TOPIC:eventbus.content}
     kafka-topic: ${CONTENT_EVENTS_KAFKA_TOPIC:content.events}
   score:
@@ -264,7 +263,6 @@ events:
 social:
   storage: db
   events:
-    publisher: ${SOCIAL_EVENTS_PUBLISHER:outbox-kafka}
     outbox-topic: ${SOCIAL_EVENTS_OUTBOX_TOPIC:eventbus.social}
     kafka-topic: ${SOCIAL_EVENTS_KAFKA_TOPIC:social.events}
 
@@ -331,7 +329,6 @@ analytics:
 
 user:
   events:
-    publisher: ${USER_EVENTS_PUBLISHER:outbox-kafka}
     outbox-topic: ${USER_EVENTS_OUTBOX_TOPIC:eventbus.user}
     kafka-topic: ${USER_EVENTS_KAFKA_TOPIC:user.events}
   reward:

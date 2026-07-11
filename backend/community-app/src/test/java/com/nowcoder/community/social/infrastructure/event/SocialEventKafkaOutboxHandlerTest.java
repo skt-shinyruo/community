@@ -5,7 +5,6 @@ import com.nowcoder.community.social.application.SocialEventDispatchApplicationS
 import com.nowcoder.community.social.application.command.DispatchSocialEventCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
 import java.util.UUID;
 
@@ -17,16 +16,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 class SocialEventKafkaOutboxHandlerTest {
 
     private static final String OUTBOX_TOPIC = "custom.eventbus.social";
-
-    @Test
-    void handlerShouldOnlyLoadForSocialOutboxKafkaPublisher() {
-        ConditionalOnExpression conditional = SocialEventKafkaOutboxHandler.class.getAnnotation(ConditionalOnExpression.class);
-
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.value()).isEqualTo(
-                "'${social.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'"
-        );
-    }
 
     @Test
     void topicShouldReturnOutboxTopic() {

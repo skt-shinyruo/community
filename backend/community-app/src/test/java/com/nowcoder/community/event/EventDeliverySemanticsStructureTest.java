@@ -1,10 +1,10 @@
 package com.nowcoder.community.event;
 
-import com.nowcoder.community.common.event.BestEffortLocalEventListener;
-import com.nowcoder.community.content.infrastructure.event.PostHotFeedProjectionLocalListener;
 import com.nowcoder.community.content.infrastructure.event.PostHotFeedProjectionKafkaListener;
 import com.nowcoder.community.growth.infrastructure.event.TaskProgressEventBackboneKafkaListener;
-import com.nowcoder.community.im.infrastructure.event.ImPolicyBackboneKafkaListener;
+import com.nowcoder.community.notice.infrastructure.event.NoticeProjectionKafkaListener;
+import com.nowcoder.community.search.infrastructure.event.SearchPostProjectionKafkaListener;
+import com.nowcoder.community.user.infrastructure.event.UserRewardKafkaListener;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -15,6 +15,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -23,30 +25,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EventDeliverySemanticsStructureTest {
 
     @Test
-    void socialBackboneListenersShouldOwnCrossDomainCorrectness() {
-        assertThat(ImPolicyBackboneKafkaListener.class).isNotNull();
-        assertThat(PostHotFeedProjectionKafkaListener.class).isNotNull();
-        assertThat(TaskProgressEventBackboneKafkaListener.class).isNotNull();
+    void canonicalKafkaListenersShouldOwnCrossDomainCorrectness() {
+        assertThat(List.of(
+                SearchPostProjectionKafkaListener.class,
+                TaskProgressEventBackboneKafkaListener.class,
+                UserRewardKafkaListener.class,
+                PostHotFeedProjectionKafkaListener.class,
+                NoticeProjectionKafkaListener.class
+        )).allMatch(Objects::nonNull);
     }
 
     @Test
-    void afterCommitLocalListenersShouldDeclareBestEffortSemantics() throws Exception {
-        Set<Class<?>> listeners = afterCommitLocalListeners();
-
-        assertThat(listeners)
-                .extracting(Class::getName)
-                .contains(PostHotFeedProjectionLocalListener.class.getName())
-                .doesNotContain("com.nowcoder.community.notice.infrastructure.event.NoticeProjectionListener");
-
-        for (Class<?> listener : listeners) {
-            BestEffortLocalEventListener annotation = listener.getAnnotation(BestEffortLocalEventListener.class);
-            assertThat(annotation)
-                    .as(listener.getName())
-                    .isNotNull();
-            assertThat(annotation.reason())
-                    .as(listener.getName())
-                    .isNotBlank();
-        }
+    void crossDomainAfterCommitLocalListenersShouldBeRetired() throws Exception {
+        assertThat(afterCommitLocalListeners()).isEmpty();
     }
 
     private Set<Class<?>> afterCommitLocalListeners() throws Exception {

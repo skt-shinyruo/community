@@ -5,7 +5,6 @@ import com.nowcoder.community.content.application.ContentEventDispatchApplicatio
 import com.nowcoder.community.content.application.command.DispatchContentEventCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
 import java.util.UUID;
 
@@ -17,16 +16,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class ContentEventKafkaOutboxHandlerTest {
 
     private static final String OUTBOX_TOPIC = "custom.eventbus.content";
-
-    @Test
-    void handlerShouldOnlyLoadForContentOutboxKafkaPublisher() {
-        ConditionalOnExpression conditional = ContentEventKafkaOutboxHandler.class.getAnnotation(ConditionalOnExpression.class);
-
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.value()).isEqualTo(
-                "'${content.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'"
-        );
-    }
 
     @Test
     void topicShouldReturnOutboxTopic() {

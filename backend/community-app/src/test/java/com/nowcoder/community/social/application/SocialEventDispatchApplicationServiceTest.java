@@ -12,7 +12,6 @@ import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
 import java.time.Instant;
 import java.util.Map;
@@ -34,16 +33,6 @@ class SocialEventDispatchApplicationServiceTest {
     private final SocialIntegrationEventDispatcher dispatcher = mock(SocialIntegrationEventDispatcher.class);
     private final SocialEventDispatchApplicationService service =
             new SocialEventDispatchApplicationService(jsonCodec, dispatcher);
-
-    @Test
-    void serviceShouldOnlyLoadForSocialOutboxKafkaPublisher() {
-        ConditionalOnExpression conditional = SocialEventDispatchApplicationService.class.getAnnotation(ConditionalOnExpression.class);
-
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.value()).isEqualTo(
-                "'${social.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'"
-        );
-    }
 
     @Test
     void dispatchShouldConvertLikePayloadAndSendThroughPort() {

@@ -6,7 +6,7 @@ import com.nowcoder.community.content.contracts.event.PostPayload;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
@@ -25,13 +25,11 @@ class ContentEventKafkaSenderAdapterTest {
     private static final String KAFKA_TOPIC = "content.events";
 
     @Test
-    void senderShouldOnlyLoadForContentOutboxKafkaPublisher() {
-        ConditionalOnExpression conditional = ContentEventKafkaSenderAdapter.class.getAnnotation(ConditionalOnExpression.class);
+    void senderShouldRemainKafkaClasspathConditional() {
+        ConditionalOnClass conditional = ContentEventKafkaSenderAdapter.class.getAnnotation(ConditionalOnClass.class);
 
         assertThat(conditional).isNotNull();
-        assertThat(conditional.value()).isEqualTo(
-                "'${content.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'"
-        );
+        assertThat(conditional.value()).contains(KafkaTemplate.class);
     }
 
     @Test

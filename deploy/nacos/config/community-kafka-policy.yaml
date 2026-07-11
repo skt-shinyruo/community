@@ -33,19 +33,17 @@ community:
       delivery-timeout-ms: 5000
       max-block-ms: 5000
 
-# Rollback publisher switches:
-# CONTENT_EVENTS_PUBLISHER=local
-# SOCIAL_EVENTS_PUBLISHER=local
-# USER_EVENTS_PUBLISHER=local
+events:
+  outbox:
+    enabled: true
+
 content:
   events:
-    publisher: ${CONTENT_EVENTS_PUBLISHER:outbox-kafka}
     outbox-topic: ${CONTENT_EVENTS_OUTBOX_TOPIC:eventbus.content}
     kafka-topic: ${CONTENT_EVENTS_KAFKA_TOPIC:content.events}
 
 social:
   events:
-    publisher: ${SOCIAL_EVENTS_PUBLISHER:outbox-kafka}
     outbox-topic: ${SOCIAL_EVENTS_OUTBOX_TOPIC:eventbus.social}
     kafka-topic: ${SOCIAL_EVENTS_KAFKA_TOPIC:social.events}
 
@@ -99,7 +97,6 @@ notice:
 
 user:
   events:
-    publisher: ${USER_EVENTS_PUBLISHER:outbox-kafka}
     outbox-topic: ${USER_EVENTS_OUTBOX_TOPIC:eventbus.user}
     kafka-topic: ${USER_EVENTS_KAFKA_TOPIC:user.events}
   reward:

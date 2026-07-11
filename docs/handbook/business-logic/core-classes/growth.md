@@ -30,13 +30,13 @@
 
 | 类 | 核心职责 |
 | --- | --- |
-| `growth.infrastructure.api.GrowthTaskProgressActionApiAdapter` | 对外接收任务推进动作。 |
+| `growth.infrastructure.event.TaskProgressEventBackboneKafkaListener` | 从 `content.events` / `social.events` 识别成长事件并进入 application。 |
 | `growth.infrastructure.api.UserLevelQueryApiAdapter` | 对外暴露等级查询。 |
 | `growth.infrastructure.persistence.*` | task template、progress、event log、level rule 的持久化。 |
 
 ## 关键语义
 
 - growth 不直接记钱包账，只发奖励协作。
-- 任务进度和奖励都要做事件去重。
+- 任务进度和奖励都要做事件去重；like removed 会撤销尚未 claimed 的原点赞贡献。
+- 成长任务只从 owner Kafka contract event 推进，不存在同步 task action 或 secondary task topic。
 - 用户等级读取依赖规则配置，不是静态枚举。
-

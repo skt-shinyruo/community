@@ -44,7 +44,6 @@ caller ApplicationService
 典型例子：
 
 - social 解析内容实体：`content.api.query.ContentEntityQueryApi`。
-- content / social 推进成长任务：`growth.api.action.*`。
 - content / social 发放积分或奖励：wallet / growth owner action。
 - market 资金托管、放款、退款：由 market wallet action processor 调用 `wallet.api.action.WalletMarketActionApi`。
 
@@ -63,10 +62,12 @@ Market wallet action API 语义：
 
 ```text
 owner domain event
-  -> infrastructure event publisher / bridge
-  -> owner contracts.event
-  -> listener / outbox enqueuer
-  -> consumer ApplicationService / outbox handler
+  -> owner ApplicationService / bridge
+  -> eventbus.<owner>
+  -> owner outbox handler
+  -> <owner>.events
+  -> consumer Kafka listener
+  -> consumer ApplicationService
 ```
 
 规则：
@@ -81,22 +82,18 @@ owner domain event
 
 - `content.contracts.event.*`
 - `social.contracts.event.*`
+- `user.contracts.event.*`
 
 典型消费：
 
-- notice 监听 content / social / moderation 事件，生成站内通知。
-- search outbox enqueuer 监听 content 事件，写 `projection.search.post` outbox。
-- growth task 处理内容 / 社交事件推进任务。
-- IM policy projection 处理 user punishment / social block 变化。
+- notice、search、growth、user reward 和 hot feed listener 直接消费 `content.events` / `social.events` 并进入各自 ApplicationService。
+- IM policy listener 直接消费 `user.events` / `social.events`，再进入唯一保留的内部 projection outbox。
 
 ## Outbox Topic Contract
 
 Outbox topic 是内部可靠投递键，不是对外业务 API。
 
-当前主要 topic：
-
-- `projection.search.post`
-- `projection.im.policy`
+当前唯一内部 projection outbox topic 是 `projection.im.policy`。
 
 约束：
 
@@ -105,14 +102,13 @@ Outbox topic 是内部可靠投递键，不是对外业务 API。
 - handler 遇到未知/坏 payload 不应 silent drop，应失败、重试或进入 `DEAD`。
 - `DEAD` 需要人工排查口径。
 
-Search 的 `projection.search.post` 只用事件触发投影，handler 会回源 content owner 当前状态，再决定 upsert/delete ES。
-
 IM policy 的 `projection.im.policy` 是 `community-app` 内部 outbox topic：
 
-- `ImPolicyOutboxEnqueuer` 监听 social `BLOCK_RELATION_CHANGED` 和 user `USER_POLICY_CHANGED` contract event。
+- `ImPolicyBackboneKafkaListener` 从 `social.events` / `user.events` 识别 `BLOCK_RELATION_CHANGED` 和 `USER_POLICY_CHANGED`，校验源 event ID、发生时间和正数 owner version 后调用 `ImPolicyProjectionApplicationService`。
+- `JdbcImPolicyProjectionOutboxAdapter` 通过 application-owned `ImPolicyProjectionOutboxPort` 写入该 topic。
 - payload `kind=BLOCK` 会转成 Kafka `UserBlockRelationChanged`。
 - payload `kind=USER_POLICY` 会转成 Kafka `UserMessagingPolicyChanged`。
-- outbox event key 是 primary user id；event id 形如 `im-policy:<kind>:<uuid>`。
+- outbox event key 是 primary user id；event ID 由 source domain、source event ID 和 kind 确定性生成，ASCII 长度不超过 64，同一源事件最多插入一行。
 - payload 缺少必要时间字段或 JSON 反序列化失败时，handler 抛错交给 outbox 重试 / DEAD。
 - 不能把 `projection.im.policy` 当成外部 contract；跨服务稳定 contract 是下面的 IM Kafka event。
 
@@ -120,12 +116,13 @@ IM policy 的 `projection.im.policy` 是 `community-app` 内部 outbox topic：
 
 IM 使用 Kafka 连接 realtime 与 core：
 
-Contract code lives in `backend/community-im/im-common` and is shared by `community-im-gateway` / `im-realtime` / `im-core`. It is a deployable boundary, not an internal DTO bag. Rolling upgrades must assume one deployable may produce an older or newer JSON payload than the consumer currently running.
+Contract code lives in `backend/community-im/im-common` and is shared by `community-im-gateway` / `im-realtime` / `im-core`. It is a deployable boundary, not an internal DTO bag.
 
 Command topics：
 
 - `im.command.private-text`
 - `im.command.room-text`
+- `im.command.room-fanout-routed`
 
 Event topics：
 
@@ -148,7 +145,7 @@ Contract inventory：
 
 | Area | Types |
 | --- | --- |
-| Command | `SendPrivateTextCommand`, `SendRoomTextCommand` |
+| Command | `SendPrivateTextCommand`, `SendRoomTextCommand`, `RoomFanoutCommand` |
 | Message fact events | `PrivateMessagePersistedEvent`, `RoomMessagePersistedEvent` |
 | Send-result events | `PrivateMessageCommittedEvent`, `RoomMessageCommittedEvent`, `PrivateMessageRejectedEvent`, `RoomMessageRejectedEvent` |
 | Projection events | `RoomMemberChanged`, `UserMessagingPolicyChanged`, `UserBlockRelationChanged` |
@@ -157,17 +154,11 @@ Contract inventory：
 
 Versioning and schema evolution：
 
-- IM JSON contracts use `schemaVersion` with current value `1` from `ImContractVersions`.
-- Missing or non-positive `schemaVersion` is read as version `1`. This is the compatibility path for payloads produced before the version field existed.
-- Version `1` is not written by default so a newly upgraded producer does not break an old consumer during the same rolling upgrade. Positive versions greater than the current supported version are unsupported and must fail before business handling.
-- All `im-common` command / event / frame / projection records ignore unknown JSON properties. Consumers must preserve known field semantics and ignore additive metadata they do not understand.
-- Adding an optional field is allowed only when the consumer can apply a deterministic default if the field is missing. Valid defaults must be documented with the field.
-- Adding a required field to an existing topic or frame type is not allowed. Use a new optional field plus fallback first, then enforce it only after all producers are known to send it.
-- Renaming or deleting a field is a breaking change. Keep the old field readable and mark it deprecated in docs/code until all deployables and persisted/replayed payloads no longer need it.
-- Changing the meaning, unit, key semantics, idempotency semantics, or type of an existing field is breaking even if JSON still parses.
-- Unsupported future `schemaVersion` values must not silently reinterpret payloads. Kafka command/event consumers route the record through the configured deserialization error path and DLQ/non-retryable handling; WebSocket consumers return a protocol reject with `unsupported_schema_version`; projection snapshot refresh fails and must not write the unknown-version state into realtime projection.
-- Kafka topic names stay stable for compatible v1 additive changes. Incompatible command/event changes require a new topic or a new event/frame type, with a dual-write/dual-read migration window.
-- WebSocket `type` stays stable for compatible v1 additive changes. Incompatible browser-visible behavior requires a new frame `type` or an explicitly negotiated non-v1 frame version.
+- command、event、projection 和 WebSocket frame 都显式写出 JSON integer `schemaVersion: 1`。
+- 只接受 integer `1`；字段缺失、`null`、非数值、非正数或未来版本都必须在业务处理前失败。
+- 所有 v1 contract 忽略未知 JSON properties，但已知字段的名字、类型和语义必须保持精确。
+- Kafka 失败进入配置的 deserialization/retry/DLQ 路径；WebSocket 失败转为 protocol reject；projection snapshot 失败不得写入 realtime 状态。
+- 不兼容的 command/event/frame 变化必须定义新的显式契约，不能在原 topic/type 上静默改义。
 - `OpenImSessionResponse` and `PrivateMessagePolicyDecision` are synchronous HTTP response helper models, not command / event / WebSocket frame / projection snapshot contracts. They do not carry `schemaVersion` in the current contract scope.
 
 语义：
@@ -180,9 +171,9 @@ Versioning and schema evolution：
 - room member changed event 用于 `im-realtime` 维护本机在线房间索引。
 - user messaging policy changed / user block relation changed event 用于 `im-realtime` 维护本机私信治理投影。
 - unknown version / unsupported payload 应进入失败路径或 DLQ，不能静默丢弃。
-- projection snapshot / delta 都带 `version` 和 `occurredAtEpochMillis`。`version` 是 owner-domain 持久逻辑时钟分配的状态版本：user policy 来自 `user_policy_version_counter` / `user.policy_version`，block relation 来自 `social_block_version_counter` / `social_block.version` 和删除日志，room membership 来自 `im_membership_version_counter` / `im_room_member.version` 和删除日志。
-- `occurredAtEpochMillis` 是可观测时间，不是新 payload 的版本来源；旧 payload 缺少 `version` 时，consumer 才使用它派生兼容版本。
-- snapshot 响应带 `snapshotHighWatermark`，表示该快照覆盖到的 owner version 上界。分页 snapshot 的整次刷新只使用第一页水位作为覆盖边界；后续页只贡献 entries，不能扩大覆盖边界。
+- projection entry / delta 的 `version` 必须是 owner-domain 持久逻辑时钟分配的正数：user policy 来自 `user_policy_version_counter` / `user.policy_version`，block relation 来自 `social_block_version_counter` / `social_block.version` 和删除日志，room membership 来自 `im_membership_version_counter` / `im_room_member.version` 和删除日志。
+- `occurredAtEpochMillis` 只是可观测时间，不能作为版本来源。
+- snapshot 的 boxed `snapshotHighWatermark` 必填、非负且允许为 `0`。分页刷新只使用第一页水位作为覆盖边界；后续页只贡献 entries，不能扩大覆盖边界。
 - `im-realtime` 对 user policy、block relation、room membership 都按 key 比较版本：只应用版本更大的 snapshot entry 或 delta。重复事件、乱序旧事件、旧 snapshot 都不能回滚本地状态；高水位高于本地版本且 snapshot 缺少的 key 才能表示删除或不存在。
 
 幂等：
@@ -222,6 +213,8 @@ Idempotency-Key: <unique-key>
 - 钱包充值、提现、转账和市场下单的 HTTP `Idempotency-Key` 只保护对外请求重放。
 - 钱包总账另有 `wallet_txn.request_id`，由应用层派生，例如 `wallet:transfer:<orderId>` 或 `market-order:<orderId>:<action>`。
 - 市场下单成功返回时，订单可能仍处于 `ESCROW_PENDING`，不表示 wallet escrow 已落账。
+- 同一 buyer / requestId 的既有订单是市场业务幂等事实：请求参数一致时，即使 listing 已售罄或并发重试发生，也直接返回既有订单。
+- 物理订单 replay 只比较请求 addressId 与订单持久化的 `addressIdSnapshot`；该快照缺失时返回 replay conflict，不回查地址重建快照。
 - 市场确认、取消和争议裁决可能返回 pending money state；最终资金结果由 `market_wallet_action` processor / recovery 推进。
 - 客户端和后台页面应把 pending 状态展示为处理中，而不是按完成态处理。
 

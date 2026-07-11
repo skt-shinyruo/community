@@ -102,19 +102,13 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 | `content.application.ContentEntityResolutionApplicationService` | `Covered` | [Content 内容业务逻辑](business-logic/content.md#owner-entity-resolution) |
 | `content.application.ContentEventDispatchApplicationService` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `content.infrastructure.event.ContentEventKafkaOutboxHandler` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
-| `content.infrastructure.event.SocialInteractionBackboneKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
+| `content.infrastructure.event.PostHotFeedProjectionKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `drive.infrastructure.job.DriveUploadRecoveryJob` | `Covered` | [网盘业务逻辑](business-logic/drive.md#详细链路) |
-| `growth.application.TaskProgressOutboxDispatchApplicationService` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
-| `growth.infrastructure.event.CommentTaskProgressKafkaOutboxHandler` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
-| `growth.infrastructure.event.CommentTaskProgressOutboxEnqueuer` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
-| `growth.infrastructure.event.LikeTaskProgressKafkaOutboxEnqueuer` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
-| `growth.infrastructure.event.LikeTaskProgressKafkaOutboxHandler` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
-| `growth.infrastructure.event.PostTaskProgressKafkaOutboxEnqueuer` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
-| `growth.infrastructure.event.PostTaskProgressKafkaOutboxHandler` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `growth.infrastructure.event.TaskProgressEventBackboneKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
-| `growth.infrastructure.event.TaskProgressKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
+| `im.application.ImPolicyProjectionApplicationService` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `im.application.ImPolicyEventDispatchApplicationService` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `im.infrastructure.event.ImPolicyBackboneKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
+| `im.infrastructure.event.JdbcImPolicyProjectionOutboxAdapter` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `notice.infrastructure.event.NoticeProjectionKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `runtime.application.RuntimeConfigApplicationService` | `Covered` | [Runtime Configuration](core-logic/runtime-configuration.md) |
 | `runtime.controller.RuntimeConfigController` | `IndexOnly` | [Runtime Configuration](core-logic/runtime-configuration.md) |
@@ -122,8 +116,6 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 | `social.application.SocialEventDispatchApplicationService` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `social.infrastructure.event.SocialEventKafkaOutboxHandler` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `user.application.UserEventDispatchApplicationService` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
-| `user.infrastructure.event.CommentRewardOutboxEnqueuer` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
-| `user.infrastructure.event.CommentRewardOutboxHandler` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `user.infrastructure.event.UserEventKafkaOutboxHandler` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `user.infrastructure.event.UserRewardKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `common.observability.app.RuntimeApplicationLifecycleListener` | `Covered` | [Runtime Observability](core-logic/runtime-observability.md) |
@@ -133,7 +125,8 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 | `common.observability.kafka.RuntimeKafkaRebalanceListener` | `Covered` | [Runtime Observability](core-logic/runtime-observability.md) |
 | `gateway.canary.CanaryInstanceFilter` | `Covered` | [Gateway Runtime](core-logic/gateway-runtime.md) |
 | `gateway.config.GatewayConfigRefreshListener` | `Covered` | [Gateway Runtime](core-logic/gateway-runtime.md) |
-| `im.common.CurrentSchemaVersionFilter` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
+| `im.common.ImContractVersions` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
+| `im.common.ImSchemaVersionDeserializer` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 | `im.core.application.ConversationApplicationService` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 | `im.core.application.PrivateMessageApplicationService` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 | `im.core.application.RoomApplicationService` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
@@ -144,14 +137,16 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 | `im.core.domain.service.RoomMessageDomainService` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 | `im.core.domain.service.UnreadDomainService` | `IndexOnly` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 | `im.realtime.fanout.RoomFanoutRoutingService` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
-| `im.realtime.fanout.RoomFanoutTargetController` | `IndexOnly` | [IM Core Runtime](core-logic/im-core-runtime.md) |
+| `im.realtime.fanout.RoomFanoutOwnerService` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
+| `im.realtime.fanout.KafkaRoomFanoutDispatcher` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
+| `im.realtime.fanout.RoomFanoutTargetConsumer` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 | `im.realtime.presence.RoomLocalPresenceService` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 
 Frontend 收窄范围的 API service 和 `*State.js` 文件已经进入 [core-logic-index.md](core-logic-index.md#frontend-business-state-and-api-orchestration)，行为说明见 [前端业务状态与 API 编排](core-logic/frontend-business-state.md)。
 
 ## 审计备注
 
-- IM policy 当前有一条需要持续可见的不对称路径：social block 事件可通过 `ImPolicyBackboneKafkaListener` 从 `social.events` 进入 `projection.im.policy`；user policy 事件也可通过本地 `ImPolicyOutboxEnqueuer` 从 `UserContractEvent` 进入同一个内部 topic。该备注记录现状，不按代码缺陷处理。
+- IM policy 的 user/social 事件统一由 `ImPolicyBackboneKafkaListener` 从 owner Kafka topic 进入 `ImPolicyProjectionApplicationService`，再通过 application-owned port 写 `projection.im.policy`。
 
 ## Excluded Examples
 

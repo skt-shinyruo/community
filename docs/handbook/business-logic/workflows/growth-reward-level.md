@@ -16,14 +16,15 @@
 ## 任务进度流程
 
 1. content 或 social 发生业务事件。
-2. 事件通过 `GrowthTaskProgressActionApi` 或对应事件入口进入 growth。
-3. growth 按事件类型查找 active 任务模板。
-4. 根据周期类型计算 `periodKey`。
-5. growth 先写 `user_task_event_log`，用 `sourceEventId` 做去重。
-6. 确保存在当前用户、任务、周期的 `user_task_progress`。
-7. 锁定进度行并推进 progress。
-8. domain service 判断是否未完成、达到待领取，或达到后自动发奖。
-9. 已发过的奖励不重复发。
+2. owner transaction 经 `eventbus.content` / `eventbus.social` 发布到 `content.events` / `social.events`。
+3. `TaskProgressEventBackboneKafkaListener` 识别目标事件并调用 `TaskProgressApplicationService`；非法目标 payload 进入 retry / `.dlq`。
+4. growth 按事件类型查找 active 任务模板。
+5. 根据周期类型计算 `periodKey`。
+6. growth 先写 `user_task_event_log`，用 `sourceEventId` 做去重。
+7. 确保存在当前用户、任务、周期的 `user_task_progress`。
+8. 锁定进度行并推进 progress；like removed 按 relation key 撤销尚未 claimed 的原贡献。
+9. domain service 判断是否未完成、达到待领取，或达到后自动发奖。
+10. 已发过的奖励不重复发。
 
 ## 自动奖励流程
 

@@ -48,7 +48,7 @@
 
 1. 点赞：`LikeApplicationService` 先解析 actor、entityType 和 entityId，再通过 content owner 回源内容实体，服务端计算目标用户、帖子归属和事件字段。写入或删除点赞关系后发布 `LikeChangedDomainEvent`，由 social contract event / outbox / Kafka 驱动 user reward、growth task、notice 和 content score projection。
 2. 关注：`FollowApplicationService` 校验目标实体和拉黑关系后写 `social_follow`。重复关注是幂等 no-op；新增关注发布 follow created event，notice 可生成关注通知。
-3. 拉黑：`BlockApplicationService` 写 `social_block` 后同步清理双向 follow，再发布 `BlockRelationChangedDomainEvent`。IM policy outbox 在事务内写 `projection.im.policy`，outbox handler 转成 Kafka 事件供 realtime 更新本地 projection。
+3. 拉黑：`BlockApplicationService` 写 `social_block` 后同步清理双向 follow，再发布 `BlockRelationChangedDomainEvent`。social contract event 与主事实同事务写 `eventbus.social`，经 `social.events` 进入 IM policy application，再写内部 `projection.im.policy` outbox 供 realtime 追平。
 4. 查询：列表、计数和状态查询都从 social owner 的关系事实读取；content、IM 或其他域需要关系判断时通过 social owner API，不直接读表。
 5. 补偿：部分 repository 声明需要显式补偿时，application 在事务回滚或事件发布失败路径注册反向动作，避免关系状态与下游副作用长时间不一致。
 
@@ -121,14 +121,15 @@
    - blocker -> blocked
    - blocked -> blocker
 5. 发布 `BlockRelationChangedDomainEvent(blocked=true)`。
-6. IM policy outbox enqueuer 在事务内写出变更。
+6. social owner 将 block contract event 与主事实同事务写入 `eventbus.social`，随后发布 `social.events`。
+7. `ImPolicyBackboneKafkaListener` 进入 `ImPolicyProjectionApplicationService`，按 source event 确定性去重后写 `projection.im.policy`。
 
 `unblock(...)`：
 
 1. 校验 actor 和 target。
 2. 删除 block relation。
 3. 删除成功后发布 `BlockRelationChangedDomainEvent(blocked=false)`。
-4. IM policy 投影收到解除拉黑事件后更新本地状态。
+4. 解除拉黑事件走同一 owner Kafka -> `projection.im.policy` 链路，最终更新 realtime 本地状态。
 
 拉黑影响：
 
@@ -157,15 +158,15 @@ contract events：
 - notice 生成点赞/关注通知。
 - growth 通过 social event 推进被点赞用户任务。
 - user/wallet 对点赞奖励做发放或撤销。
-- IM policy outbox 同步拉黑变化。
+- social block event 经 `eventbus.social -> social.events` 进入 IM policy projection。
 
 ## 一致性和补偿
 
 - DB repository 本身是事务性的。
 - 某些 storage adapter 可能声明需要显式补偿，application 在事务回滚时反向修复。
 - 事件发布失败时，如果 repository 需要显式补偿，application 会执行补偿。
-- notice 是 after-commit best-effort。
-- IM policy 通过 outbox/Kafka 增量投影，失败由 outbox 重试。
+- owner contract event 与 social 主事实同事务写 `eventbus.social`；Kafka 发布失败由 owner outbox 重试 / DEAD。
+- notice、growth、reward、hot-feed 和 IM policy 都从 `social.events` 进入各自 ApplicationService，失败由 consumer retry / `.dlq` 恢复。
 
 ## 关键代码
 
@@ -181,4 +182,4 @@ contract events：
 - `social.domain.service.BlockDomainService`
 - `social.infrastructure.api.*`
 - `social.contracts.event.*`
-- `im.projection.ImPolicyOutboxEnqueuer`
+- `social.infrastructure.event.OutboxSocialDomainEventPublisher`

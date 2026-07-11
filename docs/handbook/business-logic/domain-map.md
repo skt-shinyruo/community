@@ -54,5 +54,5 @@
 | 商品、订单、纠纷 | market | wallet、user |
 | 网盘和文件分享 | drive | OSS |
 | 文件上传下载底座 | OSS | user、content、drive |
-| 搜索结果不一致 | search | content、outbox |
+| 搜索结果不一致 | search | content owner、`content.events` consumer/DLQ、reindex |
 | IM 发送失败或未读异常 | IM | user、social、community-app projection |

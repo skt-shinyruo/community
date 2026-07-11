@@ -17,14 +17,15 @@
 1. 买家提交下单请求，携带 `Idempotency-Key`。
 2. `MarketOrderApplicationService.createOrder(CreateMarketOrderCommand)` 计算 request fingerprint。
 3. `IdempotencyGuard.executeRequired(...)` 包住下单动作。
-4. `MarketOrderApplicationService.createOrder(requestId, ...)` 校验买家、商品、数量和地址。
-5. 如果同一买家和幂等键已有关联订单，由 `MarketOrder.assertReplayMatches(...)` 校验 replay 参数一致后返回已有结果。
-6. market 锁定商品并校验库存、状态和购买约束。
-7. 如果商品需要地址，market 保存地址快照。
-8. market 通过 `MarketOrder.place(...)` 生成订单快照并写订单。
-9. finite stock 商品扣减库存；preloaded delivery 商品预留发货单元。
-10. market 写入或 enqueue escrow 资金动作。
-11. 返回订单当前状态。
+4. `MarketOrderApplicationService.createOrder(requestId, ...)` 先按 `(buyerUserId, requestId)` 查询已有订单。
+5. `MarketOrder.assertReplayMatches(...)` 校验 buyer、listing、quantity 和 address；语义一致时立即返回已有结果，即使 listing 已售罄或当前是并发重试。
+6. 实物 replay 只比较请求 `addressId` 和已持久化的 `addressIdSnapshot`；快照缺失时返回 replay conflict，不回查地址重建。
+7. replay miss 后 market 才锁定商品并校验库存、状态和购买约束；锁后和重复插入恢复分支使用同一 replay 校验。
+8. 新实物订单校验 active 地址并保存完整快照；虚拟订单不需要地址快照。
+9. market 通过 `MarketOrder.place(...)` 生成订单快照并写订单。
+10. finite stock 商品扣减库存；preloaded delivery 商品预留发货单元。
+11. market 写入或 enqueue escrow 资金动作。
+12. 返回订单当前状态。
 
 HTTP 成功表示订单主事实和资金动作命令已按设计接单，不等于钱包账本已经完成所有动作。
 
@@ -70,7 +71,8 @@ wallet 的核心事实是账户和 ledger。充值、提现、转账、奖励、
 
 | 现象 | 先查哪里 |
 | --- | --- |
-| 下单重复返回已有订单 | market idempotency key、request fingerprint。 |
+| 下单重复返回已有订单 | market idempotency key、buyer/requestId 订单和 replay 参数。 |
+| 实物订单 replay conflict | 比较请求 addressId 与订单 addressIdSnapshot；缺失快照不做地址回查。 |
 | 订单成功但余额没变 | market wallet action 状态和 wallet ledger。 |
 | 确认收货后卖家未到账 | release action 是否 pending / succeeded / dead。 |
 | 退款状态和余额不一致 | market 纠纷/退款状态、wallet refund posting、补偿任务。 |

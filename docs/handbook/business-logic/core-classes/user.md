@@ -49,8 +49,10 @@
 | --- | --- |
 | `user.infrastructure.api.*` | 给 auth / content / social / growth / 其他域提供 user owner 的同步 API 适配。 |
 | `user.infrastructure.oss.OssAvatarStorageAdapter` | 把头像上传确认委托给 OSS。 |
-| `user.infrastructure.event.LocalUserEventPublisher` | user contract event 的本地发布。 |
-| `user.infrastructure.event.LocalUserPolicyEventPublisher` | user policy 事件的本地发布。 |
+| `user.infrastructure.event.OutboxUserPolicyEventPublisher` | user policy contract event 写 `eventbus.user`。 |
+| `user.infrastructure.event.UserEventKafkaOutboxHandler` | owner outbox 进入 dispatch application。 |
+| `user.infrastructure.event.UserEventKafkaSenderAdapter` | 发布 `user.events`。 |
+| `user.infrastructure.event.UserRewardKafkaListener` | 从 content/social owner Kafka event 进入奖励 application。 |
 | `user.infrastructure.audit.Slf4jUserAuditLogAdapter` | 管理动作审计日志。 |
 
 ## 关键语义

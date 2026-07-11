@@ -72,11 +72,12 @@ HTTP write
   -> ApplicationService
   -> domain rules + repository interface
   -> infrastructure persistence
-  -> domain event / contract event
-  -> notice / search / growth / IM policy 等下游
+  -> owner contract event -> eventbus.<owner>
+  -> owner outbox handler -> <owner>.events
+  -> consumer Kafka listener -> consumer ApplicationService
 ```
 
-当前默认配置里，发帖相关真正走 outbox 可靠投递的是搜索投影；通知是本地 `AFTER_COMMIT` best-effort 投影；积分和任务进度已经收敛为当前用例内同步 owner-domain API 协作。
+当前 Content、Social、User 只使用 owner outbox -> owner Kafka 骨干。Search、Notice、Growth、User reward、Hot feed 和 IM policy 都从 owner Kafka listener 进入同域 ApplicationService；只有 IM policy 消费后再写入内部 `projection.im.policy` outbox。
 
 ### 资金写路径可能先进入 pending
 
@@ -100,20 +101,20 @@ IM 不是 `community-app` 里的普通包，而是独立子系统：
 
 ## 典型读写路径
 
-### 读路径：帖子列表
+### 读路径：首页热流
 
 ```text
-GET /api/posts
+GET /api/feed/global
   -> community-gateway
   -> community-app
   -> CommunitySecurityConfig 路径授权
-  -> content controller
-  -> content application service
-  -> content repository / cache
+  -> FeedController
+  -> FeedReadApplicationService
+  -> hot-feed cache / content repository fallback
   -> Result<T>
 ```
 
-读接口多数允许匿名，但具体路径以 `ApiSecurityRules` 和各域 `*SecurityRules` 为准。
+版块流使用 `GET /api/boards/{boardId}/feed`，关注流使用 `GET /api/feed/follow`。已退役的 `GET /api/posts` 不是当前列表入口。
 
 ### 写路径：发帖
 
@@ -127,8 +128,8 @@ POST /api/posts + Authorization + Idempotency-Key
   -> content domain rules + repository
   -> DiscussPost / tag 绑定 / 分类校验
   -> 发布 content domain event
-  -> outbox / Kafka 驱动 search / notice / growth / reward 等下游投影
-  -> score refresh
+  -> eventbus.content -> content.events
+  -> search / notice / growth / reward / hot-feed Kafka consumer
 ```
 
 这个链路代表了主站大多数写能力的共同形态：controller 不拼业务规则，应用层负责用例编排和事务，domain 放业务规则，MyBatis / Redis / ES 细节留在 infrastructure。
@@ -178,9 +179,8 @@ POST /api/im/sessions -> WS /ws/im
 
 搜索、通知、IM policy、analytics 等读模型或投影有各自的交付语义：
 
-- search：outbox worker 可靠追平，可重试。
-- notice：after-commit best-effort，失败只记录日志。
-- IM policy：`community-app` snapshot + outbox -> Kafka 增量事件。
+- search / notice：从 owner Kafka 消费，失败进入 retry / source-topic `.dlq`。
+- IM policy：`community-app` snapshot + owner Kafka -> `projection.im.policy` -> IM Kafka 增量事件。
 - analytics：Redis HyperLogLog / Bitmap 写入，具体采集面以当前 filter 和配置为准。
 
 ### Saga command 完成
@@ -202,7 +202,7 @@ POST /api/im/sessions -> WS /ws/im
 3. DDD 守卫测试：`backend/community-app/src/test/java/com/nowcoder/community/app/arch`。
 4. 代表写链路：content 发帖或评论。
 5. 业务域详解：[business-logic/README.md](business-logic/README.md) 下的 auth、user、content、social、growth、wallet、market、notice/search/analytics/ops、IM 文档。
-6. 下游投影：search outbox、notice projection、growth task / wallet reward。
+6. 异步骨干：owner outbox/Kafka 发布与 search、notice、growth、reward、hot-feed consumer。
 7. IM 双服务：`im-realtime` 的 WebSocket handler 和 `im-core` 的消息持久化。
 8. 可靠性底座：`common-idempotency`、`common-outbox`、single-flight、scheduler。
 9. 运维入口：`ops`、XXL-Job handler、`/api/ops/**`。

@@ -101,24 +101,26 @@ caller ApplicationService
 
 - `content.contracts.event.*`
 - `social.contracts.event.*`
+- `user.contracts.event.*`
 
 `common.event.EventEnvelope` 保留为通用 envelope 能力，但不是包级单体内部投影协作的默认入口。同步 `api.model` 和异步 `contracts.event` 是两套 public contract，即使字段相同也不复用类型。
 
 ## 投影和最终一致
 
-当前下游副作用不是统一走 outbox，而是按业务语义拆分：
+owner 跨域事件统一先走 owner outbox 到 Kafka；consumer 从 Kafka listener 进入本域 ApplicationService。只有 IM policy 在消费 owner Kafka 后保留一层内部 projection outbox：
 
 | 下游 | 交付模式 | 语义 |
 | --- | --- | --- |
-| search post projection | DB outbox | 可靠追平，可重试，handler 幂等 upsert/delete ES |
-| IM policy projection | DB outbox -> Kafka | user punishment / social block 变化发布给 `im-realtime` |
-| notice projection | local after-commit listener | best-effort，失败只记录日志，不回滚主事务 |
-| growth task progress | owner contract event -> DB outbox / Kafka listener | 主事实先提交，growth 侧按 `sourceEventId` 去重追平 |
-| wallet reward | user reward projection -> wallet owner API | reward 投影消费事件后调用 wallet owner，资金事实由 wallet 幂等落账 |
+| search post projection | `content.events` -> Kafka listener | 回源 content 当前事实后 upsert/delete ES |
+| IM policy projection | `user.events` / `social.events` -> `projection.im.policy` -> IM Kafka | 确定性 source event 去重后发布给 `im-realtime` |
+| notice projection | owner Kafka -> listener | source event 去重后写通知读模型 |
+| growth task progress | owner Kafka -> listener | `user_task_event_log` 去重并保留 like-removal rollback |
+| wallet reward | owner Kafka -> user reward application -> wallet owner API | wallet 以稳定 request ID 幂等落账 |
+| hot feed | owner Kafka -> listener | 根据 owner event 更新热流状态 |
 | market fund action | `market_wallet_action` saga command -> wallet owner API | 市场事务先提交资金命令，后台 processor 调钱包并推进订单/争议状态 |
 | analytics | filter / application 写 Redis | 采集口径以当前配置和代码入口为准 |
 
-social 严格互动链当前只支持 `social.storage=db`。`social.events=outbox-kafka` 为默认 correctness backbone，Redis-backed social storage 不在支持矩阵内。
+social 严格互动链当前只支持 `social.storage=db`；其 contract event 固定通过 `eventbus.social -> social.events` 发布，Redis-backed social storage 不在支持矩阵内。
 
 因此“HTTP 成功”不等于“所有投影完成”。业务读模型若可能延迟，应提供补偿或明确 best-effort 语义。
 
@@ -127,13 +129,11 @@ social 严格互动链当前只支持 `social.storage=db`。`social.events=outbo
 Outbox 用于需要可靠追平的异步副作用：
 
 ```text
-domain event
-  -> BEFORE_COMMIT enqueuer
-  -> community.outbox_event
-  -> OutboxWorkerScheduler
+owner transaction
+  -> eventbus.<owner>
   -> OutboxWorker
-  -> topic handler
-  -> external side effect / projection
+  -> owner outbox handler
+  -> <owner>.events
 ```
 
 最小正确性：
@@ -192,6 +192,8 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - 群聊用 `clientMsgId` 做 `(roomId, fromUserId, clientMsgId)` 幂等。
 - 群聊在线推送是 state-only update，不直接把完整消息当唯一交付方式。
 - `im-realtime` 通过 internal scope JWT 从 `im-core` 和 `community-app` 拉取 membership / policy snapshot。
+- IM command/event/projection/WebSocket frame 都显式写 `schemaVersion: 1`，并且只接受整数 `1`；projection version 必须是正数 owner version，snapshot watermark 必填且非负。
+- room fanout 只使用 Redis presence、共享 owner consumer 和 `im.command.room-fanout-routed` Kafka worker inbox；single slot 为 `0`，cluster slots 为 `0/1/2`。
 
 ## OSS 文件服务
 
@@ -208,15 +210,15 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 搜索是最终一致读模型：
 
 - 查询入口：`GET /api/search/posts`。
-- 投影入口：content 事件 -> search outbox -> `PostOutboxHandler` -> search application。
-- `PostOutboxHandler` 只负责 outbox payload 适配；search application 回源 content owner 当前状态，再 upsert/delete ES，避免乱序事件把已删除内容复活。
+- 投影入口：`content.events -> SearchPostProjectionKafkaListener -> SearchPostProjectionApplicationService`。
+- search application 回源 content owner 当前状态，再 upsert/delete ES，避免乱序事件把已删除内容复活。
 - ES 使用固定 alias `community_posts_alias`，运行时由 `PostIndexManager` 负责 alias 初始化和版本化索引准备。
 
 ## Scheduler / Ops 设计
 
 当前后台任务分为：
 
-- 本地 `@Scheduled`：例如 outbox worker、帖子热度刷新等需要应用内持续执行的任务。
+- 本地 `@Scheduled`：例如 outbox worker、hot-path 预热和 counter snapshot flush 等需要应用内持续执行的任务。
 - XXL-Job：例如 `marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery` 这类可由控制面触发的离散任务。
 
 调度入口不直接拼业务规则，仍然回到 owner `ApplicationService` 或 owner action API。

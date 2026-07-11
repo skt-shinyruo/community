@@ -55,9 +55,9 @@
 3. social 写 block relation。
 4. 新增成功后清理双向 follow。
 5. 发布 `BlockRelationChangedDomainEvent(blocked=true)`。
-6. IM policy outbox 在事务内写出 projection 变更。
-7. outbox handler 投递 Kafka 事件。
-8. im-realtime 消费事件，更新本地 policy projection。
+6. social contract event 与 block 主事实同事务写入 `eventbus.social`，owner handler 发布 `social.events`。
+7. `ImPolicyBackboneKafkaListener` 进入 `ImPolicyProjectionApplicationService`，按 source event 去重并写 `projection.im.policy`。
+8. IM policy outbox handler 投递 Kafka 事件，im-realtime 消费后更新本地 policy projection。
 
 解除拉黑时删除 block relation，并发布 `blocked=false` 事件让 IM projection 追平。
 
@@ -69,7 +69,7 @@ IM realtime 发送私信前会用本地 policy projection 做快速判断：
 - 目标用户是否存在并可接收。
 - 双方是否存在拉黑关系。
 
-这个 projection 不是 SSOT。user 处罚事实在 user，拉黑事实在 social；projection 落后时，realtime 的快速判定可能短暂滞后，最终通过 snapshot 和 outbox 增量追平。
+这个 projection 不是 SSOT。user 处罚事实在 user，拉黑事实在 social；projection 落后时，realtime 的快速判定可能短暂滞后，最终通过 snapshot 和 owner Kafka -> `projection.im.policy` 增量追平。
 
 ## 排查口径
 
@@ -78,4 +78,4 @@ IM realtime 发送私信前会用本地 policy projection 做快速判断：
 | 点赞目标用户不对 | content entity resolver，不要相信客户端 payload。 |
 | 重复关注没有报错 | 这是幂等 no-op 语义。 |
 | 拉黑后仍能短暂发送 IM | IM policy projection 是否追平，主事实仍查 social。 |
-| 通知缺失 | social contract event 和 notice projection。 |
+| 通知缺失 | `social.events` consumer lag / `.dlq` 和 notice projection source-event log。 |

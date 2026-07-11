@@ -9,7 +9,7 @@
 3. `ImWebSocketHandler` / `ProjectionSyncCoordinator`
 4. `MessageCommandIngressService`
 5. `PrivateMessageApplicationService` / `RoomMessageApplicationService` / `RoomApplicationService`
-6. `ImPolicySnapshotApplicationService`
+6. `ImPolicyProjectionApplicationService` / `ImPolicySnapshotApplicationService`
 
 ## Gateway
 
@@ -40,11 +40,14 @@
 | `im.realtime.projection.MembershipSnapshotClient` | 拉 room membership snapshot。 |
 | `im.realtime.presence.RoomLocalIndex` | 本进程 room -> connectionId 索引。 |
 | `im.realtime.presence.RoomLocalPresenceService` | 本 worker 房间在线 presence 的激活、刷新和释放。 |
-| `im.realtime.presence.RedisRoomPresenceDirectory` | routed fanout 使用的分布式 room -> worker presence。 |
-| `im.realtime.fanout.RoomFanoutRoutingService` | routed fanout 的 owner 规划和 target command 分发。 |
-| `im.realtime.fanout.RoomFanoutOwnerCoalescer` | routed owner 侧房间更新合并、目标 dispatch 和 pending retry。 |
-| `im.realtime.fanout.RoomFanoutTargetController` | internal routed fanout target HTTP 入口。 |
-| `im.realtime.fanout.RoomFanoutTargetService` | routed target 校验、本地 fanout 触发和 sourceEventId 去重。 |
+| `im.realtime.presence.RedisRoomPresenceDirectory` | 分布式 room -> worker presence。 |
+| `im.realtime.fanout.RoomPersistedOwnerConsumer` | 共享 consumer group 的 room persisted 入口。 |
+| `im.realtime.fanout.RoomFanoutOwnerService` | owner route planning 与 Kafka target dispatch。 |
+| `im.realtime.fanout.RoomFanoutRoutingService` | 基于 Redis presence 生成 worker route。 |
+| `im.realtime.fanout.KafkaRoomFanoutDispatcher` | 把 target command 写入固定 worker inbox partition。 |
+| `im.realtime.fanout.RealtimeWorkerDirectory` | 校验 worker ID、inbox slot 和 discovery metadata。 |
+| `im.realtime.fanout.RoomFanoutTargetConsumer` | 只消费本 worker 固定 partition 的 target command。 |
+| `im.realtime.fanout.RoomFanoutTargetService` | target 校验、本地 state fanout 和进程内 sourceEventId 去重。 |
 | `im.realtime.session.SessionTicketCodec` | realtime 侧 session ticket 校验。 |
 | `im.realtime.push.PrivatePushService` | 私信在线 fanout。 |
 | `im.realtime.push.SendResultPushService` | accepted / committed / rejected push。 |
@@ -80,11 +83,14 @@
 | 类 | 核心职责 |
 | --- | --- |
 | `im.application.ImPolicySnapshotApplicationService` | 给 realtime 拉 user policy / block relation snapshot。 |
-| `im.projection.ImPolicySnapshotController` | internal snapshot HTTP 入口。 |
-| `im.projection.ImPolicySnapshotService` | snapshot 装配。 |
-| `im.projection.ImPolicyChangePublisher` | IM policy Kafka delta publisher。 |
-| `im.projection.ImPolicyOutboxEnqueuer` | user / social policy event 到 projection outbox。 |
-| `im.projection.ImPolicyKafkaOutboxHandler` | projection outbox 到 IM Kafka policy event。 |
+| `im.controller.ImPolicySnapshotController` | internal snapshot HTTP 入口。 |
+| `im.application.ImPolicyProjectionApplicationService` | 校验 owner source metadata 并写 projection port。 |
+| `im.application.ImPolicyProjectionOutboxPort` | application-owned projection outbox 端口。 |
+| `im.infrastructure.event.ImPolicyBackboneKafkaListener` | 从 `user.events` / `social.events` 进入 projection application。 |
+| `im.infrastructure.event.JdbcImPolicyProjectionOutboxAdapter` | 以确定性 source event ID 写 `projection.im.policy`。 |
+| `im.infrastructure.event.ImPolicyKafkaOutboxHandler` | projection outbox 进入 dispatch application。 |
+| `im.application.ImPolicyEventDispatchApplicationService` | 组装 IM policy delta 并调用 dispatcher。 |
+| `im.infrastructure.event.ImPolicyEventKafkaSenderAdapter` | 发布 IM policy Kafka delta。 |
 
 ## 关键语义
 
@@ -93,3 +99,5 @@
 - private / room 消息都靠 clientMsgId 做消息级幂等；发送结果回执按 requestId + clientMsgId + fromUserId 区分尝试。
 - room 推送是 state-only update，历史仍要靠 HTTP 拉。
 - policy / membership projection 的 `version` 必须来自 owner 事实侧持久逻辑时钟：user 用 `user_policy_version_counter` + `user.policy_version`，social block 用 `social_block_version_counter` + `social_block.version` / 删除日志，room membership 用 `im_membership_version_counter` + `im_room_member.version` / 删除日志。
+- command / event / projection / WebSocket frame 都显式写数值型 `schemaVersion: 1`，读取时也只接受整数 `1`。
+- room fanout 只使用 Redis presence、共享 owner consumer 和 Kafka worker inbox；target delivery 是 state-idempotent at-least-once。

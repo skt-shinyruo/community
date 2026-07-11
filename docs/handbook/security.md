@@ -205,7 +205,7 @@ gateway 路径级限流：
 
 - 范围：`/api/**` 且 method 非 `GET` / `OPTIONS`。
 - 跳过 `/api/auth/login`，避免记录敏感登录参数。
-- 记录调用者、路径、状态、耗时、traceId 等信息。
+- 记录调用者、路径、状态、耗时和业务响应 `traceId` 等信息。结构化 MDC 只写 `trace.id` / `span.id`，gateway access log 不再维护旧 `traceId` MDC key。
 
 审计日志用于追踪“谁在什么时候调用了哪个写接口，结果如何”。
 

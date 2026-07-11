@@ -15,7 +15,9 @@
 
 HTTP：
 
-- `GET /api/posts`
+- `GET /api/feed/global`
+- `GET /api/boards/{boardId}/feed`
+- `GET /api/feed/follow`
 - `POST /api/posts`
 - `POST /api/posts/batch-summary`
 - `GET /api/posts/{postId}`
@@ -44,28 +46,27 @@ HTTP：
 
 事件/内部：
 
-- content domain event bridge 发布 content contract event。
-- search outbox enqueuer 订阅帖子事件。
-- notice projection listener 订阅 content/social/moderation contract event。
-- social interaction projection listener 在内容删除后清理社交关系。
+- content domain event bridge 进入 `PostContractEventApplicationService` / `CommentContractEventApplicationService`，将 contract event 与 owner 主事实同事务写入 `eventbus.content`。
+- `ContentEventKafkaOutboxHandler` 发布 `content.events`，Search、Notice、Growth、User reward 和 Hot feed 的 Kafka listener 分别进入同域 ApplicationService。
+- 内容删除后由 content application 在提交后调用 social owner action 清理失效点赞关系。
 
 ## 数据流
 
 内容域是社区主写路径的事件源，核心数据流如下：
 
-1. 读帖：controller 进入 `PostReadApplicationService`，content 先读帖子主事实、正文 blocks、媒体资源、标签和评论活动，再按 viewer 组合点赞、收藏等外部状态。帖子摘要和详情都以 content repository 为主，不从 search 或 notice 反查。
-2. 发帖：`PostPublishingApplicationService.create(...)` 用 `IdempotencyGuard` 包住写操作，先回源 user 判断能否发言，再写帖子元信息、正文 blocks、媒体绑定和 tag 关系。写入后发布 domain event，并由 outbox / Kafka 驱动 search、notice、growth task 等下游投影；帖子分数刷新在提交后调度。
+1. 读帖：全局/版块/关注 feed 分别从 `FeedController` 进入 `FeedReadApplicationService` / `FollowFeedReadApplicationService`；详情和批量摘要从 `PostController` 进入 `PostReadApplicationService`。content 以帖子主事实为准，不从 search 或 notice 反查。
+2. 发帖：`PostPublishingApplicationService.create(...)` 用 `IdempotencyGuard` 包住写操作，先回源 user 判断能否发言，再写帖子元信息、正文 blocks、媒体绑定和 tag 关系。写入后发布 domain event，并由 owner outbox / Kafka 驱动 Search、Notice、Growth、Reward 和 Hot feed 下游投影。
 3. 媒体：帖子媒体先在 content 保存 draft asset，再通过 OSS upload session 完成 blob 上传。发帖或改帖时只允许绑定当前用户已上传且类型匹配的 asset，旧引用会释放 OSS reference。
-4. 评论：`CommentApplicationService` 校验帖子、目标评论、作者发言资格和拉黑关系后写 `comment`，同步更新帖子评论数并发布评论事件；奖励和成长任务由各自 outbox handler 异步追平。
+4. 评论：`CommentApplicationService` 校验帖子、目标评论、作者发言资格和拉黑关系后写 `comment`，同步更新帖子评论数并发布评论事件；奖励、成长任务和通知由 `content.events` consumer 异步追平。
 5. 删除和治理：作者删除、治理删除和帖子下线都改变 content 主事实，再发布事件让 search 删除或更新 ES 文档，让 notice 生成治理通知，并在提交后调用 social owner 清理失效实体上的点赞关系。
 
 ## 帖子读取
 
-`PostReadApplicationService` 负责帖子读模型装配：
+feed HTTP 列表使用 opaque cursor：`FeedReadApplicationService` 读全局/版块热流，`FollowFeedReadApplicationService` 读关注流。`PostReadApplicationService` 负责详情、批量摘要和 owner query 所需的帖子读模型装配：
 
-1. `listPosts(...)` 根据 `order` 选择最新或热门排序。
-2. 可按 `categoryId` 和 `tag` 筛选。
-3. `subscribed=true` 时必须登录，先读取用户订阅分类，再查订阅流。
+1. `listPosts(...)` 只通过 content owner query contract 供跨域组装使用，不对应已退役的 `GET /api/posts` 列表路由。
+2. owner query 可按 `order`、`categoryId`、`tag` 和订阅条件组装摘要。
+3. feed 的排序与分页语义以 `FeedReadApplicationService` 返回的 rank version 和 opaque cursor 为准。
 4. 读出帖子后批量加载最新评论活动、标签和正文 blocks。
 5. 摘要装配不把点赞状态放在 content 主事实里。
 6. 摘要 `preview` 从 blocks 投影生成，不读取旧正文内容字段。
@@ -93,11 +94,11 @@ HTTP：
 10. `PostTagRepository.bindTagsToPost(...)` 绑定标签。
 11. 发布 `PostPublishedDomainEvent`。
 12. domain event bridge 将帖子事实映射为 content contract event，并写入 outbox。
-13. content contract event 进入 Kafka 后，驱动 user reward 和 growth task 投影异步追平。
-14. 安排帖子热度分刷新。
+13. content contract event 进入 Kafka 后，驱动 Search、Notice、User reward、Growth 和 Hot feed 投影异步追平。
+14. `PostHotFeedProjectionApplicationService` 收到该 owner event 后回源帖子/点赞当前状态，重算 score 并更新缓存与 hot feed。
 15. 写业务事件日志。
 
-幂等语义按 operation + userId + key 去重；当前发帖没有请求指纹，因此同 key 重放会返回首次结果。
+幂等语义按 operation + userId + key 去重；发帖指纹包含 title、categoryId、tags 和 blocks。同 key 且指纹相同时返回首次结果，指纹不同时返回 replay conflict。
 
 帖子写接口只接收 block payload。项目尚未部署，没有历史帖子数据，当前实现不保留正文格式迁移路径。
 
@@ -151,7 +152,7 @@ Complete upload：
 9. 释放已从正文移除的媒体资源引用。
 10. 替换标签。
 11. 发布 `PostUpdatedDomainEvent`。
-12. 安排分数刷新。
+12. `PostUpdated` 事件经 `content.events` 触发 hot-feed 投影重算。
 
 作者删除：
 
@@ -160,7 +161,7 @@ Complete upload：
 3. 软删除帖子。
 4. 发布 `PostDeletedDomainEvent`。
 5. 提交后清理帖子点赞。
-6. 安排分数刷新。
+6. `PostDeleted` 事件经 `content.events` 从 hot feed 和读缓存移除该帖子。
 
 治理删除由 `PostModerationApplicationService.deleteByModeration(...)` 处理，面向管理员/版主，并走同样的内容下线和事件扩散语义。
 
@@ -181,9 +182,9 @@ Complete upload：
 9. 写入评论。
 10. 增加帖子评论数。
 11. 发布 `CommentCreatedDomainEvent`。
-12. user reward 和 growth task 的 comment outbox enqueuer 在提交前写入各自 outbox 记录。
-13. 事务提交后，outbox worker 分别触发奖励、成长任务和可能的 wallet 记账。
-14. 安排帖子分数刷新。
+12. domain event bridge 进入 content application，将 comment contract event 与评论主事实同事务写入 `eventbus.content`。
+13. owner outbox handler 发布 `content.events`，Notice、Growth 和 User reward listener 进入各自 ApplicationService；失败走 Kafka retry / `.dlq`。
+14. 评论事件经 `content.events` 触发 hot-feed 投影重算。
 
 评论编辑：
 
@@ -270,21 +271,17 @@ contract events：
 
 下游：
 
-- search outbox 根据帖子事件回源 content 当前状态，决定 upsert 或 delete ES 文档；搜索正文从 blocks 投影生成。
-- notice listener after-commit best-effort 生成站内通知。
-- 发帖、评论、治理等 content contract event 默认通过 DB outbox 写入 `eventbus.content`，再 dispatch 到 `content.events`；search、notice、growth task、user reward 等下游按各自 outbox / Kafka listener 追平。
+- 发帖、评论、治理等 content contract event 在 owner transaction 写入 `eventbus.content`，由 owner handler 发布到 `content.events`。
+- Search、Notice、Growth、User reward 和 Hot feed 分别从 `content.events` 的 Kafka listener 进入本域 ApplicationService。
+- Search 回源 content 当前状态决定 upsert/delete ES；搜索正文从 blocks 投影生成。
 - social cleanup 在内容删除后清理点赞关系。
 
-帖子分数和社交派生刷新：
+帖子 hot-feed 和社交派生刷新：
 
-- `PostScoreUpdateApplicationService.updateScore(postId, score)` 要求 postId 非空。
-- 分数更新和 `PostUpdated` domain event 发布处于同一事务，避免分数写入和后续投影出现裂缝。
-- `SocialInteractionProjectionListener` 在 social contract event 提交后监听，属于 best-effort 本地 listener。
-- listener 只把事件交给 `SocialInteractionProjectionApplicationService`，不直接碰 repository 或 foreign API。
-- `SocialInteractionProjectionApplicationService` 只处理 `LIKE_CREATED` / `LIKE_REMOVED` 且 payload 为 `LikePayload` 的事件。
+- `PostHotFeedProjectionKafkaListener` 消费 `content.events` / `social.events`，只把已识别目标事件交给 `PostHotFeedProjectionApplicationService`。
+- `PostHotFeedProjectionApplicationService` 按 source event ID/version 保护投影顺序，并回源当前 post / like 状态。
 - 只有 `entityType=POST` 时才会提取 postId；优先用 payload.postId，缺失时回退到 payload.entityId。
-- 提取到 postId 后写入 `PostScoreQueue`，由帖子分数刷新任务后续重算。
-- 队列写入失败只记录 warn，不回滚 social 主事务，也不阻断点赞/取消点赞。
+- 提取到 postId 后更新 score、summary/detail cache 和 global/board hot feed；失败进入 Kafka retry / `.dlq`，不回滚已提交的 owner 事务。
 
 ## Owner Entity Resolution
 
@@ -300,9 +297,7 @@ contract events：
 
 - 发帖和评论是 HTTP 幂等写。
 - 媒体上传 prepare / complete 当前不走 HTTP Idempotency-Key；重复 complete 受 asset lifecycle 约束。
-- 通知投影失败不回滚内容写入。
-- 搜索投影通过 outbox 重试，ES 不是内容主事实。
-- 评论奖励和成长任务通过 outbox / Kafka 重试；wallet/growth 故障不回滚已提交评论。
+- 通知、搜索、评论奖励、成长任务和 hot-feed 都通过 owner Kafka consumer retry / `.dlq` 追平；ES 和这些读模型都不是内容主事实。
 - 点赞清理是提交后副作用，失败不回滚已提交删除。
 - 用户处罚和拉黑关系需要同步回源 owner 判断。
 - 删除/下线都是软删除和事件扩散，不物理删除主事实行。
@@ -328,7 +323,9 @@ contract events：
 - `content.application.ReportApplicationService`
 - `content.application.ModerationApplicationService`
 - `content.application.PostModerationApplicationService`
-- `content.application.PostScoreRefreshApplicationService`
+- `content.application.FeedReadApplicationService`
+- `content.application.FollowFeedReadApplicationService`
+- `content.application.PostHotFeedProjectionApplicationService`
 - `content.application.ContentEntityResolutionApplicationService`
 - `content.domain.service.*`
 - `content.infrastructure.event.*`

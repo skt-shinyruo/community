@@ -11,13 +11,9 @@
 
 ## 入口
 
-事件和 owner API 入口：
+事件和同步查询入口：
 
 - `TaskProgressEventBackboneKafkaListener`
-- `TaskProgressKafkaListener`
-- `GrowthTaskProgressActionApi.triggerPostPublished(...)`（保留的同步 owner action 合约，不是 content/social 主链路）
-- `GrowthTaskProgressActionApi.triggerCommentCreated(...)`（保留的同步 owner action 合约，不是 content/social 主链路）
-- `GrowthTaskProgressActionApi.triggerLikeCreated(...)`（保留的同步 owner action 合约，不是 content/social 主链路）
 - `UserLevelQueryApi.evaluateLevel(...)`
 
 应用服务：
@@ -36,7 +32,7 @@
 
 成长域当前不是面向浏览器的独立业务面，而是被内容和社交事件驱动：
 
-1. 事件入口：content/social 的 contract event 通过 DB outbox / Kafka 或 growth task projection outbox 转成 growth command，进入 `TaskProgressApplicationService`。
+1. 事件入口：content/social owner transaction 依次经过 `eventbus.<owner>`、owner outbox handler 和 `content.events` / `social.events`；`TaskProgressEventBackboneKafkaListener` 适配后进入 `TaskProgressApplicationService`。
 2. 去重：application 按 `sourceEventId` 先写 `user_task_event_log`。唯一约束冲突表示同一源事件已经处理，直接跳过，避免重复推进任务。
 3. 进度推进：按事件类型查询 active `TaskTemplate`，计算 `periodKey`，确保并锁定 `user_task_progress`，再由 domain service capped 增加进度并判断是否达到目标。
 4. 奖励：达到目标后，如果模板需要手动领取，状态变 `CLAIMABLE`；如果自动发奖，生成稳定 reward grant id 并调用 `WalletRewardActionApi`，由 wallet owner 完成总账入账和幂等。
@@ -120,18 +116,19 @@
 - 任务事件重复由 `user_task_event_log` 唯一约束去重。
 - progress 行创建并发由唯一约束处理，冲突后重新锁定读取。
 - 钱包奖励失败会让当前任务推进事务失败；调用方需要按业务语义重试。
+- 非目标 owner event 直接忽略；已识别事件缺失 event ID、正数 owner version、发生时间或必需 payload 时抛错，进入源 topic 的 retry / `.dlq`。
+- like removed 使用 relation key 找到原贡献并回滚尚未 claimed 的进度；同一源事件仍由 `user_task_event_log` 去重。
 - 等级计算是查询时计算，不依赖异步投影。
 
 ## 关键代码
 
 - `growth.application.TaskProgressApplicationService`
-- `growth.application.TaskProgressOutboxDispatchApplicationService`
 - `growth.application.UserLevelApplicationService`
 - `growth.application.GrowthBusinessTimeService`
 - `growth.domain.service.TaskProgressDomainService`
 - `growth.domain.service.TaskPeriodKeyResolver`
 - `growth.domain.service.RewardGrantDomainService`
 - `growth.domain.service.UserLevelDomainService`
-- `growth.infrastructure.api.GrowthTaskProgressActionApiAdapter`
+- `growth.infrastructure.event.TaskProgressEventBackboneKafkaListener`
 - `growth.infrastructure.api.UserLevelQueryApiAdapter`
 - `wallet.api.action.WalletRewardActionApi`

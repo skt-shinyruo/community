@@ -63,7 +63,7 @@
 4. 确认 / 取消 / 争议：卖家交付、买家确认、买家取消和管理员裁决先由 `MarketOrder` 判断角色、商品类型、状态和流转意图，再由 application service 持久化 market 侧状态并追加 release/refund action；真正放款或退款仍由 wallet owner 完成。
 5. 恢复：`MarketWalletActionRecoveryHandler` 负责恢复过期 lease、补齐漏写 command、把已有 `wallet_txn_id` 重新应用到 saga 状态。恢复服务通过 `MarketOrder` 判断 pending 状态对应的资金动作，避免钱包和订单长期分叉。
 
-`MarketOrder` 拥有订单创建快照、重放参数兼容性、买卖双方角色校验、状态谓词、自动确认到期判断和订单状态 transition intent。application service 保留事务边界、仓储锁定、库存写入、交付/发货记录、wallet action enqueue 和结果组装。
+`MarketOrder` 拥有订单创建快照、replay 参数一致性、买卖双方角色校验、状态谓词、自动确认到期判断和订单状态 transition intent。application service 保留事务边界、仓储锁定、库存写入、交付/发货记录、wallet action enqueue 和结果组装。
 
 ## 商品和库存
 
@@ -118,6 +118,8 @@
 
 地址是买家下实物订单时的输入。订单创建时保存地址快照，后续用户修改地址不会影响已创建订单。
 
+replay 时只比较请求 `addressId` 与订单已持久化的 `addressIdSnapshot`。已有实物订单如果缺失该快照，直接返回 `REQUEST_REPLAY_CONFLICT`；不回查当前地址，也不用姓名、电话或区域字段重建历史请求。
+
 ## 查询
 
 `MarketQueryApplicationService`：
@@ -142,18 +144,17 @@
 
 1. controller 只读取 `Idempotency-Key` 作为 HTTP 幂等键。
 2. body `requestId` 按未知字段返回参数错误。
-3. application 按 buyer + requestId 查询已有订单；存在则校验 replay 是否一致。
-4. 锁定 listing。
-5. 校验 listing active。
-6. 校验买家不能是卖家。
-7. 校验购买数量、库存和订单总额上限。
-8. 预加载虚拟商品锁定指定数量的 available inventory units。
-9. 实物商品校验 active 地址并保存地址快照。
-10. 通过 `MarketOrder.place(...)` 创建订单，领域模型保存商品、交付、库存、地址快照并给出初始 `ESCROW_PENDING` 状态。
-11. 有限库存扣减 listing 可用库存；扣到 0 时 listing 状态由 `MarketListing` 库存 helper 计算为 `SOLD_OUT`。
-12. 预加载库存绑定到订单。
-13. 写 `market_wallet_action` 的 ESCROW durable command。
-14. 返回重新加载后的订单结果。
+3. application 先按 `(buyerUserId, requestId)` 查询已有订单。当 buyer、listing、quantity 和 address 一致时立即返回已有订单，即使 listing 现在已售罄。
+4. 实物 replay 只比较 `addressIdSnapshot`；快照缺失或任一参数不同时返回 replay conflict。
+5. replay miss 后才锁定 listing，并校验 active、买家不是卖家、数量、库存和订单总额上限。
+6. 锁定 listing 后再次查询 replay；并发插入命中 `(buyer_user_id, request_id)` 唯一约束时，重新加载并执行同一致性校验。
+7. 预加载虚拟商品锁定指定数量的 available inventory units。
+8. 新实物订单校验 active 地址并保存完整地址快照；虚拟订单不需要地址快照。
+9. 通过 `MarketOrder.place(...)` 创建订单，领域模型保存商品、交付、库存、地址快照并给出初始 `ESCROW_PENDING` 状态。
+10. 有限库存扣减 listing 可用库存；扣到 0 时 listing 状态由 `MarketListing` 库存 helper 计算为 `SOLD_OUT`。
+11. 预加载库存绑定到订单。
+12. 写 `market_wallet_action` 的 ESCROW durable command。
+13. 返回重新加载后的订单结果。
 
 下单成功表示订单已被接受并进入资金托管处理中，不表示 wallet 已经完成扣款。
 

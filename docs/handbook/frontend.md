@@ -200,8 +200,8 @@ connect(accessToken)
 
 | 场景 | 前端展示原则 |
 | --- | --- |
-| Notice | 通知是 after-commit best-effort 投影，写操作成功后通知可能稍后出现。 |
-| Search | 搜索结果来自 ES 投影，发帖 / 评论后搜索可短暂落后；必要时依赖 reindex / outbox 追平。 |
+| Notice | 通知是 owner Kafka 驱动的最终一致投影，写操作成功后可能稍后出现；失败由 consumer retry / `.dlq` 处理。 |
+| Search | 搜索结果来自 ES 投影，发帖 / 改帖后搜索可短暂落后；必要时查 `content.events` consumer/DLQ 或 reindex。 |
 | IM | WS 推送是 best-effort，断线后以 HTTP history 补拉为准。 |
 | Market 下单 | HTTP 成功可能只是订单创建成功，资金可能处于 `ESCROW_PENDING`。 |
 | Market 确认 / 取消 / 争议 | 资金放款 / 退款由 `market_wallet_action` processor / recovery 推进，`ESCROW_CANCEL_PENDING`、`RELEASE_PENDING`、`REFUND_PENDING`、`DISPUTE_RELEASE_PENDING`、`DISPUTE_REFUND_PENDING` 都应展示为处理中。 |

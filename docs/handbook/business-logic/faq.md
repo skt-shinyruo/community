@@ -6,11 +6,11 @@ auth 负责“如何进入系统”：注册流程、验证码、登录风控、
 
 ## 为什么发帖成功后，搜索或通知可能还没出现？
 
-发帖成功代表 content 主事实已经提交。搜索索引通过 outbox worker 最终追平，通知通过 after-commit best-effort 投影生成。HTTP 成功不表示这些下游读模型已经完成。
+发帖成功代表 content 主事实和 `eventbus.content` 事件已在同一事务中提交。owner handler 发布 `content.events`，Search 和 Notice Kafka listener 分别进入同域 ApplicationService；失败走 retry / `.dlq`。HTTP 成功不表示这些下游读模型已经完成。
 
 ## 为什么 search 不能当成帖子事实来源？
 
-Elasticsearch 只服务搜索查询。帖子标题、正文、标签、媒体、删除和治理状态的主事实在 content。搜索缺失或过期时，应排查 outbox、projection 或 reindex，而不是把 ES 当成可写事实。
+Elasticsearch 只服务搜索查询。帖子标题、正文、标签、媒体、删除和治理状态的主事实在 content。搜索缺失或过期时，应排查 owner outbox、`content.events` consumer/DLQ、projection 或 reindex，而不是把 ES 当成可写事实。
 
 ## 为什么 notice 不撤销部分通知？
 

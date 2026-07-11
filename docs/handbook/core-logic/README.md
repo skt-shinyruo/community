@@ -12,7 +12,7 @@
 | --- | --- |
 | [Token Freshness 与高风险请求安全](security-token-freshness.md) | 高风险 URI 的 JWT `security_version` 校验、401/403 映射和只读失败语义。 |
 | [异步事件骨干](async-event-backbone.md) | owner contract event、DB outbox、Kafka dispatch、projection topic、retry / dedupe / DLQ 边界。 |
-| [IM Core Runtime](im-core-runtime.md) | IM schema 兼容、消息持久化、幂等、outbox、未读、fanout routing 和 presence。 |
+| [IM Core Runtime](im-core-runtime.md) | IM 严格 schema v1、消息持久化、幂等、outbox、未读、fanout routing 和 presence。 |
 | [Runtime Configuration](runtime-configuration.md) | `/api/runtime-config` 的前端运行时配置快照和上传策略边界。 |
 | [Runtime Observability](runtime-observability.md) | lifecycle、runtime snapshot、slow HTTP access 和 Kafka 技术事件 hook。 |
 | [Gateway Runtime](gateway-runtime.md) | gateway route、IM edge route、canary instance filtering 和动态配置刷新。 |

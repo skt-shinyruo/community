@@ -8,9 +8,14 @@ import org.springframework.stereotype.Component;
 public class RoomFanoutTargetConsumer {
 
     private final RoomFanoutTargetService targetService;
+    private final RoomFanoutMetrics metrics;
 
-    public RoomFanoutTargetConsumer(RoomFanoutTargetService targetService) {
+    public RoomFanoutTargetConsumer(
+            RoomFanoutTargetService targetService,
+            RoomFanoutMetrics metrics
+    ) {
         this.targetService = targetService;
+        this.metrics = metrics;
     }
 
     @KafkaListener(
@@ -23,9 +28,15 @@ public class RoomFanoutTargetConsumer {
     )
     public void onCommand(RoomFanoutCommand command) {
         RoomFanoutTargetResult result = targetService.apply(command);
-        if (result == RoomFanoutTargetResult.ACCEPTED || result == RoomFanoutTargetResult.DUPLICATE) {
+        if (result == RoomFanoutTargetResult.ACCEPTED) {
+            metrics.targetAccepted();
             return;
         }
+        if (result == RoomFanoutTargetResult.DUPLICATE) {
+            metrics.targetDuplicate();
+            return;
+        }
+        metrics.targetRejected();
         throw new IllegalStateException("room fanout target command rejected: " + result);
     }
 }

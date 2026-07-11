@@ -6,6 +6,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 @Component
 @ConditionalOnProperty(prefix = "analytics.ingest", name = {"enabled", "async-enabled"}, havingValue = "true")
 public class AnalyticsRequestKafkaListener {
@@ -31,5 +33,13 @@ public class AnalyticsRequestKafkaListener {
                 event.recordUv(),
                 event.recordDau()
         ));
+    }
+
+    public record AnalyticsRequestEvent(
+            String ip,
+            UUID userId,
+            boolean recordUv,
+            boolean recordDau
+    ) {
     }
 }

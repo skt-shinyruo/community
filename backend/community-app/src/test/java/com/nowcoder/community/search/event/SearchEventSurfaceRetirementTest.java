@@ -16,5 +16,8 @@ class SearchEventSurfaceRetirementTest {
         assertThatThrownBy(() -> Class.forName(
                 "com.nowcoder.community.search.infrastructure.event.PostOutbox" + "Handler"))
                 .isInstanceOf(ClassNotFoundException.class);
+        assertThatThrownBy(() -> Class.forName(
+                "com.nowcoder.community.search.application.command.ProjectPostOutbox" + "Command"))
+                .isInstanceOf(ClassNotFoundException.class);
     }
 }

@@ -10,6 +10,12 @@ import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+/**
+ * Applies room fanout commands targeted at the local worker.
+ *
+ * <p>The source-event cache suppresses process-local duplicates only. Across process restarts,
+ * room/sequence max coalescing in {@link RoomFanoutCoalescer} provides state idempotency.</p>
+ */
 @Service
 public class RoomFanoutTargetService {
 
@@ -40,9 +46,14 @@ public class RoomFanoutTargetService {
         if (acceptedSourceEventIds.putIfAbsent(sourceEventId, Boolean.TRUE) != null) {
             return RoomFanoutTargetResult.DUPLICATE;
         }
+        try {
+            roomFanoutCoalescer.markRoomUpdated(command.roomId(), command.lastSeq());
+        } catch (RuntimeException e) {
+            acceptedSourceEventIds.remove(sourceEventId, Boolean.TRUE);
+            throw e;
+        }
         acceptedSourceEventOrder.add(sourceEventId);
         evictOldSourceEventIds();
-        roomFanoutCoalescer.markRoomUpdated(command.roomId(), command.lastSeq());
         return RoomFanoutTargetResult.ACCEPTED;
     }
 

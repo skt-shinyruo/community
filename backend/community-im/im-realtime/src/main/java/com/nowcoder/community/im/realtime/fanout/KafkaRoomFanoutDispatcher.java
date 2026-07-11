@@ -4,8 +4,6 @@ import com.nowcoder.community.common.kafka.trace.TraceKafkaHeaders;
 import com.nowcoder.community.im.common.command.RoomFanoutCommand;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.context.annotation.Primary;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -14,9 +12,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-@Primary
 @Component
-@ConditionalOnExpression("'${im.room-fanout.transport:kafka}' == 'kafka'")
 public class KafkaRoomFanoutDispatcher implements RoomFanoutDispatcher {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;

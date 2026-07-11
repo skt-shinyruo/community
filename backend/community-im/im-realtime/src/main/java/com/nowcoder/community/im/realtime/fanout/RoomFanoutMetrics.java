@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class RoomFanoutMetrics {
 
-    private final Counter legacyEventsConsumed;
     private final Counter ownerEventsConsumed;
     private final Counter routesPlanned;
     private final Counter commandsSent;
@@ -23,7 +22,6 @@ public class RoomFanoutMetrics {
 
     RoomFanoutMetrics(MeterRegistry meterRegistry) {
         if (meterRegistry == null) {
-            this.legacyEventsConsumed = null;
             this.ownerEventsConsumed = null;
             this.routesPlanned = null;
             this.commandsSent = null;
@@ -31,9 +29,6 @@ public class RoomFanoutMetrics {
             this.routeFailures = null;
             return;
         }
-        this.legacyEventsConsumed = Counter.builder("im_room_fanout_events_consumed")
-                .tag("path", "legacy")
-                .register(meterRegistry);
         this.ownerEventsConsumed = Counter.builder("im_room_fanout_events_consumed")
                 .tag("path", "owner")
                 .register(meterRegistry);
@@ -49,10 +44,6 @@ public class RoomFanoutMetrics {
 
     static RoomFanoutMetrics noop() {
         return new RoomFanoutMetrics((MeterRegistry) null);
-    }
-
-    void legacyEventConsumed() {
-        increment(legacyEventsConsumed);
     }
 
     void ownerEventConsumed() {

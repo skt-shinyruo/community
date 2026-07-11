@@ -1,7 +1,6 @@
 package com.nowcoder.community.im.realtime.presence;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -20,11 +19,5 @@ public class RoomPresenceConfiguration {
             RoomPresenceProperties properties
     ) {
         return new RedisRoomPresenceDirectory(redisTemplate, properties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(RoomPresenceDirectory.class)
-    RoomPresenceDirectory roomPresenceDirectory() {
-        return new NoopRoomPresenceDirectory();
     }
 }

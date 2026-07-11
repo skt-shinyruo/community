@@ -161,16 +161,14 @@ public class MarketOrderApplicationService {
         validateCreateOrderRequest(requestId, buyerUserId, listingId, quantity);
         MarketOrder existing = marketOrderRepository.findByBuyerUserIdAndRequestId(buyerUserId, requestId);
         if (existing != null) {
-            existing.assertReplayMatches(buyerUserId, listingId, quantity, addressId,
-                    replayAddressSnapshot(existing, buyerUserId, addressId));
+            existing.assertReplayMatches(buyerUserId, listingId, quantity, addressId);
             return MarketOrderResult.from(existing);
         }
 
         MarketListing listing = requireListingForUpdate(listingId);
         existing = marketOrderRepository.lockByBuyerUserIdAndRequestId(buyerUserId, requestId);
         if (existing != null) {
-            existing.assertReplayMatches(buyerUserId, listingId, quantity, addressId,
-                    replayAddressSnapshot(existing, buyerUserId, addressId));
+            existing.assertReplayMatches(buyerUserId, listingId, quantity, addressId);
             return MarketOrderResult.from(existing);
         }
 
@@ -204,8 +202,7 @@ public class MarketOrderApplicationService {
         } catch (DataIntegrityViolationException ex) {
             MarketOrder duplicated = marketOrderRepository.lockByBuyerUserIdAndRequestId(buyerUserId, requestId);
             if (duplicated != null) {
-                duplicated.assertReplayMatches(buyerUserId, listingId, quantity, addressId,
-                        replayAddressSnapshot(duplicated, buyerUserId, addressId));
+                duplicated.assertReplayMatches(buyerUserId, listingId, quantity, addressId);
                 return MarketOrderResult.from(duplicated);
             }
             throw ex;
@@ -418,17 +415,6 @@ public class MarketOrderApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "address does not belong to buyer: addressId=" + addressId);
         }
         return address;
-    }
-
-    private MarketAddressSnapshot replayAddressSnapshot(MarketOrder order, UUID buyerUserId, UUID addressId) {
-        if (!order.goodsType().isPhysical() || order.getAddressIdSnapshot() != null || addressId == null) {
-            return null;
-        }
-        MarketAddress address = marketAddressRepository.findById(addressId);
-        if (address == null || !Objects.equals(address.getUserId(), buyerUserId)) {
-            return null;
-        }
-        return MarketAddressSnapshot.from(address);
     }
 
     private MarketDeliveryMode deliveryModeSnapshot(MarketListing listing) {

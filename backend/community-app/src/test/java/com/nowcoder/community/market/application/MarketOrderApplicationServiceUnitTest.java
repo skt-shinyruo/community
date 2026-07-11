@@ -1,8 +1,10 @@
 package com.nowcoder.community.market.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
+import com.nowcoder.community.market.exception.MarketErrorCode;
 import com.nowcoder.community.market.infrastructure.persistence.MyBatisMarketAddressRepository;
 import com.nowcoder.community.market.infrastructure.persistence.MyBatisMarketDeliveryRepository;
 import com.nowcoder.community.market.infrastructure.persistence.MyBatisMarketInventoryRepository;
@@ -32,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -78,6 +81,43 @@ class MarketOrderApplicationServiceUnitTest {
         assertThatThrownBy(() -> service.createOrder(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
+    }
+
+    @Test
+    void createOrderShouldReturnExistingPhysicalReplayWithoutAddressLookup() {
+        MarketOrderApplicationService service = service();
+        UUID buyerUserId = uuid(9);
+        UUID listingId = uuid(7);
+        UUID addressId = uuid(5);
+        String requestId = "market:req-physical-replay";
+        MarketOrder existing = existingPhysicalOrder(requestId, listingId, buyerUserId, addressId);
+        when(marketOrderMapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId))
+                .thenReturn(MarketOrderDataObject.from(existing));
+
+        MarketOrderResult response = service.createOrder(requestId, buyerUserId, listingId, 1, addressId);
+
+        assertThat(response.orderId()).isEqualTo(existing.getOrderId());
+        verifyNoInteractions(marketAddressMapper);
+        verify(marketListingMapper, never()).selectByIdForUpdate(any());
+    }
+
+    @Test
+    void createOrderShouldRejectPhysicalReplayWithMissingPersistedAddressWithoutAddressLookup() {
+        MarketOrderApplicationService service = service();
+        UUID buyerUserId = uuid(9);
+        UUID listingId = uuid(7);
+        UUID addressId = uuid(5);
+        String requestId = "market:req-missing-address-snapshot";
+        MarketOrder existing = existingPhysicalOrder(requestId, listingId, buyerUserId, null);
+        when(marketOrderMapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId))
+                .thenReturn(MarketOrderDataObject.from(existing));
+
+        assertThatThrownBy(() -> service.createOrder(requestId, buyerUserId, listingId, 1, addressId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(MarketErrorCode.REQUEST_REPLAY_CONFLICT));
+        verifyNoInteractions(marketAddressMapper);
+        verify(marketListingMapper, never()).selectByIdForUpdate(any());
     }
 
     @Test
@@ -141,6 +181,20 @@ class MarketOrderApplicationServiceUnitTest {
         verify(marketWalletActionService, never()).enqueueEscrow(any(), any(), any(), anyLong());
     }
 
+    private MarketOrderApplicationService service() {
+        return new MarketOrderApplicationService(
+                new MyBatisMarketListingRepository(marketListingMapper),
+                new MyBatisMarketInventoryRepository(marketInventoryUnitMapper),
+                new MyBatisMarketOrderRepository(marketOrderMapper),
+                new MyBatisMarketAddressRepository(marketAddressMapper),
+                new MyBatisMarketDeliveryRepository(marketDeliveryMapper),
+                new MyBatisMarketShipmentRepository(marketShipmentMapper),
+                marketWalletActionService,
+                marketOrderSagaService,
+                new UuidV7Generator()
+        );
+    }
+
     private MarketListing activeListing(UUID listingId) {
         MarketListing listing = new MarketListing();
         listing.setListingId(listingId);
@@ -182,5 +236,21 @@ class MarketOrderApplicationServiceUnitTest {
         order.setStatus("ESCROWED");
         order.setEscrowTxnId(UUID.fromString("00000000-0000-7000-8000-000000000123"));
         return order;
+    }
+
+    private MarketOrder existingPhysicalOrder(
+            String requestId,
+            UUID listingId,
+            UUID buyerUserId,
+            UUID addressIdSnapshot
+    ) {
+        MarketOrder order = existingOrder(requestId, listingId, buyerUserId, 1);
+        order.setGoodsType("PHYSICAL");
+        order.setAddressIdSnapshot(addressIdSnapshot);
+        return order;
+    }
+
+    private static UUID uuid(int value) {
+        return UUID.fromString(String.format("00000000-0000-7000-8000-%012d", value));
     }
 }

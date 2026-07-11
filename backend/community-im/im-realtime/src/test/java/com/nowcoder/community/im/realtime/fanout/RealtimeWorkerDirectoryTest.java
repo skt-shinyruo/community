@@ -6,6 +6,7 @@ import org.springframework.cloud.client.DefaultServiceInstance;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -13,57 +14,68 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class RealtimeWorkerDirectoryTest {
 
     @Test
-    void resolvesTargetWorkerUriFromDiscoveryMetadata() {
-        RoomFanoutProperties properties = new RoomFanoutProperties();
-        properties.setTargetPath("/internal/im/realtime/fanout/room");
-        properties.setWorkerDirectoryCacheTtl(Duration.ZERO);
-        ImSessionProperties sessionProperties = new ImSessionProperties();
-        sessionProperties.setWorkerServiceId("im-realtime-worker");
-        sessionProperties.setWorkerIdMetadataKey("workerId");
-        RealtimeWorkerDirectory directory = new RealtimeWorkerDirectory(
-                () -> List.of(instance("worker-a", "10.0.0.8", 18081)),
-                sessionProperties,
-                properties
-        );
+    void resolvesWorkerInboxRoutingFromDiscoveryMetadataOnly() {
+        RealtimeWorkerDirectory directory = directory(List.of(instance("worker-a", "63")));
 
-        RealtimeWorkerEndpoint endpoint = directory.find("worker-a").orElseThrow();
+        Optional<RealtimeWorkerEndpoint> result = directory.find("worker-a");
 
+        assertThat(result).isPresent();
+        RealtimeWorkerEndpoint endpoint = result.orElseThrow();
         assertThat(endpoint.workerId()).isEqualTo("worker-a");
-        assertThat(endpoint.uri().toString()).isEqualTo("http://10.0.0.8:18081/internal/im/realtime/fanout/room");
+        assertThat(endpoint.roomFanoutInboxSlot()).isEqualTo(63);
     }
 
     @Test
-    void resolvesRoomFanoutInboxSlotFromDiscoveryMetadata() {
-        RoomFanoutProperties properties = new RoomFanoutProperties();
-        properties.setWorkerDirectoryCacheTtl(Duration.ZERO);
-        properties.setRoutedCommandPartitions(16);
-        ImSessionProperties sessionProperties = new ImSessionProperties();
-        sessionProperties.setWorkerIdMetadataKey("workerId");
-        DefaultServiceInstance instance = instance("worker-a", "10.0.0.8", 18081);
-        instance.getMetadata().put("roomFanoutInboxSlot", "5");
-        RealtimeWorkerDirectory directory = new RealtimeWorkerDirectory(
-                () -> List.of(instance),
-                sessionProperties,
-                properties
-        );
+    void missingWorkerIdFailsClosed() {
+        DefaultServiceInstance instance = instance(null, "5");
 
-        assertThat(directory.find("worker-a").orElseThrow().roomFanoutInboxSlot()).isEqualTo(5);
+        assertThatThrownBy(() -> directory(List.of(instance)).find("worker-a"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("worker id");
+    }
+
+    @Test
+    void missingRoomFanoutInboxSlotFailsClosed() {
+        DefaultServiceInstance instance = instance("worker-a", null);
+
+        assertThatThrownBy(() -> directory(List.of(instance)).find("worker-a"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("room fanout inbox slot");
+    }
+
+    @Test
+    void malformedRoomFanoutInboxSlotFailsClosed() {
+        DefaultServiceInstance instance = instance("worker-a", "not-a-number");
+
+        assertThatThrownBy(() -> directory(List.of(instance)).find("worker-a"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("room fanout inbox slot");
+    }
+
+    @Test
+    void negativeRoomFanoutInboxSlotFailsClosed() {
+        DefaultServiceInstance instance = instance("worker-a", "-1");
+
+        assertThatThrownBy(() -> directory(List.of(instance)).find("worker-a"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("between 0 and 63");
+    }
+
+    @Test
+    void roomFanoutInboxSlotAtPartitionCountFailsClosed() {
+        DefaultServiceInstance instance = instance("worker-a", "64");
+
+        assertThatThrownBy(() -> directory(List.of(instance)).find("worker-a"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("between 0 and 63");
     }
 
     @Test
     void duplicateWorkerIdsFailClosed() {
-        RoomFanoutProperties properties = new RoomFanoutProperties();
-        properties.setWorkerDirectoryCacheTtl(Duration.ZERO);
-        ImSessionProperties sessionProperties = new ImSessionProperties();
-        sessionProperties.setWorkerIdMetadataKey("workerId");
-        RealtimeWorkerDirectory directory = new RealtimeWorkerDirectory(
-                () -> List.of(
-                        instance("worker-a", "10.0.0.8", 18081),
-                        instance("worker-a", "10.0.0.9", 18082)
-                ),
-                sessionProperties,
-                properties
-        );
+        RealtimeWorkerDirectory directory = directory(List.of(
+                instance("worker-a", "5"),
+                instance("worker-a", "6")
+        ));
 
         assertThatThrownBy(() -> directory.find("worker-a"))
                 .isInstanceOf(IllegalStateException.class)
@@ -72,36 +84,39 @@ class RealtimeWorkerDirectoryTest {
 
     @Test
     void duplicateRoomFanoutInboxSlotsFailClosed() {
-        RoomFanoutProperties properties = new RoomFanoutProperties();
-        properties.setWorkerDirectoryCacheTtl(Duration.ZERO);
-        properties.setRoutedCommandPartitions(16);
-        ImSessionProperties sessionProperties = new ImSessionProperties();
-        sessionProperties.setWorkerIdMetadataKey("workerId");
-        DefaultServiceInstance workerA = instance("worker-a", "10.0.0.8", 18081);
-        workerA.getMetadata().put("roomFanoutInboxSlot", "5");
-        DefaultServiceInstance workerB = instance("worker-b", "10.0.0.9", 18082);
-        workerB.getMetadata().put("roomFanoutInboxSlot", "5");
-        RealtimeWorkerDirectory directory = new RealtimeWorkerDirectory(
-                () -> List.of(workerA, workerB),
-                sessionProperties,
-                properties
-        );
+        RealtimeWorkerDirectory directory = directory(List.of(
+                instance("worker-a", "5"),
+                instance("worker-b", "5")
+        ));
 
         assertThatThrownBy(() -> directory.find("worker-a"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Duplicate room fanout inbox slot");
     }
 
-    private static DefaultServiceInstance instance(String workerId, String host, int port) {
+    private static RealtimeWorkerDirectory directory(List<DefaultServiceInstance> instances) {
+        RoomFanoutProperties properties = new RoomFanoutProperties();
+        properties.setRoutedCommandPartitions(64);
+        properties.setWorkerDirectoryCacheTtl(Duration.ZERO);
+        ImSessionProperties sessionProperties = new ImSessionProperties();
+        sessionProperties.setWorkerIdMetadataKey("workerId");
+        return new RealtimeWorkerDirectory(() -> List.copyOf(instances), sessionProperties, properties);
+    }
+
+    private static DefaultServiceInstance instance(String workerId, String inboxSlot) {
         DefaultServiceInstance instance = new DefaultServiceInstance(
-                workerId + "-instance",
+                "ignored-instance-id",
                 "im-realtime-worker",
-                host,
-                port,
+                "",
+                -1,
                 false
         );
-        instance.getMetadata().put("workerId", workerId);
-        instance.getMetadata().put("protocol", "http");
+        if (workerId != null) {
+            instance.getMetadata().put("workerId", workerId);
+        }
+        if (inboxSlot != null) {
+            instance.getMetadata().put("roomFanoutInboxSlot", inboxSlot);
+        }
         return instance;
     }
 }

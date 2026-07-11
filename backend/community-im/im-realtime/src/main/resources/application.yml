@@ -33,7 +33,7 @@ spring:
           wsPath: ${im.ws.path:/internal/ws/im}
           wsPort: ${SERVER_PORT:18081}
           workerId: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
-          roomFanoutInboxSlot: ${IM_ROOM_FANOUT_WORKER_INBOX_SLOT:0}
+          roomFanoutInboxSlot: ${im.room-fanout.worker-inbox-slot}
           maxConnections: ${im.realtime.worker.max-connections:${IM_REALTIME_MAX_CONNECTIONS:10000}}
           activeConnectionHint: ${im.realtime.worker.active-connection-hint:${IM_REALTIME_ACTIVE_CONNECTION_HINT:0}}
           shardGroup: ${im.realtime.worker.shard-group:${IM_REALTIME_SHARD_GROUP:default}}
@@ -128,17 +128,13 @@ im:
     ttl: ${IM_ROOM_PRESENCE_TTL:PT30S}
     heartbeat-interval: ${IM_ROOM_PRESENCE_HEARTBEAT_INTERVAL:PT10S}
   room-fanout:
-    mode: ${IM_ROOM_FANOUT_MODE:legacy}
     owner-group-id: ${IM_ROOM_FANOUT_OWNER_GROUP_ID:im-realtime-room-fanout-owner}
     owner-concurrency: ${IM_ROOM_FANOUT_OWNER_CONCURRENCY:${IM_REALTIME_KAFKA_EVENT_CONCURRENCY:3}}
-    owner-flush-interval: ${IM_ROOM_FANOUT_OWNER_FLUSH_INTERVAL:PT0.05S}
-    transport: ${IM_ROOM_FANOUT_TRANSPORT:kafka}
     routed-command-topic: ${IM_ROOM_FANOUT_ROUTED_COMMAND_TOPIC:im.command.room-fanout-routed}
-    routed-command-partitions: ${IM_ROOM_FANOUT_ROUTED_COMMAND_PARTITIONS:64}
-    worker-inbox-slot: ${IM_ROOM_FANOUT_WORKER_INBOX_SLOT:0}
+    routed-command-partitions: 64
+    worker-inbox-slot: ${IM_ROOM_FANOUT_WORKER_INBOX_SLOT}
     worker-inbox-slot-metadata-key: ${IM_ROOM_FANOUT_WORKER_INBOX_SLOT_METADATA_KEY:roomFanoutInboxSlot}
-    target-path: ${IM_ROOM_FANOUT_TARGET_PATH:/internal/im/realtime/fanout/room}
-    target-timeout: ${IM_ROOM_FANOUT_TARGET_TIMEOUT:PT1S}
+    publish-timeout: ${IM_ROOM_FANOUT_PUBLISH_TIMEOUT:PT1S}
     worker-directory-cache-ttl: ${IM_ROOM_FANOUT_WORKER_DIRECTORY_CACHE_TTL:PT0.5S}
   session:
     # Worker-local ticket and identity settings used to validate connect tickets.

@@ -8,25 +8,13 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "im.room-fanout")
 public class RoomFanoutProperties {
 
-    private String mode = "legacy";
     private String ownerGroupId = "im-realtime-room-fanout-owner";
-    private Duration ownerFlushInterval = Duration.ofMillis(50);
-    private String transport = "kafka";
-    private String targetPath = "/internal/im/realtime/fanout/room";
-    private Duration targetTimeout = Duration.ofMillis(1000);
-    private Duration workerDirectoryCacheTtl = Duration.ofMillis(500);
     private String routedCommandTopic = "im.command.room-fanout-routed";
     private int routedCommandPartitions = 64;
-    private int workerInboxSlot = 0;
+    private Integer workerInboxSlot;
     private String workerInboxSlotMetadataKey = "roomFanoutInboxSlot";
-
-    public String getMode() {
-        return mode;
-    }
-
-    public void setMode(String mode) {
-        this.mode = mode;
-    }
+    private Duration workerDirectoryCacheTtl = Duration.ofMillis(500);
+    private Duration publishTimeout = Duration.ofSeconds(1);
 
     public String getOwnerGroupId() {
         return ownerGroupId;
@@ -34,46 +22,6 @@ public class RoomFanoutProperties {
 
     public void setOwnerGroupId(String ownerGroupId) {
         this.ownerGroupId = ownerGroupId;
-    }
-
-    public Duration getOwnerFlushInterval() {
-        return ownerFlushInterval;
-    }
-
-    public void setOwnerFlushInterval(Duration ownerFlushInterval) {
-        this.ownerFlushInterval = ownerFlushInterval;
-    }
-
-    public String getTransport() {
-        return transport;
-    }
-
-    public void setTransport(String transport) {
-        this.transport = transport;
-    }
-
-    public String getTargetPath() {
-        return targetPath;
-    }
-
-    public void setTargetPath(String targetPath) {
-        this.targetPath = targetPath;
-    }
-
-    public Duration getTargetTimeout() {
-        return targetTimeout;
-    }
-
-    public void setTargetTimeout(Duration targetTimeout) {
-        this.targetTimeout = targetTimeout;
-    }
-
-    public Duration getWorkerDirectoryCacheTtl() {
-        return workerDirectoryCacheTtl;
-    }
-
-    public void setWorkerDirectoryCacheTtl(Duration workerDirectoryCacheTtl) {
-        this.workerDirectoryCacheTtl = workerDirectoryCacheTtl;
     }
 
     public String getRoutedCommandTopic() {
@@ -92,11 +40,11 @@ public class RoomFanoutProperties {
         this.routedCommandPartitions = routedCommandPartitions;
     }
 
-    public int getWorkerInboxSlot() {
+    public Integer getWorkerInboxSlot() {
         return workerInboxSlot;
     }
 
-    public void setWorkerInboxSlot(int workerInboxSlot) {
+    public void setWorkerInboxSlot(Integer workerInboxSlot) {
         this.workerInboxSlot = workerInboxSlot;
     }
 
@@ -108,37 +56,24 @@ public class RoomFanoutProperties {
         this.workerInboxSlotMetadataKey = workerInboxSlotMetadataKey;
     }
 
-    public boolean isRoutedMode() {
-        return "routed".equalsIgnoreCase(normalizedMode());
+    public Duration getWorkerDirectoryCacheTtl() {
+        return workerDirectoryCacheTtl;
     }
 
-    public boolean isShadowMode() {
-        return "shadow".equalsIgnoreCase(normalizedMode());
+    public void setWorkerDirectoryCacheTtl(Duration workerDirectoryCacheTtl) {
+        this.workerDirectoryCacheTtl = workerDirectoryCacheTtl;
     }
 
-    public boolean isKafkaTransport() {
-        return "kafka".equalsIgnoreCase(normalizedTransport());
+    public Duration getPublishTimeout() {
+        return publishTimeout;
     }
 
-    public boolean isHttpTransport() {
-        return "http".equalsIgnoreCase(normalizedTransport());
+    public void setPublishTimeout(Duration publishTimeout) {
+        this.publishTimeout = publishTimeout;
     }
 
-    public Duration normalizedOwnerFlushInterval() {
-        if (ownerFlushInterval == null || ownerFlushInterval.compareTo(Duration.ofMillis(10)) < 0) {
-            return Duration.ofMillis(10);
-        }
-        if (ownerFlushInterval.compareTo(Duration.ofSeconds(1)) > 0) {
-            return Duration.ofSeconds(1);
-        }
-        return ownerFlushInterval;
-    }
-
-    public Duration normalizedTargetTimeout() {
-        if (targetTimeout == null || targetTimeout.compareTo(Duration.ofMillis(50)) < 0) {
-            return Duration.ofMillis(50);
-        }
-        return targetTimeout;
+    public Duration normalizedPublishTimeout() {
+        return publishTimeout == null ? Duration.ofSeconds(1) : publishTimeout;
     }
 
     public Duration normalizedWorkerDirectoryCacheTtl() {
@@ -146,14 +81,6 @@ public class RoomFanoutProperties {
             return Duration.ZERO;
         }
         return workerDirectoryCacheTtl;
-    }
-
-    public String normalizedTargetPath() {
-        if (!StringUtils.hasText(targetPath)) {
-            return "/internal/im/realtime/fanout/room";
-        }
-        String trimmed = targetPath.trim();
-        return trimmed.startsWith("/") ? trimmed : "/" + trimmed;
     }
 
     public String normalizedRoutedCommandTopic() {
@@ -164,14 +91,17 @@ public class RoomFanoutProperties {
     }
 
     public int normalizedRoutedCommandPartitions() {
-        return routedCommandPartitions <= 0 ? 64 : routedCommandPartitions;
+        if (routedCommandPartitions != 64) {
+            throw new IllegalStateException("im.room-fanout.routed-command-partitions must be 64");
+        }
+        return 64;
     }
 
     public int normalizedWorkerInboxSlot() {
-        int partitionCount = normalizedRoutedCommandPartitions();
-        if (workerInboxSlot < 0 || workerInboxSlot >= partitionCount) {
+        int partitions = normalizedRoutedCommandPartitions();
+        if (workerInboxSlot == null || workerInboxSlot < 0 || workerInboxSlot >= partitions) {
             throw new IllegalStateException(
-                    "im.room-fanout.worker-inbox-slot must be between 0 and " + (partitionCount - 1)
+                    "im.room-fanout.worker-inbox-slot is required and must be between 0 and " + (partitions - 1)
             );
         }
         return workerInboxSlot;
@@ -181,13 +111,5 @@ public class RoomFanoutProperties {
         return StringUtils.hasText(workerInboxSlotMetadataKey)
                 ? workerInboxSlotMetadataKey.trim()
                 : "roomFanoutInboxSlot";
-    }
-
-    private String normalizedMode() {
-        return StringUtils.hasText(mode) ? mode.trim() : "legacy";
-    }
-
-    private String normalizedTransport() {
-        return StringUtils.hasText(transport) ? transport.trim() : "kafka";
     }
 }

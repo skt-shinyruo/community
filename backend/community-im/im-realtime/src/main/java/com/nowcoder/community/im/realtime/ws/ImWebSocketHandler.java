@@ -2,6 +2,7 @@ package com.nowcoder.community.im.realtime.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.logging.EventLogFields;
+import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
 import com.nowcoder.community.im.common.ImUnsupportedSchemaVersionException;
@@ -50,7 +51,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
     private static final String MDC_CATEGORY = EventLogFields.EVENT_CATEGORY;
     private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
     private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
-    private static final String MDC_TRACE_ID = "traceId";
+    private static final String MDC_TRACE_ID = TraceContext.MDC_KEY_TRACE_ID;
 
     private final ImFrameCodec frameCodec;
     private final SessionTicketCodec sessionTicketCodec;

@@ -19,6 +19,7 @@ class TraceContextSnapshotTest {
     @AfterEach
     void tearDown() {
         TraceContext.clear();
+        MDC.clear();
     }
 
     @Test
@@ -140,13 +141,11 @@ class TraceContextSnapshotTest {
             assertThat(TraceId.get()).isEqualTo("22222222222222222222222222222222");
             assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("22222222222222222222222222222222");
             assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isEqualTo("00f067aa0ba902b7");
-            assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo("22222222222222222222222222222222");
         }
 
         assertThat(TraceId.get()).isEqualTo("11111111111111111111111111111111");
         assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("11111111111111111111111111111111");
         assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isNull();
-        assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo("11111111111111111111111111111111");
     }
 
     @Test
@@ -154,7 +153,6 @@ class TraceContextSnapshotTest {
         TraceId.set("previous-thread-trace");
         MDC.put(TraceContext.MDC_KEY_TRACE_ID, "previous-mdc-trace");
         MDC.put(TraceContext.MDC_KEY_SPAN_ID, "previous-mdc-span");
-        MDC.put(TraceContext.MDC_KEY_LEGACY_TRACE_ID, "previous-legacy-trace");
         TraceContextSnapshot snapshot = TraceContextSnapshot.fromStored(
                 "22222222222222222222222222222222",
                 "00-22222222222222222222222222222222-00f067aa0ba902b7-01"
@@ -164,13 +162,11 @@ class TraceContextSnapshotTest {
             assertThat(TraceId.get()).isEqualTo("22222222222222222222222222222222");
             assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("22222222222222222222222222222222");
             assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isEqualTo("00f067aa0ba902b7");
-            assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo("22222222222222222222222222222222");
         }
 
         assertThat(TraceId.get()).isEqualTo("previous-thread-trace");
         assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("previous-mdc-trace");
         assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isEqualTo("previous-mdc-span");
-        assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo("previous-legacy-trace");
     }
 
     @Test
@@ -187,6 +183,5 @@ class TraceContextSnapshotTest {
         assertThat(TraceId.get()).isNull();
         assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isNull();
         assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isNull();
-        assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isNull();
     }
 }

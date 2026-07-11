@@ -25,9 +25,7 @@
                 <pattern>
                     <pattern>{"service.name":"${serviceName}","service.version":"${serviceVersion}","service.namespace":"${serviceNamespace}","deployment.environment":"${deploymentEnvironment}"}</pattern>
                 </pattern>
-                <mdc>
-                    <excludeMdcKeyName>traceId</excludeMdcKeyName>
-                </mdc>
+                <mdc/>
                 <logLevel>
                     <fieldName>level</fieldName>
                 </logLevel>

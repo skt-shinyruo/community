@@ -20,7 +20,6 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
 
     private static final Logger log = LoggerFactory.getLogger(AccessLogWebFilter.class);
     private static final String MDC_KEY_TRACE_ID = TraceContext.MDC_KEY_TRACE_ID;
-    private static final String MDC_KEY_LEGACY_TRACE_ID = TraceContext.MDC_KEY_LEGACY_TRACE_ID;
     private static final String MDC_KEY_CATEGORY = EventLogFields.EVENT_CATEGORY;
     private static final String MDC_KEY_ACTION = EventLogFields.EVENT_ACTION;
     private static final String MDC_KEY_OUTCOME = EventLogFields.EVENT_OUTCOME;
@@ -48,7 +47,6 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
                     long durationMs = (System.nanoTime() - startedAt) / 1_000_000L;
                     String traceId = resolveTraceId(exchange);
                     String previousTraceId = MDC.get(MDC_KEY_TRACE_ID);
-                    String previousLegacyTraceId = MDC.get(MDC_KEY_LEGACY_TRACE_ID);
                     String previousSpanId = MDC.get(TraceContext.MDC_KEY_SPAN_ID);
                     String previousCategory = MDC.get(MDC_KEY_CATEGORY);
                     String previousAction = MDC.get(MDC_KEY_ACTION);
@@ -57,10 +55,8 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
                         String spanId = resolveSpanId(exchange);
                         if (traceId == null || traceId.isBlank()) {
                             MDC.remove(MDC_KEY_TRACE_ID);
-                            MDC.remove(MDC_KEY_LEGACY_TRACE_ID);
                         } else {
                             MDC.put(MDC_KEY_TRACE_ID, traceId);
-                            MDC.put(MDC_KEY_LEGACY_TRACE_ID, traceId);
                         }
                         if (spanId == null || spanId.isBlank()) {
                             MDC.remove(TraceContext.MDC_KEY_SPAN_ID);
@@ -82,7 +78,6 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
                         } else {
                             MDC.put(MDC_KEY_TRACE_ID, previousTraceId);
                         }
-                        restore(MDC_KEY_LEGACY_TRACE_ID, previousLegacyTraceId);
                         restore(TraceContext.MDC_KEY_SPAN_ID, previousSpanId);
                         restore(MDC_KEY_CATEGORY, previousCategory);
                         restore(MDC_KEY_ACTION, previousAction);

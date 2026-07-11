@@ -13,6 +13,12 @@ for _ in $(seq 1 90); do
 done
 
 echo "[kafka-init] creating topics (if not exists)..."
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic content.events --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic content.events.dlq --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic social.events --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic social.events.dlq --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic user.events --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic user.events.dlq --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.private-text --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.room-text --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.room-fanout-routed --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 64

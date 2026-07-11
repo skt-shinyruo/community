@@ -80,26 +80,26 @@ class ImRealtimeSecurityIntegrationTest {
     }
 
     @Test
-    void retiredInternalFanoutEndpoint_shouldReturnNotFoundForEveryCaller() {
+    void retiredInternalFanoutEndpoint_shouldBeDeniedByDefaultForEveryCaller() {
         client()
                 .post()
                 .uri("/internal/im/realtime/fanout/room")
                 .exchange()
-                .expectStatus().isNotFound();
+                .expectStatus().isUnauthorized();
 
         client()
                 .post()
                 .uri("/internal/im/realtime/fanout/room")
                 .header("Authorization", bearer("profile.read"))
                 .exchange()
-                .expectStatus().isNotFound();
+                .expectStatus().isForbidden();
 
         client()
                 .post()
                 .uri("/internal/im/realtime/fanout/room")
                 .header("Authorization", bearer("im.realtime.internal"))
                 .exchange()
-                .expectStatus().isNotFound();
+                .expectStatus().isForbidden();
     }
 
     private String bearer(String scope) {

@@ -34,8 +34,6 @@ public class ImRealtimeSecurityConfig {
                         .pathMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
                         .pathMatchers(wsPathValue).permitAll()
                         // WebSocket connect auth remains inside the handler through signed session tickets.
-                        // Let the retired fanout path reach routing so every caller observes the missing mapping.
-                        .pathMatchers("/internal/im/realtime/fanout/**").permitAll()
                         .anyExchange().denyAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))

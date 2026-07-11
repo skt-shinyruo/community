@@ -1,6 +1,7 @@
 package com.nowcoder.community.growth.infrastructure.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
@@ -17,6 +18,7 @@ import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 
 @Component
 public class TaskProgressEventBackboneKafkaListener {
@@ -42,11 +44,13 @@ public class TaskProgressEventBackboneKafkaListener {
             return;
         }
         if (ContentEventTypes.POST_PUBLISHED.equals(event.type())) {
-            handlePostPublished(event.payload());
+            requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
+            handlePostPublished(event);
             return;
         }
         if (ContentEventTypes.COMMENT_CREATED.equals(event.type())) {
-            handleCommentCreated(event.payload());
+            requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
+            handleCommentCreated(event);
         }
     }
 
@@ -60,18 +64,19 @@ public class TaskProgressEventBackboneKafkaListener {
                 || (!SocialEventTypes.LIKE_CREATED.equals(event.type()) && !SocialEventTypes.LIKE_REMOVED.equals(event.type()))) {
             return;
         }
+        requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
         LikePayload payload = normalizePayload(event.payload(), LikePayload.class);
         if (SocialEventTypes.LIKE_REMOVED.equals(event.type())) {
-            handleLikeRemoved(payload);
+            handleLikeRemoved(event, payload);
         } else {
-            handleLikeCreated(payload);
+            handleLikeCreated(event, payload);
         }
     }
 
-    private void handlePostPublished(Object eventPayload) {
-        PostPayload payload = normalizePayload(eventPayload, PostPayload.class);
+    private void handlePostPublished(ContentContractEvent event) {
+        PostPayload payload = normalizePayload(event.payload(), PostPayload.class);
         if (payload == null || payload.getPostId() == null || payload.getUserId() == null || payload.getCreateTime() == null) {
-            return;
+            throw malformed(event.type(), event.eventId());
         }
         applicationService.triggerPostPublished(new TriggerPostPublishedCommand(
                 payload.getPostId(),
@@ -80,10 +85,10 @@ public class TaskProgressEventBackboneKafkaListener {
         ));
     }
 
-    private void handleCommentCreated(Object eventPayload) {
-        CommentPayload payload = normalizePayload(eventPayload, CommentPayload.class);
+    private void handleCommentCreated(ContentContractEvent event) {
+        CommentPayload payload = normalizePayload(event.payload(), CommentPayload.class);
         if (payload == null || payload.getCommentId() == null || payload.getUserId() == null || payload.getCreateTime() == null) {
-            return;
+            throw malformed(event.type(), event.eventId());
         }
         applicationService.triggerCommentCreated(new TriggerCommentCreatedCommand(
                 payload.getCommentId(),
@@ -92,13 +97,16 @@ public class TaskProgressEventBackboneKafkaListener {
         ));
     }
 
-    private void handleLikeCreated(LikePayload payload) {
+    private void handleLikeCreated(SocialContractEvent event, LikePayload payload) {
         if (payload == null
                 || payload.getActorUserId() == null
+                || !EntityTypes.isValid(payload.getEntityType())
                 || payload.getEntityId() == null
                 || payload.getEntityUserId() == null
-                || payload.getCreateTime() == null
-                || payload.getActorUserId().equals(payload.getEntityUserId())) {
+                || payload.getCreateTime() == null) {
+            throw malformed(event.type(), event.eventId());
+        }
+        if (payload.getActorUserId().equals(payload.getEntityUserId())) {
             return;
         }
         applicationService.triggerLikeCreated(new TriggerLikeCreatedCommand(
@@ -109,9 +117,9 @@ public class TaskProgressEventBackboneKafkaListener {
         ));
     }
 
-    private void handleLikeRemoved(LikePayload payload) {
+    private void handleLikeRemoved(SocialContractEvent event, LikePayload payload) {
         if (payload == null || payload.getEntityUserId() == null || !hasText(payload.getRelationKey())) {
-            return;
+            throw malformed(event.type(), event.eventId());
         }
         applicationService.triggerLikeRemoved(new TriggerLikeRemovedCommand(
                 payload.getRelationKey().trim(),
@@ -128,6 +136,17 @@ public class TaskProgressEventBackboneKafkaListener {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private void requireSourceMetadata(String eventId, Instant occurredAt, long version, String eventType) {
+        if (!hasText(eventId) || occurredAt == null || version <= 0L) {
+            throw malformed(eventType, eventId);
+        }
+    }
+
+    private IllegalArgumentException malformed(String eventType, String eventId) {
+        return new IllegalArgumentException(
+                "invalid recognized Growth event: type=" + eventType + ", eventId=" + eventId);
     }
 
     private <T> T normalizePayload(Object payload, Class<T> type) {

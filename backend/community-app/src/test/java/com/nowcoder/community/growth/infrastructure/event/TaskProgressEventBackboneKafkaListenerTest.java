@@ -24,6 +24,7 @@ import java.util.Map;
 import static com.nowcoder.community.common.constants.EntityTypes.POST;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -181,7 +182,7 @@ class TaskProgressEventBackboneKafkaListenerTest {
     }
 
     @Test
-    void missingRequiredGrowthPayloadFieldsShouldBeIgnored() {
+    void recognizedEventsWithMissingRequiredPayloadFieldsShouldFailDelivery() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = new TaskProgressEventBackboneKafkaListener(jsonCodec, applicationService);
         PostPayload postPayload = new PostPayload();
@@ -191,9 +192,54 @@ class TaskProgressEventBackboneKafkaListenerTest {
         LikePayload likePayload = likePayload(uuid(1), uuid(100), uuid(2), null);
 
         listener.onContentEvent(null);
-        listener.onContentEvent(new ContentContractEvent("ce:post:published:missing-user", null, null, ContentEventTypes.POST_PUBLISHED, java.time.Instant.EPOCH, 1L, postPayload));
-        listener.onContentEvent(new ContentContractEvent("ce:comment:created:missing-user", null, null, ContentEventTypes.COMMENT_CREATED, java.time.Instant.EPOCH, 1L, commentPayload));
-        listener.onSocialEvent(new SocialContractEvent("se:like:created:missing-time", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, likePayload));
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                "ce:post:published:missing-user", null, null, ContentEventTypes.POST_PUBLISHED,
+                Instant.EPOCH, 1L, postPayload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.POST_PUBLISHED)
+                .hasMessageContaining("ce:post:published:missing-user");
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                "ce:comment:created:missing-user", null, null, ContentEventTypes.COMMENT_CREATED,
+                Instant.EPOCH, 1L, commentPayload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.COMMENT_CREATED)
+                .hasMessageContaining("ce:comment:created:missing-user");
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "se:like:created:missing-time", null, null, SocialEventTypes.LIKE_CREATED,
+                Instant.EPOCH, 1L, likePayload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(SocialEventTypes.LIKE_CREATED)
+                .hasMessageContaining("se:like:created:missing-time");
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void recognizedEventsWithInvalidSourceMetadataShouldFailDelivery() {
+        TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
+        TaskProgressEventBackboneKafkaListener listener = new TaskProgressEventBackboneKafkaListener(jsonCodec, applicationService);
+        PostPayload postPayload = new PostPayload();
+        postPayload.setPostId(uuid(100));
+        postPayload.setUserId(uuid(7));
+        postPayload.setCreateTime(Instant.parse("2026-05-18T08:30:00Z"));
+        LikePayload likePayload = likePayload(
+                uuid(1), uuid(100), uuid(2), Instant.parse("2026-05-18T10:30:00Z"));
+        likePayload.setRelationKey("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
+
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                " ", null, null, ContentEventTypes.POST_PUBLISHED, Instant.EPOCH, 1L, postPayload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.POST_PUBLISHED);
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                "ce:post:published:zero-version", null, null, ContentEventTypes.POST_PUBLISHED,
+                Instant.EPOCH, 0L, postPayload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ce:post:published:zero-version");
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "se:like:removed:missing-source-time", null, null, SocialEventTypes.LIKE_REMOVED,
+                null, 1L, likePayload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("se:like:removed:missing-source-time");
 
         verifyNoInteractions(applicationService);
     }

@@ -68,18 +68,10 @@ im:
 
 growth:
   task:
-    outbox:
-      post-topic: projection.growth.task.post
-      comment-topic: projection.growth.task.comment
-      like-topic: projection.growth.task.like
     kafka:
       consumer:
         group-id: growth-task-progress
         concurrency: 3
-      topics:
-        post-published: growth.task.post-published
-        comment-created: growth.task.comment-created
-        like-created: growth.task.like-created
 
 search:
   kafka:

@@ -55,6 +55,22 @@ class LegacyGrowthSurfaceRetirementTest {
         assertClassIsRetired("com.nowcoder.community.user.infrastructure.api.LeaderboardService");
         assertClassIsRetired("com.nowcoder.community.user.infrastructure.api.PointsService");
         assertClassIsRetired("com.nowcoder.community.user.api.action.UserPointsActionApi");
+        assertClassIsRetired("com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi");
+        assertClassIsRetired("com.nowcoder.community.growth.api.model.GrowthCommentTaskProgressRequest");
+        assertClassIsRetired("com.nowcoder.community.growth.api.model.GrowthLikeTaskProgressRequest");
+        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.api.GrowthTaskProgressActionApiAdapter");
+        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.event.PostTaskProgressKafkaOutboxEnqueuer");
+        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.event.PostTaskProgressKafkaOutboxHandler");
+        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.event.CommentTaskProgressOutboxEnqueuer");
+        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.event.CommentTaskProgressKafkaOutboxHandler");
+        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.event.LikeTaskProgressKafkaOutboxEnqueuer");
+        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.event.LikeTaskProgressKafkaOutboxHandler");
+        assertClassIsRetired("com.nowcoder.community.growth.application.TaskProgressOutboxDispatchApplicationService");
+        assertClassIsRetired("com.nowcoder.community.growth.application.TaskProgressIntegrationEventDispatcher");
+        assertClassIsRetired("com.nowcoder.community.growth.application.command.DispatchTaskProgressEventCommand");
+        assertClassIsRetired("com.nowcoder.community.growth.application.command.TaskProgressDispatchKind");
+        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.event.TaskProgressKafkaSenderAdapter");
+        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.event.TaskProgressKafkaListener");
     }
 
     @Test

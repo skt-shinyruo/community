@@ -159,6 +159,17 @@ class NacosPolicyBindingTest {
         assertThat(kafkaEnvironment.getProperty("social.events.kafka-topic")).isEqualTo("social.events");
         assertThat(kafkaEnvironment.getProperty("user.events.outbox-topic")).isEqualTo("eventbus.user");
         assertThat(kafkaEnvironment.getProperty("user.events.kafka-topic")).isEqualTo("user.events");
+        assertThat(kafkaEnvironment.containsProperty("growth.task.outbox.post-topic")).isFalse();
+        assertThat(kafkaEnvironment.containsProperty("growth.task.outbox.comment-topic")).isFalse();
+        assertThat(kafkaEnvironment.containsProperty("growth.task.outbox.like-topic")).isFalse();
+        assertThat(kafkaEnvironment.containsProperty("growth.task.kafka.topics.post-published")).isFalse();
+        assertThat(kafkaEnvironment.containsProperty("growth.task.kafka.topics.comment-created")).isFalse();
+        assertThat(kafkaEnvironment.containsProperty("growth.task.kafka.topics.like-created")).isFalse();
+        assertThat(kafkaEnvironment.containsProperty("growth.task.kafka.topics.like-removed")).isFalse();
+        assertThat(kafkaEnvironment.getProperty("growth.task.kafka.consumer.group-id"))
+                .isEqualTo("growth-task-progress");
+        assertThat(kafkaEnvironment.getProperty("growth.task.kafka.consumer.concurrency", Integer.class))
+                .isEqualTo(3);
     }
 
     @Test

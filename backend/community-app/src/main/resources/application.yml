@@ -275,18 +275,10 @@ notice:
 
 growth:
   task:
-    outbox:
-      post-topic: ${GROWTH_TASK_OUTBOX_POST_TOPIC:projection.growth.task.post}
-      comment-topic: ${GROWTH_TASK_OUTBOX_COMMENT_TOPIC:projection.growth.task.comment}
-      like-topic: ${GROWTH_TASK_OUTBOX_LIKE_TOPIC:projection.growth.task.like}
     kafka:
       consumer:
         group-id: ${GROWTH_TASK_KAFKA_CONSUMER_GROUP_ID:growth-task-progress}
         concurrency: ${GROWTH_TASK_KAFKA_CONSUMER_CONCURRENCY:3}
-      topics:
-        post-published: ${GROWTH_TASK_KAFKA_TOPIC_POST_PUBLISHED:growth.task.post-published}
-        comment-created: ${GROWTH_TASK_KAFKA_TOPIC_COMMENT_CREATED:growth.task.comment-created}
-        like-created: ${GROWTH_TASK_KAFKA_TOPIC_LIKE_CREATED:growth.task.like-created}
 
 oss:
   client:

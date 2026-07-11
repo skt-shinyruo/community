@@ -5,11 +5,9 @@ import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.im.application.ImPolicyEventDispatchApplicationService;
 import com.nowcoder.community.im.application.command.DispatchImPolicyEventCommand;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "true")
 public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
 
     private final ImPolicyEventDispatchApplicationService applicationService;

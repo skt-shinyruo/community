@@ -53,7 +53,7 @@ public class ImPolicySnapshotApplicationService {
 
     public UserBlockRelationSnapshot blockRelations(UUID afterBlockerUserId, UUID afterBlockedUserId, int limit) {
         int normalizedLimit = normalizeLimit(limit);
-        long occurredAtEpochMillis = System.currentTimeMillis();
+        long occurredAtEpochMillis = Instant.now().toEpochMilli();
         long snapshotHighWatermark = socialBlockQueryApi.currentBlockProjectionVersion();
         List<SocialBlockRelationView> views =
                 socialBlockQueryApi.scanBlockRelationsAfter(afterBlockerUserId, afterBlockedUserId, normalizedLimit);

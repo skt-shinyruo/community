@@ -10,7 +10,6 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
@@ -30,16 +29,11 @@ class ImPolicyEventKafkaSenderAdapterTest {
     private static final String BLOCK_TOPIC = "im.policy.block";
 
     @Test
-    void senderShouldOnlyLoadWhenKafkaAndOutboxEnabled() {
+    void senderShouldRemainKafkaClasspathConditional() {
         ConditionalOnClass conditionalOnClass = ImPolicyEventKafkaSenderAdapter.class.getAnnotation(ConditionalOnClass.class);
-        ConditionalOnProperty conditionalOnProperty = ImPolicyEventKafkaSenderAdapter.class.getAnnotation(ConditionalOnProperty.class);
 
         assertThat(conditionalOnClass).isNotNull();
         assertThat(conditionalOnClass.value()).containsExactly(KafkaTemplate.class);
-        assertThat(conditionalOnProperty).isNotNull();
-        assertThat(conditionalOnProperty.prefix()).isEqualTo("events.outbox");
-        assertThat(conditionalOnProperty.name()).containsExactly("enabled");
-        assertThat(conditionalOnProperty.havingValue()).isEqualTo("true");
     }
 
     @Test

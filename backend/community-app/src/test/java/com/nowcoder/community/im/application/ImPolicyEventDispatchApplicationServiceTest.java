@@ -55,15 +55,11 @@ class ImPolicyEventDispatchApplicationServiceTest {
     }
 
     @Test
-    void dispatchShouldIgnoreLegacyModerationKind() {
-        service.dispatch(new DispatchImPolicyEventCommand(
-                "evt-policy-2",
-                "key",
-                "{\"kind\":\"MODERATION\",\"userId\":\"" + uuid(7)
-                        + "\",\"userExists\":true,\"occurredAtEpochMillis\":1712345678901}"
-        ));
-
-        verifyNoInteractions(dispatcher);
+    void dispatchShouldRejectLegacyModerationKind() {
+        assertThatThrownBy(() -> service.dispatch(new DispatchImPolicyEventCommand(
+                "evt-policy-2", "key", "{\"kind\":\"MODERATION\"}")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unsupported");
     }
 
     @Test
@@ -87,16 +83,12 @@ class ImPolicyEventDispatchApplicationServiceTest {
     }
 
     @Test
-    void dispatchShouldIgnoreLegacyFallbackFieldNames() {
-        service.dispatch(new DispatchImPolicyEventCommand(
-                "evt-policy-4",
-                "key",
-                "{\"kind\":\"BLOCK\",\"blockerUserId\":\"" + uuid(7)
-                        + "\",\"blockedUserId\":\"" + uuid(8)
-                        + "\",\"active\":true,\"occurredAtEpochMillis\":1712345678902}"
-        ));
-
-        verifyNoInteractions(dispatcher);
+    void dispatchShouldRejectLegacyFallbackFieldNames() {
+        assertThatThrownBy(() -> service.dispatch(new DispatchImPolicyEventCommand(
+                "evt-policy-4", "key", "{\"kind\":\"BLOCK\",\"blockerUserId\":\"" + uuid(7)
+                        + "\",\"blockedUserId\":\"" + uuid(8) + "\",\"active\":true}")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("malformed");
     }
 
     @Test
@@ -107,12 +99,28 @@ class ImPolicyEventDispatchApplicationServiceTest {
     }
 
     @Test
-    void dispatchShouldIgnoreBlankPayloadUnknownKindAndMissingInvalidIds() {
-        service.dispatch(new DispatchImPolicyEventCommand("evt-blank", "key", " "));
-        service.dispatch(new DispatchImPolicyEventCommand("evt-unknown", "key", "{\"kind\":\"OTHER\"}"));
-        service.dispatch(new DispatchImPolicyEventCommand("evt-missing-user", "key", "{\"kind\":\"USER_POLICY\",\"occurredAtEpochMillis\":1}"));
-        service.dispatch(new DispatchImPolicyEventCommand("evt-invalid-block", "key", "{\"kind\":\"BLOCK\",\"primaryUserId\":\"not-uuid\",\"occurredAtEpochMillis\":1}"));
+    void dispatchShouldRejectBlankUnknownAndInvalidRecognizedPayloads() {
+        assertThatThrownBy(() -> service.dispatch(new DispatchImPolicyEventCommand("evt-blank", "key", " ")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.dispatch(new DispatchImPolicyEventCommand("evt-unknown", "key", "{\"kind\":\"OTHER\"}")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.dispatch(new DispatchImPolicyEventCommand("evt-missing-user", "key", "{\"kind\":\"USER_POLICY\",\"occurredAtEpochMillis\":1}")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.dispatch(new DispatchImPolicyEventCommand("evt-invalid-block", "key", "{\"kind\":\"BLOCK\",\"primaryUserId\":\"not-uuid\",\"occurredAtEpochMillis\":1}")))
+                .isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(dispatcher);
+    }
 
+    @Test
+    void dispatchShouldRejectBlankOutboxEventIdForRecognizedPayload() {
+        assertThatThrownBy(() -> service.dispatch(new DispatchImPolicyEventCommand(
+                " ",
+                "key",
+                "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
+                        + "\",\"occurredAtEpochMillis\":1712345678901,\"version\":7007}"
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("outbox event id");
         verifyNoInteractions(dispatcher);
     }
 
@@ -130,7 +138,7 @@ class ImPolicyEventDispatchApplicationServiceTest {
                 "key",
                 "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7) + "\"}"
         )))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("occurredAtEpochMillis");
     }
 
@@ -142,7 +150,7 @@ class ImPolicyEventDispatchApplicationServiceTest {
                 "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
                         + "\",\"occurredAtEpochMillis\":1712345678901}"
         )))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("version");
         assertThatThrownBy(() -> service.dispatch(new DispatchImPolicyEventCommand(
                 "evt-block",
@@ -151,7 +159,7 @@ class ImPolicyEventDispatchApplicationServiceTest {
                         + "\",\"secondaryUserId\":\"" + uuid(8)
                         + "\",\"occurredAtEpochMillis\":1712345678901}"
         )))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("version");
         verifyNoInteractions(dispatcher);
     }

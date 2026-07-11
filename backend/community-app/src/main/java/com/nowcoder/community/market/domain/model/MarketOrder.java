@@ -76,13 +76,12 @@ public class MarketOrder {
             UUID buyerUserId,
             UUID listingId,
             int quantity,
-            UUID addressId,
-            MarketAddressSnapshot suppliedAddressSnapshot
+            UUID addressId
     ) {
         if (!Objects.equals(this.buyerUserId, buyerUserId)
                 || !Objects.equals(this.listingId, listingId)
                 || this.quantity != quantity
-                || !addressMatchesReplay(addressId, suppliedAddressSnapshot)) {
+                || !addressMatchesReplay(addressId)) {
             throw new BusinessException(
                     MarketErrorCode.REQUEST_REPLAY_CONFLICT,
                     "market order request replay conflict: requestId=" + requestId
@@ -214,24 +213,11 @@ public class MarketOrder {
         postalCodeSnapshot = snapshot.postalCode();
     }
 
-    private boolean addressMatchesReplay(UUID addressId, MarketAddressSnapshot suppliedAddressSnapshot) {
+    private boolean addressMatchesReplay(UUID addressId) {
         if (!goodsType().isPhysical()) {
             return true;
         }
-        if (addressIdSnapshot != null) {
-            return Objects.equals(addressIdSnapshot, addressId);
-        }
-        if (suppliedAddressSnapshot == null) {
-            return false;
-        }
-        return Objects.equals(addressId, suppliedAddressSnapshot.addressId())
-                && Objects.equals(receiverNameSnapshot, suppliedAddressSnapshot.receiverName())
-                && Objects.equals(receiverPhoneSnapshot, suppliedAddressSnapshot.receiverPhone())
-                && Objects.equals(provinceSnapshot, suppliedAddressSnapshot.province())
-                && Objects.equals(citySnapshot, suppliedAddressSnapshot.city())
-                && Objects.equals(districtSnapshot, suppliedAddressSnapshot.district())
-                && Objects.equals(detailAddressSnapshot, suppliedAddressSnapshot.detailAddress())
-                && Objects.equals(postalCodeSnapshot, suppliedAddressSnapshot.postalCode());
+        return addressIdSnapshot != null && Objects.equals(addressIdSnapshot, addressId);
     }
 
     private void requireStatus(MarketOrderStatus expectedStatus) {

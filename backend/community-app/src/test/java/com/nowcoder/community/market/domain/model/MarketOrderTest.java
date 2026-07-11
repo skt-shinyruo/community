@@ -33,25 +33,25 @@ class MarketOrderTest {
     void assertReplayMatchesShouldAllowSamePayload() {
         MarketOrder order = MarketOrder.place(physicalPlacement());
 
-        order.assertReplayMatches(uuid(4), uuid(2), 1, uuid(5), null);
+        order.assertReplayMatches(uuid(4), uuid(2), 1, uuid(5));
     }
 
     @Test
     void assertReplayMatchesShouldRejectDifferentQuantity() {
         MarketOrder order = MarketOrder.place(physicalPlacement());
 
-        assertThatThrownBy(() -> order.assertReplayMatches(uuid(4), uuid(2), 2, uuid(5), null))
+        assertThatThrownBy(() -> order.assertReplayMatches(uuid(4), uuid(2), 2, uuid(5)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(MarketErrorCode.REQUEST_REPLAY_CONFLICT));
     }
 
     @Test
-    void assertReplayMatchesShouldRejectFallbackSnapshotWithDifferentAddressId() {
+    void physicalReplayWithMissingPersistedAddressIdShouldConflict() {
         MarketOrder order = MarketOrder.place(physicalPlacement());
         order.setAddressIdSnapshot(null);
 
-        assertThatThrownBy(() -> order.assertReplayMatches(uuid(4), uuid(2), 1, uuid(5), addressSnapshot(uuid(6))))
+        assertThatThrownBy(() -> order.assertReplayMatches(uuid(4), uuid(2), 1, uuid(5)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(MarketErrorCode.REQUEST_REPLAY_CONFLICT));

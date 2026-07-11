@@ -11,6 +11,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
@@ -50,40 +51,45 @@ public class RoomLocalIndex {
         if (roomId == null || connectionId == null || connectionId.isBlank()) {
             return false;
         }
-        Set<String> ids = connectionIdsByRoomId.get(roomId);
-        boolean firstLocalConnection = false;
-        if (ids == null) {
-            Set<String> created = ConcurrentHashMap.newKeySet();
-            ids = connectionIdsByRoomId.putIfAbsent(roomId, created);
+        AtomicBoolean firstLocalConnection = new AtomicBoolean(false);
+        connectionIdsByRoomId.compute(roomId, (ignored, existing) -> {
+            Set<String> ids = existing;
             if (ids == null) {
-                ids = created;
-                firstLocalConnection = true;
+                ids = ConcurrentHashMap.newKeySet();
+                firstLocalConnection.set(true);
                 indexedRooms.incrementAndGet();
             }
-        }
-        ids.add(connectionId);
-        recordRoomSizeSampled(ids);
-        return firstLocalConnection;
+            ids.add(connectionId);
+            recordRoomSizeSampled(ids);
+            return ids;
+        });
+        return firstLocalConnection.get();
     }
 
     public boolean remove(UUID roomId, String connectionId) {
         if (roomId == null || connectionId == null || connectionId.isBlank()) {
             return false;
         }
-        Set<String> ids = connectionIdsByRoomId.get(roomId);
-        if (ids == null) {
+        AtomicBoolean lastLocalConnectionRemoved = new AtomicBoolean(false);
+        connectionIdsByRoomId.computeIfPresent(roomId, (ignored, ids) -> {
+            ids.remove(connectionId);
+            recordRoomSizeSampled(ids);
+            if (ids.isEmpty()) {
+                lastLocalConnectionRemoved.set(true);
+                indexedRooms.decrementAndGet();
+                return null;
+            }
+            return ids;
+        });
+        return lastLocalConnectionRemoved.get();
+    }
+
+    public boolean hasConnections(UUID roomId) {
+        if (roomId == null) {
             return false;
         }
-        ids.remove(connectionId);
-        boolean lastLocalConnectionRemoved = false;
-        if (ids.isEmpty()) {
-            if (connectionIdsByRoomId.remove(roomId, ids)) {
-                lastLocalConnectionRemoved = true;
-                indexedRooms.decrementAndGet();
-            }
-        }
-        recordRoomSizeSampled(ids);
-        return lastLocalConnectionRemoved;
+        Set<String> ids = connectionIdsByRoomId.get(roomId);
+        return ids != null && !ids.isEmpty();
     }
 
     public void forEachConnectionId(UUID roomId, Consumer<String> consumer) {

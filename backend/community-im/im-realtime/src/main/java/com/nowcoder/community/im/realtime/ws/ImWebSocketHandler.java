@@ -37,6 +37,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -319,9 +320,15 @@ public class ImWebSocketHandler implements WebSocketHandler {
         int outboundBacklog = conn.outboundBacklog();
         try {
             connectionRegistry.unregister(conn);
-            for (UUID roomId : conn.joinedRoomsView()) {
-                roomLocalPresenceService.removeLocalConnection(roomId, conn.connectionId());
+        } catch (RuntimeException ignore) {
+        }
+        for (UUID roomId : Set.copyOf(conn.joinedRoomsView())) {
+            try {
+                roomLocalPresenceService.leaveLocalRoom(roomId, conn);
+            } catch (RuntimeException ignore) {
             }
+        }
+        try {
             conn.complete();
         } catch (RuntimeException ignore) {
         } finally {

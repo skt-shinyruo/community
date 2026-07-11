@@ -49,8 +49,7 @@ public class MembershipProjectionService {
             return;
         }
         for (UUID roomId : roomIdsForUser(conn.userId())) {
-            conn.joinRoom(roomId);
-            roomLocalPresenceService.addLocalConnection(roomId, conn.connectionId());
+            roomLocalPresenceService.joinLocalRoom(roomId, conn);
         }
     }
 

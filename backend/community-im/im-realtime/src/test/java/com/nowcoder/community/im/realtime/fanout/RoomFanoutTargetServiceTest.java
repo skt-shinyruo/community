@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -66,6 +68,26 @@ class RoomFanoutTargetServiceTest {
         assertThat(first).isEqualTo(RoomFanoutTargetResult.ACCEPTED);
         assertThat(duplicate.name()).isEqualTo("DUPLICATE");
         verify(roomFanoutCoalescer, times(1)).markRoomUpdated(roomId, 44L);
+    }
+
+    @Test
+    void failedLocalFanoutCanBeRetriedWithSameSourceEventId() {
+        UUID roomId = uuid(5);
+        RoomFanoutTargetService service = service();
+        RoomFanoutCommand command = new RoomFanoutCommand("worker-a", roomId, 45L, "evt-retry", 1000L);
+        doThrow(new IllegalStateException("enqueue failed"))
+                .doNothing()
+                .when(roomFanoutCoalescer)
+                .markRoomUpdated(roomId, 45L);
+
+        assertThatThrownBy(() -> service.apply(command))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("enqueue failed");
+
+        RoomFanoutTargetResult retry = service.apply(command);
+
+        assertThat(retry).isEqualTo(RoomFanoutTargetResult.ACCEPTED);
+        verify(roomFanoutCoalescer, times(2)).markRoomUpdated(roomId, 45L);
     }
 
     @Test

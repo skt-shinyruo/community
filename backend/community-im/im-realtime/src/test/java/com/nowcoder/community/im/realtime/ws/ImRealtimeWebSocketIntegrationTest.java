@@ -90,6 +90,7 @@ class ImRealtimeWebSocketIntegrationTest {
     private static final int APP_PORT = findAvailablePort();
     private static final String WORKER_ID = "worker-a";
     private static final String WS_PATH = "/internal/ws/im";
+    private static final long POLICY_OWNER_VERSION = 1L;
 
     private static final AtomicReference<List<RoomMembershipEntry>> MEMBERSHIP_ENTRIES = new AtomicReference<>(List.of());
     private static final AtomicReference<List<UserMessagingPolicyEntry>> POLICY_ENTRIES = new AtomicReference<>(List.of());
@@ -507,12 +508,13 @@ class ImRealtimeWebSocketIntegrationTest {
     }
 
     private static void handlePolicySnapshot(HttpExchange exchange) throws IOException {
+        List<UserMessagingPolicyEntry> entries = POLICY_ENTRIES.get();
         LinkedHashMap<String, Object> body = new LinkedHashMap<>();
         body.put("schemaVersion", ImContractVersions.PROJECTION_SCHEMA_VERSION);
-        body.put("entries", POLICY_ENTRIES.get());
+        body.put("entries", entries);
         body.put("nextUserId", null);
         body.put("hasMore", false);
-        body.put("snapshotHighWatermark", 0L);
+        body.put("snapshotHighWatermark", entries.isEmpty() ? 0L : POLICY_OWNER_VERSION);
         writeJson(exchange, 200, body);
     }
 
@@ -539,7 +541,17 @@ class ImRealtimeWebSocketIntegrationTest {
     }
 
     private static UserMessagingPolicyEntry policy(UUID userId, boolean canSendPrivate) {
-        return new UserMessagingPolicyEntry(userId, true, false, false, null, null, canSendPrivate, 1L, null);
+        return new UserMessagingPolicyEntry(
+                userId,
+                true,
+                false,
+                false,
+                null,
+                null,
+                canSendPrivate,
+                POLICY_OWNER_VERSION,
+                null
+        );
     }
 
     private OpenSessionData newSession(UUID userId, String workerId) {

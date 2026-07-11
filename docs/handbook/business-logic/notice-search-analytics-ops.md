@@ -6,8 +6,8 @@
 
 本文中的四类支撑域都以“上游事实 -> 派生读模型 / 运维动作”的方式工作：
 
-1. Notice：content / social / moderation 发布 contract event，`NoticeProjectionListener` 在事务提交后接收事件，`NoticeProjectionApplicationService` 计算收件人、topic 和内容快照，再写 notice 表。读取通知列表、未读数和摘要时只读 notice 自己的读模型。
-2. Search：content 主事实变化先进入 search outbox，再由 outbox worker 把 `PostOutboxHandler` 触发起来，handler 回源 content owner 当前状态后决定 ES upsert 还是 delete。重建索引时使用 single-flight 和 alias 原子切换，切换前原索引始终可读。
+1. Notice：content / social owner event 经 `content.events` / `social.events` 到 `NoticeProjectionKafkaListener`，再由 `NoticeProjectionApplicationService` 计算收件人、topic 和内容快照。读取列表、未读数和摘要时只读 notice 自己的读模型。
+2. Search：content owner event 经 `content.events` 到 `SearchPostProjectionKafkaListener`，listener 进入 `SearchPostProjectionApplicationService` 回源 content 当前状态后决定 ES upsert 还是 delete。重建索引使用 single-flight 和 alias 原子切换。
 3. Analytics：请求完成后由 `AnalyticsRequestCaptureFilter` 采集，classifier 决定是否记录 UV / DAU，`AnalyticsIngestApplicationService` 写 Redis；登录成功也可通过 action API 计入 DAU。
 
 ## Notice 通知
@@ -45,16 +45,16 @@ HTTP：
 
 `NoticeProjectionApplicationService`：
 
-1. 接收 content/social contract event。
+1. `NoticeProjectionKafkaListener` 从 `content.events` / `social.events` 接收 contract event。
 2. 根据事件类型解析收件人、topic 和 content JSON。
 3. `NoticeProjectionDomainService.shouldProject(...)` 判断是否应投影。
-4. 写 notice。
+4. 先按 source event ID 去重，再写 notice。
 
 语义：
 
 - 点赞、评论、关注和治理事件可生成通知。
 - `LIKE_REMOVED` 和 `FOLLOW_REMOVED` 当前不撤销通知。
-- 通知投影是 after-commit best-effort，失败不回滚上游主事务。
+- 通知投影失败按共享 Kafka retry / `.dlq` 恢复，不回滚已经提交的上游主事务。
 
 ## Search 搜索
 
@@ -72,7 +72,7 @@ HTTP：
 
 后台：
 
-- content post event -> search outbox -> `PostOutboxHandler`。
+- `content.events -> SearchPostProjectionKafkaListener -> SearchPostProjectionApplicationService`。
 
 ### 查询流程
 
@@ -97,13 +97,12 @@ HTTP：
 
 ### 投影流程
 
-1. content 发布帖子事件。
-2. `PostOutboxEnqueuer` 写 search projection outbox。
-3. outbox worker dispatch 到 `PostOutboxHandler`。
-4. handler 把 event payload 当作触发信号，不信任其作为索引事实。
-5. handler 回源 content owner 当前帖子状态。
-6. `PostSearchDomainService.shouldIndex(...)` 判断是否应索引。
-7. 应索引则 upsert ES；不应索引则 delete ES。
+1. content 主事务写 `eventbus.content`，owner handler 发布 `content.events`。
+2. `SearchPostProjectionKafkaListener` 识别 post published/updated/deleted 并校验 source metadata。
+3. listener 进入 `SearchPostProjectionApplicationService`。
+4. application 把 event 当作触发信号，回源 content owner 当前帖子状态。
+5. `PostSearchDomainService.shouldIndex(...)` 判断是否应索引。
+6. 应索引则 upsert ES；不应索引则 delete ES。
 
 ## Analytics 分析
 
@@ -163,7 +162,7 @@ Notice：
 - `notice.application.NoticeProjectionApplicationService`
 - `notice.domain.service.NoticeDomainService`
 - `notice.domain.service.NoticeProjectionDomainService`
-- `notice.infrastructure.event.NoticeProjectionListener`
+- `notice.infrastructure.event.NoticeProjectionKafkaListener`
 
 Search：
 
@@ -172,8 +171,7 @@ Search：
 - `search.application.SearchPostProjectionApplicationService`
 - `search.domain.service.PostSearchDomainService`
 - `search.domain.service.KeywordHighlightSupport`
-- `search.infrastructure.event.PostOutboxEnqueuer`
-- `search.infrastructure.event.PostOutboxHandler`
+- `search.infrastructure.event.SearchPostProjectionKafkaListener`
 - `search.infrastructure.persistence.PostIndexManager`
 
 Analytics：

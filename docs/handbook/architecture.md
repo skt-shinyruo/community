@@ -142,11 +142,15 @@ caller ApplicationService
 
 ```text
 owner domain event
-  -> infrastructure event adapter
-  -> owner contracts.event
-  -> listener / outbox handler
+  -> same-domain event bridge
+  -> owner ApplicationService
+  -> owner contracts.event -> eventbus.<owner>
+  -> owner outbox handler -> <owner>.events
+  -> consumer Kafka listener
   -> consumer ApplicationService
 ```
+
+当前 Content、Social、User 的跨域事件都使用上述唯一链路。`projection.im.policy` 是 consumer 侧唯一保留的内部 projection outbox，不是第二条跨域发布路径。
 
 禁止把以下类型作为跨域入口：
 

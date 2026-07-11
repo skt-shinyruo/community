@@ -13,13 +13,14 @@ Controller / Listener / Job
       -> ForeignOwner api.query / api.action
 ```
 
-跨领域异步协作必须通过 owner 的 `contracts.event` 或可靠 outbox 表达。
+跨领域异步协作必须通过 owner 的 `contracts.event` 和可靠 outbox/Kafka 骨干表达。
 
 ```text
 Owner domain event
-  -> infrastructure event adapter
-  -> owner contracts.event
-  -> consumer listener / outbox handler
+  -> same-domain event bridge -> owner ApplicationService
+  -> owner contracts.event -> eventbus.<owner>
+  -> owner outbox handler -> <owner>.events
+  -> consumer Kafka listener
   -> consumer ApplicationService
 ```
 
@@ -46,10 +47,10 @@ Owner domain event
 
 | 场景 | 事件或投影 | 语义 |
 | --- | --- | --- |
-| 帖子创建、更新、删除 | content event -> search outbox | ES 索引最终一致，可重试，可 reindex。 |
-| 评论、点赞、关注、治理 | content/social/moderation event -> notice projection | 通知 after-commit best-effort，失败不回滚上游。 |
-| 内容/社交事件推进任务 | content/social -> growth | growth 做事件去重，避免重复推进任务。 |
-| 用户处罚或拉黑变化 | user/social -> IM policy outbox -> Kafka | realtime 本地 policy projection 最终追平。 |
+| 帖子创建、更新、删除 | `eventbus.content -> content.events -> search listener` | ES 索引最终一致，可 retry / DLQ，可 reindex。 |
+| 评论、点赞、关注、治理 | owner Kafka -> notice listener | source event 去重后写通知读模型，失败走 retry / DLQ。 |
+| 内容/社交事件推进任务 | owner Kafka -> growth listener | growth 做 source event 去重，避免重复推进任务。 |
+| 用户处罚或拉黑变化 | owner Kafka -> `projection.im.policy` -> IM Kafka | realtime 本地 policy projection 最终追平。 |
 | IM command 持久化完成 | im-core persisted event -> realtime push | 在线推送不等于消息事实，客户端可补拉 history。 |
 
 异步协作的关键判断：HTTP 成功只代表 owner 主事实完成，不代表所有 projection 已完成。
@@ -63,10 +64,9 @@ PostController
   -> PostPublishingApplicationService
       -> content domain / repository
       -> user owner API      # 发言资格
-      -> growth / wallet     # 任务和奖励协作
       -> content domain event
-          -> search outbox
-          -> notice projection
+          -> eventbus.content -> content.events
+              -> search / notice / growth / reward listener
 ```
 
 content 拥有帖子事实；search 和 notice 只是下游读模型。
@@ -78,9 +78,9 @@ LikeController
   -> LikeApplicationService
       -> content owner API   # 解析实体 owner 和 postId
       -> social repository   # 写点赞关系
-      -> growth / wallet     # 任务和奖励
       -> social contract event
-          -> notice projection
+          -> eventbus.social -> social.events
+              -> notice / growth / reward / hot-feed listener
 ```
 
 social 不信任客户端提交的目标用户，而是回源 content 解析。
@@ -92,9 +92,10 @@ BlockController
   -> BlockApplicationService
       -> social repository
       -> social domain event
-          -> IM policy outbox
-              -> Kafka
-                  -> im-realtime projection
+          -> eventbus.social -> social.events
+              -> ImPolicyBackboneKafkaListener
+                  -> projection.im.policy -> IM Kafka
+                      -> im-realtime projection
 ```
 
 IM realtime 使用本地 policy projection 做快速判定，但拉黑主事实仍在 social。
@@ -121,4 +122,4 @@ MarketController
 5. 看异步事件：哪些 projection 可能稍后追平？
 6. 看失败语义：失败是回滚、幂等返回、pending、best-effort 记录日志，还是进入 DEAD/DLQ？
 
-如果一个问题发生在读模型上，例如搜索结果、通知、IM policy 缓存，排查时不要先改 owner 事实；先确认 projection 是否落后、outbox 是否卡住、reindex 或补偿入口是否需要执行。
+如果一个问题发生在读模型上，例如搜索结果、通知、IM policy 缓存，排查时不要先改 owner 事实；先确认 owner outbox、Kafka consumer/DLQ 和 projection 是否落后，再判断 reindex 或补偿入口是否需要执行。

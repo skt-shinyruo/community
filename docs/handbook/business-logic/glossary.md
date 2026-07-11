@@ -34,11 +34,11 @@
 | 术语 | 含义 | 典型场景 |
 | --- | --- | --- |
 | Domain event | 领域内部发生的事实事件，先在 owner 内表达。 | 帖子创建、点赞变更、拉黑关系变更。 |
-| Outbox | 事务内写出待投递事件，再由 worker 可靠投递。 | search post projection、IM policy projection。 |
+| Outbox | 事务内写出待投递事件，再由 worker 可靠投递。 | owner contract event 发布、IM policy 内部 projection。 |
 | Projection | 为查询、推送或快速判定维护的派生视图。它不是 SSOT。 | notice 表、ES 索引、IM policy 本地缓存。 |
 | Feed cursor | Feed 翻页的不透明游标，客户端不能依赖内部结构。 | 全局热榜、板块热榜、关注流翻页。 |
 | Rank version | 一次榜单排序结果或投影批次的版本标识，用于解释 feed 页属于哪次排序视图。 | 热榜刷新后返回新的 `rankVersion`。 |
-| Best-effort | 主事务提交后尽力执行的副作用，失败不回滚主事实。 | 通知投影失败只记录日志。 |
+| Best-effort | 主事务提交后尽力执行的非关键副作用，失败不回滚主事实。 | 提交后的社交清理或本地缓存预热；Notice 不属于此类。 |
 | Reliability governance plane | 面向可靠性状态的治理面，只负责查询、重放、补偿触发、审计和观测，不拥有业务事实。 | outbox `DEAD` 查询和重放、projection lag 查询。 |
 | Replay | 将失败的可靠异步工作恢复到原处理路径再次执行。它不是伪造事件，也不是绕过 owner 规则直接调用 handler。 | outbox `DEAD` 事件重新置为 `PENDING`，由 worker 处理。 |
 | Disposition | 对终态失败或人工处置结果的分类记录。 | `REPLAYED`、`IGNORED`、`FIXED_BY_REBUILD`、`MANUAL_REPAIR_REQUIRED`。 |

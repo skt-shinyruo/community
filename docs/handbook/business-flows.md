@@ -279,7 +279,7 @@ Main path: read public feed：
 3. application 先从 Redis hot feed projection 读取帖子 ID：全站 `post:feed:global:hot`，板块 `post:feed:board:hot:{boardId}`。
 4. application 批量读取 `post:summary:{postId}`；缺失时回源 content owner 组装摘要并回填 Redis。
 5. 响应返回摘要列表、`nextCursor` 和 `rankVersion`。
-6. `GET /api/posts` 不再承担 public feed 入口。
+6. 旧 posts list route 已退休；public feed 只使用上述两个 feed 入口。
 
 Main path: create post：
 
@@ -292,7 +292,7 @@ Main path: create post：
 7. 发布 content domain event。
 8. domain event bridge 映射为 content contract event，并写入 outbox。
 9. content contract event 进入 Kafka 后，search、notice、user reward 和 growth task 等下游异步追平。
-10. 安排帖子分数刷新和 hot feed projection 副作用。
+10. `PostHotFeedProjectionKafkaListener` 消费 owner event，由 application 回源当前事实重算 score 和 hot feed。
 
 Main path: create comment：
 
@@ -303,8 +303,8 @@ Main path: create comment：
 5. 文本在写入前做转义和敏感词过滤。
 6. 写 `comment` 并增加帖子 `comment_count`。
 7. 发布评论事件。
-8. user reward / growth task outbox enqueuer 在提交前写入各自 outbox 记录。
-9. 评论事务提交后，outbox worker 异步触发奖励、成长任务和可能的 wallet 记账；notice / score refresh 等下游按各自语义处理。
+8. content contract event 与评论主事实在同一事务写入 `eventbus.content`。
+9. owner outbox handler 发布 `content.events`；user reward、growth、notice、search 和 hot feed 各自的 Kafka listener 进入本域 ApplicationService。
 
 Main path: update / delete comment：
 
@@ -315,7 +315,7 @@ Main path: update / delete comment：
 - 治理删除和作者删除走同一个删除线程能力。
 - 删除评论会软删除该评论及其 active descendant replies。
 - 帖子 `comment_count` 按本次从 visible 变为 deleted 的评论数递减。
-- 删除后发布每条被删评论的删除事件，并安排帖子热度刷新。
+- 删除后发布每条被删评论的删除事件，由 `content.events` hot-feed consumer 重算帖子热度。
 - 删除后通过 social owner action 清理被删评论上的 like 关系。
 
 Bookmarks / subscription：
@@ -327,10 +327,9 @@ Bookmarks / subscription：
 Failure / idempotency：
 
 - 发帖和评论使用 HTTP `Idempotency-Key`。
-- 内容类接口当前不传请求指纹，只按 `operation + userId + key` 去重。
-- 搜索索引通过 outbox 最终追平。
-- 通知投影失败不回滚主写事务。
-- 删除 / 下线帖子后，search handler 回源 DB 当前状态并异步删除索引文档。
+- 发帖和评论都在 `operation + userId + key` 幂等域内校验请求指纹；同 key 不同参数返回 replay conflict。
+- 搜索和通知通过 `content.events` 的 consumer retry / `.dlq` 最终追平，不回滚已经提交的 content 主事实。
+- 删除 / 下线帖子后，`SearchPostProjectionKafkaListener` 进入 application 回源 DB 当前状态并异步删除索引文档。
 - 评论删除后的 like 清理在事务提交后触发；清理失败不回滚已提交的评论删除。
 
 Key code：
@@ -342,8 +341,8 @@ Key code：
 - `content.domain.*`
 - `content.infrastructure.persistence.*`
 - `content.contracts.event.*`
-- `search.infrastructure.event.PostOutboxEnqueuer`
-- `search.infrastructure.event.PostOutboxHandler`
+- `search.infrastructure.event.SearchPostProjectionKafkaListener`
+- `search.application.SearchPostProjectionApplicationService`
 
 ## Social Like Follow And Events
 
@@ -368,7 +367,7 @@ Main path: like：
 5. repository 写点赞关系。
 6. storage adapter 若声明需要补偿，application 注册事务回滚补偿。
 7. 发布 social domain event。
-8. `LocalSocialDomainEventPublisher` 映射为 `SocialContractEvent` 并写入 outbox。
+8. `OutboxSocialDomainEventPublisher` 映射为 `SocialContractEvent` 并写入 `eventbus.social`。
 9. social contract event 进入 Kafka。
 10. notice、growth、user reward 和 content score projection 等下游异步追平。
 
@@ -420,20 +419,20 @@ Main path：
 2. 重复拉黑返回 `false` 或等价幂等结果。
 3. 新增 block 关系时，同步移除 blocker -> blocked 和 blocked -> blocker 两个方向的 follow 关系。
 4. block 关系变化发布领域事件。
-5. `ImPolicyOutboxEnqueuer` 在 `BEFORE_COMMIT` 写入 IM policy outbox。
-6. outbox payload topic 是 `projection.im.policy`，payload kind 为 `BLOCK`。
-7. `ImPolicyKafkaOutboxHandler` 把 outbox payload 转成 Kafka `UserBlockRelationChanged`。
-8. Kafka topic 是 `im.event.user-block-relation-changed`，key 是 blocker userId。
-9. `im-realtime` 消费事件，刷新本地 policy projection。
+5. `OutboxSocialDomainEventPublisher` 在主事务内写 `eventbus.social`，owner handler 发布 `social.events`。
+6. `ImPolicyBackboneKafkaListener` 校验 source event ID、发生时间和正数 owner version，进入 `ImPolicyProjectionApplicationService`。
+7. `JdbcImPolicyProjectionOutboxAdapter` 以确定性 event ID 写 `projection.im.policy`，payload kind 为 `BLOCK`。
+8. `ImPolicyKafkaOutboxHandler` 进入 dispatch application，发布 `im.event.user-block-relation-changed`，key 是 blocker userId。
+9. `im-realtime` 消费事件，按显式 owner version 刷新本地 policy projection。
 10. `im-realtime` 发送私信前用本地 projection 判断拉黑、处罚、目标用户状态。
 11. 即使 projection 滞后放过 command，`im-core` 对未落库的新消息仍在持久化前调用 `private-message-decision` 回源 user/social owner API，最终拒绝不合规私信。
 
 Main path: user punishment：
 
 1. `UserModerationApplicationService` 更新用户禁言 / 封禁 / 存在状态。
-2. user owner 发布 `USER_POLICY_CHANGED` contract event。
-3. `ImPolicyOutboxEnqueuer` 在 `BEFORE_COMMIT` 写入 `projection.im.policy` outbox，payload kind 为 `USER_POLICY`。
-4. `ImPolicyKafkaOutboxHandler` 转成 Kafka `UserMessagingPolicyChanged`。
+2. user owner 在同一事务写 `eventbus.user`，owner handler 发布 `user.events` 的 `USER_POLICY_CHANGED` contract event。
+3. `ImPolicyBackboneKafkaListener` 进入 projection application，`JdbcImPolicyProjectionOutboxAdapter` 写 `projection.im.policy`，payload kind 为 `USER_POLICY`。
+4. `ImPolicyKafkaOutboxHandler` 进入 dispatch application，转成 Kafka `UserMessagingPolicyChanged`。
 5. Kafka topic 是 `im.event.user-messaging-policy-changed`，key 是 userId。
 6. `im-realtime` 消费事件，刷新本地 policy projection。
 7. `im-realtime` 发送私信前用本地 projection 判断拉黑、处罚、目标用户状态。
@@ -450,15 +449,17 @@ Snapshot：
 
 Failure：
 
-- 如果发布 block 事件失败，当前实现会尝试回滚刚写入的 block 关系，并恢复本次自动移除的 follow 关系。
-- IM policy outbox 失败不应影响已提交主事实，会通过 outbox 重试。
+- social/user 主事实与各自 owner eventbus row 原子提交；owner Kafka publish 失败由 outbox 重试 / DEAD 恢复。
+- IM policy listener 失败进入源 topic retry / `.dlq`；已经写入 `projection.im.policy` 的失败由 outbox 重试 / DEAD 恢复。
 
 Key code：
 
 - `social.application.BlockApplicationService`
-- `im.projection.ImPolicyOutboxEnqueuer`
-- `im.projection.ImPolicyKafkaOutboxHandler`
-- `im.projection.ImPolicySnapshotController`
+- `im.infrastructure.event.ImPolicyBackboneKafkaListener`
+- `im.application.ImPolicyProjectionApplicationService`
+- `im.infrastructure.event.JdbcImPolicyProjectionOutboxAdapter`
+- `im.infrastructure.event.ImPolicyKafkaOutboxHandler`
+- `im.controller.ImPolicySnapshotController`
 
 ## Notice Projection And Read Model
 
@@ -622,32 +623,31 @@ Owner / SSOT：
 Entry：
 
 - `GET /api/search/posts`
-- content event -> search outbox。
+- `content.events` Kafka contract event。
 
 Search query：
 
 1. `SearchController.searchPosts(...)`。
 2. `SearchApplicationService.searchPosts(...)`。
 3. `PostSearchDomainService` 校验 keyword、category、tag、page、size。
-4. repository 查询 ES 或 memory implementation。
+4. repository 查询 Elasticsearch。
 5. 支持标题/内容全文检索、分类过滤、标签过滤、score + createTime 排序、关键词高亮。
 6. 单页最大 50，避免深分页风险。
 7. 无关键词时退化为 match-all，支持纯分类/标签过滤。
 
 Projection：
 
-1. content 变化发布事件。
-2. `PostOutboxEnqueuer` 写 `projection.search.post` outbox。
-3. `OutboxWorker` dispatch 到 `PostOutboxHandler`。
-4. handler 反序列化 payload，只把它作为触发信号。
-5. handler 回源 content owner 当前帖子状态。
-6. 当前状态应索引则 upsert ES；已删除 / 不应索引则 delete ES。
+1. content 主事务写 `eventbus.content`，owner handler 发布 `content.events`。
+2. `SearchPostProjectionKafkaListener` 识别 post published/updated/deleted 事件并校验 source metadata。
+3. listener 调用 `SearchPostProjectionApplicationService`。
+4. application 回源 content owner 当前帖子状态。
+5. 当前状态应索引则 upsert ES；已删除 / 不应索引则 delete ES。
 
 Failure：
 
 - ES 故障不阻断发帖、评论、社交等主业务写入。
 - 搜索查询会受 ES 故障影响。
-- outbox 会重试投影失败。
+- 目标事件失败由共享 Kafka retry / `content.events.dlq` 处理。
 
 Key code：
 
@@ -655,8 +655,8 @@ Key code：
 - `search.application.SearchApplicationService`
 - `search.domain.service.PostSearchDomainService`
 - `search.infrastructure.persistence.ElasticsearchPostSearchRepository`
-- `search.infrastructure.event.PostOutboxEnqueuer`
-- `search.infrastructure.event.PostOutboxHandler`
+- `search.infrastructure.event.SearchPostProjectionKafkaListener`
+- `search.application.SearchPostProjectionApplicationService`
 - `search.infrastructure.persistence.PostIndexManager`
 
 ## Analytics
@@ -735,12 +735,12 @@ Owner / SSOT：
 
 Task progress path：
 
-1. 内容或社交事件进入 growth。
-2. 按事件类型找激活中的任务模板。
-3. 解析 periodKey。
+1. content/social owner event 经 `content.events` / `social.events` 到 `TaskProgressEventBackboneKafkaListener`。
+2. listener 识别目标事件并进入 `TaskProgressApplicationService`。
+3. 按事件类型找激活中的任务模板并解析 periodKey。
 4. 记录 source event 到 `user_task_event_log`，做事件去重。
-5. 确保有 `user_task_progress`。
-6. 锁定并推进进度。
+5. 确保有 `user_task_progress`，锁定并推进进度。
+6. like removed 按 relation key 回滚尚未 claimed 的点赞贡献。
 7. 根据模板判断未完成、已达成待领取、已达成自动发奖。
 8. 已发过的奖励不重复发。
 
@@ -762,9 +762,10 @@ Failure：
 Key code：
 
 - `growth.application.TaskProgressApplicationService`
+- `growth.infrastructure.event.TaskProgressEventBackboneKafkaListener`
 - `growth.domain.service.*`
 - `growth.infrastructure.persistence.*`
-- `growth.api.*`
+- `growth.api.query.UserLevelQueryApi`
 - `wallet.api.action.*`
 
 ## Market Order And Dispute
@@ -806,15 +807,17 @@ Order path：
 1. controller 读取 `Idempotency-Key`；body `requestId` 按未知字段返回 `400`。
 2. 缺少 `Idempotency-Key` 返回 `400`。
 3. request fingerprint 包含 `listingId`、`quantity`、`addressId`。
-4. application 校验 listing、库存、买家、价格和订单总额上限。
-5. 物理商品必须提供 active 收货地址，订单保存地址快照。
-6. 有限库存或实物商品创建订单时扣减 listing 可用库存。
-7. 预加载虚拟库存会先锁定库存单元并绑定订单。
-8. 通过 `MarketOrder.place(...)` 创建订单，领域模型保存订单快照并给出初始 `ESCROW_PENDING` 状态。
-9. 在 market 本地事务内写入 `market_wallet_action(ESCROW, PENDING)`，不在该事务里直接写 wallet ledger。
-10. 对外幂等 key 与钱包账本 requestId 解耦；钱包侧使用服务端派生 id，例如 `market-order:<orderId>:<action>`。
+4. application 先按 `(buyerUserId, requestId)` 查询既有订单；请求 listing、quantity、address 一致时立即返回，即使当前 listing 已售罄。
+5. replay 的物理订单只比较请求 `addressId` 与已持久化 `addressIdSnapshot`；快照缺失或参数不同都返回 replay conflict，不回查地址重建。
+6. replay miss 后才校验 listing、库存、买家、价格和订单总额上限；锁 listing 后及重复插入恢复时再次执行同一 replay 判定，覆盖并发重试。
+7. 新物理订单必须提供 active 收货地址，并保存完整地址快照；虚拟订单不需要地址快照。
+8. 有限库存或实物商品创建订单时扣减 listing 可用库存。
+9. 预加载虚拟库存会先锁定库存单元并绑定订单。
+10. 通过 `MarketOrder.place(...)` 创建订单，领域模型保存订单快照并给出初始 `ESCROW_PENDING` 状态。
+11. 在 market 本地事务内写入 `market_wallet_action(ESCROW, PENDING)`，不在该事务里直接写 wallet ledger。
+12. 对外幂等 key 与钱包账本 requestId 解耦；钱包侧使用服务端派生 id，例如 `market-order:<orderId>:<action>`。
 
-`MarketOrder` 负责订单重放参数兼容性、商品/交付/库存快照、买卖双方角色校验、状态谓词、自动确认到期判断和订单状态流转意图。application service 负责事务、锁、仓储、库存、wallet action enqueue 和结果组装。
+`MarketOrder` 负责订单重放参数一致性、商品/交付/库存快照、买卖双方角色校验、状态谓词、自动确认到期判断和订单状态流转意图。application service 负责事务、锁、仓储、库存、wallet action enqueue 和结果组装。
 
 Market wallet action saga：
 
@@ -1014,7 +1017,7 @@ Entry：
 Current tasks：
 
 - `OutboxWorkerScheduler`
-- 帖子热度刷新 / score refresh
+- hot path 缓存预热 / counter snapshot flush
 - `marketOrderAutoConfirm`
 - `marketWalletActionProcessor`
 - `marketWalletActionRecovery`
@@ -1022,7 +1025,8 @@ Current tasks：
 Task details：
 
 - `RefreshTokenCleanupJob` 是本地 `@Scheduled` 清理，受 `auth.refresh.cleanup.interval-ms` 和 `auth.refresh.cleanup.enabled` 控制，调用 refresh token application 删除过期 session。
-- `PostScoreRefresher` 是本地 `@Scheduled`，受 `content.score.refresh.enabled`、`content.score.refresh.delay-ms` 和 `content.score.refresh.batch-size` 控制，batch size 被限制在 1 到 2000。
+- `HotPathPrewarmJob` 是本地 `@Scheduled`，受 `content.hot-path.prewarm.enabled` 和 `content.hot-path.prewarm.delay-ms` 控制，进入 `HotPathPrewarmApplicationService`。
+- `PostCounterSnapshotFlushJob` 受 `content.counter.flush.enabled`、`content.counter.flush.delay-ms` 和 flush batch size 控制，进入 `PostCounterApplicationService`。
 - `MarketOrderAutoConfirmHandler` 是 XXL `marketOrderAutoConfirm`，进入 market owner 自动确认 due orders，只写 release command。
 - `MarketWalletActionProcessorHandler` 是 XXL `marketWalletActionProcessor`，每轮处理数量受 `market.wallet-action.process-batch-size` 控制。
 - `MarketWalletActionRecoveryHandler` 是 XXL `marketWalletActionRecovery`，每轮 reconcile 数量受 `market.wallet-action.recovery-batch-size` 控制；同时恢复过期 lease、补齐命令和应用已有 wallet 结果。
@@ -1056,14 +1060,15 @@ Failure：
 - outbox 失败不打爆 HTTP 主写路径。
 - `DEAD` 事件需要人工排查。
 - single-flight lock 异常要看 Redis 和 heartbeat。
-- 本地 cleanup / score refresh job 捕获异常并记录日志，不回滚其他业务事务。
+- 本地 cleanup / prewarm / counter flush job 捕获异常并记录日志，不回滚其他业务事务。
 - XXL handler 捕获异常后通过 `XxlJobHelper.handleFail(...)` 标记失败；成功或 skipped 会写 job log 并 `handleSuccess(...)`。
 - fail-open / fail-closed 由上层任务语义决定。
 
 Key code：
 
 - `auth.infrastructure.job.RefreshTokenCleanupJob`
-- `content.infrastructure.job.PostScoreRefresher`
+- `content.infrastructure.job.HotPathPrewarmJob`
+- `content.infrastructure.job.PostCounterSnapshotFlushJob`
 - `market.infrastructure.job.MarketOrderAutoConfirmHandler`
 - `market.infrastructure.job.MarketWalletActionProcessorHandler`
 - `market.infrastructure.job.MarketWalletActionRecoveryHandler`

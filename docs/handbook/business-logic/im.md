@@ -51,9 +51,10 @@ Kafka command/event：
 契约版本：
 
 - `im-common` 下 command、event、projection snapshot 和 WebSocket frame 都是跨 deployable JSON contract。
-- 当前 schema version 是 `1`。读取缺失 `schemaVersion` 的旧 payload 时按 `1` 处理；写出当前 v1 payload 时默认省略 `schemaVersion`，避免滚动升级时新 producer 主动打破旧 consumer。
-- consumer 忽略未知 JSON 字段；新增字段必须是 optional，并有明确默认值。必填字段、字段改名、字段类型或语义变化属于破坏性变更，必须新 topic / 新 frame type / 新显式版本迁移。
-- Kafka topic 与 WebSocket `type` 是路由契约。兼容性字段演进不换名；不兼容语义演进不能复用旧 topic/type。
+- command、event、projection 和 WebSocket frame 都显式写出数值型 `schemaVersion: 1`。
+- 读取时只接受 JSON integer `1`；字段缺失、`null`、非数值、非正数或未来版本都会失败。
+- v1 consumer 忽略未知 JSON 字段；必填字段、字段名、字段类型或语义变化必须设计新的显式契约。
+- Kafka topic 与 WebSocket `type` 是路由契约，不兼容语义不能复用原 topic/type。
 
 ## 数据流
 
@@ -185,12 +186,13 @@ Membership projection：
 - connect、私信发送和群消息发送都会先检查 projection ready。未 ready 时，connect 返回 `projection_not_ready` 并关闭，发送 frame 返回 reject。
 - `RoomMemberChanged` 事件增量更新 realtime 本地 `MembershipProjectionService` 和 `RoomLocalIndex`。
 - `RoomLocalIndex` 只保存当前 worker 进程内的 roomId -> connectionId 集合，用于房间在线 fanout 和 room 连接数指标；它不是 membership 权威状态。
-- membership snapshot 带 `snapshotHighWatermark`，entry / delta 带 `version` 和 `occurredAtEpochMillis`。realtime 只接受同一 `(roomId,userId)` 上版本更大的状态；旧 snapshot 或乱序 `RoomMemberChanged` 不会回滚 membership 或本机 room index。
+- membership snapshot 的 boxed `snapshotHighWatermark` 必填、非负并允许为 `0`；entry / delta 的 `version` 必须是显式正数。`occurredAtEpochMillis` 只用于观测，不能派生版本。realtime 只接受同一 `(roomId,userId)` 上版本更大的状态；旧 snapshot 或乱序 `RoomMemberChanged` 不会回滚 membership 或本机 room index。
 - membership `version` 是 im-core owner 的持久逻辑时钟：`im_membership_version_counter` 分配版本，active fact 写入 `im_room_member.version`，离开房间写入 `im_membership_version_log` 并推进 counter；snapshot entry、`RoomMemberChanged.version` 和 `snapshotHighWatermark` 都来自这个同一版本域。
-- 房间 fanout 默认保持 `legacy`，这是 routed rollout gate。`shadow` 继续 legacy 投递并只计算 owner route；`routed` 使用共享 owner consumer group 读取 room persisted event，再按分布式 room presence 将 state-only update dispatch 到持有本房间连接的 worker。
-- `routed` 必须绑定 Redis-backed distributed room presence；如果 presence 是 `NoopRoomPresenceDirectory`，realtime 启动期 fail-fast。
-- `shadow` owner 只做进程内 route 观测，不派发 target command。`routed` 默认使用 Kafka fixed-partition worker inbox：owner 在 room persisted Kafka listener 调用栈内完成 route planning，并把 target command 同步写入目标 worker 的 inbox partition；如果 route planning 或任一 target command publish 失败，会继续尝试其它目标 worker，然后把异常抛回 Kafka listener error handler，让原始 room persisted event 重试或进入 DLQ。空 target set 不重试，表示 presence 当前没有报告活跃 worker。
-- 每个 worker 必须配置唯一 `im.room-fanout.worker-inbox-slot`，并通过 discovery metadata `roomFanoutInboxSlot` 暴露；target consumer 只消费自己的固定 partition。target service 要求 `targetWorkerId` 匹配本 worker，同时要求非空 `sourceEventId`，同一 target worker 对重复 `sourceEventId` 做有界内存去重，重复命令返回 no-op accepted，不再次触发本地 fanout。客户端最终仍按 room message `seq` 和 history backfill 收敛。internal HTTP endpoint 仍保留为显式 fallback transport。
+- 房间 fanout 只使用 Redis-backed distributed presence、共享 `RoomPersistedOwnerConsumer` 和 Kafka fixed-partition worker inbox。`RoomFanoutOwnerService` 在 listener 调用栈内规划 route，并把 state-only command 同步写入目标 worker partition。
+- `RoomLocalIndex` 和连接对象是本进程权威状态；Redis activate/deactivate 失败时 `RoomLocalPresenceService` 保留 pending room 重试，不回滚本地 join/leave。
+- route planning 或任一 target publish 失败会抛回 listener，让原始 room persisted event 重试或进入 DLQ；空 target set 表示当前没有活跃 worker，不重试。
+- 每个 worker 必须配置唯一 `im.room-fanout.worker-inbox-slot` 并通过 discovery metadata `roomFanoutInboxSlot` 暴露。single 使用 `0`，cluster 使用 `0/1/2`。
+- target delivery 是 state-idempotent at-least-once，不是跨重启 exactly-once：进程内以有界 `sourceEventId` cache 抑制重复，重启后由 room/seq max coalescing 收敛，客户端最终按 seq 和 history backfill 修复状态。
 
 Policy projection：
 
@@ -198,10 +200,10 @@ Policy projection：
 - realtime 通过 internal endpoint 拉 user policies 和 block relations snapshot。
 - user moderation change 和 social block change 通过 Kafka 增量事件更新 realtime。
 - realtime 发私信前使用本地 policy projection 做快速判定。
-- user policy 以 `userId` 为 projection key，block relation 以 `(blockerUserId,blockedUserId)` 为 projection key。snapshot / delta 同样使用 `version`、`occurredAtEpochMillis` 和 `snapshotHighWatermark`，refresh 与 Kafka delta 并发时按 key 版本决胜。
+- user policy 以 `userId` 为 projection key，block relation 以 `(blockerUserId,blockedUserId)` 为 projection key。snapshot watermark 必填且非负，entry / delta version 必须是正数 owner version；refresh 与 Kafka delta 并发时按 key 版本决胜。
 - user policy `version` 是 user owner 的持久逻辑时钟：`user_policy_version_counter` 分配版本，`user.policy_version` 保存当前用户治理事实版本，`UserPolicyChangedPayload.version` 和 user policy snapshot entry / high-watermark 使用同一 counter 域。
 - block relation `version` 是 social owner 的持久逻辑时钟：`social_block_version_counter` 分配版本，active fact 写入 `social_block.version`，取消拉黑写入 `social_block_version_log` 并推进 counter；`BlockPayload.version`、block snapshot entry 和 high-watermark 使用同一 counter 域。
-- MySQL 迁移会把既有 active facts 和 counter 一次性 seed 到兼容旧 timestamp-derived 版本的高水位；之后版本只由 owner 持久 counter 单调推进，不能再用 snapshot time 或 bridge-local counter 生成。
+- `occurredAtEpochMillis` 不参与版本决策；版本只能由上述 owner 持久 counter 单调推进，不能使用 snapshot time 或进程内 counter 生成。
 
 projection 不是权威事实；启动和异常恢复依赖 snapshot 重新构建。
 
@@ -248,6 +250,14 @@ Realtime：
 - `im.realtime.presence.ConnectionRegistry`
 - `im.realtime.presence.WsConnection`
 - `im.realtime.presence.RoomLocalIndex`
+- `im.realtime.presence.RoomLocalPresenceService`
+- `im.realtime.presence.RedisRoomPresenceDirectory`
+- `im.realtime.fanout.RoomPersistedOwnerConsumer`
+- `im.realtime.fanout.RoomFanoutOwnerService`
+- `im.realtime.fanout.RoomFanoutRoutingService`
+- `im.realtime.fanout.KafkaRoomFanoutDispatcher`
+- `im.realtime.fanout.RoomFanoutTargetConsumer`
+- `im.realtime.fanout.RoomFanoutTargetService`
 - `im.realtime.projection.ProjectionSyncCoordinator`
 - `im.realtime.projection.PolicyProjectionService`
 - `im.realtime.projection.MembershipProjectionService`
@@ -276,6 +286,11 @@ Core：
 Community app projection：
 
 - `im.application.ImPolicySnapshotApplicationService`
-- `im.projection.ImPolicySnapshotController`
-- `im.projection.ImPolicyOutboxEnqueuer`
-- `im.projection.ImPolicyKafkaOutboxHandler`
+- `im.controller.ImPolicySnapshotController`
+- `im.application.ImPolicyProjectionApplicationService`
+- `im.application.ImPolicyProjectionOutboxPort`
+- `im.infrastructure.event.ImPolicyBackboneKafkaListener`
+- `im.infrastructure.event.JdbcImPolicyProjectionOutboxAdapter`
+- `im.infrastructure.event.ImPolicyKafkaOutboxHandler`
+- `im.application.ImPolicyEventDispatchApplicationService`
+- `im.infrastructure.event.ImPolicyEventKafkaSenderAdapter`

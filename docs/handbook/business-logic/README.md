@@ -16,7 +16,7 @@
 
 1. 注册登录：`auth` 编排验证码、登录风控、JWT 和 refresh token，`user` 拥有账号、密码 hash、用户状态和 refresh session 存储事实。
 2. 发帖评论：`content` 写帖子/评论主事实，回源 `user` 校验发言资格，媒体通过 OSS，搜索和通知通过事件最终一致。
-3. 点赞关注拉黑：`social` 写互动关系，点赞目标回源 `content` 解析，拉黑变化通过 outbox / Kafka 追平 IM policy projection。
+3. 点赞关注拉黑：`social` 写互动关系，点赞目标回源 `content` 解析，拉黑变化经 `eventbus.social -> social.events -> projection.im.policy` 追平 IM projection。
 4. 成长奖励：`growth` 根据内容和社交事件推进任务、去重和计算等级；真正入账由 `wallet` owner 决定。
 5. 市场交易：`market` 写商品、库存、订单和纠纷，资金动作进入 market wallet action saga，最终由 `wallet` 的复式账本落账。
 6. 网盘文件：`drive` 处理空间、目录、回收站、分享和提取码，OSS 处理对象、版本、引用、授权和签名 URL。

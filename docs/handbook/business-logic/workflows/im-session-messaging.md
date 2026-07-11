@@ -26,7 +26,7 @@
 
 ## WebSocket 连接
 
-1. 客户端连接 `/ws/im`。
+1. 客户端连接 `/ws/im`；connect 及后续 frame 都显式携带数值型 `schemaVersion: 1`，缺失、`null`、非整数或非 `1` 的版本会被拒绝。
 2. gateway 接收首帧 connect 和 ticket；首帧缺失、超时、非文本或 ticket 无效会直接 reject 并关闭。
 3. `ConnectTicketRouter` 根据 ticket 找到 worker。
 4. gateway 建立到 worker 的内部 WebSocket bridge，并透传 `traceparent`。
@@ -63,11 +63,13 @@
 - room、member、group message、seq 和 read watermark 属于 im-core。
 - realtime 使用本地 membership projection 做发送前快速判断。
 - command accepted 不代表群消息已经持久化。
+- persisted event 由共享 owner consumer 根据 Redis room presence 路由到 `im.command.room-fanout-routed` 的固定 worker inbox partition；single slot 为 `0`，cluster slots 为 `0/1/2`。
+- target delivery 是 state-idempotent at-least-once；worker 重启后依靠 room/seq 最大值收敛，不承诺跨重启 exactly-once。
 - 客户端需要通过 history 和 read watermark 修复本地状态。
 
 ## Policy projection
 
-user 处罚、social 拉黑和 im-core 房间成员变化通过 snapshot + outbox/Kafka 增量事件同步到 realtime。`ProjectionSyncCoordinator` 启动时先拉 policy/membership snapshot；snapshot 未就绪时，connect 和 send frame 会被 `projection_not_ready` 拒绝。本地 projection 只用于快速判定，不是权威事实。
+user 处罚、social 拉黑和 im-core 房间成员变化通过 snapshot + outbox/Kafka 增量事件同步到 realtime。entry / delta 必须携带显式正数 owner version；snapshot watermark 必填、非负且允许为 `0`，发生时间不参与版本计算。`ProjectionSyncCoordinator` 启动时先拉 policy/membership snapshot；snapshot 未就绪时，connect 和 send frame 会被 `projection_not_ready` 拒绝。本地 projection 只用于快速判定，不是权威事实。
 
 常见滞后语义：
 

@@ -13,7 +13,7 @@
 | `authService.js` | 登录、当前用户、refresh、logout、注册、注册验证码重发 / 验证、captcha、找回 / 重置密码；所有响应经 `unwrapResultBody` 取 `data` / `traceId`，`refresh({ silent: true })` 跳过全局错误提示。 |
 | `userService.js` | 用户主页、最近帖子 / 评论、批量用户摘要；`getUserProfile` 按 userId 做 cache 和 inflight 合并，并补齐用户等级展示字段。 |
 | `socialService.js` | 点赞、关注、取关、关注状态、粉丝 / 关注列表、批量点赞数 / 状态；本地 cache 只降低重复请求，不是最终社交事实。 |
-| `postService.js` | 帖子列表 / 创建 / 详情 / 编辑 / 删除、评论 / 回复列表和写入、置顶 / 加精 / 删除治理动作；创建和编辑会规范化 block 与 opaque id。 |
+| `postService.js` | 全局/版块 feed、帖子创建 / 详情 / 编辑 / 删除、评论 / 回复列表和写入、置顶 / 加精 / 删除治理动作；创建和编辑会规范化 block 与 opaque id。 |
 | `postMediaService.js` | 帖子媒体上传会话创建、文件上传执行、`mediaKind` 推断；上传结果以会话返回的 `assetId` / `uploadId` 为关联点。 |
 | `driveService.js` | 网盘空间、目录、回收站、文件夹、搜索、上传会话、重命名 / 移动 / 删除 / 恢复 / 彻删、下载链接、分享创建 / 撤销、公有分享校验和下载。 |
 | `marketService.js` | 商品列表 / 详情 / 发布、我的出售、库存、买卖订单、交付 / 发货 / 确认 / 取消 / 申诉、管理员争议裁定、收货地址。 |

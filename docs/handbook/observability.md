@@ -34,7 +34,7 @@ OTLP metrics
 | --- | --- | --- | --- |
 | Login / refresh token / logout | auth | success rate, P95/P99 latency, authentication error rate, refresh failure rate | HTTP trace, security events, audit logs, Redis and database dependency timing |
 | Publish post / comment | content | write success rate, P95/P99 latency, database write failure rate, outbox publication delay | HTTP trace, application result metric, SQL slow/failure events, outbox trace fields |
-| Refresh post score / search projection | content/search | job success rate, projection delay, terminal failure count | job events, outbox events, Elasticsearch dependency events |
+| Refresh post score / search projection | content/search | job success rate, projection delay, terminal failure count | job events, owner outbox events, `content.events` consumer/DLQ, Elasticsearch dependency events |
 | WebSocket connect / IM send / fanout | im | connect success rate, send success rate, server processing latency, Kafka lag, fanout failure rate | gateway trace, Kafka publish/consume trace context, messaging events, IM Micrometer gauges |
 | OSS upload / download | oss/drive | operation success rate, P95/P99 latency, storage dependency failure rate | HTTP trace, OSS slow/failure events, sanitized endpoint fields |
 | Search query / index refresh | search | query success rate, query latency, index delay, Elasticsearch failure rate | HTTP trace, search application metric, Elasticsearch client failure event |
@@ -83,6 +83,8 @@ error.message
 ```
 
 `trace.id` and `span.id` are required when an event belongs to a request, message, outbox item, or job with active OpenTelemetry context. Process-level events may omit trace fields.
+
+SLF4J MDC 只写入 `trace.id` 和 `span.id`，不写入旧 MDC key `traceId`。HTTP/JSON `Result.traceId`、事件 envelope 字段、outbox/database `trace_id` 以及人类可读日志参数中的 `traceId` 仍是有效的传输或业务数据，不应当作 MDC alias。
 
 Stable `event.category` values:
 

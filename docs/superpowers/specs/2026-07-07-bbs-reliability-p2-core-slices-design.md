@@ -1,5 +1,7 @@
 # BBS Reliability Platform P2 Core Slices Design
 
+> **Superseded for the current implementation:** The Search/Growth secondary projection paths and publisher rollout switches in this historical design were retired by [Development Clean Break Design](2026-07-10-development-clean-break-design.md). Keep this file as decision history; do not use those sections as the current runtime contract.
+
 ## Context
 
 This is a P2 child spec for the BBS reliability platform. It starts from the

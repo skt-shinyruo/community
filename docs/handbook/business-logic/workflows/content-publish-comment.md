@@ -28,9 +28,9 @@
 8. 如果有媒体，content 只绑定当前用户已上传且类型匹配的 asset；对象和版本事实仍在 OSS。
 9. content 发布帖子事实对应的 domain event。
 10. domain event bridge 映射为 content contract event。
-11. content contract event 进入 outbox / Kafka。
-12. search、notice、user reward 和 growth task 等下游投影异步追平。
-13. 帖子分数刷新等副作用按当前策略安排执行。
+11. content contract event 与帖子主事实同事务写入 `eventbus.content`，owner handler 发布 `content.events`。
+12. Search、Notice、User reward、Growth 和 Hot feed Kafka listener 分别进入同域 ApplicationService 异步追平。
+13. Hot-feed consumer 回源当前帖子/点赞事实，按 source event 版本去重后重算 score 和 feed 缓存。
 
 ## 媒体上传和绑定
 
@@ -52,8 +52,8 @@
 4. content 回源 user owner 校验作者发言资格。
 5. content 可通过 social owner 判断双方拉黑关系。
 6. content 写 `comment`，同步更新帖子评论数或活动状态。
-7. content 发布评论事件，并在提交前写入 user reward / growth task 的 outbox 记录。
-8. 评论事务提交后，outbox worker 异步触发奖励、成长任务和可能的 wallet 记账；notice 根据评论事件生成接收人的通知。
+7. content 发布评论事件，domain bridge 进入 content application，将 contract event 与主事实同事务写入 `eventbus.content`。
+8. owner handler 发布 `content.events`，Notice、Growth 和 User reward listener 分别进入同域 ApplicationService；有效奖励最终调用 wallet owner 幂等入账。
 
 ## 删除和治理
 
@@ -69,6 +69,6 @@
 | 现象 | 先查哪里 |
 | --- | --- |
 | 发帖重复或返回 replay conflict | `Idempotency-Key` 和 request fingerprint。 |
-| 发帖成功但搜索不到 | search outbox、ES projection、reindex，不要先改 content。 |
-| 评论成功但没有通知 | notice after-commit projection 日志和投影规则。 |
+| 发帖成功但搜索不到 | `eventbus.content`、`content.events` search consumer/DLQ、ES projection 和 reindex，不要先改 content。 |
+| 评论成功但没有通知 | `content.events` notice consumer/DLQ、source-event log 和投影规则。 |
 | 媒体链接不可访问 | content asset 绑定、OSS object/version 或 grant。 |

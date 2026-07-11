@@ -66,6 +66,8 @@ deploy/observability/kibana/README.md
 链路排障时：
 
 - `trace.id` 用于技术链路串联。
+- 结构化日志的 MDC 只有 `trace.id` / `span.id`；不要按旧 MDC key `traceId` 检索。
+- HTTP `Result.traceId`、outbox 运维结果和事件字段中的 `traceId` 是业务/传输字段，可用于找到对应的 `trace.id`，但不是第二个 MDC key。
 - `requestId`、事件 id、幂等 key 用于业务重放和消息确认，不作为 trace parent。
 - 对 outbox 或 job 发起的链路，如果没有上游请求，系统会生成 job/outbox 处理 trace。
 
@@ -421,7 +423,7 @@ Outbox worker 是共享可靠投递底座，当前主要承担：
 4. 观察 `community_outbox_batch_replay_total{topic,result}` 和 `community_governance_action_total{action="OUTBOX_REPLAY_BATCH",result}`。
 5. 再次查看 backlog，确认 `PENDING` 被 worker 消化，失败行有新的 `lastError`。
 
-Projection lag 可通过 `GET /api/ops/projections/lag` 查看当前 outbox-backed projection topics。对 search 这类派生读模型，如果 payload 已经过时或不兼容，优先使用 owner 当前事实重建，而不是盲目重放旧 payload。hot-feed 读路径降级继续通过 `community_cache_requests_total{cache="hot_feed",result,scope}` 观察。
+Projection lag 可通过 `GET /api/ops/projections/lag` 查看当前 outbox-backed projection topics，本次收敛后主要是 `projection.im.policy`。Search 需要查 `content.events` consumer lag / `.dlq` 和 ES alias，必要时用 content owner 当前事实 reindex；它不再是 projection outbox topic。hot-feed 读路径降级继续通过 `community_cache_requests_total{cache="hot_feed",result,scope}` 观察。
 
 ## Compensation Trigger Runbook
 
@@ -468,7 +470,7 @@ POST /api/ops/compensations/{jobName}/trigger
 
 后台任务分两类：
 
-- 本地 `@Scheduled`：应用内持续型任务，例如 outbox worker、帖子热度刷新。
+- 本地 `@Scheduled`：应用内持续型任务，例如 outbox worker、hot-path 预热和 counter snapshot flush。
 - XXL-Job：控制面触发的离散任务，例如 `marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery`。
 
 约束：
@@ -578,8 +580,8 @@ fail startup before serving traffic. Check `NACOS_CONFIG_IMPORT_SHARED`,
 检查：
 
 - `events.outbox.enabled=true`。
-- `community.outbox_event` 是否有 `projection.search.post`。
-- `PostOutboxHandler` 是否报错。
+- `content.events` 的 search consumer lag 和 `content.events.dlq`。
+- `SearchPostProjectionKafkaListener` / `SearchPostProjectionApplicationService` 是否报错。
 - ES alias `community_posts_alias` 指向哪个真实索引。
 
 ### 市场订单资金状态卡住

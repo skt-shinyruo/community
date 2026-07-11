@@ -38,7 +38,7 @@ HTTP：
 2. 头像更新：`UserAvatarApplicationService` 校验 actor 只能改本人头像，先通过 OSS prepare upload 获得 `objectId/versionId` 和上传指令，前端直传 OSS 后以 `objectId` 确认；user 回源 OSS metadata 校验对象归属，把 canonical OSS public URL 写回 `user.header_url`。blob 和 version 由 `community-oss` owning。
 3. 凭据协作：auth 登录通过 `UserCredentialQueryApi.authenticate(...)` 查询并校验密码；密码重置通过 `UserCredentialActionApi` 更新 BCrypt hash，并通过 refresh session application 撤销该用户会话。
 4. 注册用户创建：auth 只保存 draft；验证码通过后调用 user owner 创建 active 用户。user 写入 `user` 行后发布 user policy changed，驱动 IM policy projection 识别用户存在性。
-5. 处罚和角色：管理员或治理动作进入 user application，更新 `muteUntil`、`banUntil` 或 `type`。处罚变化发布 policy event，IM outbox/Kafka 最终刷新 realtime 本地 projection；角色变化要等 access token 重新签发后才体现在前端权限里。
+5. 处罚和角色：管理员或治理动作进入 user application，更新 `muteUntil`、`banUntil` 或 `type`。处罚变化经 `eventbus.user -> user.events -> projection.im.policy` 最终刷新 realtime 本地 projection；角色变化要等 access token 重新签发后才体现在前端权限里。
 6. 奖励语义桥接：content/social/growth 不直接改余额事实；user 只做奖励语义转换，最终奖励或撤销进入 wallet owner。
 
 `securityVersion` 是 user owner 的认证授权版本。角色调整、密码更新和活跃账号级封禁变更会递增该版本；这些路径会撤销 refresh sessions。`muteUntil` 只影响发言能力，不影响登录或 refresh。
@@ -165,14 +165,15 @@ HTTP：
 
 ## 用户事件发布
 
-`LocalUserEventPublisher` 是 user owner 的本地 contract event adapter：
+`OutboxUserPolicyEventPublisher` 是 user owner 的唯一 policy contract event adapter：
 
-1. application 只依赖 `UserEventPublisher` port。
+1. application 只依赖 domain `UserPolicyEventPublisher` port。
 2. 发布 policy change 时，adapter 包装为 `UserContractEvent`。
-3. eventId 当前使用随机 UUID 字符串。
+3. eventId 由 userId 和正数 owner version 确定性生成。
 4. type 固定为 `USER_POLICY_CHANGED`。
 5. payload 是 `UserPolicyChangedPayload`。
-6. Spring `ApplicationEventPublisher` 负责本地事务事件分发；IM policy outbox enqueuer 在 `BEFORE_COMMIT` 监听该 contract event。
+6. adapter 与 user 主事实同事务写 `eventbus.user`；`UserEventKafkaOutboxHandler` 经 dispatch application 发布 `user.events`。
+7. `ImPolicyBackboneKafkaListener` 和 `UserRewardKafkaListener` 分别从 owner Kafka topic 进入本域 ApplicationService。
 
 ## Refresh Session
 

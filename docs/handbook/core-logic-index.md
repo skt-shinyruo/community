@@ -63,13 +63,10 @@
 | `user.domain.service.UserReadDomainService` | 用户读取参数规范化 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.domain.service.UserRegistrationDomainService` | user registration fact rules | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.domain.service.UserRoleDomainService` | 管理员角色修改规则 | [User 用户业务逻辑](business-logic/user.md) | Covered |
-| `user.application.port.UserEventPublisher` | user contract event 发布端口 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.domain.event.UserPolicyEventPublisher` | user policy domain event 发布端口 | [User 用户业务逻辑](business-logic/user.md) | Covered |
-| `user.infrastructure.event.LocalUserEventPublisher` | user 本地事件发布 | [User 用户业务逻辑](business-logic/user.md) | Covered |
-| `user.infrastructure.event.LocalUserPolicyEventPublisher` | user policy 事件发布 | [User 用户业务逻辑](business-logic/user.md) | Covered |
+| `user.infrastructure.event.OutboxUserPolicyEventPublisher` | user policy event 写 `eventbus.user` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `user.infrastructure.event.UserEventKafkaOutboxHandler` | `eventbus.user` outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `user.infrastructure.event.CommentRewardOutboxEnqueuer` | comment created event 到 user reward projection outbox | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `user.infrastructure.event.CommentRewardOutboxHandler` | user reward projection outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
+| `user.infrastructure.event.UserEventKafkaSenderAdapter` | user owner event 发布到 `user.events` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `user.infrastructure.event.UserRewardKafkaListener` | user reward Kafka projection listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 
 ## OSS
@@ -109,7 +106,7 @@
 | `content.controller.ReportController` | report HTTP binding | [Content 内容业务逻辑](business-logic/content.md) | IndexOnly |
 | `content.controller.ModerationController` | moderation HTTP binding | [Content 内容业务逻辑](business-logic/content.md) | IndexOnly |
 | `content.application.PostPublishingApplicationService` | 发帖、改帖、删帖写路径 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
-| `content.application.PostReadApplicationService` | 帖子列表、详情、摘要查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
+| `content.application.PostReadApplicationService` | 帖子详情、批量摘要和 owner query 查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.PostMediaApplicationService` | 帖子媒体上传会话、complete 和 OSS asset draft 状态 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.CommentApplicationService` | 评论创建、编辑、删除和事件 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.CommentReadApplicationService` | 评论列表和用户最近评论查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
@@ -120,16 +117,13 @@
 | `content.application.ReportApplicationService` | 举报创建和查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.ModerationApplicationService` | 内容治理动作和处罚协作 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.PostModerationApplicationService` | 帖子治理下线 / 状态变更 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
-| `content.application.PostScoreRefreshApplicationService` | 帖子热度刷新调度入口 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
-| `content.application.PostScoreUpdateApplicationService` | 单帖分数更新 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.PostContractEventApplicationService` | post contract event 映射 / 发布 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.CommentContractEventApplicationService` | comment contract event 映射 / 发布 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.ContentEntityResolutionApplicationService` | POST / COMMENT owner entity resolution | [Content 内容业务逻辑](business-logic/content.md#owner-entity-resolution) | Covered |
 | `content.application.ContentEventDispatchApplicationService` | content owner contract event outbox 到 Kafka dispatch | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `content.application.SocialInteractionProjectionApplicationService` | 被删内容的社交关系清理协作 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
+| `content.application.PostHotFeedProjectionApplicationService` | owner event 到帖子 score/cache/hot-feed 投影 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.ContentEventPublisher` | content contract event 发布端口 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
 | `content.application.ModerationNoticePublisher` | moderation result notice 发布端口 | [Content 内容业务逻辑](business-logic/content.md#举报和审核) | Covered |
-| `content.application.PostWriteSideEffectScheduler` | post score refresh after-commit 调度 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
 | `content.application.UserModerationGuard` | 发帖 / 评论前同步回源 user 处罚状态 | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
 | `content.application.ContentTextCodec` | 内容文本边界处理 | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
 | `content.domain.service.PostPublishingDomainService` | 发帖 draft 和发布规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
@@ -139,17 +133,17 @@
 | `content.domain.service.PostModerationDomainService` | 帖子治理状态规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.domain.event.PostDomainEventPublisher` | post domain event 发布端口 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
 | `content.domain.event.CommentDomainEventPublisher` | comment domain event 发布端口 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
-| `content.infrastructure.api.ContentEntityQueryService` | content owner entity resolve API 实现 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
-| `content.infrastructure.api.PostScanService` | search 投影扫描 API 实现 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
+| `content.infrastructure.api.ContentEntityQueryApiAdapter` | content owner entity resolve API 实现 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
+| `content.infrastructure.api.PostScanQueryApiAdapter` | search 投影扫描 API 实现 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `content.infrastructure.text.SensitiveFilter` | sensitive word trie sanitizer and fail-fast dictionary loading | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
-| `content.infrastructure.event.LocalContentEventPublisher` | content contract event 本地发布实现 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
+| `content.infrastructure.event.OutboxContentEventPublisher` | content contract event 写 `eventbus.content` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `content.infrastructure.event.SpringPostDomainEventPublisher` | post domain event Spring 发布实现 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
 | `content.infrastructure.event.SpringCommentDomainEventPublisher` | comment domain event Spring 发布实现 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
 | `content.infrastructure.event.PostDomainEventBridge` | post domain event 到 contract event bridge | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.infrastructure.event.CommentDomainEventBridge` | comment domain event 到 contract event bridge | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.infrastructure.event.ContentEventKafkaOutboxHandler` | `eventbus.content` outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `content.infrastructure.event.SocialInteractionProjectionListener` | 内容删除后清理 social projection | [Content 内容业务逻辑](business-logic/content.md) | Covered |
-| `content.infrastructure.event.SocialInteractionBackboneKafkaListener` | social Kafka event 到 content score projection listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
+| `content.infrastructure.event.ContentEventKafkaSenderAdapter` | content owner event 发布到 `content.events` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
+| `content.infrastructure.event.PostHotFeedProjectionKafkaListener` | content/social Kafka event 到 hot-feed application | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 
 ## Social
 
@@ -160,14 +154,15 @@
 | `social.controller.BlockController` | block HTTP binding | [Social 社交业务逻辑](business-logic/social.md) | IndexOnly |
 | `social.application.LikeApplicationService` | 点赞关系、内容实体解析、任务 / 奖励协作和事件 | [Social 社交业务逻辑](business-logic/social.md) | Covered |
 | `social.application.FollowApplicationService` | 关注关系和 follow event | [Social 社交业务逻辑](business-logic/social.md) | Covered |
-| `social.application.BlockApplicationService` | 拉黑关系、follow 清理、IM policy outbox | [Social 社交业务逻辑](business-logic/social.md) | Covered |
+| `social.application.BlockApplicationService` | 拉黑关系、follow 清理和 owner event | [Social 社交业务逻辑](business-logic/social.md) | Covered |
 | `social.application.SocialEventDispatchApplicationService` | social owner contract event outbox 到 Kafka dispatch | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `social.domain.service.LikeDomainService` | 点赞实体和计数规则 | [Social 社交业务逻辑](business-logic/social.md) | Covered |
 | `social.domain.service.FollowDomainService` | 关注关系规则 | [Social 社交业务逻辑](business-logic/social.md) | Covered |
 | `social.domain.service.BlockDomainService` | 拉黑关系和 follow 清理规则 | [Social 社交业务逻辑](business-logic/social.md) | Covered |
 | `social.domain.event.SocialDomainEventPublisher` | social domain event 发布端口 | [Social 社交业务逻辑](business-logic/social.md) | Covered |
-| `social.infrastructure.event.LocalSocialDomainEventPublisher` | social domain event 到 contract event 映射 | [Social 社交业务逻辑](business-logic/social.md) | Covered |
+| `social.infrastructure.event.OutboxSocialDomainEventPublisher` | social domain event 映射后写 `eventbus.social` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `social.infrastructure.event.SocialEventKafkaOutboxHandler` | `eventbus.social` outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
+| `social.infrastructure.event.SocialEventKafkaSenderAdapter` | social owner event 发布到 `social.events` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 
 ## Notice
 
@@ -178,7 +173,6 @@
 | `notice.application.NoticeProjectionApplicationService` | content / social / moderation event 到通知读模型 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `notice.domain.service.NoticeDomainService` | 通知分页、状态和创建校验 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `notice.domain.service.NoticeProjectionDomainService` | 通知投影规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `notice.infrastructure.event.NoticeProjectionListener` | 本地 after-commit best-effort 通知投影 listener | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `notice.infrastructure.event.NoticeProjectionKafkaListener` | content / social Kafka event 到通知可靠投影 listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 
 ## Search
@@ -187,11 +181,9 @@
 | --- | --- | --- | --- |
 | `search.controller.SearchController` | search HTTP binding | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | IndexOnly |
 | `search.application.SearchApplicationService` | 搜索查询 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `search.application.SearchPostProjectionApplicationService` | outbox 触发后回源 content 并 upsert/delete ES | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
+| `search.application.SearchPostProjectionApplicationService` | Kafka event 触发后回源 content 并 upsert/delete ES | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.domain.service.PostSearchDomainService` | 搜索 query 规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.domain.service.KeywordHighlightSupport` | 搜索关键词高亮 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `search.infrastructure.event.PostOutboxEnqueuer` | content event 到 search outbox | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `search.infrastructure.event.PostOutboxHandler` | search outbox handler，回源 content 后 upsert/delete ES | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.infrastructure.event.SearchPostProjectionKafkaListener` | content Kafka event 到 search projection listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 
 ## Analytics
@@ -212,20 +204,12 @@
 | --- | --- | --- | --- |
 | `growth.application.TaskProgressApplicationService` | 任务模板匹配、事件去重、进度推进、自动发奖 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
 | `growth.application.UserLevelApplicationService` | 等级规则配置和等级计算 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
-| `growth.application.TaskProgressOutboxDispatchApplicationService` | growth task projection outbox 到 Kafka task topic dispatch | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `growth.domain.service.TaskPeriodKeyResolver` | 任务 periodKey 解析 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
 | `growth.domain.service.TaskProgressDomainService` | 任务进度推进和达成规则 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
 | `growth.domain.service.RewardGrantDomainService` | 奖励发放幂等规则 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
 | `growth.domain.service.UserLevelDomainService` | 等级计算和配置规则 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
 | `growth.application.GrowthBusinessTimeService` | growth daily/weekly/monthly business time source | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
-| `growth.infrastructure.event.PostTaskProgressKafkaOutboxEnqueuer` | post event 到 growth task outbox | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `growth.infrastructure.event.PostTaskProgressKafkaOutboxHandler` | post task outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `growth.infrastructure.event.CommentTaskProgressOutboxEnqueuer` | comment event 到 growth task outbox | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `growth.infrastructure.event.CommentTaskProgressKafkaOutboxHandler` | comment task outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `growth.infrastructure.event.LikeTaskProgressKafkaOutboxEnqueuer` | like event 到 growth task outbox | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `growth.infrastructure.event.LikeTaskProgressKafkaOutboxHandler` | like task outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `growth.infrastructure.event.TaskProgressEventBackboneKafkaListener` | content / social Kafka event 到 growth task listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `growth.infrastructure.event.TaskProgressKafkaListener` | growth task Kafka topic listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 
 ## Market
 
@@ -291,12 +275,14 @@
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
 | `im.application.ImPolicySnapshotApplicationService` | 给 im-realtime 拉取 user policy / block relation snapshot | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.application.ImPolicyProjectionApplicationService` | 校验 owner event 并写 projection outbox port | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
+| `im.application.ImPolicyProjectionOutboxPort` | application-owned IM policy projection outbox port | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `im.application.ImPolicyEventDispatchApplicationService` | `projection.im.policy` outbox 到 IM policy Kafka event dispatch | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `im.controller.ImPolicySnapshotController` | internal IM policy snapshot HTTP binding | [IM 消息业务逻辑](business-logic/im.md) | IndexOnly |
-| `im.infrastructure.event.ImPolicyChangePublisher` | IM policy Kafka delta publisher | [集成契约](integration-contracts.md#im-kafka-contract) | Covered |
-| `im.infrastructure.event.ImPolicyOutboxEnqueuer` | user / social policy event 到 `projection.im.policy` outbox | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
+| `im.infrastructure.event.JdbcImPolicyProjectionOutboxAdapter` | 确定性 source event ID 写 `projection.im.policy` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `im.infrastructure.event.ImPolicyKafkaOutboxHandler` | `projection.im.policy` outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `im.infrastructure.event.ImPolicyBackboneKafkaListener` | social Kafka event 到 IM policy projection outbox listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
+| `im.infrastructure.event.ImPolicyBackboneKafkaListener` | user/social Kafka event 到 IM policy projection application | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
+| `im.infrastructure.event.ImPolicyEventKafkaSenderAdapter` | IM policy delta 发布到 IM Kafka topics | [集成契约](integration-contracts.md#im-kafka-contract) | Covered |
 
 ## Runtime Config And Observability
 
@@ -334,7 +320,8 @@
 
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
-| `im.common.CurrentSchemaVersionFilter` | IM schema v1 读写兼容 filter | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
+| `im.common.ImContractVersions` | 严格支持数值型 IM schema version `1` | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
+| `im.common.ImSchemaVersionDeserializer` | 拒绝缺失/null/非整数/非 `1` schema version | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.realtime.ws.ImWebSocketHandler` | worker WebSocket auth, frame handling and connection lifecycle | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.ws.ImFrameCodec` | realtime frame JSON codec | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.presence.ConnectionRegistry` | online connection registry by session/user | [IM 消息业务逻辑](business-logic/im.md) | Covered |
@@ -348,11 +335,14 @@
 | `im.realtime.projection.MembershipSnapshotClient` | internal im-core membership snapshot client | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.presence.RoomLocalPresenceService` | local room presence activation / refresh / release | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.realtime.presence.RoomLocalIndex` | in-process room-to-connection index for room fanout | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
-| `im.realtime.presence.RedisRoomPresenceDirectory` | distributed room-to-worker presence for routed room fanout | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
-| `im.realtime.fanout.RoomFanoutRoutingService` | routed room fanout owner planning and target dispatch | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
-| `im.realtime.fanout.RoomFanoutOwnerCoalescer` | routed owner coalescing, target dispatch, and pending retry | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
-| `im.realtime.fanout.RoomFanoutTargetController` | internal routed fanout target HTTP binding | [IM Core Runtime](core-logic/im-core-runtime.md) | IndexOnly |
-| `im.realtime.fanout.RoomFanoutTargetService` | internal routed fanout target validation and source-event dedupe | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
+| `im.realtime.presence.RedisRoomPresenceDirectory` | distributed room-to-worker presence | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
+| `im.realtime.fanout.RoomPersistedOwnerConsumer` | shared owner consumer for room persisted events | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
+| `im.realtime.fanout.RoomFanoutOwnerService` | route planning and Kafka target dispatch | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
+| `im.realtime.fanout.RoomFanoutRoutingService` | Redis presence 到 worker route | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
+| `im.realtime.fanout.KafkaRoomFanoutDispatcher` | target command 到固定 inbox partition | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
+| `im.realtime.fanout.RealtimeWorkerDirectory` | worker ID / inbox slot discovery validation | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
+| `im.realtime.fanout.RoomFanoutTargetConsumer` | consume local worker inbox partition | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
+| `im.realtime.fanout.RoomFanoutTargetService` | target validation and state-idempotent local fanout | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
 | `im.realtime.session.SessionTicketCodec` | realtime ticket validation | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.push.PrivatePushService` | online private message fanout | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.push.SendResultPushService` | accepted / committed / rejected send result push | [IM 消息业务逻辑](business-logic/im.md) | Covered |
@@ -392,7 +382,7 @@
 | `common-idempotency.IdempotencyGuard` | HTTP write idempotency guard | [可靠性机制](reliability.md#http-idempotency-key) | Covered |
 | `common-outbox.OutboxWorkerScheduler` | outbox local scheduler | [可靠性机制](reliability.md#db-outbox) | Covered |
 | `common-outbox.OutboxHandler` | outbox topic handler contract | [可靠性机制](reliability.md#db-outbox) | Covered |
-| `common-core.event.BestEffortLocalEventListener` | best-effort local event listener marker | [可靠性机制](reliability.md#失败处理原则) | Covered |
+| `common-core.event.BestEffortLocalEventListener` | best-effort local event listener marker | [可靠性机制](reliability.md#fail-open-fail-closed-选择) | Covered |
 | `common-core.id.BinaryUuidCodec` | binary UUID conversion helper for persistence | [数据与存储](data-and-storage.md) | IndexOnly |
 | `community-app.infra.persistence.mybatis.UuidBinaryTypeHandler` | MyBatis UUID binary adapter for `community` schema | [数据与存储](data-and-storage.md#mysql) | IndexOnly |
 | `community-oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | MyBatis UUID binary adapter for `community_oss` schema | [数据与存储](data-and-storage.md#mysql) | IndexOnly |
@@ -409,7 +399,8 @@
 
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
-| `content.infrastructure.job.PostScoreRefresher` | 帖子热度刷新本地 job | [Content 内容业务逻辑](business-logic/content.md) | Covered |
+| `content.infrastructure.job.HotPathPrewarmJob` | hot-feed / summary 缓存本地预热 | [运维与排障](operations.md#hot-cache-governance-runbook) | Covered |
+| `content.infrastructure.job.PostCounterSnapshotFlushJob` | 帖子 counter snapshot 批量落库 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `market.infrastructure.job.MarketOrderAutoConfirmHandler` | XXL `marketOrderAutoConfirm` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.infrastructure.job.MarketWalletActionProcessorHandler` | XXL `marketWalletActionProcessor` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.infrastructure.job.MarketWalletActionRecoveryHandler` | XXL `marketWalletActionRecovery` | [Market 市场业务逻辑](business-logic/market.md) | Covered |

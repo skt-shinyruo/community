@@ -16,7 +16,7 @@
 | `notice.application.NoticeProjectionApplicationService` | content / social / moderation event 到通知读模型。 |
 | `notice.domain.service.NoticeDomainService` | 通知分页、状态和创建校验。 |
 | `notice.domain.service.NoticeProjectionDomainService` | 通知投影规则。 |
-| `notice.infrastructure.event.NoticeProjectionListener` | 本地 after-commit best-effort 投影 listener。 |
+| `notice.infrastructure.event.NoticeProjectionKafkaListener` | 从 owner Kafka contract event 进入 notice application。 |
 | `notice.infrastructure.persistence.MyBatisNoticeRepository` | notice 读模型持久化。 |
 
 ## Search
@@ -24,11 +24,10 @@
 | 类 | 核心职责 |
 | --- | --- |
 | `search.application.SearchApplicationService` | 搜索查询。 |
-| `search.application.SearchPostProjectionApplicationService` | outbox 触发后回源 content 并 upsert/delete ES。 |
+| `search.application.SearchPostProjectionApplicationService` | Kafka event 触发后回源 content 并 upsert/delete ES。 |
 | `search.domain.service.PostSearchDomainService` | 搜索 query 规则。 |
 | `search.domain.service.KeywordHighlightSupport` | 搜索关键词高亮。 |
-| `search.infrastructure.event.PostOutboxEnqueuer` | content event 到 search outbox。 |
-| `search.infrastructure.event.PostOutboxHandler` | 回源 content 后 upsert/delete ES。 |
+| `search.infrastructure.event.SearchPostProjectionKafkaListener` | 从 `content.events` 识别帖子投影事件并进入 application。 |
 | `search.infrastructure.persistence.PostIndexManager` | ES alias / index 管理。 |
 | `search.infrastructure.persistence.ElasticsearchPostSearchRepository` | ES 读写实现。 |
 
@@ -55,7 +54,6 @@
 ## 关键语义
 
 - Notice、Search、Analytics 都是下游读模型或采集，不拥有上游主事实。
-- Notice 投影失败不回滚上游事务。
-- Search 永远回源 content owner，不信任 outbox payload 本身。
+- Notice 投影失败按 Kafka retry / `.dlq` 恢复，不回滚上游事务。
+- Search 永远回源 content owner，不把 event payload 当成索引事实。
 - Analytics 采集失败不影响业务响应。
-

@@ -104,7 +104,7 @@
 | `business-logic/im-room-message-flow.md` | [business-flows.md](business-flows.md#im-room-message) |
 | `business-logic/market-order-dispute-flow.md` | [business-flows.md](business-flows.md#market-order-and-dispute) |
 | `business-logic/notice-projection-read-flow.md` | [business-flows.md](business-flows.md#notice-projection-and-read-model) |
-| `business-logic/ops-scheduler-compensation-flow.md` | [operations.md](operations.md)、[reliability.md](reliability.md)、[business-flows.md](business-flows.md#ops-scheduler-and-compensation) |
+| `business-logic/ops-scheduler-compensation-flow.md` | [operations.md](operations.md)、[reliability.md](reliability.md)、[business-flows.md](business-flows.md#scheduler-and-compensation) |
 | `business-logic/report-moderation-flow.md` | [business-flows.md](business-flows.md#report-and-moderation) |
 | `business-logic/search-projection-flow.md` | [business-flows.md](business-flows.md#search-projection) |
 | `business-logic/security-authz-boundary-flow.md` | [security.md](security.md) |

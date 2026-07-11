@@ -9,7 +9,8 @@
 | 场景 | 机制 | 目标 |
 | --- | --- | --- |
 | 浏览器重复点击 / 网络重试 | HTTP `Idempotency-Key` | 同一次业务尝试只产生一次副作用 |
-| 搜索 / IM policy 异步投影 | DB outbox | 主事务成功后可靠追平 |
+| Search / Notice / Growth / Reward / Hot feed | owner outbox -> Kafka consumer | 主事务成功后通过 retry / `.dlq` 可靠追平 |
+| IM policy 内部投影 | owner Kafka -> `projection.im.policy` outbox | 消费端确定性去重后可靠发布到 IM Kafka |
 | worker 崩溃 | outbox lease recovery | 回收卡住的 `PROCESSING` |
 | handler 暂时失败 | retry + backoff | 自动重试 |
 | handler 持续失败 | `DEAD` | 停止自动重试，留给人工处理 |
@@ -231,8 +232,8 @@ Outbox 用于需要可靠追平的异步副作用。
 
 - `eventbus.content`：content owner 的帖子 / 评论 contract event，通过 outbox handler dispatch 到 Kafka。
 - `eventbus.social`：social owner 的点赞 / 关注 / 拉黑 contract event，通过 outbox handler dispatch 到 Kafka。
-- `projection.search.post`：帖子事件投影到搜索索引。
-- IM policy projection：用户处罚 / 拉黑变化投递给 `im-realtime`。
+- `eventbus.user`：user owner 的 policy contract event，通过 outbox handler dispatch 到 Kafka。
+- `projection.im.policy`：唯一内部 projection outbox，把用户处罚 / 拉黑变化投递给 `im-realtime`。
 
 生产端：
 
@@ -285,7 +286,8 @@ P2 BBS 业务切片的 replay 边界：
 | --- | --- | --- | --- |
 | 发帖 / 评论事实事件 | `eventbus.content` | `DEAD` outbox row 可由 `/api/ops/outbox/events/{outboxId}/replay` 排回 `PENDING`，再由正常 worker 重新 dispatch | Kafka consumer 内部失败不会自动变成 common-outbox `DEAD`，除非 consumer 自己写入下游 outbox row |
 | 点赞 / 关注事实事件 | `eventbus.social` | 同上，重放保持原 outbox payload 和 source event identity | 同上 |
-| 下游 projection outbox | 例如 `projection.search.post`、`projection.growth.*` | 下游已落 outbox row 的失败可按 common-outbox 状态机重试 / DEAD / replay | 未落 outbox 的 consumer retry / DLQ 由对应 Kafka consumer 负责 |
+| 用户策略事实事件 | `eventbus.user` | 同上，重放保持原 outbox payload 和 source event identity | 同上 |
+| IM policy projection outbox | `projection.im.policy` | 已落 outbox row 的失败可按 common-outbox 状态机重试 / DEAD / replay | owner Kafka listener 尚未落 outbox 的失败由 consumer retry / DLQ 负责 |
 
 ## Outbox Governance
 
@@ -322,13 +324,13 @@ worker 不保证 exactly-once，handler 必须自己保证幂等。
 
 当前做法：
 
-- 搜索投影 handler 不信任事件中的旧快照，而是回源 content owner 当前状态，再 upsert/delete ES。这样乱序事件不会让已删除帖子复活。
+- 搜索 Kafka listener 进入 application 后回源 content owner 当前状态，再 upsert/delete ES；乱序事件不会让已删除帖子复活。
 - content eventbus payload 使用稳定 source event id、aggregate metadata 和 owner fact fields。Search / notice / growth projection 以 source event id 或回源当前状态处理重复和乱序重放。
 - social eventbus payload 使用稳定 source event id、relation key、actor、target 和 state change 语义。Notice / growth / hot-feed projection 以 source event id、relation key 或 source version 处理重复和乱序重放。
 - IM policy projection 先写 `projection.im.policy` outbox，再由 handler 发布 Kafka 增量事件。`USER_POLICY` 使用 user owner 持久版本覆盖 userId 的消息权限；`BLOCK` 使用 social owner 持久版本覆盖 blocker / blocked 拉黑关系，重复或乱序投递不会产生累计副作用。
 - IM 私信持久化不信任 realtime 本地 projection；`im-core` 在写权威消息表前回源 `community-app` owner decision。业务拒绝发布 `im.event.private-rejected` 并提交 offset，不进入 DLQ；owner API 不可用等系统失败仍按 Kafka retry / DLQ 处理。
 - IM 消息事实 event 和发送结果 event 使用不同 outbox event id 空间。重复 `clientMsgId` 不会重复创建或发布消息事实；不同 `requestId` 的发送尝试会生成各自的 committed / rejected 回执事件。
-- IM policy handler 对坏 JSON、缺少必需时间字段或 Kafka 发布失败会抛异常，交给 outbox retry / DEAD；缺少 userId 或 block 双方 id 的 payload 当前会被跳过。
+- IM policy owner Kafka listener 对缺失 event ID、正数 owner version、时间或主体标识的目标事件抛错并进入 retry / DLQ；outbox handler 对坏 JSON、缺少必需字段或 Kafka 发布失败抛错，交给 outbox retry / DEAD。
 
 新增 handler 要回答：
 
@@ -470,8 +472,8 @@ Hot-feed 缓存治理入口位于 `/api/ops/hot-cache/**`，由 ops 应用层调
 - 认证、授权、OriginGuard、JWT secret、trusted proxy、prod SMTP、固定验证码：fail-closed。
 - 必须幂等的写入口：幂等存储异常时 fail-closed。
 - Outbox 开启但缺 store：fail-closed。
-- 搜索投影失败：不阻断主写路径，交给 outbox 重试。
-- 通知投影失败：best-effort，记录日志，不回滚主事务。
+- 搜索投影失败：不阻断已提交的 owner 主写路径，交给 `content.events` consumer retry / `.dlq`，必要时 reindex。
+- 通知投影失败：不回滚已提交的 owner 事务，交给 owner Kafka consumer retry / `.dlq`，不是本地 best-effort listener。
 - 帖子详情缓存读 / 写失败：fail-open 到 content 源数据，响应仍叠加 counter 和 viewer state。
 - 热榜 fallback 读路径的 feed cache warm-up / summary cache backfill 失败：fail-open，返回源数据 fallback 结果和 rank version。
 - analytics 采集失败：应避免影响主业务响应，具体以当前实现为准。

@@ -453,6 +453,7 @@ services:
     - SPRING_DATA_REDIS_HOST=${SPRING_DATA_REDIS_HOST:-redis}
     - SPRING_DATA_REDIS_PORT=${SPRING_DATA_REDIS_PORT:-6379}
     - IM_REALTIME_WORKER_ID=${IM_REALTIME_WORKER_ID_PREFIX:-im-realtime}
+    - IM_ROOM_FANOUT_WORKER_INBOX_SLOT=0
     depends_on:
       nacos-db-bootstrap:
         condition: service_completed_successfully

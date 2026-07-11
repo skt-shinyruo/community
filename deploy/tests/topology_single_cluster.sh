@@ -19,6 +19,26 @@ dev_err="$(mktemp)"
 ha_err="$(mktemp)"
 trap 'rm -f "${single_infra}" "${single_full}" "${cluster_infra}" "${cluster_full}" "${dev_err}" "${ha_err}"' EXIT
 
+service_environment_value() {
+  local rendered_config="$1"
+  local service="$2"
+  local variable="$3"
+  awk -v service="${service}" -v variable="${variable}" '
+    $0 == "  " service ":" {
+      in_service = 1
+      next
+    }
+    in_service && /^  [^ ]/ {
+      exit
+    }
+    in_service && $1 == variable ":" {
+      gsub(/"/, "", $2)
+      print $2
+      exit
+    }
+  ' "${rendered_config}"
+}
+
 ./deploy/deployment.sh config --topology single --scope infra --env-file deploy/.env.single.example >"${single_infra}"
 ./deploy/deployment.sh config --topology single --scope full --env-file deploy/.env.single.example >"${single_full}"
 ./deploy/deployment.sh config --topology cluster --scope infra --env-file deploy/.env.cluster.example >"${cluster_infra}"
@@ -39,6 +59,8 @@ grep -A4 -E '^      community-gateway:$' "${single_full}" | grep -F 'condition: 
 grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?1"?' "${single_infra}"
 grep -A80 -E '^  im-realtime:$' "${single_full}" | grep -F 'SPRING_DATA_REDIS_HOST: redis'
 grep -A80 -E '^  im-realtime:$' "${single_full}" | grep -F 'SPRING_DATA_REDIS_PORT: "6379"'
+single_worker_slot="$(service_environment_value "${single_full}" im-realtime IM_ROOM_FANOUT_WORKER_INBOX_SLOT)"
+test "${single_worker_slot}" = "0"
 
 if grep -F 'XXL_JOB_ADMIN_ADDRESSES: http://nginx:8081/xxl-job-admin' "${single_full}" >/dev/null 2>&1; then
   echo "single community-app must use the direct XXL-JOB admin service address, not nginx" >&2
@@ -58,8 +80,17 @@ grep -A4 -E '^      nacos-1:$' "${cluster_full}" | grep -F 'condition: service_h
 grep -A6 -E '^      nacos-config-bootstrap:$' "${cluster_full}" | grep -F 'condition: service_completed_successfully'
 grep -A4 -E '^      community-gateway-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'
 grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?3"?' "${cluster_infra}"
+declare -A seen_worker_slots=()
 for worker in 1 2 3; do
   grep -A80 -E "^  im-realtime-${worker}:$" "${cluster_full}" | grep -F 'SPRING_DATA_REDIS_CLUSTER_NODES: redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379'
+  worker_slot="$(service_environment_value "${cluster_full}" "im-realtime-${worker}" IM_ROOM_FANOUT_WORKER_INBOX_SLOT)"
+  expected_slot="$((worker - 1))"
+  test "${worker_slot}" = "${expected_slot}"
+  if [[ -n "${seen_worker_slots[${worker_slot}]:-}" ]]; then
+    echo "cluster im-realtime worker inbox slots must be unique" >&2
+    exit 1
+  fi
+  seen_worker_slots["${worker_slot}"]=1
 done
 if grep -F 'XXL_JOB_ADMIN_ADDRESSES: http://nginx:8081/xxl-job-admin' "${cluster_full}" >/dev/null 2>&1; then
   echo "cluster community-app must use direct XXL-JOB admin service addresses, not nginx" >&2

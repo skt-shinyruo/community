@@ -1113,6 +1113,7 @@ services:
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
     - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
     - IM_REALTIME_WORKER_ID=${IM_REALTIME_WORKER_ID_PREFIX:-im-realtime}-1
+    - IM_ROOM_FANOUT_WORKER_INBOX_SLOT=0
     depends_on:
       nacos-db-bootstrap:
         condition: service_completed_successfully
@@ -1177,6 +1178,7 @@ services:
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
     - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
     - IM_REALTIME_WORKER_ID=${IM_REALTIME_WORKER_ID_PREFIX:-im-realtime}-2
+    - IM_ROOM_FANOUT_WORKER_INBOX_SLOT=1
     depends_on:
       nacos-db-bootstrap:
         condition: service_completed_successfully
@@ -1237,6 +1239,7 @@ services:
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
     - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
     - IM_REALTIME_WORKER_ID=${IM_REALTIME_WORKER_ID_PREFIX:-im-realtime}-3
+    - IM_ROOM_FANOUT_WORKER_INBOX_SLOT=2
     depends_on:
       nacos-db-bootstrap:
         condition: service_completed_successfully

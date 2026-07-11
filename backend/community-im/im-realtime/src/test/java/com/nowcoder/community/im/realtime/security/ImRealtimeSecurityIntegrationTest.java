@@ -3,13 +3,11 @@ package com.nowcoder.community.im.realtime.security;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.common.security.autoconfig.SecurityCommonAutoConfiguration;
-import com.nowcoder.community.im.common.ImContractVersions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -82,45 +80,26 @@ class ImRealtimeSecurityIntegrationTest {
     }
 
     @Test
-    void internalFanoutEndpoint_requiresRealtimeInternalScope() {
-        String body = """
-                {
-                  "schemaVersion": %d,
-                  "targetWorkerId": "worker-a",
-                  "roomId": "00000000-0000-7000-8000-000000000001",
-                  "lastSeq": 42,
-                  "sourceEventId": "evt-1",
-                  "createdAtEpochMs": 1000
-                }
-                """.formatted(ImContractVersions.KAFKA_COMMAND_SCHEMA_VERSION);
-
+    void retiredInternalFanoutEndpoint_shouldReturnNotFoundForEveryCaller() {
         client()
                 .post()
                 .uri("/internal/im/realtime/fanout/room")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
                 .exchange()
-                .expectStatus().value(code -> assertThat(code).isIn(401, 403));
+                .expectStatus().isNotFound();
 
         client()
                 .post()
                 .uri("/internal/im/realtime/fanout/room")
                 .header("Authorization", bearer("profile.read"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
                 .exchange()
-                .expectStatus()
-                .isForbidden();
+                .expectStatus().isNotFound();
 
         client()
                 .post()
                 .uri("/internal/im/realtime/fanout/room")
                 .header("Authorization", bearer("im.realtime.internal"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
                 .exchange()
-                .expectStatus()
-                .isAccepted();
+                .expectStatus().isNotFound();
     }
 
     private String bearer(String scope) {

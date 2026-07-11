@@ -139,7 +139,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
                 .subscribe();
         try {
             String ticket = ticket("worker-a");
-            String connect = "{\"type\":\"connect\",\"ticket\":\"" + ticket + "\"}";
+            String connect = "{\"type\":\"connect\",\"ticket\":\"" + ticket + "\",\"schemaVersion\":1}";
             String ping = "{\"type\":\"ping\",\"ts\":1}";
             outbound.tryEmitNext(connect);
             outbound.tryEmitNext(ping);
@@ -166,7 +166,9 @@ class ImEdgeWebSocketBridgeIntegrationTest {
     @Test
     void shouldRejectInvalidTicket() throws Exception {
         double invalidTicketBefore = counterValue("community.im.gateway.ticket.invalid");
-        String reject = exchangeTextUntilReject("{\"type\":\"connect\",\"ticket\":\"not-a-ticket\"}");
+        String reject = exchangeTextUntilReject(
+                "{\"type\":\"connect\",\"ticket\":\"not-a-ticket\",\"schemaVersion\":1}"
+        );
 
         assertThat(reject).contains("\"reasonCode\":\"invalid_ticket\"");
         assertThat(counterValue("community.im.gateway.ticket.invalid")).isEqualTo(invalidTicketBefore + 1.0);
@@ -177,7 +179,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
         double workerUnavailableBefore = counterValue("community.im.gateway.worker.unavailable");
         double bridgeFailedBefore = counterValue("community.im.gateway.bridge.failed", "reason", "unknown");
         String reject = exchangeTextUntilReject(
-                "{\"type\":\"connect\",\"ticket\":\"" + ticket("worker-missing") + "\"}"
+                "{\"type\":\"connect\",\"ticket\":\"" + ticket("worker-missing") + "\",\"schemaVersion\":1}"
         );
 
         assertThat(reject).contains("\"reasonCode\":\"worker_unavailable\"");
@@ -207,7 +209,9 @@ class ImEdgeWebSocketBridgeIntegrationTest {
                 })
                 .subscribe();
         try {
-            outbound.tryEmitNext("{\"type\":\"connect\",\"ticket\":\"" + ticket("worker-refused") + "\"}");
+            outbound.tryEmitNext(
+                    "{\"type\":\"connect\",\"ticket\":\"" + ticket("worker-refused") + "\",\"schemaVersion\":1}"
+            );
             outbound.tryEmitComplete();
 
             awaitCounterValue(
@@ -277,7 +281,8 @@ class ImEdgeWebSocketBridgeIntegrationTest {
     void shouldCloseWhenSubsequentFrameIsBinary() throws Exception {
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
         Sinks.Many<WebSocketMessage> outbound = Sinks.many().unicast().onBackpressureBuffer();
-        String connect = "{\"type\":\"connect\",\"ticket\":\"" + ticket("worker-a") + "\"}";
+        String connect = "{\"type\":\"connect\",\"ticket\":\"" + ticket("worker-a")
+                + "\",\"schemaVersion\":1}";
 
         Disposable handle = client.execute(externalUri(), session -> {
                     Mono<Void> send = session.send(outbound.asFlux()
@@ -322,7 +327,8 @@ class ImEdgeWebSocketBridgeIntegrationTest {
                 })
                 .subscribe();
         try {
-            String connect = "{\"type\":\"connect\",\"ticket\":\"" + ticket("worker-binary") + "\"}";
+            String connect = "{\"type\":\"connect\",\"ticket\":\"" + ticket("worker-binary")
+                    + "\",\"schemaVersion\":1}";
             outbound.tryEmitNext(connect);
             outbound.tryEmitComplete();
 
@@ -355,7 +361,8 @@ class ImEdgeWebSocketBridgeIntegrationTest {
                 })
                 .subscribe();
         try {
-            String connect = "{\"type\":\"connect\",\"ticket\":\"" + ticket("worker-a") + "\"}";
+            String connect = "{\"type\":\"connect\",\"ticket\":\"" + ticket("worker-a")
+                    + "\",\"schemaVersion\":1}";
             outbound.tryEmitNext(connect);
             outbound.tryEmitComplete();
 

@@ -70,7 +70,7 @@ class ProjectionOpsControllerTest {
     void adminShouldQueryProjectionLagUsingControllerDto() throws Exception {
         when(projectionGovernanceApplicationService.listProjectionLag())
                 .thenReturn(List.of(new ProjectionLagResult(
-                        "custom.projection.search.post",
+                        "eventbus.content",
                         "PENDING",
                         2L,
                         Duration.ofSeconds(42)
@@ -83,7 +83,7 @@ class ProjectionOpsControllerTest {
         mockMvc.perform(get("/api/ops/projections/lag")
                         .with(jwt().jwt(jwt -> jwt.subject("admin-1")).authorities(() -> "ROLE_ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].projection").value("custom.projection.search.post"))
+                .andExpect(jsonPath("$.data[0].projection").value("eventbus.content"))
                 .andExpect(jsonPath("$.data[0].status").value("PENDING"))
                 .andExpect(jsonPath("$.data[0].count").value(2));
 

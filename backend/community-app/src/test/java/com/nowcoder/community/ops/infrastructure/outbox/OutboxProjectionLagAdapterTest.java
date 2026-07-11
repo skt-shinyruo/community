@@ -21,19 +21,19 @@ import static org.mockito.Mockito.when;
 class OutboxProjectionLagAdapterTest {
 
     @Test
-    void listProjectionLagShouldUseRegisteredProjectionTopicsIncludingCustomTopics() {
+    void listProjectionLagShouldUseRegisteredProjectionTopicsOnly() {
         EmbeddedDatabase db = new EmbeddedDatabaseBuilder()
                 .setType(EmbeddedDatabaseType.H2)
                 .build();
         try {
             JdbcTemplate jdbcTemplate = new JdbcTemplate(db);
             createOutboxSchema(jdbcTemplate);
-            insertEvent(jdbcTemplate, "custom.projection.search.post", OutboxEventStatus.PENDING, Instant.parse("2026-07-07T00:00:00Z"));
+            insertEvent(jdbcTemplate, "projection.im.policy", OutboxEventStatus.PENDING, Instant.parse("2026-07-07T00:00:00Z"));
             insertEvent(jdbcTemplate, "eventbus.content", OutboxEventStatus.PENDING, Instant.parse("2026-07-07T00:00:00Z"));
 
             ObjectProvider<List<OutboxHandler>> handlersProvider = mock(ObjectProvider.class);
             when(handlersProvider.getIfAvailable()).thenReturn(List.of(
-                    handler("custom.projection.search.post"),
+                    handler("projection.im.policy"),
                     handler("eventbus.content")
             ));
 
@@ -45,7 +45,7 @@ class OutboxProjectionLagAdapterTest {
             var rows = adapter.listProjectionLag();
 
             assertThat(rows).extracting(row -> row.projection() + "|" + row.status() + "|" + row.count())
-                    .containsExactly("custom.projection.search.post|PENDING|1");
+                    .containsExactly("projection.im.policy|PENDING|1");
         } finally {
             db.shutdown();
         }

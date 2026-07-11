@@ -57,8 +57,8 @@ class MyBatisGovernanceAuditRepositoryTest {
                 GovernanceAction.OUTBOX_REPLAY_BATCH.name(),
                 actorUserId,
                 "outbox_event",
-                "projection.search.post",
-                "topic=projection.search.post",
+                "eventbus.content",
+                "topic=eventbus.content",
                 "fixed handler and replaying bounded range",
                 "{\"limit\":20}",
                 GovernanceResult.PARTIAL.name(),
@@ -80,8 +80,8 @@ class MyBatisGovernanceAuditRepositoryTest {
         assertThat(row.get("ACTION")).isEqualTo(GovernanceAction.OUTBOX_REPLAY_BATCH.name());
         assertThat(BinaryUuidCodec.fromBytes((byte[]) row.get("ACTOR_USER_ID"))).isEqualTo(actorUserId);
         assertThat(row.get("TARGET_TYPE")).isEqualTo("outbox_event");
-        assertThat(row.get("TARGET_ID")).isEqualTo("projection.search.post");
-        assertThat(row.get("SCOPE")).isEqualTo("topic=projection.search.post");
+        assertThat(row.get("TARGET_ID")).isEqualTo("eventbus.content");
+        assertThat(row.get("SCOPE")).isEqualTo("topic=eventbus.content");
         assertThat(row.get("REASON")).isEqualTo("fixed handler and replaying bounded range");
         assertThat(row.get("REQUEST_JSON")).isEqualTo("{\"limit\":20}");
         assertThat(row.get("RESULT")).isEqualTo(GovernanceResult.PARTIAL.name());

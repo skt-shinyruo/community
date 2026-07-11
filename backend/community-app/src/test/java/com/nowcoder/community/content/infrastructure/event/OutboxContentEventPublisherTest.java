@@ -8,6 +8,7 @@ import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.content.application.ContentEventDispatchApplicationService;
+import com.nowcoder.community.content.application.ContentEventPublisher;
 import com.nowcoder.community.content.application.ContentIntegrationEventDispatcher;
 import com.nowcoder.community.content.application.command.DispatchContentEventCommand;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
@@ -17,7 +18,6 @@ import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -37,13 +37,9 @@ class OutboxContentEventPublisherTest {
     private static final String TOPIC = "custom.eventbus.content";
 
     @Test
-    void publisherShouldOnlyDefaultWhenOutboxWorkerIsEnabled() {
-        ConditionalOnExpression conditional = OutboxContentEventPublisher.class.getAnnotation(ConditionalOnExpression.class);
-
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.value()).isEqualTo(
-                "'${content.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'"
-        );
+    void publisherShouldImplementCanonicalOwnerPort() {
+        assertThat(OutboxContentEventPublisher.class.getInterfaces())
+                .containsExactly(ContentEventPublisher.class);
     }
 
     @Test

@@ -11,7 +11,6 @@ import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -32,16 +31,6 @@ class ContentEventDispatchApplicationServiceTest {
     private final ContentIntegrationEventDispatcher dispatcher = mock(ContentIntegrationEventDispatcher.class);
     private final ContentEventDispatchApplicationService service =
             new ContentEventDispatchApplicationService(jsonCodec, dispatcher);
-
-    @Test
-    void serviceShouldOnlyLoadForContentOutboxKafkaPublisher() {
-        ConditionalOnExpression conditional = ContentEventDispatchApplicationService.class.getAnnotation(ConditionalOnExpression.class);
-
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.value()).isEqualTo(
-                "'${content.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'"
-        );
-    }
 
     @Test
     void dispatchShouldConvertPostPayloadAndSendThroughPort() {

@@ -119,7 +119,8 @@ class NacosPolicyBindingTest {
         assertThat(notice.getChannels().isInAppEnabled()).isTrue();
         assertThat(notice.getDigest().getWindow()).isEqualTo(Duration.ofHours(1));
 
-        KafkaPolicyProperties kafka = Binder.get(environmentFrom("community-kafka-policy.yaml"))
+        StandardEnvironment kafkaEnvironment = environmentFrom("community-kafka-policy.yaml");
+        KafkaPolicyProperties kafka = Binder.get(kafkaEnvironment)
                 .bind("community.kafka-policy", KafkaPolicyProperties.class)
                 .orElseThrow(IllegalStateException::new);
         assertThat(kafka.getRetry().getMaxAttempts()).isEqualTo(3);
@@ -147,6 +148,15 @@ class NacosPolicyBindingTest {
                 .getProperty("im.policy.outbox.topic")).isEqualTo("projection.im.policy");
         assertThat(environmentFrom("community-kafka-policy.yaml")
                 .getProperty("user.reward.outbox.comment-topic")).isEqualTo("projection.user.reward.comment");
+        assertThat(kafkaEnvironment.containsProperty("content.events.publisher")).isFalse();
+        assertThat(kafkaEnvironment.containsProperty("social.events.publisher")).isFalse();
+        assertThat(kafkaEnvironment.containsProperty("user.events.publisher")).isFalse();
+        assertThat(kafkaEnvironment.getProperty("content.events.outbox-topic")).isEqualTo("eventbus.content");
+        assertThat(kafkaEnvironment.getProperty("content.events.kafka-topic")).isEqualTo("content.events");
+        assertThat(kafkaEnvironment.getProperty("social.events.outbox-topic")).isEqualTo("eventbus.social");
+        assertThat(kafkaEnvironment.getProperty("social.events.kafka-topic")).isEqualTo("social.events");
+        assertThat(kafkaEnvironment.getProperty("user.events.outbox-topic")).isEqualTo("eventbus.user");
+        assertThat(kafkaEnvironment.getProperty("user.events.kafka-topic")).isEqualTo("user.events");
     }
 
     @Test

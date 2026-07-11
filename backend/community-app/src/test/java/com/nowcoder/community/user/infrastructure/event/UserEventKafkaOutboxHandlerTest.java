@@ -4,7 +4,6 @@ import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.user.application.UserEventDispatchApplicationService;
 import com.nowcoder.community.user.application.command.DispatchUserEventCommand;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
 import java.util.UUID;
 
@@ -16,16 +15,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 class UserEventKafkaOutboxHandlerTest {
 
     private static final String OUTBOX_TOPIC = "custom.eventbus.user";
-
-    @Test
-    void handlerShouldOnlyLoadForUserOutboxKafkaPublisher() {
-        ConditionalOnExpression conditional = UserEventKafkaOutboxHandler.class.getAnnotation(ConditionalOnExpression.class);
-
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.value()).isEqualTo(
-                "'${user.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'"
-        );
-    }
 
     @Test
     void topicShouldReturnOutboxTopic() {

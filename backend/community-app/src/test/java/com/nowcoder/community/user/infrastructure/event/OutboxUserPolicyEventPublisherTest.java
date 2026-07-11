@@ -13,11 +13,10 @@ import com.nowcoder.community.user.application.command.DispatchUserEventCommand;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
+import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserModerationStatus;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -35,23 +34,9 @@ class OutboxUserPolicyEventPublisherTest {
     private static final String TOPIC = "custom.eventbus.user";
 
     @Test
-    void publisherShouldOnlyDefaultWhenOutboxWorkerIsEnabled() {
-        ConditionalOnExpression conditional = OutboxUserPolicyEventPublisher.class.getAnnotation(ConditionalOnExpression.class);
-
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.value()).isEqualTo(
-                "'${user.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'"
-        );
-    }
-
-    @Test
-    void localPublisherShouldBeOptInOnly() {
-        ConditionalOnProperty conditional = LocalUserPolicyEventPublisher.class.getAnnotation(ConditionalOnProperty.class);
-
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.name()).containsExactly("user.events.publisher");
-        assertThat(conditional.havingValue()).isEqualTo("local");
-        assertThat(conditional.matchIfMissing()).isFalse();
+    void publisherShouldImplementCanonicalOwnerPort() {
+        assertThat(OutboxUserPolicyEventPublisher.class.getInterfaces())
+                .containsExactly(UserPolicyEventPublisher.class);
     }
 
     @Test

@@ -45,17 +45,18 @@ class KafkaBackboneConfigTest {
     }
 
     private static void assertBackboneDefaults(StandardEnvironment environment) {
-        assertThat(environment.getProperty("content.events.publisher")).isEqualTo("outbox-kafka");
+        assertThat(environment.containsProperty("content.events.publisher")).isFalse();
         assertThat(environment.getProperty("content.events.outbox-topic")).isEqualTo("eventbus.content");
         assertThat(environment.getProperty("content.events.kafka-topic")).isEqualTo("content.events");
 
-        assertThat(environment.getProperty("social.events.publisher")).isEqualTo("outbox-kafka");
+        assertThat(environment.containsProperty("social.events.publisher")).isFalse();
         assertThat(environment.getProperty("social.events.outbox-topic")).isEqualTo("eventbus.social");
         assertThat(environment.getProperty("social.events.kafka-topic")).isEqualTo("social.events");
 
-        assertThat(environment.getProperty("user.events.publisher")).isEqualTo("outbox-kafka");
+        assertThat(environment.containsProperty("user.events.publisher")).isFalse();
         assertThat(environment.getProperty("user.events.outbox-topic")).isEqualTo("eventbus.user");
         assertThat(environment.getProperty("user.events.kafka-topic")).isEqualTo("user.events");
+        assertThat(environment.getProperty("events.outbox.enabled", Boolean.class)).isTrue();
     }
 
     private static void assertConsumerDefaults(StandardEnvironment environment) {

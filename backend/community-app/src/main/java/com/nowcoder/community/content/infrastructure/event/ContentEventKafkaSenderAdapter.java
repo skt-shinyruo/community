@@ -5,7 +5,6 @@ import com.nowcoder.community.content.application.ContentIntegrationEventDispatc
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -13,7 +12,6 @@ import java.util.concurrent.CompletionException;
 
 @Component
 @ConditionalOnClass(KafkaTemplate.class)
-@ConditionalOnExpression("'${content.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'")
 public class ContentEventKafkaSenderAdapter implements ContentIntegrationEventDispatcher {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;

@@ -5,11 +5,9 @@ import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.user.application.UserEventDispatchApplicationService;
 import com.nowcoder.community.user.application.command.DispatchUserEventCommand;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnExpression("'${user.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'")
 public class UserEventKafkaOutboxHandler implements OutboxHandler {
 
     private final UserEventDispatchApplicationService applicationService;

@@ -19,10 +19,9 @@ import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.FollowCreatedDomainEvent;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
+import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.time.Instant;
 import java.util.List;
@@ -43,23 +42,9 @@ class OutboxSocialDomainEventPublisherTest {
     private static final String TOPIC = "custom.eventbus.social";
 
     @Test
-    void publisherShouldOnlyDefaultWhenOutboxWorkerIsEnabled() {
-        ConditionalOnExpression conditional = OutboxSocialDomainEventPublisher.class.getAnnotation(ConditionalOnExpression.class);
-
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.value()).isEqualTo(
-                "'${social.events.publisher:outbox-kafka}' == 'outbox-kafka' && '${events.outbox.enabled:true}' == 'true'"
-        );
-    }
-
-    @Test
-    void localPublisherShouldBeOptInOnly() {
-        ConditionalOnProperty conditional = LocalSocialDomainEventPublisher.class.getAnnotation(ConditionalOnProperty.class);
-
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.name()).containsExactly("social.events.publisher");
-        assertThat(conditional.havingValue()).isEqualTo("local");
-        assertThat(conditional.matchIfMissing()).isFalse();
+    void publisherShouldImplementCanonicalOwnerPort() {
+        assertThat(OutboxSocialDomainEventPublisher.class.getInterfaces())
+                .containsExactly(SocialDomainEventPublisher.class);
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.nowcoder.community.analytics.infrastructure.event;
 
 import com.nowcoder.community.analytics.application.AnalyticsRequestCapturePort;
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
+import com.nowcoder.community.analytics.infrastructure.event.AnalyticsRequestKafkaListener.AnalyticsRequestEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;

@@ -435,6 +435,28 @@ final class ArchitectureRulesSupport {
         };
     }
 
+    static ArchCondition<JavaClass> notDependOnSameDomainInfrastructureBeforeApplicationService(
+            Set<String> legacyOriginWhitelist
+    ) {
+        return new ArchCondition<>("not depend on same-domain infrastructure before ApplicationService boundary") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                if (isWhitelisted(item, legacyOriginWhitelist)) {
+                    return;
+                }
+                String originDomain = domainOf(item);
+                for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dependency.getTargetClass();
+                    if (originDomain.equals(domainOf(target))
+                            && residesInLayer(target, Set.of("infrastructure"))
+                            && !sharesTopLevelOwner(item, target)) {
+                        events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
+                    }
+                }
+            }
+        };
+    }
+
     static ArchCondition<JavaClass> notDependOnSameDomainDomainOrPersistenceBeforeApplicationService(
             Set<String> legacyOriginWhitelist
     ) {

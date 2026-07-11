@@ -62,6 +62,19 @@ class ListenerBoundaryArchTest {
                     ));
 
     @ArchTest
+    static final ArchRule inbound_adapters_must_not_depend_on_same_domain_infrastructure_before_application_service =
+            classes()
+                    .that().resideInAnyPackage(
+                            "..infrastructure.event..",
+                            "..infrastructure.job..",
+                            "..infra.job.handlers.."
+                    )
+                    .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
+                    .should(ArchitectureRulesSupport.notDependOnSameDomainInfrastructureBeforeApplicationService(
+                            LEGACY_LISTENER_APPLICATION_BOUNDARY
+                    ));
+
+    @ArchTest
     static final ArchRule inbound_adapters_must_not_bypass_application_service_to_same_domain_domain_or_persistence =
             classes()
                     .that().resideInAnyPackage(

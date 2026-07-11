@@ -2,6 +2,7 @@ package com.nowcoder.community.analytics.infrastructure.event;
 
 import com.nowcoder.community.analytics.application.AnalyticsIngestApplicationService;
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
+import com.nowcoder.community.analytics.infrastructure.event.AnalyticsRequestKafkaListener.AnalyticsRequestEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 

@@ -14,6 +14,7 @@ import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.UUID;
 
@@ -48,6 +49,10 @@ public class PostHotFeedProjectionKafkaListener {
         if (event == null || event.type() == null) {
             return;
         }
+        if (!isSupportedContentEvent(event.type())) {
+            return;
+        }
+        requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
         ProjectPostHotFeedCommand command = switch (event.type()) {
             case ContentEventTypes.POST_PUBLISHED, ContentEventTypes.POST_UPDATED, ContentEventTypes.POST_DELETED ->
                     commandForPostEvent(event);
@@ -72,13 +77,17 @@ public class PostHotFeedProjectionKafkaListener {
         if (!SocialEventTypes.LIKE_CREATED.equals(event.type()) && !SocialEventTypes.LIKE_REMOVED.equals(event.type())) {
             return;
         }
+        requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
         LikePayload payload = normalizePayload(event.payload(), LikePayload.class);
-        if (payload == null || payload.getEntityType() != EntityTypes.POST) {
+        if (payload == null || !EntityTypes.isValid(payload.getEntityType())) {
+            throw malformed(event.type(), event.eventId());
+        }
+        if (payload.getEntityType() != EntityTypes.POST) {
             return;
         }
         UUID postId = payload.getPostId() != null ? payload.getPostId() : payload.getEntityId();
         if (postId == null) {
-            return;
+            throw malformed(event.type(), event.eventId());
         }
         applicationService.project(new ProjectPostHotFeedCommand(
                 postId,
@@ -89,10 +98,29 @@ public class PostHotFeedProjectionKafkaListener {
         ));
     }
 
+    private boolean isSupportedContentEvent(String type) {
+        return ContentEventTypes.POST_PUBLISHED.equals(type)
+                || ContentEventTypes.POST_UPDATED.equals(type)
+                || ContentEventTypes.POST_DELETED.equals(type)
+                || ContentEventTypes.COMMENT_CREATED.equals(type)
+                || ContentEventTypes.COMMENT_DELETED.equals(type);
+    }
+
+    private void requireSourceMetadata(String eventId, java.time.Instant occurredAt, long version, String eventType) {
+        if (!StringUtils.hasText(eventId) || occurredAt == null || version <= 0L) {
+            throw malformed(eventType, eventId);
+        }
+    }
+
+    private IllegalArgumentException malformed(String eventType, String eventId) {
+        return new IllegalArgumentException(
+                "invalid recognized event: type=" + eventType + ", eventId=" + eventId);
+    }
+
     private ProjectPostHotFeedCommand commandForPostEvent(ContentContractEvent event) {
         PostPayload payload = normalizePayload(event.payload(), PostPayload.class);
         if (payload == null || payload.getPostId() == null) {
-            return null;
+            throw malformed(event.type(), event.eventId());
         }
         return new ProjectPostHotFeedCommand(
                 payload.getPostId(),
@@ -110,7 +138,7 @@ public class PostHotFeedProjectionKafkaListener {
     private ProjectPostHotFeedCommand commandForCommentEvent(ContentContractEvent event) {
         CommentPayload payload = normalizePayload(event.payload(), CommentPayload.class);
         if (payload == null || payload.getPostId() == null) {
-            return null;
+            throw malformed(event.type(), event.eventId());
         }
         return new ProjectPostHotFeedCommand(
                 payload.getPostId(),

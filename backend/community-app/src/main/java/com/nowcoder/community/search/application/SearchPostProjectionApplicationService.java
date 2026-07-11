@@ -3,7 +3,7 @@ package com.nowcoder.community.search.application;
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
 import com.nowcoder.community.search.application.command.DeleteIndexedPostCommand;
-import com.nowcoder.community.search.application.command.ProjectPostOutboxCommand;
+import com.nowcoder.community.search.application.command.ProjectPostCommand;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -35,10 +35,10 @@ public class SearchPostProjectionApplicationService {
         this.policyProperties = policyProperties == null ? new SearchPolicyProperties() : policyProperties;
     }
 
-    public void projectPostFromOutbox(ProjectPostOutboxCommand command) {
+    public void projectPost(ProjectPostCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        if (!StringUtils.hasText(command.sourceEventId())) {
-            throw new IllegalStateException("search projection source event id is blank");
+        if (!StringUtils.hasText(command.sourceEventId()) || command.sourceVersion() <= 0L) {
+            throw new IllegalArgumentException("search projection source metadata is invalid");
         }
         if (!policyProperties.isProjectionEnabled()) {
             return;

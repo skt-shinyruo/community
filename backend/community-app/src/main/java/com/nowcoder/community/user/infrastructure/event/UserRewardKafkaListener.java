@@ -15,6 +15,8 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
+
 @Component
 public class UserRewardKafkaListener {
 
@@ -39,11 +41,13 @@ public class UserRewardKafkaListener {
             return;
         }
         if (ContentEventTypes.POST_PUBLISHED.equals(event.type())) {
-            handlePostPublished(event.payload());
+            requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
+            handlePostPublished(event);
             return;
         }
         if (ContentEventTypes.COMMENT_CREATED.equals(event.type())) {
-            handleCommentCreated(event.payload());
+            requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
+            handleCommentCreated(event);
         }
     }
 
@@ -57,18 +61,20 @@ public class UserRewardKafkaListener {
             return;
         }
         if (SocialEventTypes.LIKE_CREATED.equals(event.type())) {
-            handleLikeCreated(event.payload());
+            requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
+            handleLikeCreated(event);
             return;
         }
         if (SocialEventTypes.LIKE_REMOVED.equals(event.type())) {
-            handleLikeRemoved(event.payload());
+            requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
+            handleLikeRemoved(event);
         }
     }
 
-    private void handlePostPublished(Object eventPayload) {
-        PostPayload payload = normalizePayload(eventPayload, PostPayload.class);
+    private void handlePostPublished(ContentContractEvent event) {
+        PostPayload payload = normalizePayload(event.payload(), PostPayload.class);
         if (payload == null || payload.getPostId() == null || payload.getUserId() == null) {
-            return;
+            throw malformed(event.type(), event.eventId());
         }
         applicationService.apply(applicationService.commandForPostPublished(
                 payload.getPostId(),
@@ -76,10 +82,10 @@ public class UserRewardKafkaListener {
         ));
     }
 
-    private void handleCommentCreated(Object eventPayload) {
-        CommentPayload payload = normalizePayload(eventPayload, CommentPayload.class);
+    private void handleCommentCreated(ContentContractEvent event) {
+        CommentPayload payload = normalizePayload(event.payload(), CommentPayload.class);
         if (payload == null || payload.getCommentId() == null || payload.getUserId() == null) {
-            return;
+            throw malformed(event.type(), event.eventId());
         }
         applicationService.apply(applicationService.commandForCommentCreated(
                 payload.getCommentId(),
@@ -87,9 +93,9 @@ public class UserRewardKafkaListener {
         ));
     }
 
-    private void handleLikeCreated(Object eventPayload) {
-        LikePayload payload = normalizePayload(eventPayload, LikePayload.class);
-        if (isInvalidLikePayload(payload)) {
+    private void handleLikeCreated(SocialContractEvent event) {
+        LikePayload payload = requiredLikePayload(event);
+        if (payload.getActorUserId().equals(payload.getEntityUserId())) {
             return;
         }
         applicationService.apply(applicationService.commandForLikeCreated(
@@ -99,9 +105,9 @@ public class UserRewardKafkaListener {
         ));
     }
 
-    private void handleLikeRemoved(Object eventPayload) {
-        LikePayload payload = normalizePayload(eventPayload, LikePayload.class);
-        if (isInvalidLikePayload(payload)) {
+    private void handleLikeRemoved(SocialContractEvent event) {
+        LikePayload payload = requiredLikePayload(event);
+        if (payload.getActorUserId().equals(payload.getEntityUserId())) {
             return;
         }
         applicationService.apply(applicationService.commandForLikeRemoved(
@@ -111,13 +117,27 @@ public class UserRewardKafkaListener {
         ));
     }
 
-    private boolean isInvalidLikePayload(LikePayload payload) {
-        return payload == null
+    private LikePayload requiredLikePayload(SocialContractEvent event) {
+        LikePayload payload = normalizePayload(event.payload(), LikePayload.class);
+        if (payload == null
                 || payload.getActorUserId() == null
                 || !EntityTypes.isValid(payload.getEntityType())
                 || payload.getEntityId() == null
-                || payload.getEntityUserId() == null
-                || payload.getActorUserId().equals(payload.getEntityUserId());
+                || payload.getEntityUserId() == null) {
+            throw malformed(event.type(), event.eventId());
+        }
+        return payload;
+    }
+
+    private void requireSourceMetadata(String eventId, Instant occurredAt, long version, String eventType) {
+        if (!StringUtils.hasText(eventId) || occurredAt == null || version <= 0L) {
+            throw malformed(eventType, eventId);
+        }
+    }
+
+    private IllegalArgumentException malformed(String eventType, String eventId) {
+        return new IllegalArgumentException(
+                "invalid recognized event: type=" + eventType + ", eventId=" + eventId);
     }
 
     private String likeSourceId(String action, LikePayload payload) {

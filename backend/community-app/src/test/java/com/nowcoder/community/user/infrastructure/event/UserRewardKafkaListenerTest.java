@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static com.nowcoder.community.common.constants.EntityTypes.POST;
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -142,16 +143,19 @@ class UserRewardKafkaListenerTest {
     }
 
     @Test
-    void mapLikeSocialPayloadMissingEntityTypeShouldBeIgnored() {
+    void recognizedSocialEventWithMissingEntityTypeShouldFailDelivery() {
         WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
         UserRewardKafkaListener listener = listener(walletRewardActionApi);
 
-        listener.onSocialEvent(new SocialContractEvent("se:like:created:missing-entity-type", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, Map.of(
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent("se:like:created:missing-entity-type", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, Map.of(
                         "actorUserId", uuid(1).toString(),
                         "entityId", uuid(100).toString(),
                         "entityUserId", uuid(2).toString(),
                         "createTime", "2026-05-18T10:30:00Z"
-                )));
+                ))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(SocialEventTypes.LIKE_CREATED)
+                .hasMessageContaining("se:like:created:missing-entity-type");
 
         verifyNoInteractions(walletRewardActionApi);
     }
@@ -167,14 +171,45 @@ class UserRewardKafkaListenerTest {
     }
 
     @Test
-    void unsupportedAndMissingSocialEventsShouldBeIgnored() {
+    void unsupportedEventsShouldBeIgnored() {
         WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
         UserRewardKafkaListener listener = listener(walletRewardActionApi);
-        LikePayload missingEntityOwner = likePayload(uuid(1), uuid(100), null);
 
         listener.onContentEvent(new ContentContractEvent("ce:post:updated", null, null, ContentEventTypes.POST_UPDATED, java.time.Instant.EPOCH, 1L, new PostPayload()));
         listener.onSocialEvent(new SocialContractEvent("se:follow:created", null, null, SocialEventTypes.FOLLOW_CREATED, java.time.Instant.EPOCH, 1L, new Object()));
-        listener.onSocialEvent(new SocialContractEvent("se:like:created:missing", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, missingEntityOwner));
+
+        verifyNoInteractions(walletRewardActionApi);
+    }
+
+    @Test
+    void recognizedContentEventWithMissingIdentityShouldFailDelivery() {
+        WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
+        UserRewardKafkaListener listener = listener(walletRewardActionApi);
+        PostPayload payload = new PostPayload();
+        payload.setPostId(uuid(100));
+
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                "ce:post:published:missing-user", null, null, ContentEventTypes.POST_PUBLISHED,
+                Instant.EPOCH, 1L, payload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.POST_PUBLISHED)
+                .hasMessageContaining("ce:post:published:missing-user");
+
+        verifyNoInteractions(walletRewardActionApi);
+    }
+
+    @Test
+    void recognizedEventWithInvalidSourceMetadataShouldFailDelivery() {
+        WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
+        UserRewardKafkaListener listener = listener(walletRewardActionApi);
+        PostPayload payload = new PostPayload();
+        payload.setPostId(uuid(100));
+        payload.setUserId(uuid(7));
+
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                " ", null, null, ContentEventTypes.POST_PUBLISHED, null, 0L, payload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.POST_PUBLISHED);
 
         verifyNoInteractions(walletRewardActionApi);
     }

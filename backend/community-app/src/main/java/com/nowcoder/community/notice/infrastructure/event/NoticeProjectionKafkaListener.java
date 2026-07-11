@@ -1,6 +1,7 @@
 package com.nowcoder.community.notice.infrastructure.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
@@ -15,6 +16,9 @@ import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import java.time.Instant;
 
 @Component
 public class NoticeProjectionKafkaListener {
@@ -39,11 +43,14 @@ public class NoticeProjectionKafkaListener {
         if (event == null || !isSupportedContentNoticeEvent(event.type())) {
             return;
         }
+        requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
+        Object payload = normalizeContentPayload(event.type(), event.payload());
+        requireContentPayload(event.type(), event.eventId(), payload);
         noticeProjectionApplicationService.projectContentEventReliably(new ProjectContentNoticeCommand(
                 event.eventId(),
                 event.version(),
                 event.type(),
-                normalizeContentPayload(event.type(), event.payload())
+                payload
         ));
     }
 
@@ -56,12 +63,60 @@ public class NoticeProjectionKafkaListener {
         if (event == null || !isSupportedSocialNoticeEvent(event.type())) {
             return;
         }
+        requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
+        Object payload = normalizeSocialPayload(event.type(), event.payload());
+        requireSocialPayload(event.type(), event.eventId(), payload);
         noticeProjectionApplicationService.projectSocialEventReliably(new ProjectSocialNoticeCommand(
                 event.eventId(),
                 event.version(),
                 event.type(),
-                normalizeSocialPayload(event.type(), event.payload())
+                payload
         ));
+    }
+
+    private void requireSourceMetadata(String eventId, Instant occurredAt, long version, String eventType) {
+        if (!StringUtils.hasText(eventId) || occurredAt == null || version <= 0L) {
+            throw malformed(eventType, eventId);
+        }
+    }
+
+    private void requireContentPayload(String eventType, String eventId, Object payload) {
+        boolean valid = switch (eventType) {
+            case ContentEventTypes.COMMENT_CREATED ->
+                    payload instanceof CommentPayload comment && comment.getTargetUserId() != null;
+            case ContentEventTypes.MODERATION_ACTION_APPLIED ->
+                    payload instanceof ModerationPayload moderation && moderation.getToUserId() != null;
+            default -> false;
+        };
+        if (!valid) {
+            throw malformed(eventType, eventId);
+        }
+    }
+
+    private void requireSocialPayload(String eventType, String eventId, Object payload) {
+        boolean valid;
+        if (SocialEventTypes.LIKE_CREATED.equals(eventType) || SocialEventTypes.LIKE_REMOVED.equals(eventType)) {
+            valid = payload instanceof LikePayload like
+                    && like.getActorUserId() != null
+                    && EntityTypes.isValid(like.getEntityType())
+                    && like.getEntityId() != null
+                    && like.getEntityUserId() != null
+                    && StringUtils.hasText(like.getRelationKey());
+        } else {
+            valid = payload instanceof FollowPayload follow
+                    && follow.getActorUserId() != null
+                    && EntityTypes.isValid(follow.getEntityType())
+                    && follow.getEntityId() != null
+                    && follow.getEntityUserId() != null;
+        }
+        if (!valid) {
+            throw malformed(eventType, eventId);
+        }
+    }
+
+    private IllegalArgumentException malformed(String eventType, String eventId) {
+        return new IllegalArgumentException(
+                "invalid recognized event: type=" + eventType + ", eventId=" + eventId);
     }
 
     private boolean isSupportedContentNoticeEvent(String type) {

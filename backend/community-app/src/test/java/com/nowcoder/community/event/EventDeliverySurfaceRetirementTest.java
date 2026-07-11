@@ -28,6 +28,8 @@ class EventDeliverySurfaceRetirementTest {
         assertClassRetired("com.nowcoder.community.user.infrastructure.event.Local" + "UserPolicyEventPublisher");
         assertClassRetired("com.nowcoder.community.user.infrastructure.event.Local" + "UserEventPublisher");
         assertClassRetired("com.nowcoder.community.content.infrastructure.event.PostHotFeedProjection" + "LocalListener");
+        assertClassRetired("com.nowcoder.community.user.infrastructure.event.CommentRewardOutbox" + "Enqueuer");
+        assertClassRetired("com.nowcoder.community.user.infrastructure.event.CommentRewardOutbox" + "Handler");
     }
 
     private void assertClassRetired(String className) {

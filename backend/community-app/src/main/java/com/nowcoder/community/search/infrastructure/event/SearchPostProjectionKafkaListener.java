@@ -6,9 +6,10 @@ import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.search.application.SearchPostProjectionApplicationService;
-import com.nowcoder.community.search.application.command.ProjectPostOutboxCommand;
+import com.nowcoder.community.search.application.command.ProjectPostCommand;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Component
 public class SearchPostProjectionKafkaListener {
@@ -33,15 +34,27 @@ public class SearchPostProjectionKafkaListener {
         if (event == null || !isPostProjectionEvent(event.type())) {
             return;
         }
+        requireSourceMetadata(event);
         PostPayload payload = normalizePostPayload(event.payload());
         if (payload == null || payload.getPostId() == null) {
-            return;
+            throw malformed(event);
         }
-        searchPostProjectionApplicationService.projectPostFromOutbox(new ProjectPostOutboxCommand(
+        searchPostProjectionApplicationService.projectPost(new ProjectPostCommand(
                 payload.getPostId(),
                 event.eventId(),
                 event.version()
         ));
+    }
+
+    private void requireSourceMetadata(ContentContractEvent event) {
+        if (!StringUtils.hasText(event.eventId()) || event.occurredAt() == null || event.version() <= 0L) {
+            throw malformed(event);
+        }
+    }
+
+    private IllegalArgumentException malformed(ContentContractEvent event) {
+        return new IllegalArgumentException(
+                "invalid recognized content event: type=" + event.type() + ", eventId=" + event.eventId());
     }
 
     private boolean isPostProjectionEvent(String type) {

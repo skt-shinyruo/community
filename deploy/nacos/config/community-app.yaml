@@ -41,7 +41,7 @@ security:
 
 drive:
   share:
-    ticket-secret: change-this-drive-share-ticket-secret
+    ticket-secret: ${DRIVE_SHARE_TICKET_SECRET:}
 
 auth:
   refresh:

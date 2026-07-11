@@ -38,7 +38,7 @@ class JdbcOutboxGovernanceAdapterTest {
 
             var rows = adapter.findEvents(new FindOutboxEventsCommand(
                     OutboxEventStatus.DEAD,
-                    "projection.search.post",
+                    "eventbus.content",
                     null,
                     null,
                     null,
@@ -49,7 +49,7 @@ class JdbcOutboxGovernanceAdapterTest {
             assertThat(rows.get(0).id()).isEqualTo(outboxId);
             assertThat(adapter.findById(outboxId)).isPresent();
             assertThat(adapter.listBacklog()).extracting(row -> row.topic() + "|" + row.status() + "|" + row.count())
-                    .contains("projection.search.post|DEAD|1");
+                    .contains("eventbus.content|DEAD|1");
 
             assertThat(adapter.requeueDead(outboxId, "operator replay")).isTrue();
             assertThat(adapter.findById(outboxId).orElseThrow().status()).isEqualTo(OutboxEventStatus.PENDING);
@@ -62,19 +62,19 @@ class JdbcOutboxGovernanceAdapterTest {
     void catalogShouldTrimTopicsAndIgnoreBlanks() {
         ObjectProvider<List<OutboxHandler>> handlersProvider = mock(ObjectProvider.class);
         when(handlersProvider.getIfAvailable()).thenReturn(List.of(
-                handler(" projection.search.post "),
+                handler(" eventbus.content "),
                 handler(""),
                 handler(null),
-                handler("projection.growth.task.post")
+                handler("projection.im.policy")
         ));
 
         SpringOutboxHandlerCatalog catalog = new SpringOutboxHandlerCatalog(handlersProvider);
 
-        assertThat(catalog.hasHandler(" projection.search.post ")).isTrue();
+        assertThat(catalog.hasHandler(" eventbus.content ")).isTrue();
         assertThat(catalog.hasHandler("projection.missing")).isFalse();
         assertThat(catalog.topics()).containsExactlyInAnyOrder(
-                "projection.search.post",
-                "projection.growth.task.post"
+                "eventbus.content",
+                "projection.im.policy"
         );
     }
 
@@ -101,7 +101,7 @@ class JdbcOutboxGovernanceAdapterTest {
                         """,
                 BinaryUuidCodec.toBytes(id),
                 "event-1",
-                "projection.search.post",
+                "eventbus.content",
                 "post-1",
                 "{\"postId\":\"post-1\"}",
                 OutboxEventStatus.DEAD,

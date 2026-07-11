@@ -28,14 +28,14 @@ class JdbcOutboxEventStoreGovernanceTest {
             Instant now = Instant.parse("2026-07-07T00:00:00Z");
             UUID deadId = UUID.fromString("0197e6f0-0000-7000-8000-000000000001");
             UUID pendingId = UUID.fromString("0197e6f0-0000-7000-8000-000000000002");
-            insertEvent(jdbcTemplate, deadId, "e-dead:search", "projection.search.post", "post-1",
+            insertEvent(jdbcTemplate, deadId, "e-dead:search", "eventbus.content", "post-1",
                     OutboxEventStatus.DEAD, 4, now.minusSeconds(120), now.minusSeconds(60));
-            insertEvent(jdbcTemplate, pendingId, "e-pending:growth", "projection.growth.task.post", "post-1",
+            insertEvent(jdbcTemplate, pendingId, "e-pending:growth", "projection.im.policy", "post-1",
                     OutboxEventStatus.PENDING, 1, now.minusSeconds(30), now.minusSeconds(20));
 
             List<OutboxEventView> deadRows = store.findEvents(new OutboxEventQuery(
                     OutboxEventStatus.DEAD,
-                    "projection.search.post",
+                    "eventbus.content",
                     null,
                     now.minusSeconds(300),
                     now,
@@ -50,7 +50,7 @@ class JdbcOutboxEventStoreGovernanceTest {
             assertThat(store.findEventById(deadId)).isPresent();
             assertThat(store.countBacklogByTopicAndStatus())
                     .extracting(row -> row.topic() + "|" + row.status() + "|" + row.count())
-                    .contains("projection.search.post|DEAD|1", "projection.growth.task.post|PENDING|1");
+                    .contains("eventbus.content|DEAD|1", "projection.im.policy|PENDING|1");
 
             boolean requeued = store.requeueDeadForReplay(deadId, now, "fixed es mapping");
 

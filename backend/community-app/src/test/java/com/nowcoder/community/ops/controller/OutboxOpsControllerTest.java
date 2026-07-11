@@ -74,7 +74,7 @@ class OutboxOpsControllerTest {
         mockMvc.perform(post("/api/ops/outbox/replay-batch")
                         .with(jwt().jwt(jwt -> jwt.subject(uuid(2).toString())).authorities(() -> "ROLE_USER"))
                         .contentType("application/json")
-                        .content("{\"topic\":\"projection.search.post\",\"status\":\"DEAD\",\"createdFrom\":\"2026-07-07T00:00:00Z\",\"createdTo\":\"2026-07-08T00:00:00Z\",\"limit\":10,\"reason\":\"retry\"}"))
+                        .content("{\"topic\":\"eventbus.content\",\"status\":\"DEAD\",\"createdFrom\":\"2026-07-07T00:00:00Z\",\"createdTo\":\"2026-07-08T00:00:00Z\",\"limit\":10,\"reason\":\"retry\"}"))
                 .andExpect(status().isForbidden());
     }
 
@@ -85,12 +85,12 @@ class OutboxOpsControllerTest {
         Instant createdFrom = Instant.parse("2026-07-01T00:00:00Z");
         Instant createdTo = Instant.parse("2026-07-08T00:00:00Z");
         when(outboxGovernanceApplicationService.listBacklog())
-                .thenReturn(List.of(new OutboxBacklogResult("projection.search.post", "DEAD", 2L)));
+                .thenReturn(List.of(new OutboxBacklogResult("eventbus.content", "DEAD", 2L)));
         when(outboxGovernanceApplicationService.findEvents(any()))
                 .thenReturn(List.of(new OutboxEventResult(
                         outboxId,
                         "event-1",
-                        "projection.search.post",
+                        "eventbus.content",
                         "post-1",
                         "{\"postId\":\"post-1\"}",
                         "DEAD",
@@ -103,18 +103,18 @@ class OutboxOpsControllerTest {
                         Instant.parse("2026-07-07T00:01:00Z")
                 )));
         when(outboxGovernanceApplicationService.replay(any()))
-                .thenReturn(new OutboxReplayResult(outboxId, "event-1", "projection.search.post", "DEAD", "PENDING", true, "REPLAYED"));
+                .thenReturn(new OutboxReplayResult(outboxId, "event-1", "eventbus.content", "DEAD", "PENDING", true, "REPLAYED"));
 
         mockMvc.perform(get("/api/ops/outbox/backlog")
                         .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].topic").value("projection.search.post"))
+                .andExpect(jsonPath("$.data[0].topic").value("eventbus.content"))
                 .andExpect(jsonPath("$.data[0].status").value("DEAD"))
                 .andExpect(jsonPath("$.data[0].count").value(2));
 
         mockMvc.perform(get("/api/ops/outbox/events")
                         .param("status", "DEAD")
-                        .param("topic", "projection.search.post")
+                        .param("topic", "eventbus.content")
                         .param("eventId", "event-1")
                         .param("createdFrom", createdFrom.toString())
                         .param("createdTo", createdTo.toString())
@@ -139,7 +139,7 @@ class OutboxOpsControllerTest {
         FindOutboxEventsCommand findEventsCommand = findEventsCommandCaptor.getValue();
         assertAll(
                 () -> assertEquals("DEAD", findEventsCommand.status()),
-                () -> assertEquals("projection.search.post", findEventsCommand.topic()),
+                () -> assertEquals("eventbus.content", findEventsCommand.topic()),
                 () -> assertEquals("event-1", findEventsCommand.eventId()),
                 () -> assertEquals(createdFrom, findEventsCommand.createdFrom()),
                 () -> assertEquals(createdTo, findEventsCommand.createdTo()),
@@ -164,15 +164,15 @@ class OutboxOpsControllerTest {
         UUID rejectedId = uuid(2);
         when(outboxGovernanceApplicationService.replayBatch(any()))
                 .thenReturn(new OutboxBatchReplayResult(
-                        "projection.search.post",
+                        "eventbus.content",
                         2,
                         1,
                         1,
                         0,
                         "PARTIAL",
                         List.of(
-                                new OutboxBatchReplayItemResult(replayedId, "event-1", "projection.search.post", "DEAD", "PENDING", true, "REPLAYED", "requeued"),
-                                new OutboxBatchReplayItemResult(rejectedId, "event-2", "projection.search.post", "PENDING", "PENDING", false, "MANUAL_REPAIR_REQUIRED", "only DEAD outbox events can be replayed")
+                                new OutboxBatchReplayItemResult(replayedId, "event-1", "eventbus.content", "DEAD", "PENDING", true, "REPLAYED", "requeued"),
+                                new OutboxBatchReplayItemResult(rejectedId, "event-2", "eventbus.content", "PENDING", "PENDING", false, "MANUAL_REPAIR_REQUIRED", "only DEAD outbox events can be replayed")
                         )
                 ));
 
@@ -181,7 +181,7 @@ class OutboxOpsControllerTest {
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "topic": "projection.search.post",
+                                  "topic": "eventbus.content",
                                   "status": "DEAD",
                                   "createdFrom": "2026-07-07T00:00:00Z",
                                   "createdTo": "2026-07-08T00:00:00Z",
@@ -190,7 +190,7 @@ class OutboxOpsControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.topic").value("projection.search.post"))
+                .andExpect(jsonPath("$.data.topic").value("eventbus.content"))
                 .andExpect(jsonPath("$.data.requestedCount").value(2))
                 .andExpect(jsonPath("$.data.replayedCount").value(1))
                 .andExpect(jsonPath("$.data.rejectedCount").value(1))
@@ -205,7 +205,7 @@ class OutboxOpsControllerTest {
         ReplayOutboxBatchCommand command = commandCaptor.getValue();
         assertAll(
                 () -> assertEquals(adminUserId, command.actorUserId()),
-                () -> assertEquals("projection.search.post", command.topic()),
+                () -> assertEquals("eventbus.content", command.topic()),
                 () -> assertEquals("DEAD", command.status()),
                 () -> assertEquals(Instant.parse("2026-07-07T00:00:00Z"), command.createdFrom()),
                 () -> assertEquals(Instant.parse("2026-07-08T00:00:00Z"), command.createdTo()),

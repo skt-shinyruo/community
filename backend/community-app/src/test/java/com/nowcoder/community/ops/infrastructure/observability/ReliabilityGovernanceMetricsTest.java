@@ -12,18 +12,18 @@ class ReliabilityGovernanceMetricsTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         ReliabilityGovernanceMetrics metrics = new ReliabilityGovernanceMetrics(registry);
 
-        metrics.recordReplay("projection.search.post", "REPLAYED");
-        metrics.recordReplay("projection.search.post", "REPLAYED");
-        metrics.recordReplay("projection.growth.task.post", "MANUAL_REPAIR_REQUIRED");
+        metrics.recordReplay("eventbus.content", "REPLAYED");
+        metrics.recordReplay("eventbus.content", "REPLAYED");
+        metrics.recordReplay("projection.im.policy", "MANUAL_REPAIR_REQUIRED");
 
         assertThat(registry.counter(
                 "community_outbox_replay_total",
-                "topic", "projection.search.post",
+                "topic", "eventbus.content",
                 "result", "REPLAYED"
         ).count()).isEqualTo(2.0);
         assertThat(registry.counter(
                 "community_outbox_replay_total",
-                "topic", "projection.growth.task.post",
+                "topic", "projection.im.policy",
                 "result", "MANUAL_REPAIR_REQUIRED"
         ).count()).isEqualTo(1.0);
     }
@@ -33,14 +33,14 @@ class ReliabilityGovernanceMetricsTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         ReliabilityGovernanceMetrics metrics = new ReliabilityGovernanceMetrics(registry);
 
-        metrics.recordOutboxBatchReplay("projection.search.post", "PARTIAL", 3);
+        metrics.recordOutboxBatchReplay("eventbus.content", "PARTIAL", 3);
         metrics.recordGovernanceAction("OUTBOX_REPLAY_BATCH", "PARTIAL");
         metrics.recordHotCacheGovernance("PREWARM", "ACCEPTED", "global");
         metrics.recordCompensationTrigger("outboxRecoverExpiredLeases", "ACCEPTED");
 
         assertThat(registry.counter(
                 "community_outbox_batch_replay_total",
-                "topic", "projection.search.post",
+                "topic", "eventbus.content",
                 "result", "PARTIAL"
         ).count()).isEqualTo(3.0);
         assertThat(registry.counter(

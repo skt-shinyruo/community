@@ -99,6 +99,13 @@ grep -F 'max-file-size: 10GB' "${CONFIG_DIR}/community-oss.yaml"
 grep -F 'max-request-size: 10GB' "${CONFIG_DIR}/community-oss.yaml"
 grep -F 'max-file-size: 10GB' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'max-request-size: 10GB' "${CONFIG_DIR}/community-frontend-runtime.yaml"
+grep -F 'ticket-secret: ${DRIVE_SHARE_TICKET_SECRET:}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'DRIVE_SHARE_TICKET_SECRET=' "${REPO_ROOT}/deploy/.env.single.example"
+grep -F 'DRIVE_SHARE_TICKET_SECRET=' "${REPO_ROOT}/deploy/.env.cluster.example"
+grep -F -- '- DRIVE_SHARE_TICKET_SECRET=${DRIVE_SHARE_TICKET_SECRET:?DRIVE_SHARE_TICKET_SECRET is required}' \
+  "${REPO_ROOT}/deploy/compose.runtime.services.single.yml"
+test "$(grep -Fc -- '- DRIVE_SHARE_TICKET_SECRET=${DRIVE_SHARE_TICKET_SECRET:?DRIVE_SHARE_TICKET_SECRET is required}' \
+  "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 3
 grep -F 'allowed-mime-types:' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'image/jpeg' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'allowed-extensions:' "${CONFIG_DIR}/community-frontend-runtime.yaml"
@@ -155,8 +162,19 @@ grep -F 'delivery-timeout-ms: 5000' "${CONFIG_DIR}/community-kafka-policy.yaml"
 grep -F 'max-block-ms: 5000' "${CONFIG_DIR}/community-kafka-policy.yaml"
 grep -F 'command-private-text: im.command.private-text' "${CONFIG_DIR}/community-kafka-policy.yaml"
 grep -F 'event-user-block-relation-changed: im.event.user-block-relation-changed' "${CONFIG_DIR}/community-kafka-policy.yaml"
-grep -F 'post-topic: projection.search.post' "${CONFIG_DIR}/community-kafka-policy.yaml"
+grep -F 'outbox-topic: ${CONTENT_EVENTS_OUTBOX_TOPIC:eventbus.content}' "${CONFIG_DIR}/community-kafka-policy.yaml"
+grep -F 'kafka-topic: ${CONTENT_EVENTS_KAFKA_TOPIC:content.events}' "${CONFIG_DIR}/community-kafka-policy.yaml"
+grep -F 'outbox-topic: ${SOCIAL_EVENTS_OUTBOX_TOPIC:eventbus.social}' "${CONFIG_DIR}/community-kafka-policy.yaml"
+grep -F 'kafka-topic: ${SOCIAL_EVENTS_KAFKA_TOPIC:social.events}' "${CONFIG_DIR}/community-kafka-policy.yaml"
+grep -F 'outbox-topic: ${USER_EVENTS_OUTBOX_TOPIC:eventbus.user}' "${CONFIG_DIR}/community-kafka-policy.yaml"
+grep -F 'kafka-topic: ${USER_EVENTS_KAFKA_TOPIC:user.events}' "${CONFIG_DIR}/community-kafka-policy.yaml"
 grep -F 'topic: projection.im.policy' "${CONFIG_DIR}/community-kafka-policy.yaml"
+grep -F 'key-prefix: "im:"' "${CONFIG_DIR}/im-realtime.yaml"
+grep -F 'ttl: PT30S' "${CONFIG_DIR}/im-realtime.yaml"
+grep -F 'heartbeat-interval: PT10S' "${CONFIG_DIR}/im-realtime.yaml"
+grep -F 'routed-command-topic: im.command.room-fanout-routed' "${CONFIG_DIR}/im-realtime.yaml"
+grep -F 'worker-inbox-slot: ${IM_ROOM_FANOUT_WORKER_INBOX_SLOT}' "${CONFIG_DIR}/im-realtime.yaml"
+grep -F 'publish-timeout: PT1S' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'group-id: im-core' "${CONFIG_DIR}/im-core.yaml"
 grep -F 'auto-offset-reset: earliest' "${CONFIG_DIR}/im-core.yaml"
 grep -F 'group-id: im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}' "${CONFIG_DIR}/im-realtime.yaml"
@@ -211,7 +229,7 @@ do
   done
 done
 
-if rg -n -i '(password|secret|access[_-]?key|hmac|token):[[:space:]]*[^$[:space:]]+' "${CONFIG_DIR}"; then
+if rg -n -i '^[[:space:]]*(?:-[[:space:]]*)?[^:#\r\n]*(?:password|secret|access[_-]?key|hmac|token):[[:space:]]*[^$[:space:]]+' "${CONFIG_DIR}"; then
   echo "seed configs must not contain literal secret-like values" >&2
   exit 1
 fi

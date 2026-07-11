@@ -16,7 +16,7 @@ class ProjectionGovernanceApplicationServiceTest {
     void listProjectionLagShouldReturnPortRows() {
         ProjectionLagPort port = mock(ProjectionLagPort.class);
         when(port.listProjectionLag()).thenReturn(List.of(new ProjectionLagResult(
-                "projection.search.post",
+                "eventbus.content",
                 "PENDING",
                 3L,
                 Duration.ofSeconds(42)
@@ -26,7 +26,7 @@ class ProjectionGovernanceApplicationServiceTest {
         List<ProjectionLagResult> result = service.listProjectionLag();
 
         assertThat(result).containsExactly(new ProjectionLagResult(
-                "projection.search.post",
+                "eventbus.content",
                 "PENDING",
                 3L,
                 Duration.ofSeconds(42)

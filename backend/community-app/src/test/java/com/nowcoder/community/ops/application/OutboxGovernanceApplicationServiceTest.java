@@ -43,18 +43,18 @@ class OutboxGovernanceApplicationServiceTest {
 
     @Test
     void listBacklogShouldDelegateToPort() {
-        when(port.listBacklog()).thenReturn(List.of(new OutboxBacklogResult("projection.search.post", "DEAD", 2L)));
+        when(port.listBacklog()).thenReturn(List.of(new OutboxBacklogResult("eventbus.content", "DEAD", 2L)));
 
         List<OutboxBacklogResult> result = service.listBacklog();
 
-        assertThat(result).containsExactly(new OutboxBacklogResult("projection.search.post", "DEAD", 2L));
+        assertThat(result).containsExactly(new OutboxBacklogResult("eventbus.content", "DEAD", 2L));
     }
 
     @Test
     void findEventsShouldNormalizeLimitAndDelegate() {
         FindOutboxEventsCommand command = new FindOutboxEventsCommand(
                 OutboxEventStatus.DEAD,
-                " projection.search.post ",
+                " eventbus.content ",
                 null,
                 Instant.parse("2026-07-07T00:00:00Z"),
                 Instant.parse("2026-07-08T00:00:00Z"),
@@ -65,7 +65,7 @@ class OutboxGovernanceApplicationServiceTest {
 
         verify(port).findEvents(new FindOutboxEventsCommand(
                 OutboxEventStatus.DEAD,
-                "projection.search.post",
+                "eventbus.content",
                 null,
                 Instant.parse("2026-07-07T00:00:00Z"),
                 Instant.parse("2026-07-08T00:00:00Z"),
@@ -81,19 +81,19 @@ class OutboxGovernanceApplicationServiceTest {
         assertThatThrownBy(() -> service.replay(new ReplayOutboxEventCommand(uuid(99), outboxId, "retry after fix")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("only DEAD outbox events can be replayed");
-        verify(replayMetrics).recordReplay("projection.search.post", "MANUAL_REPAIR_REQUIRED");
+        verify(replayMetrics).recordReplay("eventbus.content", "MANUAL_REPAIR_REQUIRED");
     }
 
     @Test
     void replayShouldRejectMissingHandler() {
         UUID outboxId = uuid(1);
         when(port.findById(outboxId)).thenReturn(Optional.of(event(outboxId, OutboxEventStatus.DEAD, "{}")));
-        when(handlerCatalog.hasHandler("projection.search.post")).thenReturn(false);
+        when(handlerCatalog.hasHandler("eventbus.content")).thenReturn(false);
 
         assertThatThrownBy(() -> service.replay(new ReplayOutboxEventCommand(uuid(99), outboxId, "retry after fix")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("no outbox handler registered");
-        verify(replayMetrics).recordReplay("projection.search.post", "MANUAL_REPAIR_REQUIRED");
+        verify(replayMetrics).recordReplay("eventbus.content", "MANUAL_REPAIR_REQUIRED");
     }
 
     @Test
@@ -101,7 +101,7 @@ class OutboxGovernanceApplicationServiceTest {
         UUID outboxId = uuid(1);
         UUID actorId = uuid(99);
         when(port.findById(outboxId)).thenReturn(Optional.of(event(outboxId, OutboxEventStatus.DEAD, "{\"postId\":\"p1\"}")));
-        when(handlerCatalog.hasHandler("projection.search.post")).thenReturn(true);
+        when(handlerCatalog.hasHandler("eventbus.content")).thenReturn(true);
         when(port.requeueDead(outboxId, "retry after fix")).thenReturn(true);
 
         var result = service.replay(new ReplayOutboxEventCommand(actorId, outboxId, "retry after fix"));
@@ -109,9 +109,9 @@ class OutboxGovernanceApplicationServiceTest {
         assertThat(result.replayed()).isTrue();
         assertThat(result.beforeStatus()).isEqualTo(OutboxEventStatus.DEAD);
         assertThat(result.afterStatus()).isEqualTo(OutboxEventStatus.PENDING);
-        assertThat(result.topic()).isEqualTo("projection.search.post");
+        assertThat(result.topic()).isEqualTo("eventbus.content");
         verify(port).requeueDead(outboxId, "retry after fix");
-        verify(replayMetrics).recordReplay("projection.search.post", "REPLAYED");
+        verify(replayMetrics).recordReplay("eventbus.content", "REPLAYED");
     }
 
     @Test
@@ -119,14 +119,14 @@ class OutboxGovernanceApplicationServiceTest {
         UUID outboxId = uuid(1);
         UUID actorId = uuid(99);
         when(port.findById(outboxId)).thenReturn(Optional.of(event(outboxId, OutboxEventStatus.DEAD, "{\"postId\":\"p1\"}")));
-        when(handlerCatalog.hasHandler("projection.search.post")).thenReturn(true);
+        when(handlerCatalog.hasHandler("eventbus.content")).thenReturn(true);
         when(port.requeueDead(outboxId, "retry after fix")).thenReturn(false);
 
         var result = service.replay(new ReplayOutboxEventCommand(actorId, outboxId, "retry after fix"));
 
         assertThat(result.replayed()).isFalse();
         assertThat(result.result()).isEqualTo("NOT_REQUEUED");
-        verify(replayMetrics).recordReplay("projection.search.post", "NOT_REQUEUED");
+        verify(replayMetrics).recordReplay("eventbus.content", "NOT_REQUEUED");
     }
 
     @Test
@@ -140,23 +140,23 @@ class OutboxGovernanceApplicationServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("topic is required");
         assertThatThrownBy(() -> service.replayBatch(new ReplayOutboxBatchCommand(
-                actorId, "projection.search.post", OutboxEventStatus.PENDING, from, to, 10, "retry")))
+                actorId, "eventbus.content", OutboxEventStatus.PENDING, from, to, 10, "retry")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("only DEAD outbox events can be batch replayed");
         assertThatThrownBy(() -> service.replayBatch(new ReplayOutboxBatchCommand(
-                actorId, "projection.search.post", OutboxEventStatus.DEAD, null, to, 10, "retry")))
+                actorId, "eventbus.content", OutboxEventStatus.DEAD, null, to, 10, "retry")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("createdFrom and createdTo are required");
         assertThatThrownBy(() -> service.replayBatch(new ReplayOutboxBatchCommand(
-                actorId, "projection.search.post", OutboxEventStatus.DEAD, to, from, 10, "retry")))
+                actorId, "eventbus.content", OutboxEventStatus.DEAD, to, from, 10, "retry")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("createdFrom must be before createdTo");
         assertThatThrownBy(() -> service.replayBatch(new ReplayOutboxBatchCommand(
-                actorId, "projection.search.post", OutboxEventStatus.DEAD, from, to, 501, "retry")))
+                actorId, "eventbus.content", OutboxEventStatus.DEAD, from, to, 501, "retry")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("limit must be between 1 and 500");
         assertThatThrownBy(() -> service.replayBatch(new ReplayOutboxBatchCommand(
-                actorId, "projection.search.post", OutboxEventStatus.DEAD, from, to, 10, " ")))
+                actorId, "eventbus.content", OutboxEventStatus.DEAD, from, to, 10, " ")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("replay reason is required");
     }
@@ -169,10 +169,10 @@ class OutboxGovernanceApplicationServiceTest {
         UUID blankPayloadId = uuid(3);
         Instant from = Instant.parse("2026-07-07T00:00:00Z");
         Instant to = Instant.parse("2026-07-08T00:00:00Z");
-        when(handlerCatalog.hasHandler("projection.search.post")).thenReturn(true);
+        when(handlerCatalog.hasHandler("eventbus.content")).thenReturn(true);
         when(port.findEvents(new FindOutboxEventsCommand(
                 OutboxEventStatus.DEAD,
-                "projection.search.post",
+                "eventbus.content",
                 null,
                 from,
                 to,
@@ -186,7 +186,7 @@ class OutboxGovernanceApplicationServiceTest {
 
         var result = service.replayBatch(new ReplayOutboxBatchCommand(
                 actorId,
-                " projection.search.post ",
+                " eventbus.content ",
                 OutboxEventStatus.DEAD,
                 from,
                 to,
@@ -194,7 +194,7 @@ class OutboxGovernanceApplicationServiceTest {
                 " retry after fixing handler "
         ));
 
-        assertThat(result.topic()).isEqualTo("projection.search.post");
+        assertThat(result.topic()).isEqualTo("eventbus.content");
         assertThat(result.requestedCount()).isEqualTo(3);
         assertThat(result.replayedCount()).isEqualTo(1);
         assertThat(result.rejectedCount()).isEqualTo(2);
@@ -208,7 +208,7 @@ class OutboxGovernanceApplicationServiceTest {
                         blankPayloadId + "|MANUAL_REPAIR_REQUIRED|false"
                 );
         verify(port).requeueDead(replayedId, "retry after fixing handler");
-        verify(replayMetrics).recordOutboxBatchReplay("projection.search.post", GovernanceResult.PARTIAL.name(), 3);
+        verify(replayMetrics).recordOutboxBatchReplay("eventbus.content", GovernanceResult.PARTIAL.name(), 3);
         verify(replayMetrics).recordGovernanceAction("OUTBOX_REPLAY_BATCH", GovernanceResult.PARTIAL.name());
         verify(auditPort, times(4)).record(org.mockito.ArgumentMatchers.any(RecordGovernanceAuditCommand.class));
     }
@@ -217,7 +217,7 @@ class OutboxGovernanceApplicationServiceTest {
         return new OutboxEventResult(
                 id,
                 "event-1",
-                "projection.search.post",
+                "eventbus.content",
                 "post-1",
                 payload,
                 status,

@@ -165,6 +165,29 @@ class ImPolicyEventDispatchApplicationServiceTest {
     }
 
     @Test
+    void dispatchShouldRejectMissingRequiredBooleanFields() {
+        assertThatThrownBy(() -> service.dispatch(new DispatchImPolicyEventCommand(
+                "evt-user",
+                "key",
+                "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
+                        + "\",\"userExists\":true,\"suspended\":false,\"muted\":false,"
+                        + "\"occurredAtEpochMillis\":1712345678901,\"version\":7007}"
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("canSendPrivate");
+        assertThatThrownBy(() -> service.dispatch(new DispatchImPolicyEventCommand(
+                "evt-block",
+                "key",
+                "{\"kind\":\"BLOCK\",\"primaryUserId\":\"" + uuid(7)
+                        + "\",\"secondaryUserId\":\"" + uuid(8)
+                        + "\",\"occurredAtEpochMillis\":1712345678901,\"version\":8008}"
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("active");
+        verifyNoInteractions(dispatcher);
+    }
+
+    @Test
     void dispatchShouldPropagatePortFailureForOutboxRetry() {
         RuntimeException failure = new RuntimeException("kafka down");
         doThrow(failure).when(dispatcher).dispatchUserMessagingPolicyChanged(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
@@ -173,7 +196,8 @@ class ImPolicyEventDispatchApplicationServiceTest {
                 "evt",
                 "key",
                 "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
-                        + "\",\"occurredAtEpochMillis\":1712345678901,\"version\":7007}"
+                        + "\",\"userExists\":true,\"suspended\":false,\"muted\":false,"
+                        + "\"canSendPrivate\":true,\"occurredAtEpochMillis\":1712345678901,\"version\":7007}"
         )))
                 .isSameAs(failure);
     }

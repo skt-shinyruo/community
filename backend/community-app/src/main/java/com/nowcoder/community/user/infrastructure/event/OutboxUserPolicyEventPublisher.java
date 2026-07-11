@@ -37,10 +37,11 @@ public class OutboxUserPolicyEventPublisher implements UserPolicyEventPublisher 
         if (userId == null) {
             return;
         }
-        Instant occurrence = occurredAt == null ? Instant.now() : occurredAt;
+        Instant occurrence = requireOccurredAt(occurredAt);
+        long version = requireVersion(status.version());
         Long muteUntil = status.muteUntil() == null ? null : status.muteUntil().toEpochMilli();
         Long banUntil = status.banUntil() == null ? null : status.banUntil().toEpochMilli();
-        publish(toPayload(userId, true, muteUntil, banUntil, occurrence, status.version()));
+        publish(toPayload(userId, true, muteUntil, banUntil, occurrence, version));
     }
 
     @Override
@@ -48,8 +49,8 @@ public class OutboxUserPolicyEventPublisher implements UserPolicyEventPublisher 
         if (userId == null) {
             return;
         }
-        Instant occurrence = occurredAt == null ? Instant.now() : occurredAt;
-        publish(toPayload(userId, userExists, null, null, occurrence, version));
+        Instant occurrence = requireOccurredAt(occurredAt);
+        publish(toPayload(userId, userExists, null, null, occurrence, requireVersion(version)));
     }
 
     private UserPolicyChangedPayload toPayload(
@@ -77,7 +78,7 @@ public class OutboxUserPolicyEventPublisher implements UserPolicyEventPublisher 
     }
 
     private void publish(UserPolicyChangedPayload payload) {
-        String eventId = "ue:p:" + dashless(payload.getUserId()) + ":" + versionOrZero(payload.getVersion());
+        String eventId = "ue:p:" + dashless(payload.getUserId()) + ":" + payload.getVersion();
         String payloadJson;
         try {
             payloadJson = jsonCodec.toJson(new UserContractEvent(eventId, UserEventTypes.USER_POLICY_CHANGED, payload));
@@ -87,8 +88,18 @@ public class OutboxUserPolicyEventPublisher implements UserPolicyEventPublisher 
         store.enqueue(eventId, topic, payload.getUserId().toString(), payloadJson);
     }
 
-    private long versionOrZero(Long version) {
-        return version == null ? 0L : version;
+    private Instant requireOccurredAt(Instant occurredAt) {
+        if (occurredAt == null || occurredAt.toEpochMilli() <= 0L) {
+            throw new IllegalArgumentException("user policy event occurredAt must be positive");
+        }
+        return occurredAt;
+    }
+
+    private long requireVersion(long version) {
+        if (version <= 0L) {
+            throw new IllegalArgumentException("user policy event version must be positive");
+        }
+        return version;
     }
 
     private String dashless(UUID userId) {

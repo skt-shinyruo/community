@@ -58,6 +58,10 @@ class NacosPolicyBindingTest {
         assertThat(environment.getProperty("spring.mail.properties.mail.smtp.starttls.enable", Boolean.class)).isFalse();
         assertThat(environment.getProperty("http.idempotency.store")).isEqualTo("DB");
         assertThat(environment.getProperty("growth.business-zone-id")).isEqualTo("Asia/Shanghai");
+        assertThat(environment.containsProperty("content.events.publisher")).isFalse();
+        assertThat(environment.containsProperty("social.events.publisher")).isFalse();
+        assertThat(environment.containsProperty("user.events.publisher")).isFalse();
+        assertThat(environment.getProperty("events.outbox.enabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("search.index.initialize", Boolean.class)).isTrue();
         assertThat(environment.getProperty("management.health.elasticsearch.enabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("analytics.ingest.exclude-paths[2]")).isEqualTo("/api/ops/**");

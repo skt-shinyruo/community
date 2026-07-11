@@ -52,7 +52,7 @@ class BlockApplicationServiceTest {
         assertThat(BlockApplicationService.class.getDeclaredFields())
                 .extracting(Field::getType)
                 .extracting(Class::getName)
-                .doesNotContain("com.nowcoder.community.im.infrastructure.event.ImPolicyChangePublisher");
+                .noneMatch(typeName -> typeName.startsWith("com.nowcoder.community.im."));
     }
 
     @Test

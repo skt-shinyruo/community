@@ -6,7 +6,6 @@ import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.im.application.command.DispatchImPolicyEventCommand;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -14,7 +13,6 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Service
-@ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "true")
 public class ImPolicyEventDispatchApplicationService {
 
     private final JsonCodec jsonCodec;
@@ -30,8 +28,11 @@ public class ImPolicyEventDispatchApplicationService {
 
     public void dispatch(DispatchImPolicyEventCommand command) {
         Objects.requireNonNull(command, "command must not be null");
+        if (!StringUtils.hasText(command.outboxEventId())) {
+            throw new IllegalArgumentException("im policy outbox event id is blank");
+        }
         if (!StringUtils.hasText(command.payloadJson())) {
-            return;
+            throw new IllegalArgumentException("im policy outbox payload is blank");
         }
 
         JsonNode payload;
@@ -42,19 +43,21 @@ public class ImPolicyEventDispatchApplicationService {
         }
 
         String kind = text(payload, "kind");
-        if ("USER_POLICY".equalsIgnoreCase(kind)) {
+        if ("USER_POLICY".equals(kind)) {
             publishModerationState(command.outboxEventId(), payload);
             return;
         }
-        if ("BLOCK".equalsIgnoreCase(kind)) {
+        if ("BLOCK".equals(kind)) {
             publishBlockState(command.outboxEventId(), payload);
+            return;
         }
+        throw new IllegalArgumentException("im policy outbox payload kind is unsupported: " + kind);
     }
 
     private void publishModerationState(String eventId, JsonNode payload) {
         UUID userId = uuid(payload, "primaryUserId");
         if (userId == null) {
-            return;
+            throw malformed("USER_POLICY", "primaryUserId");
         }
         UserMessagingPolicyChanged changed = new UserMessagingPolicyChanged(
                 eventId,
@@ -75,7 +78,7 @@ public class ImPolicyEventDispatchApplicationService {
         UUID blockerUserId = uuid(payload, "primaryUserId");
         UUID blockedUserId = uuid(payload, "secondaryUserId");
         if (blockerUserId == null || blockedUserId == null) {
-            return;
+            throw malformed("BLOCK", "primaryUserId/secondaryUserId");
         }
         UserBlockRelationChanged changed = new UserBlockRelationChanged(
                 eventId,
@@ -126,9 +129,14 @@ public class ImPolicyEventDispatchApplicationService {
 
     private long requiredLongValue(JsonNode node, String fieldName) {
         Long value = longValue(node, fieldName);
-        if (value == null) {
-            throw new IllegalStateException("im policy outbox payload missing required field: " + fieldName);
+        if (value == null || value <= 0L) {
+            throw new IllegalArgumentException("im policy outbox payload missing required field: " + fieldName);
         }
         return value;
+    }
+
+    private IllegalArgumentException malformed(String kind, String field) {
+        return new IllegalArgumentException(
+                "im policy outbox payload malformed " + kind + ": " + field);
     }
 }

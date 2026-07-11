@@ -34,9 +34,14 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.containsProperty("im.community.timeout-ms")).isTrue();
         assertThat(environment.containsProperty("im.projection.bootstrap-on-startup")).isTrue();
         assertThat(environment.containsProperty("im.room-presence.enabled")).isTrue();
-        assertThat(environment.containsProperty("im.room-fanout.mode")).isTrue();
+        assertThat(environment.containsProperty("im.room-fanout.mode")).isFalse();
+        assertThat(environment.containsProperty("im.room-fanout.transport")).isFalse();
+        assertThat(environment.containsProperty("im.room-fanout.owner-flush-interval")).isFalse();
+        assertThat(environment.containsProperty("im.room-fanout.target-path")).isFalse();
+        assertThat(environment.containsProperty("im.room-fanout.target-timeout")).isFalse();
         assertThat(environment.containsProperty("im.room-fanout.owner-group-id")).isTrue();
         assertThat(environment.containsProperty("im.room-fanout.routed-command-topic")).isTrue();
+        assertThat(environment.containsProperty("im.room-fanout.publish-timeout")).isTrue();
         assertThat(environment.containsProperty("im.kafka.event.concurrency")).isTrue();
         assertThat(environment.containsProperty("im.ws.room-flush-interval-ms")).isTrue();
         assertThat(environment.containsProperty("im.ws.max-inbound-chars")).isTrue();
@@ -48,13 +53,15 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.getProperty("im.ws.room-flush-interval-ms", Integer.class)).isEqualTo(50);
         assertThat(environment.getProperty("im.room-presence.enabled", Boolean.class)).isFalse();
         assertThat(environment.getProperty("im.room-presence.ttl")).isEqualTo("PT30S");
-        assertThat(environment.getProperty("im.room-fanout.mode")).isEqualTo("legacy");
         assertThat(environment.getProperty("im.room-fanout.owner-group-id")).isEqualTo("im-realtime-room-fanout-owner");
-        assertThat(environment.getProperty("im.room-fanout.transport")).isEqualTo("kafka");
         assertThat(environment.getProperty("im.room-fanout.routed-command-topic")).isEqualTo("im.command.room-fanout-routed");
         assertThat(environment.getProperty("im.room-fanout.routed-command-partitions", Integer.class)).isEqualTo(64);
+        assertThat(rawProperty(environment, "im-realtime.yaml", "im.room-fanout.routed-command-partitions"))
+                .isEqualTo(64);
+        assertThat(rawProperty(environment, "im-realtime.yaml", "im.room-fanout.worker-inbox-slot"))
+                .isEqualTo("${IM_ROOM_FANOUT_WORKER_INBOX_SLOT}");
         assertThat(environment.getProperty("im.room-fanout.worker-inbox-slot", Integer.class)).isZero();
-        assertThat(environment.getProperty("im.room-fanout.target-path")).isEqualTo("/internal/im/realtime/fanout/room");
+        assertThat(environment.getProperty("im.room-fanout.publish-timeout")).isEqualTo("PT1S");
         assertThat(environment.getProperty("im.cors.allowed-origins[2]")).isEqualTo("http://localhost:12881");
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.draining", Boolean.class)).isFalse();
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.maxConnections", Integer.class)).isEqualTo(10000);
@@ -63,6 +70,8 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.capacityWeight", Integer.class)).isEqualTo(100);
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.roomFanoutInboxSlot", Integer.class))
                 .isZero();
+        assertThat(rawProperty(environment, "im-realtime.yaml", "spring.cloud.nacos.discovery.metadata.roomFanoutInboxSlot"))
+                .isEqualTo("${im.room-fanout.worker-inbox-slot}");
         assertThat(rawProperty(environment, "im-realtime.yaml", "spring.kafka.consumer.group-id"))
                 .isEqualTo("im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}");
         assertThat(environment.getProperty("spring.kafka.consumer.group-id")).startsWith("im-realtime-");
@@ -82,7 +91,8 @@ class NacosImRealtimeBindingTest {
         MutablePropertySources sources = environment.getPropertySources();
         sources.addFirst(new YamlPropertySourceLoader().load(fileName, new FileSystemResource(path)).get(0));
         sources.addFirst(new MapPropertySource("test-worker-env", Map.of(
-                "IM_REALTIME_WORKER_ID", "im-realtime-test"
+                "IM_REALTIME_WORKER_ID", "im-realtime-test",
+                "IM_ROOM_FANOUT_WORKER_INBOX_SLOT", "0"
         )));
         return environment;
     }

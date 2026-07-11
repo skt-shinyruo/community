@@ -14,3 +14,7 @@ security:
   jwt:
     hmac-secret: im-realtime-test-jwt-hmac-secret-please-change-123456
     issuer: community-auth
+
+im:
+  room-fanout:
+    worker-inbox-slot: 0

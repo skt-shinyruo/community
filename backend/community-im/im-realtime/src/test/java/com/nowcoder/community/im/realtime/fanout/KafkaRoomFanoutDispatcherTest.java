@@ -99,8 +99,8 @@ class KafkaRoomFanoutDispatcherTest {
     private static RoomFanoutProperties properties() {
         RoomFanoutProperties properties = new RoomFanoutProperties();
         properties.setRoutedCommandTopic("im.command.room-fanout-routed");
-        properties.setRoutedCommandPartitions(16);
-        properties.setTargetTimeout(Duration.ofSeconds(1));
+        properties.setRoutedCommandPartitions(64);
+        properties.setPublishTimeout(Duration.ofSeconds(1));
         properties.setWorkerDirectoryCacheTtl(Duration.ZERO);
         return properties;
     }

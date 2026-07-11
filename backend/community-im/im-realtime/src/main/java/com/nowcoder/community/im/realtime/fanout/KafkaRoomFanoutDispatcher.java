@@ -47,7 +47,7 @@ public class KafkaRoomFanoutDispatcher implements RoomFanoutDispatcher {
         TraceKafkaHeaders.inject(record.headers());
         try {
             kafkaTemplate.send(record)
-                    .get(properties.normalizedTargetTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                    .get(properties.normalizedPublishTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while publishing room fanout command", ex);
@@ -63,9 +63,6 @@ public class KafkaRoomFanoutDispatcher implements RoomFanoutDispatcher {
         }
         RealtimeWorkerEndpoint endpoint = workerDirectory.find(normalizedTarget)
                 .orElseThrow(() -> new IllegalStateException("Realtime worker not found: " + normalizedTarget));
-        if (endpoint.roomFanoutInboxSlot() == null) {
-            throw new IllegalStateException("Realtime worker room fanout inbox slot not found: " + normalizedTarget);
-        }
         return endpoint.roomFanoutInboxSlot();
     }
 

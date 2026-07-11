@@ -9,16 +9,13 @@ import org.springframework.context.annotation.Configuration;
 public class RoomFanoutConfiguration {
 
     @Bean
-    RoomFanoutRoutedInboxSlotGuard roomFanoutRoutedInboxSlotGuard(RoomFanoutProperties fanoutProperties) {
-        return new RoomFanoutRoutedInboxSlotGuard(fanoutProperties);
+    RoomFanoutInboxSlotValidator roomFanoutInboxSlotValidator(RoomFanoutProperties fanoutProperties) {
+        return new RoomFanoutInboxSlotValidator(fanoutProperties);
     }
 
-    static final class RoomFanoutRoutedInboxSlotGuard {
+    static final class RoomFanoutInboxSlotValidator {
 
-        RoomFanoutRoutedInboxSlotGuard(RoomFanoutProperties fanoutProperties) {
-            if (fanoutProperties == null || !fanoutProperties.isRoutedMode() || !fanoutProperties.isKafkaTransport()) {
-                return;
-            }
+        RoomFanoutInboxSlotValidator(RoomFanoutProperties fanoutProperties) {
             fanoutProperties.normalizedWorkerInboxSlot();
         }
     }

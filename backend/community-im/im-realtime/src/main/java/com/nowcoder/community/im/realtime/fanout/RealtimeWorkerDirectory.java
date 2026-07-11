@@ -7,8 +7,6 @@ import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -67,47 +65,34 @@ public class RealtimeWorkerDirectory {
 
     private Map<String, RealtimeWorkerEndpoint> resolveEndpoints() {
         LinkedHashMap<String, RealtimeWorkerEndpoint> endpoints = new LinkedHashMap<>();
+        LinkedHashMap<Integer, String> workerIdsByInboxSlot = new LinkedHashMap<>();
         List<ServiceInstance> instances = serviceInstancesSupplier.get();
         if (instances == null || instances.isEmpty()) {
             return Map.of();
         }
         for (ServiceInstance instance : instances) {
-            Optional<RealtimeWorkerEndpoint> endpoint = endpointFrom(instance);
-            if (endpoint.isEmpty()) {
-                continue;
+            RealtimeWorkerEndpoint endpoint = endpointFrom(instance);
+            if (endpoints.containsKey(endpoint.workerId())) {
+                throw new IllegalStateException("Duplicate realtime worker id: " + endpoint.workerId());
             }
-            RealtimeWorkerEndpoint previous = endpoints.putIfAbsent(endpoint.get().workerId(), endpoint.get());
-            if (previous != null) {
-                throw new IllegalStateException("Duplicate realtime worker id: " + endpoint.get().workerId());
+            String existingWorkerId = workerIdsByInboxSlot.putIfAbsent(
+                    endpoint.roomFanoutInboxSlot(),
+                    endpoint.workerId()
+            );
+            if (existingWorkerId != null) {
+                throw new IllegalStateException(
+                        "Duplicate room fanout inbox slot: " + endpoint.roomFanoutInboxSlot()
+                                + " for workers " + existingWorkerId + " and " + endpoint.workerId()
+                );
             }
-            failOnDuplicateInboxSlot(endpoints, endpoint.get());
+            endpoints.put(endpoint.workerId(), endpoint);
         }
         return Map.copyOf(endpoints);
     }
 
-    private void failOnDuplicateInboxSlot(
-            Map<String, RealtimeWorkerEndpoint> endpoints,
-            RealtimeWorkerEndpoint endpoint
-    ) {
-        if (endpoint.roomFanoutInboxSlot() == null) {
-            return;
-        }
-        for (RealtimeWorkerEndpoint existing : endpoints.values()) {
-            if (endpoint.workerId().equals(existing.workerId()) || existing.roomFanoutInboxSlot() == null) {
-                continue;
-            }
-            if (endpoint.roomFanoutInboxSlot().equals(existing.roomFanoutInboxSlot())) {
-                throw new IllegalStateException(
-                        "Duplicate room fanout inbox slot: " + endpoint.roomFanoutInboxSlot()
-                                + " for workers " + existing.workerId() + " and " + endpoint.workerId()
-                );
-            }
-        }
-    }
-
-    private Optional<RealtimeWorkerEndpoint> endpointFrom(ServiceInstance instance) {
-        if (instance == null || !StringUtils.hasText(instance.getHost()) || instance.getPort() <= 0) {
-            return Optional.empty();
+    private RealtimeWorkerEndpoint endpointFrom(ServiceInstance instance) {
+        if (instance == null) {
+            throw invalidInstance("instance is null");
         }
         Map<String, String> metadata = instance.getMetadata();
         String workerIdKey = StringUtils.hasText(sessionProperties.getWorkerIdMetadataKey())
@@ -115,46 +100,39 @@ public class RealtimeWorkerDirectory {
                 : "workerId";
         String workerId = metadata == null ? null : metadata.get(workerIdKey);
         if (!StringUtils.hasText(workerId)) {
-            return Optional.empty();
+            throw invalidInstance("missing worker id metadata '" + workerIdKey + "'");
         }
-        String protocol = metadata == null ? null : metadata.get("protocol");
-        String scheme = StringUtils.hasText(protocol) ? protocol.trim() : (instance.isSecure() ? "https" : "http");
-        if (!"http".equals(scheme) && !"https".equals(scheme)) {
-            return Optional.empty();
-        }
-        try {
-            URI uri = new URI(
-                    scheme,
-                    null,
-                    instance.getHost().trim(),
-                    instance.getPort(),
-                    fanoutProperties.normalizedTargetPath(),
-                    null,
-                    null
+        String inboxSlotKey = fanoutProperties.normalizedWorkerInboxSlotMetadataKey();
+        String rawInboxSlot = metadata == null ? null : metadata.get(inboxSlotKey);
+        if (!StringUtils.hasText(rawInboxSlot)) {
+            throw invalidInstance(
+                    "missing room fanout inbox slot metadata '" + inboxSlotKey + "' for worker " + workerId.trim()
             );
-            Integer inboxSlot = inboxSlot(metadata);
-            return Optional.of(new RealtimeWorkerEndpoint(workerId.trim(), uri, inboxSlot));
-        } catch (IllegalArgumentException | URISyntaxException ex) {
-            return Optional.empty();
         }
+        int inboxSlot;
+        try {
+            inboxSlot = Integer.parseInt(rawInboxSlot.trim());
+        } catch (NumberFormatException ex) {
+            throw invalidInstance(
+                    "malformed room fanout inbox slot '" + rawInboxSlot + "' for worker " + workerId.trim(),
+                    ex
+            );
+        }
+        int partitions = fanoutProperties.normalizedRoutedCommandPartitions();
+        if (inboxSlot < 0 || inboxSlot >= partitions) {
+            throw invalidInstance(
+                    "room fanout inbox slot for worker " + workerId.trim()
+                            + " must be between 0 and " + (partitions - 1)
+            );
+        }
+        return new RealtimeWorkerEndpoint(workerId.trim(), inboxSlot);
     }
 
-    private Integer inboxSlot(Map<String, String> metadata) {
-        if (metadata == null) {
-            return null;
-        }
-        String raw = metadata.get(fanoutProperties.normalizedWorkerInboxSlotMetadataKey());
-        if (!StringUtils.hasText(raw)) {
-            return null;
-        }
-        try {
-            int value = Integer.parseInt(raw.trim());
-            if (value < 0 || value >= fanoutProperties.normalizedRoutedCommandPartitions()) {
-                return null;
-            }
-            return value;
-        } catch (NumberFormatException ex) {
-            return null;
-        }
+    private static IllegalStateException invalidInstance(String detail) {
+        return new IllegalStateException("Invalid im-realtime-worker discovery instance: " + detail);
+    }
+
+    private static IllegalStateException invalidInstance(String detail, RuntimeException cause) {
+        return new IllegalStateException("Invalid im-realtime-worker discovery instance: " + detail, cause);
     }
 }

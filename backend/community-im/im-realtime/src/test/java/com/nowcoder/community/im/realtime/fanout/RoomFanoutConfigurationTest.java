@@ -1,11 +1,16 @@
 package com.nowcoder.community.im.realtime.fanout;
 
+import com.nowcoder.community.im.realtime.presence.RedisRoomPresenceDirectory;
+import com.nowcoder.community.im.realtime.presence.RoomPresenceConfiguration;
+import com.nowcoder.community.im.realtime.presence.RoomPresenceDirectory;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class RoomFanoutConfigurationTest {
 
@@ -75,6 +80,31 @@ class RoomFanoutConfigurationTest {
                     assertThat(context.getStartupFailure())
                             .hasRootCauseInstanceOf(IllegalStateException.class)
                             .hasRootCauseMessage("im.room-fanout.routed-command-partitions must be 64");
+                });
+    }
+
+    @Test
+    void redisPresenceDirectoryIsTheOnlyPresenceImplementation() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(RoomPresenceConfiguration.class)
+                .withBean(StringRedisTemplate.class, () -> mock(StringRedisTemplate.class))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(RoomPresenceDirectory.class);
+                    assertThat(context.getBean(RoomPresenceDirectory.class))
+                            .isInstanceOf(RedisRoomPresenceDirectory.class);
+                    assertThat(context).doesNotHaveBean("noopRoomPresenceDirectory");
+                });
+    }
+
+    @Test
+    void missingRedisTemplateFailsPresenceWiring() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(RoomPresenceConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(org.springframework.beans.factory.NoSuchBeanDefinitionException.class);
                 });
     }
 }

@@ -25,9 +25,6 @@ public class RoomPersistedOwnerConsumer {
             concurrency = "${im.room-fanout.owner-concurrency:${im.kafka.event.concurrency:3}}"
     )
     public void onRoomPersisted(RoomMessagePersistedEvent event) {
-        if (event == null) {
-            return;
-        }
         metrics.ownerEventConsumed();
         ownerService.routeAndDispatch(event);
     }

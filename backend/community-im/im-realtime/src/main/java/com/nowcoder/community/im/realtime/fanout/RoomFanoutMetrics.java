@@ -14,6 +14,9 @@ public class RoomFanoutMetrics {
     private final Counter commandsSent;
     private final Counter emptyTargets;
     private final Counter routeFailures;
+    private final Counter targetAccepted;
+    private final Counter targetDuplicates;
+    private final Counter targetRejected;
 
     @Autowired
     public RoomFanoutMetrics(ObjectProvider<MeterRegistry> meterRegistryProvider) {
@@ -27,6 +30,9 @@ public class RoomFanoutMetrics {
             this.commandsSent = null;
             this.emptyTargets = null;
             this.routeFailures = null;
+            this.targetAccepted = null;
+            this.targetDuplicates = null;
+            this.targetRejected = null;
             return;
         }
         this.ownerEventsConsumed = Counter.builder("im_room_fanout_events_consumed")
@@ -40,6 +46,9 @@ public class RoomFanoutMetrics {
                 .register(meterRegistry);
         this.routeFailures = Counter.builder("im_room_fanout_route_failures")
                 .register(meterRegistry);
+        this.targetAccepted = targetResultCounter(meterRegistry, "accepted");
+        this.targetDuplicates = targetResultCounter(meterRegistry, "duplicate");
+        this.targetRejected = targetResultCounter(meterRegistry, "rejected");
     }
 
     static RoomFanoutMetrics noop() {
@@ -66,6 +75,24 @@ public class RoomFanoutMetrics {
 
     void routeFailed() {
         increment(routeFailures);
+    }
+
+    void targetAccepted() {
+        increment(targetAccepted);
+    }
+
+    void targetDuplicate() {
+        increment(targetDuplicates);
+    }
+
+    void targetRejected() {
+        increment(targetRejected);
+    }
+
+    private static Counter targetResultCounter(MeterRegistry meterRegistry, String result) {
+        return Counter.builder("im_room_fanout_target_results")
+                .tag("result", result)
+                .register(meterRegistry);
     }
 
     private static void increment(Counter counter) {

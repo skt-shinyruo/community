@@ -33,7 +33,7 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.containsProperty("im.clients.snapshot-timeout-ms")).isTrue();
         assertThat(environment.containsProperty("im.community.timeout-ms")).isTrue();
         assertThat(environment.containsProperty("im.projection.bootstrap-on-startup")).isTrue();
-        assertThat(environment.containsProperty("im.room-presence.enabled")).isTrue();
+        assertThat(environment.containsProperty("im.room-presence.enabled")).isFalse();
         assertThat(environment.containsProperty("im.room-fanout.mode")).isFalse();
         assertThat(environment.containsProperty("im.room-fanout.transport")).isFalse();
         assertThat(environment.containsProperty("im.room-fanout.owner-flush-interval")).isFalse();
@@ -51,8 +51,9 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.getProperty("im.community.timeout-ms", Integer.class)).isEqualTo(1500);
         assertThat(environment.getProperty("im.ws.max-inbound-chars", Integer.class)).isEqualTo(10000);
         assertThat(environment.getProperty("im.ws.room-flush-interval-ms", Integer.class)).isEqualTo(50);
-        assertThat(environment.getProperty("im.room-presence.enabled", Boolean.class)).isFalse();
+        assertThat(environment.getProperty("im.room-presence.key-prefix")).isEqualTo("im:");
         assertThat(environment.getProperty("im.room-presence.ttl")).isEqualTo("PT30S");
+        assertThat(environment.getProperty("im.room-presence.heartbeat-interval")).isEqualTo("PT10S");
         assertThat(environment.getProperty("im.room-fanout.owner-group-id")).isEqualTo("im-realtime-room-fanout-owner");
         assertThat(environment.getProperty("im.room-fanout.routed-command-topic")).isEqualTo("im.command.room-fanout-routed");
         assertThat(environment.getProperty("im.room-fanout.routed-command-partitions", Integer.class)).isEqualTo(64);

@@ -32,7 +32,6 @@ im:
   projection:
     bootstrap-on-startup: true
   room-presence:
-    enabled: false
     key-prefix: "im:"
     ttl: PT30S
     heartbeat-interval: PT10S

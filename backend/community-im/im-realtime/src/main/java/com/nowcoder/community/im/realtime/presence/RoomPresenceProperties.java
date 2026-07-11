@@ -7,18 +7,9 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "im.room-presence")
 public class RoomPresenceProperties {
 
-    private boolean enabled = false;
     private String keyPrefix = "im:";
     private Duration ttl = Duration.ofSeconds(30);
     private Duration heartbeatInterval = Duration.ofSeconds(10);
-
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
 
     public String getKeyPrefix() {
         return keyPrefix;

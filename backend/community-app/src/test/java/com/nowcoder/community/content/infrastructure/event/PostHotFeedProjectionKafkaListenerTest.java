@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -111,6 +112,35 @@ class PostHotFeedProjectionKafkaListenerTest {
                 45L,
                 likePayload(EntityTypes.COMMENT, uuid(203))
         ));
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void recognizedContentEventWithMissingPostIdShouldFailDelivery() {
+        PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
+        PostHotFeedProjectionKafkaListener listener = new PostHotFeedProjectionKafkaListener(jsonCodec, applicationService);
+
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                "evt-post-missing", null, null, ContentEventTypes.POST_UPDATED,
+                Instant.EPOCH, 1L, new PostPayload())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.POST_UPDATED)
+                .hasMessageContaining("evt-post-missing");
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void recognizedSocialEventWithInvalidSourceMetadataShouldFailDelivery() {
+        PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
+        PostHotFeedProjectionKafkaListener listener = new PostHotFeedProjectionKafkaListener(jsonCodec, applicationService);
+
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                " ", null, null, SocialEventTypes.LIKE_CREATED, null, 0L,
+                likePayload(EntityTypes.POST, uuid(202)))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(SocialEventTypes.LIKE_CREATED);
 
         verifyNoInteractions(applicationService);
     }

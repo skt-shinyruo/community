@@ -8,7 +8,7 @@ import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.search.application.SearchPostProjectionApplicationService;
-import com.nowcoder.community.search.application.command.ProjectPostOutboxCommand;
+import com.nowcoder.community.search.application.command.ProjectPostCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -34,9 +35,9 @@ class SearchPostProjectionKafkaListenerTest {
 
         listener.onContentEvent(contentEvent("evt-post-updated", ContentEventTypes.POST_UPDATED, 42L, payload));
 
-        ArgumentCaptor<ProjectPostOutboxCommand> captor = ArgumentCaptor.forClass(ProjectPostOutboxCommand.class);
-        verify(applicationService).projectPostFromOutbox(captor.capture());
-        assertThat(captor.getValue()).isEqualTo(new ProjectPostOutboxCommand(
+        ArgumentCaptor<ProjectPostCommand> captor = ArgumentCaptor.forClass(ProjectPostCommand.class);
+        verify(applicationService).projectPost(captor.capture());
+        assertThat(captor.getValue()).isEqualTo(new ProjectPostCommand(
                 uuid(100),
                 "evt-post-updated",
                 42L
@@ -55,9 +56,9 @@ class SearchPostProjectionKafkaListenerTest {
                 Map.of("postId", uuid(101).toString())
         ));
 
-        ArgumentCaptor<ProjectPostOutboxCommand> captor = ArgumentCaptor.forClass(ProjectPostOutboxCommand.class);
-        verify(applicationService).projectPostFromOutbox(captor.capture());
-        assertThat(captor.getValue()).isEqualTo(new ProjectPostOutboxCommand(
+        ArgumentCaptor<ProjectPostCommand> captor = ArgumentCaptor.forClass(ProjectPostCommand.class);
+        verify(applicationService).projectPost(captor.capture());
+        assertThat(captor.getValue()).isEqualTo(new ProjectPostCommand(
                 uuid(101),
                 "evt-post-map",
                 43L
@@ -75,13 +76,31 @@ class SearchPostProjectionKafkaListenerTest {
     }
 
     @Test
-    void missingPostProjectionFieldsShouldBeIgnored() {
+    void recognizedEventWithMissingPostIdShouldFailDelivery() {
         SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
         SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(jsonCodec, applicationService);
 
-        listener.onContentEvent(null);
-        listener.onContentEvent(new ContentContractEvent("evt-post-missing", null, null, ContentEventTypes.POST_UPDATED, java.time.Instant.EPOCH, 1L, new PostPayload()));
-        listener.onContentEvent(new ContentContractEvent("evt-post-map-missing", null, null, ContentEventTypes.POST_DELETED, java.time.Instant.EPOCH, 1L, Map.of("userId", uuid(7).toString())));
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                "evt-post-missing", null, null, ContentEventTypes.POST_UPDATED,
+                Instant.EPOCH, 1L, new PostPayload())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.POST_UPDATED)
+                .hasMessageContaining("evt-post-missing");
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void recognizedEventWithInvalidSourceMetadataShouldFailDelivery() {
+        SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
+        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(jsonCodec, applicationService);
+        PostPayload payload = new PostPayload();
+        payload.setPostId(uuid(100));
+
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                " ", null, null, ContentEventTypes.POST_DELETED, null, 0L, payload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.POST_DELETED);
 
         verifyNoInteractions(applicationService);
     }

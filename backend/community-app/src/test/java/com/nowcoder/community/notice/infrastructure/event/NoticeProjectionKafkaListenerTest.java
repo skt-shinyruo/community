@@ -82,7 +82,8 @@ class NoticeProjectionKafkaListenerTest {
                         "actorUserId", uuid(1).toString(),
                         "entityType", EntityTypes.POST,
                         "entityId", uuid(100).toString(),
-                        "entityUserId", uuid(2).toString()
+                        "entityUserId", uuid(2).toString(),
+                        "relationKey", "like:" + uuid(1) + ":" + EntityTypes.POST + ":" + uuid(100)
                 )
         ));
 
@@ -137,37 +138,60 @@ class NoticeProjectionKafkaListenerTest {
     }
 
     @Test
-    void supportedNoticeEventWithMissingBusinessFieldsShouldDelegateForApplicationNoOp() {
+    void supportedNoticeEventsWithMissingBusinessIdentityShouldFailDelivery() {
         NoticeProjectionApplicationService applicationService = mock(NoticeProjectionApplicationService.class);
         NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
 
-        listener.onContentEvent(new ContentContractEvent("evt-comment-missing-target", null, null, ContentEventTypes.COMMENT_CREATED, java.time.Instant.EPOCH, 1L, Map.of("postId", uuid(100).toString())));
-        listener.onSocialEvent(new SocialContractEvent("evt-like-missing-owner", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, Map.of(
-                        "actorUserId", uuid(1).toString(),
-                        "entityType", EntityTypes.POST,
-                        "entityId", uuid(100).toString()
-                )));
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                "evt-comment-missing-target", null, null, ContentEventTypes.COMMENT_CREATED,
+                Instant.EPOCH, 1L, Map.of("postId", uuid(100).toString()))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.COMMENT_CREATED)
+                .hasMessageContaining("evt-comment-missing-target");
 
-        ArgumentCaptor<ProjectContentNoticeCommand> contentCaptor = ArgumentCaptor.forClass(ProjectContentNoticeCommand.class);
-        ArgumentCaptor<ProjectSocialNoticeCommand> socialCaptor = ArgumentCaptor.forClass(ProjectSocialNoticeCommand.class);
-        verify(applicationService).projectContentEventReliably(contentCaptor.capture());
-        verify(applicationService).projectSocialEventReliably(socialCaptor.capture());
-        assertThat(contentCaptor.getValue().payload()).isInstanceOf(CommentPayload.class);
-        assertThat(((CommentPayload) contentCaptor.getValue().payload()).getTargetUserId()).isNull();
-        assertThat(socialCaptor.getValue().payload()).isInstanceOf(LikePayload.class);
-        assertThat(((LikePayload) socialCaptor.getValue().payload()).getEntityUserId()).isNull();
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "evt-like-missing-owner", null, null, SocialEventTypes.LIKE_CREATED,
+                Instant.EPOCH, 1L, Map.of(
+                "actorUserId", uuid(1).toString(),
+                "entityType", EntityTypes.POST,
+                "entityId", uuid(100).toString()))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(SocialEventTypes.LIKE_CREATED)
+                .hasMessageContaining("evt-like-missing-owner");
+
+        verifyNoInteractions(applicationService);
     }
 
     @Test
-    void supportedNoticeEventWithBlankEventIdShouldRemainRetryVisible() {
-        NoticeProjectionApplicationService applicationService =
-                new NoticeProjectionApplicationService(jsonCodec, mock(com.nowcoder.community.notice.application.NoticeApplicationService.class));
+    void supportedNoticeEventWithInvalidSourceMetadataShouldFailDelivery() {
+        NoticeProjectionApplicationService applicationService = mock(NoticeProjectionApplicationService.class);
         NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
         CommentPayload payload = commentPayload();
 
-        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(" ", null, null, ContentEventTypes.COMMENT_CREATED, java.time.Instant.EPOCH, 1L, payload)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("notice projection source event id is blank");
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                " ", null, null, ContentEventTypes.COMMENT_CREATED, null, 0L, payload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.COMMENT_CREATED);
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void supportedLikeEventWithMissingRelationKeyShouldFailDelivery() {
+        NoticeProjectionApplicationService applicationService = mock(NoticeProjectionApplicationService.class);
+        NoticeProjectionKafkaListener listener = new NoticeProjectionKafkaListener(jsonCodec, applicationService);
+
+        assertThatThrownBy(() -> listener.onSocialEvent(socialEvent(
+                "evt-like-missing-relation", SocialEventTypes.LIKE_CREATED, 46L, Map.of(
+                        "actorUserId", uuid(1).toString(),
+                        "entityType", EntityTypes.POST,
+                        "entityId", uuid(100).toString(),
+                        "entityUserId", uuid(2).toString()))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(SocialEventTypes.LIKE_CREATED)
+                .hasMessageContaining("evt-like-missing-relation");
+
+        verifyNoInteractions(applicationService);
     }
 
     private static ContentContractEvent contentEvent(String eventId, String eventType, long version, Object payload) {

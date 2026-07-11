@@ -3,7 +3,7 @@ package com.nowcoder.community.search.application;
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
 import com.nowcoder.community.search.application.command.DeleteIndexedPostCommand;
-import com.nowcoder.community.search.application.command.ProjectPostOutboxCommand;
+import com.nowcoder.community.search.application.command.ProjectPostCommand;
 import com.nowcoder.community.search.application.command.SyncPostProjectionCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -24,44 +24,47 @@ import static org.mockito.Mockito.when;
 class SearchPostProjectionApplicationServiceTest {
 
     @Test
-    void projectPostFromOutboxShouldRejectNullCommand() {
+    void projectPostShouldRejectNullCommand() {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
                 new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
 
-        assertThatThrownBy(() -> service.projectPostFromOutbox(null))
+        assertThatThrownBy(() -> service.projectPost(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
     }
 
     @Test
-    void projectPostFromOutboxShouldIgnoreNullPostId() {
+    void projectPostShouldIgnoreNullPostId() {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
                 new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
 
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(null, "src", 1L));
+        service.projectPost(new ProjectPostCommand(null, "src", 1L));
 
         verifyNoInteractions(postScanQueryApi, searchApplicationService);
     }
 
     @Test
-    void projectPostFromOutboxShouldRejectBlankSourceEventId() {
+    void projectPostShouldRejectInvalidSourceMetadata() {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
                 new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
 
-        assertThatThrownBy(() -> service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(101), " ", 1L)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("source event id");
+        assertThatThrownBy(() -> service.projectPost(new ProjectPostCommand(uuid(101), " ", 1L)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("source metadata");
+        assertThatThrownBy(() -> service.projectPost(new ProjectPostCommand(uuid(101), "source", 0L)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("source metadata");
         verifyNoInteractions(postScanQueryApi, searchApplicationService);
     }
 
     @Test
-    void projectPostFromOutboxShouldSkipWhenProjectionDisabled() {
+    void projectPostShouldSkipWhenProjectionDisabled() {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPolicyProperties policyProperties = new SearchPolicyProperties();
@@ -69,13 +72,13 @@ class SearchPostProjectionApplicationServiceTest {
         SearchPostProjectionApplicationService service =
                 new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService, policyProperties);
 
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(101), "src-disabled", 1L));
+        service.projectPost(new ProjectPostCommand(uuid(101), "src-disabled", 1L));
 
         verifyNoInteractions(postScanQueryApi, searchApplicationService);
     }
 
     @Test
-    void projectPostFromOutboxShouldDeleteWhenProjectionNoLongerExists() {
+    void projectPostShouldDeleteWhenProjectionNoLongerExists() {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
@@ -83,14 +86,14 @@ class SearchPostProjectionApplicationServiceTest {
 
         when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(101))).thenReturn(null);
 
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(101), "src-s3", 3L));
+        service.projectPost(new ProjectPostCommand(uuid(101), "src-s3", 3L));
 
         verify(searchApplicationService).deletePost(new DeleteIndexedPostCommand(uuid(101)));
         verify(searchApplicationService, never()).syncPostProjection(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
-    void projectPostFromOutboxShouldSyncCurrentProjectionWhenPostExists() {
+    void projectPostShouldSyncCurrentProjectionWhenPostExists() {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
@@ -110,7 +113,7 @@ class SearchPostProjectionApplicationServiceTest {
         );
         when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(101))).thenReturn(doc);
 
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(101), "src-s1", 1L));
+        service.projectPost(new ProjectPostCommand(uuid(101), "src-s1", 1L));
 
         ArgumentCaptor<SyncPostProjectionCommand> captor = ArgumentCaptor.forClass(SyncPostProjectionCommand.class);
         verify(searchApplicationService).syncPostProjection(captor.capture());
@@ -135,8 +138,8 @@ class SearchPostProjectionApplicationServiceTest {
                 .thenReturn(postProjection(uuid(201), "old title", "old content", 1.0))
                 .thenReturn(postProjection(uuid(201), "latest title", "latest content", 2.0));
 
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(201), "evt-update-1", 1L));
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(201), "evt-update-2", 2L));
+        service.projectPost(new ProjectPostCommand(uuid(201), "evt-update-1", 1L));
+        service.projectPost(new ProjectPostCommand(uuid(201), "evt-update-2", 2L));
 
         ArgumentCaptor<SyncPostProjectionCommand> captor = ArgumentCaptor.forClass(SyncPostProjectionCommand.class);
         verify(searchApplicationService, times(2)).syncPostProjection(captor.capture());
@@ -157,8 +160,8 @@ class SearchPostProjectionApplicationServiceTest {
 
         when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(202))).thenReturn(null);
 
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(202), "evt-delete-1", 1L));
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(202), "evt-delete-2", 2L));
+        service.projectPost(new ProjectPostCommand(uuid(202), "evt-delete-1", 1L));
+        service.projectPost(new ProjectPostCommand(uuid(202), "evt-delete-2", 2L));
 
         ArgumentCaptor<DeleteIndexedPostCommand> captor = ArgumentCaptor.forClass(DeleteIndexedPostCommand.class);
         verify(searchApplicationService, times(2)).deletePost(captor.capture());
@@ -180,9 +183,9 @@ class SearchPostProjectionApplicationServiceTest {
                 .thenReturn(null)
                 .thenReturn(null);
 
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(203), "evt-update", 1L));
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(203), "evt-delete-1", 2L));
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(203), "evt-delete-2", 3L));
+        service.projectPost(new ProjectPostCommand(uuid(203), "evt-update", 1L));
+        service.projectPost(new ProjectPostCommand(uuid(203), "evt-delete-1", 2L));
+        service.projectPost(new ProjectPostCommand(uuid(203), "evt-delete-2", 3L));
 
         ArgumentCaptor<SyncPostProjectionCommand> syncCaptor = ArgumentCaptor.forClass(SyncPostProjectionCommand.class);
         ArgumentCaptor<DeleteIndexedPostCommand> deleteCaptor = ArgumentCaptor.forClass(DeleteIndexedPostCommand.class);
@@ -206,9 +209,9 @@ class SearchPostProjectionApplicationServiceTest {
                 .thenReturn(postProjection(uuid(204), "restored title", "restored content", 3.0))
                 .thenReturn(postProjection(uuid(204), "restored title", "restored content", 3.0));
 
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(204), "evt-delete", 1L));
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(204), "evt-update-1", 2L));
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(uuid(204), "evt-update-2", 3L));
+        service.projectPost(new ProjectPostCommand(uuid(204), "evt-delete", 1L));
+        service.projectPost(new ProjectPostCommand(uuid(204), "evt-update-1", 2L));
+        service.projectPost(new ProjectPostCommand(uuid(204), "evt-update-2", 3L));
 
         ArgumentCaptor<SyncPostProjectionCommand> syncCaptor = ArgumentCaptor.forClass(SyncPostProjectionCommand.class);
         verify(searchApplicationService).deletePost(new DeleteIndexedPostCommand(uuid(204)));
@@ -231,8 +234,8 @@ class SearchPostProjectionApplicationServiceTest {
                 .thenReturn(postProjection(postId, "visible title", "visible content", 3.0))
                 .thenReturn(null);
 
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(postId, "evt-current-create", 2L));
-        service.projectPostFromOutbox(new ProjectPostOutboxCommand(postId, "evt-old-create-replayed", 1L));
+        service.projectPost(new ProjectPostCommand(postId, "evt-current-create", 2L));
+        service.projectPost(new ProjectPostCommand(postId, "evt-old-create-replayed", 1L));
 
         verify(searchApplicationService).syncPostProjection(org.mockito.ArgumentMatchers.any());
         verify(searchApplicationService).deletePost(new DeleteIndexedPostCommand(postId));

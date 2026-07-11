@@ -142,12 +142,14 @@ class NacosPolicyBindingTest {
         assertThat(environmentFrom("community-kafka-policy.yaml")
                 .getProperty("im.kafka.topics.event-room-committed"))
                 .isEqualTo("im.event.room-committed");
-        assertThat(environmentFrom("community-kafka-policy.yaml")
-                .getProperty("search.outbox.post-topic")).isEqualTo("projection.search.post");
+        assertThat(kafkaEnvironment.containsProperty("search.outbox.post-topic")).isFalse();
         assertThat(environmentFrom("community-kafka-policy.yaml")
                 .getProperty("im.policy.outbox.topic")).isEqualTo("projection.im.policy");
-        assertThat(environmentFrom("community-kafka-policy.yaml")
-                .getProperty("user.reward.outbox.comment-topic")).isEqualTo("projection.user.reward.comment");
+        assertThat(kafkaEnvironment.containsProperty("user.reward.outbox.comment-topic")).isFalse();
+        assertThat(kafkaEnvironment.getProperty("search.kafka.consumer.group-id"))
+                .isEqualTo("search-post-projection");
+        assertThat(kafkaEnvironment.getProperty("user.reward.kafka.consumer.group-id"))
+                .isEqualTo("user-reward-projection");
         assertThat(kafkaEnvironment.containsProperty("content.events.publisher")).isFalse();
         assertThat(kafkaEnvironment.containsProperty("social.events.publisher")).isFalse();
         assertThat(kafkaEnvironment.containsProperty("user.events.publisher")).isFalse();

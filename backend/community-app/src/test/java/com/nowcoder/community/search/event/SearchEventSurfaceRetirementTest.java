@@ -10,5 +10,11 @@ class SearchEventSurfaceRetirementTest {
     void syncPostProjectionListenerShouldBeRetired() {
         assertThatThrownBy(() -> Class.forName("com.nowcoder.community.search.event.PostProjectionListener"))
                 .isInstanceOf(ClassNotFoundException.class);
+        assertThatThrownBy(() -> Class.forName(
+                "com.nowcoder.community.search.infrastructure.event.PostOutbox" + "Enqueuer"))
+                .isInstanceOf(ClassNotFoundException.class);
+        assertThatThrownBy(() -> Class.forName(
+                "com.nowcoder.community.search.infrastructure.event.PostOutbox" + "Handler"))
+                .isInstanceOf(ClassNotFoundException.class);
     }
 }

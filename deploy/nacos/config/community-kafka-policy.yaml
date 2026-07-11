@@ -82,8 +82,6 @@ growth:
         like-created: growth.task.like-created
 
 search:
-  outbox:
-    post-topic: projection.search.post
   kafka:
     consumer:
       group-id: ${SEARCH_KAFKA_CONSUMER_GROUP_ID:search-post-projection}
@@ -100,8 +98,6 @@ user:
     outbox-topic: ${USER_EVENTS_OUTBOX_TOPIC:eventbus.user}
     kafka-topic: ${USER_EVENTS_KAFKA_TOPIC:user.events}
   reward:
-    outbox:
-      comment-topic: projection.user.reward.comment
     kafka:
       consumer:
         group-id: ${USER_REWARD_KAFKA_CONSUMER_GROUP_ID:user-reward-projection}

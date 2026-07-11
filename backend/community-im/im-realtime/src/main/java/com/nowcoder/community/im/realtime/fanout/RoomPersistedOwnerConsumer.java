@@ -1,26 +1,21 @@
 package com.nowcoder.community.im.realtime.fanout;
 
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnExpression("'${im.room-fanout.mode:legacy}' == 'shadow' || '${im.room-fanout.mode:legacy}' == 'routed'")
 public class RoomPersistedOwnerConsumer {
 
-    private final RoomFanoutOwnerCoalescer ownerCoalescer;
+    private final RoomFanoutOwnerService ownerService;
     private final RoomFanoutMetrics metrics;
-    private final RoomFanoutProperties properties;
 
     public RoomPersistedOwnerConsumer(
-            RoomFanoutOwnerCoalescer ownerCoalescer,
-            RoomFanoutMetrics metrics,
-            RoomFanoutProperties properties
+            RoomFanoutOwnerService ownerService,
+            RoomFanoutMetrics metrics
     ) {
-        this.ownerCoalescer = ownerCoalescer;
+        this.ownerService = ownerService;
         this.metrics = metrics;
-        this.properties = properties;
     }
 
     @KafkaListener(
@@ -34,12 +29,6 @@ public class RoomPersistedOwnerConsumer {
             return;
         }
         metrics.ownerEventConsumed();
-        if (properties.isShadowMode()) {
-            ownerCoalescer.markRoomUpdated(event);
-            return;
-        }
-        if (properties.isRoutedMode()) {
-            ownerCoalescer.routeAndDispatchNow(event);
-        }
+        ownerService.routeAndDispatch(event);
     }
 }

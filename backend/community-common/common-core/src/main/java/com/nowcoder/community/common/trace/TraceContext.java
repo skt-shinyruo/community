@@ -11,7 +11,6 @@ public final class TraceContext {
 
     public static final String MDC_KEY_TRACE_ID = "trace.id";
     public static final String MDC_KEY_SPAN_ID = "span.id";
-    public static final String MDC_KEY_LEGACY_TRACE_ID = "traceId";
 
     private TraceContext() {
     }
@@ -30,19 +29,17 @@ public final class TraceContext {
         }
         TraceId.set(t);
         MDC.put(MDC_KEY_TRACE_ID, t);
-        MDC.put(MDC_KEY_LEGACY_TRACE_ID, t);
         String normalizedSpanId = TraceIdCodec.normalizeSpanId(spanId);
         if (normalizedSpanId == null) {
             MDC.remove(MDC_KEY_SPAN_ID);
-            return;
+        } else {
+            MDC.put(MDC_KEY_SPAN_ID, normalizedSpanId);
         }
-        MDC.put(MDC_KEY_SPAN_ID, normalizedSpanId);
     }
 
     public static void clear() {
         MDC.remove(MDC_KEY_TRACE_ID);
         MDC.remove(MDC_KEY_SPAN_ID);
-        MDC.remove(MDC_KEY_LEGACY_TRACE_ID);
         TraceId.clear();
     }
 }

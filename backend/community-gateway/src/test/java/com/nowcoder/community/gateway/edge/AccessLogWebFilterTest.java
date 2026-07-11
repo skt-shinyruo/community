@@ -35,6 +35,7 @@ class AccessLogWebFilterTest {
     @AfterEach
     void tearDown() {
         TraceContext.clear();
+        MDC.clear();
         loggingSystem.cleanUp();
     }
 
@@ -45,7 +46,6 @@ class AccessLogWebFilterTest {
         String staleTraceId = "stale-mdc-trace";
         String resolvedTraceId = "4bf92f3577b34da6a3ce929d0e0e4736";
         MDC.put(TraceContext.MDC_KEY_TRACE_ID, staleTraceId);
-        MDC.put(TraceContext.MDC_KEY_LEGACY_TRACE_ID, staleTraceId);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/posts")
                 .header(TraceHeaders.HEADER_TRACEPARENT, traceparent(resolvedTraceId))
                 .build());
@@ -56,7 +56,6 @@ class AccessLogWebFilterTest {
 
         traceIdWebFilter.filter(exchange, current -> accessLogWebFilter.filter(current, tracedExchange -> {
             assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo(staleTraceId);
-            assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo(staleTraceId);
             tracedExchange.getResponse().setStatusCode(HttpStatus.OK);
             return Mono.empty();
         })).block();
@@ -81,7 +80,6 @@ class AccessLogWebFilterTest {
                 .contains("status=200")
                 .contains("traceId=" + resolvedTraceId);
         assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo(staleTraceId);
-        assertThat(MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID)).isEqualTo(staleTraceId);
     }
 
     @Test

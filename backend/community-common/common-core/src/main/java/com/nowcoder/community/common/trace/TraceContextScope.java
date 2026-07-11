@@ -12,7 +12,6 @@ public final class TraceContextScope implements AutoCloseable {
     private final String previousTraceId;
     private final String previousMdcTraceId;
     private final String previousMdcSpanId;
-    private final String previousLegacyMdcTraceId;
     private final Scope otelScope;
     private final Span span;
     private boolean closed;
@@ -21,14 +20,12 @@ public final class TraceContextScope implements AutoCloseable {
             String previousTraceId,
             String previousMdcTraceId,
             String previousMdcSpanId,
-            String previousLegacyMdcTraceId,
             Scope otelScope,
             Span span
     ) {
         this.previousTraceId = previousTraceId;
         this.previousMdcTraceId = previousMdcTraceId;
         this.previousMdcSpanId = previousMdcSpanId;
-        this.previousLegacyMdcTraceId = previousLegacyMdcTraceId;
         this.otelScope = otelScope;
         this.span = span;
     }
@@ -42,7 +39,6 @@ public final class TraceContextScope implements AutoCloseable {
                 TraceId.threadLocalValue(),
                 MDC.get(TraceContext.MDC_KEY_TRACE_ID),
                 MDC.get(TraceContext.MDC_KEY_SPAN_ID),
-                MDC.get(TraceContext.MDC_KEY_LEGACY_TRACE_ID),
                 otelScope,
                 span
         );
@@ -65,7 +61,6 @@ public final class TraceContextScope implements AutoCloseable {
             }
             restore(TraceContext.MDC_KEY_TRACE_ID, previousMdcTraceId);
             restore(TraceContext.MDC_KEY_SPAN_ID, previousMdcSpanId);
-            restore(TraceContext.MDC_KEY_LEGACY_TRACE_ID, previousLegacyMdcTraceId);
         } finally {
             try {
                 if (otelScope != null) {

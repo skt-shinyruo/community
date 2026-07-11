@@ -95,29 +95,21 @@ public class EventConsumers {
             containerFactory = "kafkaListenerContainerFactory"
     )
     public void onRoomMemberChanged(RoomMemberChanged event) {
-        if (event == null) {
+        if (event == null || event.roomId() == null || event.userId() == null) {
             return;
         }
-        boolean applied = membershipProjectionService.applyRoomMemberChanged(event);
-        if (!applied) {
-            return;
-        }
+        membershipProjectionService.applyRoomMemberChanged(event);
         UUID roomId = event.roomId();
         UUID userId = event.userId();
-        String action = event.action() == null ? "" : event.action().trim().toUpperCase();
-        if ("JOINED".equals(action)) {
-            connectionRegistry.forEachConnectionByUserId(userId, conn -> {
-                roomLocalPresenceService.addLocalConnection(roomId, conn.connectionId());
-                conn.joinRoom(roomId);
-            });
-            return;
-        }
-        if ("LEFT".equals(action)) {
-            connectionRegistry.forEachConnectionByUserId(userId, conn -> {
-                roomLocalPresenceService.removeLocalConnection(roomId, conn.connectionId());
-                conn.leaveRoom(roomId);
-            });
-        }
+        boolean expectedMember = membershipProjectionService.isMember(roomId, userId);
+        connectionRegistry.forEachConnectionByUserId(
+                userId,
+                connection -> roomLocalPresenceService.reconcileLocalMembership(
+                        roomId,
+                        connection,
+                        expectedMember
+                )
+        );
     }
 
     @KafkaListener(

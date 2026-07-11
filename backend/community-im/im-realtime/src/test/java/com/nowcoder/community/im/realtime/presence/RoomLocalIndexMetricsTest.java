@@ -21,6 +21,8 @@ class RoomLocalIndexMetricsTest {
         index.add(roomId10, "c2");
         index.add(roomId11, "c3");
 
+        assertThat(index.hasConnections(roomId10)).isTrue();
+        assertThat(index.hasConnections(roomId11)).isTrue();
         assertThat(meterRegistry.get("im_ws_rooms_indexed").gauge().value()).isEqualTo(2.0);
 
         DistributionSummary summary = meterRegistry.get("im_ws_connections_per_room").summary();
@@ -31,6 +33,8 @@ class RoomLocalIndexMetricsTest {
         index.remove(roomId10, "c2");
         index.remove(roomId11, "c3");
 
+        assertThat(index.hasConnections(roomId10)).isFalse();
+        assertThat(index.hasConnections(roomId11)).isFalse();
         assertThat(meterRegistry.get("im_ws_rooms_indexed").gauge().value()).isEqualTo(0.0);
     }
 

@@ -25,7 +25,7 @@ public class RoomPresenceHeartbeat implements DisposableBean {
 
     private void refreshSafely(RoomLocalPresenceService roomLocalPresenceService) {
         try {
-            roomLocalPresenceService.refreshActiveRooms();
+            roomLocalPresenceService.refreshPresence();
         } catch (RuntimeException ex) {
             log.warn("[room-presence] heartbeat refresh failed: {}", ex.toString());
         }

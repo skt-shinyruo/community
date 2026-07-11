@@ -98,8 +98,6 @@ xxl:
 
 content:
   storage: redis
-  events:
-    publisher: local
   score:
     refresh:
       enabled: true
@@ -117,8 +115,6 @@ events:
 
 social:
   storage: db
-  events:
-    publisher: local
 
 growth:
   business-zone-id: Asia/Shanghai

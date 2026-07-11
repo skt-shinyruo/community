@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
-retired='CurrentSchemaVersionFilter|schemaVersionOrCurrent|legacyCompatibleVersionFloor|RoomPersistedLegacyConsumer|RoomFanoutOwnerCoalescer|HttpRoomFanoutDispatcher|RoomFanoutTargetController|NoopRoomPresenceDirectory|/internal/im/realtime/fanout|owner-flush-interval|target-path|target-timeout|IM_ROOM_FANOUT_(MODE|TRANSPORT|OWNER_FLUSH_INTERVAL|TARGET_PATH|TARGET_TIMEOUT)|IM_ROOM_PRESENCE_ENABLED|worker-inbox-slot[^\n]*:0|events\.publisher|EVENTS_PUBLISHER|projection\.(search\.post|growth\.task|user\.reward\.comment)|GrowthTaskProgressActionApi|MDC_KEY_LEGACY_TRACE_ID'
+retired='CurrentSchemaVersionFilter|schemaVersionOrCurrent|legacyCompatibleVersionFloor|RoomPersistedLegacyConsumer|RoomFanoutOwnerCoalescer|HttpRoomFanoutDispatcher|RoomFanoutTargetController|NoopRoomPresenceDirectory|/internal/im/realtime/fanout|owner-flush-interval|target-path|target-timeout|IM_ROOM_FANOUT_(MODE|TRANSPORT|OWNER_FLUSH_INTERVAL|TARGET_PATH|TARGET_TIMEOUT)|IM_ROOM_PRESENCE_ENABLED|worker-inbox-slot[^\n]*:0|events\.publisher|EVENTS_PUBLISHER|^[[:space:]]+publisher:[[:space:]]+(local|outbox-kafka)|projection\.(search\.post|growth\.task|user\.reward\.comment)|GrowthTaskProgressActionApi|MDC_KEY_LEGACY_TRACE_ID'
 if rg -n "${retired}" "${REPO_ROOT}/backend" --glob '**/src/main/**' --glob '!**/target/**' \
     || rg -n "${retired}" \
         "${REPO_ROOT}/backend/community-app/src/test/resources" \

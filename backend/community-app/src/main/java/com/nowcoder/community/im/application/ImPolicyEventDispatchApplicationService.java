@@ -59,17 +59,19 @@ public class ImPolicyEventDispatchApplicationService {
         if (userId == null) {
             throw malformed("USER_POLICY", "primaryUserId");
         }
+        long occurredAtEpochMillis = requiredLongValue(payload, "occurredAtEpochMillis");
+        long version = requiredLongValue(payload, "version");
         UserMessagingPolicyChanged changed = new UserMessagingPolicyChanged(
                 eventId,
                 userId,
-                booleanValue(payload, "userExists"),
-                booleanValue(payload, "suspended"),
-                booleanValue(payload, "muted"),
+                requiredBooleanValue(payload, "userExists"),
+                requiredBooleanValue(payload, "suspended"),
+                requiredBooleanValue(payload, "muted"),
                 longValue(payload, "muteUntil"),
                 longValue(payload, "banUntil"),
-                booleanValue(payload, "canSendPrivate"),
-                requiredLongValue(payload, "occurredAtEpochMillis"),
-                requiredLongValue(payload, "version")
+                requiredBooleanValue(payload, "canSendPrivate"),
+                occurredAtEpochMillis,
+                version
         );
         dispatcher.dispatchUserMessagingPolicyChanged(userId.toString(), changed);
     }
@@ -80,13 +82,15 @@ public class ImPolicyEventDispatchApplicationService {
         if (blockerUserId == null || blockedUserId == null) {
             throw malformed("BLOCK", "primaryUserId/secondaryUserId");
         }
+        long occurredAtEpochMillis = requiredLongValue(payload, "occurredAtEpochMillis");
+        long version = requiredLongValue(payload, "version");
         UserBlockRelationChanged changed = new UserBlockRelationChanged(
                 eventId,
                 blockerUserId,
                 blockedUserId,
-                booleanValue(payload, "active"),
-                requiredLongValue(payload, "occurredAtEpochMillis"),
-                requiredLongValue(payload, "version")
+                requiredBooleanValue(payload, "active"),
+                occurredAtEpochMillis,
+                version
         );
         dispatcher.dispatchUserBlockRelationChanged(blockerUserId.toString(), changed);
     }
@@ -111,12 +115,12 @@ public class ImPolicyEventDispatchApplicationService {
         }
     }
 
-    private boolean booleanValue(JsonNode node, String fieldName) {
-        if (node == null || fieldName == null) {
-            return false;
-        }
+    private boolean requiredBooleanValue(JsonNode node, String fieldName) {
         JsonNode value = node.get(fieldName);
-        return value != null && !value.isNull() && value.asBoolean(false);
+        if (value == null || !value.isBoolean()) {
+            throw new IllegalArgumentException("im policy outbox payload missing required field: " + fieldName);
+        }
+        return value.booleanValue();
     }
 
     private Long longValue(JsonNode node, String fieldName) {
@@ -124,7 +128,13 @@ public class ImPolicyEventDispatchApplicationService {
             return null;
         }
         JsonNode value = node.get(fieldName);
-        return value == null || value.isNull() ? null : value.asLong();
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (!value.isIntegralNumber()) {
+            throw new IllegalArgumentException("im policy outbox payload field must be an integer: " + fieldName);
+        }
+        return value.longValue();
     }
 
     private long requiredLongValue(JsonNode node, String fieldName) {

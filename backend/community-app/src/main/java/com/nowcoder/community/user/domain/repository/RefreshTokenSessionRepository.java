@@ -13,23 +13,17 @@ public interface RefreshTokenSessionRepository {
 
     RefreshTokenSession consumeActive(String tokenHash);
 
-    default RefreshTokenSession beginRotation(String tokenHash, Instant pendingExpiresAt) {
-        return null;
-    }
+    RefreshTokenSession beginRotation(String tokenHash, Instant pendingExpiresAt);
 
-    default boolean finishRotation(
+    boolean finishRotation(
             String pendingTokenHash,
             String replacementTokenHash,
             UUID userId,
             String familyId,
             Instant replacementExpiresAt
-    ) {
-        return false;
-    }
+    );
 
-    default boolean rollbackPendingRotation(String pendingTokenHash) {
-        return false;
-    }
+    boolean rollbackPendingRotation(String pendingTokenHash);
 
     void revoke(String tokenHash);
 

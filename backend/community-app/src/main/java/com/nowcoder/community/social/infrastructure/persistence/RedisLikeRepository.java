@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -146,6 +147,42 @@ public class RedisLikeRepository implements LikeRepository {
     }
 
     @Override
+    public List<LikeRelation> scanLikesByEntity(int entityType, UUID entityId, UUID afterActorUserId, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        Set<String> members = redisTemplate.opsForSet().members(entityKey(entityType, entityId));
+        if (members == null || members.isEmpty()) {
+            return List.of();
+        }
+
+        UUID cursor = afterActorUserId == null ? new UUID(0L, 0L) : afterActorUserId;
+        List<UUID> actorUserIds = members.stream()
+                .map(member -> parseStoredUuid(member, "actorUserId"))
+                .filter(actorUserId -> actorUserId.compareTo(cursor) > 0)
+                .sorted()
+                .limit(limit)
+                .toList();
+        if (actorUserIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Object> actorKeys = actorUserIds.stream()
+                .map(UUID::toString)
+                .map(value -> (Object) value)
+                .toList();
+        List<Object> ownerValues = redisTemplate.opsForHash().multiGet(ownerKey(entityType, entityId), actorKeys);
+        return java.util.stream.IntStream.range(0, actorUserIds.size())
+                .mapToObj(index -> new LikeRelation(
+                        actorUserIds.get(index),
+                        entityType,
+                        entityId,
+                        ownerUserId(ownerValues, index)
+                ))
+                .toList();
+    }
+
+    @Override
     public boolean isLiked(UUID userId, int entityType, UUID entityId) {
         Boolean member = redisTemplate.opsForSet().isMember(entityKey(entityType, entityId), String.valueOf(userId));
         return member != null && member;
@@ -221,5 +258,20 @@ public class RedisLikeRepository implements LikeRepository {
 
     private String ownerKey(int entityType, UUID entityId) {
         return "like:entity-owner:" + entityType + ":" + entityId;
+    }
+
+    private UUID ownerUserId(List<Object> ownerValues, int index) {
+        if (ownerValues == null || index >= ownerValues.size() || ownerValues.get(index) == null) {
+            return null;
+        }
+        return parseStoredUuid(String.valueOf(ownerValues.get(index)), "entityUserId");
+    }
+
+    private UUID parseStoredUuid(String value, String field) {
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("invalid Redis like " + field + ": " + value, e);
+        }
     }
 }

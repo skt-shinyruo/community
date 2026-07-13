@@ -35,6 +35,17 @@ class RedisPasswordResetTokenRepositoryTest {
     }
 
     @Test
+    void consumeShouldReturnUserIdFromAtomicConsumeResult() {
+        UUID userId = uuid(43);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        when(redisTemplate.execute(any(RedisScript.class), eq(List.of("auth:pwdreset:reset-token"))))
+                .thenReturn(userId + "|123000");
+        RedisPasswordResetTokenRepository store = new RedisPasswordResetTokenRepository(redisTemplate);
+
+        assertThat(store.consume("reset-token")).isEqualTo(userId);
+    }
+
+    @Test
     void deleteShouldTrimToken() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         RedisPasswordResetTokenRepository store = new RedisPasswordResetTokenRepository(redisTemplate);

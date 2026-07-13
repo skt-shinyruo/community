@@ -176,6 +176,27 @@ class RefreshTokenApplicationServiceTest {
             }
 
             @Override
+            public StoredRefreshToken beginRotation(String refreshToken, Instant pendingExpiresAt) {
+                return null;
+            }
+
+            @Override
+            public boolean finishRotation(
+                    String pendingRefreshToken,
+                    String replacementRefreshToken,
+                    UUID userId,
+                    String familyId,
+                    Instant replacementExpiresAt
+            ) {
+                return false;
+            }
+
+            @Override
+            public boolean rollbackPendingRotation(String refreshToken) {
+                return false;
+            }
+
+            @Override
             public RevokedRefreshToken findRevoked(String refreshToken) {
                 return null;
             }

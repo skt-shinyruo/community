@@ -49,7 +49,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                         "return nil " +
                         "end " +
                         "if record.familyId and redis.call('exists', KEYS[3] .. record.familyId) == 1 then return nil end " +
-                        "if record.state and record.state ~= 'ACTIVE' then return nil end " +
+                        "if record.state ~= 'ACTIVE' then return nil end " +
                         "local ttl = redis.call('pttl', KEYS[1]) " +
                         "redis.call('del', KEYS[1]) " +
                         "local revokedAt = ARGV[1] " +
@@ -73,7 +73,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                         "record.state = 'ACTIVE' " +
                         "record.pendingExpiresAt = nil " +
                         "end " +
-                        "if record.state and record.state ~= 'ACTIVE' then return nil end " +
+                        "if record.state ~= 'ACTIVE' then return nil end " +
                         "record.state = 'PENDING_ROTATION' " +
                         "record.pendingExpiresAt = ARGV[1] " +
                         "local updated = cjson.encode(record) " +
@@ -340,7 +340,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
         if (record == null || !StringUtils.hasText(record.refreshToken()) || record.userId() == null || !StringUtils.hasText(record.familyId()) || record.expiresAt() == null) {
             return null;
         }
-        String state = StringUtils.hasText(record.state()) ? record.state().trim() : "ACTIVE";
+        String state = record.state();
         if (!"ACTIVE".equals(state) && !(includePending && "PENDING_ROTATION".equals(state))) {
             return null;
         }

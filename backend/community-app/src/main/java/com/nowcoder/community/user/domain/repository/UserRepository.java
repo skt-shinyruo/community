@@ -26,21 +26,15 @@ public interface UserRepository {
 
     void updateRole(UUID userId, int type, long securityVersion);
 
-    default void updateRole(UUID userId, int type) {
-        updateRole(userId, type, nextUserSecurityVersion(userId));
-    }
+    void updateRole(UUID userId, int type);
 
     void updateStatus(UUID userId, int status, long securityVersion);
 
-    default void updateStatus(UUID userId, int status) {
-        updateStatus(userId, status, nextUserSecurityVersion(userId));
-    }
+    void updateStatus(UUID userId, int status);
 
     void updatePassword(UUID userId, String encodedPassword, long securityVersion);
 
-    default void updatePassword(UUID userId, String encodedPassword) {
-        updatePassword(userId, encodedPassword, nextUserSecurityVersion(userId));
-    }
+    void updatePassword(UUID userId, String encodedPassword);
 
     void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil, long policyVersion, long securityVersion);
 

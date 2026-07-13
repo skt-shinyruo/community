@@ -67,6 +67,12 @@ public class RedisPasswordResetTokenRepository implements PasswordResetTokenRepo
     }
 
     @Override
+    public UUID consume(String token) {
+        ConsumedPasswordResetToken consumed = consumeWithTtl(token);
+        return consumed == null ? null : consumed.userId();
+    }
+
+    @Override
     public void delete(String token) {
         if (StringUtils.hasText(token)) {
             redisTemplate.delete(KEY_PREFIX + token.trim());

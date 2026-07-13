@@ -25,13 +25,9 @@ public interface LikeRepository {
         return Optional.of(new LikeRelation(userId, entityType, entityId, null));
     }
 
-    default long deleteLikesByEntity(int entityType, UUID entityId) {
-        return 0;
-    }
+    long deleteLikesByEntity(int entityType, UUID entityId);
 
-    default List<LikeRelation> scanLikesByEntity(int entityType, UUID entityId, UUID afterActorUserId, int limit) {
-        return List.of();
-    }
+    List<LikeRelation> scanLikesByEntity(int entityType, UUID entityId, UUID afterActorUserId, int limit);
 
     boolean isLiked(UUID userId, int entityType, UUID entityId);
 

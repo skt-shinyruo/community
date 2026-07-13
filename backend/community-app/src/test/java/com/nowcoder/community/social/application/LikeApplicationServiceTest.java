@@ -652,6 +652,16 @@ class LikeApplicationServiceTest {
         }
 
         @Override
+        public long nextBlockProjectionVersion() {
+            return 1L;
+        }
+
+        @Override
+        public long currentBlockProjectionVersion() {
+            return 1L;
+        }
+
+        @Override
         public boolean hasBlocked(UUID userId, UUID targetUserId) {
             Set<UUID> set = blocks.get(userId);
             return set != null && set.contains(targetUserId);

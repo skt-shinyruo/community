@@ -11,10 +11,7 @@ public interface PasswordResetTokenRepository {
 
     void delete(String token);
 
-    default UUID consume(String token) {
-        ConsumedPasswordResetToken consumed = consumeWithTtl(token);
-        return consumed == null ? null : consumed.userId();
-    }
+    UUID consume(String token);
 
     record ConsumedPasswordResetToken(UUID userId, Duration remainingTtl) {
     }

@@ -26,13 +26,9 @@ public interface BlockRepository {
 
     List<BlockRelation> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit);
 
-    default long nextBlockProjectionVersion() {
-        return 0L;
-    }
+    long nextBlockProjectionVersion();
 
-    default long currentBlockProjectionVersion() {
-        return 0L;
-    }
+    long currentBlockProjectionVersion();
 
     default boolean requiresExplicitCompensation() {
         return false;

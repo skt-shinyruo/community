@@ -11,7 +11,5 @@ public interface UserModerationQueryApi {
 
     List<UserModerationStateView> scanModerationStatesAfterId(UUID afterUserId, int limit);
 
-    default long currentModerationProjectionVersion() {
-        return 0L;
-    }
+    long currentModerationProjectionVersion();
 }

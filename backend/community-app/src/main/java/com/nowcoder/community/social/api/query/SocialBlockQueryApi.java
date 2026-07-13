@@ -13,7 +13,5 @@ public interface SocialBlockQueryApi {
 
     List<SocialBlockRelationView> scanBlockRelationsAfter(UUID afterBlockerUserId, UUID afterBlockedUserId, int limit);
 
-    default long currentBlockProjectionVersion() {
-        return 0L;
-    }
+    long currentBlockProjectionVersion();
 }

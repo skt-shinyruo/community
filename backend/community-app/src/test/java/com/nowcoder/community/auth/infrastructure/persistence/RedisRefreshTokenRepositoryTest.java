@@ -107,9 +107,13 @@ class RedisRefreshTokenRepositoryTest {
 
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
 
-        String json = jsonCodec().toJson(
-                new RefreshTokenRepository.StoredRefreshToken("t1", userId, "f1", Instant.now().plusSeconds(60))
-        );
+        String json = jsonCodec().toJson(Map.of(
+                "refreshToken", "t1",
+                "userId", userId,
+                "familyId", "f1",
+                "expiresAt", Instant.now().plusSeconds(60),
+                "state", "ACTIVE"
+        ));
         when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString(), anyString())).thenReturn(json);
 
         RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
@@ -130,6 +134,7 @@ class RedisRefreshTokenRepositoryTest {
         assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);
         DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
         assertThat(script.getScriptAsString()).contains("cjson.decode");
+        assertThat(script.getScriptAsString()).contains("record.state ~= 'ACTIVE'");
         assertThat(script.getScriptAsString()).contains("redis.call('exists', KEYS[3] .. record.familyId)");
         assertThat(script.getScriptAsString()).contains("redis.call('del', KEYS[1])");
         assertThat(script.getScriptAsString()).contains("redis.call('set', KEYS[2], tombstone, 'px', ttl)");
@@ -158,9 +163,13 @@ class RedisRefreshTokenRepositoryTest {
         when(redisTemplate.opsForSet()).thenReturn(setOps);
 
         JacksonJsonCodec codec = jsonCodec();
-        String activeJson = codec.toJson(
-                new RefreshTokenRepository.StoredRefreshToken("t1", userId, "f1", expiresAt)
-        );
+        String activeJson = codec.toJson(Map.of(
+                "refreshToken", "t1",
+                "userId", userId,
+                "familyId", "f1",
+                "expiresAt", expiresAt,
+                "state", "ACTIVE"
+        ));
         String tombstoneJson = codec.toJson(Map.of(
                 "userId", userId,
                 "familyId", "f1",
@@ -221,9 +230,13 @@ class RedisRefreshTokenRepositoryTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(redisTemplate.opsForSet()).thenReturn(setOps);
 
-        String json = jsonCodec().toJson(
-                new RefreshTokenRepository.StoredRefreshToken("t1", userId, "f1", Instant.now().plusSeconds(60))
-        );
+        String json = jsonCodec().toJson(Map.of(
+                "refreshToken", "t1",
+                "userId", userId,
+                "familyId", "f1",
+                "expiresAt", Instant.now().plusSeconds(60),
+                "state", "ACTIVE"
+        ));
         when(valueOps.get(eq("auth:refresh:t1"))).thenReturn(json);
 
         RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
@@ -241,6 +254,25 @@ class RedisRefreshTokenRepositoryTest {
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(valueOps.get("auth:refresh:t1")).thenReturn("{bad");
+
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
+
+        assertThat(store.find("t1")).isNull();
+    }
+
+    @Test
+    void findShouldReturnNullWhenStoredStateIsMissing() throws Exception {
+        UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000007");
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("auth:refresh:t1")).thenReturn(jsonCodec().toJson(Map.of(
+                "refreshToken", "t1",
+                "userId", userId,
+                "familyId", "f1",
+                "expiresAt", Instant.now().plusSeconds(60)
+        )));
 
         RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
 
@@ -296,7 +328,8 @@ class RedisRefreshTokenRepositoryTest {
         assertThat(script.getScriptAsString())
                 .contains("PENDING_ROTATION")
                 .contains("pendingExpiresAt")
-                .contains("ACTIVE");
+                .contains("ACTIVE")
+                .contains("record.state ~= 'ACTIVE'");
         assertThat(keysCaptor.getValue()).containsExactly(
                 "auth:refresh:t1",
                 "auth:refresh:family:revoked:"

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../api/services/driveService', () => ({
   getPublicDriveShare: vi.fn().mockResolvedValue({
-    data: { shareToken: 'token-a', requiresPassword: true, entryName: 'a.txt', entryType: 'FILE' },
+    data: { shareToken: 'token-a', requiresPassword: true },
     traceId: ''
   }),
   verifyDriveShare: vi.fn().mockResolvedValue({
@@ -125,7 +125,7 @@ describe('DriveShareView', () => {
       traceId: ''
     })
     listDriveShareEntries.mockResolvedValueOnce({
-      data: [{ entryId: 'child-folder', parentId: 'folder-root', entryType: 'FOLDER', name: 'Nested', status: 'ACTIVE' }],
+      data: [{ entryId: 'child-folder', parentId: 'folder-root', type: 'FOLDER', name: 'Nested', status: 'ACTIVE' }],
       traceId: ''
     })
 

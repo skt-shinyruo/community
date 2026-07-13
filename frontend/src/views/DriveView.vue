@@ -284,7 +284,7 @@ import {
   trashDriveEntry,
   uploadDriveFile
 } from '../api/services/driveService'
-import { buildDriveBreadcrumb, formatDriveBytes, normalizeDriveEntry, normalizeDriveQuota, reduceDriveSelection, validateShareForm } from './driveState'
+import { buildDriveBreadcrumb, formatDriveBytes, normalizeCreatedDriveShare, normalizeDriveEntry, normalizeDriveQuota, reduceDriveSelection, validateShareForm } from './driveState'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
@@ -558,15 +558,11 @@ function switchToShares() {
   shareError.value = ''
 }
 
-function normalizeCreatedShare(data, entry) {
-  const shareToken = String(data?.shareToken || '')
+function normalizeCreatedShare(data) {
+  const share = normalizeCreatedDriveShare(data)
   return {
-    shareId: String(data?.shareId || shareToken || `${entry.entryId}:${Date.now()}`),
-    entryId: String(data?.entryId || entry.entryId || ''),
-    entryName: String(data?.entryName || entry.name || ''),
-    shareToken,
-    expiresAt: String(data?.expiresAt || ''),
-    shareUrl: buildShareUrl(shareToken)
+    ...share,
+    shareUrl: buildShareUrl(share.shareToken)
   }
 }
 
@@ -589,7 +585,7 @@ async function createShareForSelected() {
       password: String(sharePassword.value || '').trim(),
       expiresAt: new Date(shareExpiresAt.value).toISOString()
     })
-    createdShares.value = [normalizeCreatedShare(data, entry), ...createdShares.value].slice(0, 10)
+    createdShares.value = [normalizeCreatedShare(data), ...createdShares.value].slice(0, 10)
     sharePassword.value = ''
     shareExpiresAt.value = toDatetimeLocalValue(new Date(Date.now() + ONE_DAY_MS))
     statusMessage.value = '分享链接已生成'

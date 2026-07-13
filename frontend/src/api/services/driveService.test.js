@@ -137,9 +137,7 @@ describe('driveService', () => {
         code: 0,
         data: {
           shareToken: 'token-a',
-          requiresPassword: true,
-          entryName: 'a.txt',
-          entryType: 'FILE'
+          requiresPassword: true
         },
         traceId: 'trace-share-meta'
       }

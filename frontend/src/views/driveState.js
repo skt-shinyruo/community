@@ -47,9 +47,10 @@ export function buildDriveBreadcrumb(ancestors = []) {
 }
 
 export function normalizeDriveEntry(raw = {}) {
-  const status = String(raw.status || 'ACTIVE').toUpperCase()
-  const type = String(raw.type || raw.entryType || 'FILE').toUpperCase()
-  const active = status === 'ACTIVE'
+  const status = String(raw.status || '').trim().toUpperCase()
+  const type = String(raw.type || '').trim().toUpperCase()
+  const recognizedType = type === 'FILE' || type === 'FOLDER'
+  const active = status === 'ACTIVE' && recognizedType
   return {
     ...raw,
     entryId: String(raw.entryId || ''),
@@ -65,11 +66,24 @@ export function normalizeDriveEntry(raw = {}) {
     canRename: active,
     canMove: active,
     canTrash: active,
-    canRestore: status === 'TRASHED',
-    canDeletePermanently: status === 'TRASHED',
+    canRestore: status === 'TRASHED' && recognizedType,
+    canDeletePermanently: status === 'TRASHED' && recognizedType,
     statusLabel: driveStatusLabel(status),
     visibilityLabel: driveVisibilityLabel(raw, active)
   }
+}
+
+export function normalizeCreatedDriveShare(raw = {}) {
+  const requiredFields = ['shareId', 'entryId', 'shareToken', 'entryName', 'entryType', 'expiresAt']
+  const normalized = {}
+  for (const field of requiredFields) {
+    const value = String(raw?.[field] || '').trim()
+    if (!value) {
+      throw new Error(`创建分享响应缺少 ${field}`)
+    }
+    normalized[field] = value
+  }
+  return { ...raw, ...normalized }
 }
 
 export function validateShareForm(form = {}, now = new Date()) {

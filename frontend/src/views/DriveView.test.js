@@ -21,7 +21,7 @@ vi.mock('../api/services/driveService', () => ({
   restoreDriveEntry: vi.fn().mockResolvedValue({ data: {}, traceId: '' }),
   deleteDriveEntryPermanently: vi.fn().mockResolvedValue({ data: {}, traceId: '' }),
   getDriveDownloadUrl: vi.fn().mockResolvedValue({ data: { url: 'https://cdn.example.test/file' }, traceId: '' }),
-  createDriveShare: vi.fn().mockResolvedValue({ data: { shareToken: 'token-a', shareId: 'share-1', entryName: 'a.txt', expiresAt: '2026-05-10T00:00:00Z' }, traceId: '' }),
+  createDriveShare: vi.fn().mockResolvedValue({ data: { shareToken: 'token-a', shareId: 'share-1', entryId: 'file-1', entryName: 'a.txt', entryType: 'FILE', expiresAt: '2026-05-10T00:00:00Z' }, traceId: '' }),
   revokeDriveShare: vi.fn().mockResolvedValue({ data: {}, traceId: '' })
 }))
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDriveBreadcrumb,
   formatDriveBytes,
+  normalizeCreatedDriveShare,
   normalizeDriveEntry,
   normalizeDriveQuota,
   reduceDriveSelection,
@@ -53,12 +54,39 @@ describe('driveState', () => {
     expect(trashed.visibilityLabel).toBe('私有')
   })
 
-  it('normalizeDriveEntry should accept backend entryType as the entry discriminator', () => {
-    expect(normalizeDriveEntry({ entryId: 'folder-1', entryType: 'FOLDER', name: 'Docs' })).toMatchObject({
-      type: 'FOLDER',
-      isFolder: true,
-      isFile: false
+  it('normalizeDriveEntry should only use canonical type and name fields', () => {
+    expect(normalizeDriveEntry({ entryId: 'folder-1', entryType: 'FOLDER', entryName: 'Docs' })).toMatchObject({
+      type: '',
+      status: '',
+      name: '',
+      isFolder: false,
+      isFile: false,
+      canDownload: false,
+      canShare: false,
+      canRename: false
     })
+    expect(normalizeDriveEntry({ entryId: 'unknown-1', type: 'UNKNOWN', status: 'ACTIVE' })).toMatchObject({
+      isFolder: false,
+      isFile: false,
+      canDownload: false,
+      canShare: false,
+      canTrash: false
+    })
+  })
+
+  it('normalizeCreatedDriveShare should require the canonical creation response', () => {
+    const response = {
+      shareId: 'share-1',
+      entryId: 'entry-1',
+      shareToken: 'token-a',
+      entryName: 'a.txt',
+      entryType: 'FILE',
+      expiresAt: '2026-05-10T00:00:00Z'
+    }
+
+    expect(normalizeCreatedDriveShare(response)).toMatchObject(response)
+    expect(() => normalizeCreatedDriveShare({ ...response, shareId: '' })).toThrow('创建分享响应缺少 shareId')
+    expect(() => normalizeCreatedDriveShare({ ...response, entryName: '' })).toThrow('创建分享响应缺少 entryName')
   })
 
   it('normalizes drive entry status and visibility labels for product UI', () => {

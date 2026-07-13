@@ -138,11 +138,11 @@ const entriesError = ref('')
 
 const shareName = computed(() => {
   if (!ticket.value) return '访问分享'
-  return share.value?.name || share.value?.entryName || '分享文件'
+  return share.value?.entryName || '分享文件'
 })
-const shareType = computed(() => ticket.value ? String(share.value?.entryType || share.value?.type || 'FILE').toUpperCase() : '')
+const shareType = computed(() => ticket.value ? String(share.value?.entryType || '').toUpperCase() : '')
 const isFolderShare = computed(() => shareType.value === 'FOLDER')
-const isFileShare = computed(() => Boolean(ticket.value) && !isFolderShare.value)
+const isFileShare = computed(() => Boolean(ticket.value) && shareType.value === 'FILE')
 
 async function loadShare() {
   loading.value = true
@@ -151,7 +151,7 @@ async function loadShare() {
   try {
     const { data } = await getPublicDriveShare(props.shareToken)
     share.value = {
-      shareToken: String(data?.shareToken || props.shareToken || ''),
+      shareToken: String(data?.shareToken || ''),
       requiresPassword: data?.requiresPassword !== false
     }
   } catch (e) {

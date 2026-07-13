@@ -70,24 +70,6 @@ export async function bootstrapDemoSchema(db) {
     await db.execute(statement)
   }
 
-  const columns = await db.query('show columns from ai_config')
-  const columnNames = new Set((columns || []).map((c) => c.Field || c.field))
-
-  if (!columnNames.has('name')) {
-    await db.execute('alter table ai_config add column name varchar(64) not null default \'\' after id')
-  }
-  if (!columnNames.has('is_active')) {
-    await db.execute('alter table ai_config add column is_active tinyint(1) not null default 0 after enabled')
-  }
-  if (!columnNames.has('created_at')) {
-    await db.execute('alter table ai_config add column created_at timestamp not null default current_timestamp after max_items_per_job')
-  }
-
-  try {
-    await db.execute('alter table ai_config drop index uk_ai_config_singleton')
-  } catch {
-  }
-
   const defaultRows = await db.query('select id from ai_config where name = ? limit 1', ['Default'])
   if (!defaultRows || defaultRows.length === 0) {
     await db.execute(
@@ -116,14 +98,5 @@ export async function bootstrapDemoSchema(db) {
         20
       ]
     )
-  }
-
-  try {
-    await db.execute("update ai_config set name = 'Default' where name = ''")
-  } catch {
-  }
-  try {
-    await db.execute("update ai_config set is_active = 1 where name = 'Default' and is_active = 0")
-  } catch {
   }
 }

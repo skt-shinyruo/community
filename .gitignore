@@ -43,11 +43,6 @@ deploy/.env.cluster
 deploy/.local/
 deploy/backups/
 
-# Legacy path (kept to avoid surfacing existing local files as untracked)
-backend/deploy/.env
-backend/deploy/.local/
-backend/deploy/backups/
-
 ### Frontend ###
 frontend/node_modules/
 frontend/dist/

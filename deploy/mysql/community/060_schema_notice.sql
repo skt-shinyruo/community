@@ -13,49 +13,16 @@ create table if not exists notice_record (
   source_event_type varchar(64),
   source_relation_key varchar(255),
   status int default 0,
-  create_time timestamp null default current_timestamp
+  create_time timestamp null default current_timestamp,
+  index idx_notice_record_topic (topic),
+  index idx_notice_record_recipient_status (recipient_user_id, status),
+  index idx_notice_record_recipient_topic_time (recipient_user_id, topic, create_time)
 );
 
 create table if not exists notice_projection_event_log (
   source_event_id varchar(128) not null primary key,
   create_time datetime not null default current_timestamp
 );
-
-set @idx_notice_record_topic := (
-  select count(*)
-  from information_schema.statistics
-  where table_schema = database()
-    and table_name = 'notice_record'
-    and index_name = 'idx_notice_record_topic'
-);
-set @sql := if(@idx_notice_record_topic = 0, 'create index idx_notice_record_topic on notice_record(topic)', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @idx_notice_record_recipient_status := (
-  select count(*)
-  from information_schema.statistics
-  where table_schema = database()
-    and table_name = 'notice_record'
-    and index_name = 'idx_notice_record_recipient_status'
-);
-set @sql := if(@idx_notice_record_recipient_status = 0, 'create index idx_notice_record_recipient_status on notice_record(recipient_user_id, status)', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
-set @idx_notice_record_recipient_topic_time := (
-  select count(*)
-  from information_schema.statistics
-  where table_schema = database()
-    and table_name = 'notice_record'
-    and index_name = 'idx_notice_record_recipient_topic_time'
-);
-set @sql := if(@idx_notice_record_recipient_topic_time = 0, 'create index idx_notice_record_recipient_topic_time on notice_record(recipient_user_id, topic, create_time)', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
 
 
 -- --------------------------------------------------------------------

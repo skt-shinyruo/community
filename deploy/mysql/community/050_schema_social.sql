@@ -11,33 +11,9 @@ create table if not exists social_like (
   entity_user_id binary(16) null,
   created_at timestamp not null default current_timestamp,
   primary key (user_id, entity_type, entity_id),
-  index idx_like_entity (entity_type, entity_id)
+  index idx_like_entity (entity_type, entity_id),
+  index idx_like_entity_user (entity_type, entity_id, user_id)
 );
-
-set @col_like_entity_user_id := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'social_like'
-    and column_name = 'entity_user_id'
-);
-set @sql := if(@col_like_entity_user_id = 0, 'alter table social_like add column entity_user_id binary(16) null after entity_id', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
-
--- social_like 扫描索引（idempotent）：用于按 (entity_type, entity_id, user_id) keyset 分页（运维排查 / scan 接口）
-set @idx_like_entity_user := (
-  select count(*)
-  from information_schema.statistics
-  where table_schema = database()
-    and table_name = 'social_like'
-    and index_name = 'idx_like_entity_user'
-);
-set @sql := if(@idx_like_entity_user = 0, 'create index idx_like_entity_user on social_like(entity_type, entity_id, user_id)', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
 
 -- 用户获赞数（计数 SSOT）：由写路径在“新增点赞/取消点赞”时原子增减。
 create table if not exists social_user_like_count (
@@ -64,18 +40,6 @@ create table if not exists social_block (
   primary key (user_id, target_user_id),
   index idx_block_user_created (user_id, created_at)
 );
-
-set @col_social_block_version := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'social_block'
-    and column_name = 'version'
-);
-set @sql := if(@col_social_block_version = 0, 'alter table social_block add column version bigint not null default 0 after created_at', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
 
 create table if not exists social_block_version_counter (
   id int primary key,

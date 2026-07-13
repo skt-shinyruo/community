@@ -53,7 +53,8 @@ class FakeMetadataDb {
       demo_batch: [],
       demo_job: [],
       demo_batch_target: [],
-      demo_entity_ref: []
+      demo_entity_ref: [],
+      ai_config: []
     }
     this.nextIds = {
       demo_batch: 1,
@@ -63,20 +64,6 @@ class FakeMetadataDb {
     }
     this.failOnTargetKey = null
     this.failOnEntityKey = null
-    this.aiConfigColumns = new Set([
-      'id',
-      'name',
-      'provider',
-      'base_url',
-      'api_key',
-      'model',
-      'enabled',
-      'is_active',
-      'timeout_ms',
-      'max_items_per_job',
-      'created_at',
-      'updated_at'
-    ])
   }
 
   async execute(sql, params = []) {
@@ -134,27 +121,8 @@ function executeOnState(state, sql, params) {
     return { affectedRows: 0 }
   }
 
-  if (normalized.startsWith('alter table ai_config add column ')) {
-    const columnMatch = normalized.match(/alter table ai_config add column ([a-z_]+)/u)
-    if (columnMatch) {
-      state.aiConfigColumns.add(columnMatch[1])
-    }
-    return { affectedRows: 0 }
-  }
-
-  if (normalized === 'alter table ai_config drop index uk_ai_config_singleton') {
-    return { affectedRows: 0 }
-  }
-
   if (normalized.startsWith('insert into ai_config ')) {
-    return { affectedRows: 1 }
-  }
-
-  if (normalized.startsWith("update ai_config set name = 'default' where name = ''")) {
-    return { affectedRows: 1 }
-  }
-
-  if (normalized.startsWith("update ai_config set is_active = 1 where name = 'default' and is_active = 0")) {
+    state.tables.ai_config.push({ id: normalizeDbId(params[0]), name: params[1] })
     return { affectedRows: 1 }
   }
 
@@ -336,12 +304,11 @@ function executeOnState(state, sql, params) {
 function queryOnState(state, sql, params) {
   const normalized = normalizeSql(sql)
 
-  if (normalized === 'show columns from ai_config') {
-    return [...state.aiConfigColumns].map((Field) => ({ Field }))
-  }
-
   if (normalized === 'select id from ai_config where name = ? limit 1') {
-    return []
+    return state.tables.ai_config
+      .filter((row) => row.name === params[0])
+      .slice(0, 1)
+      .map((row) => ({ id: row.id }))
   }
 
   if (
@@ -436,6 +403,11 @@ test('bootstrapDemoSchema DDL matches the deploy community metadata schema and r
     schemaStatements.map(normalizeSql)
   )
   assert.deepEqual(bootstrapOrder.slice(0, 2), ['010_schema_shared.sql', '011_schema_demo_metadata.sql'])
+  assert.equal(db.tables.ai_config.length, 1)
+
+  await bootstrapDemoSchema(db)
+
+  assert.equal(db.tables.ai_config.length, 1)
 })
 
 test('batch and job repositories return stable ISO timestamps and enforce valid state transitions', async () => {

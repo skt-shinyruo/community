@@ -36,9 +36,9 @@ class IdempotencyGuardStoreFailureTest {
     @Test
     void executeRequiredShouldExtendProcessingAndReturnConflictWhenSaveSuccessFails() {
         IdempotencyStore store = mock(IdempotencyStore.class);
-        when(store.tryAcquireProcessing(anyString(), any(), anyString(), any(Duration.class))).thenReturn(true);
+        when(store.tryAcquireProcessing(anyString(), any(), anyString(), eq("hash-1"), any(Duration.class))).thenReturn(true);
         doThrow(new RuntimeException("redis down"))
-                .when(store).saveSuccess(anyString(), any(), anyString(), anyString(), any(Duration.class));
+                .when(store).saveSuccess(anyString(), any(), anyString(), anyString(), anyString(), any(Duration.class));
 
         IdempotencyProperties properties = new IdempotencyProperties();
         properties.setSuccessTtl(Duration.ofMinutes(10));
@@ -46,7 +46,7 @@ class IdempotencyGuardStoreFailureTest {
         IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, properties);
         AtomicInteger supplierCalls = new AtomicInteger();
 
-        assertThatThrownBy(() -> guard.executeRequired("op", USER_ID, "k1", String.class, () -> {
+        assertThatThrownBy(() -> guard.executeRequired("op", USER_ID, "k1", "hash-1", null, String.class, () -> {
             supplierCalls.incrementAndGet();
             return "OK";
         }))
@@ -118,16 +118,16 @@ class IdempotencyGuardStoreFailureTest {
     @Test
     void executeRequiredShouldSaveSuccessOnlyAfterTransactionCommit() {
         IdempotencyStore store = mock(IdempotencyStore.class);
-        when(store.tryAcquireProcessing(anyString(), any(), anyString(), any(Duration.class))).thenReturn(true);
+        when(store.tryAcquireProcessing(anyString(), any(), anyString(), eq("hash-1"), any(Duration.class))).thenReturn(true);
         IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
 
         TransactionSynchronizationManager.initSynchronization();
         TransactionSynchronizationManager.setActualTransactionActive(true);
         try {
-            String result = guard.executeRequired("op", USER_ID, "k1", String.class, () -> "OK");
+            String result = guard.executeRequired("op", USER_ID, "k1", "hash-1", null, String.class, () -> "OK");
 
             assertThat(result).isEqualTo("OK");
-            verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), any(Duration.class));
+            verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), anyString(), any(Duration.class));
             for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
                 synchronization.afterCommit();
             }
@@ -136,24 +136,24 @@ class IdempotencyGuardStoreFailureTest {
             TransactionSynchronizationManager.setActualTransactionActive(false);
         }
 
-        verify(store).saveSuccess(eq("op"), eq(USER_ID), eq("k1"), eq("\"OK\""), any(Duration.class));
+        verify(store).saveSuccess(eq("op"), eq(USER_ID), eq("k1"), eq("hash-1"), eq("\"OK\""), any(Duration.class));
         verify(store, never()).delete(anyString(), any(), anyString());
     }
 
     @Test
     void executeRequiredShouldDeleteProcessingKeyWhenTransactionRollsBackAfterSupplierSucceeded() {
         IdempotencyStore store = mock(IdempotencyStore.class);
-        when(store.tryAcquireProcessing(anyString(), any(), anyString(), any(Duration.class))).thenReturn(true);
+        when(store.tryAcquireProcessing(anyString(), any(), anyString(), eq("hash-1"), any(Duration.class))).thenReturn(true);
         IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
 
         TransactionSynchronizationManager.initSynchronization();
         TransactionSynchronizationManager.setActualTransactionActive(true);
         try {
-            String result = guard.executeRequired("op", USER_ID, "k1", String.class, () -> "OK");
+            String result = guard.executeRequired("op", USER_ID, "k1", "hash-1", null, String.class, () -> "OK");
 
             assertThat(result).isEqualTo("OK");
-            verify(store).tryAcquireProcessing(eq("op"), eq(USER_ID), eq("k1"), any(Duration.class));
-            verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), any(Duration.class));
+            verify(store).tryAcquireProcessing(eq("op"), eq(USER_ID), eq("k1"), eq("hash-1"), any(Duration.class));
+            verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), anyString(), any(Duration.class));
             verify(store, never()).delete(anyString(), any(), anyString());
         } finally {
             try {
@@ -166,8 +166,8 @@ class IdempotencyGuardStoreFailureTest {
             }
         }
 
-        verify(store).tryAcquireProcessing(eq("op"), eq(USER_ID), eq("k1"), any(Duration.class));
+        verify(store).tryAcquireProcessing(eq("op"), eq(USER_ID), eq("k1"), eq("hash-1"), any(Duration.class));
         verify(store).delete(eq("op"), eq(USER_ID), eq("k1"));
-        verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), any(Duration.class));
+        verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), anyString(), any(Duration.class));
     }
 }

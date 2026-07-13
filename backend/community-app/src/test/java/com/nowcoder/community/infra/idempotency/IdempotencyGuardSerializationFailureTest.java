@@ -25,15 +25,15 @@ class IdempotencyGuardSerializationFailureTest {
         UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000001");
 
         IdempotencyStore store = mock(IdempotencyStore.class);
-        when(store.tryAcquireProcessing(anyString(), any(UUID.class), anyString(), any(Duration.class))).thenReturn(true);
+        when(store.tryAcquireProcessing(anyString(), any(UUID.class), anyString(), eq("hash-1"), any(Duration.class))).thenReturn(true);
 
         IdempotencyGuard guard = new IdempotencyGuard(jsonCodec, store, null, new IdempotencyProperties());
 
         Object result = new Object();
-        Object returned = guard.executeRequired("op", userId, "k1", Object.class, () -> result);
+        Object returned = guard.executeRequired("op", userId, "k1", "hash-1", null, Object.class, () -> result);
 
         assertThat(returned).isSameAs(result);
-        verify(store).saveSuccess(eq("op"), eq(userId), eq("k1"), eq("null"), any(Duration.class));
+        verify(store).saveSuccess(eq("op"), eq(userId), eq("k1"), eq("hash-1"), eq("null"), any(Duration.class));
         verify(store, never()).delete(anyString(), any(UUID.class), anyString());
     }
 }

@@ -782,11 +782,6 @@ class CommentApplicationServiceTest {
         private final Map<String, Entry> entries = new HashMap<>();
 
         @Override
-        public boolean tryAcquireProcessing(String operation, UUID userId, String key, Duration ttl) {
-            return tryAcquireProcessing(operation, userId, key, null, ttl);
-        }
-
-        @Override
         public boolean tryAcquireProcessing(String operation, UUID userId, String key, String requestHash, Duration ttl) {
             String storageKey = storageKey(operation, userId, key);
             if (entries.containsKey(storageKey)) {
@@ -799,11 +794,6 @@ class CommentApplicationServiceTest {
         @Override
         public Entry get(String operation, UUID userId, String key) {
             return entries.get(storageKey(operation, userId, key));
-        }
-
-        @Override
-        public void saveSuccess(String operation, UUID userId, String key, String successJson, Duration ttl) {
-            saveSuccess(operation, userId, key, null, successJson, ttl);
         }
 
         @Override

@@ -31,7 +31,7 @@ class IdempotencyGuardTtlTest {
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOps = (ValueOperations<String, String>) mock(ValueOperations.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        when(valueOps.setIfAbsent(anyString(), eq("P"), eq(Duration.ofSeconds(45)))).thenReturn(Boolean.TRUE);
+        when(valueOps.setIfAbsent(anyString(), eq("P\nhash-1"), eq(Duration.ofSeconds(45)))).thenReturn(Boolean.TRUE);
 
         @SuppressWarnings("unchecked")
         ObjectProvider<MeterRegistry> meterRegistryProvider = (ObjectProvider<MeterRegistry>) mock(ObjectProvider.class);
@@ -49,9 +49,9 @@ class IdempotencyGuardTtlTest {
         );
         UUID userId = uuid(1);
 
-        guard.executeRequired("op", userId, "k1", String.class, () -> "OK");
+        guard.executeRequired("op", userId, "k1", "hash-1", null, String.class, () -> "OK");
 
-        verify(valueOps).setIfAbsent(anyString(), eq("P"), eq(Duration.ofSeconds(45)));
+        verify(valueOps).setIfAbsent(anyString(), eq("P\nhash-1"), eq(Duration.ofSeconds(45)));
         verify(valueOps).set(anyString(), anyString(), eq(Duration.ofMinutes(10)));
     }
 }

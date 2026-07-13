@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -40,7 +41,8 @@ class RedisIdempotencyStoreTest {
         verify(redisTemplate).execute(scriptCaptor.capture(), eq(List.of("idem:op:" + USER_ID + ":k1")), eq("45000"));
         assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);
         DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
-        assertThat(script.getScriptAsString()).contains("redis.call('get', KEYS[1]) == 'P'");
+        assertThat(script.getScriptAsString()).contains("string.sub(value, 1, 2) == 'P\\n'");
+        assertThat(script.getScriptAsString()).contains("string.char(10)", "string.char(13)");
         assertThat(script.getScriptAsString()).contains("redis.call('pexpire'");
     }
 
@@ -72,5 +74,53 @@ class RedisIdempotencyStoreTest {
         assertThat(entry.status()).isEqualTo(IdempotencyStore.Status.SUCCESS);
         assertThat(entry.requestHash()).isEqualTo("hash-a");
         assertThat(entry.successJson()).isEqualTo("\"OK\"");
+    }
+
+    @Test
+    void getShouldRejectLegacyValuesWithoutRequestHash() {
+        RedisIdempotencyStore store = new RedisIdempotencyStore(redisTemplate);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = (ValueOperations<String, String>) org.mockito.Mockito.mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("idem:wallet:recharge:" + USER_ID + ":k1"))
+                .thenReturn("P", "S\n\"OK\"");
+
+        assertThatThrownBy(() -> store.get("wallet:recharge", USER_ID, "k1"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("unknown idempotency state");
+        assertThatThrownBy(() -> store.get("wallet:recharge", USER_ID, "k1"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("unknown idempotency state");
+    }
+
+    @Test
+    void writesShouldRejectMissingRequestHash() {
+        RedisIdempotencyStore store = new RedisIdempotencyStore(redisTemplate);
+
+        assertThatThrownBy(() -> store.tryAcquireProcessing("wallet:recharge", USER_ID, "k1", " ", Duration.ofSeconds(30)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requestHash");
+        assertThatThrownBy(() -> store.saveSuccess("wallet:recharge", USER_ID, "k1", null, "{}", Duration.ofHours(1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requestHash");
+        assertThatThrownBy(() -> store.tryAcquireProcessing(
+                "wallet:recharge",
+                USER_ID,
+                "k1",
+                "hash-a\ninjected",
+                Duration.ofSeconds(30)
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("line break");
+        assertThatThrownBy(() -> store.saveSuccess(
+                "wallet:recharge",
+                USER_ID,
+                "k1",
+                "h".repeat(65),
+                "{}",
+                Duration.ofHours(1)
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("too long");
     }
 }

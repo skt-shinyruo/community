@@ -84,7 +84,7 @@ create table if not exists http_idempotency (
   operation varchar(64) not null,
   user_id binary(16) not null,
   idem_key varchar(128) not null,
-  request_hash varchar(64) null,
+  request_hash varchar(64) not null,
   status varchar(16) not null,
   response_json mediumtext null,
   processing_expires_at timestamp null,
@@ -95,18 +95,6 @@ create table if not exists http_idempotency (
   key idx_http_idem_processing_expires (processing_expires_at, id),
   key idx_http_idem_success_expires (success_expires_at, id)
 );
-
-set @col_http_idem_request_hash := (
-  select count(*)
-  from information_schema.columns
-  where table_schema = database()
-    and table_name = 'http_idempotency'
-    and column_name = 'request_hash'
-);
-set @sql := if(@col_http_idem_request_hash = 0, 'alter table http_idempotency add column request_hash varchar(64) null after idem_key', 'select 1');
-prepare stmt from @sql;
-execute stmt;
-deallocate prepare stmt;
 
 -- Reliability governance audit. Governance audit records operational actions only;
 -- they must not store business payloads, tokens, cookies, or raw user content.

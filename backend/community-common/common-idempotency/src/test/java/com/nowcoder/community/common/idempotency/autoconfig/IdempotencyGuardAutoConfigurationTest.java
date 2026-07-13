@@ -153,7 +153,7 @@ class IdempotencyGuardAutoConfigurationTest {
     private static class NoopIdempotencyStore implements IdempotencyStore {
 
         @Override
-        public boolean tryAcquireProcessing(String operation, UUID userId, String key, Duration ttl) {
+        public boolean tryAcquireProcessing(String operation, UUID userId, String key, String requestHash, Duration ttl) {
             return true;
         }
 
@@ -163,7 +163,7 @@ class IdempotencyGuardAutoConfigurationTest {
         }
 
         @Override
-        public void saveSuccess(String operation, UUID userId, String key, String successJson, Duration ttl) {
+        public void saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl) {
         }
 
         @Override

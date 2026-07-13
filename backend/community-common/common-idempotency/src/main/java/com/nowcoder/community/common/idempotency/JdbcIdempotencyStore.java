@@ -39,11 +39,6 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
     }
 
     @Override
-    public boolean tryAcquireProcessing(String operation, UUID userId, String key, Duration ttl) {
-        return tryAcquireProcessing(operation, userId, key, null, ttl);
-    }
-
-    @Override
     public boolean tryAcquireProcessing(String operation, UUID userId, String key, String requestHash, Duration ttl) {
         String op = normalizeOp(operation);
         String k = normalizeKey(key);
@@ -127,11 +122,6 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                 BinaryUuidCodec.toBytes(userId),
                 k
         );
-    }
-
-    @Override
-    public void saveSuccess(String operation, UUID userId, String key, String successJson, Duration ttl) {
-        saveSuccess(operation, userId, key, null, successJson, ttl);
     }
 
     @Override
@@ -262,6 +252,6 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
     }
 
     private String normalizeHash(String requestHash) {
-        return StringUtils.hasText(requestHash) ? requestHash.trim() : null;
+        return IdempotencyStore.requireRequestHash(requestHash);
     }
 }

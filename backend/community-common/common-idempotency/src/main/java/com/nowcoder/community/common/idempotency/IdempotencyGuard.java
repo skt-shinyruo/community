@@ -51,10 +51,6 @@ public class IdempotencyGuard {
         this.properties = properties == null ? new IdempotencyProperties() : properties;
     }
 
-    public <T> T executeRequired(String operation, UUID userId, String idempotencyKey, Class<T> type, Supplier<T> supplier) {
-        return execute(operation, userId, idempotencyKey, null, null, type, supplier, true);
-    }
-
     public <T> T executeRequired(String operation,
                                  UUID userId,
                                  String idempotencyKey,
@@ -63,10 +59,6 @@ public class IdempotencyGuard {
                                  Class<T> type,
                                  Supplier<T> supplier) {
         return execute(operation, userId, idempotencyKey, requestHash, replayConflictCode, type, supplier, true);
-    }
-
-    public <T> T execute(String operation, UUID userId, String idempotencyKey, Class<T> type, Supplier<T> supplier, boolean failClosedOnStoreError) {
-        return execute(operation, userId, idempotencyKey, null, null, type, supplier, failClosedOnStoreError);
     }
 
     private <T> T execute(String operation,
@@ -106,9 +98,7 @@ public class IdempotencyGuard {
 
         boolean acquired;
         try {
-            acquired = hash == null
-                    ? store.tryAcquireProcessing(op, userId, key, processingTtl)
-                    : store.tryAcquireProcessing(op, userId, key, hash, processingTtl);
+            acquired = store.tryAcquireProcessing(op, userId, key, hash, processingTtl);
         } catch (RuntimeException e) {
             record(operation, "store_error");
             if (failClosedOnStoreError) {
@@ -162,7 +152,7 @@ public class IdempotencyGuard {
             record(operation, "race_miss");
             throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等状态读取失败");
         }
-        if (hash != null && !hash.equals(existing.requestHash())) {
+        if (!hash.equals(existing.requestHash())) {
             record(operation, "replay_conflict");
             throw replayConflict(replayConflictCode);
         }
@@ -185,10 +175,13 @@ public class IdempotencyGuard {
 
     private String normalizeRequestHash(String requestHash) {
         if (!StringUtils.hasText(requestHash)) {
-            return null;
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "requestHash 不能为空");
         }
         String hash = requestHash.trim();
-        if (hash.length() > 128) {
+        if (hash.indexOf('\r') >= 0 || hash.indexOf('\n') >= 0) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "requestHash 格式非法");
+        }
+        if (hash.length() > IdempotencyStore.MAX_REQUEST_HASH_LENGTH) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "requestHash 过长");
         }
         return hash;
@@ -268,10 +261,6 @@ public class IdempotencyGuard {
                                String requestHash,
                                String successJson,
                                Duration successTtl) {
-        if (requestHash == null) {
-            store.saveSuccess(operation, userId, key, successJson, successTtl);
-            return;
-        }
         store.saveSuccess(operation, userId, key, requestHash, successJson, successTtl);
     }
 

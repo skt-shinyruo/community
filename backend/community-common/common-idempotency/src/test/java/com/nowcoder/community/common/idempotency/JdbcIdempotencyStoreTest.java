@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -29,7 +30,7 @@ class JdbcIdempotencyStoreTest {
         JdbcIdempotencyStore store = new JdbcIdempotencyStore(jdbcTemplate);
         when(jdbcTemplate.update(any(String.class), any(Object[].class))).thenReturn(1);
 
-        boolean acquired = store.tryAcquireProcessing("post:create", USER_ID, "idem-1", Duration.ofSeconds(30));
+        boolean acquired = store.tryAcquireProcessing("post:create", USER_ID, "idem-1", "hash-a", Duration.ofSeconds(30));
 
         assertThat(acquired).isTrue();
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
@@ -59,5 +60,36 @@ class JdbcIdempotencyStoreTest {
 
         assertThat(sqlCaptor.getValue()).contains("request_hash");
         assertThat(argsCaptor.getValue()).contains("hash-a");
+    }
+
+    @Test
+    void writesShouldRejectMissingRequestHash() {
+        JdbcIdempotencyStore store = new JdbcIdempotencyStore(jdbcTemplate);
+
+        assertThatThrownBy(() -> store.tryAcquireProcessing("post:create", USER_ID, "idem-1", " ", Duration.ofSeconds(30)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requestHash");
+        assertThatThrownBy(() -> store.saveSuccess("post:create", USER_ID, "idem-1", null, "{}", Duration.ofHours(1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requestHash");
+        assertThatThrownBy(() -> store.tryAcquireProcessing(
+                "post:create",
+                USER_ID,
+                "idem-1",
+                "hash-a\rhash-b",
+                Duration.ofSeconds(30)
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("line break");
+        assertThatThrownBy(() -> store.saveSuccess(
+                "post:create",
+                USER_ID,
+                "idem-1",
+                "h".repeat(65),
+                "{}",
+                Duration.ofHours(1)
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("too long");
     }
 }

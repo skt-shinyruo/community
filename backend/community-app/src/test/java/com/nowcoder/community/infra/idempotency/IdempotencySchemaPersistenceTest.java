@@ -122,6 +122,22 @@ class IdempotencySchemaPersistenceTest {
         assertThat(requestHash).isEqualTo("sha256-value");
     }
 
+    @Test
+    void httpIdempotencyShouldRequireRequestHash() {
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                """
+                        insert into http_idempotency(
+                          id, operation, user_id, idem_key, request_hash, status
+                        ) values (?, ?, ?, ?, null, ?)
+                        """,
+                bytes(uuid(852)),
+                "wallet:recharge",
+                bytes(uuid(1)),
+                "idem-key",
+                "P"
+        )).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     private void insertRecharge(UUID orderId, String requestId, UUID userId, long amount) {
         jdbcTemplate.update(
                 "insert into recharge_order(order_id, request_id, user_id, amount, status) values (?, ?, ?, ?, ?)",

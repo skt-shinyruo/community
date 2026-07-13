@@ -85,7 +85,7 @@ class IdempotencyGuardFingerprintTest {
                     assertThat(error.getErrorCode().getHttpStatus()).isEqualTo(409);
                 });
         assertThat(supplierCalls).hasValue(0);
-        verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), any(Duration.class));
+        verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), anyString(), any(Duration.class));
     }
 
     @Test
@@ -108,5 +108,31 @@ class IdempotencyGuardFingerprintTest {
         ))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode().getCode()).isEqualTo(409));
+    }
+
+    @Test
+    void executeRequiredShouldRejectFingerprintLongerThanPersistenceContract() {
+        IdempotencyStore store = mock(IdempotencyStore.class);
+        IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
+
+        assertThatThrownBy(() -> guard.executeRequired(
+                "wallet:recharge",
+                USER_ID,
+                "idem-1",
+                "h".repeat(65),
+                new SimpleErrorCode(17007, "replay conflict", 409),
+                String.class,
+                () -> "NEW"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("requestHash 过长");
+
+        verify(store, never()).tryAcquireProcessing(
+                anyString(),
+                any(),
+                anyString(),
+                anyString(),
+                any(Duration.class)
+        );
     }
 }

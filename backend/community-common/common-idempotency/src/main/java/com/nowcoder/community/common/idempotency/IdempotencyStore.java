@@ -10,24 +10,18 @@ import java.util.UUID;
  */
 public interface IdempotencyStore {
 
+    int MAX_REQUEST_HASH_LENGTH = 64;
+
     /**
      * 尝试占用幂等 key（初始化为 PROCESSING）。
      *
      * @return true 表示占用成功（本次为 first-time）；false 表示 key 已存在（可能是并发/重复）
      */
-    boolean tryAcquireProcessing(String operation, UUID userId, String key, Duration ttl);
-
-    default boolean tryAcquireProcessing(String operation, UUID userId, String key, String requestHash, Duration ttl) {
-        return tryAcquireProcessing(operation, userId, key, ttl);
-    }
+    boolean tryAcquireProcessing(String operation, UUID userId, String key, String requestHash, Duration ttl);
 
     Entry get(String operation, UUID userId, String key);
 
-    void saveSuccess(String operation, UUID userId, String key, String successJson, Duration ttl);
-
-    default void saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl) {
-        saveSuccess(operation, userId, key, successJson, ttl);
-    }
+    void saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl);
 
     void extendProcessing(String operation, UUID userId, String key, Duration ttl);
 
@@ -45,8 +39,25 @@ public interface IdempotencyStore {
      */
     record Entry(Status status, String successJson, String requestHash) {
 
-        public Entry(Status status, String successJson) {
-            this(status, successJson, null);
+        public Entry {
+            if (status == null) {
+                throw new IllegalArgumentException("status is null");
+            }
+            requestHash = requireRequestHash(requestHash);
         }
+    }
+
+    static String requireRequestHash(String requestHash) {
+        if (requestHash == null || requestHash.isBlank()) {
+            throw new IllegalArgumentException("requestHash is blank");
+        }
+        String normalized = requestHash.trim();
+        if (normalized.indexOf('\r') >= 0 || normalized.indexOf('\n') >= 0) {
+            throw new IllegalArgumentException("requestHash contains a line break");
+        }
+        if (normalized.length() > MAX_REQUEST_HASH_LENGTH) {
+            throw new IllegalArgumentException("requestHash is too long");
+        }
+        return normalized;
     }
 }

@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ImMessageOutboxEnqueuerTest {
@@ -39,10 +40,10 @@ class ImMessageOutboxEnqueuerTest {
     );
 
     @Test
-    void enqueuePrivateRejectedUsesAttemptIdentity() {
+    void enqueuePrivateRejectedAcceptsCanonicalAttemptIdentity() {
         UUID fromUserId = uuid(1);
         PrivateMessageRejectedEvent event = new PrivateMessageRejectedEvent(
-                "legacy-event-id-ignored",
+                "im:psr:" + digestAttempt("req-reject-private", "c-reject-private", fromUserId),
                 "req-reject-private",
                 "c-reject-private",
                 fromUserId,
@@ -62,10 +63,10 @@ class ImMessageOutboxEnqueuerTest {
     }
 
     @Test
-    void enqueueRoomRejectedUsesAttemptIdentity() {
+    void enqueueRoomRejectedAcceptsCanonicalAttemptIdentity() {
         UUID fromUserId = uuid(11);
         RoomMessageRejectedEvent event = new RoomMessageRejectedEvent(
-                "legacy-event-id-ignored",
+                "im:rsr:" + digestAttempt("req-reject-room", "c-reject-room", fromUserId),
                 "req-reject-room",
                 "c-reject-room",
                 fromUserId,
@@ -81,6 +82,30 @@ class ImMessageOutboxEnqueuerTest {
         ArgumentCaptor<String> eventId = ArgumentCaptor.forClass(String.class);
         verify(store).enqueue(eventId.capture(), org.mockito.ArgumentCaptor.forClass(String.class).capture(), org.mockito.ArgumentCaptor.forClass(String.class).capture(), org.mockito.ArgumentCaptor.forClass(String.class).capture());
         assertThat(eventId.getValue()).isEqualTo("im:rsr:" + digestAttempt("req-reject-room", "c-reject-room", fromUserId));
+    }
+
+    @Test
+    void enqueuePrivateRejectedRejectsNonCanonicalEventId() {
+        UUID fromUserId = uuid(15);
+        PrivateMessageRejectedEvent event = new PrivateMessageRejectedEvent(
+                "non-canonical-event-id",
+                "req-reject-mismatch",
+                "c-reject-mismatch",
+                fromUserId,
+                uuid(16),
+                "conv-mismatch",
+                403,
+                "policy_denied",
+                "denied",
+                456L
+        );
+
+        assertThatThrownBy(() -> enqueuer.enqueuePrivateRejected(event))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("non-canonical IM eventId")
+                .hasMessageContaining("non-canonical-event-id");
+
+        verifyNoInteractions(store);
     }
 
     @Test
@@ -101,7 +126,7 @@ class ImMessageOutboxEnqueuerTest {
                 "im.event.room-member-changed"
         );
         PrivateMessageRejectedEvent event = new PrivateMessageRejectedEvent(
-                "legacy-event-id-ignored",
+                "im:psr:" + digestAttempt("req-reject-serialize", "c-reject-serialize", fromUserId),
                 "req-reject-serialize",
                 "c-reject-serialize",
                 fromUserId,

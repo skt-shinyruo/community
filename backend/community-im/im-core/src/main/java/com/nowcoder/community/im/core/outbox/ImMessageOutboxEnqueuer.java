@@ -82,7 +82,7 @@ public class ImMessageOutboxEnqueuer {
         if (event == null) {
             return;
         }
-        PrivateMessageCommittedEvent normalized = normalizedPrivateCommitted(event);
+        PrivateMessageCommittedEvent normalized = requiredCanonicalPrivateCommitted(event);
         enqueue(
                 normalized.eventId(),
                 privateCommittedTopic,
@@ -96,7 +96,7 @@ public class ImMessageOutboxEnqueuer {
         if (event == null) {
             return;
         }
-        RoomMessageCommittedEvent normalized = normalizedRoomCommitted(event);
+        RoomMessageCommittedEvent normalized = requiredCanonicalRoomCommitted(event);
         enqueue(
                 normalized.eventId(),
                 roomCommittedTopic,
@@ -110,7 +110,7 @@ public class ImMessageOutboxEnqueuer {
         if (event == null) {
             return;
         }
-        PrivateMessageRejectedEvent normalized = normalizedPrivateRejected(event);
+        PrivateMessageRejectedEvent normalized = requiredCanonicalPrivateRejected(event);
         enqueue(
                 normalized.eventId(),
                 privateRejectedTopic,
@@ -124,7 +124,7 @@ public class ImMessageOutboxEnqueuer {
         if (event == null) {
             return;
         }
-        RoomMessageRejectedEvent normalized = normalizedRoomRejected(event);
+        RoomMessageRejectedEvent normalized = requiredCanonicalRoomRejected(event);
         enqueue(
                 normalized.eventId(),
                 roomRejectedTopic,
@@ -161,75 +161,42 @@ public class ImMessageOutboxEnqueuer {
         return eventId.trim();
     }
 
-    private PrivateMessageCommittedEvent normalizedPrivateCommitted(PrivateMessageCommittedEvent event) {
-        String eventId = ImEventIds.privateSendResult(event.requestId(), event.clientMsgId(), event.fromUserId());
-        if (eventId.equals(event.eventId())) {
-            return event;
-        }
-        return new PrivateMessageCommittedEvent(
-                eventId,
-                event.requestId(),
-                event.clientMsgId(),
-                event.fromUserId(),
-                event.toUserId(),
-                event.conversationId(),
-                event.messageId(),
-                event.seq(),
-                event.createdAtEpochMs()
+    private PrivateMessageCommittedEvent requiredCanonicalPrivateCommitted(PrivateMessageCommittedEvent event) {
+        requireCanonicalEventId(
+                event.eventId(),
+                ImEventIds.privateSendResult(event.requestId(), event.clientMsgId(), event.fromUserId())
         );
+        return event;
     }
 
-    private RoomMessageCommittedEvent normalizedRoomCommitted(RoomMessageCommittedEvent event) {
-        String eventId = ImEventIds.roomSendResult(event.requestId(), event.clientMsgId(), event.fromUserId());
-        if (eventId.equals(event.eventId())) {
-            return event;
-        }
-        return new RoomMessageCommittedEvent(
-                eventId,
-                event.requestId(),
-                event.clientMsgId(),
-                event.fromUserId(),
-                event.roomId(),
-                event.messageId(),
-                event.seq(),
-                event.createdAtEpochMs()
+    private RoomMessageCommittedEvent requiredCanonicalRoomCommitted(RoomMessageCommittedEvent event) {
+        requireCanonicalEventId(
+                event.eventId(),
+                ImEventIds.roomSendResult(event.requestId(), event.clientMsgId(), event.fromUserId())
         );
+        return event;
     }
 
-    private PrivateMessageRejectedEvent normalizedPrivateRejected(PrivateMessageRejectedEvent event) {
-        String eventId = ImEventIds.privateSendResult(event.requestId(), event.clientMsgId(), event.fromUserId());
-        if (eventId.equals(event.eventId())) {
-            return event;
-        }
-        return new PrivateMessageRejectedEvent(
-                eventId,
-                event.requestId(),
-                event.clientMsgId(),
-                event.fromUserId(),
-                event.toUserId(),
-                event.conversationId(),
-                event.code(),
-                event.reasonCode(),
-                event.message(),
-                event.createdAtEpochMs()
+    private PrivateMessageRejectedEvent requiredCanonicalPrivateRejected(PrivateMessageRejectedEvent event) {
+        requireCanonicalEventId(
+                event.eventId(),
+                ImEventIds.privateSendResult(event.requestId(), event.clientMsgId(), event.fromUserId())
         );
+        return event;
     }
 
-    private RoomMessageRejectedEvent normalizedRoomRejected(RoomMessageRejectedEvent event) {
-        String eventId = ImEventIds.roomSendResult(event.requestId(), event.clientMsgId(), event.fromUserId());
-        if (eventId.equals(event.eventId())) {
-            return event;
-        }
-        return new RoomMessageRejectedEvent(
-                eventId,
-                event.requestId(),
-                event.clientMsgId(),
-                event.fromUserId(),
-                event.roomId(),
-                event.code(),
-                event.reasonCode(),
-                event.message(),
-                event.createdAtEpochMs()
+    private RoomMessageRejectedEvent requiredCanonicalRoomRejected(RoomMessageRejectedEvent event) {
+        requireCanonicalEventId(
+                event.eventId(),
+                ImEventIds.roomSendResult(event.requestId(), event.clientMsgId(), event.fromUserId())
         );
+        return event;
+    }
+
+    private void requireCanonicalEventId(String actualEventId, String expectedEventId) {
+        if (!expectedEventId.equals(actualEventId)) {
+            throw new IllegalArgumentException(
+                    "non-canonical IM eventId: expected=" + expectedEventId + ", actual=" + actualEventId);
+        }
     }
 }

@@ -279,7 +279,7 @@ describe('Unified market views', () => {
 
     expect(wrapper.text()).toContain('货不对板')
     expect(wrapper.text()).toContain('实物商品')
-    expect(wrapper.text()).toContain('资金状态')
+    expect(wrapper.text()).not.toContain('资金状态')
     expect(wrapper.text()).toContain('需要管理员裁定')
 
     await wrapper.find('button').trigger('click')

@@ -216,7 +216,7 @@ const deliveryContents = computed(() => (Array.isArray(order.value?.deliveryCont
 const shipment = computed(() => order.value?.shipment || null)
 const normalizedStatus = computed(() => String(order.value?.status || '').trim().toUpperCase())
 const normalizedGoodsType = computed(() => String(order.value?.goodsType || '').trim().toUpperCase())
-const normalizedDeliveryMode = computed(() => String(order.value?.deliveryModeSnapshot || order.value?.deliveryMode || '').trim().toUpperCase())
+const normalizedDeliveryMode = computed(() => String(order.value?.deliveryModeSnapshot || '').trim().toUpperCase())
 const isBuyer = computed(() => sameOpaqueId(auth.userId, order.value?.buyerUserId))
 const isSeller = computed(() => sameOpaqueId(auth.userId, order.value?.sellerUserId))
 const canDeliver = computed(() => {

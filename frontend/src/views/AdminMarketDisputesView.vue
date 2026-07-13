@@ -15,8 +15,8 @@
         <div>
           <strong>争议 #{{ item.disputeId }}</strong>
           <p>{{ item.goodsTypeLabel }} · {{ item.reason }} · {{ item.statusLabel }}</p>
-          <p>资金状态：{{ item.fundStateLabel }} · {{ item.nextActionLabel }}</p>
-          <p v-if="item.buyerClaim || item.sellerClaim">买家说明：{{ item.buyerClaim || '未填写' }} · 卖家说明：{{ item.sellerClaim || '未填写' }}</p>
+          <p>{{ item.nextActionLabel }}</p>
+          <p v-if="item.buyerNote || item.sellerNote">买家说明：{{ item.buyerNote || '未填写' }} · 卖家说明：{{ item.sellerNote || '未填写' }}</p>
         </div>
         <div class="market-inline-actions">
           <UiButton variant="secondary" :disabled="submittingId === item.disputeId" @click="resolve(item.disputeId, 'refund')">

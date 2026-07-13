@@ -142,7 +142,7 @@ describe('Unified market order views', () => {
     expect(wrapper.findAll('.market-order-row')).toHaveLength(1)
     expect(wrapper.text()).toContain('虚拟商品')
     expect(wrapper.text()).toContain('待确认')
-    expect(wrapper.text()).toContain('资金状态待确认')
+    expect(wrapper.text()).toContain('托管中')
     expect(wrapper.text()).toContain('已交付')
     expect(wrapper.text()).toContain('等待买家确认完成')
   })

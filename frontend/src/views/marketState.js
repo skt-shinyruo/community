@@ -22,13 +22,6 @@ function goodsTypeLabel(goodsType) {
   return '未知类型'
 }
 
-function shipmentLabel(status) {
-  const normalized = normalizeStatus(status)
-  if (normalized === 'SHIPPED') return '已发货'
-  if (normalized === 'COMPLETED') return '已收货'
-  return '等待卖家发货'
-}
-
 function listingStatusLabel(status) {
   const normalized = normalizeStatus(status)
   if (normalized === 'ACTIVE') return '在售'
@@ -56,43 +49,65 @@ function trustLabel(status) {
 
 function orderStatusLabel(status) {
   const normalized = normalizeStatus(status)
+  if (normalized === 'ESCROW_PENDING') return '托管处理中'
   if (normalized === 'ESCROWED') return '已托管'
   if (normalized === 'DELIVERED') return '待确认'
   if (normalized === 'SHIPPED') return '已发货'
+  if (normalized === 'RELEASE_PENDING') return '放款处理中'
   if (normalized === 'COMPLETED') return '已完成'
+  if (normalized === 'REFUND_PENDING') return '退款处理中'
   if (normalized === 'CANCELLED') return '已取消'
+  if (normalized === 'ESCROW_CANCEL_PENDING') return '取消处理中'
+  if (normalized === 'ESCROW_FAILED') return '托管失败'
   if (normalized === 'DISPUTED') return '申诉中'
+  if (normalized === 'DISPUTE_REFUND_PENDING') return '争议退款处理中'
+  if (normalized === 'DISPUTE_RELEASE_PENDING') return '争议放款处理中'
   if (normalized === 'REFUNDED') return '已退款'
-  return '处理中'
+  return '状态待确认'
 }
 
 function fundsLabel(status) {
   const normalized = normalizeStatus(status)
-  if (normalized === 'ESCROWED' || normalized === 'PAID' || normalized === 'HELD') return '托管中'
-  if (normalized === 'ESCROW_PENDING' || normalized.endsWith('_PENDING')) return '处理中'
-  if (normalized === 'RELEASED' || normalized === 'COMPLETED') return '已放款'
+  if (normalized === 'ESCROW_PENDING') return '托管处理中'
+  if (normalized === 'ESCROW_CANCEL_PENDING') return '取消托管处理中'
+  if (normalized === 'ESCROW_FAILED') return '托管失败'
+  if (['ESCROWED', 'DELIVERED', 'SHIPPED', 'DISPUTED'].includes(normalized)) return '托管中'
+  if (['RELEASE_PENDING', 'DISPUTE_RELEASE_PENDING'].includes(normalized)) return '放款处理中'
+  if (['REFUND_PENDING', 'DISPUTE_REFUND_PENDING'].includes(normalized)) return '退款处理中'
+  if (normalized === 'COMPLETED') return '已放款'
   if (normalized === 'REFUNDED') return '已退款'
   if (normalized === 'CANCELLED') return '已取消'
   return '资金状态待确认'
 }
 
+function completedFulfillmentLabel(item) {
+  return String(item?.goodsType || '').trim().toUpperCase() === 'PHYSICAL' ? '已发货' : '已交付'
+}
+
 function fulfillmentStateLabel(item) {
-  const normalized = normalizeStatus(item?.fulfillmentStatus || item?.shipmentStatus || item?.status)
+  const normalized = normalizeStatus(item?.status)
   if (normalized === 'DELIVERED') return '已交付'
   if (normalized === 'SHIPPED') return '已发货'
+  if (normalized === 'RELEASE_PENDING') return completedFulfillmentLabel(item)
   if (normalized === 'COMPLETED') return '已完成'
-  if (normalized === 'DISPUTED') return '争议处理中'
-  if (String(item?.goodsType || '').trim().toUpperCase() === 'VIRTUAL') return deliveryLabel(item?.deliveryMode)
+  if (['DISPUTED', 'DISPUTE_REFUND_PENDING', 'DISPUTE_RELEASE_PENDING'].includes(normalized)) return '争议处理中'
+  if (String(item?.goodsType || '').trim().toUpperCase() === 'VIRTUAL') return deliveryLabel(item?.deliveryModeSnapshot)
   return '等待履约'
 }
 
 function nextOrderActionLabel(item) {
   const status = normalizeStatus(item?.status)
-  const fulfillment = normalizeStatus(item?.fulfillmentStatus || item?.shipmentStatus)
-  if (status === 'SHIPPED' || fulfillment === 'SHIPPED') return '等待买家确认收货'
-  if (status === 'DELIVERED' || fulfillment === 'DELIVERED') return '等待买家确认完成'
+  if (status === 'ESCROW_PENDING') return '等待资金托管'
+  if (status === 'ESCROW_CANCEL_PENDING') return '等待取消订单'
+  if (status === 'ESCROW_FAILED') return '资金托管失败'
+  if (status === 'SHIPPED') return '等待买家确认收货'
+  if (status === 'DELIVERED') return '等待买家确认完成'
   if (status === 'ESCROWED') return '等待卖家履约'
+  if (status === 'RELEASE_PENDING') return '等待放款完成'
+  if (status === 'REFUND_PENDING') return '等待退款完成'
   if (status === 'DISPUTED') return '等待争议处理'
+  if (status === 'DISPUTE_REFUND_PENDING') return '等待争议退款完成'
+  if (status === 'DISPUTE_RELEASE_PENDING') return '等待争议放款完成'
   if (status === 'COMPLETED') return '订单已完成'
   if (status === 'CANCELLED') return '订单已取消'
   if (status === 'REFUNDED') return '退款已完成'
@@ -106,20 +121,40 @@ function lifecycleStepState(active, complete = false) {
 
 function buildLifecycleSteps(item) {
   const status = normalizeStatus(item?.status)
-  const escrow = normalizeStatus(item?.escrowStatus || item?.fundState || item?.fundsStatus)
-  const fulfillment = normalizeStatus(item?.fulfillmentStatus || item?.shipmentStatus || item?.status)
-  const disputed = status === 'DISPUTED' || !!item?.disputeId || normalizeStatus(item?.disputeStatus, '') !== ''
+  const disputed = ['DISPUTED', 'DISPUTE_REFUND_PENDING', 'DISPUTE_RELEASE_PENDING'].includes(status)
   const complete = status === 'COMPLETED'
-  const cancelled = status === 'CANCELLED' || status === 'REFUNDED'
-  const escrowed = ['ESCROWED', 'PAID', 'HELD', 'RELEASED', 'COMPLETED'].includes(escrow) || ['ESCROWED', 'DELIVERED', 'SHIPPED', 'COMPLETED', 'DISPUTED'].includes(status)
-  const fulfilled = ['DELIVERED', 'SHIPPED', 'COMPLETED'].includes(fulfillment) || ['DELIVERED', 'SHIPPED', 'COMPLETED'].includes(status)
-  const confirmed = complete || cancelled
+  const terminal = ['COMPLETED', 'CANCELLED', 'ESCROW_FAILED', 'REFUNDED'].includes(status)
+  const escrowProcessing = ['ESCROW_PENDING', 'ESCROW_CANCEL_PENDING'].includes(status)
+  const escrowed = [
+    'ESCROWED',
+    'DELIVERED',
+    'SHIPPED',
+    'RELEASE_PENDING',
+    'COMPLETED',
+    'REFUND_PENDING',
+    'DISPUTED',
+    'DISPUTE_REFUND_PENDING',
+    'DISPUTE_RELEASE_PENDING',
+    'REFUNDED'
+  ].includes(status)
+  const fulfilled = [
+    'DELIVERED',
+    'SHIPPED',
+    'RELEASE_PENDING',
+    'COMPLETED',
+    'DISPUTED',
+    'DISPUTE_REFUND_PENDING',
+    'DISPUTE_RELEASE_PENDING'
+  ].includes(status)
+  const confirmationActive = !terminal && (fulfilled || ['REFUND_PENDING', 'ESCROW_CANCEL_PENDING'].includes(status))
+  const fundsStepLabel = escrowed ? '资金托管' : (escrowProcessing || status === 'ESCROW_FAILED' ? fundsLabel(status) : '等待托管')
+  const fundsStepState = escrowed ? 'complete' : (escrowProcessing || status === 'ESCROW_FAILED' ? 'active' : 'pending')
 
   return [
     { key: 'created', label: '已创建', state: 'complete' },
-    { key: 'funds', label: escrowed ? '资金托管' : '等待托管', state: lifecycleStepState(escrowed, escrowed) },
+    { key: 'funds', label: fundsStepLabel, state: fundsStepState },
     { key: 'fulfillment', label: fulfilled ? fulfillmentStateLabel(item) : '等待履约', state: lifecycleStepState(fulfilled, fulfilled) },
-    { key: 'confirmation', label: confirmed ? orderStatusLabel(status) : '待确认', state: lifecycleStepState(!confirmed && fulfilled, confirmed) },
+    { key: 'confirmation', label: terminal ? orderStatusLabel(status) : '待确认', state: lifecycleStepState(confirmationActive, terminal) },
     { key: 'dispute', label: disputed ? '争议处理中' : '无争议', state: disputed ? 'active' : 'pending' }
   ]
 }
@@ -131,15 +166,6 @@ function disputeStatusLabel(status) {
   if (normalized === 'SELLER_REJECTED') return '待管理员裁定'
   if (normalized === 'ADMIN_RESOLVED') return '管理员已裁定'
   return '处理中'
-}
-
-function fundStateLabel(status) {
-  const normalized = normalizeStatus(status)
-  if (normalized === 'ESCROWED' || normalized === 'HELD') return '资金托管中'
-  if (normalized === 'RELEASED') return '已放款'
-  if (normalized === 'REFUNDED') return '已退款'
-  if (normalized.endsWith('_PENDING')) return '资金处理中'
-  return '资金状态待确认'
 }
 
 function nextDisputeActionLabel(item) {
@@ -197,32 +223,27 @@ export function buildMarketState({ listings, orders, disputes, addresses, invent
   const safeInventory = Array.isArray(inventory) ? inventory : []
 
   return {
-    listings: safeListings.map((item, index) => {
-      const listingId = item?.listingId ?? item?.id ?? index + 1
+    listings: safeListings.map((item) => {
       const unitPrice = asNumber(item?.unitPrice)
-    return {
+      return {
         ...item,
-        listingId,
-        sellerLabel: String(item?.sellerName || item?.sellerLabel || item?.seller?.username || item?.author?.username || item?.displayName || '卖家信息待确认'),
+        sellerLabel: String(item?.sellerUserId || '卖家信息待确认'),
         goodsTypeLabel: goodsTypeLabel(item?.goodsType),
         deliveryLabel: deliveryLabel(item?.deliveryMode),
         fulfillmentLabel: fulfillmentLabel(item),
         trustLabel: trustLabel(item?.status),
-        shipmentLabel: shipmentLabel(item?.status),
         statusLabel: listingStatusLabel(item?.status),
         unitPriceText: amountText(unitPrice),
         stockText: stockText(item?.stockAvailable)
       }
     }),
-    orders: safeOrders.map((item, index) => {
-      const orderId = item?.orderId ?? index + 1
+    orders: safeOrders.map((item) => {
       const totalAmount = asNumber(item?.totalAmount)
       return {
         ...item,
-        orderId,
         goodsTypeLabel: goodsTypeLabel(item?.goodsType),
         statusLabel: orderStatusLabel(item?.status),
-        fundsLabel: fundsLabel(item?.escrowStatus || item?.fundState || item?.fundsStatus || item?.status),
+        fundsLabel: fundsLabel(item?.status),
         fulfillmentLabel: fulfillmentStateLabel(item),
         nextActionLabel: nextOrderActionLabel(item),
         lifecycleSteps: buildLifecycleSteps(item),
@@ -230,23 +251,19 @@ export function buildMarketState({ listings, orders, disputes, addresses, invent
         autoConfirmText: autoConfirmText(item)
       }
     }),
-    disputes: safeDisputes.map((item, index) => ({
+    disputes: safeDisputes.map((item) => ({
       ...item,
-      disputeId: item?.disputeId ?? index + 1,
       goodsTypeLabel: goodsTypeLabel(item?.goodsType),
       statusLabel: disputeStatusLabel(item?.status),
-      fundStateLabel: fundStateLabel(item?.fundState || item?.escrowStatus || item?.fundsStatus),
       nextActionLabel: nextDisputeActionLabel(item)
     })),
-    addresses: safeAddresses.map((item, index) => ({
+    addresses: safeAddresses.map((item) => ({
       ...item,
-      addressId: item?.addressId ?? index + 1,
       addressLine: addressLine(item),
       defaultLabel: item?.defaultAddress ? '默认地址' : ''
     })),
-    inventory: safeInventory.map((item, index) => ({
+    inventory: safeInventory.map((item) => ({
       ...item,
-      inventoryUnitId: item?.inventoryUnitId ?? item?.id ?? index + 1,
       statusLabel: inventoryStatusLabel(item?.status)
     }))
   }

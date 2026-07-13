@@ -38,10 +38,12 @@ describe('AdminMarketDisputesView', () => {
     listAdminMarketDisputes.mockResolvedValue({
       data: [
         {
-          disputeId: 1,
+          disputeId: '11111111-1111-7111-8111-111111111111',
           goodsType: 'PHYSICAL',
           reason: '货不对板',
-          status: 'SELLER_REJECTED'
+          status: 'SELLER_REJECTED',
+          buyerNote: '收到的商品与描述不符',
+          sellerNote: '不同意退款'
         }
       ],
       traceId: 'trace-disputes'
@@ -55,12 +57,13 @@ describe('AdminMarketDisputesView', () => {
 
     expect(wrapper.text()).toContain('实物商品')
     expect(wrapper.text()).toContain('待管理员裁定')
-    expect(wrapper.text()).toContain('资金状态')
     expect(wrapper.text()).toContain('需要管理员裁定')
+    expect(wrapper.text()).toContain('收到的商品与描述不符')
+    expect(wrapper.text()).toContain('不同意退款')
     expect(wrapper.text()).not.toContain('旧奖励后台')
     await wrapper.find('button').trigger('click')
     await flushPromises()
 
-    expect(adminResolveMarketDispute).toHaveBeenCalledWith(1, 'refund', { note: 'refund' })
+    expect(adminResolveMarketDispute).toHaveBeenCalledWith('11111111-1111-7111-8111-111111111111', 'refund', { note: 'refund' })
   })
 })

@@ -175,8 +175,9 @@ DB 方案：
 Redis 方案：
 
 - key：`idem:<operation>:<userId>:<Idempotency-Key>`。
-- `SETNX + TTL` 抢占 `PROCESSING`。
-- 成功后普通 `SET` 保存 `SUCCESS`。
+- `SETNX + TTL` 抢占 `PROCESSING`，值固定为 `P\n<requestHash>`。
+- 成功后普通 `SET` 保存 `S\n<requestHash>\n<responseJson>`。
+- `requestHash` 必填；不读取无 fingerprint 的旧 Redis 编码。
 - `extendProcessing(...)` 使用 Lua，只在当前值仍为 `P` 时延长 TTL。
 
 当前仓库默认 DB。Redis 更轻，但 Redis 抖动会直接影响关键写链路的幂等判断。
@@ -210,7 +211,7 @@ http_idempotency_total{op="<operation>", outcome="<outcome>"}
 2. controller 接收 `Idempotency-Key` header。
 3. owner `ApplicationService` 用 `IdempotencyGuard.executeRequired(...)` 包裹真实写操作。
 4. 选择稳定 operation，推荐 `domain:verb_object`。
-5. 判断是否需要请求指纹；如果同 key 不同参数必须拒绝，就传 request hash。
+5. 为请求构造并传入稳定的 request hash；同 key 不同参数必须拒绝。
 6. 返回值使用稳定 DTO，确保可 JSON 序列化 / 反序列化。
 7. 补测试：缺 key、首次执行、成功重试、processing 并发、replay conflict、存储异常 `503`。
 

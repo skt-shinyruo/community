@@ -15,6 +15,12 @@
 
 本设计采用一次性 clean break。实现时同步修改所有生产者、消费者、配置、baseline SQL、测试和文档，不提供旧数据迁移或旧实例共存能力。
 
+### 2026-07-13 补充收敛范围
+
+第二轮审计继续按相同前提删除残留兼容面：numeric user ID tombstone、HTTP DTO 废弃字段、Like 双时间字段和缺失 relation key 回退、无 request fingerprint 的幂等接口与旧 Redis 编码、缺失 refresh-token state 的 ACTIVE 默认、旧配置键、接口静默 default 实现、IM 非 canonical event ID 重写，以及前端对旧/臆测 DTO 字段和错误码的双读。
+
+数据库 baseline 直接声明最终字段、约束和索引，不再通过 `information_schema`、动态 `ALTER/DROP/UPDATE` 升级旧 volume。Mock Data Studio 只保留 canonical 建表与默认配置幂等 seed，不迁移旧 `ai_config`。旧开发数据卷、Redis key、Kafka 消息和浏览器状态统一清空重建。
+
 ## 目标
 
 1. IM JSON 契约始终显式携带且严格校验 `schemaVersion: 1`。

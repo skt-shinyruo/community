@@ -109,8 +109,11 @@ deploy/mysql/community/090_seed_identity.sql
 
 Mock Data Studio metadata bootstrap：
 
-- 新数据卷：`deploy/mysql/community/011_schema_demo_metadata.sql` 创建 `demo_*` / `ai_config` 表。
-- 已存在数据卷：`tools/mock-data-studio/src/db/bootstrap.mjs` 用 `CREATE TABLE IF NOT EXISTS` 补齐 metadata 表。
+- `deploy/mysql/community/011_schema_demo_metadata.sql` 定义 `demo_*` / `ai_config` 的 canonical schema。
+- `tools/mock-data-studio/src/db/bootstrap.mjs` 可重复执行 canonical `CREATE TABLE IF NOT EXISTS`，并幂等创建 `Default` AI 配置。
+- 开发环境不支持旧 metadata schema 原地升级；表结构不匹配时删除并重建本地数据卷。
+
+`deploy/mysql/community` 下的 baseline SQL 只描述当前最终表结构，不包含旧列、旧约束或旧索引的条件迁移。开发环境结构不匹配时重建数据卷，不在应用初始化期间执行历史 schema 修补。
 
 ## Redis
 
@@ -295,7 +298,7 @@ key idx_market_wallet_action_order_type (order_id, action_type)
 | `operation` | 服务端内部操作名 |
 | `user_id` | 当前用户 ID |
 | `idem_key` | 客户端幂等 key |
-| `request_hash` | 可选请求语义指纹 |
+| `request_hash` | 必填请求语义指纹，用于拒绝同 key 不同请求 |
 | `status` | `P` 或 `S` |
 | `response_json` | 成功响应 JSON |
 | `processing_expires_at` | PROCESSING 过期时间 |

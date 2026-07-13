@@ -123,7 +123,8 @@ public class UserRewardKafkaListener {
                 || payload.getActorUserId() == null
                 || !EntityTypes.isValid(payload.getEntityType())
                 || payload.getEntityId() == null
-                || payload.getEntityUserId() == null) {
+                || payload.getEntityUserId() == null
+                || !StringUtils.hasText(payload.getRelationKey())) {
             throw malformed(event.type(), event.eventId());
         }
         return payload;
@@ -141,14 +142,7 @@ public class UserRewardKafkaListener {
     }
 
     private String likeSourceId(String action, LikePayload payload) {
-        if (StringUtils.hasText(payload.getRelationKey())) {
-            return payload.getRelationKey().trim() + ":" + action;
-        }
-        return "like-" + action + ":" + dashless(payload.getActorUserId()) + ":" + payload.getEntityType() + ":" + dashless(payload.getEntityId());
-    }
-
-    private String dashless(java.util.UUID value) {
-        return value.toString().replace("-", "");
+        return payload.getRelationKey().trim() + ":" + action;
     }
 
     private <T> T normalizePayload(Object payload, Class<T> type) {

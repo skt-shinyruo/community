@@ -84,7 +84,9 @@ class OutboxSocialDomainEventPublisherTest {
         assertThat(json.path("payload").path("entityId").asText()).isEqualTo(entityId.toString());
         assertThat(json.path("payload").path("relationKey").asText())
                 .isEqualTo("like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId);
-        assertThat(json.path("payload").path("occurredAt").asText()).isEqualTo(Instant.EPOCH.toString());
+        assertThat(json.path("occurredAt").asText()).isEqualTo(Instant.EPOCH.toString());
+        assertThat(json.path("payload").has("occurredAt")).isFalse();
+        assertThat(json.path("payload").has("createTime")).isFalse();
     }
 
     @Test
@@ -315,6 +317,25 @@ class OutboxSocialDomainEventPublisherTest {
         )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event source occurredAt missing");
+
+        verifyNoInteractions(store);
+    }
+
+    @Test
+    void publishLikeChangedShouldRejectMissingRelationKey() {
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
+                new JacksonJsonCodec(JsonMappers.standard()),
+                store,
+                TOPIC
+        );
+
+        assertThatThrownBy(() -> publisher.publishLikeChanged(new LikeChangedDomainEvent(
+                uuid(9), EntityTypes.POST, uuid(90), uuid(2), uuid(90),
+                " ", true, Instant.EPOCH
+        )))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("social event source relationKey missing");
 
         verifyNoInteractions(store);
     }

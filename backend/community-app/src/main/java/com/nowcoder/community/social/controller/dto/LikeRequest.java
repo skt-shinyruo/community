@@ -12,10 +12,6 @@ public class LikeRequest {
     @NotNull
     private UUID entityId;
 
-    private UUID entityUserId;
-
-    private UUID postId;
-
     private Boolean liked;
 
     public int getEntityType() {
@@ -32,22 +28,6 @@ public class LikeRequest {
 
     public void setEntityId(UUID entityId) {
         this.entityId = entityId;
-    }
-
-    public UUID getEntityUserId() {
-        return entityUserId;
-    }
-
-    public void setEntityUserId(UUID entityUserId) {
-        this.entityUserId = entityUserId;
-    }
-
-    public UUID getPostId() {
-        return postId;
-    }
-
-    public void setPostId(UUID postId) {
-        this.postId = postId;
     }
 
     public Boolean getLiked() {

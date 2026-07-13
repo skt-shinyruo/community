@@ -103,17 +103,17 @@ public class TaskProgressEventBackboneKafkaListener {
                 || !EntityTypes.isValid(payload.getEntityType())
                 || payload.getEntityId() == null
                 || payload.getEntityUserId() == null
-                || payload.getCreateTime() == null) {
+                || !hasText(payload.getRelationKey())) {
             throw malformed(event.type(), event.eventId());
         }
         if (payload.getActorUserId().equals(payload.getEntityUserId())) {
             return;
         }
         applicationService.triggerLikeCreated(new TriggerLikeCreatedCommand(
-                sourceEventId(payload),
+                payload.getRelationKey().trim(),
                 payload.getActorUserId(),
                 payload.getEntityUserId(),
-                payload.getCreateTime()
+                event.occurredAt()
         ));
     }
 
@@ -125,13 +125,6 @@ public class TaskProgressEventBackboneKafkaListener {
                 payload.getRelationKey().trim(),
                 payload.getEntityUserId()
         ));
-    }
-
-    private String sourceEventId(LikePayload payload) {
-        if (hasText(payload.getRelationKey())) {
-            return payload.getRelationKey().trim();
-        }
-        return "like-created:" + payload.getActorUserId() + ":" + payload.getEntityType() + ":" + payload.getEntityId();
     }
 
     private boolean hasText(String value) {

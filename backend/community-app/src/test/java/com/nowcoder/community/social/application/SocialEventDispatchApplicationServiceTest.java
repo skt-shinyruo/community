@@ -175,8 +175,9 @@ class SocialEventDispatchApplicationServiceTest {
         UUID entityId = uuid(305);
         String key = EntityTypes.POST + ":" + entityId;
         String payloadJson = """
-                {"eventId":"se:bad-aggregate","aggregateId":"not-a-uuid","aggregateType":"entity","type":"%s","occurredAt":"1970-01-01T00:00:00Z","version":1,"payload":{"actorUserId":"%s","entityType":"%s","entityId":"%s","entityUserId":"%s","postId":"%s","createTime":"1970-01-01T00:00:00Z"}}
-                """.formatted(SocialEventTypes.LIKE_CREATED, actorUserId, EntityTypes.POST, entityId, uuid(306), entityId);
+                {"eventId":"se:bad-aggregate","aggregateId":"not-a-uuid","aggregateType":"entity","type":"%s","occurredAt":"1970-01-01T00:00:00Z","version":1,"payload":{"actorUserId":"%s","entityType":"%s","entityId":"%s","entityUserId":"%s","postId":"%s","relationKey":"%s"}}
+                """.formatted(SocialEventTypes.LIKE_CREATED, actorUserId, EntityTypes.POST, entityId, uuid(306), entityId,
+                        "like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId);
 
         assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand(key, payloadJson)))
                 .isInstanceOf(IllegalStateException.class)
@@ -191,8 +192,9 @@ class SocialEventDispatchApplicationServiceTest {
         UUID entityId = uuid(308);
         String key = EntityTypes.POST + ":" + entityId;
         String payloadJson = """
-                {"eventId":"se:bad-occurred-at","aggregateId":"%s","aggregateType":"entity","type":"%s","occurredAt":"not-an-instant","version":1,"payload":{"actorUserId":"%s","entityType":"%s","entityId":"%s","entityUserId":"%s","postId":"%s","createTime":"1970-01-01T00:00:00Z"}}
-                """.formatted(entityId, SocialEventTypes.LIKE_CREATED, actorUserId, EntityTypes.POST, entityId, uuid(309), entityId);
+                {"eventId":"se:bad-occurred-at","aggregateId":"%s","aggregateType":"entity","type":"%s","occurredAt":"not-an-instant","version":1,"payload":{"actorUserId":"%s","entityType":"%s","entityId":"%s","entityUserId":"%s","postId":"%s","relationKey":"%s"}}
+                """.formatted(entityId, SocialEventTypes.LIKE_CREATED, actorUserId, EntityTypes.POST, entityId, uuid(309), entityId,
+                        "like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId);
 
         assertThatThrownBy(() -> service.dispatch(new DispatchSocialEventCommand(key, payloadJson)))
                 .isInstanceOf(IllegalStateException.class)
@@ -258,7 +260,7 @@ class SocialEventDispatchApplicationServiceTest {
         payload.setEntityId(entityId);
         payload.setEntityUserId(uuid(103));
         payload.setPostId(entityId);
-        payload.setCreateTime(Instant.EPOCH);
+        payload.setRelationKey("like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId);
         return payload;
     }
 

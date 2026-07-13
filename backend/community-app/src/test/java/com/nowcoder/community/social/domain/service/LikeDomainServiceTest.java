@@ -97,4 +97,20 @@ class LikeDomainServiceTest {
         assertThat(event.liked()).isTrue();
         assertThat(event.occurredAt()).isEqualTo(createdAt);
     }
+
+    @Test
+    void postLikeEventShouldUseEntityIdWhenResolvedPostIdIsMissing() {
+        LikeDomainService service = new LikeDomainService();
+
+        LikeChangedDomainEvent event = service.likeChangedEvent(
+                uuid(1),
+                EntityTypes.POST,
+                uuid(10),
+                new ResolvedSocialEntity(uuid(2), null),
+                false,
+                Instant.EPOCH
+        );
+
+        assertThat(event.postId()).isEqualTo(uuid(10));
+    }
 }

@@ -1,6 +1,5 @@
 package com.nowcoder.community.social.contracts.event;
 
-import java.time.Instant;
 import java.util.UUID;
 
 public class LikePayload {
@@ -11,8 +10,6 @@ public class LikePayload {
     private UUID entityUserId;
     private UUID postId;
     private String relationKey;
-    private Instant occurredAt;
-    private Instant createTime;
 
     public UUID getActorUserId() {
         return actorUserId;
@@ -62,19 +59,4 @@ public class LikePayload {
         this.relationKey = relationKey;
     }
 
-    public Instant getOccurredAt() {
-        return occurredAt;
-    }
-
-    public void setOccurredAt(Instant occurredAt) {
-        this.occurredAt = occurredAt;
-    }
-
-    public Instant getCreateTime() {
-        return createTime;
-    }
-
-    public void setCreateTime(Instant createTime) {
-        this.createTime = createTime;
-    }
 }

@@ -145,6 +145,22 @@ class PostHotFeedProjectionKafkaListenerTest {
         verifyNoInteractions(applicationService);
     }
 
+    @Test
+    void recognizedPostLikeWithoutPostIdShouldFailDelivery() {
+        PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
+        PostHotFeedProjectionKafkaListener listener = new PostHotFeedProjectionKafkaListener(jsonCodec, applicationService);
+        LikePayload payload = likePayload(EntityTypes.POST, uuid(202));
+        payload.setPostId(null);
+
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "evt-like-missing-post-id", uuid(202), "like", SocialEventTypes.LIKE_CREATED,
+                Instant.EPOCH, 1L, payload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("evt-like-missing-post-id");
+
+        verifyNoInteractions(applicationService);
+    }
+
     private static PostPayload postPayload(java.util.UUID postId, java.util.UUID boardId) {
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
@@ -157,6 +173,7 @@ class PostHotFeedProjectionKafkaListenerTest {
         payload.setEntityType(entityType);
         payload.setEntityId(postId);
         payload.setPostId(postId);
+        payload.setRelationKey("like:" + uuid(1) + ":" + entityType + ":" + postId);
         return payload;
     }
 }

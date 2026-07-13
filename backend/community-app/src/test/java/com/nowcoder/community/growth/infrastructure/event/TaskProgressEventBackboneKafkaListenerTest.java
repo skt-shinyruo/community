@@ -92,11 +92,12 @@ class TaskProgressEventBackboneKafkaListenerTest {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = new TaskProgressEventBackboneKafkaListener(jsonCodec, applicationService);
         String relationKey = "like:" + uuid(1) + ":" + POST + ":" + uuid(100);
-        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2), Instant.parse("2026-05-18T10:30:00Z"));
+        Instant occurredAt = Instant.parse("2026-05-18T10:30:00Z");
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
         payload.setRelationKey(relationKey);
 
-        listener.onSocialEvent(new SocialContractEvent("se:like:created:1", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, payload));
-        listener.onSocialEvent(new SocialContractEvent("se:like:created:2", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, payload));
+        listener.onSocialEvent(new SocialContractEvent("se:like:created:1", null, null, SocialEventTypes.LIKE_CREATED, occurredAt, 1L, payload));
+        listener.onSocialEvent(new SocialContractEvent("se:like:created:2", null, null, SocialEventTypes.LIKE_CREATED, occurredAt, 1L, payload));
 
         ArgumentCaptor<TriggerLikeCreatedCommand> captor = ArgumentCaptor.forClass(TriggerLikeCreatedCommand.class);
         verify(applicationService, org.mockito.Mockito.times(2)).triggerLikeCreated(captor.capture());
@@ -110,16 +111,19 @@ class TaskProgressEventBackboneKafkaListenerTest {
     }
 
     @Test
-    void likeCreatedWithoutRelationKeyShouldUseDedicatedKafkaFallbackSourceId() {
+    void likeCreatedWithoutRelationKeyShouldFailDelivery() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = new TaskProgressEventBackboneKafkaListener(jsonCodec, applicationService);
-        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2), Instant.parse("2026-05-18T10:30:00Z"));
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
+        payload.setRelationKey(null);
 
-        listener.onSocialEvent(new SocialContractEvent("se:like:created:no-relation-key", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, payload));
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "se:like:created:no-relation-key", null, null, SocialEventTypes.LIKE_CREATED,
+                Instant.EPOCH, 1L, payload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("se:like:created:no-relation-key");
 
-        ArgumentCaptor<TriggerLikeCreatedCommand> captor = ArgumentCaptor.forClass(TriggerLikeCreatedCommand.class);
-        verify(applicationService).triggerLikeCreated(captor.capture());
-        assertThat(captor.getValue().sourceEventId()).isEqualTo("like-created:" + uuid(1) + ":" + POST + ":" + uuid(100));
+        verifyNoInteractions(applicationService);
     }
 
     @Test
@@ -127,13 +131,12 @@ class TaskProgressEventBackboneKafkaListenerTest {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = new TaskProgressEventBackboneKafkaListener(jsonCodec, applicationService);
 
-        listener.onSocialEvent(new SocialContractEvent("se:like:created:map", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, Map.of(
+        listener.onSocialEvent(new SocialContractEvent("se:like:created:map", null, null, SocialEventTypes.LIKE_CREATED, Instant.parse("2026-05-18T10:30:00Z"), 1L, Map.of(
                         "actorUserId", uuid(1).toString(),
                         "entityType", POST,
                         "entityId", uuid(100).toString(),
                         "entityUserId", uuid(2).toString(),
-                        "relationKey", "like:" + uuid(1) + ":" + POST + ":" + uuid(100),
-                        "createTime", "2026-05-18T10:30:00Z"
+                        "relationKey", "like:" + uuid(1) + ":" + POST + ":" + uuid(100)
                 )));
 
         ArgumentCaptor<TriggerLikeCreatedCommand> captor = ArgumentCaptor.forClass(TriggerLikeCreatedCommand.class);
@@ -148,7 +151,7 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void likeRemovedShouldTriggerRollbackByRelationKey() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = new TaskProgressEventBackboneKafkaListener(jsonCodec, applicationService);
-        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2), Instant.parse("2026-05-18T10:30:00Z"));
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
         payload.setRelationKey("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
 
         listener.onSocialEvent(new SocialContractEvent("se:like:removed:1", null, null, SocialEventTypes.LIKE_REMOVED, java.time.Instant.EPOCH, 1L, payload));
@@ -174,7 +177,7 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void selfLikeShouldBeIgnored() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = new TaskProgressEventBackboneKafkaListener(jsonCodec, applicationService);
-        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(1), Instant.parse("2026-05-18T10:30:00Z"));
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(1));
 
         listener.onSocialEvent(new SocialContractEvent("se:like:created:self", null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L, payload));
 
@@ -189,7 +192,7 @@ class TaskProgressEventBackboneKafkaListenerTest {
         postPayload.setPostId(uuid(100));
         CommentPayload commentPayload = new CommentPayload();
         commentPayload.setCommentId(uuid(200));
-        LikePayload likePayload = likePayload(uuid(1), uuid(100), uuid(2), null);
+        LikePayload likePayload = likePayload(null, uuid(100), uuid(2));
 
         listener.onContentEvent(null);
         assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
@@ -205,11 +208,11 @@ class TaskProgressEventBackboneKafkaListenerTest {
                 .hasMessageContaining(ContentEventTypes.COMMENT_CREATED)
                 .hasMessageContaining("ce:comment:created:missing-user");
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
-                "se:like:created:missing-time", null, null, SocialEventTypes.LIKE_CREATED,
+                "se:like:created:missing-actor", null, null, SocialEventTypes.LIKE_CREATED,
                 Instant.EPOCH, 1L, likePayload)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(SocialEventTypes.LIKE_CREATED)
-                .hasMessageContaining("se:like:created:missing-time");
+                .hasMessageContaining("se:like:created:missing-actor");
 
         verifyNoInteractions(applicationService);
     }
@@ -222,8 +225,7 @@ class TaskProgressEventBackboneKafkaListenerTest {
         postPayload.setPostId(uuid(100));
         postPayload.setUserId(uuid(7));
         postPayload.setCreateTime(Instant.parse("2026-05-18T08:30:00Z"));
-        LikePayload likePayload = likePayload(
-                uuid(1), uuid(100), uuid(2), Instant.parse("2026-05-18T10:30:00Z"));
+        LikePayload likePayload = likePayload(uuid(1), uuid(100), uuid(2));
         likePayload.setRelationKey("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
 
         assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
@@ -244,13 +246,13 @@ class TaskProgressEventBackboneKafkaListenerTest {
         verifyNoInteractions(applicationService);
     }
 
-    private static LikePayload likePayload(java.util.UUID actorUserId, java.util.UUID entityId, java.util.UUID entityUserId, Instant createTime) {
+    private static LikePayload likePayload(java.util.UUID actorUserId, java.util.UUID entityId, java.util.UUID entityUserId) {
         LikePayload payload = new LikePayload();
         payload.setActorUserId(actorUserId);
         payload.setEntityType(POST);
         payload.setEntityId(entityId);
         payload.setEntityUserId(entityUserId);
-        payload.setCreateTime(createTime);
+        payload.setRelationKey("like:" + actorUserId + ":" + POST + ":" + entityId);
         return payload;
     }
 }

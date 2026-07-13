@@ -79,13 +79,15 @@ public class PostHotFeedProjectionKafkaListener {
         }
         requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
         LikePayload payload = normalizePayload(event.payload(), LikePayload.class);
-        if (payload == null || !EntityTypes.isValid(payload.getEntityType())) {
+        if (payload == null
+                || !EntityTypes.isValid(payload.getEntityType())
+                || !StringUtils.hasText(payload.getRelationKey())) {
             throw malformed(event.type(), event.eventId());
         }
         if (payload.getEntityType() != EntityTypes.POST) {
             return;
         }
-        UUID postId = payload.getPostId() != null ? payload.getPostId() : payload.getEntityId();
+        UUID postId = payload.getPostId();
         if (postId == null) {
             throw malformed(event.type(), event.eventId());
         }

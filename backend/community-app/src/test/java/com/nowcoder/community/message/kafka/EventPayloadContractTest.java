@@ -51,6 +51,14 @@ class EventPayloadContractTest {
         assertRoundTrip(BlockPayload.class, sampleBlockPayload());
     }
 
+    @Test
+    void likePayloadShouldLeaveEventTimeToEnvelope() {
+        JsonNode node = objectMapper.valueToTree(sampleLikePayload());
+
+        assertThat(node.has("occurredAt")).isFalse();
+        assertThat(node.has("createTime")).isFalse();
+    }
+
     private <T> void assertRoundTrip(Class<T> clazz, T value) throws Exception {
         String json = objectMapper.writeValueAsString(value);
         JsonNode node = objectMapper.readTree(json);
@@ -146,7 +154,7 @@ class EventPayloadContractTest {
         p.setEntityId(uuid(2));
         p.setEntityUserId(uuid(3));
         p.setPostId(uuid(10));
-        p.setCreateTime(Instant.now());
+        p.setRelationKey("like:" + uuid(1) + ":1:" + uuid(2));
         return p;
     }
 

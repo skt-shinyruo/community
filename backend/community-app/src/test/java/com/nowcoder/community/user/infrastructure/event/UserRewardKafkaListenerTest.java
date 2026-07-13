@@ -131,15 +131,31 @@ class UserRewardKafkaListenerTest {
                         "entityType", POST,
                         "entityId", uuid(100).toString(),
                         "entityUserId", uuid(2).toString(),
-                        "createTime", "2026-05-18T10:30:00Z"
+                        "relationKey", "like:" + uuid(1) + ":" + POST + ":" + uuid(100)
                 )));
 
         verify(walletRewardActionApi).applyDelta(
-                "wallet-reward:like-created:" + dashless(uuid(1)) + ":" + POST + ":" + dashless(uuid(100)),
+                "wallet-reward:like:" + uuid(1) + ":" + POST + ":" + uuid(100) + ":created",
                 uuid(2),
                 1,
                 "LikeCreated"
         );
+    }
+
+    @Test
+    void likeCreatedWithoutRelationKeyShouldFailDelivery() {
+        WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
+        UserRewardKafkaListener listener = listener(walletRewardActionApi);
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
+        payload.setRelationKey(null);
+
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "se:like:created:missing-relation-key", null, null, SocialEventTypes.LIKE_CREATED,
+                Instant.EPOCH, 1L, payload)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("se:like:created:missing-relation-key");
+
+        verifyNoInteractions(walletRewardActionApi);
     }
 
     @Test
@@ -151,7 +167,7 @@ class UserRewardKafkaListenerTest {
                         "actorUserId", uuid(1).toString(),
                         "entityId", uuid(100).toString(),
                         "entityUserId", uuid(2).toString(),
-                        "createTime", "2026-05-18T10:30:00Z"
+                        "relationKey", "like:" + uuid(1) + ":" + POST + ":" + uuid(100)
                 ))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(SocialEventTypes.LIKE_CREATED)
@@ -225,11 +241,6 @@ class UserRewardKafkaListenerTest {
         payload.setEntityId(entityId);
         payload.setEntityUserId(entityUserId);
         payload.setRelationKey("like:" + actorUserId + ":" + POST + ":" + entityId);
-        payload.setCreateTime(Instant.parse("2026-05-18T10:30:00Z"));
         return payload;
-    }
-
-    private static String dashless(java.util.UUID value) {
-        return value.toString().replace("-", "");
     }
 }

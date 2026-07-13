@@ -12,8 +12,6 @@ public class FollowRequest {
     @NotNull
     private UUID entityId;
 
-    private UUID entityUserId;
-
     public int getEntityType() {
         return entityType == null ? 0 : entityType;
     }
@@ -30,11 +28,4 @@ public class FollowRequest {
         this.entityId = entityId;
     }
 
-    public UUID getEntityUserId() {
-        return entityUserId;
-    }
-
-    public void setEntityUserId(UUID entityUserId) {
-        this.entityUserId = entityUserId;
-    }
 }

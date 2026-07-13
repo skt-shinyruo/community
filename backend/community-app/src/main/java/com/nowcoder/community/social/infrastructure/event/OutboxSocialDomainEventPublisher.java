@@ -42,17 +42,16 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         if (event == null || event.actorUserId() == null || event.entityId() == null) {
             return;
         }
+        String type = event.liked() ? SocialEventTypes.LIKE_CREATED : SocialEventTypes.LIKE_REMOVED;
+        String relationKey = requiredRelationKey(type, event.relationKey());
         LikePayload payload = new LikePayload();
         payload.setActorUserId(event.actorUserId());
         payload.setEntityType(event.entityType());
         payload.setEntityId(event.entityId());
         payload.setEntityUserId(event.entityUserId());
         payload.setPostId(event.postId());
-        payload.setRelationKey(event.relationKey());
-        payload.setOccurredAt(event.occurredAt());
-        payload.setCreateTime(event.occurredAt());
+        payload.setRelationKey(relationKey);
 
-        String type = event.liked() ? SocialEventTypes.LIKE_CREATED : SocialEventTypes.LIKE_REMOVED;
         Instant occurredAt = requiredOccurredAt(type, event.occurredAt());
         publish(
                 event.liked() ? "se:like:created:" + idGenerator.next() : "se:like:removed:" + idGenerator.next(),
@@ -156,6 +155,13 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
             throw new IllegalStateException("social event source version missing: " + type);
         }
         return version;
+    }
+
+    private String requiredRelationKey(String type, String relationKey) {
+        if (relationKey == null || relationKey.isBlank()) {
+            throw new IllegalStateException("social event source relationKey missing: " + type);
+        }
+        return relationKey.trim();
     }
 
     private long positiveVersion(Instant occurredAt) {

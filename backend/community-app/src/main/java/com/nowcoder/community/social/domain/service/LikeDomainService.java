@@ -51,7 +51,7 @@ public class LikeDomainService {
                 entityType,
                 entityId,
                 resolved == null ? null : resolved.entityUserId(),
-                resolved == null ? null : resolved.postId(),
+                entityType == POST ? entityId : resolved == null ? null : resolved.postId(),
                 relationKey(actorUserId, entityType, entityId),
                 liked,
                 occurredAt

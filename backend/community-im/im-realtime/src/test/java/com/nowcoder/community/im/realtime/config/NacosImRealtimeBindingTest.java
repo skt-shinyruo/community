@@ -81,9 +81,8 @@ class NacosImRealtimeBindingTest {
         assertThat(rawProperty(environment, "im-realtime.yaml", "im.session.worker-id"))
                 .isEqualTo("${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}");
         assertThat(sessionProperties.getWorkerId()).isEqualTo("im-realtime-test");
-        assertThat(rawProperty(environment, "im-realtime.yaml", "im.kafka.consumer.group-id"))
-                .isEqualTo("im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}");
-        assertThat(environment.getProperty("im.kafka.consumer.group-id")).startsWith("im-realtime-");
+        assertThat(environment.containsProperty("im.kafka.consumer.group-id")).isFalse();
+        assertThat(environment.containsProperty("im.kafka.consumer.auto-offset-reset")).isFalse();
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

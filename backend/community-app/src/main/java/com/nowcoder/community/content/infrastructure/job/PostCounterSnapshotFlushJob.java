@@ -21,7 +21,7 @@ public class PostCounterSnapshotFlushJob {
     public PostCounterSnapshotFlushJob(
             PostCounterApplicationService postCounterApplicationService,
             @Value("${content.counter.flush.enabled:true}") boolean enabled,
-            @Value("${content.counters.flush-batch-size:${content.counter.flush.batch-size:200}}") int batchSize
+            @Value("${content.counters.flush-batch-size:200}") int batchSize
     ) {
         this.postCounterApplicationService = postCounterApplicationService;
         this.enabled = enabled;

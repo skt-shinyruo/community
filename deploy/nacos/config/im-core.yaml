@@ -22,9 +22,6 @@ im:
     rejection-cache-ttl: ${IM_POLICY_REJECTION_CACHE_TTL:500ms}
     rejection-cache-max-entries: ${IM_POLICY_REJECTION_CACHE_MAX_ENTRIES:100000}
   kafka:
-    consumer:
-      group-id: im-core
-      auto-offset-reset: earliest
     command:
       concurrency: 3
   message:

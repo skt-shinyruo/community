@@ -19,7 +19,8 @@ class NacosImCoreBindingTest {
 
         assertThat(environment.getProperty("spring.kafka.consumer.group-id")).isEqualTo("im-core");
         assertThat(environment.getProperty("spring.kafka.consumer.auto-offset-reset")).isEqualTo("earliest");
-        assertThat(environment.getProperty("im.kafka.consumer.group-id")).isEqualTo("im-core");
+        assertThat(environment.containsProperty("im.kafka.consumer.group-id")).isFalse();
+        assertThat(environment.containsProperty("im.kafka.consumer.auto-offset-reset")).isFalse();
         assertThat(environment.getProperty("im.cors.allowed-origins[2]")).isEqualTo("http://localhost:12881");
     }
 

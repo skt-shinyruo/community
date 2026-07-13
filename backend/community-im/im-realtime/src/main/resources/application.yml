@@ -47,8 +47,8 @@ spring:
     # Comma-separated broker list, for example kafka-1:9092,kafka-2:9092,kafka-3:9092.
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     consumer:
-      group-id: ${IM_REALTIME_CONSUMER_GROUP:${im.kafka.consumer.group-id:im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}}}
-      auto-offset-reset: ${IM_REALTIME_KAFKA_CONSUMER_AUTO_OFFSET_RESET:${im.kafka.consumer.auto-offset-reset:latest}}
+      group-id: ${IM_REALTIME_CONSUMER_GROUP:im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}}
+      auto-offset-reset: ${IM_REALTIME_KAFKA_CONSUMER_AUTO_OFFSET_RESET:latest}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:

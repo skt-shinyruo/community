@@ -53,9 +53,6 @@ im:
     ws-path-metadata-key: wsPath
     ws-port-metadata-key: wsPort
   kafka:
-    consumer:
-      group-id: im-realtime-${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
-      auto-offset-reset: latest
     event:
       concurrency: 3
   ws:

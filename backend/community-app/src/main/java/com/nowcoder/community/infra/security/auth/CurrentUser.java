@@ -34,36 +34,6 @@ public final class CurrentUser {
         throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
     }
 
-    /**
-     * Parse {@code jwt.subject} as integer userId.
-     *
-     * @throws BusinessException UNAUTHORIZED if authentication/principal missing
-     * @throws BusinessException INVALID_ARGUMENT if subject missing/invalid
-     */
-    public static int requireUserId(Authentication authentication) {
-        try {
-            return JwtSubjects.userIdOrThrow(requireJwt(authentication));
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-        }
-    }
-
-    /**
-     * Best-effort userId parse.
-     *
-     * @return userId when present and &gt; 0, otherwise null
-     */
-    public static Integer tryUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            return null;
-        }
-        Object principal = authentication.getPrincipal();
-        if (!(principal instanceof Jwt jwt)) {
-            return null;
-        }
-        return JwtSubjects.tryUserId(jwt);
-    }
-
     public static UUID requireUserUuid(Authentication authentication) {
         try {
             return JwtSubjects.userUuidOrThrow(requireJwt(authentication));

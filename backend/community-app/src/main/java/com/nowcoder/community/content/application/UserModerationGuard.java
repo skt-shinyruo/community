@@ -40,8 +40,4 @@ public class UserModerationGuard {
             throw new BusinessException(FORBIDDEN, "你已被禁言，暂时无法发言");
         }
     }
-
-    public void assertCanSpeak(int userId) {
-        throw new BusinessException(INVALID_ARGUMENT, "numeric userId 已不再受支持");
-    }
 }

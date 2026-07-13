@@ -1,7 +1,5 @@
 package com.nowcoder.community.content.contracts.event;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
 import java.time.Instant;
 import java.util.UUID;
 
@@ -27,11 +25,6 @@ public class ModerationPayload {
 
     public void setReportId(UUID reportId) {
         this.reportId = reportId;
-    }
-
-    @JsonIgnore
-    public void setReportId(Integer reportId) {
-        throw new IllegalArgumentException("numeric reportId 已不再受支持");
     }
 
     public String getKind() {

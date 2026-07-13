@@ -38,8 +38,6 @@ public interface DiscussPostMapper {
      */
     List<DiscussPost> selectDiscussPostsAfterId(@Param("afterId") UUID afterId, @Param("limit") int limit);
 
-    int selectDiscussPostRows(@Param("userId") int userId);
-
     int insertDiscussPost(DiscussPost discussPost);
 
     DiscussPost selectDiscussPostById(UUID id);

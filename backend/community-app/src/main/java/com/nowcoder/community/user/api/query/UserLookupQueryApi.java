@@ -34,10 +34,6 @@ public interface UserLookupQueryApi {
         return summaryView;
     }
 
-    default UserSummaryView requireSummaryById(int userId) {
-        throw new BusinessException(com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT, "numeric userId 已不再受支持");
-    }
-
     default UserSummaryView requireSummaryByUsername(String username) {
         UserSummaryView summaryView = getSummaryByUsername(username);
         if (summaryView == null || summaryView.id() == null) {

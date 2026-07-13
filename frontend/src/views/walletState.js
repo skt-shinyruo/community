@@ -57,7 +57,7 @@ export function buildWalletState({ summary, txns } = {}) {
     feed: safeTxns.map((txn, index) => {
       const amount = asNumber(txn?.amount)
       return {
-        key: String(txn?.txnRef || txn?.requestId || txn?.txnId || `${txn?.txnType || 'txn'}-${index}`),
+        key: String(txn?.txnRef || txn?.txnId || `${txn?.txnType || 'txn'}-${index}`),
         label: txnLabel(txn?.txnType, amount),
         amount,
         amountText: `${amountText(amount)} 积分`,

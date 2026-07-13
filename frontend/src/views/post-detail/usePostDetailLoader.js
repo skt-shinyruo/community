@@ -35,12 +35,6 @@ import { isWithinEditWindow } from './usePostDetailInteractions'
 import { isDangerConfirmation, resolvePostDetailConfirmation } from './usePostDetailModeration'
 
 function normalizeCommentCursorPage(raw) {
-  if (Array.isArray(raw)) {
-    return {
-      items: raw,
-      nextCursor: ''
-    }
-  }
   const page = raw && typeof raw === 'object' ? raw : {}
   return {
     items: Array.isArray(page.items) ? page.items : [],
@@ -341,8 +335,6 @@ export function usePostDetailLoader(emit) {
       const resp = await setLike({
         entityType: 1,
         entityId: postId.value,
-        entityUserId: post.value.userId,
-        postId: postId.value,
         liked: null
       })
       emit('trace', resp?.traceId || '')
@@ -366,7 +358,7 @@ export function usePostDetailLoader(emit) {
     actionLoading.value = true
     try {
       if (doFollow) {
-        const r = await followUser(3, post.value.userId, post.value.userId)
+        const r = await followUser(3, post.value.userId)
         emit('trace', r?.traceId || '')
         followStatus.value = true
       } else {
@@ -787,8 +779,6 @@ export function usePostDetailLoader(emit) {
       const resp = await setLike({
         entityType: 2,
         entityId: c.id,
-        entityUserId: c.userId,
-        postId: postId.value,
         liked: null
       })
       emit('trace', resp?.traceId || '')
@@ -814,8 +804,6 @@ export function usePostDetailLoader(emit) {
       const resp = await setLike({
         entityType: 2,
         entityId: r.id,
-        entityUserId: r.userId,
-        postId: postId.value,
         liked: null
       })
       emit('trace', resp?.traceId || '')

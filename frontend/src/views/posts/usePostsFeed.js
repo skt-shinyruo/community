@@ -455,8 +455,6 @@ export function usePostsFeed(emit) {
        const resp = await setLike({
         entityType: 1,
         entityId: p.id,
-        entityUserId: p.userId,
-        postId: p.id,
         liked: null
       })
        emit('trace', resp?.traceId || '')

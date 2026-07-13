@@ -54,4 +54,13 @@ describe('walletState', () => {
     expect(state.feed[0].amountText).toBe('-25 积分')
     expect(state.feed[0].meta).toBe('用户 202')
   })
+
+  it('does not use requestId as a transaction key', () => {
+    const state = buildWalletState({
+      summary: { balance: 10, status: 'ACTIVE' },
+      txns: [{ txnId: '11111111-1111-7111-8111-111111111111', requestId: 'legacy-request', txnType: 'RECHARGE', amount: 10 }]
+    })
+
+    expect(state.feed[0].key).toBe('11111111-1111-7111-8111-111111111111')
+  })
 })

@@ -89,7 +89,7 @@ const prefs = useSocialPrefsStore()
 
 const resolvedUserId = computed(() => {
   const u = props.user || null
-  return normalizeOpaqueId(u?.id || u?.userId)
+  return normalizeOpaqueId(u?.id)
 })
 
 const profile = ref(null)

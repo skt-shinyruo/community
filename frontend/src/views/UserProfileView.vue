@@ -375,7 +375,7 @@ async function doFollow(follow) {
   actionLoading.value = true
   try {
     if (follow) {
-      const resp = await followUser(3, userId.value, userId.value)
+      const resp = await followUser(3, userId.value)
       emit('trace', resp?.traceId || '')
     } else {
       const resp = await unfollowUser(3, userId.value)

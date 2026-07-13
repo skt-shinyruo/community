@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
-import { getLikeCounts, getLikeStatuses } from './socialService'
+import { followUser, getLikeCounts, getLikeStatuses, setLike } from './socialService'
 
 describe('api/services/socialService', () => {
   let mock
@@ -15,6 +15,26 @@ describe('api/services/socialService', () => {
   afterEach(() => {
     mock?.restore()
     mock = null
+  })
+
+  it('write requests should send only canonical social fields', async () => {
+    const entityId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    mock = new MockAdapter(http)
+    mock.onPost('/api/likes').reply((config) => {
+      expect(JSON.parse(config.data)).toEqual({ entityType: 1, entityId, liked: true })
+      return [200, { code: 0, message: '', data: { liked: true, likeCount: 1 }, traceId: 'trace-like' }]
+    })
+    mock.onPost('/api/follows').reply((config) => {
+      expect(JSON.parse(config.data)).toEqual({ entityType: 3, entityId })
+      return [200, { code: 0, message: '', data: null, traceId: 'trace-follow' }]
+    })
+
+    await setLike({
+      entityType: 1,
+      entityId,
+      liked: true
+    })
+    await followUser(3, entityId)
   })
 
   it('getLikeCounts should preserve UUID entity ids in batch query params', async () => {

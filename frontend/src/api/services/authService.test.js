@@ -21,7 +21,7 @@ describe('api/services/authService', () => {
       message: 'OK',
       httpStatus: 200,
       data: {
-        userId: 7,
+        userId: '11111111-1111-7111-8111-111111111111',
         registrationToken: '0123456789abcdef0123456789abcdef',
         emailCodeIssued: true,
         maskedEmail: 'a***e@example.com',
@@ -41,7 +41,7 @@ describe('api/services/authService', () => {
 
     expect(resp.traceId).toBe('trace-register')
     expect(resp.data).toEqual({
-      userId: 7,
+      userId: '11111111-1111-7111-8111-111111111111',
       registrationToken: '0123456789abcdef0123456789abcdef',
       emailCodeIssued: true,
       maskedEmail: 'a***e@example.com',

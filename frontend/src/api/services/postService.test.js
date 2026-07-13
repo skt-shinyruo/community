@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
-import { addComment, createPost, listBoardFeed, listGlobalFeed, updatePost } from './postService'
+import { addComment, createPost, listBoardFeed, listComments, listGlobalFeed, updatePost } from './postService'
 
 describe('api/services/postService', () => {
   let mock
@@ -67,6 +67,20 @@ describe('api/services/postService', () => {
 
     expect(resp.traceId).toBe('trace-add-comment')
     expect(resp.data).toEqual({ id: 'reply-1' })
+  })
+
+  it('listComments should only accept the cursor page response shape', async () => {
+    const postId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    mock = new MockAdapter(http)
+    mock.onGet(`/api/posts/${postId}/comments`).replyOnce(200, {
+      code: 0,
+      data: [{ id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc', content: 'old shape' }],
+      traceId: 'trace-comments'
+    })
+
+    const resp = await listComments(postId)
+
+    expect(resp.data).toEqual({ items: [], nextCursor: '' })
   })
 
   it('createPost and updatePost should normalize block payloads without content shortcuts', async () => {

@@ -173,12 +173,6 @@ function normalizeFeedPage(raw) {
 }
 
 function normalizeCommentPage(raw) {
-  if (Array.isArray(raw)) {
-    return {
-      items: raw.map(pickCommentFields),
-      nextCursor: ''
-    }
-  }
   const page = raw && typeof raw === 'object' ? raw : {}
   return {
     items: Array.isArray(page.items) ? page.items.map(pickCommentFields) : [],

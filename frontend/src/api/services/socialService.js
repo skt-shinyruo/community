@@ -14,8 +14,8 @@ function likeKey(entityType, entityId) {
   return `${entityType}:${entityId}`
 }
 
-export async function setLike({ entityType, entityId, entityUserId, postId, liked }) {
-  const resp = await http.post('/api/likes', { entityType, entityId, entityUserId, postId, liked })
+export async function setLike({ entityType, entityId, liked }) {
+  const resp = await http.post('/api/likes', { entityType, entityId, liked })
   const { data, traceId } = unwrapResultBody(resp.data, '点赞')
   if (typeof data?.likeCount === 'number') {
     likeCountCache.set(likeKey(entityType, entityId), data.likeCount)
@@ -26,8 +26,8 @@ export async function setLike({ entityType, entityId, entityUserId, postId, like
   return { data, traceId }
 }
 
-export async function followUser(entityType, entityId, entityUserId) {
-  const resp = await http.post('/api/follows', { entityType, entityId, entityUserId })
+export async function followUser(entityType, entityId) {
+  const resp = await http.post('/api/follows', { entityType, entityId })
   const { traceId } = unwrapResultBody(resp.data, '关注')
   followStatusCache.set(likeKey(entityType, entityId), true)
   return { traceId }

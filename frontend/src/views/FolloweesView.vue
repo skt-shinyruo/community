@@ -125,7 +125,7 @@ async function load() {
 async function doFollow(it) {
   if (!authed.value) return
   try {
-    const r = await followUser(3, it.targetId, it.targetId)
+    const r = await followUser(3, it.targetId)
     emit('trace', r?.traceId || '')
     it.hasFollowed = true
   } catch (e) {

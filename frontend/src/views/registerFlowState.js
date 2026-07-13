@@ -1,5 +1,3 @@
-import { normalizeOpaqueId } from '../utils/opaqueId'
-
 const STORAGE_KEY = 'community.register.pending'
 
 function safeString(value) {
@@ -14,16 +12,14 @@ function getStorage() {
 }
 
 export function buildRegisterFlowState(registerData = null) {
-  const userId = normalizeOpaqueId(registerData?.userId)
   const registrationToken = safeString(registerData?.registrationToken)
   const emailCodeIssued = registerData?.emailCodeIssued === true
   const maskedEmail = safeString(registerData?.maskedEmail)
   const debugEmailCode = safeString(registerData?.debugEmailCode)
-  const step = emailCodeIssued && (registrationToken || userId) ? 'verify' : 'form'
+  const step = emailCodeIssued && registrationToken ? 'verify' : 'form'
 
   return {
     step,
-    userId,
     registrationToken,
     emailCodeIssued,
     maskedEmail,
@@ -44,7 +40,6 @@ export function persistRegisterFlowState(flowState, storage = getStorage()) {
     return normalized
   }
   storage.setItem(STORAGE_KEY, JSON.stringify({
-    userId: normalized.userId,
     registrationToken: normalized.registrationToken,
     emailCodeIssued: normalized.emailCodeIssued,
     maskedEmail: normalized.maskedEmail,
@@ -75,13 +70,7 @@ export function clearRegisterFlowState(storage = getStorage()) {
 
 export function resolveRegisterFlowError(error) {
   const code = Number(error?.code || 0)
-  if (code === 10002) {
-    return {
-      resetFlow: true,
-      message: '账号已完成验证，请直接登录'
-    }
-  }
-  if (code === 10013 || code === 11001) {
+  if (code === 10013) {
     return {
       resetFlow: true,
       message: '注册上下文已失效，请重新注册'

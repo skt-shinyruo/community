@@ -8,6 +8,7 @@ import com.nowcoder.community.user.application.result.UserCredentialResult;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
+import com.nowcoder.community.user.domain.repository.UserRepository.InsertResult;
 import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
 import com.nowcoder.community.user.domain.service.UserRegistrationDomainService;
 import com.nowcoder.community.user.exception.UserErrorCode;
@@ -16,7 +17,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.time.Clock;
@@ -33,7 +33,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -73,6 +72,7 @@ class UserRegistrationApplicationServiceTest {
         UserRegistrationApplicationService service = service();
         UUID userId = userId(21);
         String encodedPassword = new BCryptPasswordEncoder().encode("secret12");
+        when(userRepository.insertUser(any())).thenReturn(InsertResult.CREATED);
 
         UserCredentialResult result = service.createVerifiedRegistrationUser(new CreateVerifiedRegistrationUserCommand(
                 userId,
@@ -110,11 +110,14 @@ class UserRegistrationApplicationServiceTest {
     @Test
     void createVerifiedRegistrationUserShouldTranslateDuplicateEmailRace() {
         UserRegistrationApplicationService service = service();
-        doThrow(new DuplicateKeyException("uk_user_email")).when(userRepository).insertUser(any());
+        UUID userId = userId(22);
+        when(userRepository.insertUser(any())).thenReturn(InsertResult.ALREADY_EXISTS);
+        when(userRepository.findByEmail("alice@example.com"))
+                .thenReturn(Optional.of(existingUser("other", "alice@example.com")));
         String encodedPassword = new BCryptPasswordEncoder().encode("secret12");
 
         assertThatThrownBy(() -> service.createVerifiedRegistrationUser(new CreateVerifiedRegistrationUserCommand(
-                userId(22),
+                userId,
                 "alice",
                 encodedPassword,
                 "alice@example.com",

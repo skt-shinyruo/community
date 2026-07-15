@@ -111,4 +111,18 @@ public interface LikeMapper {
             @Param("afterUserId") UUID afterUserId,
             @Param("limit") int limit
     );
+
+    @Select("""
+            select distinct entity_id
+            from social_like
+            where entity_type = #{entityType}
+              and entity_id > #{afterEntityId, jdbcType=BINARY}
+            order by entity_id asc
+            limit #{limit}
+            """)
+    List<UUID> scanTargetIdsAfter(
+            @Param("entityType") int entityType,
+            @Param("afterEntityId") UUID afterEntityId,
+            @Param("limit") int limit
+    );
 }

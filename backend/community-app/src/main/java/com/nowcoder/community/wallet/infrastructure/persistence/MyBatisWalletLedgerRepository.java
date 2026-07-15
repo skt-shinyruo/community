@@ -3,12 +3,14 @@ package com.nowcoder.community.wallet.infrastructure.persistence;
 import com.nowcoder.community.wallet.domain.model.WalletEntry;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerItem;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
+import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.WalletLedgerRepository;
 import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletEntryDataObject;
 import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletLedgerItemDataObject;
 import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletTxnDataObject;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletEntryMapper;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletTxnMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
@@ -32,8 +34,17 @@ public class MyBatisWalletLedgerRepository implements WalletLedgerRepository {
     }
 
     @Override
-    public int insertTxn(WalletTxn txn) {
-        return txnMapper.insert(WalletTxnDataObject.from(txn));
+    public CreationOutcome<WalletTxn> create(WalletTxn txn) {
+        try {
+            return txnMapper.insert(WalletTxnDataObject.from(txn)) == 1
+                    ? CreationOutcome.created(txn)
+                    : CreationOutcome.conflict();
+        } catch (DuplicateKeyException exception) {
+            WalletTxn existing = txnMapper.selectByRequestId(txn.getRequestId());
+            return existing == null
+                    ? CreationOutcome.conflict()
+                    : CreationOutcome.alreadyExists(existing);
+        }
     }
 
     @Override

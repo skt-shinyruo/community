@@ -32,12 +32,14 @@ import static org.mockito.Mockito.when;
 
 class RedisRefreshTokenRepositoryTest {
 
+    private static final long SECURITY_VERSION_AT_ISSUE = 42L;
+
     private static JacksonJsonCodec jsonCodec() {
         return new JacksonJsonCodec(JsonMappers.standard());
     }
 
     @Test
-    void storeShouldUseAtomicScriptToStoreTokenAndIndexFamily() {
+    void storeShouldUseAtomicScriptToStoreTokenSecurityVersionAndIndexFamily() throws Exception {
         UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000007");
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
@@ -52,17 +54,20 @@ class RedisRefreshTokenRepositoryTest {
                 .thenReturn(1L);
 
         RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
-        store.store("t1", userId, "f1", Instant.now().plusSeconds(120));
+        store.store("t1", userId, "f1", SECURITY_VERSION_AT_ISSUE, Instant.now().plusSeconds(120));
 
         ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
         ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<String> recordCaptor = ArgumentCaptor.forClass(String.class);
         verify(redisTemplate).execute(
                 scriptCaptor.capture(),
                 keysCaptor.capture(),
-                anyString(),
+                recordCaptor.capture(),
                 anyString(),
                 eq("t1")
         );
+        assertThat(JsonMappers.standard().readTree(recordCaptor.getValue()).path("securityVersionAtIssue").asLong())
+                .isEqualTo(SECURITY_VERSION_AT_ISSUE);
         assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);
         DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
         assertThat(script.getScriptAsString()).contains("redis.call('exists', KEYS[1])");
@@ -111,6 +116,7 @@ class RedisRefreshTokenRepositoryTest {
                 "refreshToken", "t1",
                 "userId", userId,
                 "familyId", "f1",
+                "securityVersionAtIssue", SECURITY_VERSION_AT_ISSUE,
                 "expiresAt", Instant.now().plusSeconds(60),
                 "state", "ACTIVE"
         ));
@@ -123,6 +129,7 @@ class RedisRefreshTokenRepositoryTest {
         assertThat(found.refreshToken()).isEqualTo("t1");
         assertThat(found.userId()).isEqualTo(userId);
         assertThat(found.familyId()).isEqualTo("f1");
+        assertThat(found.securityVersionAtIssue()).isEqualTo(SECURITY_VERSION_AT_ISSUE);
         ArgumentCaptor<RedisScript<String>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
         ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
         verify(redisTemplate).execute(
@@ -135,6 +142,7 @@ class RedisRefreshTokenRepositoryTest {
         DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
         assertThat(script.getScriptAsString()).contains("cjson.decode");
         assertThat(script.getScriptAsString()).contains("record.state ~= 'ACTIVE'");
+        assertThat(script.getScriptAsString()).contains("securityVersionAtIssue");
         assertThat(script.getScriptAsString()).contains("redis.call('exists', KEYS[3] .. record.familyId)");
         assertThat(script.getScriptAsString()).contains("redis.call('del', KEYS[1])");
         assertThat(script.getScriptAsString()).contains("redis.call('set', KEYS[2], tombstone, 'px', ttl)");
@@ -167,12 +175,14 @@ class RedisRefreshTokenRepositoryTest {
                 "refreshToken", "t1",
                 "userId", userId,
                 "familyId", "f1",
+                "securityVersionAtIssue", SECURITY_VERSION_AT_ISSUE,
                 "expiresAt", expiresAt,
                 "state", "ACTIVE"
         ));
         String tombstoneJson = codec.toJson(Map.of(
                 "userId", userId,
                 "familyId", "f1",
+                "securityVersionAtIssue", SECURITY_VERSION_AT_ISSUE,
                 "expiresAt", expiresAt,
                 "revokedAt", Instant.now().minusSeconds(2)
         ));
@@ -184,7 +194,7 @@ class RedisRefreshTokenRepositoryTest {
         assertThat(store.consume("t1")).isNotNull();
         assertThat(store.consume("t1")).isNull();
         RefreshTokenRepository.RevokedRefreshToken revoked = store.findRevoked("t1");
-        assertThatThrownBy(() -> store.store("t3", userId, "f1", expiresAt))
+        assertThatThrownBy(() -> store.store("t3", userId, "f1", SECURITY_VERSION_AT_ISSUE, expiresAt))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("refresh token family");
 
@@ -234,6 +244,7 @@ class RedisRefreshTokenRepositoryTest {
                 "refreshToken", "t1",
                 "userId", userId,
                 "familyId", "f1",
+                "securityVersionAtIssue", SECURITY_VERSION_AT_ISSUE,
                 "expiresAt", Instant.now().plusSeconds(60),
                 "state", "ACTIVE"
         ));
@@ -271,7 +282,28 @@ class RedisRefreshTokenRepositoryTest {
                 "refreshToken", "t1",
                 "userId", userId,
                 "familyId", "f1",
+                "securityVersionAtIssue", SECURITY_VERSION_AT_ISSUE,
                 "expiresAt", Instant.now().plusSeconds(60)
+        )));
+
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
+
+        assertThat(store.find("t1")).isNull();
+    }
+
+    @Test
+    void findShouldRejectLegacyRecordWithoutSecurityVersionAtIssue() throws Exception {
+        UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000007");
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("auth:refresh:t1")).thenReturn(jsonCodec().toJson(Map.of(
+                "refreshToken", "t1",
+                "userId", userId,
+                "familyId", "f1",
+                "expiresAt", Instant.now().plusSeconds(60),
+                "state", "ACTIVE"
         )));
 
         RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
@@ -307,6 +339,7 @@ class RedisRefreshTokenRepositoryTest {
                 "refreshToken", "t1",
                 "userId", userId,
                 "familyId", "f1",
+                "securityVersionAtIssue", SECURITY_VERSION_AT_ISSUE,
                 "expiresAt", expiresAt,
                 "state", "PENDING_ROTATION",
                 "pendingExpiresAt", pendingExpiresAt
@@ -318,7 +351,13 @@ class RedisRefreshTokenRepositoryTest {
 
         RefreshTokenRepository.StoredRefreshToken pending = store.beginRotation("  t1  ", pendingExpiresAt);
 
-        assertThat(pending).isEqualTo(new RefreshTokenRepository.StoredRefreshToken("t1", userId, "f1", expiresAt));
+        assertThat(pending).isEqualTo(new RefreshTokenRepository.StoredRefreshToken(
+                "t1",
+                userId,
+                "f1",
+                SECURITY_VERSION_AT_ISSUE,
+                expiresAt
+        ));
         assertThat(store.find("t1")).isNull();
         ArgumentCaptor<RedisScript<String>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
         ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
@@ -347,24 +386,35 @@ class RedisRefreshTokenRepositoryTest {
 
         RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, jsonCodec());
 
-        assertThat(store.finishRotation("  t1  ", "  t2  ", userId, " f1 ", replacementExpiresAt)).isTrue();
+        assertThat(store.finishRotation(
+                "  t1  ",
+                "  t2  ",
+                userId,
+                " f1 ",
+                SECURITY_VERSION_AT_ISSUE,
+                replacementExpiresAt
+        )).isTrue();
 
         ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
         ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<String> replacementRecordCaptor = ArgumentCaptor.forClass(String.class);
         verify(redisTemplate).execute(
                 scriptCaptor.capture(),
                 keysCaptor.capture(),
-                anyString(),
+                replacementRecordCaptor.capture(),
                 anyString(),
                 eq("t2"),
                 anyString(),
                 eq("t1")
         );
+        assertThat(JsonMappers.standard().readTree(replacementRecordCaptor.getValue()).path("securityVersionAtIssue").asLong())
+                .isEqualTo(SECURITY_VERSION_AT_ISSUE);
         assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);
         DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
         assertThat(script.getScriptAsString())
                 .contains("PENDING_ROTATION")
                 .contains("CONSUMED")
+                .contains("securityVersionAtIssue")
                 .contains("auth:refresh:revoked:")
                 .contains("redis.call('sadd', KEYS[3], ARGV[3])")
                 .doesNotContain("oldToken = ARGV[5]");

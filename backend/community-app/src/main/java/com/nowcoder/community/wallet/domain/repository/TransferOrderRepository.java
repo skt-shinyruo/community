@@ -10,7 +10,7 @@ public interface TransferOrderRepository {
 
     TransferOrder findByFromUserIdAndRequestId(UUID fromUserId, String requestId);
 
-    int insert(TransferOrder order);
+    CreationOutcome<TransferOrder> create(TransferOrder order);
 
     int updateStatus(UUID fromUserId, String requestId, String fromStatus, String toStatus);
 }

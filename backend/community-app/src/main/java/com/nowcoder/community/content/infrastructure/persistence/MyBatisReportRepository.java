@@ -5,7 +5,7 @@ import com.nowcoder.community.content.domain.model.ReportSnapshot;
 import com.nowcoder.community.content.domain.repository.ReportRepository;
 import com.nowcoder.community.content.domain.model.Report;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.ReportMapper;
-import com.nowcoder.community.infra.pagination.Pagination;
+import com.nowcoder.community.common.pagination.Pagination;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;

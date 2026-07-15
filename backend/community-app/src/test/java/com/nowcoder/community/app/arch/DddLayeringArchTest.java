@@ -12,14 +12,12 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 import org.junit.jupiter.api.Test;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
 
 @AnalyzeClasses(
         packages = "com.nowcoder.community",
@@ -75,7 +73,8 @@ class DddLayeringArchTest {
                             "..infrastructure..",
                             "..mapper..",
                             "..entity..",
-                            "..dto.."
+                            "..dto..",
+                            "com.nowcoder.community.infra.."
                     )
                     .allowEmptyShould(true);
 
@@ -116,22 +115,6 @@ class DddLayeringArchTest {
                     .that().resideInAnyPackage("..application..")
                     .and().areInterfaces()
                     .should(notExposeTransportVocabularyInApplicationPort());
-
-    @ArchTest
-    static final ArchRule content_infrastructure_persistence_must_not_own_transactions =
-            noMethods()
-                    .that().areDeclaredInClassesThat().resideInAnyPackage("..content.infrastructure.persistence..")
-                    .should().beAnnotatedWith(Transactional.class)
-                    .because("content write transaction boundaries belong in application services")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule content_infrastructure_persistence_classes_must_not_own_transactions =
-            noClasses()
-                    .that().resideInAnyPackage("..content.infrastructure.persistence..")
-                    .should().beAnnotatedWith(Transactional.class)
-                    .because("content write transaction boundaries belong in application services")
-                    .allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule content_infrastructure_persistence_must_not_call_foreign_owner_apis =

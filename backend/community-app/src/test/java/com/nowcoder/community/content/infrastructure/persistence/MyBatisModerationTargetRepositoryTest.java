@@ -3,8 +3,8 @@ package com.nowcoder.community.content.infrastructure.persistence;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.content.domain.model.ModerationTarget;
 import com.nowcoder.community.content.domain.model.ReportSnapshot;
-import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
+import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
 import org.junit.jupiter.api.Test;
@@ -13,6 +13,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static com.nowcoder.community.content.support.CommentTestBuilder.aComment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -48,11 +49,12 @@ class MyBatisModerationTargetRepositoryTest {
         MyBatisModerationTargetRepository repository = new MyBatisModerationTargetRepository(discussPostMapper, commentMapper);
         UUID commentId = uuid(66);
         UUID commentOwnerId = uuid(7);
-        Comment comment = new Comment();
-        comment.setId(commentId);
-        comment.setUserId(commentOwnerId);
-        comment.setStatus(0);
-        when(commentMapper.selectCommentById(commentId)).thenReturn(comment);
+        CommentDataObject comment = aComment()
+                .id(commentId)
+                .userId(commentOwnerId)
+                .status(0)
+                .buildDataObject();
+        when(commentMapper.selectById(commentId)).thenReturn(comment);
 
         ModerationTarget target = repository.resolveTarget(report(EntityTypes.COMMENT, commentId));
 

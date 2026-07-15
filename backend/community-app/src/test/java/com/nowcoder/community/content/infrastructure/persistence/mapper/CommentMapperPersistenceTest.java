@@ -3,7 +3,8 @@ package com.nowcoder.community.content.infrastructure.persistence.mapper;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.content.domain.model.Comment;
+import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
+import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentTransitionTargetDataObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,8 +46,8 @@ class CommentMapperPersistenceTest {
     }
 
     @Test
-    void insertCommentShouldPersistPostAndThreadIdentityColumns() {
-        Comment comment = new Comment();
+    void insertShouldPersistPostThreadIdentityAndInitialVersion() {
+        CommentDataObject comment = new CommentDataObject();
         comment.setId(COMMENT_ID);
         comment.setPostId(POST_ID);
         comment.setUserId(USER_ID);
@@ -57,7 +58,7 @@ class CommentMapperPersistenceTest {
         comment.setStatus(0);
         comment.setCreateTime(new Date());
 
-        int inserted = commentMapper.insertComment(comment);
+        int inserted = commentMapper.insert(comment);
 
         assertThat(inserted).isEqualTo(1);
         assertThat(comment.getId()).isEqualTo(COMMENT_ID);
@@ -89,11 +90,16 @@ class CommentMapperPersistenceTest {
                 BinaryUuidCodec.toBytes(COMMENT_ID)
         );
         assertThat(storedReplyToUserId).isNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "select version from comment where id = ?",
+                Long.class,
+                BinaryUuidCodec.toBytes(COMMENT_ID)
+        )).isZero();
     }
 
     @Test
-    void updateCommentContentShouldNotModifyInactiveComment() {
-        Comment comment = new Comment();
+    void editCasShouldNotModifyInactiveComment() {
+        CommentDataObject comment = new CommentDataObject();
         comment.setId(COMMENT_ID);
         comment.setPostId(POST_ID);
         comment.setUserId(USER_ID);
@@ -103,12 +109,12 @@ class CommentMapperPersistenceTest {
         comment.setContent("deleted");
         comment.setStatus(2);
         comment.setCreateTime(new Date());
-        commentMapper.insertComment(comment);
+        commentMapper.insert(comment);
 
-        int updated = commentMapper.updateCommentContent(COMMENT_ID, "updated", new Date());
+        int updated = commentMapper.applyEdit(COMMENT_ID, 0L, "updated", new Date());
 
         assertThat(updated).isZero();
-        Comment persisted = commentMapper.selectCommentById(COMMENT_ID);
+        CommentDataObject persisted = commentMapper.selectById(COMMENT_ID);
         assertThat(persisted.getContent()).isEqualTo("deleted");
         assertThat(persisted.getStatus()).isEqualTo(2);
         assertThat(persisted.getEditCount()).isZero();
@@ -124,19 +130,27 @@ class CommentMapperPersistenceTest {
         insertReply(secondReplyId, USER_ID, POST_ID, COMMENT_ID, USER_ID, 0, "second", Instant.parse("2026-04-29T01:02:05Z"));
         insertReply(inactiveReplyId, USER_ID, POST_ID, COMMENT_ID, USER_ID, 1, "inactive", Instant.parse("2026-04-29T01:02:06Z"));
 
-        List<UUID> directReplyIds = commentMapper.selectActiveRepliesByRootComment(COMMENT_ID);
-        int updatedParent = commentMapper.updateActiveCommentDeleted(COMMENT_ID, USER_ID, "author_delete", new Date());
-        int updatedReply = commentMapper.updateActiveCommentDeleted(directReplyIds.get(0), USER_ID, "author_delete", new Date());
-        int updatedSecondReply = commentMapper.updateActiveCommentDeleted(directReplyIds.get(1), USER_ID, "author_delete", new Date());
-        int updatedInactiveReply = commentMapper.updateActiveCommentDeleted(inactiveReplyId, USER_ID, "author_delete", new Date());
+        List<CommentDataObject> thread = commentMapper.selectThreadForUpdate(COMMENT_ID);
+        List<CommentTransitionTargetDataObject> targets = thread.stream()
+                .filter(row -> row.getStatus() == 0)
+                .map(row -> new CommentTransitionTargetDataObject(row.getId(), row.getVersion()))
+                .toList();
+        int updated = commentMapper.applyThreadDeletion(
+                COMMENT_ID,
+                targets,
+                USER_ID,
+                "author_delete",
+                new Date()
+        );
 
-        assertThat(directReplyIds).containsExactly(replyId, secondReplyId);
-        assertThat(updatedParent + updatedReply + updatedSecondReply).isEqualTo(3);
-        assertThat(updatedInactiveReply).isZero();
-        assertThat(commentMapper.selectCommentById(COMMENT_ID).getStatus()).isEqualTo(1);
-        assertThat(commentMapper.selectCommentById(replyId).getStatus()).isEqualTo(1);
-        assertThat(commentMapper.selectCommentById(secondReplyId).getStatus()).isEqualTo(1);
-        assertThat(commentMapper.selectCommentById(inactiveReplyId).getStatus()).isEqualTo(1);
+        assertThat(targets).extracting(CommentTransitionTargetDataObject::commentId)
+                .containsExactly(COMMENT_ID, replyId, secondReplyId);
+        assertThat(updated).isEqualTo(3);
+        assertThat(commentMapper.selectById(COMMENT_ID).getStatus()).isEqualTo(1);
+        assertThat(commentMapper.selectById(COMMENT_ID).getVersion()).isEqualTo(1L);
+        assertThat(commentMapper.selectById(replyId).getStatus()).isEqualTo(1);
+        assertThat(commentMapper.selectById(secondReplyId).getStatus()).isEqualTo(1);
+        assertThat(commentMapper.selectById(inactiveReplyId).getStatus()).isEqualTo(1);
     }
 
     @Test
@@ -197,7 +211,7 @@ class CommentMapperPersistenceTest {
     }
 
     private void insertRootComment(UUID id, UUID userId, UUID postId, int status, String content, Instant createTime) {
-        Comment comment = new Comment();
+        CommentDataObject comment = new CommentDataObject();
         comment.setId(id);
         comment.setPostId(postId);
         comment.setUserId(userId);
@@ -207,7 +221,7 @@ class CommentMapperPersistenceTest {
         comment.setContent(content);
         comment.setStatus(status);
         comment.setCreateTime(Date.from(createTime));
-        commentMapper.insertComment(comment);
+        commentMapper.insert(comment);
     }
 
     private void insertReply(
@@ -220,7 +234,7 @@ class CommentMapperPersistenceTest {
             String content,
             Instant createTime
     ) {
-        Comment comment = new Comment();
+        CommentDataObject comment = new CommentDataObject();
         comment.setId(id);
         comment.setPostId(postId);
         comment.setUserId(userId);
@@ -230,7 +244,7 @@ class CommentMapperPersistenceTest {
         comment.setContent(content);
         comment.setStatus(status);
         comment.setCreateTime(Date.from(createTime));
-        commentMapper.insertComment(comment);
+        commentMapper.insert(comment);
     }
 
     private List<UUID> queryIds(String sql, Object... args) {

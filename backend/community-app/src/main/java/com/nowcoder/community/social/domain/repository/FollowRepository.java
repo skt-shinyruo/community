@@ -81,7 +81,4 @@ public interface FollowRepository {
         return blockRepository.hasBlocked(userIdA, userIdB) || blockRepository.hasBlocked(userIdB, userIdA);
     }
 
-    default boolean requiresExplicitCompensation() {
-        return false;
-    }
 }

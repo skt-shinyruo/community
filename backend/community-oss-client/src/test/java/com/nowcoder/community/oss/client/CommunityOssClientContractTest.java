@@ -1,5 +1,7 @@
 package com.nowcoder.community.oss.client;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssPublicFileResponse;
 import com.nowcoder.community.oss.client.model.OssAccessDecisionResponse;
@@ -141,6 +143,40 @@ class CommunityOssClientContractTest {
         assertThat(lifecycle.purged()).isTrue();
         assertThat(grantRequest.permission()).isEqualTo("READ");
         assertThat(bindRequest.referenceRole()).isEqualTo("PRIMARY");
+        assertThat(bindRequest.referenceId()).isNull();
+    }
+
+    @Test
+    void bindReferenceWireShouldCarryAnOptionalCallerSuppliedReferenceIdWithoutChangingExistingFields() {
+        UUID referenceId = uuid(9);
+        OssBindReferenceRequest request = new OssBindReferenceRequest(
+                referenceId.toString(),
+                uuid(2).toString(),
+                "community-app",
+                "content",
+                "post-media",
+                "post-7",
+                "PRIMARY",
+                Instant.parse("2026-05-07T01:00:00Z"),
+                "actor-7"
+        );
+
+        JsonNode json = JsonMappers.standard().valueToTree(request);
+
+        assertThat(json.fieldNames()).toIterable().containsExactlyInAnyOrder(
+                "referenceId",
+                "versionId",
+                "subjectService",
+                "subjectDomain",
+                "subjectType",
+                "subjectId",
+                "referenceRole",
+                "retainUntil",
+                "actorId"
+        );
+        assertThat(json.path("referenceId").asText()).isEqualTo(referenceId.toString());
+        assertThat(json.path("subjectDomain").asText()).isEqualTo("content");
+        assertThat(json.path("referenceRole").asText()).isEqualTo("PRIMARY");
     }
 
     private static UUID uuid(long suffix) {

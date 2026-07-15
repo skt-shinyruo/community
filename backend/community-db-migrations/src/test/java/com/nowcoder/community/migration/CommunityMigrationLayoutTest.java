@@ -1,0 +1,25 @@
+package com.nowcoder.community.migration;
+
+import org.junit.jupiter.api.Test;
+
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class CommunityMigrationLayoutTest {
+
+    @Test
+    void productionBaselineShouldBeDatabaseAgnosticAndExcludeForeignSchemasAndDevelopmentUsers() throws Exception {
+        String resource = "db/migration/community/V001__baseline.sql";
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {
+            assertThat(input).as(resource).isNotNull();
+            String sql = new String(input.readAllBytes(), StandardCharsets.UTF_8).toLowerCase();
+            assertThat(sql).doesNotContain("use community");
+            assertThat(sql).doesNotContain("create table if not exists im_");
+            assertThat(sql).doesNotContain("create table if not exists oss_");
+            assertThat(sql).doesNotContain("insert into user(");
+            assertThat(sql).doesNotContain("insert ignore into user(");
+        }
+    }
+}

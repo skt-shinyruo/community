@@ -13,3 +13,11 @@ oss:
     region: garage
     path-style: true
     local-root: /tmp/community-oss
+
+community:
+  oss:
+    upload-recovery:
+      enabled: true
+      batch-size: 100
+      stale-seconds: 300
+      delay-ms: 60000

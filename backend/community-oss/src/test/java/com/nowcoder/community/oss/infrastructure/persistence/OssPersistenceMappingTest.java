@@ -138,6 +138,29 @@ class OssPersistenceMappingTest {
         grantRepository.save(grant);
         referenceRepository.save(reference);
 
+        assertThat(sessionRepository.claimForCompletion(session.sessionId(), NOW.plusSeconds(1))).isTrue();
+        OssUploadSession firstClaim = sessionRepository.findById(session.sessionId()).orElseThrow();
+        assertThat(firstClaim.claimVersion()).isEqualTo(1L);
+        assertThat(sessionRepository.recordCompletionFailure(
+                session.sessionId(), 99L, "PUT_FAILED:wrong-claim", NOW.plusSeconds(2))).isFalse();
+        assertThat(sessionRepository.recordCompletionFailure(
+                session.sessionId(), firstClaim.claimVersion(), "PUT_FAILED:timeout", NOW.plusSeconds(2))).isTrue();
+        assertThat(sessionRepository.resetFailedClaim(
+                session.sessionId(),
+                firstClaim.claimVersion(),
+                NOW.plusSeconds(3),
+                NOW.plusSeconds(903))).isTrue();
+        OssUploadSession reset = sessionRepository.findById(session.sessionId()).orElseThrow();
+        assertThat(reset.status().name()).isEqualTo("READY");
+        assertThat(reset.claimVersion()).isGreaterThan(firstClaim.claimVersion());
+        assertThat(sessionRepository.completeClaim(
+                session.sessionId(), firstClaim.claimVersion(), NOW.plusSeconds(4))).isFalse();
+        assertThat(sessionRepository.claimForCompletion(session.sessionId(), NOW.plusSeconds(4))).isTrue();
+        OssUploadSession retryClaim = sessionRepository.findById(session.sessionId()).orElseThrow();
+        assertThat(retryClaim.claimVersion()).isGreaterThan(reset.claimVersion());
+        assertThat(sessionRepository.completeClaim(
+                session.sessionId(), retryClaim.claimVersion(), NOW.plusSeconds(5))).isTrue();
+
         assertThat(objectRepository.findById(objectId)).get().extracting(OssObject::currentVersionId).isEqualTo(versionId);
         assertThat(versionRepository.findById(versionId)).get().extracting(OssObjectVersion::storageKey).isEqualTo(version.storageKey());
         assertThat(sessionRepository.findById(session.sessionId())).get().extracting(OssUploadSession::expectedFileName).isEqualTo(session.expectedFileName());
@@ -157,6 +180,11 @@ class OssPersistenceMappingTest {
         private final Map<UUID, OssObjectDataObject> rows = new HashMap<>();
 
         @Override
+        public int insert(OssObjectDataObject row) {
+            return rows.putIfAbsent(row.getObjectId(), row) == null ? 1 : 0;
+        }
+
+        @Override
         public int upsert(OssObjectDataObject row) {
             rows.put(row.getObjectId(), row);
             return 1;
@@ -170,6 +198,11 @@ class OssPersistenceMappingTest {
 
     private static final class FakeVersionMapper implements OssObjectVersionMapper {
         private final Map<UUID, OssObjectVersionDataObject> rows = new HashMap<>();
+
+        @Override
+        public int insert(OssObjectVersionDataObject row) {
+            return rows.putIfAbsent(row.getVersionId(), row) == null ? 1 : 0;
+        }
 
         @Override
         public int upsert(OssObjectVersionDataObject row) {
@@ -187,6 +220,11 @@ class OssPersistenceMappingTest {
         private final Map<UUID, OssUploadSessionDataObject> rows = new HashMap<>();
 
         @Override
+        public int insert(OssUploadSessionDataObject row) {
+            return rows.putIfAbsent(row.getSessionId(), row) == null ? 1 : 0;
+        }
+
+        @Override
         public int upsert(OssUploadSessionDataObject row) {
             rows.put(row.getSessionId(), row);
             return 1;
@@ -195,6 +233,109 @@ class OssPersistenceMappingTest {
         @Override
         public OssUploadSessionDataObject selectById(UUID sessionId) {
             return rows.get(sessionId);
+        }
+
+        @Override
+        public OssUploadSessionDataObject selectByRequestId(UUID requestId) {
+            return rows.values().stream()
+                    .filter(row -> requestId.equals(row.getRequestId()))
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        @Override
+        public int claimForCompletion(UUID sessionId, Instant updatedAt) {
+            OssUploadSessionDataObject row = rows.get(sessionId);
+            if (row == null || !"READY".equals(row.getStatus())) {
+                return 0;
+            }
+            row.setStatus("UPLOADING");
+            row.setClaimVersion(row.getClaimVersion() + 1L);
+            row.setUpdatedAt(updatedAt);
+            row.setLastError("");
+            return 1;
+        }
+
+        @Override
+        public int recordCompletionFailure(
+                UUID sessionId,
+                long claimVersion,
+                String lastError,
+                Instant updatedAt
+        ) {
+            OssUploadSessionDataObject row = rows.get(sessionId);
+            if (!matchesClaim(row, claimVersion)) {
+                return 0;
+            }
+            row.setLastError(lastError);
+            row.setUpdatedAt(updatedAt);
+            return 1;
+        }
+
+        @Override
+        public int resetFailedClaim(
+                UUID sessionId,
+                long claimVersion,
+                Instant updatedAt,
+                Instant retryExpiresAt
+        ) {
+            OssUploadSessionDataObject row = rows.get(sessionId);
+            if (!matchesClaim(row, claimVersion) || !row.getLastError().startsWith("PUT_FAILED:")) {
+                return 0;
+            }
+            row.setStatus("READY");
+            row.setClaimVersion(row.getClaimVersion() + 1L);
+            row.setLastError("");
+            row.setUpdatedAt(updatedAt);
+            row.setExpiresAt(retryExpiresAt);
+            return 1;
+        }
+
+        @Override
+        public int completeClaim(UUID sessionId, long claimVersion, Instant completedAt) {
+            OssUploadSessionDataObject row = rows.get(sessionId);
+            if (!matchesClaim(row, claimVersion)) {
+                return 0;
+            }
+            row.setStatus("COMPLETED");
+            row.setCompletedAt(completedAt);
+            row.setUpdatedAt(completedAt);
+            row.setLastError("");
+            return 1;
+        }
+
+        @Override
+        public int renewReadySession(
+                UUID sessionId,
+                Instant expectedExpiresAt,
+                Instant renewedExpiresAt,
+                Instant updatedAt
+        ) {
+            OssUploadSessionDataObject row = rows.get(sessionId);
+            if (row == null
+                    || !"READY".equals(row.getStatus())
+                    || !expectedExpiresAt.equals(row.getExpiresAt())) {
+                return 0;
+            }
+            row.setExpiresAt(renewedExpiresAt);
+            row.setUpdatedAt(updatedAt);
+            row.setLastError("");
+            return 1;
+        }
+
+        @Override
+        public List<OssUploadSessionDataObject> listRecoverable(Instant updatedBefore, int limit) {
+            return rows.values().stream()
+                    .filter(row -> "UPLOADING".equals(row.getStatus()))
+                    .filter(row -> !row.getUpdatedAt().isAfter(updatedBefore))
+                    .limit(limit)
+                    .toList();
+        }
+
+        private static boolean matchesClaim(OssUploadSessionDataObject row, long claimVersion) {
+            return row != null
+                    && "UPLOADING".equals(row.getStatus())
+                    && row.getClaimVersion() == claimVersion;
         }
     }
 
@@ -239,13 +380,27 @@ class OssPersistenceMappingTest {
         private final Map<UUID, OssObjectReferenceDataObject> rows = new HashMap<>();
 
         @Override
-        public int upsert(OssObjectReferenceDataObject row) {
+        public int insert(OssObjectReferenceDataObject row) {
+            rows.put(row.getReferenceId(), row);
+            return 1;
+        }
+
+        @Override
+        public int updateLifecycle(OssObjectReferenceDataObject row) {
+            if (!rows.containsKey(row.getReferenceId())) {
+                return 0;
+            }
             rows.put(row.getReferenceId(), row);
             return 1;
         }
 
         @Override
         public OssObjectReferenceDataObject selectById(UUID referenceId) {
+            return rows.get(referenceId);
+        }
+
+        @Override
+        public OssObjectReferenceDataObject selectByIdForUpdate(UUID referenceId) {
             return rows.get(referenceId);
         }
 

@@ -3,9 +3,9 @@ package com.nowcoder.community.market.application;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.infra.idempotency.EffectiveIdempotencyKey;
-import com.nowcoder.community.infra.idempotency.IdempotencyKeyResolver;
-import com.nowcoder.community.infra.idempotency.RequestFingerprint;
+import com.nowcoder.community.common.idempotency.EffectiveIdempotencyKey;
+import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
+import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import com.nowcoder.community.market.application.command.CreateMarketOrderCommand;
 import com.nowcoder.community.market.application.result.MarketOrderResult;
 import com.nowcoder.community.market.domain.model.MarketAddress;
@@ -27,7 +27,6 @@ import com.nowcoder.community.market.domain.repository.MarketShipmentRepository;
 import com.nowcoder.community.market.domain.service.MarketOrderDomainService;
 import com.nowcoder.community.market.exception.MarketErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -40,6 +39,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service
@@ -197,29 +197,31 @@ public class MarketOrderApplicationService {
                 listing.getTitle(),
                 addressSnapshot
         ));
-        try {
-            marketOrderRepository.save(order);
-        } catch (DataIntegrityViolationException ex) {
-            MarketOrder duplicated = marketOrderRepository.lockByBuyerUserIdAndRequestId(buyerUserId, requestId);
-            if (duplicated != null) {
-                duplicated.assertReplayMatches(buyerUserId, listingId, quantity, addressId);
-                return MarketOrderResult.from(duplicated);
-            }
-            throw ex;
+        MarketOrderRepository.CreateResult createResult = marketOrderRepository.create(order);
+        if (createResult == null
+                || createResult.status() == null
+                || createResult.status() == MarketOrderRepository.CreateStatus.CONFLICT
+                || createResult.aggregate() == null) {
+            throw new BusinessException(INTERNAL_ERROR, "market order creation conflict: requestId=" + requestId);
+        }
+        MarketOrder createdOrExisting = createResult.aggregate();
+        createdOrExisting.assertReplayMatches(buyerUserId, listingId, quantity, addressId);
+        if (createResult.status() == MarketOrderRepository.CreateStatus.ALREADY_EXISTS) {
+            return MarketOrderResult.from(createdOrExisting);
         }
 
         adjustFiniteStockAfterOrder(listing, quantity);
         if (listing.isPreloadedDelivery()) {
-            reserveUnitsForOrder(order.getOrderId(), reservedUnits);
+            reserveUnitsForOrder(createdOrExisting.getOrderId(), reservedUnits);
         }
         marketWalletActionService.enqueueEscrow(
-                order.getOrderId(),
+                createdOrExisting.getOrderId(),
                 buyerUserId,
                 listing.getSellerUserId(),
                 totalAmount
         );
 
-        return MarketOrderResult.from(reloadOrder(order.getOrderId()));
+        return MarketOrderResult.from(reloadOrder(createdOrExisting.getOrderId()));
     }
 
     @Transactional
@@ -244,7 +246,7 @@ public class MarketOrderApplicationService {
         marketDeliveryRepository.save(delivery);
 
         MarketOrderTransition transition = order.markDelivered(Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
-        marketOrderRepository.markDelivered(transition.orderId(), transition.autoConfirmAt());
+        applyForeground(transition);
         return MarketOrderResult.from(reloadOrder(orderId));
     }
 
@@ -254,15 +256,13 @@ public class MarketOrderApplicationService {
         order.assertBuyer(buyerUserId);
         MarketOrderTransition transition = order.requestRelease();
 
-        int updated = marketOrderRepository.markReleasePending(transition.orderId());
-        if (updated == 1) {
-            marketWalletActionService.enqueueRelease(
-                    transition.orderId(),
-                    order.getSellerUserId(),
-                    order.getBuyerUserId(),
-                    order.getTotalAmount()
-            );
-        }
+        applyForeground(transition);
+        marketWalletActionService.enqueueRelease(
+                transition.orderId(),
+                order.getSellerUserId(),
+                order.getBuyerUserId(),
+                order.getTotalAmount()
+        );
         return MarketOrderResult.from(reloadOrder(orderId));
     }
 
@@ -291,7 +291,7 @@ public class MarketOrderApplicationService {
         marketShipmentRepository.save(shipment);
 
         MarketOrderTransition transition = order.markShipped(Date.from(Instant.now().plus(7, ChronoUnit.DAYS)));
-        marketOrderRepository.markShipped(transition.orderId(), transition.autoConfirmAt());
+        applyForeground(transition);
         return MarketOrderResult.from(reloadOrder(orderId));
     }
 
@@ -301,21 +301,28 @@ public class MarketOrderApplicationService {
         order.assertBuyer(buyerUserId);
         if (order.status() == MarketOrderStatus.ESCROWED) {
             MarketOrderTransition transition = order.requestRefund();
-            int updated = marketOrderRepository.markRefundPending(transition.orderId());
-            if (updated == 1) {
-                marketWalletActionService.enqueueRefund(orderId, buyerUserId, order.getSellerUserId(), order.getTotalAmount());
-            }
+            applyForeground(transition);
+            marketWalletActionService.enqueueRefund(orderId, buyerUserId, order.getSellerUserId(), order.getTotalAmount());
             return MarketOrderResult.from(reloadOrder(orderId));
         }
         if (order.status() == MarketOrderStatus.ESCROW_PENDING) {
             MarketOrderTransition transition = order.requestEscrowCancel();
-            int updated = marketOrderRepository.markEscrowCancelPending(transition.orderId());
-            if (updated == 1 && marketWalletActionService.cancelPendingEscrowIfPossible(orderId)) {
+            applyForeground(transition);
+            if (marketWalletActionService.cancelPendingEscrowIfPossible(orderId)) {
                 marketOrderSagaService.completeEscrowNoop(orderId);
             }
             return MarketOrderResult.from(reloadOrder(orderId));
         }
         throw new BusinessException(INVALID_ARGUMENT, "order status mismatch: orderId=" + order.getOrderId());
+    }
+
+    private void applyForeground(MarketOrderTransition transition) {
+        if (marketOrderRepository.apply(transition) != MarketOrderRepository.ApplyStatus.APPLIED) {
+            throw new BusinessException(
+                    MarketErrorCode.ORDER_TRANSITION_CONFLICT,
+                    "market order transition conflict: orderId=" + transition.orderId()
+            );
+        }
     }
 
     private void validateCreateOrderRequest(String requestId, UUID buyerUserId, UUID listingId, int quantity) {

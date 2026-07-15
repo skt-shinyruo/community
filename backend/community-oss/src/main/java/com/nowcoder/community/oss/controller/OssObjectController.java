@@ -59,6 +59,7 @@ public class OssObjectController {
     @PostMapping("/api/oss/objects/upload-sessions")
     public ObjectUploadSessionResult prepareUpload(@RequestBody PrepareUploadSessionRequest request) {
         return uploadApplicationService.prepareUpload(new PrepareObjectUploadCommand(
+                request.requestId(),
                 request.usage(),
                 request.ownerService(),
                 request.ownerDomain(),

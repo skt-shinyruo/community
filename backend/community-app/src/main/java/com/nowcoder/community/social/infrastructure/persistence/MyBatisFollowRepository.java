@@ -5,7 +5,6 @@ import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.FollowRepository;
 import com.nowcoder.community.social.infrastructure.persistence.dataobject.FollowRelationDataObject;
 import com.nowcoder.community.social.infrastructure.persistence.mapper.FollowMapper;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
@@ -19,7 +18,6 @@ import java.util.Objects;
  * MySQL 持久化实现：以 DB 为 SSOT（source of truth）。
  */
 @Repository
-@ConditionalOnProperty(name = "social.storage", havingValue = "db", matchIfMissing = true)
 public class MyBatisFollowRepository implements FollowRepository {
 
     private final FollowMapper mapper;

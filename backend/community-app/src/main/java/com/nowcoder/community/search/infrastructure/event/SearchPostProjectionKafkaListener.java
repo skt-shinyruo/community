@@ -1,9 +1,9 @@
 package com.nowcoder.community.search.infrastructure.event;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.search.application.SearchPostProjectionApplicationService;
 import com.nowcoder.community.search.application.command.ProjectPostCommand;
@@ -14,14 +14,14 @@ import org.springframework.util.StringUtils;
 @Component
 public class SearchPostProjectionKafkaListener {
 
-    private final JsonCodec jsonCodec;
+    private final ContentContractEventCodec contractEventCodec;
     private final SearchPostProjectionApplicationService searchPostProjectionApplicationService;
 
     public SearchPostProjectionKafkaListener(
-            JsonCodec jsonCodec,
+            ContentContractEventCodec contractEventCodec,
             SearchPostProjectionApplicationService searchPostProjectionApplicationService
     ) {
-        this.jsonCodec = jsonCodec;
+        this.contractEventCodec = contractEventCodec;
         this.searchPostProjectionApplicationService = searchPostProjectionApplicationService;
     }
 
@@ -35,7 +35,12 @@ public class SearchPostProjectionKafkaListener {
             return;
         }
         requireSourceMetadata(event);
-        PostPayload payload = normalizePostPayload(event.payload());
+        PostPayload payload;
+        try {
+            payload = postPayload(contractEventCodec.decode(event));
+        } catch (RuntimeException error) {
+            throw malformed(event);
+        }
         if (payload == null || payload.getPostId() == null) {
             throw malformed(event);
         }
@@ -63,14 +68,16 @@ public class SearchPostProjectionKafkaListener {
                 || ContentEventTypes.POST_DELETED.equals(type);
     }
 
-    private PostPayload normalizePostPayload(Object payload) {
-        if (payload == null) {
-            return null;
+    private PostPayload postPayload(ContentTypedEvent event) {
+        if (event instanceof ContentTypedEvent.PostPublished value) {
+            return value.payload();
         }
-        if (payload instanceof PostPayload postPayload) {
-            return postPayload;
+        if (event instanceof ContentTypedEvent.PostUpdated value) {
+            return value.payload();
         }
-        JsonNode node = jsonCodec.valueToTree(payload);
-        return jsonCodec.treeToValue(node, PostPayload.class);
+        if (event instanceof ContentTypedEvent.PostDeleted value) {
+            return value.payload();
+        }
+        throw new IllegalArgumentException("unsupported search content event variant: " + event.getClass().getName());
     }
 }

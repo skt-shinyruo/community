@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static com.nowcoder.community.market.support.MarketOrderTestFixture.order;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -34,7 +35,7 @@ class MarketOrderAutoConfirmApplicationServiceUnitTest {
         UUID completedOrderId = uuid(1);
         UUID skippedOrderId = uuid(2);
         when(marketOrderRepository.findDueForAutoConfirm(any(Date.class)))
-                .thenReturn(List.of(order(completedOrderId), order(skippedOrderId)));
+                .thenReturn(List.of(marketOrder(completedOrderId), marketOrder(skippedOrderId)));
         when(singleOrderApplicationService.confirmOneDueOrder(eq(completedOrderId), any(Date.class))).thenReturn(true);
         when(singleOrderApplicationService.confirmOneDueOrder(eq(skippedOrderId), any(Date.class))).thenReturn(false);
 
@@ -50,9 +51,7 @@ class MarketOrderAutoConfirmApplicationServiceUnitTest {
         verify(singleOrderApplicationService).confirmOneDueOrder(eq(skippedOrderId), eq(now.getValue()));
     }
 
-    private MarketOrder order(UUID orderId) {
-        MarketOrder order = new MarketOrder();
-        order.setOrderId(orderId);
-        return order;
+    private MarketOrder marketOrder(UUID orderId) {
+        return order(orderId).build();
     }
 }

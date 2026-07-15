@@ -9,6 +9,7 @@ import com.nowcoder.community.market.domain.repository.MarketDisputeRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import com.nowcoder.community.market.domain.service.MarketDisputeDomainService;
 import com.nowcoder.community.market.application.result.MarketDisputeResult;
+import com.nowcoder.community.market.exception.MarketErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -77,7 +78,7 @@ public class MarketDisputeApplicationService {
         dispute.setReason(reason.trim());
         dispute.setBuyerNote(buyerNote.trim());
         marketDisputeRepository.save(dispute);
-        marketOrderRepository.markDisputed(transition.orderId());
+        applyForeground(transition);
         return MarketDisputeResult.from(reloadDispute(dispute.getDisputeId()));
     }
 
@@ -92,7 +93,7 @@ public class MarketDisputeApplicationService {
         dispute.setResolutionType(RESOLUTION_REFUND);
         dispute.setResolvedAt(new Date());
         marketDisputeRepository.saveChanges(dispute);
-        marketOrderRepository.markDisputeRefundPending(order.requestDisputeRefund().orderId());
+        applyForeground(order.requestDisputeRefund());
         marketWalletActionService.enqueueDisputeRefund(
                 order.getOrderId(),
                 disputeId,
@@ -126,7 +127,7 @@ public class MarketDisputeApplicationService {
         dispute.setResolvedBy(adminUserId);
         dispute.setResolvedAt(new Date());
         marketDisputeRepository.saveChanges(dispute);
-        marketOrderRepository.markDisputeRefundPending(order.requestDisputeRefund().orderId());
+        applyForeground(order.requestDisputeRefund());
         marketWalletActionService.enqueueDisputeRefund(
                 order.getOrderId(),
                 disputeId,
@@ -150,7 +151,7 @@ public class MarketDisputeApplicationService {
         dispute.setResolvedBy(adminUserId);
         dispute.setResolvedAt(new Date());
         marketDisputeRepository.saveChanges(dispute);
-        marketOrderRepository.markDisputeReleasePending(order.requestDisputeRelease().orderId());
+        applyForeground(order.requestDisputeRelease());
         marketWalletActionService.enqueueDisputeRelease(
                 order.getOrderId(),
                 disputeId,
@@ -165,6 +166,15 @@ public class MarketDisputeApplicationService {
         return marketDisputeRepository.findOpenDisputes().stream()
                 .map(MarketDisputeResult::from)
                 .toList();
+    }
+
+    private void applyForeground(MarketOrderTransition transition) {
+        if (marketOrderRepository.apply(transition) != MarketOrderRepository.ApplyStatus.APPLIED) {
+            throw new BusinessException(
+                    MarketErrorCode.ORDER_TRANSITION_CONFLICT,
+                    "market order transition conflict: orderId=" + transition.orderId()
+            );
+        }
     }
 
     private MarketDispute requireOpenDisputeForSeller(UUID disputeId, UUID sellerUserId) {

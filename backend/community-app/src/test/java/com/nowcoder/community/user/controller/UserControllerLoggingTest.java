@@ -2,7 +2,6 @@ package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.user.application.UserAvatarApplicationService;
-import com.nowcoder.community.user.application.UserProfileApplicationService;
 import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.user.application.command.CreateAvatarUploadSessionCommand;
 import com.nowcoder.community.user.application.port.AvatarStoragePort;
@@ -43,7 +42,6 @@ class UserControllerLoggingTest {
         avatarStoragePort = mock(AvatarStoragePort.class);
         controller = new UserController(
                 mock(UserReadApplicationService.class),
-                mock(UserProfileApplicationService.class),
                 new UserAvatarApplicationService(avatarStoragePort, userRepository)
         );
     }

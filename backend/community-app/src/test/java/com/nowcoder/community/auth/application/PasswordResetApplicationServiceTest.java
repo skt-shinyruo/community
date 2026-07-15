@@ -247,7 +247,7 @@ class PasswordResetApplicationServiceTest {
 
         assertThat(result).isTrue();
         verify(userCredentialActionApi).validatePasswordPolicy(" new-password ");
-        verify(userCredentialActionApi).resetPasswordAndRevokeRefreshSessions(userId, " new-password ");
+        verify(userCredentialActionApi).updatePassword(userId, " new-password ");
         assertThat(output.getAll())
                 .contains("user.id=" + userId)
                 .doesNotContain("token-123")
@@ -266,7 +266,7 @@ class PasswordResetApplicationServiceTest {
         );
         doThrow(resetFailure)
                 .doNothing()
-                .when(userCredentialActionApi).resetPasswordAndRevokeRefreshSessions(userId, " new-password ");
+                .when(userCredentialActionApi).updatePassword(userId, " new-password ");
 
         ConfirmPasswordResetCommand command = new ConfirmPasswordResetCommand(" token-123 ", " new-password ", "cid", "1234");
         assertThatThrownBy(() -> service.confirmReset(command)).isSameAs(resetFailure);
@@ -285,7 +285,7 @@ class PasswordResetApplicationServiceTest {
         doNothing().when(captchaChallenge).requireValidCaptcha("cid", "1234");
         when(tokenStore.consumeWithTtl("token-123"))
                 .thenReturn(new PasswordResetTokenRepository.ConsumedPasswordResetToken(userId, Duration.ofSeconds(123)));
-        doThrow(resetFailure).when(userCredentialActionApi).resetPasswordAndRevokeRefreshSessions(userId, " new-password ");
+        doThrow(resetFailure).when(userCredentialActionApi).updatePassword(userId, " new-password ");
 
         ConfirmPasswordResetCommand command = new ConfirmPasswordResetCommand(" token-123 ", " new-password ", "cid", "1234");
         assertThatThrownBy(() -> service.confirmReset(command)).isSameAs(resetFailure);

@@ -8,7 +8,6 @@ import com.nowcoder.community.user.domain.model.UserProfile;
 import com.nowcoder.community.user.domain.model.UserSummary;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserReadDomainService;
-import com.nowcoder.community.wallet.api.query.WalletAccountQueryApi;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -23,16 +22,12 @@ public class UserReadApplicationService {
 
     private final UserRepository userRepository;
     private final UserReadDomainService userReadDomainService;
-    private final WalletAccountQueryApi walletAccountQueryApi;
-
     public UserReadApplicationService(
             UserRepository userRepository,
-            UserReadDomainService userReadDomainService,
-            WalletAccountQueryApi walletAccountQueryApi
+            UserReadDomainService userReadDomainService
     ) {
         this.userRepository = userRepository;
         this.userReadDomainService = userReadDomainService;
-        this.walletAccountQueryApi = walletAccountQueryApi;
     }
 
     public UserSummaryResult getSummaryById(UUID userId) {
@@ -82,9 +77,7 @@ public class UserReadApplicationService {
                 profile.headerUrl(),
                 profile.type(),
                 profile.status(),
-                profile.createTime(),
-                walletAccountQueryApi.balanceOfUser(profile.id()),
-                walletAccountQueryApi.statusOfUser(profile.id())
+                profile.createTime()
         );
     }
 

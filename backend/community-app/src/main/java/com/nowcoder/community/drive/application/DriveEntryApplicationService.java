@@ -14,7 +14,6 @@ import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.domain.service.DriveEntryDomainService;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,8 +59,7 @@ public class DriveEntryApplicationService {
         String name = normalizeName(command.name());
         rejectDuplicate(space.spaceId(), command.parentId(), name, null);
         DriveEntry folder = DriveEntry.folder(UUID.randomUUID(), space.spaceId(), command.parentId(), name, clock.instant());
-        entryRepository.save(folder);
-        return toEntryResult(folder);
+        return toEntryResult(createEntry(folder));
     }
 
     @Transactional
@@ -153,13 +151,28 @@ public class DriveEntryApplicationService {
 
     private DriveSpace createDefaultSpace(UUID userId, Instant now) {
         DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, now);
-        try {
-            spaceRepository.save(space);
-            return space;
-        } catch (DuplicateKeyException e) {
-            return spaceRepository.findByUserId(userId)
-                    .orElseThrow(() -> new BusinessException(INTERNAL_ERROR, "网盘空间创建失败", e));
+        DriveSpaceRepository.CreateResult result = spaceRepository.create(space);
+        if (result != null
+                && (result.status() == DriveSpaceRepository.CreateStatus.CREATED
+                || result.status() == DriveSpaceRepository.CreateStatus.ALREADY_EXISTS)
+                && result.space() != null) {
+            return result.space();
         }
+        throw new BusinessException(INTERNAL_ERROR, "网盘空间创建失败");
+    }
+
+    private DriveEntry createEntry(DriveEntry entry) {
+        DriveEntryRepository.CreateResult result = entryRepository.create(entry);
+        if (result == null || result.status() == DriveEntryRepository.CreateStatus.CONFLICT) {
+            throw new BusinessException(INTERNAL_ERROR, "网盘条目创建失败");
+        }
+        if (result.status() == DriveEntryRepository.CreateStatus.ACTIVE_NAME_CONFLICT) {
+            throw new BusinessException(DriveErrorCode.DRIVE_DUPLICATE_NAME, "同名文件或文件夹已存在");
+        }
+        if (result.entry() == null) {
+            throw new BusinessException(INTERNAL_ERROR, "网盘条目创建失败");
+        }
+        return result.entry();
     }
 
     private DriveEntry loadActiveEntry(UUID spaceId, UUID entryId) {

@@ -134,52 +134,6 @@ class CommentDomainServiceTest {
         assertThat(target.targetUserId()).isEqualTo(targetUserId);
     }
 
-    @Test
-    void assertEditableByAuthorShouldRejectEditsAfterFifteenMinutes() {
-        Date createTime = new Date(1_000_000L);
-        Date afterEditWindow = new Date(createTime.getTime() + 15L * 60 * 1000 + 1);
-        UUID userId = uuid(100);
-        UUID postId = uuid(200);
-        CommentSnapshot comment = snapshot(
-                uuid(300),
-                userId,
-                postId,
-                uuid(300),
-                null,
-                null,
-                0,
-                createTime
-        );
-
-        assertThatThrownBy(() -> service.assertEditableByAuthor(comment, userId, postId, afterEditWindow))
-                .isInstanceOf(BusinessException.class)
-                .extracting(ex -> ((BusinessException) ex).getErrorCode())
-                .isEqualTo(CommonErrorCode.FORBIDDEN);
-    }
-
-    @Test
-    void assertEditableByAuthorShouldRejectCommentOutsideRequestedPost() {
-        Date createTime = new Date(1_000_000L);
-        UUID userId = uuid(100);
-        UUID actualPostId = uuid(200);
-        UUID routePostId = uuid(201);
-        CommentSnapshot reply = snapshot(
-                uuid(400),
-                userId,
-                actualPostId,
-                uuid(300),
-                uuid(300),
-                uuid(500),
-                0,
-                createTime
-        );
-
-        assertThatThrownBy(() -> service.assertEditableByAuthor(reply, userId, routePostId, createTime))
-                .isInstanceOf(BusinessException.class)
-                .extracting(ex -> ((BusinessException) ex).getErrorCode())
-                .isEqualTo(CommonErrorCode.INVALID_ARGUMENT);
-    }
-
     private static CommentSnapshot snapshot(
             UUID id,
             UUID userId,
@@ -190,6 +144,22 @@ class CommentDomainServiceTest {
             int status,
             Date createTime
     ) {
-        return new CommentSnapshot(id, userId, postId, rootCommentId, parentCommentId, replyToUserId, "content", status, createTime, createTime, 0);
+        return new CommentSnapshot(
+                id,
+                userId,
+                postId,
+                rootCommentId,
+                parentCommentId,
+                replyToUserId,
+                "content",
+                status,
+                createTime,
+                createTime,
+                0,
+                null,
+                null,
+                null,
+                7L
+        );
     }
 }

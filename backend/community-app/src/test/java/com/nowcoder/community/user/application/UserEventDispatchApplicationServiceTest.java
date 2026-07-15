@@ -5,12 +5,14 @@ import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.user.application.command.DispatchUserEventCommand;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
+import com.nowcoder.community.user.contracts.event.UserContractEventCodec;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
+import com.nowcoder.community.user.contracts.event.UserTypedEvent;
+import com.nowcoder.community.user.infrastructure.event.JacksonUserContractEventCodec;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-import java.util.Map;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -26,9 +28,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class UserEventDispatchApplicationServiceTest {
 
     private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final UserContractEventCodec contractEventCodec = new JacksonUserContractEventCodec(jsonCodec);
     private final UserIntegrationEventDispatcher dispatcher = mock(UserIntegrationEventDispatcher.class);
     private final UserEventDispatchApplicationService service =
-            new UserEventDispatchApplicationService(jsonCodec, dispatcher);
+            new UserEventDispatchApplicationService(contractEventCodec, dispatcher);
 
     @Test
     void dispatchShouldConvertPolicyPayloadAndSendThroughPort() {
@@ -37,7 +40,7 @@ class UserEventDispatchApplicationServiceTest {
         service.dispatch(new DispatchUserEventCommand(userId.toString(), toJson(new UserContractEvent(
                 "user:UserPolicyChanged:" + userId + ":42",
                 UserEventTypes.USER_POLICY_CHANGED,
-                policyPayload(userId)
+                jsonCodec.valueToTree(policyPayload(userId))
         ))));
 
         ArgumentCaptor<UserContractEvent> eventCaptor = ArgumentCaptor.forClass(UserContractEvent.class);
@@ -45,8 +48,8 @@ class UserEventDispatchApplicationServiceTest {
         UserContractEvent event = eventCaptor.getValue();
         assertThat(event.eventId()).isEqualTo("user:UserPolicyChanged:" + userId + ":42");
         assertThat(event.type()).isEqualTo(UserEventTypes.USER_POLICY_CHANGED);
-        assertThat(event.payload()).isInstanceOf(UserPolicyChangedPayload.class);
-        UserPolicyChangedPayload payload = (UserPolicyChangedPayload) event.payload();
+        UserPolicyChangedPayload payload =
+                ((UserTypedEvent.UserPolicyChanged) contractEventCodec.decode(event)).payload();
         assertThat(payload.getUserId()).isEqualTo(userId);
         assertThat(payload.getVersion()).isEqualTo(42L);
         assertThat(payload.isMuted()).isTrue();
@@ -61,10 +64,7 @@ class UserEventDispatchApplicationServiceTest {
 
         ArgumentCaptor<UserContractEvent> eventCaptor = ArgumentCaptor.forClass(UserContractEvent.class);
         verify(dispatcher).dispatch(eq("unknown-key"), eventCaptor.capture());
-        assertThat(eventCaptor.getValue().payload())
-                .isInstanceOf(Map.class)
-                .extracting(payload -> ((Map<?, ?>) payload).get("value"))
-                .isEqualTo("kept");
+        assertThat(eventCaptor.getValue().payload().path("value").asText()).isEqualTo("kept");
     }
 
     @Test
@@ -146,7 +146,7 @@ class UserEventDispatchApplicationServiceTest {
         String payloadJson = toJson(new UserContractEvent(
                 "user:UserPolicyChanged:" + userId + ":42",
                 UserEventTypes.USER_POLICY_CHANGED,
-                policyPayload(userId)
+                jsonCodec.valueToTree(policyPayload(userId))
         ));
         doThrow(failure).when(dispatcher).dispatch(eq(userId.toString()), any());
 

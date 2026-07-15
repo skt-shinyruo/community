@@ -10,6 +10,15 @@
         values(#{id, jdbcType=BINARY}, #{userId, jdbcType=BINARY}, #{taskCode}, #{periodKey}, #{sourceEventId}, current_timestamp)
     </insert>
 
+    <select id="exists" resultType="boolean">
+        select case when count(*) > 0 then true else false end
+        from user_task_event_log
+        where user_id = #{userId, jdbcType=BINARY}
+          and task_code = #{taskCode}
+          and period_key = #{periodKey}
+          and source_event_id = #{sourceEventId}
+    </select>
+
     <select id="selectLikeContributionLogs" resultType="com.nowcoder.community.growth.domain.repository.UserTaskEventLogRepository$UserTaskContributionLog">
         select l.user_id as userId,
                l.task_code as taskCode,

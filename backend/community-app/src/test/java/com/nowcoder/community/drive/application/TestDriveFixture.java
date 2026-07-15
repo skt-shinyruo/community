@@ -177,6 +177,12 @@ final class TestDriveFixture {
         }
 
         @Override
+        public CreateResult create(DriveSpace space) {
+            rows.put(space.spaceId(), space);
+            return new CreateResult(CreateStatus.CREATED, space);
+        }
+
+        @Override
         public void save(DriveSpace space) {
             rows.put(space.spaceId(), space);
         }
@@ -237,6 +243,12 @@ final class TestDriveFixture {
             List<UUID> descendantIds = new ArrayList<>();
             collectDescendants(spaceId, folderId, descendantIds);
             return descendantIds;
+        }
+
+        @Override
+        public CreateResult create(DriveEntry entry) {
+            rows.put(entry.entryId(), entry);
+            return new CreateResult(CreateStatus.CREATED, entry);
         }
 
         @Override

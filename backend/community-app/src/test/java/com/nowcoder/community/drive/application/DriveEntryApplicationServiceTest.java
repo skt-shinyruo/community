@@ -14,7 +14,6 @@ import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import org.junit.jupiter.api.Test;
-import org.springframework.dao.DuplicateKeyException;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
@@ -29,9 +28,7 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -95,19 +92,25 @@ class DriveEntryApplicationServiceTest {
         UUID existingSpaceId = uuid(8);
         DriveSpace existingSpace = DriveSpace.createDefault(existingSpaceId, userId, now);
 
-        when(spaceRepository.findByUserId(userId))
-                .thenReturn(Optional.empty(), Optional.of(existingSpace));
-        doThrow(new DuplicateKeyException("duplicate drive_space user")).when(spaceRepository).save(any(DriveSpace.class));
+        when(spaceRepository.findByUserId(userId)).thenReturn(Optional.empty());
+        when(spaceRepository.create(any(DriveSpace.class))).thenReturn(new DriveSpaceRepository.CreateResult(
+                DriveSpaceRepository.CreateStatus.ALREADY_EXISTS,
+                existingSpace
+        ));
         when(spaceRepository.lockById(existingSpaceId)).thenReturn(existingSpace);
         when(entryRepository.findActiveChildByName(any(), any(), any())).thenReturn(Optional.empty());
+        when(entryRepository.create(any(DriveEntry.class))).thenAnswer(invocation -> {
+            DriveEntry entry = invocation.getArgument(0);
+            return new DriveEntryRepository.CreateResult(DriveEntryRepository.CreateStatus.CREATED, entry);
+        });
 
         DriveEntryApplicationService service = new DriveEntryApplicationService(spaceRepository, entryRepository, storagePort, clock);
         DriveEntryResult result = service.createFolder(new CreateDriveFolderCommand(userId, null, "Docs"));
 
         assertThat(result.name()).isEqualTo("Docs");
-        verify(spaceRepository, times(2)).findByUserId(userId);
+        verify(spaceRepository).findByUserId(userId);
         ArgumentCaptor<DriveEntry> entryCaptor = ArgumentCaptor.forClass(DriveEntry.class);
-        verify(entryRepository).save(entryCaptor.capture());
+        verify(entryRepository).create(entryCaptor.capture());
         assertThat(entryCaptor.getValue().spaceId()).isEqualTo(existingSpaceId);
     }
 
@@ -218,6 +221,11 @@ class DriveEntryApplicationServiceTest {
             }
 
             @Override
+            public CreateResult create(DriveSpace space) {
+                return new CreateResult(CreateStatus.CREATED, space);
+            }
+
+            @Override
             public void save(DriveSpace ignored) {
             }
         };
@@ -260,6 +268,11 @@ class DriveEntryApplicationServiceTest {
             @Override
             public List<UUID> listDescendantIds(UUID spaceId, UUID folderId) {
                 return List.of();
+            }
+
+            @Override
+            public CreateResult create(DriveEntry entry) {
+                return new CreateResult(CreateStatus.CREATED, entry);
             }
 
             @Override

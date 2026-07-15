@@ -6,10 +6,8 @@ import com.nowcoder.community.social.infrastructure.persistence.dataobject.Entit
 import com.nowcoder.community.social.infrastructure.persistence.dataobject.LikeOwnerCountDataObject;
 import com.nowcoder.community.social.infrastructure.persistence.dataobject.LikeScanDataObject;
 import com.nowcoder.community.social.infrastructure.persistence.mapper.LikeMapper;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
@@ -23,7 +21,6 @@ import java.util.UUID;
  * <p>说明：该实现不依赖 Redis 数据存在，Redis 可作为后续缓存/加速层演进。</p>
  */
 @Repository
-@ConditionalOnProperty(name = "social.storage", havingValue = "db", matchIfMissing = true)
 public class MyBatisLikeRepository implements LikeRepository {
 
     private final LikeMapper mapper;
@@ -62,7 +59,6 @@ public class MyBatisLikeRepository implements LikeRepository {
     }
 
     @Override
-    @Transactional
     public long deleteLikesByEntity(int entityType, UUID entityId) {
         List<LikeOwnerCountDataObject> ownerCounts = mapper.countLikeOwnersByEntity(entityType, entityId);
         int deleted = mapper.deleteLikesByEntity(entityType, entityId);
@@ -89,6 +85,16 @@ public class MyBatisLikeRepository implements LikeRepository {
         return rows.stream()
                 .map(row -> new LikeRelation(row.getUserId(), entityType, row.getEntityId(), row.getEntityUserId()))
                 .toList();
+    }
+
+    @Override
+    public List<UUID> scanTargetIdsAfter(int entityType, UUID afterEntityId, int limit) {
+        UUID cursor = afterEntityId == null ? new UUID(0L, 0L) : afterEntityId;
+        if (limit <= 0) {
+            return List.of();
+        }
+        List<UUID> targetIds = mapper.scanTargetIdsAfter(entityType, cursor, limit);
+        return targetIds == null ? List.of() : targetIds;
     }
 
     @Override

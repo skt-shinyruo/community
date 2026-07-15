@@ -3,6 +3,7 @@ package com.nowcoder.community.market.application;
 import com.nowcoder.community.market.application.result.MarketDisputeResult;
 import com.nowcoder.community.market.domain.model.MarketDispute;
 import com.nowcoder.community.market.domain.model.MarketOrder;
+import com.nowcoder.community.market.domain.model.MarketOrderTransition;
 import com.nowcoder.community.market.domain.repository.MarketDisputeRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,9 @@ import java.util.Date;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static com.nowcoder.community.market.support.MarketOrderTestFixture.order;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -71,7 +74,8 @@ class MarketDisputeApplicationServiceUnitTest {
 
         when(marketDisputeRepository.lockById(disputeId)).thenReturn(open);
         when(marketOrderRepository.lockById(orderId)).thenReturn(order);
-        when(marketOrderRepository.markDisputeReleasePending(orderId)).thenReturn(1);
+        when(marketOrderRepository.apply(any(MarketOrderTransition.class)))
+                .thenReturn(MarketOrderRepository.ApplyStatus.APPLIED);
         when(marketDisputeRepository.findById(disputeId)).thenReturn(resolved);
 
         MarketDisputeResult result = new MarketDisputeApplicationService(
@@ -116,12 +120,11 @@ class MarketDisputeApplicationServiceUnitTest {
     }
 
     private MarketOrder disputedOrder(UUID orderId, UUID sellerUserId, UUID buyerUserId, long totalAmount) {
-        MarketOrder order = new MarketOrder();
-        order.setOrderId(orderId);
-        order.setSellerUserId(sellerUserId);
-        order.setBuyerUserId(buyerUserId);
-        order.setStatus("DISPUTED");
-        order.setTotalAmount(totalAmount);
-        return order;
+        return order(orderId)
+                .sellerUserId(sellerUserId)
+                .buyerUserId(buyerUserId)
+                .status("DISPUTED")
+                .totalAmount(totalAmount)
+                .build();
     }
 }

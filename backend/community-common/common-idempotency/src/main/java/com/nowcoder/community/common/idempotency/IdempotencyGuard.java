@@ -2,6 +2,7 @@ package com.nowcoder.community.common.idempotency;
 
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.ErrorCode;
+import com.nowcoder.community.common.exception.ErrorKind;
 import com.nowcoder.community.common.exception.SimpleErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.json.JsonCodec;
@@ -162,7 +163,7 @@ public class IdempotencyGuard {
         }
         if (existing.status() == IdempotencyStore.Status.PROCESSING) {
             record(operation, "concurrent_conflict");
-            throw new BusinessException(new SimpleErrorCode(409, "请求处理中，请稍后重试", 409));
+            throw new BusinessException(new SimpleErrorCode(409, "请求处理中，请稍后重试", ErrorKind.CONFLICT));
         }
 
         record(operation, "unknown_state");
@@ -275,12 +276,12 @@ public class IdempotencyGuard {
     }
 
     private BusinessException pendingConfirmation() {
-        return new BusinessException(new SimpleErrorCode(409, "请求结果确认中，请稍后重试", 409));
+        return new BusinessException(new SimpleErrorCode(409, "请求结果确认中，请稍后重试", ErrorKind.CONFLICT));
     }
 
     private BusinessException replayConflict(ErrorCode replayConflictCode) {
         ErrorCode code = replayConflictCode == null
-                ? new SimpleErrorCode(409, "请求参数与已有幂等请求不一致", 409)
+                ? new SimpleErrorCode(409, "请求参数与已有幂等请求不一致", ErrorKind.CONFLICT)
                 : replayConflictCode;
         return new BusinessException(code);
     }

@@ -12,12 +12,15 @@ import org.junit.jupiter.api.Test;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.content.support.CommentTestBuilder.aComment;
 import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_NOT_FOUND;
 import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class ContentEntityResolutionApplicationServiceTest {
@@ -114,8 +117,13 @@ class ContentEntityResolutionApplicationServiceTest {
         UUID commentId = uuid(301);
         UUID postId = uuid(101);
 
-        Comment deleted = activeComment(commentId, uuid(9), postId);
-        deleted.setStatus(2);
+        Comment deleted = aComment()
+                .id(commentId)
+                .userId(uuid(9))
+                .postId(postId)
+                .rootCommentId(commentId)
+                .status(2)
+                .build();
         when(commentRepository.getByIdAllowDeleted(commentId)).thenReturn(deleted);
 
         ContentEntityResolutionApplicationService service = service(postRepository, commentRepository);
@@ -126,14 +134,17 @@ class ContentEntityResolutionApplicationServiceTest {
     }
 
     @Test
-    void resolveShouldRejectCommentWithoutPost() {
+    void resolveShouldRejectCommentWhosePostNoLongerExists() {
         PostContentRepository postRepository = mock(PostContentRepository.class);
         CommentContentRepository commentRepository = mock(CommentContentRepository.class);
         UUID replyId = uuid(301);
+        UUID postId = uuid(101);
 
-        Comment reply = activeReplyComment(replyId, uuid(9), null, uuid(201));
+        Comment reply = activeReplyComment(replyId, uuid(9), postId, uuid(201));
 
         when(commentRepository.getByIdAllowDeleted(replyId)).thenReturn(reply);
+        when(postRepository.getById(postId))
+                .thenThrow(new BusinessException(POST_NOT_FOUND, "评论所属帖子不存在"));
 
         ContentEntityResolutionApplicationService service = service(postRepository, commentRepository);
 
@@ -147,24 +158,27 @@ class ContentEntityResolutionApplicationServiceTest {
     }
 
     @Test
-    void resolveShouldRejectBrokenReplyChain() {
+    void resolveShouldUseCanonicalPostIdWithoutTraversingMissingReplyParent() {
         PostContentRepository postRepository = mock(PostContentRepository.class);
         CommentContentRepository commentRepository = mock(CommentContentRepository.class);
         UUID replyId = uuid(301);
+        UUID replyUserId = uuid(9);
+        UUID postId = uuid(101);
+        UUID parentId = uuid(201);
 
-        Comment reply = activeReplyComment(replyId, uuid(9), null, uuid(201));
+        Comment reply = activeReplyComment(replyId, replyUserId, postId, parentId);
 
         when(commentRepository.getByIdAllowDeleted(replyId)).thenReturn(reply);
+        when(postRepository.getById(postId)).thenReturn(activePost(postId, uuid(7)));
 
         ContentEntityResolutionApplicationService service = service(postRepository, commentRepository);
 
-        assertThatThrownBy(() -> service.resolve(EntityTypes.COMMENT, replyId))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(error -> {
-                    BusinessException businessException = (BusinessException) error;
-                    assertThat(businessException.getErrorCode()).isEqualTo(POST_NOT_FOUND);
-                    assertThat(businessException).hasMessage("评论所属帖子不存在");
-                });
+        ResolvedContentResult resolved = service.resolve(EntityTypes.COMMENT, replyId);
+
+        assertThat(resolved.entityUserId()).isEqualTo(replyUserId);
+        assertThat(resolved.postId()).isEqualTo(postId);
+        verify(commentRepository).getByIdAllowDeleted(replyId);
+        verifyNoMoreInteractions(commentRepository);
     }
 
     private ContentEntityResolutionApplicationService service(
@@ -174,21 +188,15 @@ class ContentEntityResolutionApplicationServiceTest {
         return new ContentEntityResolutionApplicationService(postRepository, commentRepository);
     }
 
-    private Comment activeComment(UUID id, UUID userId, UUID postId) {
-        Comment comment = new Comment();
-        comment.setId(id);
-        comment.setUserId(userId);
-        comment.setPostId(postId);
-        comment.setRootCommentId(id);
-        comment.setParentCommentId(null);
-        comment.setStatus(0);
-        return comment;
-    }
-
     private Comment activeReplyComment(UUID id, UUID userId, UUID postId, UUID parentCommentId) {
-        Comment comment = activeComment(id, userId, postId);
-        comment.setParentCommentId(parentCommentId);
-        return comment;
+        return aComment()
+                .id(id)
+                .userId(userId)
+                .postId(postId)
+                .rootCommentId(parentCommentId)
+                .parentCommentId(parentCommentId)
+                .status(0)
+                .build();
     }
 
     private DiscussPost activePost(UUID postId, UUID userId) {

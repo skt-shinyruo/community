@@ -1,16 +1,18 @@
 package com.nowcoder.community.im.infrastructure.event;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.im.application.ImPolicyProjectionApplicationService;
 import com.nowcoder.community.im.application.command.ProjectBlockRelationCommand;
 import com.nowcoder.community.im.application.command.ProjectUserPolicyCommand;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import com.nowcoder.community.social.contracts.event.SocialTypedEvent;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
+import com.nowcoder.community.user.contracts.event.UserContractEventCodec;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
+import com.nowcoder.community.user.contracts.event.UserTypedEvent;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -21,14 +23,17 @@ import java.time.Instant;
 public class ImPolicyBackboneKafkaListener {
 
     private final ImPolicyProjectionApplicationService projectionApplicationService;
-    private final JsonCodec jsonCodec;
+    private final UserContractEventCodec userContractEventCodec;
+    private final SocialContractEventCodec socialContractEventCodec;
 
     public ImPolicyBackboneKafkaListener(
             ImPolicyProjectionApplicationService projectionApplicationService,
-            JsonCodec jsonCodec
+            UserContractEventCodec userContractEventCodec,
+            SocialContractEventCodec socialContractEventCodec
     ) {
         this.projectionApplicationService = projectionApplicationService;
-        this.jsonCodec = jsonCodec;
+        this.userContractEventCodec = userContractEventCodec;
+        this.socialContractEventCodec = socialContractEventCodec;
     }
 
     @KafkaListener(
@@ -40,7 +45,12 @@ public class ImPolicyBackboneKafkaListener {
         if (event == null || !UserEventTypes.USER_POLICY_CHANGED.equals(event.type())) {
             return;
         }
-        UserPolicyChangedPayload payload = normalizeUserPayload(event.payload());
+        UserPolicyChangedPayload payload;
+        try {
+            payload = ((UserTypedEvent.UserPolicyChanged) userContractEventCodec.decode(event)).payload();
+        } catch (RuntimeException error) {
+            throw malformed(event.type(), event.eventId());
+        }
         if (!StringUtils.hasText(event.eventId())
                 || payload == null
                 || payload.getUserId() == null
@@ -73,7 +83,12 @@ public class ImPolicyBackboneKafkaListener {
         if (event == null || !SocialEventTypes.BLOCK_RELATION_CHANGED.equals(event.type())) {
             return;
         }
-        BlockPayload payload = normalizePayload(event.payload());
+        BlockPayload payload;
+        try {
+            payload = ((SocialTypedEvent.BlockRelationChanged) socialContractEventCodec.decode(event)).payload();
+        } catch (RuntimeException error) {
+            throw malformed(event.type(), event.eventId());
+        }
         if (!StringUtils.hasText(event.eventId())
                 || event.occurredAt() == null
                 || event.version() <= 0L
@@ -92,22 +107,6 @@ public class ImPolicyBackboneKafkaListener {
                 event.occurredAt().toEpochMilli(),
                 event.version()
         ));
-    }
-
-    private UserPolicyChangedPayload normalizeUserPayload(Object payload) {
-        if (payload == null || payload instanceof UserPolicyChangedPayload) {
-            return (UserPolicyChangedPayload) payload;
-        }
-        JsonNode node = jsonCodec.valueToTree(payload);
-        return jsonCodec.treeToValue(node, UserPolicyChangedPayload.class);
-    }
-
-    private BlockPayload normalizePayload(Object payload) {
-        if (payload == null || payload instanceof BlockPayload) {
-            return (BlockPayload) payload;
-        }
-        JsonNode node = jsonCodec.valueToTree(payload);
-        return jsonCodec.treeToValue(node, BlockPayload.class);
     }
 
     private IllegalArgumentException malformed(String type, String eventId) {

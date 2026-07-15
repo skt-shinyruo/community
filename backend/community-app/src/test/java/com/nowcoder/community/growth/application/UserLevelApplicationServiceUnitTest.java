@@ -9,13 +9,11 @@ import com.nowcoder.community.growth.domain.service.UserLevelDomainService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DuplicateKeyException;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -74,7 +72,10 @@ class UserLevelApplicationServiceUnitTest {
         request.setEnabled(true);
 
         when(userLevelRuleConfigRepository.updateCurrent(any())).thenReturn(0, 1);
-        doThrow(new DuplicateKeyException("duplicate key")).when(userLevelRuleConfigRepository).insert(any());
+        when(userLevelRuleConfigRepository.create(any())).thenReturn(new UserLevelRuleConfigRepository.CreateResult(
+                UserLevelRuleConfigRepository.CreateStatus.ALREADY_EXISTS,
+                null
+        ));
 
         UserLevelConfigResult response = service.updateConfig(uuid(99), request);
 
@@ -82,7 +83,7 @@ class UserLevelApplicationServiceUnitTest {
         assertThat(response.getLv2SignInDays()).isEqualTo(20);
         assertThat(response.getLv3SignInDays()).isEqualTo(90);
         assertThat(response.isEnabled()).isTrue();
-        verify(userLevelRuleConfigRepository).insert(any());
+        verify(userLevelRuleConfigRepository).create(any());
         verify(userLevelRuleConfigRepository, times(2)).updateCurrent(any());
     }
 }

@@ -17,6 +17,12 @@ public class PostMediaAssetDataObject {
     private long contentLength;
     private String mediaKind;
     private String lifecycle;
+    private String uploadStatus;
+    private long uploadOperationVersion;
+    private Date uploadUpdatedAt;
+    private String referenceStatus;
+    private long referenceOperationVersion;
+    private Date referenceUpdatedAt;
     private String videoState;
     private String publicUrl;
     private String failureReason;
@@ -117,6 +123,63 @@ public class PostMediaAssetDataObject {
 
     public void setLifecycle(String lifecycle) {
         this.lifecycle = lifecycle;
+    }
+
+    public String getUploadStatus() {
+        if (uploadStatus != null) {
+            return uploadStatus;
+        }
+        return "DRAFT".equals(lifecycle) ? "PREPARED" : "COMPLETED";
+    }
+
+    public void setUploadStatus(String uploadStatus) {
+        this.uploadStatus = uploadStatus;
+    }
+
+    public long getUploadOperationVersion() {
+        return uploadOperationVersion;
+    }
+
+    public void setUploadOperationVersion(long uploadOperationVersion) {
+        this.uploadOperationVersion = uploadOperationVersion;
+    }
+
+    public Date getUploadUpdatedAt() {
+        if (uploadUpdatedAt != null) {
+            return uploadUpdatedAt;
+        }
+        return updateTime == null ? createTime : updateTime;
+    }
+
+    public void setUploadUpdatedAt(Date uploadUpdatedAt) {
+        this.uploadUpdatedAt = uploadUpdatedAt;
+    }
+
+    public String getReferenceStatus() {
+        return referenceStatus == null ? "UNBOUND" : referenceStatus;
+    }
+
+    public void setReferenceStatus(String referenceStatus) {
+        this.referenceStatus = referenceStatus;
+    }
+
+    public long getReferenceOperationVersion() {
+        return referenceOperationVersion;
+    }
+
+    public void setReferenceOperationVersion(long referenceOperationVersion) {
+        this.referenceOperationVersion = referenceOperationVersion;
+    }
+
+    public Date getReferenceUpdatedAt() {
+        if (referenceUpdatedAt != null) {
+            return referenceUpdatedAt;
+        }
+        return updateTime == null ? createTime : updateTime;
+    }
+
+    public void setReferenceUpdatedAt(Date referenceUpdatedAt) {
+        this.referenceUpdatedAt = referenceUpdatedAt;
     }
 
     public String getVideoState() {

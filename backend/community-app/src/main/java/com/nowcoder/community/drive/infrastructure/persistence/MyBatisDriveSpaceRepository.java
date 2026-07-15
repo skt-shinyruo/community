@@ -4,6 +4,7 @@ import com.nowcoder.community.drive.domain.model.DriveSpace;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveSpaceDataObject;
 import com.nowcoder.community.drive.infrastructure.persistence.mapper.DriveSpaceMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -49,6 +50,21 @@ public class MyBatisDriveSpaceRepository implements DriveSpaceRepository {
     @Override
     public boolean releaseReserved(UUID spaceId, long bytes, Instant updatedAt) {
         return mapper.releaseReserved(spaceId, bytes, updatedAt) == 1;
+    }
+
+    @Override
+    public CreateResult create(DriveSpace space) {
+        try {
+            return mapper.insert(DriveSpaceDataObject.fromDomain(space)) == 1
+                    ? new CreateResult(CreateStatus.CREATED, space)
+                    : new CreateResult(CreateStatus.CONFLICT, null);
+        } catch (DuplicateKeyException ignored) {
+            DriveSpace existing = findByUserId(space.userId()).orElse(null);
+            if (existing != null && existing.userId().equals(space.userId())) {
+                return new CreateResult(CreateStatus.ALREADY_EXISTS, existing);
+            }
+            return new CreateResult(CreateStatus.CONFLICT, null);
+        }
     }
 
     @Override

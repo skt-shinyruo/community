@@ -7,6 +7,11 @@ import java.util.UUID;
 
 public interface OssObjectVersionRepository {
 
+    default boolean create(OssObjectVersion version) {
+        save(version);
+        return true;
+    }
+
     void save(OssObjectVersion version);
 
     Optional<OssObjectVersion> findById(UUID versionId);

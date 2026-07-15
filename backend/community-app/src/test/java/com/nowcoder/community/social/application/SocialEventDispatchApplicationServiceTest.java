@@ -9,12 +9,14 @@ import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.FollowPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import com.nowcoder.community.social.contracts.event.SocialTypedEvent;
+import com.nowcoder.community.social.infrastructure.event.JacksonSocialContractEventCodec;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -30,9 +32,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class SocialEventDispatchApplicationServiceTest {
 
     private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final SocialContractEventCodec contractEventCodec = new JacksonSocialContractEventCodec(jsonCodec);
     private final SocialIntegrationEventDispatcher dispatcher = mock(SocialIntegrationEventDispatcher.class);
     private final SocialEventDispatchApplicationService service =
-            new SocialEventDispatchApplicationService(jsonCodec, dispatcher);
+            new SocialEventDispatchApplicationService(contractEventCodec, dispatcher);
 
     @Test
     void dispatchShouldConvertLikePayloadAndSendThroughPort() {
@@ -47,7 +50,7 @@ class SocialEventDispatchApplicationServiceTest {
                 SocialEventTypes.LIKE_CREATED,
                 Instant.EPOCH,
                 1L,
-                likePayload(actorUserId, entityId)
+                jsonCodec.valueToTree(likePayload(actorUserId, entityId))
         ))));
 
         ArgumentCaptor<SocialContractEvent> eventCaptor = ArgumentCaptor.forClass(SocialContractEvent.class);
@@ -55,9 +58,9 @@ class SocialEventDispatchApplicationServiceTest {
         SocialContractEvent event = eventCaptor.getValue();
         assertThat(event.eventId()).isEqualTo("social:LikeCreated:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId);
         assertThat(event.type()).isEqualTo(SocialEventTypes.LIKE_CREATED);
-        assertThat(event.payload()).isInstanceOf(LikePayload.class);
-        assertThat(((LikePayload) event.payload()).getActorUserId()).isEqualTo(actorUserId);
-        assertThat(((LikePayload) event.payload()).getEntityId()).isEqualTo(entityId);
+        SocialTypedEvent.LikeCreated typedEvent = (SocialTypedEvent.LikeCreated) contractEventCodec.decode(event);
+        assertThat(typedEvent.payload().getActorUserId()).isEqualTo(actorUserId);
+        assertThat(typedEvent.payload().getEntityId()).isEqualTo(entityId);
     }
 
     @Test
@@ -73,7 +76,7 @@ class SocialEventDispatchApplicationServiceTest {
                 SocialEventTypes.FOLLOW_CREATED,
                 Instant.EPOCH,
                 1L,
-                followPayload(actorUserId, followedUserId)
+                jsonCodec.valueToTree(followPayload(actorUserId, followedUserId))
         ))));
         service.dispatch(new DispatchSocialEventCommand(actorUserId + ":" + blockedUserId, toJson(new SocialContractEvent(
                 "social:BlockRelationChanged:" + actorUserId + ":" + blockedUserId + ":42",
@@ -82,7 +85,7 @@ class SocialEventDispatchApplicationServiceTest {
                 SocialEventTypes.BLOCK_RELATION_CHANGED,
                 Instant.EPOCH,
                 42L,
-                blockPayload(actorUserId, blockedUserId)
+                jsonCodec.valueToTree(blockPayload(actorUserId, blockedUserId))
         ))));
         service.dispatch(new DispatchSocialEventCommand(
                 "unknown-key",
@@ -95,14 +98,13 @@ class SocialEventDispatchApplicationServiceTest {
         verify(dispatcher).dispatch(eq(actorUserId.toString()), eventCaptor.capture());
         verify(dispatcher).dispatch(eq(actorUserId + ":" + blockedUserId), eventCaptor.capture());
         verify(dispatcher).dispatch(eq("unknown-key"), eventCaptor.capture());
-        assertThat(eventCaptor.getAllValues().get(0).payload()).isInstanceOf(FollowPayload.class);
-        assertThat(((FollowPayload) eventCaptor.getAllValues().get(0).payload()).getEntityId()).isEqualTo(followedUserId);
-        assertThat(eventCaptor.getAllValues().get(1).payload()).isInstanceOf(BlockPayload.class);
-        assertThat(((BlockPayload) eventCaptor.getAllValues().get(1).payload()).getBlockedUserId()).isEqualTo(blockedUserId);
-        assertThat(eventCaptor.getAllValues().get(2).payload())
-                .isInstanceOf(Map.class)
-                .extracting(payload -> ((Map<?, ?>) payload).get("value"))
-                .isEqualTo("kept");
+        SocialTypedEvent.FollowCreated followCreated =
+                (SocialTypedEvent.FollowCreated) contractEventCodec.decode(eventCaptor.getAllValues().get(0));
+        SocialTypedEvent.BlockRelationChanged blockRelationChanged =
+                (SocialTypedEvent.BlockRelationChanged) contractEventCodec.decode(eventCaptor.getAllValues().get(1));
+        assertThat(followCreated.payload().getEntityId()).isEqualTo(followedUserId);
+        assertThat(blockRelationChanged.payload().getBlockedUserId()).isEqualTo(blockedUserId);
+        assertThat(eventCaptor.getAllValues().get(2).payload().path("value").asText()).isEqualTo("kept");
     }
 
     @Test
@@ -241,7 +243,7 @@ class SocialEventDispatchApplicationServiceTest {
                 SocialEventTypes.LIKE_CREATED,
                 Instant.EPOCH,
                 1L,
-                likePayload(actorUserId, entityId)
+                jsonCodec.valueToTree(likePayload(actorUserId, entityId))
         ));
         doThrow(failure).when(dispatcher).dispatch(eq(key), any());
 

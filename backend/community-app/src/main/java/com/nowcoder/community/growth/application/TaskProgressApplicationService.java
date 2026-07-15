@@ -15,7 +15,6 @@ import com.nowcoder.community.growth.domain.service.RewardGrantDomainService;
 import com.nowcoder.community.growth.domain.service.TaskProgressDomainService;
 import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.transaction.annotation.Transactional;
@@ -213,19 +212,27 @@ public class TaskProgressApplicationService {
         if (!rewardGrantDomainService.hasValidSourceEventId(sourceEventId)) {
             return false;
         }
-        try {
-            userTaskEventLogRepository.insert(idGenerator.next(), userId, taskCode, periodKey, sourceEventId);
-            return true;
-        } catch (DataIntegrityViolationException ignored) {
-            return false;
-        }
+        UserTaskEventLogRepository.CreateStatus status = userTaskEventLogRepository.create(
+                idGenerator.next(), userId, taskCode, periodKey, sourceEventId);
+        return switch (status) {
+            case CREATED -> true;
+            case ALREADY_EXISTS -> false;
+            case CONFLICT -> throw new IllegalStateException("task event log create conflict: taskCode=" + taskCode);
+        };
     }
 
     private void ensureProgressRowExists(UUID userId, TaskTemplate template, String periodKey) {
-        try {
-            userTaskProgressRepository.insert(idGenerator.next(), userId, template.getTaskCode(), periodKey, template.getTargetValue(), STATUS_IN_PROGRESS, null);
-        } catch (DataIntegrityViolationException ignored) {
-            // Another event created the row first; lock and continue.
+        UserTaskProgressRepository.CreateResult result = userTaskProgressRepository.create(
+                idGenerator.next(),
+                userId,
+                template.getTaskCode(),
+                periodKey,
+                template.getTargetValue(),
+                STATUS_IN_PROGRESS,
+                null
+        );
+        if (result == null || result.status() == UserTaskProgressRepository.CreateStatus.CONFLICT) {
+            throw new IllegalStateException("task progress create conflict: taskCode=" + template.getTaskCode());
         }
     }
 

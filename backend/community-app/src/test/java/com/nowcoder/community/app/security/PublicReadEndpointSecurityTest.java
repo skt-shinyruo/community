@@ -9,10 +9,10 @@ import com.nowcoder.community.content.application.CommentReadApplicationService;
 import com.nowcoder.community.content.application.FeedReadApplicationService;
 import com.nowcoder.community.content.application.PostReadApplicationService;
 import com.nowcoder.community.content.application.result.FeedPageResult;
-import com.nowcoder.community.user.application.UserProfileApplicationService;
+import com.nowcoder.community.profile.application.UserProfileQueryApplicationService;
+import com.nowcoder.community.profile.application.result.UserProfilePageResult;
 import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.user.application.port.AvatarStoragePort;
-import com.nowcoder.community.user.application.result.UserProfilePageResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -75,7 +75,7 @@ class PublicReadEndpointSecurityTest {
     private UserReadApplicationService userReadApplicationService;
 
     @MockBean
-    private UserProfileApplicationService userProfileApplicationService;
+    private UserProfileQueryApplicationService userProfileApplicationService;
 
     @MockBean
     private AvatarStoragePort avatarStoragePort;

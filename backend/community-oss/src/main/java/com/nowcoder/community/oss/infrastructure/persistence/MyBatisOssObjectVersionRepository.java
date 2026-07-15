@@ -4,6 +4,7 @@ import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectVersionDataObject;
 import com.nowcoder.community.oss.infrastructure.persistence.mapper.OssObjectVersionMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -16,6 +17,15 @@ public class MyBatisOssObjectVersionRepository implements OssObjectVersionReposi
 
     public MyBatisOssObjectVersionRepository(OssObjectVersionMapper mapper) {
         this.mapper = mapper;
+    }
+
+    @Override
+    public boolean create(OssObjectVersion version) {
+        try {
+            return mapper.insert(OssObjectVersionDataObject.from(version)) == 1;
+        } catch (DuplicateKeyException duplicate) {
+            return false;
+        }
     }
 
     @Override

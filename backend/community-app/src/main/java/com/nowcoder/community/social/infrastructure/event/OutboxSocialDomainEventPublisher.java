@@ -1,14 +1,14 @@
 package com.nowcoder.community.social.infrastructure.event;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.FollowPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
-import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import com.nowcoder.community.social.contracts.event.SocialTypedEvent;
 import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.FollowCreatedDomainEvent;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
@@ -17,22 +17,21 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.UUID;
 
 @Component
 public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublisher {
 
-    private final JsonCodec jsonCodec;
+    private final SocialContractEventCodec contractEventCodec;
     private final JdbcOutboxEventStore store;
     private final String topic;
     private final UuidV7Generator idGenerator = new UuidV7Generator();
 
     public OutboxSocialDomainEventPublisher(
-            JsonCodec jsonCodec,
+            SocialContractEventCodec contractEventCodec,
             JdbcOutboxEventStore store,
             @Value("${social.events.outbox-topic:eventbus.social}") String topic
     ) {
-        this.jsonCodec = jsonCodec;
+        this.contractEventCodec = contractEventCodec;
         this.store = store;
         this.topic = topic;
     }
@@ -53,16 +52,15 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         payload.setRelationKey(relationKey);
 
         Instant occurredAt = requiredOccurredAt(type, event.occurredAt());
-        publish(
-                event.liked() ? "se:like:created:" + idGenerator.next() : "se:like:removed:" + idGenerator.next(),
-                type,
-                event.entityType() + ":" + event.entityId(),
-                event.entityId(),
-                "entity",
-                occurredAt,
-                positiveVersion(occurredAt),
-                payload
-        );
+        String eventId = event.liked()
+                ? "se:like:created:" + idGenerator.next()
+                : "se:like:removed:" + idGenerator.next();
+        SocialTypedEvent typedEvent = event.liked()
+                ? new SocialTypedEvent.LikeCreated(
+                        eventId, event.entityId(), "entity", occurredAt, positiveVersion(occurredAt), payload)
+                : new SocialTypedEvent.LikeRemoved(
+                        eventId, event.entityId(), "entity", occurredAt, positiveVersion(occurredAt), payload);
+        publish(typedEvent, event.entityType() + ":" + event.entityId());
     }
 
     @Override
@@ -78,16 +76,14 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         payload.setCreateTime(event.createTime());
 
         Instant occurredAt = requiredOccurredAt(SocialEventTypes.FOLLOW_CREATED, event.createTime());
-        publish(
+        publish(new SocialTypedEvent.FollowCreated(
                 "se:follow:created:" + idGenerator.next(),
-                SocialEventTypes.FOLLOW_CREATED,
-                event.entityType() + ":" + event.entityId(),
                 event.entityId(),
                 "entity",
                 occurredAt,
                 positiveVersion(occurredAt),
                 payload
-        );
+        ), event.entityType() + ":" + event.entityId());
     }
 
     @Override
@@ -104,43 +100,25 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         payload.setOccurredAt(occurredAt);
         payload.setVersion(version);
 
-        publish(
+        publish(new SocialTypedEvent.BlockRelationChanged(
                 "se:block:" + idGenerator.next(),
-                SocialEventTypes.BLOCK_RELATION_CHANGED,
-                event.blockerUserId().toString(),
                 event.blockerUserId(),
                 "user",
                 occurredAt,
                 version,
                 payload
-        );
+        ), event.blockerUserId().toString());
     }
 
-    private void publish(
-            String eventId,
-            String type,
-            String key,
-            UUID aggregateId,
-            String aggregateType,
-            Instant occurredAt,
-            long version,
-            Object payload
-    ) {
+    private void publish(SocialTypedEvent event, String key) {
         String payloadJson;
         try {
-            payloadJson = jsonCodec.toJson(new SocialContractEvent(
-                    eventId,
-                    aggregateId,
-                    aggregateType,
-                    type,
-                    occurredAt,
-                    version,
-                    payload
-            ));
+            payloadJson = contractEventCodec.serialize(event);
         } catch (JsonCodecException e) {
-            throw new IllegalStateException("social event outbox payload serialization failed: " + type, e);
+            throw new IllegalStateException(
+                    "social event outbox payload serialization failed: " + event.getClass().getSimpleName(), e);
         }
-        store.enqueue(eventId, topic, key, payloadJson);
+        store.enqueue(event.eventId(), topic, key, payloadJson);
     }
 
     private Instant requiredOccurredAt(String type, Instant occurredAt) {

@@ -2,25 +2,23 @@ package com.nowcoder.community.common.exception;
 
 public enum CommonErrorCode implements ErrorCode {
 
-    OK(0, "OK", 200),
+    INVALID_ARGUMENT(400, "参数错误", ErrorKind.INVALID_INPUT),
+    UNAUTHORIZED(401, "未登录或登录已失效", ErrorKind.UNAUTHENTICATED),
+    FORBIDDEN(403, "无权限访问", ErrorKind.FORBIDDEN),
+    NOT_FOUND(404, "资源不存在", ErrorKind.NOT_FOUND),
+    TOO_MANY_REQUESTS(429, "请求过于频繁", ErrorKind.THROTTLED),
 
-    INVALID_ARGUMENT(400, "参数错误", 400),
-    UNAUTHORIZED(401, "未登录或登录已失效", 401),
-    FORBIDDEN(403, "无权限访问", 403),
-    NOT_FOUND(404, "资源不存在", 404),
-    TOO_MANY_REQUESTS(429, "请求过于频繁", 429),
-
-    SERVICE_UNAVAILABLE(503, "服务不可用", 503),
-    INTERNAL_ERROR(500, "服务端异常", 500);
+    SERVICE_UNAVAILABLE(503, "服务不可用", ErrorKind.UNAVAILABLE),
+    INTERNAL_ERROR(500, "服务端异常", ErrorKind.INTERNAL);
 
     private final int code;
     private final String message;
-    private final int httpStatus;
+    private final ErrorKind kind;
 
-    CommonErrorCode(int code, String message, int httpStatus) {
+    CommonErrorCode(int code, String message, ErrorKind kind) {
         this.code = code;
         this.message = message;
-        this.httpStatus = httpStatus;
+        this.kind = kind;
     }
 
     @Override
@@ -34,7 +32,7 @@ public enum CommonErrorCode implements ErrorCode {
     }
 
     @Override
-    public int getHttpStatus() {
-        return httpStatus;
+    public ErrorKind getKind() {
+        return kind;
     }
 }

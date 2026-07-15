@@ -6,7 +6,7 @@ import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
-import com.nowcoder.community.infra.pagination.Pagination;
+import com.nowcoder.community.common.pagination.Pagination;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

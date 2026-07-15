@@ -1,0 +1,16 @@
+{
+  "eventId": "social:like:created:201:202",
+  "aggregateId": "01965429-b34a-7000-8000-000000000202",
+  "aggregateType": "Like",
+  "type": "LikeCreated",
+  "occurredAt": "2026-07-15T02:03:04Z",
+  "version": 11,
+  "payload": {
+    "actorUserId": "01965429-b34a-7000-8000-000000000201",
+    "entityType": 1,
+    "entityId": "01965429-b34a-7000-8000-000000000202",
+    "entityUserId": "01965429-b34a-7000-8000-000000000203",
+    "postId": "01965429-b34a-7000-8000-000000000202",
+    "relationKey": "post:202:user:201"
+  }
+}

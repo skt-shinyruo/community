@@ -11,13 +11,14 @@ import com.nowcoder.community.growth.domain.repository.UserTaskProgressRepositor
 import com.nowcoder.community.growth.domain.service.UserLevelDomainService;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.Objects;
 import java.util.UUID;
+
+import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 
 @Service
 public class UserLevelApplicationService {
@@ -130,10 +131,13 @@ public class UserLevelApplicationService {
         int updated = userLevelRuleConfigRepository.updateCurrent(config);
         if (updated <= 0) {
             config.setId(idGenerator.next());
-            try {
-                userLevelRuleConfigRepository.insert(config);
-            } catch (DuplicateKeyException ex) {
-                userLevelRuleConfigRepository.updateCurrent(config);
+            UserLevelRuleConfigRepository.CreateResult result = userLevelRuleConfigRepository.create(config);
+            if (result == null || result.status() == UserLevelRuleConfigRepository.CreateStatus.CONFLICT) {
+                throw new BusinessException(INTERNAL_ERROR, "用户等级配置创建失败");
+            }
+            if (result.status() == UserLevelRuleConfigRepository.CreateStatus.ALREADY_EXISTS
+                    && userLevelRuleConfigRepository.updateCurrent(config) <= 0) {
+                throw new BusinessException(INTERNAL_ERROR, "用户等级配置更新失败");
             }
         }
         return toConfigResponse(config);

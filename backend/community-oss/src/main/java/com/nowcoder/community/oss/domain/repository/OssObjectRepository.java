@@ -7,6 +7,11 @@ import java.util.UUID;
 
 public interface OssObjectRepository {
 
+    default boolean create(OssObject object) {
+        save(object);
+        return true;
+    }
+
     void save(OssObject object);
 
     Optional<OssObject> findById(UUID objectId);

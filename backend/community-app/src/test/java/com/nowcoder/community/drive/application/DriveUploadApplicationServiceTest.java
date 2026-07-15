@@ -18,7 +18,6 @@ import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.domain.repository.DriveUploadRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.dao.DuplicateKeyException;
 
 import java.io.ByteArrayInputStream;
 import java.time.Clock;
@@ -36,7 +35,6 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -110,9 +108,11 @@ class DriveUploadApplicationServiceTest {
         UUID existingSpaceId = uuid(90);
         DriveSpace existingSpace = DriveSpace.createDefault(existingSpaceId, userId, NOW);
 
-        when(spaces.findByUserId(userId))
-                .thenReturn(Optional.empty(), Optional.of(existingSpace));
-        doThrow(new DuplicateKeyException("duplicate drive_space user")).when(spaces).save(any(DriveSpace.class));
+        when(spaces.findByUserId(userId)).thenReturn(Optional.empty());
+        when(spaces.create(any(DriveSpace.class))).thenReturn(new DriveSpaceRepository.CreateResult(
+                DriveSpaceRepository.CreateStatus.ALREADY_EXISTS,
+                existingSpace
+        ));
         when(entries.findActiveChildByName(any(), any(), any())).thenReturn(Optional.empty());
         when(storage.prepareUpload(any()))
                 .thenReturn(new DriveObjectStoragePort.PreparedObject(uuid(101), uuid(102), uuid(103), NOW.plusSeconds(900)));
@@ -165,13 +165,14 @@ class DriveUploadApplicationServiceTest {
         DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
 
-        entries.failNextSave(new DuplicateKeyException("entry insert failed"));
+        entries.returnNextCreate(DriveEntryRepository.CreateStatus.CONFLICT);
 
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 uploadId,
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
-        ))).isInstanceOf(DuplicateKeyException.class);
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessage("网盘条目创建失败");
 
         DriveUpload recoverable = uploads.findById(uploadId).orElseThrow();
         assertThat(recoverable.status()).isEqualTo(DriveUploadStatus.OBJECT_COMPLETED);
@@ -204,12 +205,13 @@ class DriveUploadApplicationServiceTest {
         UUID userId = uuid(7);
         DriveUploadSessionResult objectCompletedSession = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "recoverable.txt", "text/plain", 1_024L, ""));
         UUID objectCompletedUploadId = UUID.fromString(objectCompletedSession.uploadId());
-        entries.failNextSave(new DuplicateKeyException("entry insert failed"));
+        entries.returnNextCreate(DriveEntryRepository.CreateStatus.CONFLICT);
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 objectCompletedUploadId,
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 1_024L, "")
-        ))).isInstanceOf(DuplicateKeyException.class);
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessage("网盘条目创建失败");
 
         DriveUploadSessionResult completingSession = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "unknown.txt", "text/plain", 512L, ""));
         UUID completingUploadId = UUID.fromString(completingSession.uploadId());
@@ -557,6 +559,12 @@ class DriveUploadApplicationServiceTest {
             return true;
         }
 
+        @Override
+        public CreateResult create(DriveSpace space) {
+            stored.put(space.spaceId(), space);
+            return new CreateResult(CreateStatus.CREATED, space);
+        }
+
         void captureSnapshot(UUID spaceId) {
             snapshots.put(spaceId, stored.get(spaceId));
         }
@@ -616,18 +624,24 @@ class DriveUploadApplicationServiceTest {
 
         @Override
         public void save(DriveEntry entry) {
-            if (nextSaveFailure != null) {
-                RuntimeException failure = nextSaveFailure;
-                nextSaveFailure = null;
-                throw failure;
-            }
             rows.put(entry.entryId(), entry);
         }
 
-        private RuntimeException nextSaveFailure;
+        private CreateStatus nextCreateStatus;
 
-        void failNextSave(RuntimeException failure) {
-            nextSaveFailure = failure;
+        @Override
+        public CreateResult create(DriveEntry entry) {
+            if (nextCreateStatus != null) {
+                CreateStatus status = nextCreateStatus;
+                nextCreateStatus = null;
+                return new CreateResult(status, null);
+            }
+            rows.put(entry.entryId(), entry);
+            return new CreateResult(CreateStatus.CREATED, entry);
+        }
+
+        void returnNextCreate(CreateStatus status) {
+            nextCreateStatus = status;
         }
     }
 

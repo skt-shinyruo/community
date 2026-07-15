@@ -20,7 +20,9 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -120,6 +122,70 @@ class OssPostMediaStorageAdapterTest {
     }
 
     @Test
+    void completeUploadMustRejectForeignLaterOrContentDriftedMetadata() {
+        PostMediaAsset asset = draft(uuid(1), uuid(2), uuid(21), uuid(22), uuid(23));
+        AtomicReference<OssMetadataResponse> response = new AtomicReference<>();
+        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        when(ossClient.completeProxyUpload(any())).thenAnswer(invocation -> response.get());
+        OssPostMediaStorageAdapter adapter = new OssPostMediaStorageAdapter(ossClient);
+        PostMediaUploadContent content = new PostMediaUploadContent(
+                () -> new ByteArrayInputStream("media".getBytes()),
+                "video/mp4",
+                5,
+                "checksum"
+        );
+        List<OssMetadataResponse> invalidResponses = List.of(
+                metadata(asset).objectId(uuid(90)).build(),
+                metadata(asset).versionId(uuid(91)).build(),
+                metadata(asset).usage("DRIVE_FILE").build(),
+                metadata(asset).ownerService("foreign-service").build(),
+                metadata(asset).ownerDomain("drive").build(),
+                metadata(asset).ownerType("drive-file").build(),
+                metadata(asset).ownerId(uuid(92).toString()).build(),
+                metadata(asset).status("STAGED").build(),
+                metadata(asset).contentType("application/pdf").build(),
+                metadata(asset).contentLength(6L).build()
+        );
+
+        for (OssMetadataResponse invalid : invalidResponses) {
+            response.set(invalid);
+            Throwable failure = catchThrowable(() -> adapter.completeUpload(asset, uuid(21), content));
+            assertThat(failure)
+                    .as("metadata mismatch must be rejected: %s", invalid)
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessage("上传媒体失败");
+        }
+    }
+
+    @Test
+    void canonicalMetadataMustRejectForeignOrLaterVersionInsteadOfWritingItBack() {
+        PostMediaAsset asset = draft(uuid(1), uuid(2), uuid(21), uuid(22), uuid(23));
+        AtomicReference<OssMetadataResponse> response = new AtomicReference<>();
+        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        when(ossClient.getMetadata(asset.ossObjectId())).thenAnswer(invocation -> response.get());
+        OssPostMediaStorageAdapter adapter = new OssPostMediaStorageAdapter(ossClient);
+        List<OssMetadataResponse> invalidResponses = List.of(
+                metadata(asset).objectId(uuid(90)).build(),
+                metadata(asset).versionId(uuid(91)).build(),
+                metadata(asset).usage("DRIVE_FILE").build(),
+                metadata(asset).ownerService("foreign-service").build(),
+                metadata(asset).ownerDomain("drive").build(),
+                metadata(asset).ownerType("drive-file").build(),
+                metadata(asset).ownerId(uuid(92).toString()).build(),
+                metadata(asset).status("STAGED").build(),
+                metadata(asset).contentType("application/pdf").build(),
+                metadata(asset).contentLength(6L).build()
+        );
+
+        for (OssMetadataResponse invalid : invalidResponses) {
+            response.set(invalid);
+            assertThat(adapter.queryCanonicalMetadata(asset).outcome())
+                    .as("metadata mismatch must not become canonical: %s", invalid)
+                    .isEqualTo(PostMediaStoragePort.CanonicalMetadataOutcome.UNKNOWN);
+        }
+    }
+
+    @Test
     void bindReferenceShouldUsePostSubjectContext() {
         CommunityOssClient ossClient = mock(CommunityOssClient.class);
         UUID referenceId = uuid(31);
@@ -152,6 +218,37 @@ class OssPostMediaStorageAdapterTest {
         assertThat(captor.getValue().subjectId()).isEqualTo(uuid(40).toString());
         assertThat(captor.getValue().referenceRole()).isEqualTo("POST_MEDIA");
         assertThat(captor.getValue().actorId()).isEqualTo(uuid(2).toString());
+    }
+
+    @Test
+    void bindReferenceShouldForwardCallerSuppliedReferenceId() {
+        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        UUID requestedReferenceId = uuid(31);
+        UUID objectId = uuid(22);
+        UUID versionId = uuid(23);
+        when(ossClient.bindObjectReference(any(), any())).thenReturn(new OssReferenceResponse(
+                requestedReferenceId,
+                objectId,
+                versionId,
+                "community-app",
+                "content",
+                "post",
+                uuid(40).toString(),
+                "POST_MEDIA",
+                "ACTIVE",
+                null,
+                Instant.parse("2026-05-09T00:10:00Z"),
+                null
+        ));
+        OssPostMediaStorageAdapter adapter = new OssPostMediaStorageAdapter(ossClient);
+        PostMediaAsset asset = draft(uuid(1), uuid(2), uuid(21), objectId, versionId);
+
+        UUID result = adapter.bindReference(asset, uuid(40), requestedReferenceId, uuid(2));
+
+        assertThat(result).isEqualTo(requestedReferenceId);
+        var captor = forClass(OssBindReferenceRequest.class);
+        verify(ossClient).bindObjectReference(org.mockito.ArgumentMatchers.eq(objectId), captor.capture());
+        assertThat(captor.getValue().referenceId()).isEqualTo(requestedReferenceId.toString());
     }
 
     @Test
@@ -199,7 +296,7 @@ class OssPostMediaStorageAdapterTest {
                 uploadSessionId,
                 "demo.mp4",
                 "video/mp4",
-                12,
+                5,
                 PostMediaKind.VIDEO,
                 PostMediaAssetLifecycle.DRAFT,
                 PostVideoState.NONE,
@@ -208,5 +305,60 @@ class OssPostMediaStorageAdapterTest {
                 new Date(),
                 null
         );
+    }
+
+    private static MetadataBuilder metadata(PostMediaAsset asset) {
+        return new MetadataBuilder(asset);
+    }
+
+    private static final class MetadataBuilder {
+        private UUID objectId;
+        private UUID versionId;
+        private String usage = "CONTENT_POST_MEDIA";
+        private String ownerService = "community-app";
+        private String ownerDomain = "content";
+        private String ownerType = "post-media-draft";
+        private String ownerId;
+        private String status = "ACTIVE";
+        private String contentType;
+        private long contentLength;
+
+        private MetadataBuilder(PostMediaAsset asset) {
+            this.objectId = asset.ossObjectId();
+            this.versionId = asset.ossVersionId();
+            this.ownerId = asset.id().toString();
+            this.contentType = asset.contentType();
+            this.contentLength = asset.contentLength();
+        }
+
+        private MetadataBuilder objectId(UUID value) { this.objectId = value; return this; }
+        private MetadataBuilder versionId(UUID value) { this.versionId = value; return this; }
+        private MetadataBuilder usage(String value) { this.usage = value; return this; }
+        private MetadataBuilder ownerService(String value) { this.ownerService = value; return this; }
+        private MetadataBuilder ownerDomain(String value) { this.ownerDomain = value; return this; }
+        private MetadataBuilder ownerType(String value) { this.ownerType = value; return this; }
+        private MetadataBuilder ownerId(String value) { this.ownerId = value; return this; }
+        private MetadataBuilder status(String value) { this.status = value; return this; }
+        private MetadataBuilder contentType(String value) { this.contentType = value; return this; }
+        private MetadataBuilder contentLength(long value) { this.contentLength = value; return this; }
+
+        private OssMetadataResponse build() {
+            return new OssMetadataResponse(
+                    objectId,
+                    versionId,
+                    usage,
+                    ownerService,
+                    ownerDomain,
+                    ownerType,
+                    ownerId,
+                    "PUBLIC",
+                    status,
+                    "demo.mp4",
+                    contentType,
+                    contentLength,
+                    "checksum",
+                    "https://cdn.example.com/demo.mp4"
+            );
+        }
     }
 }

@@ -75,6 +75,7 @@ class OssLifecycleModelTest {
                 NOW.plusSeconds(3600)
         );
         OssObjectReference releasedReference = activeReference.release(NOW.plusSeconds(4));
+        OssObjectReference replayedRelease = releasedReference.release(NOW.plusSeconds(40));
         OssObject deletePendingObject = activeObject.deletePending(NOW.plusSeconds(5));
         OssObject purgedObject = deletePendingObject.purge(NOW.plusSeconds(6));
         OssObjectVersion purgedVersion = activeVersion.purge(NOW.plusSeconds(7));
@@ -90,6 +91,8 @@ class OssLifecycleModelTest {
         assertThat(activeReference.status()).isEqualTo(OssObjectReferenceStatus.ACTIVE);
         assertThat(releasedReference.status()).isEqualTo(OssObjectReferenceStatus.RELEASED);
         assertThat(releasedReference.releasedAt()).isEqualTo(NOW.plusSeconds(4));
+        assertThat(replayedRelease).isSameAs(releasedReference);
+        assertThat(replayedRelease.releasedAt()).isEqualTo(NOW.plusSeconds(4));
         assertThat(deletePendingObject.status()).isEqualTo(OssObjectStatus.DELETE_PENDING);
         assertThat(purgedObject.status()).isEqualTo(OssObjectStatus.PURGED);
         assertThat(purgedVersion.status()).isEqualTo(OssObjectVersionStatus.PURGED);

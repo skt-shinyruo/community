@@ -6,7 +6,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.domain.repository.ReportContentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.ReportMapper;
 import com.nowcoder.community.content.domain.model.Report;
-import com.nowcoder.community.infra.pagination.Pagination;
+import com.nowcoder.community.common.pagination.Pagination;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;

@@ -110,14 +110,14 @@ class MyBatisUserRepositoryTest {
         insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "old", createTime, null, null);
 
         userRepository.updateHeaderUrl(ALICE_ID, "new-header");
-        userRepository.updateStatus(ALICE_ID, 0);
-        long statusSecurityVersion = userRepository.currentUserSecurityVersion();
+        long statusSecurityVersion = userRepository.nextUserSecurityVersion(ALICE_ID);
+        userRepository.updateStatus(ALICE_ID, 0, statusSecurityVersion);
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(statusSecurityVersion);
-        userRepository.updateRole(ALICE_ID, 2);
-        long roleSecurityVersion = userRepository.currentUserSecurityVersion();
+        long roleSecurityVersion = userRepository.nextUserSecurityVersion(ALICE_ID);
+        userRepository.updateRole(ALICE_ID, 2, roleSecurityVersion);
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(roleSecurityVersion);
-        userRepository.updatePassword(ALICE_ID, "new-password");
-        long passwordSecurityVersion = userRepository.currentUserSecurityVersion();
+        long passwordSecurityVersion = userRepository.nextUserSecurityVersion(ALICE_ID);
+        userRepository.updatePassword(ALICE_ID, "new-password", passwordSecurityVersion);
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(passwordSecurityVersion);
         long policyVersion = userRepository.nextUserPolicyVersion(ALICE_ID);
         userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, policyVersion, 0L);
@@ -136,7 +136,7 @@ class MyBatisUserRepositoryTest {
     @Test
     void updateMethodsShouldRaiseInternalErrorWhenNoRowsChanged() {
         long before = userRepository.currentUserSecurityVersion();
-        assertThatThrownBy(() -> userRepository.updateRole(MISSING_ID, 2))
+        assertThatThrownBy(() -> userRepository.updateRole(MISSING_ID, 2, before + 1L))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(INTERNAL_ERROR))
                 .hasMessage("更新用户角色失败");

@@ -153,6 +153,12 @@ class PostMediaApplicationServiceTest {
                 ""
         );
         when(assetRepository.getRequired(assetId)).thenReturn(draft);
+        when(assetRepository.claimUploadCompletion(eq(assetId), eq(actorUserId), eq(0L), any(Date.class)))
+                .thenReturn(true);
+        when(assetRepository.markObjectCompleted(
+                eq(assetId), eq(1L), eq(versionId), eq("https://cdn.example.com/demo.mp4"),
+                eq("video/mp4"), eq(5L), any(Date.class))).thenReturn(true);
+        when(assetRepository.markUploadCompleted(eq(assetId), eq(1L), any(Date.class))).thenReturn(true);
         when(storagePort.completeUpload(draft, uploadSessionId, content)).thenReturn(
                 new PostMediaStoragePort.UploadedPostMedia(versionId, "https://cdn.example.com/demo.mp4", "video/mp4", 5)
         );
@@ -161,13 +167,12 @@ class PostMediaApplicationServiceTest {
 
         InOrder inOrder = inOrder(assetRepository, storagePort);
         inOrder.verify(assetRepository).getRequired(assetId);
+        inOrder.verify(assetRepository).claimUploadCompletion(eq(assetId), eq(actorUserId), eq(0L), any(Date.class));
         inOrder.verify(storagePort).completeUpload(draft, uploadSessionId, content);
-        inOrder.verify(assetRepository).markUploaded(
-                org.mockito.ArgumentMatchers.eq(assetId),
-                org.mockito.ArgumentMatchers.eq(versionId),
-                org.mockito.ArgumentMatchers.eq("https://cdn.example.com/demo.mp4"),
-                any(Date.class)
-        );
+        inOrder.verify(assetRepository).markObjectCompleted(
+                eq(assetId), eq(1L), eq(versionId), eq("https://cdn.example.com/demo.mp4"),
+                eq("video/mp4"), eq(5L), any(Date.class));
+        inOrder.verify(assetRepository).markUploadCompleted(eq(assetId), eq(1L), any(Date.class));
     }
 
     @Test
@@ -185,23 +190,20 @@ class PostMediaApplicationServiceTest {
     }
 
     @Test
-    void completeUploadShouldRejectNonDraftAsset() {
+    void completeUploadReplayShouldReturnWithoutOpeningStorage() {
         UUID actorUserId = uuid(7);
         UUID assetId = uuid(8);
         when(assetRepository.getRequired(assetId)).thenReturn(
                 draft(assetId, actorUserId, uuid(11), PostMediaAssetLifecycle.UPLOADED)
         );
 
-        Throwable thrown = catchThrowable(() -> service.completeUpload(actorUserId, assetId, uuid(11), uploadContent()));
+        service.completeUpload(actorUserId, assetId, uuid(11), uploadContent());
 
-        assertThat(thrown).isInstanceOf(BusinessException.class)
-                .hasMessage("媒体资源状态不允许上传");
-        assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(INVALID_ARGUMENT);
         verifyNoInteractions(storagePort);
     }
 
     @Test
-    void prepareUploadShouldDeletePreparedObjectWhenDraftPersistenceFails() {
+    void prepareUploadShouldKeepRemoteDraftRecoverableWhenPersistenceFails() {
         UUID userId = uuid(7);
         UUID objectId = uuid(9);
         UUID versionId = uuid(10);
@@ -234,14 +236,11 @@ class PostMediaApplicationServiceTest {
         )));
 
         assertThat(thrown).isInstanceOf(RuntimeException.class).hasMessage("db down");
-        var assetCaptor = forClass(PostMediaAsset.class);
-        verify(storagePort).deleteDraftObject(assetCaptor.capture(), eq(userId));
-        assertThat(assetCaptor.getValue().ossObjectId()).isEqualTo(objectId);
-        assertThat(assetCaptor.getValue().ossVersionId()).isEqualTo(versionId);
+        verify(storagePort, never()).deleteDraftObject(any(), any());
     }
 
     @Test
-    void completeUploadShouldDeleteDraftWhenMarkUploadedFails() {
+    void completeUploadShouldLeaveClaimRecoverableWhenMetadataPersistenceFails() {
         UUID actorUserId = uuid(7);
         UUID assetId = uuid(8);
         UUID uploadSessionId = uuid(11);
@@ -273,17 +272,21 @@ class PostMediaApplicationServiceTest {
                 ""
         );
         when(assetRepository.getRequired(assetId)).thenReturn(draft);
+        when(assetRepository.claimUploadCompletion(eq(assetId), eq(actorUserId), eq(0L), any(Date.class)))
+                .thenReturn(true);
         when(storagePort.completeUpload(draft, uploadSessionId, content)).thenReturn(
                 new PostMediaStoragePort.UploadedPostMedia(versionId, "https://cdn.example.com/demo.mp4", "video/mp4", 5)
         );
-        org.mockito.Mockito.doThrow(new RuntimeException("mark uploaded failed"))
-                .when(assetRepository).markUploaded(eq(assetId), eq(versionId), eq("https://cdn.example.com/demo.mp4"), any(Date.class));
+        org.mockito.Mockito.doThrow(new RuntimeException("mark object metadata failed"))
+                .when(assetRepository).markObjectCompleted(
+                        eq(assetId), eq(1L), eq(versionId), eq("https://cdn.example.com/demo.mp4"),
+                        eq("video/mp4"), eq(5L), any(Date.class));
 
         Throwable thrown = catchThrowable(() -> service.completeUpload(actorUserId, assetId, uploadSessionId, content));
 
-        assertThat(thrown).isInstanceOf(RuntimeException.class).hasMessage("mark uploaded failed");
-        verify(assetRepository).markDraftDeleted(eq(assetId), any(Date.class));
-        verify(storagePort).deleteDraftObject(draft, actorUserId);
+        assertThat(thrown).isInstanceOf(RuntimeException.class).hasMessage("mark object metadata failed");
+        verify(assetRepository, never()).markDraftDeleted(eq(assetId), any(Date.class));
+        verify(storagePort, never()).deleteDraftObject(any(), any());
     }
 
     private static PostMediaUploadSessionResult session(UUID assetId) {

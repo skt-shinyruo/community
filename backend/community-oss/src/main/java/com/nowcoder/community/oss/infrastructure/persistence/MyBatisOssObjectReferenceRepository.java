@@ -4,6 +4,7 @@ import com.nowcoder.community.oss.domain.model.OssObjectReference;
 import com.nowcoder.community.oss.domain.repository.OssObjectReferenceRepository;
 import com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectReferenceDataObject;
 import com.nowcoder.community.oss.infrastructure.persistence.mapper.OssObjectReferenceMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -21,7 +22,24 @@ public class MyBatisOssObjectReferenceRepository implements OssObjectReferenceRe
 
     @Override
     public void save(OssObjectReference reference) {
-        mapper.upsert(OssObjectReferenceDataObject.from(reference));
+        OssObjectReferenceDataObject row = OssObjectReferenceDataObject.from(reference);
+        if (mapper.updateLifecycle(row) == 0) {
+            mapper.insert(row);
+        }
+    }
+
+    @Override
+    public OssObjectReference insertOrFindExisting(OssObjectReference reference) {
+        try {
+            mapper.insert(OssObjectReferenceDataObject.from(reference));
+            return reference;
+        } catch (DuplicateKeyException ignored) {
+            OssObjectReferenceDataObject existing = mapper.selectByIdForUpdate(reference.referenceId());
+            if (existing == null) {
+                throw new IllegalStateException("object reference insert lost without an existing row");
+            }
+            return existing.toDomain();
+        }
     }
 
     @Override

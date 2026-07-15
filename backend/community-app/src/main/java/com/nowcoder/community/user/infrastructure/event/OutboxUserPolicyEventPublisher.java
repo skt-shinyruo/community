@@ -1,11 +1,10 @@
 package com.nowcoder.community.user.infrastructure.event;
 
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
-import com.nowcoder.community.user.contracts.event.UserContractEvent;
-import com.nowcoder.community.user.contracts.event.UserEventTypes;
+import com.nowcoder.community.user.contracts.event.UserContractEventCodec;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
+import com.nowcoder.community.user.contracts.event.UserTypedEvent;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserModerationStatus;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,16 +16,16 @@ import java.util.UUID;
 @Component
 public class OutboxUserPolicyEventPublisher implements UserPolicyEventPublisher {
 
-    private final JsonCodec jsonCodec;
+    private final UserContractEventCodec contractEventCodec;
     private final JdbcOutboxEventStore store;
     private final String topic;
 
     public OutboxUserPolicyEventPublisher(
-            JsonCodec jsonCodec,
+            UserContractEventCodec contractEventCodec,
             JdbcOutboxEventStore store,
             @Value("${user.events.outbox-topic:eventbus.user}") String topic
     ) {
-        this.jsonCodec = jsonCodec;
+        this.contractEventCodec = contractEventCodec;
         this.store = store;
         this.topic = topic;
     }
@@ -81,7 +80,7 @@ public class OutboxUserPolicyEventPublisher implements UserPolicyEventPublisher 
         String eventId = "ue:p:" + dashless(payload.getUserId()) + ":" + payload.getVersion();
         String payloadJson;
         try {
-            payloadJson = jsonCodec.toJson(new UserContractEvent(eventId, UserEventTypes.USER_POLICY_CHANGED, payload));
+            payloadJson = contractEventCodec.serialize(new UserTypedEvent.UserPolicyChanged(eventId, payload));
         } catch (JsonCodecException e) {
             throw new IllegalStateException("user event outbox payload serialization failed", e);
         }

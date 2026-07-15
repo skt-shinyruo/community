@@ -2,6 +2,7 @@ package com.nowcoder.community.growth.infrastructure.persistence;
 
 import com.nowcoder.community.growth.domain.repository.UserTaskEventLogRepository;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserTaskEventLogMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,8 +18,16 @@ public class MyBatisUserTaskEventLogRepository implements UserTaskEventLogReposi
     }
 
     @Override
-    public int insert(UUID id, UUID userId, String taskCode, String periodKey, String sourceEventId) {
-        return userTaskEventLogMapper.insert(id, userId, taskCode, periodKey, sourceEventId);
+    public CreateStatus create(UUID id, UUID userId, String taskCode, String periodKey, String sourceEventId) {
+        try {
+            return userTaskEventLogMapper.insert(id, userId, taskCode, periodKey, sourceEventId) == 1
+                    ? CreateStatus.CREATED
+                    : CreateStatus.CONFLICT;
+        } catch (DuplicateKeyException ignored) {
+            return userTaskEventLogMapper.exists(userId, taskCode, periodKey, sourceEventId)
+                    ? CreateStatus.ALREADY_EXISTS
+                    : CreateStatus.CONFLICT;
+        }
     }
 
     @Override

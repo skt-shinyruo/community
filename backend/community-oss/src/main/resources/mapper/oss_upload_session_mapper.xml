@@ -2,24 +2,96 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nowcoder.community.oss.infrastructure.persistence.mapper.OssUploadSessionMapper">
     <sql id="fields">
-        session_id, object_id, version_id, upload_mode, owner_service, owner_domain, owner_type, owner_id,
+        session_id, request_id, object_id, version_id, upload_mode, owner_service, owner_domain, owner_type, owner_id,
         expected_file_name, expected_content_type, expected_content_length, expected_checksum_sha256,
-        status, expires_at, created_by, created_at, completed_at
+        status, claim_version, expires_at, created_by, created_at, updated_at, completed_at, last_error
     </sql>
+    <insert id="insert" parameterType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssUploadSessionDataObject">
+        insert into oss_upload_session (<include refid="fields"/>)
+        values (#{sessionId,jdbcType=BINARY}, #{requestId,jdbcType=BINARY}, #{objectId,jdbcType=BINARY}, #{versionId,jdbcType=BINARY},
+        #{uploadMode}, #{ownerService}, #{ownerDomain}, #{ownerType}, #{ownerId}, #{expectedFileName},
+        #{expectedContentType}, #{expectedContentLength}, #{expectedChecksumSha256}, #{status}, #{claimVersion}, #{expiresAt},
+        #{createdBy}, #{createdAt}, #{updatedAt}, #{completedAt}, #{lastError})
+    </insert>
     <insert id="upsert" parameterType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssUploadSessionDataObject">
         insert into oss_upload_session (<include refid="fields"/>)
-        values (#{sessionId,jdbcType=BINARY}, #{objectId,jdbcType=BINARY}, #{versionId,jdbcType=BINARY},
+        values (#{sessionId,jdbcType=BINARY}, #{requestId,jdbcType=BINARY}, #{objectId,jdbcType=BINARY}, #{versionId,jdbcType=BINARY},
         #{uploadMode}, #{ownerService}, #{ownerDomain}, #{ownerType}, #{ownerId}, #{expectedFileName},
-        #{expectedContentType}, #{expectedContentLength}, #{expectedChecksumSha256}, #{status}, #{expiresAt},
-        #{createdBy}, #{createdAt}, #{completedAt})
+        #{expectedContentType}, #{expectedContentLength}, #{expectedChecksumSha256}, #{status}, #{claimVersion}, #{expiresAt},
+        #{createdBy}, #{createdAt}, #{updatedAt}, #{completedAt}, #{lastError})
         on duplicate key update
         status = values(status),
+        updated_at = values(updated_at),
         completed_at = values(completed_at),
+        last_error = values(last_error),
+        claim_version = greatest(claim_version, values(claim_version)),
         expires_at = values(expires_at)
     </insert>
     <select id="selectById" resultType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssUploadSessionDataObject">
         select <include refid="fields"/>
         from oss_upload_session
         where session_id = #{sessionId,jdbcType=BINARY}
+    </select>
+    <select id="selectByRequestId" resultType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssUploadSessionDataObject">
+        select <include refid="fields"/>
+        from oss_upload_session
+        where request_id = #{requestId,jdbcType=BINARY}
+    </select>
+    <update id="claimForCompletion">
+        update oss_upload_session
+        set status = 'UPLOADING',
+            claim_version = claim_version + 1,
+            updated_at = #{updatedAt},
+            last_error = ''
+        where session_id = #{sessionId,jdbcType=BINARY}
+          and status = 'READY'
+          and expires_at &gt; #{updatedAt}
+    </update>
+    <update id="recordCompletionFailure">
+        update oss_upload_session
+        set last_error = #{lastError},
+            updated_at = #{updatedAt}
+        where session_id = #{sessionId,jdbcType=BINARY}
+          and status = 'UPLOADING'
+          and claim_version = #{claimVersion}
+    </update>
+    <update id="resetFailedClaim">
+        update oss_upload_session
+        set status = 'READY',
+            claim_version = claim_version + 1,
+            updated_at = #{updatedAt},
+            expires_at = #{retryExpiresAt},
+            completed_at = null,
+            last_error = ''
+        where session_id = #{sessionId,jdbcType=BINARY}
+          and status = 'UPLOADING'
+          and claim_version = #{claimVersion}
+    </update>
+    <update id="completeClaim">
+        update oss_upload_session
+        set status = 'COMPLETED',
+            updated_at = #{completedAt},
+            completed_at = #{completedAt},
+            last_error = ''
+        where session_id = #{sessionId,jdbcType=BINARY}
+          and status = 'UPLOADING'
+          and claim_version = #{claimVersion}
+    </update>
+    <update id="renewReadySession">
+        update oss_upload_session
+        set expires_at = #{renewedExpiresAt},
+            updated_at = #{updatedAt},
+            last_error = ''
+        where session_id = #{sessionId,jdbcType=BINARY}
+          and status = 'READY'
+          and expires_at = #{expectedExpiresAt}
+    </update>
+    <select id="listRecoverable" resultType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssUploadSessionDataObject">
+        select <include refid="fields"/>
+        from oss_upload_session
+        where status = 'UPLOADING'
+          and updated_at &lt;= #{updatedBefore}
+        order by updated_at asc, session_id asc
+        limit #{limit}
     </select>
 </mapper>

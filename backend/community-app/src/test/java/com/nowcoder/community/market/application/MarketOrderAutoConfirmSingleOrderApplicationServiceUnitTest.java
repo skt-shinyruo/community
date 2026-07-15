@@ -1,17 +1,22 @@
 package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.market.domain.model.MarketOrder;
+import com.nowcoder.community.market.domain.model.MarketOrderStatus;
+import com.nowcoder.community.market.domain.model.MarketOrderTransition;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Date;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static com.nowcoder.community.market.support.MarketOrderTestFixture.order;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,9 +37,9 @@ class MarketOrderAutoConfirmSingleOrderApplicationServiceUnitTest {
         UUID buyerUserId = uuid(3);
         Date now = new Date();
         MarketOrder order = order(orderId, sellerUserId, buyerUserId, "DELIVERED", new Date(now.getTime() - 1_000L));
-        order.setTotalAmount(1200L);
         when(marketOrderRepository.lockById(orderId)).thenReturn(order);
-        when(marketOrderRepository.markReleasePending(orderId)).thenReturn(1);
+        when(marketOrderRepository.apply(any(MarketOrderTransition.class)))
+                .thenReturn(MarketOrderRepository.ApplyStatus.APPLIED);
 
         boolean confirmed = new MarketOrderAutoConfirmSingleOrderApplicationService(
                 marketOrderRepository,
@@ -43,7 +48,10 @@ class MarketOrderAutoConfirmSingleOrderApplicationServiceUnitTest {
 
         assertThat(confirmed).isTrue();
         verify(marketOrderRepository).lockById(orderId);
-        verify(marketOrderRepository).markReleasePending(orderId);
+        ArgumentCaptor<MarketOrderTransition> transition = ArgumentCaptor.forClass(MarketOrderTransition.class);
+        verify(marketOrderRepository).apply(transition.capture());
+        assertThat(transition.getValue().orderId()).isEqualTo(orderId);
+        assertThat(transition.getValue().nextStatus()).isEqualTo(MarketOrderStatus.RELEASE_PENDING);
         verify(marketWalletActionService).enqueueRelease(orderId, sellerUserId, buyerUserId, 1200L);
     }
 
@@ -60,7 +68,7 @@ class MarketOrderAutoConfirmSingleOrderApplicationServiceUnitTest {
         ).confirmOneDueOrder(orderId, now);
 
         assertThat(confirmed).isFalse();
-        verify(marketOrderRepository, never()).markReleasePending(orderId);
+        verify(marketOrderRepository, never()).apply(any(MarketOrderTransition.class));
         verify(marketWalletActionService, never()).enqueueRelease(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
@@ -82,7 +90,7 @@ class MarketOrderAutoConfirmSingleOrderApplicationServiceUnitTest {
         ).confirmOneDueOrder(orderId, now);
 
         assertThat(confirmed).isFalse();
-        verify(marketOrderRepository, never()).markReleasePending(orderId);
+        verify(marketOrderRepository, never()).apply(any(MarketOrderTransition.class));
         verify(marketWalletActionService, never()).enqueueRelease(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
@@ -92,12 +100,12 @@ class MarketOrderAutoConfirmSingleOrderApplicationServiceUnitTest {
     }
 
     private MarketOrder order(UUID orderId, UUID sellerUserId, UUID buyerUserId, String status, Date autoConfirmAt) {
-        MarketOrder order = new MarketOrder();
-        order.setOrderId(orderId);
-        order.setSellerUserId(sellerUserId);
-        order.setBuyerUserId(buyerUserId);
-        order.setStatus(status);
-        order.setAutoConfirmAt(autoConfirmAt);
-        return order;
+        return com.nowcoder.community.market.support.MarketOrderTestFixture.order(orderId)
+                .sellerUserId(sellerUserId)
+                .buyerUserId(buyerUserId)
+                .status(status)
+                .autoConfirmAt(autoConfirmAt)
+                .totalAmount(1_200L)
+                .build();
     }
 }

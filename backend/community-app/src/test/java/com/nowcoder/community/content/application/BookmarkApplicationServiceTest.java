@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.nowcoder.community.content.support.CommentTestBuilder.aComment;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -53,10 +54,11 @@ class BookmarkApplicationServiceTest {
         post.setUserId(userId);
         post.setCreateTime(createTime);
         post.setCategoryId(categoryId);
-        Comment lastActivity = new Comment();
-        lastActivity.setPostId(postId);
-        lastActivity.setUserId(lastReplyUserId);
-        lastActivity.setCreateTime(lastActivityTime);
+        Comment lastActivity = aComment()
+                .postId(postId)
+                .userId(lastReplyUserId)
+                .createTime(lastActivityTime)
+                .build();
 
         PostSummaryResult view = new PostSummaryResult(
                 postId,

@@ -6,15 +6,19 @@
 
     <sql id="selectFields">
         id, owner_user_id, post_id, oss_object_id, oss_version_id, oss_reference_id, upload_session_id,
-        file_name, content_type, content_length, media_kind, lifecycle, video_state, public_url,
-        failure_reason, create_time, update_time
+        file_name, content_type, content_length, media_kind, lifecycle, upload_status,
+        upload_operation_version, upload_updated_at, reference_status, reference_operation_version,
+        reference_updated_at, video_state, public_url, failure_reason,
+        create_time, update_time
     </sql>
 
     <insert id="insert" parameterType="com.nowcoder.community.content.infrastructure.persistence.dataobject.PostMediaAssetDataObject">
         insert into post_media_asset(
             id, owner_user_id, post_id, oss_object_id, oss_version_id, oss_reference_id, upload_session_id,
-            file_name, content_type, content_length, media_kind, lifecycle, video_state, public_url,
-            failure_reason, create_time, update_time
+            file_name, content_type, content_length, media_kind, lifecycle, upload_status,
+            upload_operation_version, upload_updated_at, reference_status, reference_operation_version,
+            reference_updated_at, video_state, public_url, failure_reason,
+            create_time, update_time
         )
         values(
             #{id, jdbcType=BINARY},
@@ -29,6 +33,12 @@
             #{contentLength},
             #{mediaKind},
             #{lifecycle},
+            #{uploadStatus},
+            #{uploadOperationVersion},
+            #{uploadUpdatedAt, jdbcType=TIMESTAMP},
+            #{referenceStatus, jdbcType=VARCHAR},
+            #{referenceOperationVersion},
+            #{referenceUpdatedAt, jdbcType=TIMESTAMP},
             #{videoState},
             #{publicUrl},
             #{failureReason},
@@ -62,11 +72,99 @@
     <update id="markUploaded">
         update post_media_asset
         set lifecycle = 'UPLOADED',
+            upload_status = 'COMPLETED',
+            upload_operation_version = upload_operation_version + 1,
+            upload_updated_at = #{updateTime},
             oss_version_id = #{versionId, jdbcType=BINARY},
             public_url = #{publicUrl},
             update_time = #{updateTime}
         where id = #{id, jdbcType=BINARY}
     </update>
+
+    <update id="claimUploadCompletion">
+        update post_media_asset
+        set upload_status = 'COMPLETING',
+            upload_operation_version = upload_operation_version + 1,
+            upload_updated_at = #{updateTime},
+            failure_reason = '',
+            update_time = #{updateTime}
+        where id = #{id, jdbcType=BINARY}
+          and owner_user_id = #{actorUserId, jdbcType=BINARY}
+          and lifecycle = 'DRAFT'
+          and upload_status = 'PREPARED'
+          and upload_operation_version = #{operationVersion}
+    </update>
+
+    <update id="markObjectCompleted">
+        update post_media_asset
+        set upload_status = 'OBJECT_COMPLETED',
+            oss_version_id = #{versionId, jdbcType=BINARY},
+            public_url = #{publicUrl},
+            content_type = #{contentType},
+            content_length = #{contentLength},
+            upload_updated_at = #{updateTime},
+            update_time = #{updateTime}
+        where id = #{id, jdbcType=BINARY}
+          and upload_status = 'COMPLETING'
+          and upload_operation_version = #{operationVersion}
+    </update>
+
+    <update id="markUploadCompleted">
+        update post_media_asset
+        set lifecycle = 'UPLOADED',
+            upload_status = 'COMPLETED',
+            upload_updated_at = #{updateTime},
+            failure_reason = '',
+            update_time = #{updateTime}
+        where id = #{id, jdbcType=BINARY}
+          and upload_status = 'OBJECT_COMPLETED'
+          and upload_operation_version = #{operationVersion}
+    </update>
+
+    <update id="markUploadFailed">
+        update post_media_asset
+        set upload_status = 'FAILED',
+            upload_updated_at = #{updateTime},
+            failure_reason = #{failureReason},
+            update_time = #{updateTime}
+        where id = #{id, jdbcType=BINARY}
+          and upload_status in ('COMPLETING', 'OBJECT_COMPLETED')
+          and upload_operation_version = #{operationVersion}
+    </update>
+
+    <update id="resetStaleUploadCompletion">
+        update post_media_asset
+        set upload_status = 'PREPARED',
+            upload_operation_version = upload_operation_version + 1,
+            upload_updated_at = #{resetAt},
+            failure_reason = '',
+            update_time = #{resetAt}
+        where id = #{id, jdbcType=BINARY}
+          and lifecycle = 'DRAFT'
+          and upload_status = 'COMPLETING'
+          and upload_operation_version = #{operationVersion}
+          and upload_updated_at &lt;= #{staleBefore}
+    </update>
+
+    <update id="recordUploadRecoveryFailure">
+        update post_media_asset
+        set upload_updated_at = #{updateTime},
+            failure_reason = #{failureReason}
+        where id = #{id, jdbcType=BINARY}
+          and lifecycle = 'DRAFT'
+          and upload_status in ('COMPLETING', 'OBJECT_COMPLETED')
+          and upload_operation_version = #{operationVersion}
+          and upload_updated_at &lt;= #{staleBefore}
+    </update>
+
+    <select id="listStaleCompleting" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.PostMediaAssetDataObject">
+        select <include refid="selectFields"></include>
+        from post_media_asset
+        where upload_status in ('COMPLETING', 'OBJECT_COMPLETED')
+          and upload_updated_at &lt;= #{updatedBefore}
+        order by upload_updated_at asc, id asc
+        limit #{limit}
+    </select>
 
     <update id="markDraftDeleted">
         update post_media_asset
@@ -98,5 +196,91 @@
             </foreach>
         </if>
     </update>
+
+    <update id="requestBind">
+        update post_media_asset
+        set post_id = #{postId, jdbcType=BINARY},
+            oss_reference_id = #{ossReferenceId, jdbcType=BINARY},
+            video_state = #{videoState},
+            reference_status = 'BIND_PENDING',
+            reference_operation_version = reference_operation_version + 1,
+            reference_updated_at = #{updateTime},
+            update_time = #{updateTime}
+        where id = #{id, jdbcType=BINARY}
+          and lifecycle = 'UPLOADED'
+          and reference_status = 'UNBOUND'
+    </update>
+
+    <update id="markBound">
+        update post_media_asset
+        set lifecycle = 'BOUND',
+            reference_status = 'BOUND',
+            reference_updated_at = #{updateTime},
+            update_time = #{updateTime}
+        where id = #{id, jdbcType=BINARY}
+          and reference_status = 'BIND_PENDING'
+          and reference_operation_version = #{operationVersion}
+    </update>
+
+    <update id="requestRelease">
+        update post_media_asset
+        set reference_status = 'RELEASE_PENDING',
+            reference_operation_version = reference_operation_version + 1,
+            reference_updated_at = #{updateTime},
+            update_time = #{updateTime}
+        where id = #{id, jdbcType=BINARY}
+          and reference_status in ('BOUND', 'BIND_PENDING')
+          and oss_reference_id is not null
+    </update>
+
+    <update id="requestBindRepair">
+        update post_media_asset
+        set reference_status = 'BIND_PENDING',
+            reference_operation_version = reference_operation_version + 1,
+            reference_updated_at = #{updateTime},
+            update_time = #{updateTime}
+        where id = #{id, jdbcType=BINARY}
+          and reference_status = 'BOUND'
+          and oss_reference_id is not null
+    </update>
+
+    <update id="requestReleaseRepair">
+        update post_media_asset
+        set reference_status = 'RELEASE_PENDING',
+            reference_operation_version = reference_operation_version + 1,
+            reference_updated_at = #{updateTime},
+            update_time = #{updateTime}
+        where id = #{id, jdbcType=BINARY}
+          and reference_status = 'RELEASED'
+          and oss_reference_id is not null
+    </update>
+
+    <update id="markReleased">
+        update post_media_asset
+        set lifecycle = 'RELEASED',
+            reference_status = 'RELEASED',
+            reference_updated_at = #{updateTime},
+            update_time = #{updateTime}
+        where id = #{id, jdbcType=BINARY}
+          and reference_status = 'RELEASE_PENDING'
+          and reference_operation_version = #{operationVersion}
+    </update>
+
+    <select id="listPending" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.PostMediaAssetDataObject">
+        select <include refid="selectFields"></include>
+        from post_media_asset
+        where reference_status in ('BIND_PENDING', 'RELEASE_PENDING')
+        order by reference_updated_at asc, id asc
+        limit #{limit}
+    </select>
+
+    <select id="scanReferenceStatesAfter" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.PostMediaAssetDataObject">
+        select <include refid="selectFields"></include>
+        from post_media_asset
+        where id &gt; #{afterAssetId, jdbcType=BINARY}
+          and reference_status in ('BIND_PENDING', 'BOUND', 'RELEASE_PENDING', 'RELEASED')
+        order by id asc
+        limit #{limit}
+    </select>
 
 </mapper>

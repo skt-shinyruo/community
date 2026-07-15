@@ -7,11 +7,14 @@ import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService;
 import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import com.nowcoder.community.social.infrastructure.event.JacksonSocialContractEventCodec;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -28,11 +31,15 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class PostHotFeedProjectionKafkaListenerTest {
 
     private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final ContentContractEventCodec contentContractEventCodec =
+            new JacksonContentContractEventCodec(jsonCodec);
+    private final SocialContractEventCodec socialContractEventCodec =
+            new JacksonSocialContractEventCodec(jsonCodec);
 
     @Test
     void postPublishedShouldMapTypedContentPayloadToProjectionCommand() {
         PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
-        PostHotFeedProjectionKafkaListener listener = new PostHotFeedProjectionKafkaListener(jsonCodec, applicationService);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
 
         listener.onContentEvent(new ContentContractEvent(
                 "evt-post-published",
@@ -41,7 +48,7 @@ class PostHotFeedProjectionKafkaListenerTest {
                 ContentEventTypes.POST_PUBLISHED,
                 Instant.parse("2026-07-06T08:00:00Z"),
                 42L,
-                postPayload(uuid(200), uuid(10))
+                jsonCodec.valueToTree(postPayload(uuid(200), uuid(10)))
         ));
 
         ArgumentCaptor<ProjectPostHotFeedCommand> captor = ArgumentCaptor.forClass(ProjectPostHotFeedCommand.class);
@@ -55,7 +62,7 @@ class PostHotFeedProjectionKafkaListenerTest {
     @Test
     void contentMapPayloadShouldConvertBeforeDelegation() {
         PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
-        PostHotFeedProjectionKafkaListener listener = new PostHotFeedProjectionKafkaListener(jsonCodec, applicationService);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
 
         listener.onContentEvent(new ContentContractEvent(
                 "evt-post-map",
@@ -64,7 +71,7 @@ class PostHotFeedProjectionKafkaListenerTest {
                 ContentEventTypes.POST_UPDATED,
                 Instant.parse("2026-07-06T08:01:00Z"),
                 43L,
-                Map.of("postId", uuid(201).toString(), "categoryId", uuid(11).toString())
+                jsonCodec.valueToTree(Map.of("postId", uuid(201).toString(), "categoryId", uuid(11).toString()))
         ));
 
         ArgumentCaptor<ProjectPostHotFeedCommand> captor = ArgumentCaptor.forClass(ProjectPostHotFeedCommand.class);
@@ -77,7 +84,7 @@ class PostHotFeedProjectionKafkaListenerTest {
     @Test
     void postLikeCreatedShouldMapSocialPayloadToProjectionCommand() {
         PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
-        PostHotFeedProjectionKafkaListener listener = new PostHotFeedProjectionKafkaListener(jsonCodec, applicationService);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
 
         listener.onSocialEvent(new SocialContractEvent(
                 "evt-like-created",
@@ -86,7 +93,7 @@ class PostHotFeedProjectionKafkaListenerTest {
                 SocialEventTypes.LIKE_CREATED,
                 Instant.parse("2026-07-06T08:02:00Z"),
                 44L,
-                likePayload(EntityTypes.POST, uuid(202))
+                jsonCodec.valueToTree(likePayload(EntityTypes.POST, uuid(202)))
         ));
 
         ArgumentCaptor<ProjectPostHotFeedCommand> captor = ArgumentCaptor.forClass(ProjectPostHotFeedCommand.class);
@@ -101,7 +108,7 @@ class PostHotFeedProjectionKafkaListenerTest {
     @Test
     void nonPostSocialSignalsShouldBeIgnored() {
         PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
-        PostHotFeedProjectionKafkaListener listener = new PostHotFeedProjectionKafkaListener(jsonCodec, applicationService);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
 
         listener.onSocialEvent(new SocialContractEvent(
                 "evt-like-comment",
@@ -110,7 +117,7 @@ class PostHotFeedProjectionKafkaListenerTest {
                 SocialEventTypes.LIKE_CREATED,
                 Instant.parse("2026-07-06T08:03:00Z"),
                 45L,
-                likePayload(EntityTypes.COMMENT, uuid(203))
+                jsonCodec.valueToTree(likePayload(EntityTypes.COMMENT, uuid(203)))
         ));
 
         verifyNoInteractions(applicationService);
@@ -119,11 +126,11 @@ class PostHotFeedProjectionKafkaListenerTest {
     @Test
     void recognizedContentEventWithMissingPostIdShouldFailDelivery() {
         PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
-        PostHotFeedProjectionKafkaListener listener = new PostHotFeedProjectionKafkaListener(jsonCodec, applicationService);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
 
         assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
                 "evt-post-missing", null, null, ContentEventTypes.POST_UPDATED,
-                Instant.EPOCH, 1L, new PostPayload())))
+                Instant.EPOCH, 1L, jsonCodec.valueToTree(new PostPayload()))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(ContentEventTypes.POST_UPDATED)
                 .hasMessageContaining("evt-post-missing");
@@ -134,11 +141,11 @@ class PostHotFeedProjectionKafkaListenerTest {
     @Test
     void recognizedSocialEventWithInvalidSourceMetadataShouldFailDelivery() {
         PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
-        PostHotFeedProjectionKafkaListener listener = new PostHotFeedProjectionKafkaListener(jsonCodec, applicationService);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
 
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
                 " ", null, null, SocialEventTypes.LIKE_CREATED, null, 0L,
-                likePayload(EntityTypes.POST, uuid(202)))))
+                jsonCodec.valueToTree(likePayload(EntityTypes.POST, uuid(202))))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(SocialEventTypes.LIKE_CREATED);
 
@@ -146,19 +153,43 @@ class PostHotFeedProjectionKafkaListenerTest {
     }
 
     @Test
+    void recognizedLikeWithoutProducerIdentityShouldFailDelivery() {
+        PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
+        LikePayload payload = likePayload(EntityTypes.POST, uuid(202));
+        payload.setActorUserId(null);
+
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "evt-like-missing-actor", uuid(202), "like", SocialEventTypes.LIKE_CREATED,
+                Instant.EPOCH, 1L, jsonCodec.valueToTree(payload))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(SocialEventTypes.LIKE_CREATED)
+                .hasMessageContaining("evt-like-missing-actor");
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
     void recognizedPostLikeWithoutPostIdShouldFailDelivery() {
         PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
-        PostHotFeedProjectionKafkaListener listener = new PostHotFeedProjectionKafkaListener(jsonCodec, applicationService);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
         LikePayload payload = likePayload(EntityTypes.POST, uuid(202));
         payload.setPostId(null);
 
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
                 "evt-like-missing-post-id", uuid(202), "like", SocialEventTypes.LIKE_CREATED,
-                Instant.EPOCH, 1L, payload)))
+                Instant.EPOCH, 1L, jsonCodec.valueToTree(payload))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("evt-like-missing-post-id");
 
         verifyNoInteractions(applicationService);
+    }
+
+    private PostHotFeedProjectionKafkaListener listener(
+            PostHotFeedProjectionApplicationService applicationService
+    ) {
+        return new PostHotFeedProjectionKafkaListener(
+                contentContractEventCodec, socialContractEventCodec, applicationService);
     }
 
     private static PostPayload postPayload(java.util.UUID postId, java.util.UUID boardId) {
@@ -170,6 +201,7 @@ class PostHotFeedProjectionKafkaListenerTest {
 
     private static LikePayload likePayload(int entityType, java.util.UUID postId) {
         LikePayload payload = new LikePayload();
+        payload.setActorUserId(uuid(1));
         payload.setEntityType(entityType);
         payload.setEntityId(postId);
         payload.setPostId(postId);

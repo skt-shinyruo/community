@@ -10,6 +10,8 @@ import java.util.UUID;
 @Mapper
 public interface OssObjectVersionMapper {
 
+    int insert(OssObjectVersionDataObject row);
+
     int upsert(OssObjectVersionDataObject row);
 
     OssObjectVersionDataObject selectById(UUID versionId);

@@ -207,6 +207,23 @@ class NacosPolicyBindingTest {
         assertThat(environment.getProperty("drive.upload.recovery.batch-size", Integer.class)).isEqualTo(100);
         assertThat(environment.getProperty("drive.upload.recovery.stale-seconds", Long.class)).isEqualTo(300L);
         assertThat(environment.getProperty("drive.upload.recovery.delay-ms", Long.class)).isEqualTo(60_000L);
+        assertThat(environment.getProperty("content.media.upload-recovery.enabled", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("content.media.upload-recovery.batch-size", Integer.class)).isEqualTo(50);
+        assertThat(environment.getProperty("content.media.upload-recovery.stale-seconds", Long.class)).isEqualTo(300L);
+        assertThat(environment.getProperty("content.media.upload-recovery.delay-ms", Long.class)).isEqualTo(60_000L);
+        assertThat(environment.getProperty("content.media.reference-reconciliation.enabled", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("content.media.reference-reconciliation.batch-size", Integer.class)).isEqualTo(50);
+        assertThat(environment.getProperty("content.media.reference-reconciliation.delay-ms", Long.class)).isEqualTo(300_000L);
+    }
+
+    @Test
+    void bindsOssUploadRecoverySeedDataId() throws Exception {
+        StandardEnvironment environment = environmentFrom("community-oss.yaml");
+
+        assertThat(environment.getProperty("community.oss.upload-recovery.enabled", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("community.oss.upload-recovery.batch-size", Integer.class)).isEqualTo(100);
+        assertThat(environment.getProperty("community.oss.upload-recovery.stale-seconds", Long.class)).isEqualTo(300L);
+        assertThat(environment.getProperty("community.oss.upload-recovery.delay-ms", Long.class)).isEqualTo(60_000L);
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

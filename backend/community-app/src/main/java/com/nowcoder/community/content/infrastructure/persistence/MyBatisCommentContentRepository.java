@@ -4,8 +4,9 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.domain.repository.CommentContentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.model.Comment;
+import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
-import com.nowcoder.community.infra.pagination.Pagination;
+import com.nowcoder.community.common.pagination.Pagination;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -44,7 +45,7 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
         int p = Math.max(0, page);
         int s = normalizePageSize(size);
         int fetchLimit = normalizeFetchLimit(limit, s);
-        return commentMapper.selectRootComments(postId, Pagination.safeOffset(p, s), fetchLimit);
+        return toAggregates(commentMapper.selectRootComments(postId, Pagination.safeOffset(p, s), fetchLimit));
     }
 
     @Override
@@ -60,7 +61,7 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
         int p = Math.max(0, page);
         int s = normalizePageSize(size);
         int fetchLimit = normalizeFetchLimit(limit, s);
-        return commentMapper.selectRepliesByRootComment(rootCommentId, Pagination.safeOffset(p, s), fetchLimit);
+        return toAggregates(commentMapper.selectRepliesByRootComment(rootCommentId, Pagination.safeOffset(p, s), fetchLimit));
     }
 
     @Override
@@ -70,25 +71,25 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
         }
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
-        return commentMapper.selectRecentCommentsByUser(userId, Pagination.safeOffset(p, s), s);
+        return toAggregates(commentMapper.selectRecentCommentsByUser(userId, Pagination.safeOffset(p, s), s));
     }
 
     @Override
     public Comment getById(UUID commentId) {
-        Comment comment = commentMapper.selectCommentById(commentId);
-        if (comment == null || !comment.isActive()) {
+        CommentDataObject row = commentMapper.selectById(commentId);
+        if (row == null || row.getStatus() != 0) {
             throw new BusinessException(COMMENT_NOT_FOUND);
         }
-        return comment;
+        return CommentPersistenceConverter.toAggregate(row);
     }
 
     @Override
     public Comment getByIdAllowDeleted(UUID commentId) {
-        Comment comment = commentMapper.selectCommentById(commentId);
-        if (comment == null) {
+        CommentDataObject row = commentMapper.selectById(commentId);
+        if (row == null) {
             throw new BusinessException(COMMENT_NOT_FOUND);
         }
-        return comment;
+        return CommentPersistenceConverter.toAggregate(row);
     }
 
     @Override
@@ -110,18 +111,28 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
             return map;
         }
 
-        List<Comment> rows = commentMapper.selectLatestPostActivitiesByPostIds(postIds);
+        List<CommentDataObject> rows = commentMapper.selectLatestPostActivitiesByPostIds(postIds);
         if (rows == null || rows.isEmpty()) {
             return map;
         }
 
-        for (Comment comment : rows) {
-            if (comment == null || comment.getPostId() == null) {
+        for (CommentDataObject row : rows) {
+            if (row == null || row.getPostId() == null) {
                 continue;
             }
+            Comment comment = CommentPersistenceConverter.toAggregate(row);
             map.putIfAbsent(comment.getPostId(), comment);
         }
         return map;
+    }
+
+    private static List<Comment> toAggregates(List<CommentDataObject> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        return rows.stream()
+                .map(CommentPersistenceConverter::toAggregate)
+                .toList();
     }
 
     private static int normalizePageSize(int size) {

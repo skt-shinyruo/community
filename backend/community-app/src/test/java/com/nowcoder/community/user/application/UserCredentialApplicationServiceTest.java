@@ -4,7 +4,6 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.application.result.UserAuthenticationResult;
 import com.nowcoder.community.user.application.result.UserCredentialResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
-import com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
 import com.nowcoder.community.user.domain.service.UserCredentialDomainService;
@@ -26,6 +25,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -37,9 +37,6 @@ class UserCredentialApplicationServiceTest {
 
     @Mock
     private UserRepository userRepository;
-
-    @Mock
-    private RefreshTokenSessionRepository refreshTokenSessionRepository;
 
     @Test
     void authenticateShouldRejectBlankCredentials() {
@@ -103,8 +100,7 @@ class UserCredentialApplicationServiceTest {
 
         assertThat(authenticationResult.failure()).isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
         assertThat(authenticationResult.user()).isNull();
-        verifyNoInteractions(refreshTokenSessionRepository);
-        verify(userRepository, never()).updatePassword(any(), any());
+        verify(userRepository, never()).updatePassword(any(), any(), anyLong());
     }
 
     @Test
@@ -178,21 +174,6 @@ class UserCredentialApplicationServiceTest {
     }
 
     @Test
-    void resetPasswordAndRevokeRefreshSessionsShouldPersistPasswordAndRevokeUserSessions() {
-        UserCredentialApplicationService service = service();
-        UUID userId = uuid(7);
-        when(userRepository.findById(userId)).thenReturn(Optional.of(activeUser(userId, "alice", "encoded", "")));
-        when(userRepository.nextUserSecurityVersion(userId)).thenReturn(456L);
-
-        service.resetPasswordAndRevokeRefreshSessions(userId, "secret12");
-
-        ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
-        verify(userRepository).updatePassword(eq(userId), passwordCaptor.capture(), eq(456L));
-        assertThat(new BCryptPasswordEncoder().matches("secret12", passwordCaptor.getValue())).isTrue();
-        verify(refreshTokenSessionRepository).revokeByUserId(userId);
-    }
-
-    @Test
     void authoritiesOfShouldMapUserTypesToExpectedRoles() {
         UserCredentialApplicationService service = service();
         UserCredentialResult admin = new UserCredentialResult(uuid(1), "admin", 1, 1, "h1", 0L, true, true);
@@ -255,8 +236,7 @@ class UserCredentialApplicationServiceTest {
         return new UserCredentialApplicationService(
                 userRepository,
                 new UserCredentialDomainService(),
-                new PasswordPolicyDomainService(),
-                refreshTokenSessionRepository
+                new PasswordPolicyDomainService()
         );
     }
 

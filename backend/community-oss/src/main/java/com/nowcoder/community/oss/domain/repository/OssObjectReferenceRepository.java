@@ -10,6 +10,8 @@ public interface OssObjectReferenceRepository {
 
     void save(OssObjectReference reference);
 
+    OssObjectReference insertOrFindExisting(OssObjectReference reference);
+
     Optional<OssObjectReference> findById(UUID referenceId);
 
     List<OssObjectReference> findByObjectId(UUID objectId);

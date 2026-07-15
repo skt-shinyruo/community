@@ -32,4 +32,16 @@ class OssSchemaResourceTest {
         assertThat(Path.of("src", "main", "resources", "mapper", "oss_access_grant_mapper.xml")).exists();
         assertThat(Path.of("src", "main", "resources", "mapper", "oss_object_reference_mapper.xml")).exists();
     }
+
+    @Test
+    void referenceMapperShouldInsertOnceInsteadOfBlindlyOverwritingAnExistingBinding() throws Exception {
+        String mapper = Files.readString(
+                Path.of("src", "main", "resources", "mapper", "oss_object_reference_mapper.xml"));
+
+        assertThat(mapper).contains("<insert id=\"insert\"");
+        assertThat(mapper).doesNotContain("<insert id=\"upsert\"");
+        assertThat(mapper).doesNotContain("on duplicate key update");
+        assertThat(mapper).contains("<select id=\"selectByIdForUpdate\"");
+        assertThat(mapper).contains("for update");
+    }
 }

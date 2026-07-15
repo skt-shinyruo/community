@@ -3,7 +3,11 @@ package com.nowcoder.community.content.controller.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 
+import java.util.UUID;
+
 public class PreparePostMediaUploadRequest {
+
+    private UUID requestId;
 
     @NotBlank
     private String fileName;
@@ -17,6 +21,14 @@ public class PreparePostMediaUploadRequest {
     private String mediaKind;
 
     private String checksumSha256;
+
+    public UUID getRequestId() {
+        return requestId;
+    }
+
+    public void setRequestId(UUID requestId) {
+        this.requestId = requestId;
+    }
 
     public String getFileName() {
         return fileName;

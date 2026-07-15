@@ -48,12 +48,13 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                         "redis.call('del', KEYS[1]) " +
                         "return nil " +
                         "end " +
+                        "if record.securityVersionAtIssue == nil then return nil end " +
                         "if record.familyId and redis.call('exists', KEYS[3] .. record.familyId) == 1 then return nil end " +
                         "if record.state ~= 'ACTIVE' then return nil end " +
                         "local ttl = redis.call('pttl', KEYS[1]) " +
                         "redis.call('del', KEYS[1]) " +
                         "local revokedAt = ARGV[1] " +
-                        "local tombstone = cjson.encode({userId = record.userId, familyId = record.familyId, expiresAt = record.expiresAt, revokedAt = revokedAt, state = 'CONSUMED'}) " +
+                        "local tombstone = cjson.encode({userId = record.userId, familyId = record.familyId, securityVersionAtIssue = record.securityVersionAtIssue, expiresAt = record.expiresAt, revokedAt = revokedAt, state = 'CONSUMED'}) " +
                         "if ttl and ttl > 0 then redis.call('set', KEYS[2], tombstone, 'px', ttl) end " +
                         "local member = record.refreshToken " +
                         "if record.familyId and member and member ~= '' then redis.call('srem', KEYS[4] .. record.familyId, member) end " +
@@ -68,6 +69,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                         "redis.call('del', KEYS[1]) " +
                         "return nil " +
                         "end " +
+                        "if record.securityVersionAtIssue == nil then return nil end " +
                         "if record.familyId and redis.call('exists', KEYS[2] .. record.familyId) == 1 then return nil end " +
                         "if record.state == 'PENDING_ROTATION' and record.pendingExpiresAt and record.pendingExpiresAt <= ARGV[2] then " +
                         "record.state = 'ACTIVE' " +
@@ -91,6 +93,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                         "redis.call('del', KEYS[1]) " +
                         "return 0 " +
                         "end " +
+                        "if record.securityVersionAtIssue == nil then return 0 end " +
                         "if record.state ~= 'PENDING_ROTATION' then return 0 end " +
                         "if redis.call('exists', KEYS[2]) == 1 then return 0 end " +
                         "local ttl = redis.call('pttl', KEYS[1]) " +
@@ -98,7 +101,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                         "local revokedAt = ARGV[4] " +
                         "local oldToken = record.refreshToken " +
                         "if not oldToken or oldToken == '' then return 0 end " +
-                        "local tombstone = cjson.encode({userId = record.userId, familyId = record.familyId, expiresAt = record.expiresAt, revokedAt = revokedAt, state = 'CONSUMED'}) " +
+                        "local tombstone = cjson.encode({userId = record.userId, familyId = record.familyId, securityVersionAtIssue = record.securityVersionAtIssue, expiresAt = record.expiresAt, revokedAt = revokedAt, state = 'CONSUMED'}) " +
                         "redis.call('set', 'auth:refresh:revoked:' .. oldToken, tombstone, 'px', ttl) " +
                         "redis.call('set', KEYS[2], ARGV[1], 'EX', ARGV[2]) " +
                         "redis.call('del', KEYS[1]) " +
@@ -135,8 +138,18 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
     }
 
     @Override
-    public void store(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
-        if (!StringUtils.hasText(refreshToken) || userId == null || !StringUtils.hasText(familyId) || expiresAt == null) {
+    public void store(
+            String refreshToken,
+            UUID userId,
+            String familyId,
+            long securityVersionAtIssue,
+            Instant expiresAt
+    ) {
+        if (!StringUtils.hasText(refreshToken)
+                || userId == null
+                || !StringUtils.hasText(familyId)
+                || securityVersionAtIssue < 0
+                || expiresAt == null) {
             return;
         }
         String token = refreshToken.trim();
@@ -145,7 +158,15 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
             return;
         }
 
-        RedisRefreshRecord record = new RedisRefreshRecord(token, userId, family, expiresAt, "ACTIVE", null);
+        RedisRefreshRecord record = new RedisRefreshRecord(
+                token,
+                userId,
+                family,
+                securityVersionAtIssue,
+                expiresAt,
+                "ACTIVE",
+                null
+        );
         try {
             String json = jsonCodec.toJson(record);
             long ttlSeconds = Math.max(1, expiresAt.getEpochSecond() - Instant.now().getEpochSecond());
@@ -224,12 +245,14 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
             String replacementRefreshToken,
             UUID userId,
             String familyId,
+            long securityVersionAtIssue,
             Instant replacementExpiresAt
     ) {
         if (!StringUtils.hasText(pendingRefreshToken)
                 || !StringUtils.hasText(replacementRefreshToken)
                 || userId == null
                 || !StringUtils.hasText(familyId)
+                || securityVersionAtIssue < 0
                 || replacementExpiresAt == null) {
             return false;
         }
@@ -244,6 +267,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                 replacementToken,
                 userId,
                 family,
+                securityVersionAtIssue,
                 replacementExpiresAt,
                 "ACTIVE",
                 null
@@ -306,7 +330,13 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
             return;
         }
         try {
-            String json = jsonCodec.toJson(new Tombstone(record.userId(), record.familyId(), record.expiresAt(), revokedAt));
+            String json = jsonCodec.toJson(new Tombstone(
+                    record.userId(),
+                    record.familyId(),
+                    record.securityVersionAtIssue(),
+                    record.expiresAt(),
+                    revokedAt
+            ));
             long ttlSeconds = Math.max(1, record.expiresAt().getEpochSecond() - now.getEpochSecond());
             redisTemplate.opsForValue().set(KEY_PREFIX_TOKEN_REVOKED + record.refreshToken().trim(), json, ttlSeconds, TimeUnit.SECONDS);
         } catch (JsonCodecException ignored) {
@@ -337,14 +367,25 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
     }
 
     private StoredRefreshToken toStoredRefreshToken(RedisRefreshRecord record, boolean includePending) {
-        if (record == null || !StringUtils.hasText(record.refreshToken()) || record.userId() == null || !StringUtils.hasText(record.familyId()) || record.expiresAt() == null) {
+        if (record == null
+                || !StringUtils.hasText(record.refreshToken())
+                || record.userId() == null
+                || !StringUtils.hasText(record.familyId())
+                || record.securityVersionAtIssue() == null
+                || record.expiresAt() == null) {
             return null;
         }
         String state = record.state();
         if (!"ACTIVE".equals(state) && !(includePending && "PENDING_ROTATION".equals(state))) {
             return null;
         }
-        return new StoredRefreshToken(record.refreshToken().trim(), record.userId(), record.familyId().trim(), record.expiresAt());
+        return new StoredRefreshToken(
+                record.refreshToken().trim(),
+                record.userId(),
+                record.familyId().trim(),
+                record.securityVersionAtIssue(),
+                record.expiresAt()
+        );
     }
 
     @Override
@@ -411,16 +452,28 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
         redisTemplate.delete(familyKey);
     }
 
+    @Override
+    public int deleteExpiredBefore(Instant cutoff) {
+        return 0;
+    }
+
     private record RedisRefreshRecord(
             String refreshToken,
             UUID userId,
             String familyId,
+            Long securityVersionAtIssue,
             Instant expiresAt,
             String state,
             Instant pendingExpiresAt
     ) {
     }
 
-    private record Tombstone(UUID userId, String familyId, Instant expiresAt, Instant revokedAt) {
+    private record Tombstone(
+            UUID userId,
+            String familyId,
+            Long securityVersionAtIssue,
+            Instant expiresAt,
+            Instant revokedAt
+    ) {
     }
 }

@@ -2,7 +2,7 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.content.exception.ContentErrorCode;
+import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
 import com.nowcoder.community.social.application.command.SetLikeCommand;
 import com.nowcoder.community.social.application.result.LikeResult;
 import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEvent;
@@ -11,17 +11,15 @@ import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
 import com.nowcoder.community.social.domain.model.BlockRelation;
 import com.nowcoder.community.social.domain.model.LikeRelation;
+import com.nowcoder.community.social.domain.model.LikeTargetState;
 import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.LikeRepository;
+import com.nowcoder.community.social.domain.repository.LikeTargetStateRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
-import com.nowcoder.community.user.api.model.UserSummaryView;
-import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -37,11 +35,7 @@ import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -51,20 +45,20 @@ class LikeApplicationServiceTest {
     @Test
     void selfLikeShouldBeRejectedForUserEntity() {
         LikeRepository repo = mock(LikeRepository.class);
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
-                mock(SocialDomainEventPublisher.class),
-                resolver
+                mock(SocialDomainEventPublisher.class)
         );
 
-        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(uuid(1), USER, uuid(1), true)))
+        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(
+                uuid(1), USER, uuid(1), true, uuid(1), null
+        )))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
 
-        verifyNoInteractions(repo, resolver);
+        verifyNoInteractions(repo);
     }
 
     @Test
@@ -72,8 +66,7 @@ class LikeApplicationServiceTest {
         LikeApplicationService service = newService(
                 mock(LikeRepository.class),
                 new StatefulBlockRepository(),
-                mock(SocialDomainEventPublisher.class),
-                mock(ContentEntityResolver.class)
+                mock(SocialDomainEventPublisher.class)
         );
 
         assertThatThrownBy(() -> service.setLike(null))
@@ -85,14 +78,14 @@ class LikeApplicationServiceTest {
     void likeShouldBeForbiddenWhenEitherBlockedOnCreate() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
         RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
-        Mockito.when(resolver.resolve(POST, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
 
         StatefulBlockRepository blockRepository = new StatefulBlockRepository();
         blockRepository.block(uuid(2), uuid(1));
-        LikeApplicationService service = newService(repo, blockRepository, publisher, resolver);
+        LikeApplicationService service = newService(repo, blockRepository, publisher);
 
-        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true)))
+        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(
+                uuid(1), POST, uuid(100), true, uuid(2), uuid(100)
+        )))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
 
@@ -102,60 +95,34 @@ class LikeApplicationServiceTest {
     }
 
     @Test
-    void likeUserShouldRejectMissingTargetUserOnCreate() {
-        LikeRepository repo = mock(LikeRepository.class);
-        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
-        UUID actorUserId = uuid(1);
-        UUID targetUserId = uuid(2);
-        when(userLookupQueryApi.getSummaryById(targetUserId)).thenReturn(null);
-
-        LikeApplicationService service = newService(
-                repo,
-                new StatefulBlockRepository(),
-                mock(SocialDomainEventPublisher.class),
-                resolver,
-                userLookupQueryApi
-        );
-
-        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(actorUserId, USER, targetUserId, true)))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
-                        .isEqualTo(CommonErrorCode.NOT_FOUND));
-
-        verify(repo, never()).setLike(any(UUID.class), anyInt(), any(UUID.class), any(), anyBoolean());
-        verifyNoInteractions(resolver);
-    }
-
-    @Test
     void likeShouldBeIdempotentAndPublishOnce() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
         RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
-        Mockito.when(resolver.resolve(POST, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
 
-        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver);
+        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher);
 
-        LikeResult r1 = service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
+        SetLikeCommand like = new SetLikeCommand(uuid(1), POST, uuid(100), true, uuid(2), uuid(100));
+        SetLikeCommand unlike = new SetLikeCommand(uuid(1), POST, uuid(100), false, uuid(2), uuid(100));
+        LikeResult r1 = service.setLike(like);
         assertThat(r1.liked()).isTrue();
         assertThat(r1.likeCount()).isEqualTo(1);
         assertThat(service.userLikeCount(uuid(2))).isEqualTo(1);
         assertThat(publisher.snapshot()).hasSize(1);
         assertThat(publisher.snapshot().get(0)).isInstanceOf(LikeChangedDomainEvent.class);
 
-        LikeResult repeatedLike = service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
+        LikeResult repeatedLike = service.setLike(like);
         assertThat(repeatedLike.liked()).isTrue();
         assertThat(repeatedLike.likeCount()).isEqualTo(1);
         assertThat(service.userLikeCount(uuid(2))).isEqualTo(1);
         assertThat(publisher.snapshot()).hasSize(1);
 
-        LikeResult r3 = service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), false));
+        LikeResult r3 = service.setLike(unlike);
         assertThat(r3.liked()).isFalse();
         assertThat(r3.likeCount()).isEqualTo(0);
         assertThat(service.userLikeCount(uuid(2))).isEqualTo(0);
         assertThat(publisher.snapshot()).hasSize(2);
 
-        LikeResult r4 = service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), false));
+        LikeResult r4 = service.setLike(unlike);
         assertThat(r4.liked()).isFalse();
         assertThat(r4.likeCount()).isEqualTo(0);
         assertThat(service.userLikeCount(uuid(2))).isEqualTo(0);
@@ -166,73 +133,16 @@ class LikeApplicationServiceTest {
     void likeAndUnlikeShouldShareStableRelationKey() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
         RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
-        Mockito.when(resolver.resolve(POST, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
-        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver);
+        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher);
 
-        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
-        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), false));
+        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true, uuid(2), uuid(100)));
+        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), false, uuid(2), uuid(100)));
 
         assertThat(publisher.snapshot()).hasSize(2);
         LikeChangedDomainEvent created = (LikeChangedDomainEvent) publisher.snapshot().get(0);
         LikeChangedDomainEvent removed = (LikeChangedDomainEvent) publisher.snapshot().get(1);
         assertThat(created.relationKey()).isEqualTo(removed.relationKey());
         assertThat(created.relationKey()).isEqualTo("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
-    }
-
-    @Test
-    void unlikeShouldRemoveExistingLikeWhenContentNoLongerResolves() {
-        StatefulLikeRepository repo = new StatefulLikeRepository();
-        RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
-        Mockito.when(resolver.resolve(POST, uuid(100)))
-                .thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)))
-                .thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND, "content not found"));
-
-        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver);
-
-        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
-        LikeResult result = service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), false));
-
-        assertThat(result.liked()).isFalse();
-        assertThat(result.likeCount()).isEqualTo(0);
-        assertThat(repo.isLiked(uuid(1), POST, uuid(100))).isFalse();
-    }
-
-    @Test
-    void unlikeShouldRemoveExistingLikeWhenContentDomainReportsPostNotFound() {
-        StatefulLikeRepository repo = new StatefulLikeRepository();
-        RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
-        Mockito.when(resolver.resolve(POST, uuid(100)))
-                .thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)))
-                .thenThrow(new BusinessException(ContentErrorCode.POST_NOT_FOUND));
-
-        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver);
-
-        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
-        LikeResult result = service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), false));
-
-        assertThat(result.liked()).isFalse();
-        assertThat(result.likeCount()).isEqualTo(0);
-        assertThat(repo.isLiked(uuid(1), POST, uuid(100))).isFalse();
-    }
-
-    @Test
-    void unlikeShouldDecrementStoredOwnerCountWhenContentNoLongerResolves() {
-        StatefulLikeRepository repo = new StatefulLikeRepository();
-        RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
-        Mockito.when(resolver.resolve(POST, uuid(100)))
-                .thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)))
-                .thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND, "content not found"));
-        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver);
-
-        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
-        assertThat(service.userLikeCount(uuid(2))).isEqualTo(1);
-        service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), false));
-
-        assertThat(service.userLikeCount(uuid(2))).isZero();
     }
 
     @Test
@@ -256,14 +166,13 @@ class LikeApplicationServiceTest {
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
-                publisher,
-                mock(ContentEntityResolver.class)
+                publisher
         );
 
         assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
         assertThat(repo.setLike(uuid(3), POST, uuid(100), uuid(2), true)).isTrue();
 
-        long removed = service.cleanupEntityLikes(POST, uuid(100));
+        long removed = service.cleanupDeletedContentLikes(deletionCommand(POST, uuid(100)));
 
         assertThat(removed).isEqualTo(2L);
         assertThat(repo.countEntityLikes(POST, uuid(100))).isZero();
@@ -277,110 +186,116 @@ class LikeApplicationServiceTest {
     }
 
     @Test
-    void cleanupShouldCompensateRemovedLikeWhenPublisherFailsForCompensatingRepository() {
+    void cleanupDeletedContentLikesShouldBeIdempotentForDuplicateDeletionEvents() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
+        RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
-                new FailingSocialDomainEventPublisher(),
-                mock(ContentEntityResolver.class)
+                publisher
+        );
+        assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
+        assertThat(repo.setLike(uuid(3), POST, uuid(100), uuid(2), true)).isTrue();
+        CleanupDeletedContentLikesCommand command = new CleanupDeletedContentLikesCommand(
+                POST,
+                uuid(100),
+                "content:PostDeleted:" + uuid(100),
+                42L,
+                Instant.parse("2026-07-15T08:30:00Z")
         );
 
-        assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
+        long firstRemoved = service.cleanupDeletedContentLikes(command);
+        long duplicateRemoved = service.cleanupDeletedContentLikes(command);
 
-        assertThatThrownBy(() -> service.cleanupEntityLikes(POST, uuid(100)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("publish failed");
-
-        assertThat(repo.isLiked(uuid(1), POST, uuid(100))).isTrue();
-        assertThat(repo.countEntityLikes(POST, uuid(100))).isEqualTo(1);
-        assertThat(repo.getUserLikeCount(uuid(2))).isEqualTo(1);
+        assertThat(firstRemoved).isEqualTo(2L);
+        assertThat(duplicateRemoved).isZero();
+        assertThat(repo.countEntityLikes(POST, uuid(100))).isZero();
+        assertThat(publisher.snapshot())
+                .filteredOn(LikeChangedDomainEvent.class::isInstance)
+                .hasSize(2);
     }
 
     @Test
-    void cleanupShouldRestoreRemovedLikeWhenTransactionRollsBackForCompensatingRepository() {
+    void reconciliationOfAnExistingDeletionFenceShouldRemoveResidualLikes() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
+        StatefulLikeTargetStateRepository targetStateRepository = new StatefulLikeTargetStateRepository();
+        CleanupDeletedContentLikesCommand command = deletionCommand(POST, uuid(100));
+        targetStateRepository.insertActiveIfAbsent(POST, uuid(100));
+        targetStateRepository.saveIfNewer(LikeTargetState.active(POST, uuid(100)).applyDeletion(
+                command.sourceEventId(),
+                command.sourceVersion(),
+                command.deletedAt()
+        ));
+        assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
                 new RecordingSocialDomainEventPublisher(),
-                mock(ContentEntityResolver.class)
+                targetStateRepository
+        );
+
+        long removed = service.cleanupDeletedContentLikes(new CleanupDeletedContentLikesCommand(
+                command.entityType(),
+                command.entityId(),
+                "social-like-reconciliation:" + command.entityType() + ":" + command.entityId() + ":42",
+                command.sourceVersion(),
+                command.deletedAt()
+        ));
+
+        assertThat(removed).isOne();
+        assertThat(repo.countEntityLikes(POST, uuid(100))).isZero();
+    }
+
+    @Test
+    void cleanupShouldPropagatePublisherFailure() {
+        StatefulLikeRepository repo = new StatefulLikeRepository();
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                new FailingSocialDomainEventPublisher()
         );
 
         assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
-        TransactionSynchronizationManager.initSynchronization();
-        TransactionSynchronizationManager.setActualTransactionActive(true);
-        try {
-            assertThat(service.cleanupEntityLikes(POST, uuid(100))).isEqualTo(1);
-            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
-                synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
-            }
-        } finally {
-            TransactionSynchronizationManager.clearSynchronization();
-            TransactionSynchronizationManager.setActualTransactionActive(false);
-        }
 
-        assertThat(repo.isLiked(uuid(1), POST, uuid(100))).isTrue();
-        assertThat(repo.countEntityLikes(POST, uuid(100))).isEqualTo(1);
-        assertThat(repo.getUserLikeCount(uuid(2))).isEqualTo(1);
+        assertThatThrownBy(() -> service.cleanupDeletedContentLikes(deletionCommand(POST, uuid(100))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("publish failed");
     }
 
     @Test
-    void likeShouldStillFailWhenContentDomainReportsPostNotFoundOnCreate() {
+    void likeShouldPropagatePublisherFailure() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
-        RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
-        Mockito.when(resolver.resolve(POST, uuid(100)))
-                .thenThrow(new BusinessException(ContentErrorCode.POST_NOT_FOUND));
-
-        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher, resolver);
-
-        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true)))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ContentErrorCode.POST_NOT_FOUND));
-        assertThat(repo.isLiked(uuid(1), POST, uuid(100))).isFalse();
-        assertThat(publisher.snapshot()).isEmpty();
-    }
-
-    @Test
-    void likeShouldRollbackStateWhenPublisherFailsForCompensatingRepository() {
-        StatefulLikeRepository repo = new StatefulLikeRepository();
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
-        Mockito.when(resolver.resolve(POST, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
 
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
-                new FailingSocialDomainEventPublisher(),
-                resolver
+                new FailingSocialDomainEventPublisher()
         );
 
-        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true)))
+        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(
+                uuid(1), POST, uuid(100), true, uuid(2), uuid(100)
+        )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("publish failed");
-
-        assertThat(repo.isLiked(uuid(1), POST, uuid(100))).isFalse();
-        assertThat(repo.countEntityLikes(POST, uuid(100))).isEqualTo(0);
-        assertThat(service.userLikeCount(uuid(2))).isEqualTo(0);
     }
 
     @Test
     void setLikeShouldRejectUnsupportedEntityTypeBeforeCollaborators() {
         LikeRepository repo = mock(LikeRepository.class);
-        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
-                mock(SocialDomainEventPublisher.class),
-                resolver
+                mock(SocialDomainEventPublisher.class)
         );
 
-        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(uuid(1), 999, uuid(100), true)))
+        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(
+                uuid(1), 999, uuid(100), true, null, null
+        )))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
 
-        verifyNoInteractions(repo, resolver);
+        verifyNoInteractions(repo);
     }
 
     @Test
@@ -389,8 +304,7 @@ class LikeApplicationServiceTest {
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
-                mock(SocialDomainEventPublisher.class),
-                mock(ContentEntityResolver.class)
+                mock(SocialDomainEventPublisher.class)
         );
 
         assertThatThrownBy(() -> service.isLiked(uuid(1), 999, uuid(100)))
@@ -401,7 +315,7 @@ class LikeApplicationServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
-        assertThatThrownBy(() -> service.cleanupEntityLikes(999, uuid(100)))
+        assertThatThrownBy(() -> service.cleanupDeletedContentLikes(deletionCommand(999, uuid(100))))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
@@ -423,8 +337,7 @@ class LikeApplicationServiceTest {
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
-                mock(SocialDomainEventPublisher.class),
-                mock(ContentEntityResolver.class)
+                mock(SocialDomainEventPublisher.class)
         );
         UUID actorUserId = uuid(1);
         UUID firstEntityId = uuid(100);
@@ -452,8 +365,7 @@ class LikeApplicationServiceTest {
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
-                mock(SocialDomainEventPublisher.class),
-                mock(ContentEntityResolver.class)
+                mock(SocialDomainEventPublisher.class)
         );
 
         assertThat(service.counts(POST, null)).isEmpty();
@@ -470,8 +382,7 @@ class LikeApplicationServiceTest {
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
-                mock(SocialDomainEventPublisher.class),
-                mock(ContentEntityResolver.class)
+                mock(SocialDomainEventPublisher.class)
         );
         UUID actorUserId = uuid(1);
         List<UUID> overLimitIds = IntStream.rangeClosed(1, 201)
@@ -501,39 +412,40 @@ class LikeApplicationServiceTest {
     private LikeApplicationService newService(
             LikeRepository likeRepository,
             BlockRepository blockRepository,
-            SocialDomainEventPublisher publisher,
-            ContentEntityResolver resolver
+            SocialDomainEventPublisher publisher
     ) {
-        return newService(likeRepository, blockRepository, publisher, resolver, allowAllUsersLookup());
+        return newService(
+                likeRepository,
+                blockRepository,
+                publisher,
+                new StatefulLikeTargetStateRepository()
+        );
     }
 
     private LikeApplicationService newService(
             LikeRepository likeRepository,
             BlockRepository blockRepository,
             SocialDomainEventPublisher publisher,
-            ContentEntityResolver resolver,
-            UserLookupQueryApi userLookupQueryApi
+            LikeTargetStateRepository targetStateRepository
     ) {
         return new LikeApplicationService(
                 likeRepository,
                 blockRepository,
                 new LikeDomainService(),
                 new BlockDomainService(),
-                resolver,
                 publisher,
-                userLookupQueryApi
+                targetStateRepository
         );
     }
 
-    private UserLookupQueryApi allowAllUsersLookup() {
-        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
-        when(userLookupQueryApi.getSummaryById(org.mockito.ArgumentMatchers.any(UUID.class)))
-                .thenAnswer(invocation -> summary(invocation.getArgument(0)));
-        return userLookupQueryApi;
-    }
-
-    private UserSummaryView summary(UUID userId) {
-        return new UserSummaryView(userId, "user-" + userId, null, 0);
+    private CleanupDeletedContentLikesCommand deletionCommand(int entityType, UUID entityId) {
+        return new CleanupDeletedContentLikesCommand(
+                entityType,
+                entityId,
+                "content:deleted:" + entityType + ":" + entityId,
+                42L,
+                Instant.parse("2026-07-15T08:30:00Z")
+        );
     }
 
     private static final class StatefulLikeRepository implements LikeRepository {
@@ -605,6 +517,18 @@ class LikeApplicationServiceTest {
         }
 
         @Override
+        public List<UUID> scanTargetIdsAfter(int entityType, UUID afterEntityId, int limit) {
+            UUID cursor = afterEntityId == null ? new UUID(0L, 0L) : afterEntityId;
+            return entityLikes.keySet().stream()
+                    .filter(key -> key.startsWith("like:entity:" + entityType + ":"))
+                    .map(key -> UUID.fromString(key.substring(key.lastIndexOf(':') + 1)))
+                    .filter(entityId -> entityId.compareTo(cursor) > 0)
+                    .sorted()
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
         public boolean isLiked(UUID userId, int entityType, UUID entityId) {
             Map<UUID, UUID> map = entityLikes.get(entityKey(entityType, entityId));
             return map != null && map.containsKey(userId);
@@ -626,13 +550,50 @@ class LikeApplicationServiceTest {
             return userLikeCounts.getOrDefault(userId, 0L);
         }
 
-        @Override
-        public boolean requiresExplicitCompensation() {
-            return true;
-        }
-
         private String entityKey(int entityType, UUID entityId) {
             return "like:entity:" + entityType + ":" + entityId;
+        }
+    }
+
+    private static final class StatefulLikeTargetStateRepository implements LikeTargetStateRepository {
+
+        private final Map<String, LikeTargetState> states = new ConcurrentHashMap<>();
+
+        @Override
+        public boolean insertActiveIfAbsent(int entityType, UUID entityId) {
+            return states.putIfAbsent(key(entityType, entityId), LikeTargetState.active(entityType, entityId)) == null;
+        }
+
+        @Override
+        public Optional<LikeTargetState> findByTarget(int entityType, UUID entityId) {
+            return Optional.ofNullable(states.get(key(entityType, entityId)));
+        }
+
+        @Override
+        public LikeTargetState findForUpdate(int entityType, UUID entityId) {
+            return states.get(key(entityType, entityId));
+        }
+
+        @Override
+        public boolean saveIfNewer(LikeTargetState state) {
+            String key = key(state.entityType(), state.entityId());
+            states.compute(key, (ignored, current) -> current == null || state.sourceVersion() > current.sourceVersion()
+                    ? state
+                    : current);
+            return states.get(key) == state;
+        }
+
+        @Override
+        public List<LikeTargetState> scanDeletedTargetsWithLikesAfter(
+                int entityType,
+                UUID afterEntityId,
+                int limit
+        ) {
+            return List.of();
+        }
+
+        private String key(int entityType, UUID entityId) {
+            return entityType + ":" + entityId;
         }
     }
 
@@ -678,10 +639,6 @@ class LikeApplicationServiceTest {
             return List.of();
         }
 
-        @Override
-        public boolean requiresExplicitCompensation() {
-            return true;
-        }
     }
 
     private static final class RecordingSocialDomainEventPublisher implements SocialDomainEventPublisher {

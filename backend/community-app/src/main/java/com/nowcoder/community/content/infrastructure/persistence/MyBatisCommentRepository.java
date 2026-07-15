@@ -2,18 +2,24 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.content.domain.model.Comment;
+import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentDraft;
+import com.nowcoder.community.content.domain.model.CommentEdit;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
+import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
+import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
+import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
+import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentTransitionTargetDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
-import java.util.Date;
-import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -38,27 +44,37 @@ public class MyBatisCommentRepository implements CommentRepository {
 
     @Override
     public UUID create(CommentDraft draft) {
-        Comment comment = new Comment();
-        comment.setId(idGenerator.next());
-        comment.setPostId(draft.postId());
-        comment.setUserId(draft.userId());
-        comment.setRootCommentId(draft.rootCommentId() == null ? comment.getId() : draft.rootCommentId());
-        comment.setParentCommentId(draft.parentCommentId());
-        comment.setReplyToUserId(draft.replyToUserId());
-        comment.setContent(draft.content());
-        comment.setStatus(0);
-        comment.setCreateTime(draft.createTime());
-        commentMapper.insertComment(comment);
-        return comment.getId();
+        if (draft == null || draft.userId() == null || draft.postId() == null || draft.createTime() == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "comment draft 非法");
+        }
+        UUID commentId = idGenerator.next();
+        UUID rootCommentId = draft.rootCommentId() == null ? commentId : draft.rootCommentId();
+        lockRootForReply(draft, rootCommentId);
+
+        CommentDataObject row = new CommentDataObject();
+        row.setId(commentId);
+        row.setPostId(draft.postId());
+        row.setUserId(draft.userId());
+        row.setRootCommentId(rootCommentId);
+        row.setParentCommentId(draft.parentCommentId());
+        row.setReplyToUserId(draft.replyToUserId());
+        row.setContent(draft.content());
+        row.setStatus(0);
+        row.setCreateTime(draft.createTime());
+        row.setVersion(0L);
+        if (commentMapper.insert(row) != 1) {
+            throw new BusinessException(INVALID_ARGUMENT, "创建评论失败");
+        }
+        return commentId;
     }
 
     @Override
     public CommentSnapshot getRequiredSnapshot(UUID commentId) {
-        Comment comment = commentMapper.selectCommentById(commentId);
-        if (comment == null || comment.getStatus() != 0) {
+        CommentDataObject row = commentMapper.selectById(commentId);
+        if (row == null || row.getStatus() != 0) {
             throw new BusinessException(COMMENT_NOT_FOUND);
         }
-        return toSnapshot(comment);
+        return CommentPersistenceConverter.toSnapshot(row);
     }
 
     @Override
@@ -66,8 +82,8 @@ public class MyBatisCommentRepository implements CommentRepository {
         if (commentId == null) {
             return Optional.empty();
         }
-        Comment comment = commentMapper.selectCommentById(commentId);
-        return comment == null ? Optional.empty() : Optional.of(toSnapshot(comment));
+        CommentDataObject row = commentMapper.selectById(commentId);
+        return row == null ? Optional.empty() : Optional.of(CommentPersistenceConverter.toSnapshot(row));
     }
 
     @Override
@@ -75,61 +91,201 @@ public class MyBatisCommentRepository implements CommentRepository {
         if (commentId == null) {
             return Optional.empty();
         }
-        Comment comment = commentMapper.selectCommentById(commentId);
-        if (comment == null || comment.getStatus() != 0) {
+        CommentDataObject row = commentMapper.selectById(commentId);
+        if (row == null || row.getStatus() != 0) {
             return Optional.empty();
         }
-        return Optional.of(toSnapshot(comment));
+        return Optional.of(CommentPersistenceConverter.toSnapshot(row));
     }
 
     @Override
-    public void updateContent(UUID commentId, String content, Date updateTime) {
-        int updated = commentMapper.updateCommentContent(commentId, content, updateTime);
-        if (updated <= 0) {
-            throw new BusinessException(INVALID_ARGUMENT, "更新评论失败");
+    public List<CommentSnapshot> getActiveThreadSnapshots(UUID rootCommentId) {
+        if (rootCommentId == null) {
+            return List.of();
         }
-    }
-
-    @Override
-    public CommentDeletionResult markActiveThreadDeleted(UUID commentId, UUID deletedBy, String deletedReason, Date deletedTime) {
-        Comment target = commentMapper.selectCommentById(commentId);
-        if (target == null || target.getStatus() != 0) {
-            return new CommentDeletionResult(List.of());
-        }
-        List<UUID> candidateIds = new ArrayList<>();
-        List<CommentSnapshot> deletedComments = new ArrayList<>();
-        candidateIds.add(commentId);
-        if (target.isRootComment()) {
-            List<UUID> replyIds = commentMapper.selectActiveRepliesByRootComment(commentId);
-            if (replyIds != null && !replyIds.isEmpty()) {
-                candidateIds.addAll(replyIds);
-            }
-        }
-        for (UUID candidateId : candidateIds) {
-            Comment comment = commentMapper.selectCommentById(candidateId);
-            if (comment == null || comment.getStatus() != 0) {
-                continue;
-            }
-            if (commentMapper.updateActiveCommentDeleted(candidateId, deletedBy, deletedReason, deletedTime) > 0) {
-                deletedComments.add(toSnapshot(comment));
-            }
-        }
-        return new CommentDeletionResult(deletedComments);
-    }
-
-    private static CommentSnapshot toSnapshot(Comment comment) {
-        return new CommentSnapshot(
-                comment.getId(),
-                comment.getUserId(),
-                comment.getPostId(),
-                comment.getRootCommentId(),
-                comment.getParentCommentId(),
-                comment.getReplyToUserId(),
-                comment.getContent(),
-                comment.getStatus(),
-                comment.getCreateTime(),
-                comment.getUpdateTime(),
-                comment.getEditCount()
+        List<CommentDataObject> rows = orderedRows(
+                rootCommentId,
+                commentMapper.selectThreadForUpdate(rootCommentId)
         );
+        CommentDataObject root = rows.stream()
+                .filter(row -> rootCommentId.equals(row.getId()))
+                .findFirst()
+                .orElse(null);
+        if (root == null || root.getStatus() != 0 || root.getParentCommentId() != null) {
+            return List.of();
+        }
+        return rows.stream()
+                .filter(row -> row.getStatus() == 0)
+                .map(CommentPersistenceConverter::toSnapshot)
+                .sorted(threadOrder(rootCommentId))
+                .toList();
+    }
+
+    @Override
+    public CommentTransitionStatus apply(CommentEdit edit) {
+        CommentDataObject current = commentMapper.selectByIdForUpdate(edit.commentId());
+        CommentTransitionStatus currentStatus = classify(current, edit.expectedVersion());
+        if (currentStatus != CommentTransitionStatus.APPLIED) {
+            return currentStatus;
+        }
+        int updated = commentMapper.applyEdit(
+                edit.commentId(),
+                edit.expectedVersion(),
+                edit.content(),
+                edit.updateTime()
+        );
+        ensureAppliedCount(1, updated);
+        return CommentTransitionStatus.APPLIED;
+    }
+
+    @Override
+    public CommentDeletionResult apply(CommentDeletion deletion) {
+        CommentDataObject current = commentMapper.selectByIdForUpdate(deletion.commentId());
+        CommentTransitionStatus currentStatus = classify(current, deletion.expectedVersion());
+        if (currentStatus != CommentTransitionStatus.APPLIED) {
+            return deletionResult(currentStatus);
+        }
+        int updated = commentMapper.applyDeletion(
+                deletion.commentId(),
+                deletion.expectedVersion(),
+                deletion.deletedBy(),
+                deletion.deletedReason(),
+                deletion.deletedTime()
+        );
+        ensureAppliedCount(1, updated);
+        return CommentDeletionResult.applied(List.of(CommentPersistenceConverter.toSnapshot(current)));
+    }
+
+    @Override
+    public CommentDeletionResult apply(CommentThreadDeletion deletion) {
+        List<CommentDataObject> rows = orderedRows(
+                deletion.rootCommentId(),
+                commentMapper.selectThreadForUpdate(deletion.rootCommentId())
+        );
+        Map<UUID, CommentDataObject> rowsById = new LinkedHashMap<>();
+        for (CommentDataObject row : rows) {
+            rowsById.put(row.getId(), row);
+        }
+        CommentDataObject root = rowsById.get(deletion.rootCommentId());
+        if (root == null) {
+            return CommentDeletionResult.notFound();
+        }
+        if (root.getStatus() != 0) {
+            return CommentDeletionResult.noOp();
+        }
+
+        List<UUID> activeIds = rows.stream()
+                .filter(row -> row.getStatus() == 0)
+                .map(CommentDataObject::getId)
+                .toList();
+        List<UUID> targetIds = deletion.targets().stream()
+                .map(CommentThreadDeletion.Target::commentId)
+                .toList();
+        if (!activeIds.equals(targetIds)) {
+            return CommentDeletionResult.stale();
+        }
+
+        for (CommentThreadDeletion.Target target : deletion.targets()) {
+            CommentDataObject row = rowsById.get(target.commentId());
+            if (row == null) {
+                return CommentDeletionResult.notFound();
+            }
+            if (row.getStatus() != 0
+                    || row.getVersion() != target.expectedVersion()
+                    || !deletion.rootCommentId().equals(row.getRootCommentId())) {
+                return CommentDeletionResult.stale();
+            }
+        }
+
+        List<CommentTransitionTargetDataObject> persistenceTargets = deletion.targets().stream()
+                .map(target -> new CommentTransitionTargetDataObject(
+                        target.commentId(),
+                        target.expectedVersion()
+                ))
+                .toList();
+        int updated = commentMapper.applyThreadDeletion(
+                deletion.rootCommentId(),
+                persistenceTargets,
+                deletion.deletedBy(),
+                deletion.deletedReason(),
+                deletion.deletedTime()
+        );
+        ensureAppliedCount(deletion.targets().size(), updated);
+        List<CommentSnapshot> affected = deletion.targets().stream()
+                .map(target -> CommentPersistenceConverter.toSnapshot(rowsById.get(target.commentId())))
+                .toList();
+        return CommentDeletionResult.applied(affected);
+    }
+
+    private void lockRootForReply(CommentDraft draft, UUID rootCommentId) {
+        if (draft.parentCommentId() == null) {
+            if (draft.rootCommentId() != null) {
+                throw new BusinessException(INVALID_ARGUMENT, "root comment draft 非法");
+            }
+            return;
+        }
+        if (draft.rootCommentId() == null || !draft.parentCommentId().equals(rootCommentId)) {
+            throw new BusinessException(INVALID_ARGUMENT, "reply comment thread 非法");
+        }
+        CommentDataObject root = commentMapper.selectByIdForUpdate(rootCommentId);
+        if (root == null
+                || root.getStatus() != 0
+                || root.getParentCommentId() != null
+                || !rootCommentId.equals(root.getRootCommentId())
+                || !draft.postId().equals(root.getPostId())) {
+            throw new BusinessException(COMMENT_NOT_FOUND);
+        }
+    }
+
+    private static CommentTransitionStatus classify(CommentDataObject current, long expectedVersion) {
+        if (current == null) {
+            return CommentTransitionStatus.NOT_FOUND;
+        }
+        if (current.getStatus() != 0) {
+            return CommentTransitionStatus.NO_OP;
+        }
+        return current.getVersion() == expectedVersion
+                ? CommentTransitionStatus.APPLIED
+                : CommentTransitionStatus.STALE;
+    }
+
+    private static CommentDeletionResult deletionResult(CommentTransitionStatus status) {
+        return switch (status) {
+            case NO_OP -> CommentDeletionResult.noOp();
+            case STALE -> CommentDeletionResult.stale();
+            case NOT_FOUND -> CommentDeletionResult.notFound();
+            case APPLIED -> throw new IllegalArgumentException("APPLIED requires affected comments");
+        };
+    }
+
+    private static List<CommentDataObject> safeRows(List<CommentDataObject> rows) {
+        return rows == null ? List.of() : rows;
+    }
+
+    private static List<CommentDataObject> orderedRows(UUID rootCommentId, List<CommentDataObject> rows) {
+        return safeRows(rows).stream()
+                .sorted(Comparator
+                        .comparing((CommentDataObject row) -> !rootCommentId.equals(row.getId()))
+                        .thenComparing(
+                                CommentDataObject::getCreateTime,
+                                Comparator.nullsLast(Comparator.naturalOrder())
+                        )
+                        .thenComparing(row -> row.getId().toString()))
+                .toList();
+    }
+
+    private static Comparator<CommentSnapshot> threadOrder(UUID rootCommentId) {
+        return Comparator
+                .comparing((CommentSnapshot snapshot) -> !rootCommentId.equals(snapshot.id()))
+                .thenComparing(CommentSnapshot::createTime)
+                .thenComparing(snapshot -> snapshot.id().toString());
+    }
+
+    private static void ensureAppliedCount(int expected, int actual) {
+        if (actual != expected) {
+            throw new IllegalStateException(
+                    "comment transition cardinality mismatch: expected=" + expected + ", actual=" + actual
+            );
+        }
     }
 }

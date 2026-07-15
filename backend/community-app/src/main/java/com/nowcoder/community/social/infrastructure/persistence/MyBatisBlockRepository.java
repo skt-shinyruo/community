@@ -4,7 +4,6 @@ import com.nowcoder.community.social.domain.model.BlockRelation;
 import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.infrastructure.persistence.dataobject.BlockRelationDataObject;
 import com.nowcoder.community.social.infrastructure.persistence.mapper.BlockMapper;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
@@ -15,7 +14,6 @@ import java.util.UUID;
  * MySQL 持久化实现：以 DB 为 SSOT（source of truth）。
  */
 @Repository
-@ConditionalOnProperty(name = "social.storage", havingValue = "db", matchIfMissing = true)
 public class MyBatisBlockRepository implements BlockRepository {
 
     private static final UUID ZERO_UUID = new UUID(0L, 0L);

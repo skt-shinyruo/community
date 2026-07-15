@@ -8,7 +8,6 @@ import com.nowcoder.community.user.domain.model.UserProfile;
 import com.nowcoder.community.user.domain.model.UserSummary;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserReadDomainService;
-import com.nowcoder.community.wallet.api.query.WalletAccountQueryApi;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -33,23 +32,16 @@ class UserReadApplicationServiceTest {
     @Mock
     private UserRepository userRepository;
 
-    @Mock
-    private WalletAccountQueryApi walletAccountQueryApi;
-
     @Test
-    void getProfileShouldProjectBaseUserAndWalletState() {
+    void getProfileShouldProjectOnlyUserOwnedState() {
         UserReadApplicationService service = new UserReadApplicationService(
                 userRepository,
-                new UserReadDomainService(),
-                walletAccountQueryApi
+                new UserReadDomainService()
         );
         UUID userId = uuid(7);
         Date createTime = new Date();
         when(userRepository.findProfileById(userId))
                 .thenReturn(Optional.of(new UserProfile(userId, "alice", "h7", 2, 1, createTime)));
-        when(walletAccountQueryApi.balanceOfUser(userId)).thenReturn(900L);
-        when(walletAccountQueryApi.statusOfUser(userId)).thenReturn("ACTIVE");
-
         UserProfileResult profile = service.getProfile(userId);
 
         assertThat(profile).extracting(
@@ -58,18 +50,18 @@ class UserReadApplicationServiceTest {
                 UserProfileResult::headerUrl,
                 UserProfileResult::type,
                 UserProfileResult::status,
-                UserProfileResult::createTime,
-                UserProfileResult::walletBalance,
-                UserProfileResult::walletStatus
-        ).containsExactly(userId, "alice", "h7", 2, 1, createTime, 900L, "ACTIVE");
+                UserProfileResult::createTime
+        ).containsExactly(userId, "alice", "h7", 2, 1, createTime);
+        assertThat(Arrays.stream(UserProfileResult.class.getRecordComponents())
+                .map(component -> component.getName()))
+                .doesNotContain("walletBalance", "walletStatus");
     }
 
     @Test
     void listSummaryResultsByIdsShouldDeduplicateCapAndPreserveOrder() {
         UserReadApplicationService service = new UserReadApplicationService(
                 userRepository,
-                new UserReadDomainService(),
-                walletAccountQueryApi
+                new UserReadDomainService()
         );
         UUID aliceId = uuid(7);
         UUID bobId = uuid(9);
@@ -93,8 +85,7 @@ class UserReadApplicationServiceTest {
     void requireExistingUserShouldUseLightweightLookup() {
         UserReadApplicationService service = new UserReadApplicationService(
                 userRepository,
-                new UserReadDomainService(),
-                walletAccountQueryApi
+                new UserReadDomainService()
         );
         UUID userId = uuid(7);
         when(userRepository.findById(userId)).thenReturn(Optional.of(account(userId, "alice", "h7", 1)));
@@ -109,8 +100,7 @@ class UserReadApplicationServiceTest {
     void getSummaryByIdShouldRejectNullUserId() {
         UserReadApplicationService service = new UserReadApplicationService(
                 userRepository,
-                new UserReadDomainService(),
-                walletAccountQueryApi
+                new UserReadDomainService()
         );
 
         assertThatThrownBy(() -> service.getSummaryById(null))

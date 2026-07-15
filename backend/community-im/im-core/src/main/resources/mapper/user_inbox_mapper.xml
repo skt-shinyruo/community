@@ -216,7 +216,6 @@
     <update id="updateConversationInbox">
         update im_user_conversation_inbox
         set peer_user_id = #{peerUserId, jdbcType=BINARY},
-            last_seq = greatest(last_seq, #{seq}),
             last_message_id = case when #{seq} &gt;= last_seq then #{messageId, jdbcType=BINARY} else last_message_id end,
             last_from_user_id = case when #{seq} &gt;= last_seq then #{fromUserId, jdbcType=BINARY} else last_from_user_id end,
             last_to_user_id = case when #{seq} &gt;= last_seq then #{toUserId, jdbcType=BINARY} else last_to_user_id end,
@@ -229,6 +228,7 @@
               else greatest(0, unread_count + (#{seq} - last_seq))
             end,
             sort_at = case when #{seq} &gt;= last_seq then #{createdAt} else sort_at end,
+            last_seq = greatest(last_seq, #{seq}),
             updated_at = current_timestamp
         where user_id = #{userId, jdbcType=BINARY}
           and conversation_id = #{conversationId}

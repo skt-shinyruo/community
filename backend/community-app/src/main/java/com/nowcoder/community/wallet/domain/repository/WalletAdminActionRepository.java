@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public interface WalletAdminActionRepository {
 
-    int insert(WalletAdminAction action);
+    CreationOutcome<WalletAdminAction> create(WalletAdminAction action);
 
     WalletAdminAction findByRequestId(String requestId);
 

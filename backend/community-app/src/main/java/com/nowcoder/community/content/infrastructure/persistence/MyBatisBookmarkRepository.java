@@ -6,7 +6,7 @@ import com.nowcoder.community.content.domain.repository.BookmarkRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.BookmarkMapper;
 import com.nowcoder.community.content.domain.model.DiscussPost;
-import com.nowcoder.community.infra.pagination.Pagination;
+import com.nowcoder.community.common.pagination.Pagination;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;

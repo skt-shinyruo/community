@@ -12,6 +12,7 @@ import com.nowcoder.community.oss.application.result.ObjectUploadSessionResult;
 import com.nowcoder.community.oss.domain.model.OssObject;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssUploadSession;
+import com.nowcoder.community.oss.domain.model.OssUploadSessionStatus;
 import com.nowcoder.community.oss.domain.model.OssUsagePolicy;
 import com.nowcoder.community.oss.domain.model.OssVisibility;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
@@ -23,13 +24,14 @@ import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStoreObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -50,6 +52,7 @@ public class ObjectUploadApplicationService {
     private final Clock clock;
     private final UploadPolicyDecisions uploadPolicyDecisions;
     private final FeatureFlagDecisions featureFlags;
+    private final ObjectUploadTransactionOperations transactionOperations;
 
     @Autowired
     public ObjectUploadApplicationService(
@@ -61,7 +64,8 @@ public class ObjectUploadApplicationService {
             OssProperties properties,
             Clock clock,
             UploadPolicyDecisions uploadPolicyDecisions,
-            FeatureFlagDecisions featureFlags
+            FeatureFlagDecisions featureFlags,
+            ObjectUploadTransactionOperations transactionOperations
     ) {
         this(
                 objectRepository,
@@ -73,7 +77,8 @@ public class ObjectUploadApplicationService {
                 properties.publicBaseUrl(),
                 clock,
                 uploadPolicyDecisions,
-                featureFlags
+                featureFlags,
+                transactionOperations
         );
     }
 
@@ -96,7 +101,9 @@ public class ObjectUploadApplicationService {
                 publicBaseUrl,
                 clock,
                 defaultUploadPolicyDecisions(),
-                defaultFeatureFlagDecisions()
+                defaultFeatureFlagDecisions(),
+                new ObjectUploadTransactionOperations(
+                        objectRepository, versionRepository, uploadSessionRepository)
         );
     }
 
@@ -120,7 +127,9 @@ public class ObjectUploadApplicationService {
                 publicBaseUrl,
                 clock,
                 defaultUploadPolicyDecisions(),
-                defaultFeatureFlagDecisions()
+                defaultFeatureFlagDecisions(),
+                new ObjectUploadTransactionOperations(
+                        objectRepository, versionRepository, uploadSessionRepository)
         );
     }
 
@@ -145,7 +154,9 @@ public class ObjectUploadApplicationService {
                 publicBaseUrl,
                 clock,
                 uploadPolicyDecisions,
-                defaultFeatureFlagDecisions()
+                defaultFeatureFlagDecisions(),
+                new ObjectUploadTransactionOperations(
+                        objectRepository, versionRepository, uploadSessionRepository)
         );
     }
 
@@ -161,6 +172,35 @@ public class ObjectUploadApplicationService {
             UploadPolicyDecisions uploadPolicyDecisions,
             FeatureFlagDecisions featureFlags
     ) {
+        this(
+                objectRepository,
+                versionRepository,
+                uploadSessionRepository,
+                policyRepository,
+                objectStore,
+                storageBucket,
+                publicBaseUrl,
+                clock,
+                uploadPolicyDecisions,
+                featureFlags,
+                new ObjectUploadTransactionOperations(
+                        objectRepository, versionRepository, uploadSessionRepository)
+        );
+    }
+
+    private ObjectUploadApplicationService(
+            OssObjectRepository objectRepository,
+            OssObjectVersionRepository versionRepository,
+            OssUploadSessionRepository uploadSessionRepository,
+            OssUsagePolicyRepository policyRepository,
+            ObjectStore objectStore,
+            String storageBucket,
+            String publicBaseUrl,
+            Clock clock,
+            UploadPolicyDecisions uploadPolicyDecisions,
+            FeatureFlagDecisions featureFlags,
+            ObjectUploadTransactionOperations transactionOperations
+    ) {
         this.objectRepository = objectRepository;
         this.versionRepository = versionRepository;
         this.uploadSessionRepository = uploadSessionRepository;
@@ -171,9 +211,9 @@ public class ObjectUploadApplicationService {
         this.clock = clock == null ? Clock.systemUTC() : clock;
         this.uploadPolicyDecisions = uploadPolicyDecisions == null ? defaultUploadPolicyDecisions() : uploadPolicyDecisions;
         this.featureFlags = featureFlags == null ? defaultFeatureFlagDecisions() : featureFlags;
+        this.transactionOperations = transactionOperations;
     }
 
-    @Transactional
     public ObjectUploadSessionResult prepareUpload(PrepareObjectUploadCommand command) {
         requirePrepareCommand(command);
         validateUploadPolicyChannel(command.usage());
@@ -186,9 +226,11 @@ public class ObjectUploadApplicationService {
                 command.checksumSha256()
         ));
         Instant now = clock.instant();
-        UUID objectId = UUID.randomUUID();
-        UUID versionId = UUID.randomUUID();
-        UUID sessionId = UUID.randomUUID();
+        UUID requestId = command.requestId() == null ? UUID.randomUUID() : command.requestId();
+        OssVisibility visibility = resolveVisibility(command.visibility(), policy);
+        UUID sessionId = requestId;
+        UUID objectId = deterministicId(requestId, "object");
+        UUID versionId = deterministicId(requestId, "version");
         String storageKey = storageKey(objectId, versionId, safeFileName);
 
         OssObject object = OssObject.stage(
@@ -198,7 +240,7 @@ public class ObjectUploadApplicationService {
                 command.ownerDomain(),
                 command.ownerType(),
                 command.ownerId(),
-                resolveVisibility(command.visibility(), policy),
+                visibility,
                 command.actorId(),
                 now
         );
@@ -215,6 +257,7 @@ public class ObjectUploadApplicationService {
                 now
         );
         OssUploadSession session = OssUploadSession.ready(
+                requestId,
                 sessionId,
                 objectId,
                 versionId,
@@ -232,26 +275,45 @@ public class ObjectUploadApplicationService {
                 now.plus(uploadTtl(policy))
         );
 
-        objectRepository.save(object);
-        versionRepository.save(version);
-        uploadSessionRepository.save(session);
+        if (!transactionOperations.createPreparedUpload(object, version, session)) {
+            OssUploadSession concurrentWinner = uploadSessionRepository.findByRequestId(requestId)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "upload prepare request was claimed but cannot be reloaded"));
+            validatePrepareReplay(command, safeFileName, visibility, concurrentWinner);
+            if (concurrentWinner.status() == OssUploadSessionStatus.READY
+                    && concurrentWinner.expiredAt(now)) {
+                transactionOperations.renewReadySession(
+                        concurrentWinner.sessionId(),
+                        concurrentWinner.expiresAt(),
+                        now.plus(uploadTtl(policy)),
+                        now
+                );
+                concurrentWinner = uploadSessionRepository.findByRequestId(requestId)
+                        .orElseThrow(() -> new IllegalStateException(
+                                "renewed upload prepare request cannot be reloaded"));
+            }
+            return toUploadSessionResult(concurrentWinner);
+        }
 
-        return new ObjectUploadSessionResult(
-                sessionId,
-                objectId,
-                versionId,
-                UPLOAD_MODE_PROXY,
-                "/api/oss/objects/" + objectId + "/complete",
-                session.expiresAt()
-        );
+        return toUploadSessionResult(session);
     }
 
-    @Transactional
     public ObjectMetadataResult completeUpload(CompleteObjectUploadCommand command) {
+        if (command == null || command.sessionId() == null
+                || command.objectId() == null || command.versionId() == null) {
+            throw new IllegalArgumentException("upload command is incomplete");
+        }
         OssUploadSession session = uploadSessionRepository.findById(command.sessionId())
                 .orElseThrow(() -> new IllegalArgumentException("upload session not found"));
         if (!session.objectId().equals(command.objectId()) || !session.versionId().equals(command.versionId())) {
             throw new IllegalArgumentException("upload command does not match session");
+        }
+
+        if (session.status() == OssUploadSessionStatus.COMPLETED) {
+            return canonicalMetadata(command.objectId(), command.versionId());
+        }
+        if (session.status() != OssUploadSessionStatus.READY) {
+            throw new IllegalStateException("upload session completion is already in progress");
         }
 
         Instant now = clock.instant();
@@ -276,28 +338,142 @@ public class ObjectUploadApplicationService {
                 content.checksumSha256()
         ));
 
+        Optional<OssUploadSession> claimed = transactionOperations.claimCompletion(session.sessionId(), now);
+        if (claimed.isEmpty()) {
+            OssUploadSession current = uploadSessionRepository.findById(session.sessionId())
+                    .orElseThrow(() -> new IllegalStateException("upload session disappeared during claim"));
+            if (current.status() == OssUploadSessionStatus.COMPLETED) {
+                return canonicalMetadata(command.objectId(), command.versionId());
+            }
+            throw new IllegalStateException("upload session completion is already in progress");
+        }
+        OssUploadSession uploadingSession = claimed.get();
+        String attemptStorageKey = attemptStorageKey(uploadingSession);
+
         try (InputStream in = content.openStream()) {
-            objectStore.put(version.storageBucket(), version.storageKey(), in, content.contentLength(), content.contentType());
+            objectStore.put(
+                    version.storageBucket(),
+                    attemptStorageKey,
+                    in,
+                    content.contentLength(),
+                    content.contentType()
+            );
         } catch (Exception e) {
+            recordDefinitivePutFailureIfMissing(uploadingSession, version.storageBucket(), attemptStorageKey, e);
             throw new IllegalStateException("failed to store object content", e);
         }
 
-        Optional<ObjectStoreObject> stored = objectStore.head(version.storageBucket(), version.storageKey());
-        String etag = stored.map(ObjectStoreObject::etag).orElse("");
-        OssObjectVersion uploadedVersion = version.withUploadedContent(
+        ObjectStoreObject stored = objectStore.head(version.storageBucket(), attemptStorageKey)
+                .orElseThrow(() -> new IllegalStateException(
+                        "stored object metadata is not yet visible; recovery will retry"));
+        validateSubmittedContentMetadata(content, stored);
+        String etag = stored.etag();
+        OssObjectVersion uploadedVersion = version.withUploadedContentAt(
+                attemptStorageKey,
                 content.contentType(),
                 content.contentLength(),
                 content.checksumSha256()
         );
         OssObjectVersion activatedVersion = uploadedVersion.activate(etag, now);
         OssObject activatedObject = object.activate(activatedVersion, now);
-        OssUploadSession completedSession = session.complete(now);
+        OssUploadSession completedSession = uploadingSession.complete(now);
 
-        versionRepository.save(activatedVersion);
-        objectRepository.save(activatedObject);
-        uploadSessionRepository.save(completedSession);
+        transactionOperations.finalizeUpload(activatedVersion, activatedObject, completedSession);
 
         return toMetadataResult(activatedObject, activatedVersion);
+    }
+
+    private void recordDefinitivePutFailureIfMissing(
+            OssUploadSession uploadingSession,
+            String bucket,
+            String attemptStorageKey,
+            Exception failure
+    ) {
+        Optional<ObjectStoreObject> stored;
+        try {
+            stored = objectStore.head(bucket, attemptStorageKey);
+        } catch (RuntimeException headFailure) {
+            failure.addSuppressed(headFailure);
+            return;
+        }
+        if (stored.isPresent()) {
+            return;
+        }
+        OssUploadSession failedClaim = uploadingSession.recordPutFailure(
+                clock.instant(), describePutFailure(failure));
+        transactionOperations.recordCompletionFailure(failedClaim);
+    }
+
+    private static String describePutFailure(Exception failure) {
+        String message = failure.getMessage() == null ? "" : failure.getMessage();
+        String detail = failure.getClass().getSimpleName() + ":" + message
+                .replace('\n', ' ')
+                .replace('\r', ' ');
+        return detail.length() <= 500 ? detail : detail.substring(0, 500);
+    }
+
+    static String attemptStorageKey(OssUploadSession session) {
+        String baseStorageKey = "objects/" + session.objectId() + "/"
+                + session.versionId() + "/" + session.expectedFileName();
+        if (session.claimVersion() <= 0L) {
+            return baseStorageKey;
+        }
+        return baseStorageKey + ".claim-" + session.claimVersion();
+    }
+
+    private ObjectMetadataResult canonicalMetadata(UUID objectId, UUID versionId) {
+        OssObject object = objectRepository.findById(objectId)
+                .orElseThrow(() -> new IllegalStateException("completed upload object not found"));
+        OssObjectVersion version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new IllegalStateException("completed upload version not found"));
+        if (!Objects.equals(object.currentVersionId(), version.versionId())) {
+            throw new IllegalStateException("completed upload metadata is inconsistent");
+        }
+        return toMetadataResult(object, version);
+    }
+
+    private ObjectUploadSessionResult toUploadSessionResult(OssUploadSession session) {
+        return new ObjectUploadSessionResult(
+                session.sessionId(),
+                session.objectId(),
+                session.versionId(),
+                session.uploadMode(),
+                "/api/oss/objects/" + session.objectId() + "/complete",
+                session.expiresAt()
+        );
+    }
+
+    private void validatePrepareReplay(
+            PrepareObjectUploadCommand command,
+            String safeFileName,
+            OssVisibility visibility,
+            OssUploadSession session
+    ) {
+        OssObject object = objectRepository.findById(session.objectId()).orElse(null);
+        boolean matches = object != null
+                && Objects.equals(object.usage(), requireText(command.usage(), "usage"))
+                && Objects.equals(object.ownerService(), requireText(command.ownerService(), "ownerService"))
+                && Objects.equals(object.ownerDomain(), requireText(command.ownerDomain(), "ownerDomain"))
+                && Objects.equals(object.ownerType(), requireText(command.ownerType(), "ownerType"))
+                && Objects.equals(object.ownerId(), requireText(command.ownerId(), "ownerId"))
+                && object.visibility() == visibility
+                && Objects.equals(session.ownerService(), requireText(command.ownerService(), "ownerService"))
+                && Objects.equals(session.ownerDomain(), requireText(command.ownerDomain(), "ownerDomain"))
+                && Objects.equals(session.ownerType(), requireText(command.ownerType(), "ownerType"))
+                && Objects.equals(session.ownerId(), requireText(command.ownerId(), "ownerId"))
+                && Objects.equals(session.expectedFileName(), safeFileName)
+                && Objects.equals(session.expectedContentType(), normalizeContentType(command.contentType()))
+                && session.expectedContentLength() == Math.max(0L, command.contentLength())
+                && Objects.equals(session.expectedChecksumSha256(), normalize(command.checksumSha256()))
+                && Objects.equals(session.createdBy(), normalize(command.actorId()));
+        if (!matches) {
+            throw new IllegalArgumentException("prepare request id conflict");
+        }
+    }
+
+    private UUID deterministicId(UUID requestId, String scope) {
+        return UUID.nameUUIDFromBytes(
+                ("community-oss:" + scope + ":" + requestId).getBytes(StandardCharsets.UTF_8));
     }
 
     private ObjectMetadataResult toMetadataResult(OssObject object, OssObjectVersion version) {
@@ -330,6 +506,40 @@ public class ObjectUploadApplicationService {
         if (!session.expectedChecksumSha256().isBlank()
                 && !session.expectedChecksumSha256().equals(content.checksumSha256())) {
             throw new IllegalArgumentException("upload checksum does not match session");
+        }
+    }
+
+    private static void validateSubmittedContentMetadata(
+            ObjectUploadContent content,
+            ObjectStoreObject metadata
+    ) {
+        if (metadata.contentLength() != content.contentLength()) {
+            throw new IllegalStateException(
+                    "stored content length does not match submitted content: expected "
+                            + content.contentLength() + ", actual " + metadata.contentLength());
+        }
+        if (!content.contentType().equals(metadata.contentType())) {
+            throw new IllegalStateException(
+                    "stored content type does not match submitted content: expected "
+                            + content.contentType() + ", actual " + metadata.contentType());
+        }
+    }
+
+    static void validateStoredMetadata(
+            OssUploadSession session,
+            ObjectStoreObject metadata
+    ) {
+        if (session.expectedContentLength() > 0
+                && metadata.contentLength() != session.expectedContentLength()) {
+            throw new IllegalStateException(
+                    "stored content length does not match the upload claim: expected "
+                            + session.expectedContentLength() + ", actual " + metadata.contentLength());
+        }
+        if (!"application/octet-stream".equals(session.expectedContentType())
+                && !session.expectedContentType().equals(metadata.contentType())) {
+            throw new IllegalStateException(
+                    "stored content type does not match the upload claim: expected "
+                            + session.expectedContentType() + ", actual " + metadata.contentType());
         }
     }
 
@@ -434,6 +644,14 @@ public class ObjectUploadApplicationService {
             throw new IllegalArgumentException(name + " must not be blank");
         }
         return value.trim();
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String normalizeContentType(String value) {
+        return value == null || value.isBlank() ? "application/octet-stream" : value.trim();
     }
 
     private String normalizeBaseUrl(String value) {

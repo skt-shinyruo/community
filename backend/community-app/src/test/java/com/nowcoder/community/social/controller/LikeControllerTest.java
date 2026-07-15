@@ -5,10 +5,6 @@ import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.social.application.LikeApplicationService;
-import com.nowcoder.community.social.application.command.SetLikeCommand;
-import com.nowcoder.community.social.application.result.LikeResult;
-import com.nowcoder.community.social.controller.dto.LikeRequest;
-import com.nowcoder.community.social.controller.dto.LikeResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -31,49 +27,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class LikeControllerTest {
-
-    @Test
-    void setLikeShouldDelegateToLikeApplicationService() {
-        LikeApplicationService likeApplicationService = mock(LikeApplicationService.class);
-        LikeController controller = new LikeController(likeApplicationService);
-        UUID userId = uuid(7);
-
-        LikeRequest request = new LikeRequest();
-        request.setEntityType(EntityTypes.POST);
-        request.setEntityId(uuid(11));
-        request.setLiked(Boolean.TRUE);
-
-        when(likeApplicationService.setLike(new SetLikeCommand(userId, EntityTypes.POST, uuid(11), Boolean.TRUE)))
-                .thenReturn(new LikeResult(true, 3L));
-
-        Result<LikeResponse> result = controller.setLike(authentication(userId), request);
-
-        assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData().isLiked()).isTrue();
-        assertThat(result.getData().getLikeCount()).isEqualTo(3);
-        verify(likeApplicationService).setLike(new SetLikeCommand(userId, EntityTypes.POST, uuid(11), Boolean.TRUE));
-    }
-
-    @Test
-    void setLikeShouldDelegateUnsupportedEntityTypeToApplicationService() {
-        LikeApplicationService likeApplicationService = mock(LikeApplicationService.class);
-        LikeController controller = new LikeController(likeApplicationService);
-        UUID userId = uuid(7);
-        UUID entityId = uuid(11);
-
-        LikeRequest request = new LikeRequest();
-        request.setEntityType(999);
-        request.setEntityId(entityId);
-        request.setLiked(Boolean.TRUE);
-
-        when(likeApplicationService.setLike(new SetLikeCommand(userId, 999, entityId, Boolean.TRUE)))
-                .thenReturn(new LikeResult(false, 0L));
-
-        Result<LikeResponse> result = controller.setLike(authentication(userId), request);
-
-        assertThat(result.getCode()).isEqualTo(0);
-        verify(likeApplicationService).setLike(new SetLikeCommand(userId, 999, entityId, Boolean.TRUE));
-    }
 
     @Test
     void likeReadEndpointsShouldDelegateUnsupportedEntityTypeToApplicationService() {

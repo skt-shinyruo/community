@@ -29,6 +29,8 @@ public interface LikeRepository {
 
     List<LikeRelation> scanLikesByEntity(int entityType, UUID entityId, UUID afterActorUserId, int limit);
 
+    List<UUID> scanTargetIdsAfter(int entityType, UUID afterEntityId, int limit);
+
     boolean isLiked(UUID userId, int entityType, UUID entityId);
 
     long countEntityLikes(int entityType, UUID entityId);
@@ -41,10 +43,6 @@ public interface LikeRepository {
     }
 
     long getUserLikeCount(UUID userId);
-
-    default boolean requiresExplicitCompensation() {
-        return false;
-    }
 
     /**
      * 目标状态写入（set 语义）：将“实体点赞关系”与“被赞用户获赞计数”更新收敛为一个仓储操作。

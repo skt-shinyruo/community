@@ -1,7 +1,7 @@
 package com.nowcoder.community.notice.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.infra.pagination.Pagination;
+import com.nowcoder.community.common.pagination.Pagination;
 import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.command.ListNoticeItemsCommand;
 import com.nowcoder.community.notice.application.command.MarkNoticeReadCommand;

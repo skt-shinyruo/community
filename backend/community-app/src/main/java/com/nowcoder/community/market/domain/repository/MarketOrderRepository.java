@@ -1,6 +1,7 @@
 package com.nowcoder.community.market.domain.repository;
 
 import com.nowcoder.community.market.domain.model.MarketOrder;
+import com.nowcoder.community.market.domain.model.MarketOrderTransition;
 
 import java.util.Date;
 import java.util.List;
@@ -8,7 +9,21 @@ import java.util.UUID;
 
 public interface MarketOrderRepository {
 
-    int save(MarketOrder order);
+    enum CreateStatus {
+        CREATED,
+        ALREADY_EXISTS,
+        CONFLICT
+    }
+
+    record CreateResult(CreateStatus status, MarketOrder aggregate) {
+    }
+
+    enum ApplyStatus {
+        APPLIED,
+        STALE
+    }
+
+    CreateResult create(MarketOrder order);
 
     MarketOrder findById(UUID orderId);
 
@@ -26,43 +41,7 @@ public interface MarketOrderRepository {
 
     List<MarketOrder> findBySellerUserId(UUID sellerUserId);
 
-    int markDelivered(UUID orderId, Date autoConfirmAt);
-
-    int markShipped(UUID orderId, Date autoConfirmAt);
-
-    int markEscrowSucceeded(UUID orderId, UUID escrowTxnId);
-
-    int markEscrowFailed(UUID orderId);
-
-    int markReleasePending(UUID orderId);
-
-    int markReleaseSucceeded(UUID orderId, UUID releaseTxnId);
-
-    int markRefundPending(UUID orderId);
-
-    int markEscrowCancelPending(UUID orderId);
-
-    int markEscrowCancelRefundPending(UUID orderId, UUID escrowTxnId);
-
-    int markCancelledNoRefund(UUID orderId);
-
-    int markCancelledWithRefund(UUID orderId, UUID refundTxnId);
-
-    int markDisputeRefundPending(UUID orderId);
-
-    int markDisputeReleasePending(UUID orderId);
-
-    int markDisputeRefundSucceeded(UUID orderId, UUID refundTxnId);
-
-    int markCompleted(UUID orderId, UUID releaseTxnId);
-
-    int markCancelled(UUID orderId, UUID refundTxnId);
-
-    int markDisputed(UUID orderId);
-
-    int markRefunded(UUID orderId, UUID refundTxnId);
-
-    int changeStatus(UUID orderId, String status);
+    ApplyStatus apply(MarketOrderTransition transition);
 
     List<MarketOrder> findDueForAutoConfirm(Date asOf);
 

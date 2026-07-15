@@ -5,7 +5,13 @@ import java.util.UUID;
 
 public interface RefreshTokenRepository {
 
-    void store(String refreshToken, UUID userId, String familyId, Instant expiresAt);
+    void store(
+            String refreshToken,
+            UUID userId,
+            String familyId,
+            long securityVersionAtIssue,
+            Instant expiresAt
+    );
 
     StoredRefreshToken find(String refreshToken);
 
@@ -16,6 +22,7 @@ public interface RefreshTokenRepository {
             String replacementRefreshToken,
             UUID userId,
             String familyId,
+            long securityVersionAtIssue,
             Instant replacementExpiresAt
     );
 
@@ -29,7 +36,15 @@ public interface RefreshTokenRepository {
 
     void revokeFamily(String familyId);
 
-    record StoredRefreshToken(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
+    int deleteExpiredBefore(Instant cutoff);
+
+    record StoredRefreshToken(
+            String refreshToken,
+            UUID userId,
+            String familyId,
+            long securityVersionAtIssue,
+            Instant expiresAt
+    ) {
     }
 
     record RevokedRefreshToken(String refreshToken, UUID userId, String familyId, Instant expiresAt, Instant revokedAt) {

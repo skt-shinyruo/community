@@ -25,6 +25,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static com.nowcoder.community.market.support.MarketOrderTestFixture.order;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
@@ -185,20 +186,20 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         listing.setStatus("SOLD_OUT");
         marketListingMapper.insert(MarketListingDataObject.from(listing));
 
-        MarketOrder order = new MarketOrder();
-        order.setOrderId(orderId);
-        order.setRequestId("recovery:refund-pending");
-        order.setListingId(listingId);
-        order.setGoodsType("PHYSICAL");
-        order.setSellerUserId(sellerUserId);
-        order.setBuyerUserId(buyerUserId);
-        order.setQuantity(1);
-        order.setUnitPriceSnapshot(12_900L);
-        order.setTotalAmount(12_900L);
-        order.setDeliveryModeSnapshot("MANUAL");
-        order.setListingTitleSnapshot("二手键盘");
-        order.setStatus(status);
-        marketOrderMapper.insert(MarketOrderDataObject.from(order));
+        MarketOrder seededOrder = order(orderId)
+                .requestId("recovery:refund-pending")
+                .listingId(listingId)
+                .goodsType("PHYSICAL")
+                .sellerUserId(sellerUserId)
+                .buyerUserId(buyerUserId)
+                .quantity(1)
+                .unitPriceSnapshot(12_900L)
+                .totalAmount(12_900L)
+                .deliveryModeSnapshot("MANUAL")
+                .listingTitleSnapshot("二手键盘")
+                .status(status)
+                .build();
+        marketOrderMapper.insert(MarketOrderDataObject.from(seededOrder));
     }
 
     private void seedRefundActionWithWalletTxn() {
@@ -238,19 +239,19 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         skippedListing.setStatus("ACTIVE");
         marketListingMapper.insert(MarketListingDataObject.from(skippedListing));
 
-        MarketOrder skippedOrder = new MarketOrder();
-        skippedOrder.setOrderId(skippedOrderId);
-        skippedOrder.setRequestId("recovery:skipped-wallet-txn");
-        skippedOrder.setListingId(skippedListingId);
-        skippedOrder.setGoodsType("PHYSICAL");
-        skippedOrder.setSellerUserId(sellerUserId);
-        skippedOrder.setBuyerUserId(buyerUserId);
-        skippedOrder.setQuantity(1);
-        skippedOrder.setUnitPriceSnapshot(9_900L);
-        skippedOrder.setTotalAmount(9_900L);
-        skippedOrder.setDeliveryModeSnapshot("MANUAL");
-        skippedOrder.setListingTitleSnapshot("旧手机");
-        skippedOrder.setStatus("COMPLETED");
+        MarketOrder skippedOrder = order(skippedOrderId)
+                .requestId("recovery:skipped-wallet-txn")
+                .listingId(skippedListingId)
+                .goodsType("PHYSICAL")
+                .sellerUserId(sellerUserId)
+                .buyerUserId(buyerUserId)
+                .quantity(1)
+                .unitPriceSnapshot(9_900L)
+                .totalAmount(9_900L)
+                .deliveryModeSnapshot("MANUAL")
+                .listingTitleSnapshot("旧手机")
+                .status("COMPLETED")
+                .build();
         marketOrderMapper.insert(MarketOrderDataObject.from(skippedOrder));
 
         MarketWalletAction action = action(uuid(503), skippedOrderId, "REFUND");

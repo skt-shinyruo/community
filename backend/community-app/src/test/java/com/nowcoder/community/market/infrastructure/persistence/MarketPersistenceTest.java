@@ -25,6 +25,7 @@ import java.lang.reflect.Method;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static com.nowcoder.community.market.support.MarketOrderTestFixture.order;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
@@ -83,25 +84,29 @@ class MarketPersistenceTest {
         address.setStatus("ACTIVE");
         marketAddressMapper.insert(MarketAddressDataObject.from(address));
 
-        MarketOrder order = new MarketOrder();
-        order.setRequestId("physical:req-1");
-        order.setOrderId(ID_GENERATOR.next());
-        order.setListingId(listing.getListingId());
-        order.setGoodsType("PHYSICAL");
-        order.setSellerUserId(sellerUserId);
-        order.setBuyerUserId(buyerUserId);
-        order.setQuantity(1);
-        order.setUnitPriceSnapshot(12_900L);
-        order.setTotalAmount(12_900L);
-        order.setListingTitleSnapshot("二手键盘");
-        order.setStatus("SHIPPED");
-        order.setReceiverNameSnapshot("张三");
-        order.setReceiverPhoneSnapshot("13800000000");
-        order.setProvinceSnapshot("上海市");
-        order.setCitySnapshot("上海市");
-        order.setDistrictSnapshot("浦东新区");
-        order.setDetailAddressSnapshot("世纪大道 100 号");
-        order.setPostalCodeSnapshot("200120");
+        MarketOrder order = order(ID_GENERATOR.next())
+                .requestId("physical:req-1")
+                .listingId(listing.getListingId())
+                .goodsType("PHYSICAL")
+                .sellerUserId(sellerUserId)
+                .buyerUserId(buyerUserId)
+                .quantity(1)
+                .unitPriceSnapshot(12_900L)
+                .totalAmount(12_900L)
+                .deliveryModeSnapshot(null)
+                .listingTitleSnapshot("二手键盘")
+                .status("SHIPPED")
+                .addressSnapshot(
+                        null,
+                        "张三",
+                        "13800000000",
+                        "上海市",
+                        "上海市",
+                        "浦东新区",
+                        "世纪大道 100 号",
+                        "200120"
+                )
+                .build();
         marketOrderMapper.insert(MarketOrderDataObject.from(order));
 
         MarketShipment shipment = new MarketShipment();

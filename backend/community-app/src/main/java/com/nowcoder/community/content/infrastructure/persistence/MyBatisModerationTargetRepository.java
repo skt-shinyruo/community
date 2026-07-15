@@ -5,8 +5,8 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.domain.model.ModerationTarget;
 import com.nowcoder.community.content.domain.model.ReportSnapshot;
 import com.nowcoder.community.content.domain.repository.ModerationTargetRepository;
-import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
+import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
 import org.springframework.stereotype.Repository;
@@ -39,7 +39,7 @@ public class MyBatisModerationTargetRepository implements ModerationTargetReposi
             return new ModerationTarget(report.targetType(), report.targetId(), post.getUserId());
         }
         if (report.targetType() == EntityTypes.COMMENT) {
-            Comment comment = commentMapper.selectCommentById(report.targetId());
+            CommentDataObject comment = commentMapper.selectById(report.targetId());
             if (comment == null || comment.getStatus() != 0) {
                 throw new BusinessException(COMMENT_NOT_FOUND);
             }

@@ -1,0 +1,21 @@
+{
+  "eventId": "content:post:published:101",
+  "aggregateId": "01965429-b34a-7000-8000-000000000101",
+  "aggregateType": "Post",
+  "type": "PostPublished",
+  "occurredAt": "2026-07-15T01:02:03Z",
+  "version": 7,
+  "payload": {
+    "postId": "01965429-b34a-7000-8000-000000000101",
+    "userId": "01965429-b34a-7000-8000-000000000102",
+    "categoryId": "01965429-b34a-7000-8000-000000000103",
+    "tags": ["java", "ddd"],
+    "title": "Architecture baseline",
+    "content": "Stable event wire",
+    "type": 0,
+    "status": 0,
+    "createTime": "2026-07-15T01:02:03Z",
+    "updateTime": "2026-07-15T01:03:04Z",
+    "score": 12.5
+  }
+}

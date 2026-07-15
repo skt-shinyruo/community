@@ -133,13 +133,27 @@ public record OssObjectVersion(
     }
 
     public OssObjectVersion withUploadedContent(String uploadedContentType, long uploadedContentLength, String uploadedChecksumSha256) {
+        return withUploadedContentAt(
+                storageKey,
+                uploadedContentType,
+                uploadedContentLength,
+                uploadedChecksumSha256
+        );
+    }
+
+    public OssObjectVersion withUploadedContentAt(
+            String uploadedStorageKey,
+            String uploadedContentType,
+            long uploadedContentLength,
+            String uploadedChecksumSha256
+    ) {
         return new OssObjectVersion(
                 versionId,
                 objectId,
                 versionNo,
                 storageBackend,
                 storageBucket,
-                storageKey,
+                uploadedStorageKey,
                 status,
                 fileName,
                 normalizeContentType(uploadedContentType),

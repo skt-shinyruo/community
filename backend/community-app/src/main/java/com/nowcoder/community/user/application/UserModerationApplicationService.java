@@ -5,7 +5,6 @@ import com.nowcoder.community.user.application.command.ApplyUserModerationComman
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.model.UserModerationStatus;
-import com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserModerationDomainService;
 import org.springframework.stereotype.Service;
@@ -27,18 +26,15 @@ public class UserModerationApplicationService {
     private final UserRepository userRepository;
     private final UserModerationDomainService userModerationDomainService;
     private final UserPolicyEventPublisher userPolicyEventPublisher;
-    private final RefreshTokenSessionRepository refreshTokenSessionRepository;
 
     public UserModerationApplicationService(
             UserRepository userRepository,
             UserModerationDomainService userModerationDomainService,
-            UserPolicyEventPublisher userPolicyEventPublisher,
-            RefreshTokenSessionRepository refreshTokenSessionRepository
+            UserPolicyEventPublisher userPolicyEventPublisher
     ) {
         this.userRepository = userRepository;
         this.userModerationDomainService = userModerationDomainService;
         this.userPolicyEventPublisher = userPolicyEventPublisher;
-        this.refreshTokenSessionRepository = refreshTokenSessionRepository;
     }
 
     public UserModerationStatus getModerationState(UUID userId) {
@@ -99,9 +95,6 @@ public class UserModerationApplicationService {
                 version,
                 securityVersion
         );
-        if (activeBanChanged) {
-            refreshTokenSessionRepository.revokeByUserId(userId);
-        }
         userPolicyEventPublisher.publishUserPolicyChanged(versionedNext, Instant.now());
         return versionedNext;
     }

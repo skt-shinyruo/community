@@ -3,7 +3,6 @@ package com.nowcoder.community.auth.application;
 import com.nowcoder.community.analytics.api.action.AnalyticsIngestActionApi;
 import com.nowcoder.community.auth.application.command.RefreshCommand;
 import com.nowcoder.community.auth.application.port.AuthTokenPort;
-import com.nowcoder.community.auth.application.port.RefreshTokenSessionPort;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
@@ -17,7 +16,9 @@ import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Modifier;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -30,8 +31,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -60,7 +62,7 @@ class RefreshTokenApplicationServiceTest {
     void refreshShouldRejectReplayWhenSameTokenIsPresentedConcurrently() throws Exception {
         CoordinatedRefreshTokenStore store = new CoordinatedRefreshTokenStore("presented-token");
         RefreshTokenApplicationService refreshTokenService = refreshTokenService(store);
-        store.store("presented-token", USER_ID, "family-1", Instant.now().plusSeconds(300));
+        store.store("presented-token", USER_ID, "family-1", 0L, Instant.now().plusSeconds(300));
 
         LoginApplicationService authService = authService(refreshTokenService);
 
@@ -91,7 +93,7 @@ class RefreshTokenApplicationServiceTest {
     void refreshShouldOnlyRotateOnceForSamePresentedToken() throws Exception {
         CoordinatedRefreshTokenStore store = new CoordinatedRefreshTokenStore("presented-token");
         RefreshTokenApplicationService refreshTokenService = refreshTokenService(store);
-        store.store("presented-token", USER_ID, "family-1", Instant.now().plusSeconds(300));
+        store.store("presented-token", USER_ID, "family-1", 0L, Instant.now().plusSeconds(300));
 
         LoginApplicationService authService = authService(refreshTokenService);
 
@@ -114,7 +116,7 @@ class RefreshTokenApplicationServiceTest {
     @Test
     void refreshShouldBuildAccessTokenFromCredentialLookupOnly() {
         RefreshTokenApplicationService refreshTokenService = refreshTokenService(new CoordinatedRefreshTokenStore("unused-token"));
-        RefreshTokenApplicationService.IssuedRefreshToken issued = refreshTokenService.issue(USER_ID);
+        RefreshTokenApplicationService.IssuedRefreshToken issued = refreshTokenService.issue(USER_ID, 0L);
         assertThat(issued.cookie().name()).isEqualTo("refresh_token");
         assertThat(issued.cookie().value()).isEqualTo(issued.refreshToken());
         assertThat(issued.cookie().httpOnly()).isTrue();
@@ -133,13 +135,43 @@ class RefreshTokenApplicationServiceTest {
     void issueShouldUseAtLeast256BitUrlSafeRefreshToken() {
         RefreshTokenApplicationService refreshTokenService = refreshTokenService(new CoordinatedRefreshTokenStore("unused-token"));
 
-        RefreshTokenApplicationService.IssuedRefreshToken issued = refreshTokenService.issue(USER_ID);
+        RefreshTokenApplicationService.IssuedRefreshToken issued = refreshTokenService.issue(USER_ID, 2L);
 
         assertThat(issued.refreshToken())
                 .hasSizeGreaterThanOrEqualTo(43)
                 .matches("[A-Za-z0-9_-]+")
                 .doesNotContain("=");
         assertThat(issued.cookie().value()).isEqualTo(issued.refreshToken());
+    }
+
+    @Test
+    void issueShouldPersistSecurityVersionAtIssue() {
+        RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
+        RefreshTokenApplicationService refreshTokenService = refreshTokenService(repository);
+
+        RefreshTokenApplicationService.IssuedRefreshToken issued = refreshTokenService.issue(USER_ID, 42L);
+
+        verify(repository).store(
+                eq(issued.refreshToken()),
+                eq(USER_ID),
+                any(String.class),
+                eq(42L),
+                any(Instant.class)
+        );
+    }
+
+    @Test
+    void applicationServiceShouldNotExposeCredentialBypassingAlternativeRefreshUseCases() {
+        assertThat(Arrays.stream(RefreshTokenApplicationService.class.getDeclaredMethods())
+                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                .map(method -> method.getName() + "(" + Arrays.stream(method.getParameterTypes())
+                        .map(Class::getSimpleName)
+                        .collect(Collectors.joining(",")) + ")"))
+                .doesNotContain(
+                        "rotate(String)",
+                        "consume(String)",
+                        "issueInFamily(UUID,String,long)"
+                );
     }
 
     @Test
@@ -158,64 +190,7 @@ class RefreshTokenApplicationServiceTest {
     }
 
     @Test
-    void rotateShouldReturnNullWhenStoreThrows() {
-        RefreshTokenApplicationService refreshTokenService = refreshTokenService(new RefreshTokenRepository() {
-            @Override
-            public void store(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
-                throw new IllegalStateException("store rejected");
-            }
-
-            @Override
-            public StoredRefreshToken find(String refreshToken) {
-                return null;
-            }
-
-            @Override
-            public StoredRefreshToken consume(String refreshToken) {
-                return new StoredRefreshToken(refreshToken, USER_ID, "family-1", Instant.now().plusSeconds(300));
-            }
-
-            @Override
-            public StoredRefreshToken beginRotation(String refreshToken, Instant pendingExpiresAt) {
-                return null;
-            }
-
-            @Override
-            public boolean finishRotation(
-                    String pendingRefreshToken,
-                    String replacementRefreshToken,
-                    UUID userId,
-                    String familyId,
-                    Instant replacementExpiresAt
-            ) {
-                return false;
-            }
-
-            @Override
-            public boolean rollbackPendingRotation(String refreshToken) {
-                return false;
-            }
-
-            @Override
-            public RevokedRefreshToken findRevoked(String refreshToken) {
-                return null;
-            }
-
-            @Override
-            public void revoke(String refreshToken) {
-            }
-
-            @Override
-            public void revokeFamily(String familyId) {
-            }
-        });
-
-        assertThatCode(() -> assertThat(refreshTokenService.rotate("presented-token")).isNull())
-                .doesNotThrowAnyException();
-    }
-
-    @Test
-    void rotateShouldRevokeFamilyWhenRevokedTokenIsReusedOutsideGrace() {
+    void beginRotationShouldRevokeFamilyWhenRevokedTokenIsReusedOutsideGrace() {
         RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
         JwtProperties properties = jwtProperties();
         properties.setRefreshReuseGraceSeconds(10);
@@ -229,13 +204,13 @@ class RefreshTokenApplicationServiceTest {
         ));
         RefreshTokenApplicationService refreshTokenService = refreshTokenService(repository, properties);
 
-        assertThat(refreshTokenService.rotate("presented-token")).isNull();
+        assertThat(refreshTokenService.beginRotation("presented-token")).isNull();
 
         verify(repository).revokeFamily("family-1");
     }
 
     @Test
-    void rotateShouldNotRevokeFamilyWhenRevokedTokenIsReusedWithinGrace() {
+    void beginRotationShouldNotRevokeFamilyWhenRevokedTokenIsReusedWithinGrace() {
         RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
         JwtProperties properties = jwtProperties();
         properties.setRefreshReuseGraceSeconds(10);
@@ -249,7 +224,7 @@ class RefreshTokenApplicationServiceTest {
         ));
         RefreshTokenApplicationService refreshTokenService = refreshTokenService(repository, properties);
 
-        assertThat(refreshTokenService.rotate("presented-token")).isNull();
+        assertThat(refreshTokenService.beginRotation("presented-token")).isNull();
 
         verify(repository, never()).revokeFamily("family-1");
     }
@@ -315,8 +290,7 @@ class RefreshTokenApplicationServiceTest {
                 properties,
                 repository,
                 new RefreshTokenDomainService(),
-                new AuthSecretGenerator(),
-                mock(RefreshTokenSessionPort.class)
+                new AuthSecretGenerator()
         );
     }
 
@@ -357,8 +331,20 @@ class RefreshTokenApplicationServiceTest {
         }
 
         @Override
-        public void store(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
-            tokens.put(refreshToken, new StoredRefreshToken(refreshToken, userId, familyId, expiresAt));
+        public void store(
+                String refreshToken,
+                UUID userId,
+                String familyId,
+                long securityVersionAtIssue,
+                Instant expiresAt
+        ) {
+            tokens.put(refreshToken, new StoredRefreshToken(
+                    refreshToken,
+                    userId,
+                    familyId,
+                    securityVersionAtIssue,
+                    expiresAt
+            ));
         }
 
         @Override
@@ -405,6 +391,7 @@ class RefreshTokenApplicationServiceTest {
                 String replacementRefreshToken,
                 UUID userId,
                 String familyId,
+                long securityVersionAtIssue,
                 Instant replacementExpiresAt
         ) {
             StoredRefreshToken token = pendingTokens.remove(pendingRefreshToken);
@@ -418,7 +405,13 @@ class RefreshTokenApplicationServiceTest {
                     token.expiresAt(),
                     Instant.now()
             ));
-            tokens.put(replacementRefreshToken, new StoredRefreshToken(replacementRefreshToken, userId, familyId, replacementExpiresAt));
+            tokens.put(replacementRefreshToken, new StoredRefreshToken(
+                    replacementRefreshToken,
+                    userId,
+                    familyId,
+                    securityVersionAtIssue,
+                    replacementExpiresAt
+            ));
             return true;
         }
 
@@ -446,6 +439,11 @@ class RefreshTokenApplicationServiceTest {
         public void revokeFamily(String familyId) {
             tokens.entrySet().removeIf(entry -> familyId.equals(entry.getValue().familyId()));
             pendingTokens.entrySet().removeIf(entry -> familyId.equals(entry.getValue().familyId()));
+        }
+
+        @Override
+        public int deleteExpiredBefore(Instant cutoff) {
+            return 0;
         }
 
         private Set<String> activeTokensInFamily(String familyId) {

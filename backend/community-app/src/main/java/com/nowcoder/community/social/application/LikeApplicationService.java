@@ -1,25 +1,24 @@
 package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.exception.ErrorCode;
+import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
 import com.nowcoder.community.social.application.command.SetLikeCommand;
 import com.nowcoder.community.social.application.result.LikeResult;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
 import com.nowcoder.community.social.domain.model.LikeRelation;
+import com.nowcoder.community.social.domain.model.LikeTargetState;
 import com.nowcoder.community.social.domain.model.ResolvedSocialEntity;
 import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.LikeRepository;
+import com.nowcoder.community.social.domain.repository.LikeTargetStateRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
-import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -38,7 +37,6 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 @Service("socialLikeApplicationService")
 public class LikeApplicationService {
 
-    private static final Logger log = LoggerFactory.getLogger(LikeApplicationService.class);
     private static final int MAX_BATCH_ENTITY_IDS = 200;
     private static final int CLEANUP_SCAN_LIMIT = 200;
 
@@ -46,26 +44,46 @@ public class LikeApplicationService {
     private final BlockRepository blockRepository;
     private final LikeDomainService likeDomainService;
     private final BlockDomainService blockDomainService;
-    private final ContentEntityResolver contentEntityResolver;
     private final SocialDomainEventPublisher eventPublisher;
-    private final UserLookupQueryApi userLookupQueryApi;
+    private final LikeTargetStateRepository targetStateRepository;
+    private final LikeCleanupMetrics cleanupMetrics;
+
+    @Autowired
+    public LikeApplicationService(
+            LikeRepository likeRepository,
+            BlockRepository blockRepository,
+            LikeDomainService likeDomainService,
+            BlockDomainService blockDomainService,
+            SocialDomainEventPublisher eventPublisher,
+            LikeTargetStateRepository targetStateRepository,
+            LikeCleanupMetrics cleanupMetrics
+    ) {
+        this.likeRepository = likeRepository;
+        this.blockRepository = blockRepository;
+        this.likeDomainService = likeDomainService;
+        this.blockDomainService = blockDomainService;
+        this.eventPublisher = eventPublisher;
+        this.targetStateRepository = targetStateRepository;
+        this.cleanupMetrics = cleanupMetrics;
+    }
 
     public LikeApplicationService(
             LikeRepository likeRepository,
             BlockRepository blockRepository,
             LikeDomainService likeDomainService,
             BlockDomainService blockDomainService,
-            ContentEntityResolver contentEntityResolver,
             SocialDomainEventPublisher eventPublisher,
-            UserLookupQueryApi userLookupQueryApi
+            LikeTargetStateRepository targetStateRepository
     ) {
-        this.likeRepository = likeRepository;
-        this.blockRepository = blockRepository;
-        this.likeDomainService = likeDomainService;
-        this.blockDomainService = blockDomainService;
-        this.contentEntityResolver = contentEntityResolver;
-        this.eventPublisher = eventPublisher;
-        this.userLookupQueryApi = userLookupQueryApi;
+        this(
+                likeRepository,
+                blockRepository,
+                likeDomainService,
+                blockDomainService,
+                eventPublisher,
+                targetStateRepository,
+                LikeCleanupMetrics.noop()
+        );
     }
 
     @Transactional
@@ -75,6 +93,11 @@ public class LikeApplicationService {
         int entityType = command.entityType();
         UUID entityId = command.entityId();
         likeDomainService.validateLike(actorUserId, entityType, entityId);
+        ResolvedSocialEntity resolved = requireResolvedTarget(command);
+        LikeTargetState targetState = lockContentTarget(entityType, entityId);
+        if (command.liked() && targetState != null && targetState.isDeleted()) {
+            throw new BusinessException(NOT_FOUND, "like target has been deleted");
+        }
 
         boolean existed = likeRepository.isLiked(actorUserId, entityType, entityId);
         boolean liked = likeDomainService.resolveTargetState(existed, command.liked());
@@ -82,28 +105,15 @@ public class LikeApplicationService {
             return buildResult(actorUserId, entityType, entityId);
         }
 
-        ResolvedSocialEntity resolvedForCreate = null;
         if (liked && !existed) {
-            requireUserTargetExistsOnCreate(entityType, entityId);
-            resolvedForCreate = resolveEntity(entityType, entityId);
-            if (resolvedForCreate.entityUserId() != null
-                    && blockDomainService.isEitherBlocked(actorUserId, resolvedForCreate.entityUserId(), blockRepository)) {
+            if (blockDomainService.isEitherBlocked(actorUserId, resolved.entityUserId(), blockRepository)) {
                 throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
             }
         }
 
-        ResolvedSocialEntity resolved = resolvedForCreate == null
-                ? resolveEntityForExistingRelation(actorUserId, entityType, entityId, liked)
-                : resolvedForCreate;
         boolean changed = likeRepository.setLike(actorUserId, entityType, entityId, resolved.entityUserId(), liked);
         if (!changed) {
             return buildResult(actorUserId, entityType, entityId);
-        }
-
-        Runnable rollback = () -> likeRepository.setLike(actorUserId, entityType, entityId, resolved.entityUserId(), !liked);
-        boolean needsExplicitCompensation = likeRepository.requiresExplicitCompensation();
-        if (needsExplicitCompensation) {
-            registerRollbackIfTxRolledBack("like", rollback);
         }
 
         Instant occurredAt = Instant.now();
@@ -115,14 +125,7 @@ public class LikeApplicationService {
                 liked,
                 occurredAt
         );
-        try {
-            eventPublisher.publishLikeChanged(event);
-        } catch (RuntimeException ex) {
-            if (needsExplicitCompensation) {
-                compensate("like", rollback);
-            }
-            throw ex;
-        }
+        eventPublisher.publishLikeChanged(event);
         return buildResult(actorUserId, entityType, entityId);
     }
 
@@ -140,10 +143,49 @@ public class LikeApplicationService {
     }
 
     @Transactional
-    public long cleanupEntityLikes(int entityType, UUID entityId) {
-        validateLikeEntity(entityType, entityId);
+    public long cleanupDeletedContentLikes(CleanupDeletedContentLikesCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
+        if ((command.entityType() != POST && command.entityType() != COMMENT)
+                || command.entityId() == null
+                || command.sourceEventId() == null
+                || command.sourceEventId().isBlank()
+                || command.sourceVersion() <= 0L
+                || command.deletedAt() == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "deleted content cleanup command 非法");
+        }
+        String source = cleanupSource(command.sourceEventId());
+        try {
+            long removed = cleanupDeletedContentLikesCore(command);
+            cleanupMetrics.recordCleanup(source, "success");
+            cleanupMetrics.recordCleanupLag(Duration.between(command.deletedAt(), Instant.now()));
+            return removed;
+        } catch (RuntimeException exception) {
+            cleanupMetrics.recordCleanup(source, "failed");
+            throw exception;
+        }
+    }
+
+    private long cleanupDeletedContentLikesCore(CleanupDeletedContentLikesCommand command) {
+        targetStateRepository.insertActiveIfAbsent(command.entityType(), command.entityId());
+        LikeTargetState current = targetStateRepository.findForUpdate(command.entityType(), command.entityId());
+        LikeTargetState updated = current.applyDeletion(
+                command.sourceEventId(),
+                command.sourceVersion(),
+                command.deletedAt()
+        );
+        if (updated == current) {
+            return isReconciliation(command.sourceEventId())
+                    ? cleanupEntityLikesCore(command.entityType(), command.entityId())
+                    : 0L;
+        }
+        if (!targetStateRepository.saveIfNewer(updated)) {
+            throw new IllegalStateException("failed to advance like target deletion fence");
+        }
+        return cleanupEntityLikesCore(command.entityType(), command.entityId());
+    }
+
+    private long cleanupEntityLikesCore(int entityType, UUID entityId) {
         long removed = 0L;
-        boolean needsExplicitCompensation = likeRepository.requiresExplicitCompensation();
         UUID afterActorUserId = new UUID(0L, 0L);
         while (true) {
             List<LikeRelation> page = likeRepository.scanLikesByEntity(entityType, entityId, afterActorUserId, CLEANUP_SCAN_LIMIT);
@@ -162,16 +204,6 @@ public class LikeApplicationService {
                 if (!changed) {
                     continue;
                 }
-                Runnable rollback = () -> likeRepository.setLike(
-                        relation.actorUserId(),
-                        entityType,
-                        entityId,
-                        relation.entityUserId(),
-                        true
-                );
-                if (needsExplicitCompensation) {
-                    registerRollbackIfTxRolledBack("like-cleanup", rollback);
-                }
                 LikeChangedDomainEvent event = likeDomainService.likeChangedEvent(
                         relation.actorUserId(),
                         entityType,
@@ -180,17 +212,28 @@ public class LikeApplicationService {
                         false,
                         Instant.now()
                 );
-                try {
-                    eventPublisher.publishLikeChanged(event);
-                } catch (RuntimeException ex) {
-                    if (needsExplicitCompensation) {
-                        compensate("like-cleanup", rollback);
-                    }
-                    throw ex;
-                }
+                eventPublisher.publishLikeChanged(event);
                 removed++;
             }
         }
+    }
+
+    private LikeTargetState lockContentTarget(int entityType, UUID entityId) {
+        if (entityType != POST && entityType != COMMENT) {
+            return null;
+        }
+        targetStateRepository.insertActiveIfAbsent(entityType, entityId);
+        return targetStateRepository.findForUpdate(entityType, entityId);
+    }
+
+    private String cleanupSource(String sourceEventId) {
+        return isReconciliation(sourceEventId)
+                ? "reconciliation"
+                : "content_event";
+    }
+
+    private boolean isReconciliation(String sourceEventId) {
+        return sourceEventId != null && sourceEventId.startsWith("social-like-reconciliation:");
     }
 
     public Map<UUID, Long> counts(int entityType, List<UUID> entityIds) {
@@ -251,39 +294,28 @@ public class LikeApplicationService {
         return new ArrayList<>(uniqueIds);
     }
 
-    private ResolvedSocialEntity resolveEntity(int entityType, UUID entityId) {
-        if (entityType == USER) {
-            return new ResolvedSocialEntity(entityId, null);
+    private ResolvedSocialEntity requireResolvedTarget(SetLikeCommand command) {
+        UUID entityUserId = command.entityUserId();
+        UUID postId = command.postId();
+        if (command.entityType() == USER) {
+            if (!command.entityId().equals(entityUserId) || postId != null) {
+                throw new BusinessException(INVALID_ARGUMENT, "resolved user like target invalid");
+            }
+            return new ResolvedSocialEntity(entityUserId, null);
         }
-        if (entityType == POST || entityType == COMMENT) {
-            ContentEntityResolver.ResolvedEntity resolved = contentEntityResolver.resolve(entityType, entityId);
-            return new ResolvedSocialEntity(resolved.getEntityUserId(), resolved.getPostId());
+        if (command.entityType() == POST) {
+            if (entityUserId == null || !command.entityId().equals(postId)) {
+                throw new BusinessException(INVALID_ARGUMENT, "resolved post like target invalid");
+            }
+            return new ResolvedSocialEntity(entityUserId, postId);
+        }
+        if (command.entityType() == COMMENT) {
+            if (entityUserId == null || postId == null) {
+                throw new BusinessException(INVALID_ARGUMENT, "resolved comment like target invalid");
+            }
+            return new ResolvedSocialEntity(entityUserId, postId);
         }
         throw new BusinessException(INVALID_ARGUMENT, "entityType 不支持");
-    }
-
-    private ResolvedSocialEntity resolveEntityForExistingRelation(UUID actorUserId, int entityType, UUID entityId, boolean liked) {
-        try {
-            return resolveEntity(entityType, entityId);
-        } catch (BusinessException ex) {
-            if (!liked && isContentNotFound(ex.getErrorCode())) {
-                UUID storedOwnerId = likeRepository.findLike(actorUserId, entityType, entityId)
-                        .map(LikeRelation::entityUserId)
-                        .orElse(null);
-                return new ResolvedSocialEntity(storedOwnerId, null);
-            }
-            throw ex;
-        }
-    }
-
-    private void requireUserTargetExistsOnCreate(int entityType, UUID entityId) {
-        if (entityType == USER && userLookupQueryApi.getSummaryById(entityId) == null) {
-            throw new BusinessException(NOT_FOUND, "like target user not found: userId=" + entityId);
-        }
-    }
-
-    private boolean isContentNotFound(ErrorCode errorCode) {
-        return errorCode == NOT_FOUND || (errorCode != null && errorCode.getHttpStatus() == 404);
     }
 
     private LikeResult buildResult(UUID actorUserId, int entityType, UUID entityId) {
@@ -293,26 +325,4 @@ public class LikeApplicationService {
         );
     }
 
-    private void registerRollbackIfTxRolledBack(String name, Runnable rollback) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status == STATUS_COMMITTED) {
-                    return;
-                }
-                compensate(name, rollback);
-            }
-        });
-    }
-
-    private void compensate(String name, Runnable rollback) {
-        try {
-            rollback.run();
-        } catch (RuntimeException ex) {
-            log.warn("[{}] rollback failed: {}", name, ex.toString());
-        }
-    }
 }

@@ -1,7 +1,7 @@
 package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.infra.pagination.Pagination;
+import com.nowcoder.community.common.pagination.Pagination;
 import com.nowcoder.community.social.application.command.FollowCommand;
 import com.nowcoder.community.social.application.command.UnfollowCommand;
 import com.nowcoder.community.social.application.result.FollowRelationResult;
@@ -13,12 +13,8 @@ import com.nowcoder.community.social.domain.repository.FollowRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.FollowDomainService;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.List;
@@ -32,8 +28,6 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service("socialFollowApplicationService")
 public class FollowApplicationService {
-
-    private static final Logger log = LoggerFactory.getLogger(FollowApplicationService.class);
 
     private final FollowRepository followRepository;
     private final BlockRepository blockRepository;
@@ -80,25 +74,13 @@ public class FollowApplicationService {
             return;
         }
 
-        Runnable rollback = () -> followRepository.unfollow(actorUserId, entityType, entityId);
-        boolean needsExplicitCompensation = followRepository.requiresExplicitCompensation();
-        if (needsExplicitCompensation) {
-            registerRollbackIfTxRolledBack(rollback);
-        }
         FollowCreatedDomainEvent event = followDomainService.followCreatedEvent(
                 actorUserId,
                 entityType,
                 entityId,
                 Instant.ofEpochMilli(now)
         );
-        try {
-            eventPublisher.publishFollowCreated(event);
-        } catch (RuntimeException ex) {
-            if (needsExplicitCompensation) {
-                compensate(rollback);
-            }
-            throw ex;
-        }
+        eventPublisher.publishFollowCreated(event);
     }
 
     @Transactional
@@ -186,26 +168,4 @@ public class FollowApplicationService {
         return new FollowRelationResult(relation.targetId(), relation.followTime());
     }
 
-    private void registerRollbackIfTxRolledBack(Runnable rollback) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status == STATUS_COMMITTED) {
-                    return;
-                }
-                compensate(rollback);
-            }
-        });
-    }
-
-    private void compensate(Runnable rollback) {
-        try {
-            rollback.run();
-        } catch (RuntimeException ex) {
-            log.warn("[follow] rollback failed: {}", ex.toString());
-        }
-    }
 }

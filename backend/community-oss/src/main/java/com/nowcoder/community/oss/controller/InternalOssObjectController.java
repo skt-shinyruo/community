@@ -6,6 +6,7 @@ import com.nowcoder.community.oss.application.command.ReleaseObjectReferenceComm
 import com.nowcoder.community.oss.application.result.ObjectReferenceResult;
 import com.nowcoder.community.oss.controller.dto.BindObjectReferenceRequest;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,6 +30,7 @@ public class InternalOssObjectController {
             @RequestBody BindObjectReferenceRequest request
     ) {
         return referenceApplicationService.bindReference(new BindObjectReferenceCommand(
+                parseUuid(request.referenceId()),
                 objectId,
                 parseUuid(request.versionId()),
                 request.subjectService(),
@@ -48,6 +50,14 @@ public class InternalOssObjectController {
             @RequestParam(name = "actorId", required = false, defaultValue = "") String actorId
     ) {
         return referenceApplicationService.releaseReference(new ReleaseObjectReferenceCommand(objectId, referenceId, actorId));
+    }
+
+    @GetMapping("/internal/oss/objects/{objectId}/references/{referenceId}")
+    public ObjectReferenceResult getReference(
+            @PathVariable UUID objectId,
+            @PathVariable UUID referenceId
+    ) {
+        return referenceApplicationService.findReference(objectId, referenceId);
     }
 
     private UUID parseUuid(String value) {

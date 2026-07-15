@@ -11,7 +11,7 @@ public interface WalletLedgerRepository {
 
     WalletTxn findTxnByRequestId(String requestId);
 
-    int insertTxn(WalletTxn txn);
+    CreationOutcome<WalletTxn> create(WalletTxn txn);
 
     int markTxnSucceeded(UUID txnId);
 

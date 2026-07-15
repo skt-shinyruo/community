@@ -8,6 +8,7 @@ import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.wallet.domain.model.TransferOrder;
+import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.domain.repository.TransferOrderRepository;
 import com.nowcoder.community.wallet.application.result.TransferOrderResult;
@@ -16,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -222,8 +222,8 @@ class WalletTransferApplicationServiceTest {
                 .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000643"));
         when(mockedAccountService.ensureUserWallet(toUserId))
                 .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000644"));
-        org.mockito.Mockito.doThrow(new DuplicateKeyException("duplicate request"))
-                .when(repository).insert(any(TransferOrder.class));
+        when(repository.create(any(TransferOrder.class)))
+                .thenReturn(CreationOutcome.alreadyExists(succeededOrder));
 
         TransferOrderResult result = service.create("transfer:req-race", fromUserId, toUserId, 300);
 

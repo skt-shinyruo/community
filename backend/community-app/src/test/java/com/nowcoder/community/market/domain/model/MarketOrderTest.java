@@ -8,6 +8,7 @@ import java.util.Date;
 import java.util.Set;
 import java.util.UUID;
 
+import static com.nowcoder.community.market.support.MarketOrderTestFixture.order;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -48,8 +49,9 @@ class MarketOrderTest {
 
     @Test
     void physicalReplayWithMissingPersistedAddressIdShouldConflict() {
-        MarketOrder order = MarketOrder.place(physicalPlacement());
-        order.setAddressIdSnapshot(null);
+        MarketOrder order = order(MarketOrder.place(physicalPlacement()))
+                .addressIdSnapshot(null)
+                .build();
 
         assertThatThrownBy(() -> order.assertReplayMatches(uuid(4), uuid(2), 1, uuid(5)))
                 .isInstanceOf(BusinessException.class)
@@ -77,7 +79,7 @@ class MarketOrderTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("order is not confirmable");
 
-        order.setStatus("SHIPPED");
+        order = order(order).status("SHIPPED").build();
 
         MarketOrderTransition transition = order.requestRelease();
 
@@ -93,7 +95,7 @@ class MarketOrderTest {
 
         assertThat(order.requestEscrowCancel().nextStatus()).isEqualTo(MarketOrderStatus.ESCROW_CANCEL_PENDING);
 
-        order.setStatus("ESCROWED");
+        order = order(order).status("ESCROWED").build();
 
         assertThat(order.requestRefund().nextStatus()).isEqualTo(MarketOrderStatus.REFUND_PENDING);
     }
@@ -103,30 +105,32 @@ class MarketOrderTest {
         MarketOrder order = MarketOrder.place(physicalPlacement());
         assertThat(order.pendingWalletActionType()).isEqualTo(MarketWalletActionType.ESCROW);
 
-        order.setStatus("DISPUTE_RELEASE_PENDING");
+        order = order(order).status("DISPUTE_RELEASE_PENDING").build();
 
         assertThat(order.pendingWalletActionType()).isEqualTo(MarketWalletActionType.RELEASE);
     }
 
     @Test
     void autoConfirmShouldRequireDueConfirmableOrder() {
-        MarketOrder order = MarketOrder.place(physicalPlacement());
+        MarketOrder order = order(MarketOrder.place(physicalPlacement()))
+                .status("DELIVERED")
+                .autoConfirmAt(new Date(500L))
+                .build();
         Date now = new Date(1_000L);
-        order.setStatus("DELIVERED");
-        order.setAutoConfirmAt(new Date(500L));
 
         assertThat(order.isAutoConfirmDue(now)).isTrue();
 
-        order.setAutoConfirmAt(new Date(1_500L));
+        order = order(order).autoConfirmAt(new Date(1_500L)).build();
 
         assertThat(order.isAutoConfirmDue(now)).isFalse();
     }
 
     @Test
     void autoConfirmShouldReturnFalseWhenNowIsNull() {
-        MarketOrder order = MarketOrder.place(physicalPlacement());
-        order.setStatus("DELIVERED");
-        order.setAutoConfirmAt(new Date(500L));
+        MarketOrder order = order(MarketOrder.place(physicalPlacement()))
+                .status("DELIVERED")
+                .autoConfirmAt(new Date(500L))
+                .build();
 
         assertThat(order.isAutoConfirmDue(null)).isFalse();
     }

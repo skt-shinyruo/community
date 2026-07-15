@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+import static com.nowcoder.community.content.support.CommentTestBuilder.aComment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -335,11 +336,11 @@ class FollowFeedReadApplicationServiceTest {
     }
 
     private static Comment lastActivity(UUID userId, String content) {
-        Comment comment = new Comment();
-        comment.setUserId(userId);
-        comment.setContent(content);
-        comment.setCreateTime(new Date(2_000));
-        return comment;
+        return aComment()
+                .userId(userId)
+                .content(content)
+                .createTime(new Date(2_000))
+                .build();
     }
 
     private static PostContentBlock paragraphBlock(UUID postId, String text) {

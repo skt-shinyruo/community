@@ -8,10 +8,14 @@ import com.nowcoder.community.im.application.command.ProjectBlockRelationCommand
 import com.nowcoder.community.im.application.command.ProjectUserPolicyCommand;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import com.nowcoder.community.social.infrastructure.event.JacksonSocialContractEventCodec;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
+import com.nowcoder.community.user.contracts.event.UserContractEventCodec;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
+import com.nowcoder.community.user.infrastructure.event.JacksonUserContractEventCodec;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -26,14 +30,17 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class ImPolicyBackboneKafkaListenerTest {
 
     private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final UserContractEventCodec userContractEventCodec = new JacksonUserContractEventCodec(jsonCodec);
+    private final SocialContractEventCodec socialContractEventCodec = new JacksonSocialContractEventCodec(jsonCodec);
 
     @Test
     void shouldProjectUserPolicyFromUserBackbone() {
         ImPolicyProjectionApplicationService applicationService = mock(ImPolicyProjectionApplicationService.class);
-        ImPolicyBackboneKafkaListener listener = new ImPolicyBackboneKafkaListener(applicationService, jsonCodec);
+        ImPolicyBackboneKafkaListener listener = listener(applicationService);
         UserPolicyChangedPayload payload = userPolicyPayload();
 
-        listener.onUserEvent(new UserContractEvent("user-event-1", UserEventTypes.USER_POLICY_CHANGED, payload));
+        listener.onUserEvent(new UserContractEvent(
+                "user-event-1", UserEventTypes.USER_POLICY_CHANGED, jsonCodec.valueToTree(payload)));
 
         verify(applicationService).projectUserPolicy(new ProjectUserPolicyCommand(
                 "user", "user-event-1", uuid(7), true, false, true,
@@ -45,16 +52,16 @@ class ImPolicyBackboneKafkaListenerTest {
     @Test
     void shouldProjectUserPolicyWhenKafkaPayloadIsMap() {
         ImPolicyProjectionApplicationService applicationService = mock(ImPolicyProjectionApplicationService.class);
-        ImPolicyBackboneKafkaListener listener = new ImPolicyBackboneKafkaListener(applicationService, jsonCodec);
+        ImPolicyBackboneKafkaListener listener = listener(applicationService);
 
         listener.onUserEvent(new UserContractEvent(
                 "user-event-map", UserEventTypes.USER_POLICY_CHANGED,
-                Map.of(
+                jsonCodec.valueToTree(Map.of(
                         "userId", uuid(7).toString(),
                         "userExists", true,
                         "occurredAtEpochMillis", 1712345678901L,
                         "version", 777L
-                )));
+                ))));
 
         verify(applicationService).projectUserPolicy(new ProjectUserPolicyCommand(
                 "user", "user-event-map", uuid(7), true, false, false,
@@ -65,7 +72,7 @@ class ImPolicyBackboneKafkaListenerTest {
     @Test
     void shouldProjectBlockRelationUsingTopLevelSocialMetadata() {
         ImPolicyProjectionApplicationService applicationService = mock(ImPolicyProjectionApplicationService.class);
-        ImPolicyBackboneKafkaListener listener = new ImPolicyBackboneKafkaListener(applicationService, jsonCodec);
+        ImPolicyBackboneKafkaListener listener = listener(applicationService);
         Instant occurredAt = Instant.parse("2026-07-10T01:02:03Z");
         BlockPayload payload = new BlockPayload();
         payload.setBlockerUserId(uuid(11));
@@ -74,7 +81,7 @@ class ImPolicyBackboneKafkaListenerTest {
 
         listener.onSocialEvent(new SocialContractEvent(
                 "social-event-1", uuid(11), "user", SocialEventTypes.BLOCK_RELATION_CHANGED,
-                occurredAt, 888L, payload));
+                occurredAt, 888L, jsonCodec.valueToTree(payload)));
 
         verify(applicationService).projectBlockRelation(new ProjectBlockRelationCommand(
                 "social", "social-event-1", uuid(11), uuid(22), true,
@@ -85,16 +92,16 @@ class ImPolicyBackboneKafkaListenerTest {
     @Test
     void shouldProjectBlockRelationWhenKafkaPayloadIsMap() {
         ImPolicyProjectionApplicationService applicationService = mock(ImPolicyProjectionApplicationService.class);
-        ImPolicyBackboneKafkaListener listener = new ImPolicyBackboneKafkaListener(applicationService, jsonCodec);
+        ImPolicyBackboneKafkaListener listener = listener(applicationService);
         Instant occurredAt = Instant.parse("2026-07-10T01:02:03Z");
 
         listener.onSocialEvent(new SocialContractEvent(
                 "social-event-map", null, null, SocialEventTypes.BLOCK_RELATION_CHANGED,
-                occurredAt, 888L, Map.of(
+                occurredAt, 888L, jsonCodec.valueToTree(Map.of(
                         "blockerUserId", uuid(11).toString(),
                         "blockedUserId", uuid(22).toString(),
                         "blocked", true
-                )));
+                ))));
 
         verify(applicationService).projectBlockRelation(new ProjectBlockRelationCommand(
                 "social", "social-event-map", uuid(11), uuid(22), true,
@@ -105,23 +112,24 @@ class ImPolicyBackboneKafkaListenerTest {
     @Test
     void recognizedEventsWithInvalidSourceOrIdentityShouldFailDelivery() {
         ImPolicyProjectionApplicationService applicationService = mock(ImPolicyProjectionApplicationService.class);
-        ImPolicyBackboneKafkaListener listener = new ImPolicyBackboneKafkaListener(applicationService, jsonCodec);
+        ImPolicyBackboneKafkaListener listener = listener(applicationService);
 
         UserPolicyChangedPayload userPayload = userPolicyPayload();
         assertThatThrownBy(() -> listener.onUserEvent(new UserContractEvent(
-                " ", UserEventTypes.USER_POLICY_CHANGED, userPayload)))
+                " ", UserEventTypes.USER_POLICY_CHANGED, jsonCodec.valueToTree(userPayload))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(UserEventTypes.USER_POLICY_CHANGED);
 
         assertThatThrownBy(() -> listener.onUserEvent(new UserContractEvent(
                 "user-missing-version", UserEventTypes.USER_POLICY_CHANGED,
-                Map.of("userId", uuid(7).toString(), "occurredAtEpochMillis", 1712345678901L))))
+                jsonCodec.valueToTree(Map.of(
+                        "userId", uuid(7).toString(), "occurredAtEpochMillis", 1712345678901L)))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("user-missing-version");
 
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
                 "social-missing-time", uuid(11), "user", SocialEventTypes.BLOCK_RELATION_CHANGED,
-                null, 888L, new BlockPayload())))
+                null, 888L, jsonCodec.valueToTree(new BlockPayload()))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("social-missing-time");
 
@@ -131,16 +139,24 @@ class ImPolicyBackboneKafkaListenerTest {
     @Test
     void unsupportedEventsShouldBeIgnored() {
         ImPolicyProjectionApplicationService applicationService = mock(ImPolicyProjectionApplicationService.class);
-        ImPolicyBackboneKafkaListener listener = new ImPolicyBackboneKafkaListener(applicationService, jsonCodec);
+        ImPolicyBackboneKafkaListener listener = listener(applicationService);
 
-        listener.onUserEvent(new UserContractEvent("user-follow", "UserRegistered", new Object()));
+        listener.onUserEvent(new UserContractEvent(
+                "user-follow", "UserRegistered", JsonMappers.standard().createObjectNode()));
         listener.onSocialEvent(new SocialContractEvent(
                 "social-follow", null, null, SocialEventTypes.FOLLOW_CREATED,
-                Instant.EPOCH, 1L, new Object()));
+                Instant.EPOCH, 1L, JsonMappers.standard().createObjectNode()));
         listener.onUserEvent(null);
         listener.onSocialEvent(null);
 
         verifyNoInteractions(applicationService);
+    }
+
+    private ImPolicyBackboneKafkaListener listener(
+            ImPolicyProjectionApplicationService applicationService
+    ) {
+        return new ImPolicyBackboneKafkaListener(
+                applicationService, userContractEventCodec, socialContractEventCodec);
     }
 
     private static UserPolicyChangedPayload userPolicyPayload() {

@@ -8,6 +8,7 @@ public final class NoticeProjectionDomainService {
         return projection != null
                 && projection.toUserId() != null
                 && projection.topic() != null
-                && !projection.topic().isBlank();
+                && !projection.topic().isBlank()
+                && projection.content() != null;
     }
 }

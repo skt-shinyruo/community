@@ -1,0 +1,16 @@
+FROM maven:3.9.8-eclipse-temurin-17 AS build
+
+WORKDIR /workspace
+COPY . .
+
+RUN --mount=type=cache,target=/root/.m2/repository,sharing=locked \
+    mvn -q -DskipTests -pl :community-db-migrations -am package && \
+    cp community-db-migrations/target/community-db-migrations-*.jar /workspace/community-db-migrations.jar
+
+FROM eclipse-temurin:17-jre-jammy
+
+WORKDIR /app
+COPY --from=build /workspace/community-db-migrations.jar /app/community-db-migrations.jar
+
+ENTRYPOINT ["java", "-jar", "/app/community-db-migrations.jar"]
+CMD ["migrate"]

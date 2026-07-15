@@ -60,11 +60,6 @@ public class UserCredentialApiAdapter implements UserCredentialQueryApi, UserCre
         applicationService.updatePassword(userId, newPassword);
     }
 
-    @Override
-    public void resetPasswordAndRevokeRefreshSessions(UUID userId, String newPassword) {
-        applicationService.resetPasswordAndRevokeRefreshSessions(userId, newPassword);
-    }
-
     private UserAuthenticationResultView toAuthenticationView(UserAuthenticationResult result) {
         if (result == null) {
             return UserAuthenticationResultView.invalidCredentials();

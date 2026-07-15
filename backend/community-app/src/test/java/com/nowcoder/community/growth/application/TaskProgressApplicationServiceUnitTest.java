@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -79,9 +78,13 @@ class TaskProgressApplicationServiceUnitTest {
         UUID userId = uuid(1);
 
         when(taskTemplateRepository.findActiveByTriggerEventType("PostPublished")).thenReturn(List.of(template));
-        when(userTaskEventLogRepository.insert(any(UUID.class), eq(userId), eq("DAILY_POST"), eq("2026-03-22"), eq("post-evt-1"))).thenReturn(1);
-        when(userTaskProgressRepository.insert(any(UUID.class), eq(userId), eq("DAILY_POST"), eq("2026-03-22"), eq(1), eq("IN_PROGRESS"), isNull()))
-                .thenThrow(new DataIntegrityViolationException("duplicate progress"));
+        when(userTaskEventLogRepository.create(any(UUID.class), eq(userId), eq("DAILY_POST"), eq("2026-03-22"), eq("post-evt-1")))
+                .thenReturn(UserTaskEventLogRepository.CreateStatus.CREATED);
+        when(userTaskProgressRepository.create(any(UUID.class), eq(userId), eq("DAILY_POST"), eq("2026-03-22"), eq(1), eq("IN_PROGRESS"), isNull()))
+                .thenReturn(new UserTaskProgressRepository.CreateResult(
+                        UserTaskProgressRepository.CreateStatus.ALREADY_EXISTS,
+                        locked
+                ));
         when(userTaskProgressRepository.findByUserTaskAndPeriodForUpdate(userId, "DAILY_POST", "2026-03-22")).thenReturn(locked);
 
         service.processEvent(userId, "PostPublished", "post-evt-1", LocalDate.of(2026, 3, 22));
@@ -113,8 +116,8 @@ class TaskProgressApplicationServiceUnitTest {
         UUID userId = uuid(1);
 
         when(taskTemplateRepository.findActiveByTriggerEventType("PostPublished")).thenReturn(List.of(template));
-        when(userTaskEventLogRepository.insert(any(UUID.class), eq(userId), eq("DAILY_POST"), eq("2026-03-22"), eq("post-evt-1")))
-                .thenThrow(new DataIntegrityViolationException("duplicate task event"));
+        when(userTaskEventLogRepository.create(any(UUID.class), eq(userId), eq("DAILY_POST"), eq("2026-03-22"), eq("post-evt-1")))
+                .thenReturn(UserTaskEventLogRepository.CreateStatus.ALREADY_EXISTS);
 
         service.processEvent(userId, "PostPublished", "post-evt-1", LocalDate.of(2026, 3, 22));
 

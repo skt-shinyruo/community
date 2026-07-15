@@ -41,15 +41,11 @@ public interface UserMapper {
      */
     List<UserDataObject> selectModerationUsersAfterId(@Param("afterId") UUID afterId, @Param("limit") int limit);
 
-    int upsertPolicyVersionCounter(@Param("id") int id);
-
     long selectPolicyVersionCounterForUpdate(@Param("id") int id);
 
     int updatePolicyVersionCounter(@Param("id") int id, @Param("version") long version);
 
     long selectPolicyVersionCounter(@Param("id") int id);
-
-    int upsertSecurityVersionCounter(@Param("id") int id);
 
     long selectSecurityVersionCounterForUpdate(@Param("id") int id);
 

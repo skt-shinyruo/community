@@ -14,6 +14,16 @@ content:
       enabled: true
       batch-size: 200
       delay-ms: 30000
+  media:
+    upload-recovery:
+      enabled: true
+      batch-size: 50
+      stale-seconds: 300
+      delay-ms: 60000
+    reference-reconciliation:
+      enabled: true
+      batch-size: 50
+      delay-ms: 300000
 
 market:
   wallet-action:

@@ -7,6 +7,7 @@ public record NoticeProjection(
         String topic,
         String sourceEventId,
         String sourceEventType,
-        Object payload
+        String sourceRelationKey,
+        NoticeProjectionContent content
 ) {
 }

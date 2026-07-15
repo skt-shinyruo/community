@@ -1,11 +1,11 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.command.PostContentBlockCommand;
+import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
 import com.nowcoder.community.content.application.result.PostCreateResult;
 import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.PostDraft;
@@ -13,6 +13,8 @@ import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;
+import com.nowcoder.community.content.domain.model.PostMediaReferenceOperation;
+import com.nowcoder.community.content.domain.model.PostMediaReferenceStatus;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.model.PostVideoState;
 import com.nowcoder.community.content.domain.repository.CategoryRepository;
@@ -23,13 +25,11 @@ import com.nowcoder.community.content.domain.repository.PostTagRepository;
 import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
 import com.nowcoder.community.content.exception.ContentErrorCode;
-import com.nowcoder.community.infra.idempotency.RequestFingerprint;
-import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
+import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Clock;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -60,11 +60,12 @@ public class PostPublishingApplicationService {
     private final PostRepository postRepository;
     private final PostContentBlockRepository postContentBlockRepository;
     private final PostMediaAssetRepository postMediaAssetRepository;
-    private final PostMediaStoragePort postMediaStoragePort;
+    private final PostMediaReferenceCommandPublisher mediaReferenceCommandPublisher;
     private final CategoryRepository categoryRepository;
     private final PostTagRepository postTagRepository;
     private final PostDomainEventPublisher domainEventPublisher;
-    private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
+    private final Clock clock;
+    private final UuidV7Generator idGenerator;
 
     public PostPublishingApplicationService(
             ContentSanitizer sensitiveFilter,
@@ -77,11 +78,11 @@ public class PostPublishingApplicationService {
             PostRepository postRepository,
             PostContentBlockRepository postContentBlockRepository,
             PostMediaAssetRepository postMediaAssetRepository,
-            PostMediaStoragePort postMediaStoragePort,
+            PostMediaReferenceCommandPublisher mediaReferenceCommandPublisher,
             CategoryRepository categoryRepository,
             PostTagRepository postTagRepository,
             PostDomainEventPublisher domainEventPublisher,
-            SocialLikeCleanupActionApi socialLikeCleanupActionApi
+            Clock clock
     ) {
         this.sensitiveFilter = sensitiveFilter;
         this.idempotencyGuard = idempotencyGuard;
@@ -93,11 +94,12 @@ public class PostPublishingApplicationService {
         this.postRepository = postRepository;
         this.postContentBlockRepository = postContentBlockRepository;
         this.postMediaAssetRepository = postMediaAssetRepository;
-        this.postMediaStoragePort = postMediaStoragePort;
+        this.mediaReferenceCommandPublisher = mediaReferenceCommandPublisher;
         this.categoryRepository = categoryRepository;
         this.postTagRepository = postTagRepository;
         this.domainEventPublisher = domainEventPublisher;
-        this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
+        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.idGenerator = new UuidV7Generator(this.clock);
     }
 
     @Transactional
@@ -118,7 +120,7 @@ public class PostPublishingApplicationService {
             List<PostContentBlockCommand> blocks = sanitizeBlocks(blockPolicy.validateAndNormalize(command.blocks()));
             PostDraft draft = domainService.createDraft(userId, sanitize(command.title()), command.categoryId());
             UUID postId = postRepository.create(draft);
-            bindMediaAssets(userId, postId, blocks, new Date());
+            bindMediaAssets(userId, postId, blocks, now());
             postContentBlockRepository.replaceBlocks(postId, toDomainBlocks(postId, blocks));
             postTagRepository.bindTagsToPost(postId, command.tags());
             domainEventPublisher.postPublished(postId);
@@ -132,7 +134,7 @@ public class PostPublishingApplicationService {
         moderationGuard.assertCanSpeak(userId);
         categoryRepository.assertExists(categoryId);
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
-        Date now = new Date();
+        Date now = now();
         domainService.assertEditableByAuthor(post, userId, now);
         List<PostContentBlockCommand> normalizedBlocks = sanitizeBlocks(blockPolicy.validateAndNormalize(blocks));
         List<UUID> keepAssetIds = mediaAssetIds(normalizedBlocks);
@@ -149,12 +151,11 @@ public class PostPublishingApplicationService {
     public void deleteByAuthor(UUID userId, UUID postId) {
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
         domainService.assertDeletableByAuthor(post, userId);
-        boolean changed = postRepository.markDeletedByAuthor(postId, userId, new Date());
+        boolean changed = postRepository.markDeletedByAuthor(postId, userId, now());
         if (!changed) {
             return;
         }
         domainEventPublisher.postDeleted(postId);
-        AfterCommitExecutor.runAfterCommit(() -> socialLikeCleanupActionApi.cleanupEntityLikes(EntityTypes.POST, postId));
         postBusinessEventLogger.postDeleteByAuthor(userId, postId);
     }
 
@@ -256,39 +257,45 @@ public class PostPublishingApplicationService {
             }
             PostMediaAsset asset = assetsById.get(block.assetId());
             validateMediaAsset(userId, postId, block, asset);
-            if (asset.lifecycle() == PostMediaAssetLifecycle.BOUND) {
+            if (asset.referenceStatus() == PostMediaReferenceStatus.BOUND
+                    || asset.referenceStatus() == PostMediaReferenceStatus.BIND_PENDING) {
                 continue;
             }
-            UUID referenceId = postMediaStoragePort.bindReference(asset, postId, userId);
-            try {
-                postMediaAssetRepository.bindToPost(
-                        asset.id(),
-                        postId,
-                        referenceId,
-                        "video".equals(block.type()) ? PostVideoState.PENDING_TRANSCODE : PostVideoState.NONE,
-                        now
-                );
-            } catch (RuntimeException e) {
-                releaseBoundReference(asset, postId, referenceId, userId);
-                throw e;
-            }
-            registerRollbackReferenceRelease(asset, postId, referenceId, userId);
+            UUID referenceId = idGenerator.next();
+            long operationVersion = postMediaAssetRepository.requestBind(
+                    asset.id(),
+                    postId,
+                    referenceId,
+                    "video".equals(block.type()) ? PostVideoState.PENDING_TRANSCODE : PostVideoState.NONE,
+                    now
+            );
+            mediaReferenceCommandPublisher.publish(new PostMediaReferenceCommand(
+                    asset.id(),
+                    PostMediaReferenceOperation.BIND,
+                    operationVersion,
+                    userId
+            ));
         }
     }
 
     private void releaseRemovedMediaAssets(UUID userId, UUID postId, List<UUID> keepAssetIds, Date now) {
         Set<UUID> keepAssetIdSet = Set.copyOf(keepAssetIds);
         List<PostMediaAsset> removedAssets = postMediaAssetRepository.listByPostId(postId).stream()
-                .filter(asset -> asset.lifecycle() == PostMediaAssetLifecycle.BOUND)
+                .filter(asset -> asset.referenceStatus()
+                        == PostMediaReferenceStatus.BOUND
+                        || asset.referenceStatus()
+                        == PostMediaReferenceStatus.BIND_PENDING)
                 .filter(asset -> !keepAssetIdSet.contains(asset.id()))
                 .toList();
-        postMediaAssetRepository.releaseRemovedFromPost(postId, keepAssetIds, now);
-        AfterCommitExecutor.runAfterCommit(() -> removedAssets.forEach(asset -> {
-            try {
-                postMediaStoragePort.releaseReference(asset, userId);
-            } catch (RuntimeException ignored) {
-            }
-        }));
+        removedAssets.forEach(asset -> {
+            long operationVersion = postMediaAssetRepository.requestRelease(asset.id(), now);
+            mediaReferenceCommandPublisher.publish(new PostMediaReferenceCommand(
+                    asset.id(),
+                    PostMediaReferenceOperation.RELEASE,
+                    operationVersion,
+                    userId
+            ));
+        });
     }
 
     private void validateMediaAsset(UUID userId, UUID postId, PostContentBlockCommand block, PostMediaAsset asset) {
@@ -323,43 +330,7 @@ public class PostPublishingApplicationService {
                 .toList();
     }
 
-    private void releaseBoundReference(PostMediaAsset asset, UUID postId, UUID referenceId, UUID actorUserId) {
-        try {
-            postMediaStoragePort.releaseReference(new PostMediaAsset(
-                    asset.id(),
-                    asset.ownerUserId(),
-                    postId,
-                    asset.ossObjectId(),
-                    asset.ossVersionId(),
-                    referenceId,
-                    asset.uploadSessionId(),
-                    asset.fileName(),
-                    asset.contentType(),
-                    asset.contentLength(),
-                    asset.mediaKind(),
-                    asset.lifecycle(),
-                    asset.videoState(),
-                    asset.publicUrl(),
-                    asset.failureReason(),
-                    asset.createTime(),
-                    asset.updateTime()
-            ), actorUserId);
-        } catch (RuntimeException ignored) {
-        }
-    }
-
-    private void registerRollbackReferenceRelease(PostMediaAsset asset, UUID postId, UUID referenceId, UUID actorUserId) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()
-                || !TransactionSynchronizationManager.isSynchronizationActive()) {
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status != STATUS_COMMITTED) {
-                    releaseBoundReference(asset, postId, referenceId, actorUserId);
-                }
-            }
-        });
+    private Date now() {
+        return Date.from(clock.instant());
     }
 }

@@ -1,9 +1,11 @@
 package com.nowcoder.community.wallet.infrastructure.persistence;
 
 import com.nowcoder.community.wallet.domain.model.WalletAdminAction;
+import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.WalletAdminActionRepository;
 import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAdminActionDataObject;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletAdminActionMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
@@ -20,8 +22,17 @@ public class MyBatisWalletAdminActionRepository implements WalletAdminActionRepo
     }
 
     @Override
-    public int insert(WalletAdminAction action) {
-        return mapper.insert(WalletAdminActionDataObject.from(action));
+    public CreationOutcome<WalletAdminAction> create(WalletAdminAction action) {
+        try {
+            return mapper.insert(WalletAdminActionDataObject.from(action)) == 1
+                    ? CreationOutcome.created(action)
+                    : CreationOutcome.conflict();
+        } catch (DuplicateKeyException exception) {
+            WalletAdminAction existing = mapper.selectByRequestId(action.getRequestId());
+            return existing == null
+                    ? CreationOutcome.conflict()
+                    : CreationOutcome.alreadyExists(existing);
+        }
     }
 
     @Override

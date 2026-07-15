@@ -1,19 +1,20 @@
 package com.nowcoder.community.notice.infrastructure.event;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.constants.EntityTypes;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.notice.application.NoticeProjectionApplicationService;
-import com.nowcoder.community.notice.application.command.ProjectContentNoticeCommand;
-import com.nowcoder.community.notice.application.command.ProjectSocialNoticeCommand;
+import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
 import com.nowcoder.community.social.contracts.event.FollowPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import com.nowcoder.community.social.contracts.event.SocialTypedEvent;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -23,14 +24,17 @@ import java.time.Instant;
 @Component
 public class NoticeProjectionKafkaListener {
 
-    private final JsonCodec jsonCodec;
+    private final ContentContractEventCodec contentContractEventCodec;
+    private final SocialContractEventCodec socialContractEventCodec;
     private final NoticeProjectionApplicationService noticeProjectionApplicationService;
 
     public NoticeProjectionKafkaListener(
-            JsonCodec jsonCodec,
+            ContentContractEventCodec contentContractEventCodec,
+            SocialContractEventCodec socialContractEventCodec,
             NoticeProjectionApplicationService noticeProjectionApplicationService
     ) {
-        this.jsonCodec = jsonCodec;
+        this.contentContractEventCodec = contentContractEventCodec;
+        this.socialContractEventCodec = socialContractEventCodec;
         this.noticeProjectionApplicationService = noticeProjectionApplicationService;
     }
 
@@ -44,14 +48,11 @@ public class NoticeProjectionKafkaListener {
             return;
         }
         requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
-        Object payload = normalizeContentPayload(event.type(), event.payload());
-        requireContentPayload(event.type(), event.eventId(), payload);
-        noticeProjectionApplicationService.projectContentEventReliably(new ProjectContentNoticeCommand(
-                event.eventId(),
-                event.version(),
-                event.type(),
-                payload
-        ));
+        ProjectNoticeCommand command = commandForContentEvent(event, decodeContent(event));
+        if (command == null) {
+            throw malformed(event.type(), event.eventId());
+        }
+        noticeProjectionApplicationService.projectReliably(command);
     }
 
     @KafkaListener(
@@ -64,59 +65,130 @@ public class NoticeProjectionKafkaListener {
             return;
         }
         requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
-        Object payload = normalizeSocialPayload(event.type(), event.payload());
-        requireSocialPayload(event.type(), event.eventId(), payload);
-        noticeProjectionApplicationService.projectSocialEventReliably(new ProjectSocialNoticeCommand(
-                event.eventId(),
-                event.version(),
-                event.type(),
-                payload
-        ));
+        ProjectNoticeCommand command = commandForSocialEvent(event, decodeSocial(event));
+        if (command == null) {
+            throw malformed(event.type(), event.eventId());
+        }
+        noticeProjectionApplicationService.projectReliably(command);
+    }
+
+    private ProjectNoticeCommand commandForContentEvent(ContentContractEvent event, ContentTypedEvent typedEvent) {
+        if (ContentEventTypes.COMMENT_CREATED.equals(event.type())) {
+            CommentPayload payload = ((ContentTypedEvent.CommentCreated) typedEvent).payload();
+            if (payload == null || payload.getTargetUserId() == null) {
+                return null;
+            }
+            return new ProjectNoticeCommand.CommentCreated(
+                    event.eventId(),
+                    event.version(),
+                    event.type(),
+                    payload.getCommentId(),
+                    payload.getPostId(),
+                    payload.getUserId(),
+                    payload.getEntityType(),
+                    payload.getEntityId(),
+                    payload.getTargetUserId(),
+                    payload.getContent(),
+                    payload.getCreateTime()
+            );
+        }
+        if (ContentEventTypes.MODERATION_ACTION_APPLIED.equals(event.type())) {
+            ModerationPayload payload = ((ContentTypedEvent.ModerationActionApplied) typedEvent).payload();
+            if (payload == null || payload.getToUserId() == null) {
+                return null;
+            }
+            return new ProjectNoticeCommand.ModerationApplied(
+                    event.eventId(),
+                    event.version(),
+                    event.type(),
+                    payload.getReportId(),
+                    payload.getKind(),
+                    payload.getToUserId(),
+                    payload.getActorUserId(),
+                    payload.getTargetType(),
+                    payload.getTargetId(),
+                    payload.getAction(),
+                    payload.getReason(),
+                    payload.getDurationSeconds(),
+                    payload.getCreateTime()
+            );
+        }
+        return null;
+    }
+
+    private ProjectNoticeCommand commandForSocialEvent(SocialContractEvent event, SocialTypedEvent typedEvent) {
+        if (SocialEventTypes.LIKE_CREATED.equals(event.type()) || SocialEventTypes.LIKE_REMOVED.equals(event.type())) {
+            LikePayload payload = typedEvent instanceof SocialTypedEvent.LikeCreated value
+                    ? value.payload()
+                    : ((SocialTypedEvent.LikeRemoved) typedEvent).payload();
+            if (!isValid(payload)) {
+                return null;
+            }
+            if (SocialEventTypes.LIKE_CREATED.equals(event.type())) {
+                return new ProjectNoticeCommand.LikeCreated(
+                        event.eventId(),
+                        event.version(),
+                        event.type(),
+                        payload.getActorUserId(),
+                        payload.getEntityType(),
+                        payload.getEntityId(),
+                        payload.getEntityUserId(),
+                        payload.getPostId(),
+                        payload.getRelationKey()
+                );
+            }
+            return new ProjectNoticeCommand.LikeRemoved(
+                    event.eventId(),
+                    event.version(),
+                    event.type(),
+                    payload.getActorUserId(),
+                    payload.getEntityType(),
+                    payload.getEntityId(),
+                    payload.getEntityUserId(),
+                    payload.getPostId(),
+                    payload.getRelationKey()
+            );
+        }
+        if (SocialEventTypes.FOLLOW_CREATED.equals(event.type())) {
+            FollowPayload payload = ((SocialTypedEvent.FollowCreated) typedEvent).payload();
+            if (!isValid(payload)) {
+                return null;
+            }
+            return new ProjectNoticeCommand.FollowCreated(
+                    event.eventId(),
+                    event.version(),
+                    event.type(),
+                    payload.getActorUserId(),
+                    payload.getEntityType(),
+                    payload.getEntityId(),
+                    payload.getEntityUserId(),
+                    payload.getCreateTime()
+            );
+        }
+        return null;
+    }
+
+    private boolean isValid(LikePayload payload) {
+        return payload != null
+                && payload.getActorUserId() != null
+                && EntityTypes.isValid(payload.getEntityType())
+                && payload.getEntityId() != null
+                && payload.getEntityUserId() != null
+                && StringUtils.hasText(payload.getRelationKey());
+    }
+
+    private boolean isValid(FollowPayload payload) {
+        return payload != null
+                && payload.getActorUserId() != null
+                && EntityTypes.isValid(payload.getEntityType())
+                && payload.getEntityId() != null
+                && payload.getEntityUserId() != null;
     }
 
     private void requireSourceMetadata(String eventId, Instant occurredAt, long version, String eventType) {
         if (!StringUtils.hasText(eventId) || occurredAt == null || version <= 0L) {
             throw malformed(eventType, eventId);
         }
-    }
-
-    private void requireContentPayload(String eventType, String eventId, Object payload) {
-        boolean valid = switch (eventType) {
-            case ContentEventTypes.COMMENT_CREATED ->
-                    payload instanceof CommentPayload comment && comment.getTargetUserId() != null;
-            case ContentEventTypes.MODERATION_ACTION_APPLIED ->
-                    payload instanceof ModerationPayload moderation && moderation.getToUserId() != null;
-            default -> false;
-        };
-        if (!valid) {
-            throw malformed(eventType, eventId);
-        }
-    }
-
-    private void requireSocialPayload(String eventType, String eventId, Object payload) {
-        boolean valid;
-        if (SocialEventTypes.LIKE_CREATED.equals(eventType) || SocialEventTypes.LIKE_REMOVED.equals(eventType)) {
-            valid = payload instanceof LikePayload like
-                    && like.getActorUserId() != null
-                    && EntityTypes.isValid(like.getEntityType())
-                    && like.getEntityId() != null
-                    && like.getEntityUserId() != null
-                    && StringUtils.hasText(like.getRelationKey());
-        } else {
-            valid = payload instanceof FollowPayload follow
-                    && follow.getActorUserId() != null
-                    && EntityTypes.isValid(follow.getEntityType())
-                    && follow.getEntityId() != null
-                    && follow.getEntityUserId() != null;
-        }
-        if (!valid) {
-            throw malformed(eventType, eventId);
-        }
-    }
-
-    private IllegalArgumentException malformed(String eventType, String eventId) {
-        return new IllegalArgumentException(
-                "invalid recognized event: type=" + eventType + ", eventId=" + eventId);
     }
 
     private boolean isSupportedContentNoticeEvent(String type) {
@@ -130,31 +202,24 @@ public class NoticeProjectionKafkaListener {
                 || SocialEventTypes.FOLLOW_CREATED.equals(type);
     }
 
-    private Object normalizeContentPayload(String type, Object payload) {
-        if (ContentEventTypes.COMMENT_CREATED.equals(type)) {
-            return normalizePayload(payload, CommentPayload.class);
+    private ContentTypedEvent decodeContent(ContentContractEvent event) {
+        try {
+            return contentContractEventCodec.decode(event);
+        } catch (RuntimeException error) {
+            throw malformed(event.type(), event.eventId());
         }
-        if (ContentEventTypes.MODERATION_ACTION_APPLIED.equals(type)) {
-            return normalizePayload(payload, ModerationPayload.class);
-        }
-        return payload;
     }
 
-    private Object normalizeSocialPayload(String type, Object payload) {
-        if (SocialEventTypes.LIKE_CREATED.equals(type) || SocialEventTypes.LIKE_REMOVED.equals(type)) {
-            return normalizePayload(payload, LikePayload.class);
+    private SocialTypedEvent decodeSocial(SocialContractEvent event) {
+        try {
+            return socialContractEventCodec.decode(event);
+        } catch (RuntimeException error) {
+            throw malformed(event.type(), event.eventId());
         }
-        if (SocialEventTypes.FOLLOW_CREATED.equals(type)) {
-            return normalizePayload(payload, FollowPayload.class);
-        }
-        return payload;
     }
 
-    private <T> Object normalizePayload(Object payload, Class<T> type) {
-        if (payload == null || type.isInstance(payload)) {
-            return payload;
-        }
-        JsonNode node = jsonCodec.valueToTree(payload);
-        return jsonCodec.treeToValue(node, type);
+    private IllegalArgumentException malformed(String eventType, String eventId) {
+        return new IllegalArgumentException(
+                "invalid recognized event: type=" + eventType + ", eventId=" + eventId);
     }
 }

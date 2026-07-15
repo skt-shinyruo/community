@@ -4,7 +4,6 @@ import com.nowcoder.community.drive.application.result.DriveSpaceResult;
 import com.nowcoder.community.drive.domain.model.DriveSpace;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import org.junit.jupiter.api.Test;
-import org.springframework.dao.DuplicateKeyException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -15,9 +14,7 @@ import java.util.UUID;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -32,9 +29,11 @@ class DriveSpaceApplicationServiceTest {
         UUID spaceId = uuid(8);
         DriveSpace persisted = DriveSpace.createDefault(spaceId, userId, now);
 
-        when(spaceRepository.findByUserId(userId))
-                .thenReturn(Optional.empty(), Optional.of(persisted));
-        doThrow(new DuplicateKeyException("duplicate drive_space user")).when(spaceRepository).save(any(DriveSpace.class));
+        when(spaceRepository.findByUserId(userId)).thenReturn(Optional.empty());
+        when(spaceRepository.create(any(DriveSpace.class))).thenReturn(new DriveSpaceRepository.CreateResult(
+                DriveSpaceRepository.CreateStatus.ALREADY_EXISTS,
+                persisted
+        ));
 
         DriveSpaceApplicationService service = new DriveSpaceApplicationService(spaceRepository, clock);
         DriveSpaceResult result = service.getSpace(userId);
@@ -42,7 +41,7 @@ class DriveSpaceApplicationServiceTest {
         assertThat(result.spaceId()).isEqualTo(spaceId);
         assertThat(result.quotaBytes()).isEqualTo(10_737_418_240L);
         assertThat(result.usedBytes()).isZero();
-        verify(spaceRepository, times(2)).findByUserId(userId);
-        verify(spaceRepository).save(any(DriveSpace.class));
+        verify(spaceRepository).findByUserId(userId);
+        verify(spaceRepository).create(any(DriveSpace.class));
     }
 }

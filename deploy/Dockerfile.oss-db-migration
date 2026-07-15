@@ -1,0 +1,16 @@
+FROM maven:3.9.8-eclipse-temurin-17 AS build
+
+WORKDIR /workspace
+COPY . .
+
+RUN --mount=type=cache,target=/root/.m2/repository,sharing=locked \
+    mvn -q -DskipTests -pl :community-oss-db-migrations -am package && \
+    cp community-oss-db-migrations/target/community-oss-db-migrations-*.jar /workspace/community-oss-db-migrations.jar
+
+FROM eclipse-temurin:17-jre-jammy
+
+WORKDIR /app
+COPY --from=build /workspace/community-oss-db-migrations.jar /app/community-oss-db-migrations.jar
+
+ENTRYPOINT ["java", "-jar", "/app/community-oss-db-migrations.jar"]
+CMD ["migrate"]

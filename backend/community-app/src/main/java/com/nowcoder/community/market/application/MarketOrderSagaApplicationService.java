@@ -2,6 +2,7 @@ package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
+import com.nowcoder.community.market.domain.model.MarketOrderStatus;
 import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
@@ -23,8 +24,8 @@ public class MarketOrderSagaApplicationService {
 
     @Autowired
     public MarketOrderSagaApplicationService(MarketOrderRepository marketOrderRepository,
-                                  MarketListingRepository marketListingRepository,
-                                  MarketInventoryRepository marketInventoryRepository) {
+                                             MarketListingRepository marketListingRepository,
+                                             MarketInventoryRepository marketInventoryRepository) {
         this.marketOrderRepository = marketOrderRepository;
         this.marketListingRepository = marketListingRepository;
         this.marketInventoryRepository = marketInventoryRepository;
@@ -39,26 +40,42 @@ public class MarketOrderSagaApplicationService {
     @Transactional
     public void completeEscrowNoop(UUID orderId) {
         MarketOrder order = marketOrderRepository.lockById(orderId);
-        int updated = marketOrderRepository.markCancelledNoRefund(orderId);
-        if (updated == 1) {
+        if (order == null
+                || (order.status() != MarketOrderStatus.ESCROW_CANCEL_PENDING
+                && order.status() != MarketOrderStatus.ESCROW_FAILED)) {
+            return;
+        }
+        if (marketOrderRepository.apply(order.cancelWithoutRefund()) == MarketOrderRepository.ApplyStatus.APPLIED) {
             restoreReservedInventoryAndStock(order);
         }
     }
 
     @Transactional
     public boolean markEscrowSucceeded(UUID orderId, UUID escrowTxnId) {
-        int updated = marketOrderRepository.markEscrowSucceeded(orderId, escrowTxnId);
-        if (updated != 1) {
+        MarketOrder order = marketOrderRepository.lockById(orderId);
+        if (order == null || order.status() != MarketOrderStatus.ESCROW_PENDING) {
             return false;
         }
-        MarketOrder order = marketOrderRepository.lockById(orderId);
-        deliverPreloadedInventoryIfNeeded(order);
+        if (marketOrderRepository.apply(order.recordEscrowSucceeded(escrowTxnId))
+                != MarketOrderRepository.ApplyStatus.APPLIED) {
+            return false;
+        }
+        MarketOrder escrowed = marketOrderRepository.lockById(orderId);
+        if (escrowed == null) {
+            throw new IllegalStateException("market order disappeared after escrow transition: orderId=" + orderId);
+        }
+        deliverPreloadedInventoryIfNeeded(escrowed);
         return true;
     }
 
     @Transactional
     public boolean markEscrowCancelRefundPending(UUID orderId, UUID escrowTxnId) {
-        return marketOrderRepository.markEscrowCancelRefundPending(orderId, escrowTxnId) == 1;
+        MarketOrder order = marketOrderRepository.lockById(orderId);
+        if (order == null || order.status() != MarketOrderStatus.ESCROW_CANCEL_PENDING) {
+            return false;
+        }
+        return marketOrderRepository.apply(order.recordLateEscrowSucceeded(escrowTxnId))
+                == MarketOrderRepository.ApplyStatus.APPLIED;
     }
 
     @Transactional
@@ -67,52 +84,67 @@ public class MarketOrderSagaApplicationService {
         if (order == null) {
             return;
         }
-        int updated = marketOrderRepository.markEscrowFailed(orderId);
-        if (updated != 1 && order.isEscrowCancelPending()) {
-            updated = marketOrderRepository.markCancelledNoRefund(orderId);
+
+        MarketOrderRepository.ApplyStatus outcome;
+        if (order.status() == MarketOrderStatus.ESCROW_PENDING) {
+            outcome = marketOrderRepository.apply(order.recordEscrowFailed());
+        } else if (order.status() == MarketOrderStatus.ESCROW_CANCEL_PENDING) {
+            outcome = marketOrderRepository.apply(order.cancelWithoutRefund());
+        } else {
+            return;
         }
-        if (updated == 1) {
+        if (outcome == MarketOrderRepository.ApplyStatus.APPLIED) {
             restoreReservedInventoryAndStock(order);
         }
     }
 
     @Transactional
     public boolean markReleaseSucceeded(UUID orderId, UUID releaseTxnId) {
-        return marketOrderRepository.markReleaseSucceeded(orderId, releaseTxnId) == 1;
+        MarketOrder order = marketOrderRepository.lockById(orderId);
+        if (order == null
+                || (order.status() != MarketOrderStatus.RELEASE_PENDING
+                && order.status() != MarketOrderStatus.DISPUTE_RELEASE_PENDING)) {
+            return false;
+        }
+        return marketOrderRepository.apply(order.recordReleaseSucceeded(releaseTxnId))
+                == MarketOrderRepository.ApplyStatus.APPLIED;
     }
 
     @Transactional
     public boolean markRefundSucceeded(UUID orderId, UUID refundTxnId) {
         MarketOrder order = marketOrderRepository.lockById(orderId);
-        if (order == null) {
+        if (order == null
+                || (order.status() != MarketOrderStatus.REFUND_PENDING
+                && order.status() != MarketOrderStatus.DISPUTE_REFUND_PENDING)) {
             return false;
         }
-        int updated = marketOrderRepository.markCancelledWithRefund(orderId, refundTxnId);
-        if (updated != 1) {
-            updated = marketOrderRepository.markDisputeRefundSucceeded(orderId, refundTxnId);
+        boolean restoreInventory = order.status() == MarketOrderStatus.REFUND_PENDING;
+        if (marketOrderRepository.apply(order.recordRefundSucceeded(refundTxnId))
+                != MarketOrderRepository.ApplyStatus.APPLIED) {
+            return false;
         }
-        if (updated == 1) {
-            if (order.status() == com.nowcoder.community.market.domain.model.MarketOrderStatus.REFUND_PENDING) {
-                restoreReservedInventoryAndStock(order);
-            }
-            return true;
+        if (restoreInventory) {
+            restoreReservedInventoryAndStock(order);
         }
-        return false;
+        return true;
     }
 
     private void deliverPreloadedInventoryIfNeeded(MarketOrder order) {
-        if (order == null || !order.isPreloadedDelivery()) {
+        if (!order.isPreloadedDelivery()) {
             return;
         }
         Date deliveredAt = new Date();
         marketInventoryRepository.markDeliveredByOrderIfReserved(order.getOrderId(), deliveredAt);
-        marketOrderRepository.markDelivered(order.getOrderId(), Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
+        if (marketOrderRepository.apply(order.markDelivered(
+                Date.from(Instant.now().plus(24, ChronoUnit.HOURS))
+        )) != MarketOrderRepository.ApplyStatus.APPLIED) {
+            throw new IllegalStateException(
+                    "preloaded market order delivery transition was stale: orderId=" + order.getOrderId()
+            );
+        }
     }
 
     private void restoreReservedInventoryAndStock(MarketOrder order) {
-        if (order == null) {
-            return;
-        }
         MarketListing listing = marketListingRepository.lockById(order.getListingId());
         if (listing != null && listing.isFiniteStock()) {
             marketListingRepository.adjustStock(

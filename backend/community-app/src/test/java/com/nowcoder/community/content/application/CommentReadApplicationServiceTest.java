@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static com.nowcoder.community.content.support.CommentTestBuilder.aComment;
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -228,16 +229,16 @@ class CommentReadApplicationServiceTest {
             UUID replyToUserId,
             String content
     ) {
-        Comment comment = new Comment();
-        comment.setId(id);
-        comment.setUserId(userId);
-        comment.setPostId(postId);
-        comment.setRootCommentId(rootCommentId);
-        comment.setParentCommentId(parentCommentId);
-        comment.setReplyToUserId(replyToUserId);
-        comment.setContent(content);
-        comment.setStatus(0);
-        comment.setCreateTime(Date.from(Instant.parse("2026-07-06T13:00:00Z")));
-        return comment;
+        return aComment()
+                .id(id)
+                .userId(userId)
+                .postId(postId)
+                .rootCommentId(rootCommentId)
+                .parentCommentId(parentCommentId)
+                .replyToUserId(replyToUserId)
+                .content(content)
+                .status(0)
+                .createTime(Date.from(Instant.parse("2026-07-06T13:00:00Z")))
+                .build();
     }
 }

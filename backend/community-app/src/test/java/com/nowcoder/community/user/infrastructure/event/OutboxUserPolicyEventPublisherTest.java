@@ -11,8 +11,10 @@ import com.nowcoder.community.user.application.UserEventDispatchApplicationServi
 import com.nowcoder.community.user.application.UserIntegrationEventDispatcher;
 import com.nowcoder.community.user.application.command.DispatchUserEventCommand;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
+import com.nowcoder.community.user.contracts.event.UserContractEventCodec;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
+import com.nowcoder.community.user.contracts.event.UserTypedEvent;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserModerationStatus;
 import org.junit.jupiter.api.Test;
@@ -47,7 +49,7 @@ class OutboxUserPolicyEventPublisherTest {
         Instant occurredAt = Instant.parse("2026-04-28T01:00:00Z");
         Instant muteUntil = occurredAt.plusSeconds(60);
         OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(
-                new JacksonJsonCodec(JsonMappers.standard()),
+                new JacksonUserContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
                 TOPIC
         );
@@ -81,9 +83,11 @@ class OutboxUserPolicyEventPublisherTest {
         UUID userId = uuid(70);
         Instant occurredAt = Instant.parse("2026-04-28T01:00:00Z");
         Instant muteUntil = occurredAt.plusSeconds(60);
-        OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(jsonCodec, store, TOPIC);
+        UserContractEventCodec contractEventCodec = new JacksonUserContractEventCodec(jsonCodec);
+        OutboxUserPolicyEventPublisher publisher =
+                new OutboxUserPolicyEventPublisher(contractEventCodec, store, TOPIC);
         UserEventDispatchApplicationService dispatchService =
-                new UserEventDispatchApplicationService(jsonCodec, dispatcher);
+                new UserEventDispatchApplicationService(contractEventCodec, dispatcher);
 
         publisher.publishUserPolicyChanged(new UserModerationStatus(userId, muteUntil, null, 42L), occurredAt);
 
@@ -101,8 +105,8 @@ class OutboxUserPolicyEventPublisherTest {
         UserContractEvent event = eventCaptor.getValue();
         assertThat(event.eventId()).isEqualTo(policyEventId(userId, 42L));
         assertThat(event.type()).isEqualTo(UserEventTypes.USER_POLICY_CHANGED);
-        assertThat(event.payload()).isInstanceOf(UserPolicyChangedPayload.class);
-        UserPolicyChangedPayload payload = (UserPolicyChangedPayload) event.payload();
+        UserPolicyChangedPayload payload =
+                ((UserTypedEvent.UserPolicyChanged) contractEventCodec.decode(event)).payload();
         assertThat(payload.getUserId()).isEqualTo(userId);
         assertThat(payload.getVersion()).isEqualTo(42L);
         assertThat(payload.isMuted()).isTrue();
@@ -116,7 +120,7 @@ class OutboxUserPolicyEventPublisherTest {
         UUID userId = uuid(8);
         Instant occurredAt = Instant.parse("2026-04-28T02:00:00Z");
         OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(
-                new JacksonJsonCodec(JsonMappers.standard()),
+                new JacksonUserContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
                 TOPIC
         );
@@ -147,9 +151,11 @@ class OutboxUserPolicyEventPublisherTest {
         UserIntegrationEventDispatcher dispatcher = mock(UserIntegrationEventDispatcher.class);
         UUID userId = uuid(80);
         Instant occurredAt = Instant.parse("2026-04-28T02:00:00Z");
-        OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(jsonCodec, store, TOPIC);
+        UserContractEventCodec contractEventCodec = new JacksonUserContractEventCodec(jsonCodec);
+        OutboxUserPolicyEventPublisher publisher =
+                new OutboxUserPolicyEventPublisher(contractEventCodec, store, TOPIC);
         UserEventDispatchApplicationService dispatchService =
-                new UserEventDispatchApplicationService(jsonCodec, dispatcher);
+                new UserEventDispatchApplicationService(contractEventCodec, dispatcher);
 
         publisher.publishUserPolicyChanged(userId, false, occurredAt, 44L);
 
@@ -167,8 +173,8 @@ class OutboxUserPolicyEventPublisherTest {
         UserContractEvent event = eventCaptor.getValue();
         assertThat(event.eventId()).isEqualTo(policyEventId(userId, 44L));
         assertThat(event.type()).isEqualTo(UserEventTypes.USER_POLICY_CHANGED);
-        assertThat(event.payload()).isInstanceOf(UserPolicyChangedPayload.class);
-        UserPolicyChangedPayload payload = (UserPolicyChangedPayload) event.payload();
+        UserPolicyChangedPayload payload =
+                ((UserTypedEvent.UserPolicyChanged) contractEventCodec.decode(event)).payload();
         assertThat(payload.getUserId()).isEqualTo(userId);
         assertThat(payload.isUserExists()).isFalse();
         assertThat(payload.isCanSendPrivate()).isFalse();
@@ -180,7 +186,7 @@ class OutboxUserPolicyEventPublisherTest {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID userId = uuid(9);
         OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(
-                new JacksonJsonCodec(JsonMappers.standard()),
+                new JacksonUserContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
                 TOPIC
         );
@@ -200,7 +206,7 @@ class OutboxUserPolicyEventPublisherTest {
     void eventsWithoutUserIdShouldNotEnqueue() {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(
-                new JacksonJsonCodec(JsonMappers.standard()),
+                new JacksonUserContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
                 TOPIC
         );
@@ -216,7 +222,7 @@ class OutboxUserPolicyEventPublisherTest {
     void invalidSourceMetadataShouldFailBeforeEnqueue() {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(
-                new JacksonJsonCodec(JsonMappers.standard()),
+                new JacksonUserContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
                 TOPIC
         );
@@ -243,33 +249,11 @@ class OutboxUserPolicyEventPublisherTest {
     @Test
     void serializationFailureShouldThrowRetryVisibleException() {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
-        JsonCodec failingJsonCodec = new JsonCodec() {
-            @Override
-            public String toJson(Object value) {
-                throw new JsonCodecException("boom", new RuntimeException("boom"));
-            }
-
-            @Override
-            public <T> T fromJson(String json, Class<T> type) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public com.fasterxml.jackson.databind.JsonNode readTree(String json) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public <T> T treeToValue(com.fasterxml.jackson.databind.JsonNode node, Class<T> type) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public com.fasterxml.jackson.databind.JsonNode valueToTree(Object value) {
-                throw new UnsupportedOperationException();
-            }
-        };
-        OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(failingJsonCodec, store, TOPIC);
+        UserContractEventCodec failingContractEventCodec = mock(UserContractEventCodec.class);
+        org.mockito.Mockito.when(failingContractEventCodec.serialize(org.mockito.ArgumentMatchers.any()))
+                .thenThrow(new JsonCodecException("boom", new RuntimeException("boom")));
+        OutboxUserPolicyEventPublisher publisher =
+                new OutboxUserPolicyEventPublisher(failingContractEventCodec, store, TOPIC);
 
         assertThatThrownBy(() -> publisher.publishUserPolicyChanged(uuid(7), true, Instant.ofEpochMilli(1L), 47L))
                 .isInstanceOf(IllegalStateException.class)

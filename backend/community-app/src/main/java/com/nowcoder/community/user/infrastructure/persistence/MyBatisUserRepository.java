@@ -9,8 +9,9 @@ import com.nowcoder.community.user.domain.model.UserSummary;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject;
 import com.nowcoder.community.user.infrastructure.persistence.mapper.UserMapper;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -107,12 +108,6 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
-    @Transactional
-    public void updateRole(UUID userId, int type) {
-        updateRole(userId, type, nextUserSecurityVersion(userId));
-    }
-
-    @Override
     public void updateStatus(UUID userId, int status, long securityVersion) {
         int updated = userMapper.updateStatus(userId, status, securityVersion);
         if (updated <= 0) {
@@ -121,23 +116,11 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
-    @Transactional
-    public void updateStatus(UUID userId, int status) {
-        updateStatus(userId, status, nextUserSecurityVersion(userId));
-    }
-
-    @Override
     public void updatePassword(UUID userId, String encodedPassword, long securityVersion) {
         int updated = userMapper.updatePassword(userId, encodedPassword, securityVersion);
         if (updated <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新密码失败");
         }
-    }
-
-    @Override
-    @Transactional
-    public void updatePassword(UUID userId, String encodedPassword) {
-        updatePassword(userId, encodedPassword, nextUserSecurityVersion(userId));
     }
 
     @Override
@@ -185,7 +168,6 @@ public class MyBatisUserRepository implements UserRepository {
 
     @Override
     public long nextUserPolicyVersion(UUID userId) {
-        userMapper.upsertPolicyVersionCounter(USER_POLICY_VERSION_COUNTER_ID);
         long current = userMapper.selectPolicyVersionCounterForUpdate(USER_POLICY_VERSION_COUNTER_ID);
         long next = current + 1L;
         userMapper.updatePolicyVersionCounter(USER_POLICY_VERSION_COUNTER_ID, next);
@@ -194,14 +176,11 @@ public class MyBatisUserRepository implements UserRepository {
 
     @Override
     public long currentUserPolicyVersion() {
-        userMapper.upsertPolicyVersionCounter(USER_POLICY_VERSION_COUNTER_ID);
         return userMapper.selectPolicyVersionCounter(USER_POLICY_VERSION_COUNTER_ID);
     }
 
     @Override
-    @Transactional
     public long nextUserSecurityVersion(UUID userId) {
-        userMapper.upsertSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID);
         long current = userMapper.selectSecurityVersionCounterForUpdate(USER_SECURITY_VERSION_COUNTER_ID);
         long next = current + 1L;
         userMapper.updateSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID, next);
@@ -210,15 +189,18 @@ public class MyBatisUserRepository implements UserRepository {
 
     @Override
     public long currentUserSecurityVersion() {
-        userMapper.upsertSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID);
         return userMapper.selectSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID);
     }
 
     @Override
-    public void insertUser(UserAccount user) {
-        int inserted = userMapper.insertUser(toDataObject(user));
-        if (inserted <= 0) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
+    public InsertResult insertUser(UserAccount user) {
+        try {
+            int inserted = userMapper.insertUser(toDataObject(user));
+            return inserted > 0 ? InsertResult.CREATED : InsertResult.CONFLICT;
+        } catch (DuplicateKeyException exception) {
+            return InsertResult.ALREADY_EXISTS;
+        } catch (DataIntegrityViolationException exception) {
+            return InsertResult.CONFLICT;
         }
     }
 

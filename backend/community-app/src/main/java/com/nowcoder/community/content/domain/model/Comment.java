@@ -1,144 +1,169 @@
 package com.nowcoder.community.content.domain.model;
 
+import com.nowcoder.community.common.exception.BusinessException;
+
 import java.util.Date;
+import java.util.Objects;
 import java.util.UUID;
+
+import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_NOT_FOUND;
 
 public class Comment {
 
     private static final int STATUS_ACTIVE = 0;
+    private static final long EDIT_WINDOW_MILLIS = 15L * 60L * 1000L;
 
-    private UUID id;
-    private UUID postId;
-    private UUID userId;
-    private UUID rootCommentId;
-    private UUID parentCommentId;
-    private UUID replyToUserId;
-    private String content;
-    private int status;
-    private Date createTime;
-    private Date updateTime;
-    private int editCount;
-    private UUID deletedBy;
-    private String deletedReason;
-    private Date deletedTime;
+    private final CommentSnapshot snapshot;
 
-    public UUID getId() {
-        return id;
+    private Comment(CommentSnapshot snapshot) {
+        this.snapshot = Objects.requireNonNull(snapshot, "snapshot must not be null");
     }
 
-    public void setId(UUID id) {
-        this.id = id;
+    public static Comment reconstitute(CommentSnapshot snapshot) {
+        return new Comment(snapshot);
+    }
+
+    public CommentEdit editByAuthor(UUID actorUserId, UUID postId, String content, Date updateTime) {
+        requireIdentity(actorUserId, postId);
+        requireActive();
+        if (!actorUserId.equals(snapshot.userId())) {
+            throw new BusinessException(FORBIDDEN, "只能编辑自己的评论");
+        }
+        if (!postId.equals(snapshot.postId())) {
+            throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
+        }
+        Date effectiveUpdateTime = requireTime(updateTime, "updateTime");
+        if (effectiveUpdateTime.getTime() - snapshot.createTime().getTime() > EDIT_WINDOW_MILLIS) {
+            throw new BusinessException(FORBIDDEN, "已超过可编辑时间（15min）");
+        }
+        return new CommentEdit(snapshot.id(), snapshot.version(), content, effectiveUpdateTime);
+    }
+
+    public CommentDeletion deleteByAuthor(
+            UUID actorUserId,
+            UUID postId,
+            String deletedReason,
+            Date deletedTime
+    ) {
+        requireIdentity(actorUserId, postId);
+        requireActive();
+        if (!actorUserId.equals(snapshot.userId())) {
+            throw new BusinessException(FORBIDDEN, "只能删除自己的评论");
+        }
+        if (!postId.equals(snapshot.postId())) {
+            throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
+        }
+        return deletion(actorUserId, deletedReason, deletedTime);
+    }
+
+    public CommentDeletion deleteByModerator(UUID actorUserId, String deletedReason, Date deletedTime) {
+        if (actorUserId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
+        }
+        requireActive();
+        return deletion(actorUserId, deletedReason, deletedTime);
+    }
+
+    public CommentSnapshot snapshot() {
+        return snapshot;
+    }
+
+    public UUID getId() {
+        return snapshot.id();
     }
 
     public boolean isActive() {
-        return status == STATUS_ACTIVE;
+        return snapshot.status() == STATUS_ACTIVE;
     }
 
     public boolean isRootComment() {
-        return parentCommentId == null;
+        return snapshot.rootComment();
     }
 
     public UUID getPostId() {
-        return postId;
-    }
-
-    public void setPostId(UUID postId) {
-        this.postId = postId;
+        return snapshot.postId();
     }
 
     public UUID getUserId() {
-        return userId;
-    }
-
-    public void setUserId(UUID userId) {
-        this.userId = userId;
+        return snapshot.userId();
     }
 
     public UUID getRootCommentId() {
-        return rootCommentId;
-    }
-
-    public void setRootCommentId(UUID rootCommentId) {
-        this.rootCommentId = rootCommentId;
+        return snapshot.rootCommentId();
     }
 
     public UUID getParentCommentId() {
-        return parentCommentId;
-    }
-
-    public void setParentCommentId(UUID parentCommentId) {
-        this.parentCommentId = parentCommentId;
+        return snapshot.parentCommentId();
     }
 
     public UUID getReplyToUserId() {
-        return replyToUserId;
-    }
-
-    public void setReplyToUserId(UUID replyToUserId) {
-        this.replyToUserId = replyToUserId;
+        return snapshot.replyToUserId();
     }
 
     public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
+        return snapshot.content();
     }
 
     public int getStatus() {
-        return status;
-    }
-
-    public void setStatus(int status) {
-        this.status = status;
+        return snapshot.status();
     }
 
     public Date getCreateTime() {
-        return createTime;
-    }
-
-    public void setCreateTime(Date createTime) {
-        this.createTime = createTime;
+        return snapshot.createTime();
     }
 
     public Date getUpdateTime() {
-        return updateTime;
-    }
-
-    public void setUpdateTime(Date updateTime) {
-        this.updateTime = updateTime;
+        return snapshot.updateTime();
     }
 
     public int getEditCount() {
-        return editCount;
-    }
-
-    public void setEditCount(int editCount) {
-        this.editCount = editCount;
+        return snapshot.editCount();
     }
 
     public UUID getDeletedBy() {
-        return deletedBy;
-    }
-
-    public void setDeletedBy(UUID deletedBy) {
-        this.deletedBy = deletedBy;
+        return snapshot.deletedBy();
     }
 
     public String getDeletedReason() {
-        return deletedReason;
-    }
-
-    public void setDeletedReason(String deletedReason) {
-        this.deletedReason = deletedReason;
+        return snapshot.deletedReason();
     }
 
     public Date getDeletedTime() {
-        return deletedTime;
+        return snapshot.deletedTime();
     }
 
-    public void setDeletedTime(Date deletedTime) {
-        this.deletedTime = deletedTime;
+    public long getVersion() {
+        return snapshot.version();
+    }
+
+    private CommentDeletion deletion(UUID deletedBy, String deletedReason, Date deletedTime) {
+        return new CommentDeletion(
+                snapshot.id(),
+                snapshot.version(),
+                deletedBy,
+                deletedReason,
+                requireTime(deletedTime, "deletedTime")
+        );
+    }
+
+    private void requireIdentity(UUID actorUserId, UUID postId) {
+        if (actorUserId == null || postId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
+        }
+    }
+
+    private void requireActive() {
+        if (!isActive()) {
+            throw new BusinessException(COMMENT_NOT_FOUND);
+        }
+    }
+
+    private Date requireTime(Date value, String name) {
+        if (value == null) {
+            throw new BusinessException(INVALID_ARGUMENT, name + " 非法");
+        }
+        return new Date(value.getTime());
     }
 }

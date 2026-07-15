@@ -5,7 +5,6 @@ import com.nowcoder.community.user.application.command.ApplyUserModerationComman
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.model.UserModerationStatus;
-import com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserModerationDomainService;
 import com.nowcoder.community.user.exception.UserErrorCode;
@@ -51,9 +50,6 @@ class UserModerationApplicationServiceTest {
 
     @Mock
     private UserPolicyEventPublisher userPolicyEventPublisher;
-
-    @Mock
-    private RefreshTokenSessionRepository refreshTokenSessionRepository;
 
     @Test
     void getModerationStateShouldProjectMuteAndBanTimestamps() {
@@ -116,7 +112,7 @@ class UserModerationApplicationServiceTest {
     }
 
     @Test
-    void applyModerationShouldIncrementSecurityVersionPersistAndRevokeSessionsWhenBanBecomesActive() {
+    void applyModerationShouldIncrementSecurityVersionAndPublishWhenBanBecomesActive() {
         UserModerationApplicationService service = service();
         when(userRepository.findById(USER_ID_7)).thenReturn(Optional.of(account(USER_ID_7, null, null)));
         when(userRepository.nextUserPolicyVersion(USER_ID_7)).thenReturn(101L);
@@ -131,12 +127,11 @@ class UserModerationApplicationServiceTest {
         assertThat(status.banUntil()).isBetween(before.plusSeconds(120), after.plusSeconds(120));
         assertThat(status.version()).isEqualTo(101L);
 
-        var inOrder = inOrder(userRepository, refreshTokenSessionRepository, userPolicyEventPublisher);
+        var inOrder = inOrder(userRepository, userPolicyEventPublisher);
         inOrder.verify(userRepository).findById(USER_ID_7);
         inOrder.verify(userRepository).nextUserPolicyVersion(USER_ID_7);
         inOrder.verify(userRepository).nextUserSecurityVersion(USER_ID_7);
         inOrder.verify(userRepository).updateModerationUntil(USER_ID_7, null, status.banUntil(), 101L, 202L);
-        inOrder.verify(refreshTokenSessionRepository).revokeByUserId(USER_ID_7);
         inOrder.verify(userPolicyEventPublisher).publishUserPolicyChanged(eq(status), any(Instant.class));
     }
 
@@ -182,8 +177,7 @@ class UserModerationApplicationServiceTest {
         return new UserModerationApplicationService(
                 userRepository,
                 new UserModerationDomainService(),
-                userPolicyEventPublisher,
-                refreshTokenSessionRepository
+                userPolicyEventPublisher
         );
     }
 

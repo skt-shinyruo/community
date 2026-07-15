@@ -7,6 +7,4 @@ public interface UserCredentialActionApi {
     void validatePasswordPolicy(String newPassword);
 
     void updatePassword(UUID userId, String newPassword);
-
-    void resetPasswordAndRevokeRefreshSessions(UUID userId, String newPassword);
 }

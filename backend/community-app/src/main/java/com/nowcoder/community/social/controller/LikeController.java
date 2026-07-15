@@ -3,15 +3,8 @@ package com.nowcoder.community.social.controller;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.social.application.LikeApplicationService;
-import com.nowcoder.community.social.application.command.SetLikeCommand;
-import com.nowcoder.community.social.application.result.LikeResult;
-import com.nowcoder.community.social.controller.dto.LikeRequest;
-import com.nowcoder.community.social.controller.dto.LikeResponse;
-import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,18 +21,6 @@ public class LikeController {
 
     public LikeController(LikeApplicationService likeApplicationService) {
         this.likeApplicationService = likeApplicationService;
-    }
-
-    @PostMapping
-    public Result<LikeResponse> setLike(Authentication authentication, @Valid @RequestBody LikeRequest request) {
-        UUID userId = CurrentUser.requireUserUuid(authentication);
-        LikeResult result = likeApplicationService.setLike(new SetLikeCommand(
-                userId,
-                request.getEntityType(),
-                request.getEntityId(),
-                request.getLiked()
-        ));
-        return Result.ok(toResponse(result));
     }
 
     @GetMapping("/status")
@@ -75,10 +56,4 @@ public class LikeController {
         return Result.ok(likeApplicationService.statuses(userId, entityType, entityIds));
     }
 
-    private LikeResponse toResponse(LikeResult result) {
-        LikeResponse response = new LikeResponse();
-        response.setLiked(result.liked());
-        response.setLikeCount(result.likeCount());
-        return response;
-    }
 }

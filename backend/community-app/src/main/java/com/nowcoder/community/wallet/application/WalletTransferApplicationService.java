@@ -3,21 +3,21 @@ package com.nowcoder.community.wallet.application;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.infra.idempotency.EffectiveIdempotencyKey;
-import com.nowcoder.community.infra.idempotency.IdempotencyKeyResolver;
-import com.nowcoder.community.infra.idempotency.RequestFingerprint;
+import com.nowcoder.community.common.idempotency.EffectiveIdempotencyKey;
+import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
+import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import com.nowcoder.community.wallet.application.command.CreateTransferCommand;
 import com.nowcoder.community.wallet.application.result.TransferOrderResult;
 import com.nowcoder.community.wallet.domain.model.TransferOrder;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
+import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.TransferOrderRepository;
 import com.nowcoder.community.wallet.domain.service.WalletOrderDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -120,7 +120,7 @@ public class WalletTransferApplicationService {
 
         TransferOrder existing = transferOrderRepository.findByFromUserIdAndRequestId(fromUserId, requestId);
         if (existing != null) {
-            ensureReplayMatches(existing, fromUserId, toUserId, amount);
+            ensureReplayMatches(existing, requestId, fromUserId, toUserId, amount);
             return TransferOrderResult.from(existing);
         }
 
@@ -128,7 +128,7 @@ public class WalletTransferApplicationService {
         accountService.requireUserWalletActive(fromUserId);
 
         TransferOrder order = createOrLoad(requestId, fromUserId, toUserId, amount);
-        ensureReplayMatches(order, fromUserId, toUserId, amount);
+        ensureReplayMatches(order, requestId, fromUserId, toUserId, amount);
         if (!"SUCCEEDED".equals(order.getStatus())) {
             ledgerService.post(new WalletLedgerCommand(
                     "wallet:transfer:" + order.getOrderId(),
@@ -160,16 +160,18 @@ public class WalletTransferApplicationService {
         order.setToUserId(toUserId);
         order.setAmount(amount);
         order.setStatus("CREATED");
-        try {
-            transferOrderRepository.insert(order);
-            return order;
-        } catch (DataIntegrityViolationException ex) {
-            TransferOrder duplicated = transferOrderRepository.findByFromUserIdAndRequestId(fromUserId, requestId);
-            if (duplicated != null) {
-                return duplicated;
-            }
-            throw ex;
+        CreationOutcome<TransferOrder> outcome = transferOrderRepository.create(order);
+        if (outcome == null
+                || outcome.status() == CreationOutcome.Status.CONFLICT
+                || outcome.aggregate() == null) {
+            throw new BusinessException(
+                    WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                    "transfer order creation conflict: requestId=" + requestId
+            );
         }
+        TransferOrder persisted = outcome.aggregate();
+        ensureReplayMatches(persisted, requestId, fromUserId, toUserId, amount);
+        return persisted;
     }
 
     private TransferOrder requireOrder(UUID fromUserId, String requestId) {
@@ -180,8 +182,17 @@ public class WalletTransferApplicationService {
         return order;
     }
 
-    private void ensureReplayMatches(TransferOrder order, UUID fromUserId, UUID toUserId, long amount) {
-        if (!fromUserId.equals(order.getFromUserId()) || !toUserId.equals(order.getToUserId()) || order.getAmount() != amount) {
+    private void ensureReplayMatches(
+            TransferOrder order,
+            String requestId,
+            UUID fromUserId,
+            UUID toUserId,
+            long amount
+    ) {
+        if (!Objects.equals(requestId, order.getRequestId())
+                || !fromUserId.equals(order.getFromUserId())
+                || !toUserId.equals(order.getToUserId())
+                || order.getAmount() != amount) {
             throw new BusinessException(
                     WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                     "requestId replay conflict: requestId=" + order.getRequestId()

@@ -84,12 +84,6 @@
         limit #{limit}
     </select>
 
-    <insert id="upsertPolicyVersionCounter">
-        insert into user_policy_version_counter(id, current_version)
-        values(#{id}, 0)
-        on duplicate key update current_version = current_version
-    </insert>
-
     <select id="selectPolicyVersionCounterForUpdate" resultType="long">
         select current_version
         from user_policy_version_counter
@@ -108,12 +102,6 @@
         from user_policy_version_counter
         where id = #{id}
     </select>
-
-    <insert id="upsertSecurityVersionCounter">
-        insert into user_security_version_counter(id, current_version)
-        values(#{id}, 0)
-        on duplicate key update current_version = current_version
-    </insert>
 
     <select id="selectSecurityVersionCounterForUpdate" resultType="long">
         select current_version

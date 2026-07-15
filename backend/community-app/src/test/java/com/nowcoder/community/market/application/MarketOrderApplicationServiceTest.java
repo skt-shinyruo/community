@@ -3,6 +3,7 @@ package com.nowcoder.community.market.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.ErrorKind;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.controller.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.controller.dto.CreateMarketListingRequest;
@@ -314,7 +315,7 @@ class MarketOrderApplicationServiceTest {
 
         assertThatThrownBy(() -> marketOrderService.createOrder("virtual:req-listing-mismatch", buyerUserId, secondListingId, 1, null))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode().getHttpStatus()).isEqualTo(409))
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode().getKind()).isEqualTo(ErrorKind.CONFLICT))
                 .hasMessageContaining("requestId");
     }
 
@@ -331,7 +332,7 @@ class MarketOrderApplicationServiceTest {
 
         assertThatThrownBy(() -> marketOrderService.createOrder("physical:req-address-mismatch", buyerUserId, listingId, 1, secondAddressId))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode().getHttpStatus()).isEqualTo(409))
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode().getKind()).isEqualTo(ErrorKind.CONFLICT))
                 .hasMessageContaining("requestId");
     }
 

@@ -6,9 +6,12 @@ import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.command.DispatchContentEventCommand;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.content.infrastructure.event.JacksonContentContractEventCodec;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -28,9 +31,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class ContentEventDispatchApplicationServiceTest {
 
     private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final ContentContractEventCodec contractEventCodec = new JacksonContentContractEventCodec(jsonCodec);
     private final ContentIntegrationEventDispatcher dispatcher = mock(ContentIntegrationEventDispatcher.class);
     private final ContentEventDispatchApplicationService service =
-            new ContentEventDispatchApplicationService(jsonCodec, dispatcher);
+            new ContentEventDispatchApplicationService(contractEventCodec, dispatcher);
 
     @Test
     void dispatchShouldConvertPostPayloadAndSendThroughPort() {
@@ -43,7 +47,7 @@ class ContentEventDispatchApplicationServiceTest {
                 ContentEventTypes.POST_PUBLISHED,
                 Instant.EPOCH,
                 1L,
-                postPayload(postId)
+                jsonCodec.valueToTree(postPayload(postId))
         ))));
 
         ArgumentCaptor<ContentContractEvent> eventCaptor = ArgumentCaptor.forClass(ContentContractEvent.class);
@@ -51,8 +55,9 @@ class ContentEventDispatchApplicationServiceTest {
         ContentContractEvent event = eventCaptor.getValue();
         assertThat(event.eventId()).isEqualTo("content:PostPublished:" + postId);
         assertThat(event.type()).isEqualTo(ContentEventTypes.POST_PUBLISHED);
-        assertThat(event.payload()).isInstanceOf(PostPayload.class);
-        assertThat(((PostPayload) event.payload()).getPostId()).isEqualTo(postId);
+        ContentTypedEvent.PostPublished typedEvent =
+                (ContentTypedEvent.PostPublished) contractEventCodec.decode(event);
+        assertThat(typedEvent.payload().getPostId()).isEqualTo(postId);
     }
 
     @Test
@@ -67,7 +72,7 @@ class ContentEventDispatchApplicationServiceTest {
                 ContentEventTypes.COMMENT_CREATED,
                 Instant.EPOCH,
                 1L,
-                commentPayload(commentId)
+                jsonCodec.valueToTree(commentPayload(commentId))
         ))));
         service.dispatch(new DispatchContentEventCommand(toUserId.toString(), toJson(new ContentContractEvent(
                 "content:ModerationActionApplied:" + toUserId,
@@ -76,16 +81,18 @@ class ContentEventDispatchApplicationServiceTest {
                 ContentEventTypes.MODERATION_ACTION_APPLIED,
                 Instant.EPOCH,
                 1L,
-                moderationPayload(toUserId)
+                jsonCodec.valueToTree(moderationPayload(toUserId))
         ))));
 
         ArgumentCaptor<ContentContractEvent> eventCaptor = ArgumentCaptor.forClass(ContentContractEvent.class);
         verify(dispatcher).dispatch(eq(commentId.toString()), eventCaptor.capture());
         verify(dispatcher).dispatch(eq(toUserId.toString()), eventCaptor.capture());
-        assertThat(eventCaptor.getAllValues().get(0).payload()).isInstanceOf(CommentPayload.class);
-        assertThat(((CommentPayload) eventCaptor.getAllValues().get(0).payload()).getCommentId()).isEqualTo(commentId);
-        assertThat(eventCaptor.getAllValues().get(1).payload()).isInstanceOf(ModerationPayload.class);
-        assertThat(((ModerationPayload) eventCaptor.getAllValues().get(1).payload()).getToUserId()).isEqualTo(toUserId);
+        ContentTypedEvent.CommentCreated commentCreated =
+                (ContentTypedEvent.CommentCreated) contractEventCodec.decode(eventCaptor.getAllValues().get(0));
+        ContentTypedEvent.ModerationActionApplied moderationActionApplied =
+                (ContentTypedEvent.ModerationActionApplied) contractEventCodec.decode(eventCaptor.getAllValues().get(1));
+        assertThat(commentCreated.payload().getCommentId()).isEqualTo(commentId);
+        assertThat(moderationActionApplied.payload().getToUserId()).isEqualTo(toUserId);
     }
 
     @Test
@@ -216,7 +223,7 @@ class ContentEventDispatchApplicationServiceTest {
                 ContentEventTypes.POST_PUBLISHED,
                 Instant.EPOCH,
                 1L,
-                postPayload(postId)
+                jsonCodec.valueToTree(postPayload(postId))
         ));
         doThrow(failure).when(dispatcher).dispatch(eq(postId.toString()), any());
 

@@ -25,9 +25,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.util.UUID;
 
+import static com.nowcoder.community.market.support.MarketOrderTestFixture.order;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -172,12 +174,52 @@ class MarketOrderApplicationServiceUnitTest {
         when(marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId))
                 .thenReturn(null, MarketOrderDataObject.from(duplicated));
         when(marketOrderMapper.insert(any(MarketOrderDataObject.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate requestId"));
+                .thenThrow(new DuplicateKeyException("duplicate requestId"));
 
         MarketOrderResult response = service.createOrder(requestId, buyerUserId, listingId, 1, null);
 
         assertThat(response.orderId()).isEqualTo(duplicated.getOrderId());
         assertThat(response.requestId()).isEqualTo(requestId);
+        verify(marketWalletActionService, never()).enqueueEscrow(any(), any(), any(), anyLong());
+    }
+
+    @Test
+    void createOrderShouldRejectMismatchedAggregateReloadedAfterDuplicateInsert() {
+        MarketOrderApplicationService service = service();
+        UUID buyerUserId = UUID.fromString("00000000-0000-7000-8000-000000000009");
+        UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000007");
+        String requestId = "market:req-duplicate-mismatch";
+        MarketOrder conflicting = existingOrder(requestId, listingId, buyerUserId, 2);
+
+        when(marketOrderMapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId)).thenReturn(null);
+        when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(MarketListingDataObject.from(activeListing(listingId)));
+        when(marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId))
+                .thenReturn(null, MarketOrderDataObject.from(conflicting));
+        when(marketOrderMapper.insert(any(MarketOrderDataObject.class)))
+                .thenThrow(new DuplicateKeyException("duplicate requestId"));
+
+        assertThatThrownBy(() -> service.createOrder(requestId, buyerUserId, listingId, 1, null))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(MarketErrorCode.REQUEST_REPLAY_CONFLICT));
+        verify(marketWalletActionService, never()).enqueueEscrow(any(), any(), any(), anyLong());
+    }
+
+    @Test
+    void createOrderShouldPropagateUnknownIntegrityFailure() {
+        MarketOrderApplicationService service = service();
+        UUID buyerUserId = UUID.fromString("00000000-0000-7000-8000-000000000009");
+        UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000007");
+        String requestId = "market:req-unknown-integrity";
+        DataIntegrityViolationException unknown = new DataIntegrityViolationException("unknown market constraint");
+
+        when(marketOrderMapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId)).thenReturn(null);
+        when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(MarketListingDataObject.from(activeListing(listingId)));
+        when(marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId)).thenReturn(null);
+        when(marketOrderMapper.insert(any(MarketOrderDataObject.class))).thenThrow(unknown);
+
+        assertThatThrownBy(() -> service.createOrder(requestId, buyerUserId, listingId, 1, null))
+                .isSameAs(unknown);
         verify(marketWalletActionService, never()).enqueueEscrow(any(), any(), any(), anyLong());
     }
 
@@ -221,21 +263,20 @@ class MarketOrderApplicationServiceUnitTest {
     }
 
     private MarketOrder existingOrder(String requestId, UUID listingId, UUID buyerUserId, int quantity) {
-        MarketOrder order = new MarketOrder();
-        order.setOrderId(UUID.fromString("00000000-0000-7000-8000-000000000101"));
-        order.setRequestId(requestId);
-        order.setListingId(listingId);
-        order.setGoodsType("VIRTUAL");
-        order.setSellerUserId(UUID.fromString("00000000-0000-7000-8000-000000000008"));
-        order.setBuyerUserId(buyerUserId);
-        order.setQuantity(quantity);
-        order.setUnitPriceSnapshot(1_200L);
-        order.setTotalAmount(1_200L);
-        order.setDeliveryModeSnapshot("MANUAL");
-        order.setListingTitleSnapshot("邀请码");
-        order.setStatus("ESCROWED");
-        order.setEscrowTxnId(UUID.fromString("00000000-0000-7000-8000-000000000123"));
-        return order;
+        return order(UUID.fromString("00000000-0000-7000-8000-000000000101"))
+                .requestId(requestId)
+                .listingId(listingId)
+                .goodsType("VIRTUAL")
+                .sellerUserId(UUID.fromString("00000000-0000-7000-8000-000000000008"))
+                .buyerUserId(buyerUserId)
+                .quantity(quantity)
+                .unitPriceSnapshot(1_200L)
+                .totalAmount(1_200L)
+                .deliveryModeSnapshot("MANUAL")
+                .listingTitleSnapshot("邀请码")
+                .status("ESCROWED")
+                .escrowTxnId(UUID.fromString("00000000-0000-7000-8000-000000000123"))
+                .build();
     }
 
     private MarketOrder existingPhysicalOrder(
@@ -244,10 +285,10 @@ class MarketOrderApplicationServiceUnitTest {
             UUID buyerUserId,
             UUID addressIdSnapshot
     ) {
-        MarketOrder order = existingOrder(requestId, listingId, buyerUserId, 1);
-        order.setGoodsType("PHYSICAL");
-        order.setAddressIdSnapshot(addressIdSnapshot);
-        return order;
+        return order(existingOrder(requestId, listingId, buyerUserId, 1))
+                .goodsType("PHYSICAL")
+                .addressIdSnapshot(addressIdSnapshot)
+                .build();
     }
 
     private static UUID uuid(int value) {

@@ -27,7 +27,10 @@ public class LoginTokenIssuer {
 
     public LoginResult issueLoginResult(UserCredentialView user) {
         String accessToken = issueAccessToken(user);
-        RefreshTokenApplicationService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user.userId());
+        RefreshTokenApplicationService.IssuedRefreshToken refreshToken = refreshTokenService.issue(
+                user.userId(),
+                user.securityVersion()
+        );
         return new LoginResult(accessToken, refreshToken.cookie());
     }
 

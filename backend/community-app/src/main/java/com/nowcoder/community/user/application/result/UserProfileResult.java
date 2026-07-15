@@ -9,8 +9,6 @@ public record UserProfileResult(
         String headerUrl,
         int type,
         int status,
-        Date createTime,
-        long walletBalance,
-        String walletStatus
+        Date createTime
 ) {
 }

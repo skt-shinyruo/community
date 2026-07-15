@@ -1,0 +1,15 @@
+{
+  "eventId": "user:policy:changed:301:13",
+  "type": "UserPolicyChanged",
+  "payload": {
+    "userId": "01965429-b34a-7000-8000-000000000301",
+    "userExists": true,
+    "suspended": false,
+    "muted": true,
+    "muteUntil": 1784078400000,
+    "banUntil": null,
+    "canSendPrivate": false,
+    "occurredAtEpochMillis": 1773800000000,
+    "version": 13
+  }
+}

@@ -6,8 +6,10 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -16,9 +18,10 @@ final class ArchitectureRulesSupport {
     static final Set<String> CORE_DOMAINS = Set.of(
             "auth",
             "user",
+            "profile",
+            "interaction",
             "content",
             "social",
-            "message",
             "notice",
             "search",
             "analytics",
@@ -33,10 +36,42 @@ final class ArchitectureRulesSupport {
             "im"
     );
 
+    static final Set<String> PLATFORM_MODULES = Set.of(
+            "runtime"
+    );
+
+    static final Set<String> TECHNICAL_ROOTS = Set.of(
+            "app",
+            "infra"
+    );
+
     static final Set<String> BUSINESS_OR_ADAPTER_DOMAINS = Stream.concat(
             CORE_DOMAINS.stream(),
             ADAPTER_DOMAINS.stream()
     ).collect(Collectors.toUnmodifiableSet());
+
+    static final Set<String> TACTICAL_ROOTS = Stream.of(
+                    CORE_DOMAINS,
+                    ADAPTER_DOMAINS,
+                    PLATFORM_MODULES
+            )
+            .flatMap(Set::stream)
+            .collect(Collectors.toUnmodifiableSet());
+
+    static final Set<String> CLASSIFIED_TOP_LEVEL_ROOTS = Stream.concat(
+                    TACTICAL_ROOTS.stream(),
+                    TECHNICAL_ROOTS.stream()
+            )
+            .collect(Collectors.toUnmodifiableSet());
+
+    private static final Set<String> TACTICAL_LAYERS = Set.of(
+            "controller",
+            "application",
+            "domain",
+            "infrastructure",
+            "api",
+            "contracts"
+    );
 
     static final Map<String, Set<String>> TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN = Map.of();
 
@@ -48,6 +83,21 @@ final class ArchitectureRulesSupport {
     private static final String ROOT_PACKAGE = "com.nowcoder.community.";
 
     private ArchitectureRulesSupport() {
+    }
+
+    static Set<String> discoverTacticalRoots(Collection<String> packageNames) {
+        Set<String> discovered = new TreeSet<>();
+        for (String packageName : packageNames) {
+            if (!packageName.startsWith(ROOT_PACKAGE)) {
+                continue;
+            }
+            String relativePackage = packageName.substring(ROOT_PACKAGE.length());
+            String[] segments = relativePackage.split("\\.");
+            if (segments.length >= 2 && TACTICAL_LAYERS.contains(segments[1])) {
+                discovered.add(segments[0]);
+            }
+        }
+        return discovered;
     }
 
     static String domainOf(JavaClass javaClass) {

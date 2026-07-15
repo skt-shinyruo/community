@@ -1,9 +1,12 @@
 package com.nowcoder.community.market.infrastructure.persistence;
 
 import com.nowcoder.community.market.domain.model.MarketOrder;
+import com.nowcoder.community.market.domain.model.MarketOrderTransition;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject;
+import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderTransitionDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketOrderMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
@@ -20,152 +23,89 @@ public class MyBatisMarketOrderRepository implements MarketOrderRepository {
     }
 
     @Override
-    public int save(MarketOrder order) {
-        return mapper.insert(MarketOrderDataObject.from(order));
+    public CreateResult create(MarketOrder order) {
+        try {
+            return mapper.insert(MarketOrderDataObject.from(order)) == 1
+                    ? new CreateResult(CreateStatus.CREATED, order)
+                    : new CreateResult(CreateStatus.CONFLICT, null);
+        } catch (DuplicateKeyException ignored) {
+            MarketOrder existing = lockByBuyerUserIdAndRequestId(order.getBuyerUserId(), order.getRequestId());
+            return existing == null
+                    ? new CreateResult(CreateStatus.CONFLICT, null)
+                    : new CreateResult(CreateStatus.ALREADY_EXISTS, existing);
+        }
     }
 
     @Override
     public MarketOrder findById(UUID orderId) {
-        return mapper.selectById(orderId);
+        return toDomain(mapper.selectById(orderId));
     }
 
     @Override
     public MarketOrder lockById(UUID orderId) {
-        return mapper.selectByIdForUpdate(orderId);
+        return toDomain(mapper.selectByIdForUpdate(orderId));
     }
 
     @Override
     public MarketOrder findByRequestId(String requestId) {
-        return mapper.selectByRequestId(requestId);
+        return toDomain(mapper.selectByRequestId(requestId));
     }
 
     @Override
     public MarketOrder lockByRequestId(String requestId) {
-        return mapper.selectByRequestIdForUpdate(requestId);
+        return toDomain(mapper.selectByRequestIdForUpdate(requestId));
     }
 
     @Override
     public MarketOrder findByBuyerUserIdAndRequestId(UUID buyerUserId, String requestId) {
-        return mapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId);
+        return toDomain(mapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId));
     }
 
     @Override
     public MarketOrder lockByBuyerUserIdAndRequestId(UUID buyerUserId, String requestId) {
-        return mapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId);
+        return toDomain(mapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId));
     }
 
     @Override
     public List<MarketOrder> findByBuyerUserId(UUID buyerUserId) {
-        return DomainRowAdapter.asDomainList(mapper.selectByBuyerUserId(buyerUserId));
+        return toDomainList(mapper.selectByBuyerUserId(buyerUserId));
     }
 
     @Override
     public List<MarketOrder> findBySellerUserId(UUID sellerUserId) {
-        return DomainRowAdapter.asDomainList(mapper.selectBySellerUserId(sellerUserId));
+        return toDomainList(mapper.selectBySellerUserId(sellerUserId));
     }
 
     @Override
-    public int markDelivered(UUID orderId, Date autoConfirmAt) {
-        return mapper.markDelivered(orderId, autoConfirmAt);
-    }
-
-    @Override
-    public int markShipped(UUID orderId, Date autoConfirmAt) {
-        return mapper.markShipped(orderId, autoConfirmAt);
-    }
-
-    @Override
-    public int markEscrowSucceeded(UUID orderId, UUID escrowTxnId) {
-        return mapper.markEscrowSucceeded(orderId, escrowTxnId);
-    }
-
-    @Override
-    public int markEscrowFailed(UUID orderId) {
-        return mapper.markEscrowFailed(orderId);
-    }
-
-    @Override
-    public int markReleasePending(UUID orderId) {
-        return mapper.markReleasePending(orderId);
-    }
-
-    @Override
-    public int markReleaseSucceeded(UUID orderId, UUID releaseTxnId) {
-        return mapper.markReleaseSucceeded(orderId, releaseTxnId);
-    }
-
-    @Override
-    public int markRefundPending(UUID orderId) {
-        return mapper.markRefundPending(orderId);
-    }
-
-    @Override
-    public int markEscrowCancelPending(UUID orderId) {
-        return mapper.markEscrowCancelPending(orderId);
-    }
-
-    @Override
-    public int markEscrowCancelRefundPending(UUID orderId, UUID escrowTxnId) {
-        return mapper.markEscrowCancelRefundPending(orderId, escrowTxnId);
-    }
-
-    @Override
-    public int markCancelledNoRefund(UUID orderId) {
-        return mapper.markCancelledNoRefund(orderId);
-    }
-
-    @Override
-    public int markCancelledWithRefund(UUID orderId, UUID refundTxnId) {
-        return mapper.markCancelledWithRefund(orderId, refundTxnId);
-    }
-
-    @Override
-    public int markDisputeRefundPending(UUID orderId) {
-        return mapper.markDisputeRefundPending(orderId);
-    }
-
-    @Override
-    public int markDisputeReleasePending(UUID orderId) {
-        return mapper.markDisputeReleasePending(orderId);
-    }
-
-    @Override
-    public int markDisputeRefundSucceeded(UUID orderId, UUID refundTxnId) {
-        return mapper.markDisputeRefundSucceeded(orderId, refundTxnId);
-    }
-
-    @Override
-    public int markCompleted(UUID orderId, UUID releaseTxnId) {
-        return mapper.markCompleted(orderId, releaseTxnId);
-    }
-
-    @Override
-    public int markCancelled(UUID orderId, UUID refundTxnId) {
-        return mapper.markCancelled(orderId, refundTxnId);
-    }
-
-    @Override
-    public int markDisputed(UUID orderId) {
-        return mapper.markDisputed(orderId);
-    }
-
-    @Override
-    public int markRefunded(UUID orderId, UUID refundTxnId) {
-        return mapper.markRefunded(orderId, refundTxnId);
-    }
-
-    @Override
-    public int changeStatus(UUID orderId, String status) {
-        return mapper.updateStatus(orderId, status);
+    public ApplyStatus apply(MarketOrderTransition transition) {
+        int updated = mapper.apply(MarketOrderTransitionDataObject.from(transition));
+        if (updated == 1) {
+            return ApplyStatus.APPLIED;
+        }
+        if (updated == 0) {
+            return ApplyStatus.STALE;
+        }
+        throw new IllegalStateException("market order transition updated unexpected row count: " + updated);
     }
 
     @Override
     public List<MarketOrder> findDueForAutoConfirm(Date asOf) {
-        return DomainRowAdapter.asDomainList(mapper.selectDueForAutoConfirm(asOf));
+        return toDomainList(mapper.selectDueForAutoConfirm(asOf));
     }
 
     @Override
     public List<MarketOrder> findWalletPendingOrders(int limit) {
-        return DomainRowAdapter.asDomainList(mapper.selectWalletPendingOrders(limit));
+        return toDomainList(mapper.selectWalletPendingOrders(limit));
+    }
+
+    private static MarketOrder toDomain(MarketOrderDataObject dataObject) {
+        return dataObject == null ? null : dataObject.toDomain();
+    }
+
+    private static List<MarketOrder> toDomainList(List<MarketOrderDataObject> dataObjects) {
+        if (dataObjects == null || dataObjects.isEmpty()) {
+            return List.of();
+        }
+        return dataObjects.stream().map(MarketOrderDataObject::toDomain).toList();
     }
 }

@@ -38,14 +38,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Result<Void>> handleAccessDenied(AccessDeniedException e) {
-        return ResponseEntity.status(httpStatusOf(CommonErrorCode.FORBIDDEN.getHttpStatus()))
-                .body(Result.error(CommonErrorCode.FORBIDDEN));
+        return response(CommonErrorCode.FORBIDDEN);
     }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> handleBusiness(BusinessException e) {
         ErrorCode errorCode = e.getErrorCode() == null ? CommonErrorCode.INTERNAL_ERROR : e.getErrorCode();
-        int status = errorCode.getHttpStatus();
+        int status = ErrorKindHttpStatusMapper.statusOf(errorCode.getKind());
         String message = e.getMessage();
         if (message == null) {
             message = errorCode.getMessage();
@@ -57,85 +56,87 @@ public class GlobalExceptionHandler {
                     TraceId.get(), errorCode.getCode(), status, resolvedMessage, e
             ));
         }
-        Result<Void> body = Result.error(errorCode.getCode(), message, errorCode.getHttpStatus());
-        return ResponseEntity.status(httpStatusOf(errorCode.getHttpStatus())).body(body);
+        return response(errorCode, message);
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class, ConstraintViolationException.class})
     public ResponseEntity<Result<Void>> handleValidation(Exception e) {
-        return ResponseEntity.status(httpStatusOf(CommonErrorCode.INVALID_ARGUMENT.getHttpStatus()))
-                .body(Result.error(CommonErrorCode.INVALID_ARGUMENT));
+        return response(CommonErrorCode.INVALID_ARGUMENT);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Result<Void>> handleBadJson(HttpMessageNotReadableException e) {
-        return ResponseEntity.status(httpStatusOf(CommonErrorCode.INVALID_ARGUMENT.getHttpStatus()))
-                .body(Result.error(CommonErrorCode.INVALID_ARGUMENT));
+        return response(CommonErrorCode.INVALID_ARGUMENT);
     }
 
     @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<Result<Void>> handleRequestParam(Exception e) {
-        return ResponseEntity.status(httpStatusOf(CommonErrorCode.INVALID_ARGUMENT.getHttpStatus()))
-                .body(Result.error(CommonErrorCode.INVALID_ARGUMENT));
+        return response(CommonErrorCode.INVALID_ARGUMENT);
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<Result<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
         return ResponseEntity.status(httpStatusOf(405))
-                .body(Result.error(405, "请求方法不支持"));
+                .body(Result.error(405, "请求方法不支持", 405));
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<Result<Void>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException e) {
         return ResponseEntity.status(httpStatusOf(415))
-                .body(Result.error(415, "不支持的 Content-Type"));
+                .body(Result.error(415, "不支持的 Content-Type", 415));
     }
 
     @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
     public ResponseEntity<Result<Void>> handleNotFound(Exception e) {
-        return ResponseEntity.status(httpStatusOf(CommonErrorCode.NOT_FOUND.getHttpStatus()))
-                .body(Result.error(CommonErrorCode.NOT_FOUND));
+        return response(CommonErrorCode.NOT_FOUND);
     }
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Result<Void>> handleResponseStatus(ResponseStatusException e) {
         if (e == null || e.getStatusCode() == null) {
-            return ResponseEntity.status(httpStatusOf(CommonErrorCode.INTERNAL_ERROR.getHttpStatus()))
-                    .body(Result.error(CommonErrorCode.INTERNAL_ERROR));
+            return response(CommonErrorCode.INTERNAL_ERROR);
         }
         int status = e.getStatusCode().value();
-        if (status == CommonErrorCode.INVALID_ARGUMENT.getHttpStatus()) {
-            return ResponseEntity.status(httpStatusOf(status))
-                    .body(Result.error(CommonErrorCode.INVALID_ARGUMENT));
+        if (status == ErrorKindHttpStatusMapper.statusOf(CommonErrorCode.INVALID_ARGUMENT.getKind())) {
+            return response(CommonErrorCode.INVALID_ARGUMENT);
         }
-        if (status == CommonErrorCode.UNAUTHORIZED.getHttpStatus()) {
-            return ResponseEntity.status(httpStatusOf(status))
-                    .body(Result.error(CommonErrorCode.UNAUTHORIZED));
+        if (status == ErrorKindHttpStatusMapper.statusOf(CommonErrorCode.UNAUTHORIZED.getKind())) {
+            return response(CommonErrorCode.UNAUTHORIZED);
         }
-        if (status == CommonErrorCode.FORBIDDEN.getHttpStatus()) {
-            return ResponseEntity.status(httpStatusOf(status))
-                    .body(Result.error(CommonErrorCode.FORBIDDEN));
+        if (status == ErrorKindHttpStatusMapper.statusOf(CommonErrorCode.FORBIDDEN.getKind())) {
+            return response(CommonErrorCode.FORBIDDEN);
         }
-        if (status == CommonErrorCode.NOT_FOUND.getHttpStatus()) {
-            return ResponseEntity.status(httpStatusOf(status))
-                    .body(Result.error(CommonErrorCode.NOT_FOUND));
+        if (status == ErrorKindHttpStatusMapper.statusOf(CommonErrorCode.NOT_FOUND.getKind())) {
+            return response(CommonErrorCode.NOT_FOUND);
         }
         return ResponseEntity.status(httpStatusOf(status))
-                .body(Result.error(status, e.getReason() == null ? e.getStatusCode().toString() : e.getReason()));
+                .body(Result.error(
+                        status,
+                        e.getReason() == null ? e.getStatusCode().toString() : e.getReason(),
+                        status
+                ));
     }
 
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<Result<Void>> handleDataAccess(DataAccessException e) {
         errorEvent("data_access_exception", () -> log.error("[exception][data-access] traceId={}", TraceId.get(), e));
-        return ResponseEntity.status(httpStatusOf(CommonErrorCode.SERVICE_UNAVAILABLE.getHttpStatus()))
-                .body(Result.error(CommonErrorCode.SERVICE_UNAVAILABLE));
+        return response(CommonErrorCode.SERVICE_UNAVAILABLE);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Void>> handleGeneric(Exception e) {
         errorEvent("unhandled_exception", () -> log.error("[exception][unhandled] traceId={}", TraceId.get(), e));
-        return ResponseEntity.status(httpStatusOf(CommonErrorCode.INTERNAL_ERROR.getHttpStatus()))
-                .body(Result.error(CommonErrorCode.INTERNAL_ERROR));
+        return response(CommonErrorCode.INTERNAL_ERROR);
+    }
+
+    private ResponseEntity<Result<Void>> response(ErrorCode errorCode) {
+        return response(errorCode, errorCode.getMessage());
+    }
+
+    private ResponseEntity<Result<Void>> response(ErrorCode errorCode, String message) {
+        int status = ErrorKindHttpStatusMapper.statusOf(errorCode.getKind());
+        Result<Void> body = Result.error(errorCode.getCode(), message, status);
+        return ResponseEntity.status(httpStatusOf(status)).body(body);
     }
 
     private HttpStatus httpStatusOf(int httpStatus) {

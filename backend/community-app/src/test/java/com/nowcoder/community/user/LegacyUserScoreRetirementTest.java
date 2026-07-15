@@ -1,7 +1,7 @@
 package com.nowcoder.community.user;
 
 import com.nowcoder.community.support.DeployCommunitySchema;
-import com.nowcoder.community.user.controller.dto.UserProfileResponse;
+import com.nowcoder.community.profile.controller.dto.UserProfileResponse;
 import com.nowcoder.community.user.domain.service.UserReadDomainService;
 import com.nowcoder.community.user.infrastructure.persistence.mapper.UserMapper;
 import org.junit.jupiter.api.Test;

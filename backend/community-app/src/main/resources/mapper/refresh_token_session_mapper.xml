@@ -3,17 +3,18 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.nowcoder.community.user.infrastructure.persistence.mapper.RefreshTokenSessionMapper">
+<mapper namespace="com.nowcoder.community.auth.infrastructure.persistence.mapper.RefreshTokenSessionMapper">
 
     <sql id="fields">
-        token_hash, user_id, family_id, expires_at, state, pending_expires_at, revoked_at
+        token_hash, user_id, family_id, security_version, expires_at, state, pending_expires_at, revoked_at
     </sql>
 
     <resultMap id="refreshTokenSessionResultMap"
-               type="com.nowcoder.community.user.infrastructure.persistence.dataobject.RefreshTokenSessionDataObject">
+               type="com.nowcoder.community.auth.infrastructure.persistence.dataobject.RefreshTokenSessionDataObject">
         <id property="tokenHash" column="token_hash"/>
         <result property="userId" column="user_id" jdbcType="BINARY"/>
         <result property="familyId" column="family_id"/>
+        <result property="securityVersionAtIssue" column="security_version"/>
         <result property="expiresAt" column="expires_at"/>
         <result property="state" column="state"/>
         <result property="pendingExpiresAt" column="pending_expires_at"/>
@@ -21,14 +22,18 @@
     </resultMap>
 
     <insert id="storeIfFamilyActive">
-        insert into auth_refresh_token(token_hash, user_id, family_id, expires_at, state, pending_expires_at, revoked_at)
-        select #{tokenHash}, #{userId, jdbcType=BINARY}, #{familyId}, #{expiresAt}, 'ACTIVE', null, null
+        insert into auth_refresh_token(
+            token_hash, user_id, family_id, security_version, expires_at, state, pending_expires_at, revoked_at
+        )
+        select #{tokenHash}, #{userId, jdbcType=BINARY}, #{familyId}, #{securityVersionAtIssue},
+               #{expiresAt}, 'ACTIVE', null, null
         where not exists (
             select 1 from auth_refresh_token_family_revocation where family_id = #{familyId}
         )
         on duplicate key update
             user_id = values(user_id),
             family_id = values(family_id),
+            security_version = values(security_version),
             expires_at = values(expires_at),
             state = 'ACTIVE',
             pending_expires_at = null,
@@ -84,6 +89,7 @@
         where token_hash = #{tokenHash}
           and user_id = #{userId, jdbcType=BINARY}
           and family_id = #{familyId}
+          and security_version = #{securityVersionAtIssue}
           and state = 'PENDING_ROTATION'
           and revoked_at is null
     </update>
@@ -119,24 +125,6 @@
             pending_expires_at = null,
             revoked_at = now()
         where family_id = #{familyId}
-          and state in ('ACTIVE', 'PENDING_ROTATION')
-          and revoked_at is null
-    </update>
-
-    <insert id="upsertUserFamilyRevocations">
-        insert into auth_refresh_token_family_revocation(family_id, revoked_at)
-        select distinct family_id, now()
-        from auth_refresh_token
-        where user_id = #{userId, jdbcType=BINARY}
-        on duplicate key update revoked_at = values(revoked_at)
-    </insert>
-
-    <update id="revokeUserTokens">
-        update auth_refresh_token
-        set state = 'REVOKED',
-            pending_expires_at = null,
-            revoked_at = now()
-        where user_id = #{userId, jdbcType=BINARY}
           and state in ('ACTIVE', 'PENDING_ROTATION')
           and revoked_at is null
     </update>

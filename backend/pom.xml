@@ -55,6 +55,9 @@
         <module>community-im</module>
         <module>community-gateway</module>
         <module>community-im-gateway</module>
+        <module>community-db-migrations</module>
+        <module>community-oss-db-migrations</module>
+        <module>community-im-db-migrations</module>
         <module>community-app</module>
         <module>community-oss</module>
         <module>community-oss-client</module>

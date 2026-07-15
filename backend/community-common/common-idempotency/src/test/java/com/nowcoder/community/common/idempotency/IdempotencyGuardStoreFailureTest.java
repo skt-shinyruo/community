@@ -1,6 +1,7 @@
 package com.nowcoder.community.common.idempotency;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.ErrorKind;
 import com.nowcoder.community.common.exception.SimpleErrorCode;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
@@ -77,7 +78,7 @@ class IdempotencyGuardStoreFailureTest {
                 USER_ID,
                 "k1",
                 "hash-b",
-                new SimpleErrorCode(17007, "请求号与已有钱包请求不一致", 409),
+                new SimpleErrorCode(17007, "请求号与已有钱包请求不一致", ErrorKind.CONFLICT),
                 String.class,
                 () -> {
                     supplierCalls.incrementAndGet();
@@ -87,7 +88,7 @@ class IdempotencyGuardStoreFailureTest {
                 .satisfies(ex -> {
                     BusinessException error = (BusinessException) ex;
                     assertThat(error.getErrorCode().getCode()).isEqualTo(17007);
-                    assertThat(error.getErrorCode().getHttpStatus()).isEqualTo(409);
+                    assertThat(error.getErrorCode().getKind()).isEqualTo(ErrorKind.CONFLICT);
                 });
 
         assertThat(supplierCalls).hasValue(0);
@@ -107,7 +108,7 @@ class IdempotencyGuardStoreFailureTest {
                 USER_ID,
                 "k1",
                 "hash-a",
-                new SimpleErrorCode(17007, "请求号与已有钱包请求不一致", 409),
+                new SimpleErrorCode(17007, "请求号与已有钱包请求不一致", ErrorKind.CONFLICT),
                 String.class,
                 () -> "NEW"
         );

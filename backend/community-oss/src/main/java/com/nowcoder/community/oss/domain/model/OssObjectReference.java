@@ -60,6 +60,10 @@ public record OssObjectReference(
     }
 
     public OssObjectReference release(Instant now) {
+        Objects.requireNonNull(now, "now");
+        if (status == OssObjectReferenceStatus.RELEASED) {
+            return this;
+        }
         return new OssObjectReference(
                 referenceId,
                 objectId,

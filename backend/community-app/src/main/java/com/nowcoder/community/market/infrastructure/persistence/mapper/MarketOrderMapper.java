@@ -1,6 +1,7 @@
 package com.nowcoder.community.market.infrastructure.persistence.mapper;
 
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject;
+import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderTransitionDataObject;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -33,43 +34,7 @@ public interface MarketOrderMapper {
 
     List<MarketOrderDataObject> selectBySellerUserId(@Param("sellerUserId") UUID sellerUserId);
 
-    int markDelivered(@Param("orderId") UUID orderId, @Param("autoConfirmAt") Date autoConfirmAt);
-
-    int markShipped(@Param("orderId") UUID orderId, @Param("autoConfirmAt") Date autoConfirmAt);
-
-    int markEscrowSucceeded(@Param("orderId") UUID orderId, @Param("escrowTxnId") UUID escrowTxnId);
-
-    int markEscrowFailed(@Param("orderId") UUID orderId);
-
-    int markReleasePending(@Param("orderId") UUID orderId);
-
-    int markReleaseSucceeded(@Param("orderId") UUID orderId, @Param("releaseTxnId") UUID releaseTxnId);
-
-    int markRefundPending(@Param("orderId") UUID orderId);
-
-    int markEscrowCancelPending(@Param("orderId") UUID orderId);
-
-    int markEscrowCancelRefundPending(@Param("orderId") UUID orderId, @Param("escrowTxnId") UUID escrowTxnId);
-
-    int markCancelledNoRefund(@Param("orderId") UUID orderId);
-
-    int markCancelledWithRefund(@Param("orderId") UUID orderId, @Param("refundTxnId") UUID refundTxnId);
-
-    int markDisputeRefundPending(@Param("orderId") UUID orderId);
-
-    int markDisputeReleasePending(@Param("orderId") UUID orderId);
-
-    int markDisputeRefundSucceeded(@Param("orderId") UUID orderId, @Param("refundTxnId") UUID refundTxnId);
-
-    int markCompleted(@Param("orderId") UUID orderId, @Param("releaseTxnId") UUID releaseTxnId);
-
-    int markCancelled(@Param("orderId") UUID orderId, @Param("refundTxnId") UUID refundTxnId);
-
-    int markDisputed(@Param("orderId") UUID orderId);
-
-    int markRefunded(@Param("orderId") UUID orderId, @Param("refundTxnId") UUID refundTxnId);
-
-    int updateStatus(@Param("orderId") UUID orderId, @Param("status") String status);
+    int apply(MarketOrderTransitionDataObject transition);
 
     List<MarketOrderDataObject> selectDueForAutoConfirm(@Param("asOf") Date asOf);
 

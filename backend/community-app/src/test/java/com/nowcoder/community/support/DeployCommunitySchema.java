@@ -10,15 +10,7 @@ public final class DeployCommunitySchema {
     }
 
     public static String read(Path repoRoot) throws IOException {
-        StringBuilder builder = new StringBuilder();
-        try (var paths = Files.list(repoRoot.resolve("deploy/mysql/community"))) {
-            for (Path path : paths
-                    .filter(candidate -> candidate.getFileName().toString().endsWith(".sql"))
-                    .sorted()
-                    .toList()) {
-                builder.append(Files.readString(path)).append('\n');
-            }
-        }
-        return builder.toString();
+        return Files.readString(repoRoot.resolve(
+                "backend/community-db-migrations/src/main/resources/db/migration/community/V001__baseline.sql"));
     }
 }

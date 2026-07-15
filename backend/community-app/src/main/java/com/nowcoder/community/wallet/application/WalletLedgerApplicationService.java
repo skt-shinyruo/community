@@ -11,13 +11,13 @@ import com.nowcoder.community.wallet.domain.model.WalletLedgerItem;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
+import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.WalletLedgerRepository;
 import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
 import com.nowcoder.community.wallet.domain.service.WalletLedgerDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.application.result.WalletTxnResult;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -128,7 +128,7 @@ public class WalletLedgerApplicationService {
 
         WalletTxn existing = walletLedgerRepository.findTxnByRequestId(requestId);
         if (existing != null) {
-            ensureReplayMatches(existing, txnType, normalizedBizType, normalizedBizId, postings);
+            ensureReplayMatches(existing, requestId, txnType, normalizedBizType, normalizedBizId, postings);
             return new WalletTxnResult(existing.getTxnId(), existing.getStatus());
         }
 
@@ -141,15 +141,19 @@ public class WalletLedgerApplicationService {
                 amountOf(postings),
                 new Date()
         );
-        try {
-            walletLedgerRepository.insertTxn(txn);
-        } catch (DataIntegrityViolationException ex) {
-            WalletTxn duplicated = walletLedgerRepository.findTxnByRequestId(requestId);
-            if (duplicated != null) {
-                ensureReplayMatches(duplicated, txnType, normalizedBizType, normalizedBizId, postings);
-                return new WalletTxnResult(duplicated.getTxnId(), duplicated.getStatus());
-            }
-            throw ex;
+        CreationOutcome<WalletTxn> outcome = walletLedgerRepository.create(txn);
+        if (outcome == null
+                || outcome.status() == CreationOutcome.Status.CONFLICT
+                || outcome.aggregate() == null) {
+            throw new BusinessException(
+                    WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                    "wallet transaction creation conflict: requestId=" + requestId
+            );
+        }
+        txn = outcome.aggregate();
+        if (outcome.status() == CreationOutcome.Status.ALREADY_EXISTS) {
+            ensureReplayMatches(txn, requestId, txnType, normalizedBizType, normalizedBizId, postings);
+            return new WalletTxnResult(txn.getTxnId(), txn.getStatus());
         }
 
         for (WalletPosting posting : postings) {
@@ -230,11 +234,13 @@ public class WalletLedgerApplicationService {
     }
 
     private void ensureReplayMatches(WalletTxn existing,
+                                     String requestId,
                                      WalletTxnType txnType,
                                      String bizType,
                                      String bizId,
                                      List<WalletPosting> postings) {
-        boolean matches = Objects.equals(existing.getTxnType(), txnType.name())
+        boolean matches = Objects.equals(existing.getRequestId(), requestId)
+                && Objects.equals(existing.getTxnType(), txnType.name())
                 && Objects.equals(existing.getBizType(), bizType)
                 && Objects.equals(existing.getBizId(), bizId)
                 && existing.getAmount() == amountOf(postings)

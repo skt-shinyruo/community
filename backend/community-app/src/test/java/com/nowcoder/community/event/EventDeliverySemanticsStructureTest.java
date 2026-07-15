@@ -4,7 +4,7 @@ import com.nowcoder.community.content.infrastructure.event.PostHotFeedProjection
 import com.nowcoder.community.growth.infrastructure.event.TaskProgressEventBackboneKafkaListener;
 import com.nowcoder.community.notice.infrastructure.event.NoticeProjectionKafkaListener;
 import com.nowcoder.community.search.infrastructure.event.SearchPostProjectionKafkaListener;
-import com.nowcoder.community.user.infrastructure.event.UserRewardKafkaListener;
+import com.nowcoder.community.wallet.infrastructure.event.WalletRewardKafkaListener;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -29,7 +29,7 @@ class EventDeliverySemanticsStructureTest {
         assertThat(List.of(
                 SearchPostProjectionKafkaListener.class,
                 TaskProgressEventBackboneKafkaListener.class,
-                UserRewardKafkaListener.class,
+                WalletRewardKafkaListener.class,
                 PostHotFeedProjectionKafkaListener.class,
                 NoticeProjectionKafkaListener.class
         )).allMatch(Objects::nonNull);

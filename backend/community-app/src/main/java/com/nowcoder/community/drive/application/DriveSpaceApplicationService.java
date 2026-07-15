@@ -6,7 +6,6 @@ import com.nowcoder.community.drive.domain.model.DriveSpace;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.dao.DuplicateKeyException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -41,13 +40,14 @@ public class DriveSpaceApplicationService {
 
     private DriveSpace createDefaultSpace(UUID userId, Instant now) {
         DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, now);
-        try {
-            spaceRepository.save(space);
-            return space;
-        } catch (DuplicateKeyException e) {
-            return spaceRepository.findByUserId(userId)
-                    .orElseThrow(() -> new BusinessException(INTERNAL_ERROR, "网盘空间创建失败", e));
+        DriveSpaceRepository.CreateResult result = spaceRepository.create(space);
+        if (result != null
+                && (result.status() == DriveSpaceRepository.CreateStatus.CREATED
+                || result.status() == DriveSpaceRepository.CreateStatus.ALREADY_EXISTS)
+                && result.space() != null) {
+            return result.space();
         }
+        throw new BusinessException(INTERNAL_ERROR, "网盘空间创建失败");
     }
 
     private static DriveSpaceResult toResult(DriveSpace space) {

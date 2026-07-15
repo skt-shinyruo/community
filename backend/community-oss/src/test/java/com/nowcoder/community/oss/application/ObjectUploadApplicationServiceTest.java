@@ -99,7 +99,7 @@ class ObjectUploadApplicationServiceTest {
                 "http://localhost:12880/files/" + prepared.objectId() + "/" + prepared.versionId() + "/avatar.png"
         );
         assertThat(objectStore.capturedKey).isEqualTo(
-                "objects/" + prepared.objectId() + "/" + prepared.versionId() + "/avatar.png"
+                "objects/" + prepared.objectId() + "/" + prepared.versionId() + "/avatar.png.claim-1"
         );
         assertThat(uploadSessionRepository.findById(prepared.sessionId()).orElseThrow().status())
                 .isEqualTo(OssUploadSessionStatus.COMPLETED);
@@ -485,6 +485,11 @@ class ObjectUploadApplicationServiceTest {
         private final Map<UUID, OssUploadSession> rows = new HashMap<>();
 
         @Override
+        public boolean create(OssUploadSession session) {
+            return rows.putIfAbsent(session.sessionId(), session) == null;
+        }
+
+        @Override
         public void save(OssUploadSession session) {
             rows.put(session.sessionId(), session);
         }
@@ -492,6 +497,52 @@ class ObjectUploadApplicationServiceTest {
         @Override
         public Optional<OssUploadSession> findById(UUID sessionId) {
             return Optional.ofNullable(rows.get(sessionId));
+        }
+
+        @Override
+        public boolean recordCompletionFailure(
+                UUID sessionId,
+                long claimVersion,
+                String lastError,
+                Instant updatedAt
+        ) {
+            OssUploadSession current = rows.get(sessionId);
+            if (!matchesClaim(current, claimVersion)) {
+                return false;
+            }
+            rows.put(sessionId, current.recordClaimError(updatedAt, lastError));
+            return true;
+        }
+
+        @Override
+        public boolean resetFailedClaim(
+                UUID sessionId,
+                long claimVersion,
+                Instant updatedAt,
+                Instant retryExpiresAt
+        ) {
+            OssUploadSession current = rows.get(sessionId);
+            if (!matchesClaim(current, claimVersion)) {
+                return false;
+            }
+            rows.put(sessionId, current.resetFailedClaim(updatedAt, retryExpiresAt));
+            return true;
+        }
+
+        @Override
+        public boolean completeClaim(UUID sessionId, long claimVersion, Instant completedAt) {
+            OssUploadSession current = rows.get(sessionId);
+            if (!matchesClaim(current, claimVersion)) {
+                return false;
+            }
+            rows.put(sessionId, current.complete(completedAt));
+            return true;
+        }
+
+        private static boolean matchesClaim(OssUploadSession session, long claimVersion) {
+            return session != null
+                    && session.status() == OssUploadSessionStatus.UPLOADING
+                    && session.claimVersion() == claimVersion;
         }
     }
 
@@ -512,16 +563,31 @@ class ObjectUploadApplicationServiceTest {
     private static final class CapturingObjectStore implements ObjectStore {
         private String capturedBucket;
         private String capturedKey;
+        private String capturedContentType;
+        private long capturedContentLength;
 
         @Override
         public void put(String bucket, String key, InputStream content, long contentLength, String contentType) {
             capturedBucket = bucket;
             capturedKey = key;
+            capturedContentType = contentType;
+            capturedContentLength = contentLength;
         }
 
         @Override
         public Optional<ObjectStoreObject> head(String bucket, String key) {
-            return Optional.empty();
+            if (!java.util.Objects.equals(capturedBucket, bucket)
+                    || !java.util.Objects.equals(capturedKey, key)) {
+                return Optional.empty();
+            }
+            return Optional.of(new ObjectStoreObject(
+                    bucket,
+                    key,
+                    capturedContentType,
+                    capturedContentLength,
+                    "captured-etag",
+                    CLOCK.instant()
+            ));
         }
 
         @Override

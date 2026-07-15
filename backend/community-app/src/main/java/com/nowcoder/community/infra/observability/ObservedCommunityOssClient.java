@@ -73,6 +73,11 @@ public class ObservedCommunityOssClient implements CommunityOssClient {
     }
 
     @Override
+    public OssReferenceResponse getObjectReference(UUID objectId, UUID referenceId) {
+        return observeClientCall("get_reference", () -> delegate.getObjectReference(objectId, referenceId));
+    }
+
+    @Override
     public OssReferenceResponse releaseObjectReference(UUID objectId, UUID referenceId, String actorId) {
         return observeClientCall("release_reference", () -> delegate.releaseObjectReference(objectId, referenceId, actorId));
     }

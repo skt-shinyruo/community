@@ -1,7 +1,6 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.user.application.command.CreateVerifiedRegistrationUserCommand;
 import com.nowcoder.community.user.application.result.PreparedRegistrationUserResult;
@@ -9,10 +8,10 @@ import com.nowcoder.community.user.application.result.UserCredentialResult;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
+import com.nowcoder.community.user.domain.repository.UserRepository.InsertResult;
 import com.nowcoder.community.user.domain.service.UserRegistrationDomainService;
 import com.nowcoder.community.user.domain.service.UserRegistrationDomainService.RegistrationInput;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,13 +23,12 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.user.exception.UserErrorCode.EMAIL_ALREADY_EXISTS;
+import static com.nowcoder.community.user.exception.UserErrorCode.INTERNAL_ERROR;
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_ALREADY_EXISTS;
 
 @Service
 public class UserRegistrationApplicationService {
 
-    private static final String USERNAME_UNIQUE_CONSTRAINT = "uk_user_username";
-    private static final String EMAIL_UNIQUE_CONSTRAINT = "uk_user_email";
     private final UserRepository userRepository;
     private final UserRegistrationDomainService userRegistrationDomainService;
     private final UuidV7Generator idGenerator;
@@ -108,10 +106,12 @@ public class UserRegistrationApplicationService {
                 command.email(),
                 command.headerUrl()
         );
-        try {
-            userRepository.insertUser(user);
-        } catch (DataIntegrityViolationException ex) {
-            translateDuplicateInsert(user.username(), user.email(), ex);
+        InsertResult insertResult = userRepository.insertUser(user);
+        if (insertResult == InsertResult.ALREADY_EXISTS) {
+            return resolveExistingRegistration(user);
+        }
+        if (insertResult != InsertResult.CREATED) {
+            throw new BusinessException(INTERNAL_ERROR, "创建用户失败");
         }
         long version = userRepository.nextUserPolicyVersion(user.id());
         userRepository.updateModerationUntil(user.id(), user.muteUntil(), user.banUntil(), version, 0L);
@@ -119,20 +119,34 @@ public class UserRegistrationApplicationService {
         return toCredentialResult(user, 1);
     }
 
-    private void translateDuplicateInsert(String username, String email, DataIntegrityViolationException ex) {
-        if (userRegistrationDomainService.causedByConstraint(ex, USERNAME_UNIQUE_CONSTRAINT)) {
-            throw new BusinessException(USER_ALREADY_EXISTS, ex);
+    private UserCredentialResult resolveExistingRegistration(UserAccount attempted) {
+        UserAccount canonical = userRepository.findById(attempted.id()).orElse(null);
+        if (canonical != null) {
+            requireSameRegistrationFacts(attempted, canonical);
+            return toCredentialResult(canonical, canonical.status());
         }
-        if (userRegistrationDomainService.causedByConstraint(ex, EMAIL_UNIQUE_CONSTRAINT)) {
-            throw new BusinessException(EMAIL_ALREADY_EXISTS, ex);
+        if (userRepository.findByUsername(attempted.username()).isPresent()) {
+            throw new BusinessException(USER_ALREADY_EXISTS);
         }
-        if (userRepository.findByUsername(username).isPresent()) {
-            throw new BusinessException(USER_ALREADY_EXISTS, ex);
+        if (userRepository.findByEmail(attempted.email()).isPresent()) {
+            throw new BusinessException(EMAIL_ALREADY_EXISTS);
         }
-        if (userRepository.findByEmail(email).isPresent()) {
-            throw new BusinessException(EMAIL_ALREADY_EXISTS, ex);
+        throw new BusinessException(INTERNAL_ERROR, "创建用户冲突但规范用户不存在");
+    }
+
+    private void requireSameRegistrationFacts(UserAccount attempted, UserAccount canonical) {
+        if (!Objects.equals(attempted.id(), canonical.id())
+                || !Objects.equals(attempted.username(), canonical.username())) {
+            throw new BusinessException(USER_ALREADY_EXISTS, "注册回放与已有用户不一致");
         }
-        throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败", ex);
+        if (!Objects.equals(attempted.email(), canonical.email())) {
+            throw new BusinessException(EMAIL_ALREADY_EXISTS, "注册回放与已有邮箱不一致");
+        }
+        if (!Objects.equals(attempted.encodedPassword(), canonical.encodedPassword())
+                || !Objects.equals(attempted.salt(), canonical.salt())
+                || !Objects.equals(attempted.headerUrl(), canonical.headerUrl())) {
+            throw new BusinessException(INTERNAL_ERROR, "注册回放与规范用户事实不一致");
+        }
     }
 
     private UserCredentialResult toCredentialResult(UserAccount user, int status) {

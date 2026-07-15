@@ -1,12 +1,9 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.common.constants.EntityTypes;
-import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.repository.PostRepository;
 import com.nowcoder.community.content.domain.service.PostModerationDomainService;
-import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,20 +16,17 @@ public class PostModerationApplicationService {
     private final PostModerationDomainService domainService;
     private final PostRepository postRepository;
     private final PostDomainEventPublisher domainEventPublisher;
-    private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private final PostBusinessEventLogger postBusinessEventLogger;
 
     public PostModerationApplicationService(
             PostModerationDomainService domainService,
             PostRepository postRepository,
             PostDomainEventPublisher domainEventPublisher,
-            SocialLikeCleanupActionApi socialLikeCleanupActionApi,
             PostBusinessEventLogger postBusinessEventLogger
     ) {
         this.domainService = domainService;
         this.postRepository = postRepository;
         this.domainEventPublisher = domainEventPublisher;
-        this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
         this.postBusinessEventLogger = postBusinessEventLogger;
     }
 
@@ -80,6 +74,5 @@ public class PostModerationApplicationService {
 
     private void applyPostDeleteSideEffects(UUID postId) {
         domainEventPublisher.postDeleted(postId);
-        AfterCommitExecutor.runAfterCommit(() -> socialLikeCleanupActionApi.cleanupEntityLikes(EntityTypes.POST, postId));
     }
 }

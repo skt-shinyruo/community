@@ -8,6 +8,16 @@ import java.util.UUID;
 
 public interface DriveEntryRepository {
 
+    enum CreateStatus {
+        CREATED,
+        ALREADY_EXISTS,
+        ACTIVE_NAME_CONFLICT,
+        CONFLICT
+    }
+
+    record CreateResult(CreateStatus status, DriveEntry entry) {
+    }
+
     Optional<DriveEntry> findById(UUID spaceId, UUID entryId);
 
     Optional<DriveEntry> findActiveChildByName(UUID spaceId, UUID parentId, String name);
@@ -19,6 +29,8 @@ public interface DriveEntryRepository {
     List<DriveEntry> searchActive(UUID spaceId, String keyword, int limit);
 
     List<UUID> listDescendantIds(UUID spaceId, UUID folderId);
+
+    CreateResult create(DriveEntry entry);
 
     void save(DriveEntry entry);
 }

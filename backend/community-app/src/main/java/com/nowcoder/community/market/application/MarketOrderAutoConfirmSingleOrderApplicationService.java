@@ -28,8 +28,7 @@ public class MarketOrderAutoConfirmSingleOrderApplicationService {
         if (locked == null || !locked.isAutoConfirmDue(now)) {
             return false;
         }
-        int updated = marketOrderRepository.markReleasePending(locked.requestRelease().orderId());
-        if (updated != 1) {
+        if (marketOrderRepository.apply(locked.requestRelease()) != MarketOrderRepository.ApplyStatus.APPLIED) {
             return false;
         }
         marketWalletActionService.enqueueRelease(

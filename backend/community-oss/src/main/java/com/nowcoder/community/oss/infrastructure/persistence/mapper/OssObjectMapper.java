@@ -10,6 +10,8 @@ import java.util.UUID;
 @Mapper
 public interface OssObjectMapper {
 
+    int insert(OssObjectDataObject row);
+
     int upsert(OssObjectDataObject row);
 
     OssObjectDataObject selectById(UUID objectId);

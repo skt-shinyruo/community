@@ -4,6 +4,7 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
+import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketInventoryUnitMapper;
@@ -20,6 +21,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static com.nowcoder.community.market.support.MarketOrderTestFixture.order;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
@@ -47,6 +49,9 @@ class MarketOrderSagaApplicationServiceTest {
     private MarketOrderMapper marketOrderMapper;
 
     @Autowired
+    private MarketOrderRepository marketOrderRepository;
+
+    @Autowired
     private MarketInventoryUnitMapper marketInventoryUnitMapper;
 
     @MockBean
@@ -71,8 +76,8 @@ class MarketOrderSagaApplicationServiceTest {
         boolean advanced = sagaService.markEscrowSucceeded(orderId, escrowTxnId);
 
         assertThat(advanced).isTrue();
-        assertThat(order(orderId).getStatus()).isEqualTo("ESCROWED");
-        assertThat(order(orderId).getEscrowTxnId()).isEqualTo(escrowTxnId);
+        assertThat(storedOrder(orderId).getStatus()).isEqualTo("ESCROWED");
+        assertThat(storedOrder(orderId).getEscrowTxnId()).isEqualTo(escrowTxnId);
     }
 
     @Test
@@ -82,8 +87,8 @@ class MarketOrderSagaApplicationServiceTest {
         boolean advanced = sagaService.markEscrowSucceeded(orderId, escrowTxnId);
 
         assertThat(advanced).isFalse();
-        assertThat(order(orderId).getEscrowTxnId()).isNull();
-        assertThat(order(orderId).getStatus()).isEqualTo("ESCROW_CANCEL_PENDING");
+        assertThat(storedOrder(orderId).getEscrowTxnId()).isNull();
+        assertThat(storedOrder(orderId).getStatus()).isEqualTo("ESCROW_CANCEL_PENDING");
     }
 
     @Test
@@ -99,8 +104,8 @@ class MarketOrderSagaApplicationServiceTest {
                 listingId
         );
         assertThat(stock).isEqualTo(1);
-        assertThat(order(orderId).getStatus()).isEqualTo("CANCELLED");
-        assertThat(order(orderId).getRefundTxnId()).isEqualTo(refundTxnId);
+        assertThat(storedOrder(orderId).getStatus()).isEqualTo("CANCELLED");
+        assertThat(storedOrder(orderId).getRefundTxnId()).isEqualTo(refundTxnId);
     }
 
     @Test
@@ -115,7 +120,7 @@ class MarketOrderSagaApplicationServiceTest {
                 listingId
         );
         assertThat(stock).isEqualTo(0);
-        assertThat(order(orderId).getStatus()).isEqualTo("REFUNDED");
+        assertThat(storedOrder(orderId).getStatus()).isEqualTo("REFUNDED");
     }
 
     @Test
@@ -136,41 +141,48 @@ class MarketOrderSagaApplicationServiceTest {
         );
         assertThat(stock).isEqualTo(0);
         assertThat(inventoryStatus).isEqualTo("DELIVERED");
-        assertThat(order(orderId).getStatus()).isEqualTo("REFUNDED");
+        assertThat(storedOrder(orderId).getStatus()).isEqualTo("REFUNDED");
     }
 
     @Test
     void markDeliveredShouldRequireEscrowedStatusInPersistence() {
         seedFiniteStockOrder("REFUND_PENDING", 0);
 
-        int updated = marketOrderMapper.markDelivered(orderId, new java.util.Date());
+        MarketOrder stale = order(storedOrder(orderId)).status("ESCROWED").build();
+        MarketOrderRepository.ApplyStatus outcome = marketOrderRepository.apply(
+                stale.markDelivered(new java.util.Date())
+        );
 
-        assertThat(updated).isZero();
-        assertThat(order(orderId).getStatus()).isEqualTo("REFUND_PENDING");
+        assertThat(outcome).isEqualTo(MarketOrderRepository.ApplyStatus.STALE);
+        assertThat(storedOrder(orderId).getStatus()).isEqualTo("REFUND_PENDING");
     }
 
     @Test
     void markShippedShouldRequireEscrowedStatusInPersistence() {
         seedFiniteStockOrder("REFUND_PENDING", 0);
 
-        int updated = marketOrderMapper.markShipped(orderId, new java.util.Date());
+        MarketOrder stale = order(storedOrder(orderId)).status("ESCROWED").build();
+        MarketOrderRepository.ApplyStatus outcome = marketOrderRepository.apply(
+                stale.markShipped(new java.util.Date())
+        );
 
-        assertThat(updated).isZero();
-        assertThat(order(orderId).getStatus()).isEqualTo("REFUND_PENDING");
+        assertThat(outcome).isEqualTo(MarketOrderRepository.ApplyStatus.STALE);
+        assertThat(storedOrder(orderId).getStatus()).isEqualTo("REFUND_PENDING");
     }
 
     @Test
     void markDisputedShouldRequireDeliveredOrShippedStatusInPersistence() {
         seedFiniteStockOrder("RELEASE_PENDING", 0);
 
-        int updated = marketOrderMapper.markDisputed(orderId);
+        MarketOrder stale = order(storedOrder(orderId)).status("DELIVERED").build();
+        MarketOrderRepository.ApplyStatus outcome = marketOrderRepository.apply(stale.openDispute());
 
-        assertThat(updated).isZero();
-        assertThat(order(orderId).getStatus()).isEqualTo("RELEASE_PENDING");
+        assertThat(outcome).isEqualTo(MarketOrderRepository.ApplyStatus.STALE);
+        assertThat(storedOrder(orderId).getStatus()).isEqualTo("RELEASE_PENDING");
     }
 
-    private MarketOrder order(UUID id) {
-        return marketOrderMapper.selectById(id);
+    private MarketOrder storedOrder(UUID id) {
+        return marketOrderMapper.selectById(id).toDomain();
     }
 
     private void seedOrder(String status) {
@@ -196,20 +208,20 @@ class MarketOrderSagaApplicationServiceTest {
         listing.setStatus(stockAvailable == 0 ? "SOLD_OUT" : "ACTIVE");
         marketListingMapper.insert(MarketListingDataObject.from(listing));
 
-        MarketOrder order = new MarketOrder();
-        order.setOrderId(orderId);
-        order.setRequestId("saga:" + status.toLowerCase());
-        order.setListingId(listingId);
-        order.setGoodsType("PHYSICAL");
-        order.setSellerUserId(sellerUserId);
-        order.setBuyerUserId(buyerUserId);
-        order.setQuantity(1);
-        order.setUnitPriceSnapshot(12_900L);
-        order.setTotalAmount(12_900L);
-        order.setDeliveryModeSnapshot("MANUAL");
-        order.setListingTitleSnapshot("二手键盘");
-        order.setStatus(status);
-        marketOrderMapper.insert(MarketOrderDataObject.from(order));
+        MarketOrder seededOrder = order(orderId)
+                .requestId("saga:" + status.toLowerCase())
+                .listingId(listingId)
+                .goodsType("PHYSICAL")
+                .sellerUserId(sellerUserId)
+                .buyerUserId(buyerUserId)
+                .quantity(1)
+                .unitPriceSnapshot(12_900L)
+                .totalAmount(12_900L)
+                .deliveryModeSnapshot("MANUAL")
+                .listingTitleSnapshot("二手键盘")
+                .status(status)
+                .build();
+        marketOrderMapper.insert(MarketOrderDataObject.from(seededOrder));
     }
 
     private void seedPreloadedDeliveredDisputeRefundOrder() {
@@ -244,19 +256,19 @@ class MarketOrderSagaApplicationServiceTest {
                 orderId
         );
 
-        MarketOrder order = new MarketOrder();
-        order.setOrderId(orderId);
-        order.setRequestId("saga:preloaded-dispute-refund");
-        order.setListingId(listingId);
-        order.setGoodsType("VIRTUAL");
-        order.setSellerUserId(sellerUserId);
-        order.setBuyerUserId(buyerUserId);
-        order.setQuantity(1);
-        order.setUnitPriceSnapshot(12_900L);
-        order.setTotalAmount(12_900L);
-        order.setDeliveryModeSnapshot("PRELOADED");
-        order.setListingTitleSnapshot("序列号");
-        order.setStatus("DISPUTE_REFUND_PENDING");
-        marketOrderMapper.insert(MarketOrderDataObject.from(order));
+        MarketOrder seededOrder = order(orderId)
+                .requestId("saga:preloaded-dispute-refund")
+                .listingId(listingId)
+                .goodsType("VIRTUAL")
+                .sellerUserId(sellerUserId)
+                .buyerUserId(buyerUserId)
+                .quantity(1)
+                .unitPriceSnapshot(12_900L)
+                .totalAmount(12_900L)
+                .deliveryModeSnapshot("PRELOADED")
+                .listingTitleSnapshot("序列号")
+                .status("DISPUTE_REFUND_PENDING")
+                .build();
+        marketOrderMapper.insert(MarketOrderDataObject.from(seededOrder));
     }
 }

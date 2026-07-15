@@ -3,20 +3,20 @@ package com.nowcoder.community.wallet.application;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.infra.idempotency.EffectiveIdempotencyKey;
-import com.nowcoder.community.infra.idempotency.IdempotencyKeyResolver;
-import com.nowcoder.community.infra.idempotency.RequestFingerprint;
+import com.nowcoder.community.common.idempotency.EffectiveIdempotencyKey;
+import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
+import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import com.nowcoder.community.wallet.application.command.CreateWithdrawCommand;
 import com.nowcoder.community.wallet.application.result.WithdrawOrderResult;
 import com.nowcoder.community.wallet.domain.model.WithdrawOrder;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
+import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.WithdrawOrderRepository;
 import com.nowcoder.community.wallet.domain.service.WalletOrderDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -86,7 +86,7 @@ public class WalletWithdrawApplicationService {
         validate(requestId, amount);
         WithdrawOrder order = withdrawOrderRepository.findByUserIdAndRequestId(userId, requestId);
         if (order != null) {
-            ensureReplayMatches(order, userId, amount);
+            ensureReplayMatches(order, requestId, userId, amount);
             if ("SUCCEEDED".equals(order.getStatus())) {
                 return WithdrawOrderResult.from(order);
             }
@@ -102,7 +102,7 @@ public class WalletWithdrawApplicationService {
         }
 
         order = order == null ? createOrLoad(requestId, userId, amount) : order;
-        ensureReplayMatches(order, userId, amount);
+        ensureReplayMatches(order, requestId, userId, amount);
         if ("SUCCEEDED".equals(order.getStatus())) {
             return WithdrawOrderResult.from(order);
         }
@@ -152,16 +152,18 @@ public class WalletWithdrawApplicationService {
         order.setUserId(userId);
         order.setAmount(amount);
         order.setStatus("REQUESTED");
-        try {
-            withdrawOrderRepository.insert(order);
-            return order;
-        } catch (DataIntegrityViolationException ex) {
-            WithdrawOrder duplicated = withdrawOrderRepository.findByUserIdAndRequestId(userId, requestId);
-            if (duplicated != null) {
-                return duplicated;
-            }
-            throw ex;
+        CreationOutcome<WithdrawOrder> outcome = withdrawOrderRepository.create(order);
+        if (outcome == null
+                || outcome.status() == CreationOutcome.Status.CONFLICT
+                || outcome.aggregate() == null) {
+            throw new BusinessException(
+                    WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                    "withdraw order creation conflict: requestId=" + requestId
+            );
         }
+        WithdrawOrder persisted = outcome.aggregate();
+        ensureReplayMatches(persisted, requestId, userId, amount);
+        return persisted;
     }
 
     private WithdrawOrder requireOrder(UUID userId, String requestId) {
@@ -172,8 +174,10 @@ public class WalletWithdrawApplicationService {
         return order;
     }
 
-    private void ensureReplayMatches(WithdrawOrder order, UUID userId, long amount) {
-        if (!userId.equals(order.getUserId()) || order.getAmount() != amount) {
+    private void ensureReplayMatches(WithdrawOrder order, String requestId, UUID userId, long amount) {
+        if (!Objects.equals(requestId, order.getRequestId())
+                || !userId.equals(order.getUserId())
+                || order.getAmount() != amount) {
             throw new BusinessException(
                     WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                     "requestId replay conflict: requestId=" + order.getRequestId()

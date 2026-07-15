@@ -3,16 +3,15 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.content.application.command.PreparePostMediaUploadCommand;
-import com.nowcoder.community.content.application.PostMediaStoragePort;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;
+import com.nowcoder.community.content.domain.model.PostMediaUploadStatus;
 import com.nowcoder.community.content.domain.model.PostVideoState;
 import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.Locale;
@@ -37,24 +36,40 @@ public class PostMediaApplicationService {
     private static final Set<String> FILE_MIME_TYPES = Set.of("application/pdf", "application/zip");
     private static final int MAX_FILE_NAME_LENGTH = 255;
 
-    private final PostMediaAssetRepository assetRepository;
     private final PostMediaStoragePort storagePort;
     private final UuidV7Generator idGenerator;
+    private final PostMediaUploadTransactionOperations transactionOperations;
 
     @Autowired
+    public PostMediaApplicationService(
+            PostMediaAssetRepository assetRepository,
+            PostMediaStoragePort storagePort,
+            PostMediaUploadTransactionOperations transactionOperations
+    ) {
+        this(assetRepository, storagePort, new UuidV7Generator(), transactionOperations);
+    }
+
     public PostMediaApplicationService(PostMediaAssetRepository assetRepository, PostMediaStoragePort storagePort) {
-        this(assetRepository, storagePort, new UuidV7Generator());
+        this(assetRepository, storagePort, new UuidV7Generator(), new PostMediaUploadTransactionOperations(assetRepository));
     }
 
     PostMediaApplicationService(PostMediaAssetRepository assetRepository,
                                 PostMediaStoragePort storagePort,
                                 UuidV7Generator idGenerator) {
-        this.assetRepository = assetRepository;
-        this.storagePort = storagePort;
-        this.idGenerator = idGenerator;
+        this(assetRepository, storagePort, idGenerator, new PostMediaUploadTransactionOperations(assetRepository));
     }
 
-    @Transactional
+    PostMediaApplicationService(
+            PostMediaAssetRepository assetRepository,
+            PostMediaStoragePort storagePort,
+            UuidV7Generator idGenerator,
+            PostMediaUploadTransactionOperations transactionOperations
+    ) {
+        this.storagePort = storagePort;
+        this.idGenerator = idGenerator;
+        this.transactionOperations = transactionOperations;
+    }
+
     public PostMediaUploadSessionResult prepareUpload(PreparePostMediaUploadCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         if (command.actorUserId() == null) {
@@ -65,7 +80,7 @@ public class PostMediaApplicationService {
         PostMediaKind mediaKind = inferKind(command.mediaKind(), contentType);
         validateContentLength(command.contentLength(), mediaKind);
 
-        UUID assetId = idGenerator.next();
+        UUID assetId = command.requestId() == null ? idGenerator.next() : command.requestId();
         Date now = new Date();
         PostMediaAsset draft = new PostMediaAsset(
                 assetId,
@@ -89,39 +104,98 @@ public class PostMediaApplicationService {
         PostMediaUploadSessionResult session = storagePort.prepareUpload(draft, normalizeChecksum(command.checksumSha256()));
         PostMediaAsset preparedDraft = draftWithPreparedUploadSession(draft, session);
         try {
-            assetRepository.createDraft(preparedDraft);
+            transactionOperations.createDraft(preparedDraft);
             return session;
         } catch (RuntimeException e) {
-            cleanupPreparedDraft(preparedDraft);
+            PostMediaAsset replay = loadReplay(assetId);
+            if (samePrepareRequest(replay, preparedDraft)) {
+                return session;
+            }
             throw e;
         }
     }
 
-    @Transactional
     public void completeUpload(UUID actorUserId, UUID assetId, UUID uploadSessionId, PostMediaUploadContent content) {
         if (actorUserId == null || assetId == null || uploadSessionId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/assetId/uploadSessionId 非法");
         }
         validateUploadContent(content);
-        PostMediaAsset asset = assetRepository.getRequired(assetId);
+        PostMediaAsset asset = transactionOperations.load(assetId);
         if (!Objects.equals(actorUserId, asset.ownerUserId())) {
             throw new BusinessException(FORBIDDEN, "只能上传自己的媒体资源");
         }
-        if (asset.lifecycle() != PostMediaAssetLifecycle.DRAFT) {
+        if (!Objects.equals(uploadSessionId, asset.uploadSessionId())) {
+            throw new BusinessException(INVALID_ARGUMENT, "上传会话与媒体资源不匹配");
+        }
+        if (asset.uploadStatus() == PostMediaUploadStatus.COMPLETED) {
+            return;
+        }
+        if (asset.uploadStatus() == PostMediaUploadStatus.OBJECT_COMPLETED) {
+            if (!transactionOperations.markCompleted(
+                    asset.id(), asset.uploadOperationVersion(), new Date())) {
+                throw new BusinessException(INTERNAL_ERROR, "媒体上传完成状态冲突");
+            }
+            return;
+        }
+        if (asset.lifecycle() != PostMediaAssetLifecycle.DRAFT
+                || asset.uploadStatus() != PostMediaUploadStatus.PREPARED) {
             throw new BusinessException(INVALID_ARGUMENT, "媒体资源状态不允许上传");
         }
+        if (!Objects.equals(asset.contentType(), normalizeContentType(content.contentType()))
+                || asset.contentLength() != content.size()) {
+            throw new BusinessException(INVALID_ARGUMENT, "上传内容与媒体资源不匹配");
+        }
+
+        Date claimedAt = new Date();
+        if (!transactionOperations.claimCompletion(
+                assetId, actorUserId, asset.uploadOperationVersion(), claimedAt)) {
+            PostMediaAsset current = transactionOperations.load(assetId);
+            if (current.uploadStatus() == PostMediaUploadStatus.COMPLETED) {
+                return;
+            }
+            throw new BusinessException(INVALID_ARGUMENT, "媒体资源正在上传或状态已变化");
+        }
+        long claimedVersion = asset.uploadOperationVersion() + 1L;
 
         PostMediaStoragePort.UploadedPostMedia uploaded = storagePort.completeUpload(asset, uploadSessionId, content);
         if (uploaded == null || uploaded.versionId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "上传结果非法");
         }
-        Date now = new Date();
-        try {
-            assetRepository.markUploaded(assetId, uploaded.versionId(), uploaded.publicUrl(), now);
-        } catch (RuntimeException e) {
-            cleanupUploadedDraft(asset, now);
-            throw e;
+        Date objectCompletedAt = new Date();
+        if (!transactionOperations.markObjectCompleted(
+                assetId,
+                claimedVersion,
+                uploaded.versionId(),
+                uploaded.publicUrl(),
+                uploaded.contentType(),
+                uploaded.contentLength(),
+                objectCompletedAt)) {
+            throw new BusinessException(INTERNAL_ERROR, "媒体上传对象状态冲突");
         }
+        if (!transactionOperations.markCompleted(assetId, claimedVersion, new Date())) {
+            throw new BusinessException(INTERNAL_ERROR, "媒体上传完成状态冲突");
+        }
+    }
+
+    private PostMediaAsset loadReplay(UUID assetId) {
+        try {
+            return transactionOperations.load(assetId);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private static boolean samePrepareRequest(PostMediaAsset replay, PostMediaAsset expected) {
+        return replay != null
+                && Objects.equals(replay.id(), expected.id())
+                && Objects.equals(replay.ownerUserId(), expected.ownerUserId())
+                && Objects.equals(replay.ossObjectId(), expected.ossObjectId())
+                && Objects.equals(replay.ossVersionId(), expected.ossVersionId())
+                && Objects.equals(replay.uploadSessionId(), expected.uploadSessionId())
+                && Objects.equals(replay.fileName(), expected.fileName())
+                && Objects.equals(replay.contentType(), expected.contentType())
+                && replay.contentLength() == expected.contentLength()
+                && replay.mediaKind() == expected.mediaKind();
     }
 
     private static PostMediaAsset draftWithPreparedUploadSession(PostMediaAsset draft, PostMediaUploadSessionResult session) {
@@ -240,21 +314,4 @@ public class PostMediaApplicationService {
         return checksumSha256 == null ? "" : checksumSha256.trim();
     }
 
-    private void cleanupPreparedDraft(PostMediaAsset preparedDraft) {
-        try {
-            storagePort.deleteDraftObject(preparedDraft, preparedDraft.ownerUserId());
-        } catch (RuntimeException ignored) {
-        }
-    }
-
-    private void cleanupUploadedDraft(PostMediaAsset asset, Date now) {
-        try {
-            assetRepository.markDraftDeleted(asset.id(), now);
-        } catch (RuntimeException ignored) {
-        }
-        try {
-            storagePort.deleteDraftObject(asset, asset.ownerUserId());
-        } catch (RuntimeException ignored) {
-        }
-    }
 }

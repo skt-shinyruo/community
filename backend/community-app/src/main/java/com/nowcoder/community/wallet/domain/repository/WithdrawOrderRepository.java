@@ -10,7 +10,7 @@ public interface WithdrawOrderRepository {
 
     WithdrawOrder findByUserIdAndRequestId(UUID userId, String requestId);
 
-    int insert(WithdrawOrder order);
+    CreationOutcome<WithdrawOrder> create(WithdrawOrder order);
 
     int updateStatus(UUID userId, String requestId, String fromStatus, String toStatus);
 }

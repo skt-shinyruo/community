@@ -6,6 +6,12 @@
         current_version_id, latest_file_name, latest_content_type, latest_content_length,
         latest_checksum_sha256, created_by, created_at, updated_at
     </sql>
+    <insert id="insert" parameterType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectDataObject">
+        insert into oss_object (<include refid="fields"/>)
+        values (#{objectId,jdbcType=BINARY}, #{usage}, #{ownerService}, #{ownerDomain}, #{ownerType}, #{ownerId},
+        #{visibility}, #{status}, #{currentVersionId,jdbcType=BINARY}, #{latestFileName}, #{latestContentType},
+        #{latestContentLength}, #{latestChecksumSha256}, #{createdBy}, #{createdAt}, #{updatedAt})
+    </insert>
     <insert id="upsert" parameterType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectDataObject">
         insert into oss_object (<include refid="fields"/>)
         values (#{objectId,jdbcType=BINARY}, #{usage}, #{ownerService}, #{ownerDomain}, #{ownerType}, #{ownerId},

@@ -1,11 +1,8 @@
 package com.nowcoder.community.user.infrastructure.api;
 
-import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import com.nowcoder.community.user.application.UserReadApplicationService;
-import com.nowcoder.community.user.application.result.UserProfileResult;
 import com.nowcoder.community.user.application.result.UserSummaryResult;
 import org.springframework.stereotype.Service;
 
@@ -13,7 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-public class UserReadQueryApiAdapter implements UserLookupQueryApi, UserProfileQueryApi {
+public class UserReadQueryApiAdapter implements UserLookupQueryApi {
 
     private final UserReadApplicationService delegate;
 
@@ -41,21 +38,6 @@ public class UserReadQueryApiAdapter implements UserLookupQueryApi, UserProfileQ
         return delegate.listSummariesByIds(userIds).stream()
                 .map(this::toSummaryView)
                 .toList();
-    }
-
-    @Override
-    public UserProfileView getProfile(UUID userId) {
-        UserProfileResult user = delegate.getProfile(userId);
-        return user == null ? null : new UserProfileView(
-                user.userId(),
-                user.username(),
-                user.headerUrl(),
-                user.type(),
-                user.status(),
-                user.createTime(),
-                user.walletBalance(),
-                user.walletStatus()
-        );
     }
 
     private UserSummaryView toSummaryView(UserSummaryResult user) {

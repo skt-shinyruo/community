@@ -39,6 +39,9 @@ public class MarketOrder {
     private Date createTime;
     private Date updateTime;
 
+    private MarketOrder() {
+    }
+
     public static MarketOrder place(MarketOrderPlacement placement) {
         Objects.requireNonNull(placement, "placement must not be null");
         MarketOrder order = new MarketOrder();
@@ -60,6 +63,44 @@ public class MarketOrder {
         return order;
     }
 
+    public static MarketOrder reconstitute(MarketOrderSnapshot snapshot) {
+        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        MarketOrderStatus.fromCode(snapshot.status());
+        MarketGoodsType.fromCode(snapshot.goodsType());
+        if (snapshot.deliveryModeSnapshot() != null) {
+            MarketDeliveryMode.fromCode(snapshot.deliveryModeSnapshot());
+        }
+
+        MarketOrder order = new MarketOrder();
+        order.orderId = snapshot.orderId();
+        order.requestId = snapshot.requestId();
+        order.listingId = snapshot.listingId();
+        order.goodsType = snapshot.goodsType();
+        order.sellerUserId = snapshot.sellerUserId();
+        order.buyerUserId = snapshot.buyerUserId();
+        order.quantity = snapshot.quantity();
+        order.unitPriceSnapshot = snapshot.unitPriceSnapshot();
+        order.totalAmount = snapshot.totalAmount();
+        order.deliveryModeSnapshot = snapshot.deliveryModeSnapshot();
+        order.listingTitleSnapshot = snapshot.listingTitleSnapshot();
+        order.status = snapshot.status();
+        order.escrowTxnId = snapshot.escrowTxnId();
+        order.releaseTxnId = snapshot.releaseTxnId();
+        order.refundTxnId = snapshot.refundTxnId();
+        order.autoConfirmAt = copy(snapshot.autoConfirmAt());
+        order.addressIdSnapshot = snapshot.addressIdSnapshot();
+        order.receiverNameSnapshot = snapshot.receiverNameSnapshot();
+        order.receiverPhoneSnapshot = snapshot.receiverPhoneSnapshot();
+        order.provinceSnapshot = snapshot.provinceSnapshot();
+        order.citySnapshot = snapshot.citySnapshot();
+        order.districtSnapshot = snapshot.districtSnapshot();
+        order.detailAddressSnapshot = snapshot.detailAddressSnapshot();
+        order.postalCodeSnapshot = snapshot.postalCodeSnapshot();
+        order.createTime = copy(snapshot.createTime());
+        order.updateTime = copy(snapshot.updateTime());
+        return order;
+    }
+
     public MarketOrderStatus status() {
         return MarketOrderStatus.fromCode(status);
     }
@@ -72,12 +113,7 @@ public class MarketOrder {
         return MarketDeliveryMode.fromCode(deliveryModeSnapshot);
     }
 
-    public void assertReplayMatches(
-            UUID buyerUserId,
-            UUID listingId,
-            int quantity,
-            UUID addressId
-    ) {
+    public void assertReplayMatches(UUID buyerUserId, UUID listingId, int quantity, UUID addressId) {
         if (!Objects.equals(this.buyerUserId, buyerUserId)
                 || !Objects.equals(this.listingId, listingId)
                 || this.quantity != quantity
@@ -123,6 +159,10 @@ public class MarketOrder {
         }
     }
 
+    public void assertDisputed() {
+        requireStatus(MarketOrderStatus.DISPUTED);
+    }
+
     public boolean isConfirmable() {
         return status().isConfirmable();
     }
@@ -147,6 +187,31 @@ public class MarketOrder {
         return now != null && isConfirmable() && autoConfirmAt != null && !autoConfirmAt.after(now);
     }
 
+    public MarketOrderTransition recordEscrowSucceeded(UUID escrowTxnId) {
+        requireStatus(MarketOrderStatus.ESCROW_PENDING);
+        return MarketOrderTransition.escrowSucceeded(orderId, escrowTxnId);
+    }
+
+    public MarketOrderTransition recordEscrowFailed() {
+        requireStatus(MarketOrderStatus.ESCROW_PENDING);
+        return MarketOrderTransition.escrowFailed(orderId);
+    }
+
+    public MarketOrderTransition requestEscrowCancel() {
+        requireStatus(MarketOrderStatus.ESCROW_PENDING);
+        return MarketOrderTransition.escrowCancelPending(orderId);
+    }
+
+    public MarketOrderTransition recordLateEscrowSucceeded(UUID escrowTxnId) {
+        requireStatus(MarketOrderStatus.ESCROW_CANCEL_PENDING);
+        return MarketOrderTransition.lateEscrowRefundPending(orderId, escrowTxnId);
+    }
+
+    public MarketOrderTransition cancelWithoutRefund() {
+        requireAnyStatus(MarketOrderStatus.ESCROW_CANCEL_PENDING, MarketOrderStatus.ESCROW_FAILED);
+        return MarketOrderTransition.cancelledWithoutRefund(orderId);
+    }
+
     public MarketOrderTransition markDelivered(Date autoConfirmAt) {
         requireStatus(MarketOrderStatus.ESCROWED);
         return MarketOrderTransition.delivered(orderId, autoConfirmAt);
@@ -169,20 +234,11 @@ public class MarketOrder {
         return MarketOrderTransition.refundPending(orderId);
     }
 
-    public MarketOrderTransition requestEscrowCancel() {
-        requireStatus(MarketOrderStatus.ESCROW_PENDING);
-        return MarketOrderTransition.escrowCancelPending(orderId);
-    }
-
     public MarketOrderTransition openDispute() {
         if (!isDisputable()) {
             throw new BusinessException(INVALID_ARGUMENT, "order is not disputable: orderId=" + orderId);
         }
         return MarketOrderTransition.disputed(orderId);
-    }
-
-    public void assertDisputed() {
-        requireStatus(MarketOrderStatus.DISPUTED);
     }
 
     public MarketOrderTransition requestDisputeRefund() {
@@ -193,6 +249,21 @@ public class MarketOrder {
     public MarketOrderTransition requestDisputeRelease() {
         requireStatus(MarketOrderStatus.DISPUTED);
         return MarketOrderTransition.disputeReleasePending(orderId);
+    }
+
+    public MarketOrderTransition recordReleaseSucceeded(UUID releaseTxnId) {
+        requireAnyStatus(MarketOrderStatus.RELEASE_PENDING, MarketOrderStatus.DISPUTE_RELEASE_PENDING);
+        return MarketOrderTransition.releaseSucceeded(orderId, releaseTxnId);
+    }
+
+    public MarketOrderTransition recordRefundSucceeded(UUID refundTxnId) {
+        if (status() == MarketOrderStatus.REFUND_PENDING) {
+            return MarketOrderTransition.refundSucceeded(orderId, refundTxnId);
+        }
+        if (status() == MarketOrderStatus.DISPUTE_REFUND_PENDING) {
+            return MarketOrderTransition.disputeRefundSucceeded(orderId, refundTxnId);
+        }
+        throw statusMismatch();
     }
 
     public String pendingWalletActionType() {
@@ -222,215 +293,126 @@ public class MarketOrder {
 
     private void requireStatus(MarketOrderStatus expectedStatus) {
         if (status() != expectedStatus) {
-            throw new BusinessException(INVALID_ARGUMENT, "order status mismatch: orderId=" + orderId);
+            throw statusMismatch();
         }
+    }
+
+    private void requireAnyStatus(MarketOrderStatus first, MarketOrderStatus second) {
+        MarketOrderStatus current = status();
+        if (current != first && current != second) {
+            throw statusMismatch();
+        }
+    }
+
+    private BusinessException statusMismatch() {
+        return new BusinessException(INVALID_ARGUMENT, "order status mismatch: orderId=" + orderId);
+    }
+
+    private static Date copy(Date value) {
+        return value == null ? null : new Date(value.getTime());
     }
 
     public UUID getOrderId() {
         return orderId;
     }
 
-    public void setOrderId(UUID orderId) {
-        this.orderId = orderId;
-    }
-
     public String getRequestId() {
         return requestId;
-    }
-
-    public void setRequestId(String requestId) {
-        this.requestId = requestId;
     }
 
     public UUID getListingId() {
         return listingId;
     }
 
-    public void setListingId(UUID listingId) {
-        this.listingId = listingId;
-    }
-
     public String getGoodsType() {
         return goodsType;
-    }
-
-    public void setGoodsType(String goodsType) {
-        this.goodsType = goodsType;
     }
 
     public UUID getSellerUserId() {
         return sellerUserId;
     }
 
-    public void setSellerUserId(UUID sellerUserId) {
-        this.sellerUserId = sellerUserId;
-    }
-
     public UUID getBuyerUserId() {
         return buyerUserId;
-    }
-
-    public void setBuyerUserId(UUID buyerUserId) {
-        this.buyerUserId = buyerUserId;
     }
 
     public int getQuantity() {
         return quantity;
     }
 
-    public void setQuantity(int quantity) {
-        this.quantity = quantity;
-    }
-
     public long getUnitPriceSnapshot() {
         return unitPriceSnapshot;
-    }
-
-    public void setUnitPriceSnapshot(long unitPriceSnapshot) {
-        this.unitPriceSnapshot = unitPriceSnapshot;
     }
 
     public long getTotalAmount() {
         return totalAmount;
     }
 
-    public void setTotalAmount(long totalAmount) {
-        this.totalAmount = totalAmount;
-    }
-
     public String getDeliveryModeSnapshot() {
         return deliveryModeSnapshot;
-    }
-
-    public void setDeliveryModeSnapshot(String deliveryModeSnapshot) {
-        this.deliveryModeSnapshot = deliveryModeSnapshot;
     }
 
     public String getListingTitleSnapshot() {
         return listingTitleSnapshot;
     }
 
-    public void setListingTitleSnapshot(String listingTitleSnapshot) {
-        this.listingTitleSnapshot = listingTitleSnapshot;
-    }
-
     public String getStatus() {
         return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
     }
 
     public UUID getEscrowTxnId() {
         return escrowTxnId;
     }
 
-    public void setEscrowTxnId(UUID escrowTxnId) {
-        this.escrowTxnId = escrowTxnId;
-    }
-
     public UUID getReleaseTxnId() {
         return releaseTxnId;
-    }
-
-    public void setReleaseTxnId(UUID releaseTxnId) {
-        this.releaseTxnId = releaseTxnId;
     }
 
     public UUID getRefundTxnId() {
         return refundTxnId;
     }
 
-    public void setRefundTxnId(UUID refundTxnId) {
-        this.refundTxnId = refundTxnId;
-    }
-
     public Date getAutoConfirmAt() {
-        return autoConfirmAt;
-    }
-
-    public void setAutoConfirmAt(Date autoConfirmAt) {
-        this.autoConfirmAt = autoConfirmAt;
+        return copy(autoConfirmAt);
     }
 
     public UUID getAddressIdSnapshot() {
         return addressIdSnapshot;
     }
 
-    public void setAddressIdSnapshot(UUID addressIdSnapshot) {
-        this.addressIdSnapshot = addressIdSnapshot;
-    }
-
     public String getReceiverNameSnapshot() {
         return receiverNameSnapshot;
-    }
-
-    public void setReceiverNameSnapshot(String receiverNameSnapshot) {
-        this.receiverNameSnapshot = receiverNameSnapshot;
     }
 
     public String getReceiverPhoneSnapshot() {
         return receiverPhoneSnapshot;
     }
 
-    public void setReceiverPhoneSnapshot(String receiverPhoneSnapshot) {
-        this.receiverPhoneSnapshot = receiverPhoneSnapshot;
-    }
-
     public String getProvinceSnapshot() {
         return provinceSnapshot;
-    }
-
-    public void setProvinceSnapshot(String provinceSnapshot) {
-        this.provinceSnapshot = provinceSnapshot;
     }
 
     public String getCitySnapshot() {
         return citySnapshot;
     }
 
-    public void setCitySnapshot(String citySnapshot) {
-        this.citySnapshot = citySnapshot;
-    }
-
     public String getDistrictSnapshot() {
         return districtSnapshot;
-    }
-
-    public void setDistrictSnapshot(String districtSnapshot) {
-        this.districtSnapshot = districtSnapshot;
     }
 
     public String getDetailAddressSnapshot() {
         return detailAddressSnapshot;
     }
 
-    public void setDetailAddressSnapshot(String detailAddressSnapshot) {
-        this.detailAddressSnapshot = detailAddressSnapshot;
-    }
-
     public String getPostalCodeSnapshot() {
         return postalCodeSnapshot;
     }
 
-    public void setPostalCodeSnapshot(String postalCodeSnapshot) {
-        this.postalCodeSnapshot = postalCodeSnapshot;
-    }
-
     public Date getCreateTime() {
-        return createTime;
-    }
-
-    public void setCreateTime(Date createTime) {
-        this.createTime = createTime;
+        return copy(createTime);
     }
 
     public Date getUpdateTime() {
-        return updateTime;
-    }
-
-    public void setUpdateTime(Date updateTime) {
-        this.updateTime = updateTime;
+        return copy(updateTime);
     }
 }

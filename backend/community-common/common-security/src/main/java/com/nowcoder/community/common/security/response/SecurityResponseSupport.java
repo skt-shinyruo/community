@@ -19,7 +19,11 @@ public final class SecurityResponseSupport {
     }
 
     public static Result<Void> unauthorized(String traceId, String traceparent, BiConsumer<String, String> headerWriter) {
-        return build(Result.error(CommonErrorCode.UNAUTHORIZED), traceId, traceparent, headerWriter);
+        return build(Result.error(
+                CommonErrorCode.UNAUTHORIZED.getCode(),
+                CommonErrorCode.UNAUTHORIZED.getMessage(),
+                401
+        ), traceId, traceparent, headerWriter);
     }
 
     public static Result<Void> forbidden(String traceId, BiConsumer<String, String> headerWriter) {
@@ -27,7 +31,11 @@ public final class SecurityResponseSupport {
     }
 
     public static Result<Void> forbidden(String traceId, String traceparent, BiConsumer<String, String> headerWriter) {
-        return build(Result.error(CommonErrorCode.FORBIDDEN), traceId, traceparent, headerWriter);
+        return build(Result.error(
+                CommonErrorCode.FORBIDDEN.getCode(),
+                CommonErrorCode.FORBIDDEN.getMessage(),
+                403
+        ), traceId, traceparent, headerWriter);
     }
 
     public static String resolveTraceId(String currentTraceId, String traceparent) {

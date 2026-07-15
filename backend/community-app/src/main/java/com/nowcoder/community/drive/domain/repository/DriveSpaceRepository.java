@@ -8,6 +8,15 @@ import java.util.UUID;
 
 public interface DriveSpaceRepository {
 
+    enum CreateStatus {
+        CREATED,
+        ALREADY_EXISTS,
+        CONFLICT
+    }
+
+    record CreateResult(CreateStatus status, DriveSpace space) {
+    }
+
     Optional<DriveSpace> findByUserId(UUID userId);
 
     Optional<DriveSpace> findById(UUID spaceId);
@@ -19,6 +28,8 @@ public interface DriveSpaceRepository {
     boolean commitReserved(UUID spaceId, long bytes, Instant updatedAt);
 
     boolean releaseReserved(UUID spaceId, long bytes, Instant updatedAt);
+
+    CreateResult create(DriveSpace space);
 
     void save(DriveSpace space);
 }

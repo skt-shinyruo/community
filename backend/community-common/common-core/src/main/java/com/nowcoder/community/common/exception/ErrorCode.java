@@ -5,5 +5,5 @@ public interface ErrorCode {
 
     String getMessage();
 
-    int getHttpStatus();
+    ErrorKind getKind();
 }

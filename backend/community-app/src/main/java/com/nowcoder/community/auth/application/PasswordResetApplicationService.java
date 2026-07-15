@@ -130,7 +130,7 @@ public class PasswordResetApplicationService {
 
         UUID userId = consumed.userId();
         try {
-            userCredentialActionApi.resetPasswordAndRevokeRefreshSessions(userId, newPassword);
+            userCredentialActionApi.updatePassword(userId, newPassword);
         } catch (RuntimeException ex) {
             tokenStore.store(normalizedToken, userId, restoreTtl(consumed.remainingTtl()));
             throw ex;

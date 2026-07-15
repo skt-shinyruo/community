@@ -69,7 +69,7 @@ class WalletAccountMapperPersistenceTest {
         assertThat(storedAccountId).hasSize(16);
         assertThat(BinaryUuidCodec.fromBytes(storedAccountId)).isEqualTo(ACCOUNT_ID);
 
-        WalletAccount account = walletAccountMapper.selectByOwner("USER", userId, "USER_WALLET");
+        WalletAccount account = walletAccountMapper.selectByOwner("USER", userId, "USER_WALLET").toDomain();
         assertThat(account).isNotNull();
 
         Method getter = WalletAccount.class.getMethod("getAccountId");

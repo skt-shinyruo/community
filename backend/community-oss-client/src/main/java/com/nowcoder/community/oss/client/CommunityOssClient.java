@@ -32,6 +32,8 @@ public interface CommunityOssClient {
 
     OssReferenceResponse bindObjectReference(UUID objectId, OssBindReferenceRequest request);
 
+    OssReferenceResponse getObjectReference(UUID objectId, UUID referenceId);
+
     OssReferenceResponse releaseObjectReference(UUID objectId, UUID referenceId, String actorId);
 
     OssLifecycleResponse deleteObject(UUID objectId, String actorId);

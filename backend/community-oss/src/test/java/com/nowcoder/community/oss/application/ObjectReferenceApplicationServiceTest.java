@@ -1,5 +1,7 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.ErrorKind;
 import com.nowcoder.community.oss.application.command.BindObjectReferenceCommand;
 import com.nowcoder.community.oss.application.command.ReleaseObjectReferenceCommand;
 import com.nowcoder.community.oss.application.result.ObjectReferenceResult;
@@ -84,6 +86,7 @@ class ObjectReferenceApplicationServiceTest {
         ));
 
         assertThat(bound.status()).isEqualTo("ACTIVE");
+        assertThat(bound.referenceId()).isNotNull();
         assertThat(referenceRepository.findByObjectId(objectId)).hasSize(1);
         assertThat(released.status()).isEqualTo("RELEASED");
         assertThat(released.releasedAt()).isEqualTo(CLOCK.instant());
@@ -130,6 +133,128 @@ class ObjectReferenceApplicationServiceTest {
                 .hasMessage("object version does not belong to object");
     }
 
+    @Test
+    void requestedIdShouldMakeResponseLossRetryReturnTheOriginalReference() {
+        Fixture fixture = fixture();
+        UUID referenceId = uuid(5);
+        BindObjectReferenceCommand firstAttempt = deterministicCommand(
+                referenceId, fixture.objectId(), fixture.versionId(), "7", "PRIMARY",
+                CLOCK.instant().plusSeconds(3600), "request-actor");
+
+        fixture.serviceAt(CLOCK.instant()).bindReference(firstAttempt);
+        ObjectReferenceResult retried = fixture.serviceAt(CLOCK.instant().plusSeconds(120)).bindReference(
+                deterministicCommand(
+                        referenceId, fixture.objectId(), fixture.versionId(), "7", "PRIMARY",
+                        CLOCK.instant().plusSeconds(3600), "retry-actor"));
+
+        assertThat(retried.referenceId()).isEqualTo(referenceId);
+        assertThat(retried.createdAt()).isEqualTo(CLOCK.instant());
+        assertThat(retried.status()).isEqualTo("ACTIVE");
+        assertThat(fixture.referenceRepository().findByObjectId(fixture.objectId())).hasSize(1);
+        assertThat(fixture.referenceRepository().saveCount()).isEqualTo(1);
+    }
+
+    @Test
+    void sameRequestedIdWithDifferentSemanticFingerprintShouldConflictWithoutMutation() {
+        Fixture fixture = fixture();
+        UUID referenceId = uuid(5);
+        fixture.serviceAt(CLOCK.instant()).bindReference(deterministicCommand(
+                referenceId, fixture.objectId(), fixture.versionId(), "7", "PRIMARY",
+                CLOCK.instant().plusSeconds(3600), "7"));
+
+        assertReferenceConflict(() -> fixture.serviceAt(CLOCK.instant().plusSeconds(1)).bindReference(
+                deterministicCommand(
+                        referenceId, fixture.objectId(), fixture.versionId(), "8", "PRIMARY",
+                        CLOCK.instant().plusSeconds(3600), "8")));
+        assertReferenceConflict(() -> fixture.serviceAt(CLOCK.instant().plusSeconds(2)).bindReference(
+                deterministicCommand(
+                        referenceId, fixture.objectId(), fixture.versionId(), "7", "SECONDARY",
+                        CLOCK.instant().plusSeconds(7200), "7")));
+
+        OssObjectReference stored = fixture.referenceRepository().findById(referenceId).orElseThrow();
+        assertThat(stored.subjectId()).isEqualTo("7");
+        assertThat(stored.referenceRole()).isEqualTo("PRIMARY");
+        assertThat(stored.retainUntil()).isEqualTo(CLOCK.instant().plusSeconds(3600));
+        assertThat(fixture.referenceRepository().saveCount()).isEqualTo(1);
+    }
+
+    @Test
+    void lateBindAfterReleaseAndRepeatedReleaseShouldRemainReleasedAtTheFirstTimestamp() {
+        Fixture fixture = fixture();
+        UUID referenceId = uuid(5);
+        BindObjectReferenceCommand bind = deterministicCommand(
+                referenceId, fixture.objectId(), fixture.versionId(), "7", "PRIMARY", null, "7");
+        fixture.serviceAt(CLOCK.instant()).bindReference(bind);
+
+        Instant firstReleaseAt = CLOCK.instant().plusSeconds(60);
+        ObjectReferenceResult firstRelease = fixture.serviceAt(firstReleaseAt).releaseReference(
+                new ReleaseObjectReferenceCommand(fixture.objectId(), referenceId, "7"));
+        ObjectReferenceResult lateBind = fixture.serviceAt(firstReleaseAt.plusSeconds(60)).bindReference(bind);
+        ObjectReferenceResult repeatedRelease = fixture.serviceAt(firstReleaseAt.plusSeconds(120)).releaseReference(
+                new ReleaseObjectReferenceCommand(fixture.objectId(), referenceId, "retry-actor"));
+
+        assertThat(firstRelease.status()).isEqualTo("RELEASED");
+        assertThat(lateBind.status()).isEqualTo("RELEASED");
+        assertThat(repeatedRelease.status()).isEqualTo("RELEASED");
+        assertThat(firstRelease.releasedAt()).isEqualTo(firstReleaseAt);
+        assertThat(lateBind.releasedAt()).isEqualTo(firstReleaseAt);
+        assertThat(repeatedRelease.releasedAt()).isEqualTo(firstReleaseAt);
+        assertThat(fixture.referenceRepository().saveCount()).isEqualTo(2);
+    }
+
+    private static void assertReferenceConflict(org.assertj.core.api.ThrowableAssert.ThrowingCallable action) {
+        assertThatThrownBy(action)
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.getErrorCode().getKind()).isEqualTo(ErrorKind.CONFLICT);
+                    assertThat(exception.getMessage()).contains("reference").contains("conflict");
+                });
+    }
+
+    private static BindObjectReferenceCommand deterministicCommand(
+            UUID referenceId,
+            UUID objectId,
+            UUID versionId,
+            String subjectId,
+            String referenceRole,
+            Instant retainUntil,
+            String actorId
+    ) {
+        return new BindObjectReferenceCommand(
+                referenceId,
+                objectId,
+                versionId,
+                "community-app",
+                "user",
+                "avatar",
+                subjectId,
+                referenceRole,
+                retainUntil,
+                actorId
+        );
+    }
+
+    private static Fixture fixture() {
+        UUID objectId = uuid(1);
+        UUID versionId = uuid(2);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeVersionRepository versionRepository = new FakeVersionRepository();
+        FakeReferenceRepository referenceRepository = new FakeReferenceRepository();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                OssVisibility.PUBLIC,
+                "7",
+                CLOCK.instant()
+        ).activate(version, CLOCK.instant()));
+        versionRepository.save(version);
+        return new Fixture(objectId, versionId, objectRepository, versionRepository, referenceRepository);
+    }
+
     private static OssObjectVersion activeVersion(UUID objectId, UUID versionId) {
         return OssObjectVersion.staged(
                 versionId,
@@ -165,10 +290,22 @@ class ObjectReferenceApplicationServiceTest {
 
     private static final class FakeReferenceRepository implements OssObjectReferenceRepository {
         private final Map<UUID, OssObjectReference> rows = new HashMap<>();
+        private int saveCount;
 
         @Override
         public void save(OssObjectReference reference) {
             rows.put(reference.referenceId(), reference);
+            saveCount++;
+        }
+
+        @Override
+        public OssObjectReference insertOrFindExisting(OssObjectReference reference) {
+            OssObjectReference existing = rows.get(reference.referenceId());
+            if (existing != null) {
+                return existing;
+            }
+            save(reference);
+            return reference;
         }
 
         @Override
@@ -179,6 +316,10 @@ class ObjectReferenceApplicationServiceTest {
         @Override
         public List<OssObjectReference> findByObjectId(UUID objectId) {
             return rows.values().stream().filter(reference -> objectId.equals(reference.objectId())).toList();
+        }
+
+        int saveCount() {
+            return saveCount;
         }
     }
 
@@ -193,6 +334,23 @@ class ObjectReferenceApplicationServiceTest {
         @Override
         public Optional<OssObjectVersion> findById(UUID versionId) {
             return Optional.ofNullable(rows.get(versionId));
+        }
+    }
+
+    private record Fixture(
+            UUID objectId,
+            UUID versionId,
+            FakeObjectRepository objectRepository,
+            FakeVersionRepository versionRepository,
+            FakeReferenceRepository referenceRepository
+    ) {
+        ObjectReferenceApplicationService serviceAt(Instant instant) {
+            return new ObjectReferenceApplicationService(
+                    objectRepository,
+                    versionRepository,
+                    referenceRepository,
+                    Clock.fixed(instant, ZoneOffset.UTC)
+            );
         }
     }
 }

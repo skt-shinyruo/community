@@ -5,6 +5,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.domain.model.WithdrawOrder;
+import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.domain.repository.WithdrawOrderRepository;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
@@ -16,7 +17,6 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -181,7 +181,9 @@ class WalletWithdrawApplicationServiceTest {
         WithdrawOrder succeededOrder = order(orderId, "withdraw:req-race", userId, 500, "SUCCEEDED");
 
         when(repository.findByUserIdAndRequestId(userId, "withdraw:req-race"))
-                .thenReturn(null, requestedOrder, processingOrder, succeededOrder);
+                .thenReturn(null, processingOrder, succeededOrder);
+        when(repository.create(any(WithdrawOrder.class)))
+                .thenReturn(CreationOutcome.alreadyExists(requestedOrder));
         when(mockedAccountService.balanceOfSystem("PLATFORM_CASH")).thenReturn(800L);
         when(mockedAccountService.ensureUserWallet(userId))
                 .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000634"));
@@ -189,9 +191,6 @@ class WalletWithdrawApplicationServiceTest {
                 .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000635"));
         when(mockedAccountService.ensureSystemAccount("PLATFORM_CASH"))
                 .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000636"));
-        org.mockito.Mockito.doThrow(new DuplicateKeyException("duplicate request"))
-                .when(repository).insert(any(WithdrawOrder.class));
-
         WithdrawOrderResult result = service.request("withdraw:req-race", userId, 500);
 
         assertThat(result.orderId()).isEqualTo(orderId);
@@ -231,7 +230,7 @@ class WalletWithdrawApplicationServiceTest {
         assertThat(result.orderId()).isEqualTo(orderId);
         assertThat(result.status()).isEqualTo("SUCCEEDED");
         org.mockito.Mockito.verifyNoInteractions(mockedLedgerService);
-        org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).insert(any(WithdrawOrder.class));
+        org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).create(any(WithdrawOrder.class));
     }
 
     private void seedUserBalance(UUID userId, long balance) {

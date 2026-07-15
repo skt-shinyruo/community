@@ -20,6 +20,13 @@ public interface UserTaskEventLogMapper {
             @Param("sourceEventId") String sourceEventId
     );
 
+    boolean exists(
+            @Param("userId") UUID userId,
+            @Param("taskCode") String taskCode,
+            @Param("periodKey") String periodKey,
+            @Param("sourceEventId") String sourceEventId
+    );
+
     List<UserTaskContributionLog> selectLikeContributionLogs(
             @Param("userId") UUID userId,
             @Param("sourceEventId") String sourceEventId

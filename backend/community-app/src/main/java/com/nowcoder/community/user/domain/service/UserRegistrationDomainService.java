@@ -6,7 +6,6 @@ import com.nowcoder.community.user.domain.model.UserAccount;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
-import java.util.Locale;
 import java.util.regex.Pattern;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -49,17 +48,6 @@ public class UserRegistrationDomainService {
             throw new BusinessException(INVALID_ARGUMENT, "密码格式非法");
         }
         return trimmedEncodedPassword;
-    }
-
-    public boolean causedByConstraint(Throwable error, String constraintName) {
-        String expected = constraintName.toLowerCase(Locale.ROOT);
-        for (Throwable current = error; current != null; current = current.getCause()) {
-            String message = current.getMessage();
-            if (message != null && message.toLowerCase(Locale.ROOT).contains(expected)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public UserAccount preparedRegistrationUser(

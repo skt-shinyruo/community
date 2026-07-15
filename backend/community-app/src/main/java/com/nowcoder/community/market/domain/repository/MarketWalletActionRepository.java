@@ -8,7 +8,16 @@ import java.util.UUID;
 
 public interface MarketWalletActionRepository {
 
-    int save(MarketWalletAction action);
+    enum CreateStatus {
+        CREATED,
+        ALREADY_EXISTS,
+        CONFLICT
+    }
+
+    record CreateResult(CreateStatus status, MarketWalletAction aggregate) {
+    }
+
+    CreateResult create(MarketWalletAction action);
 
     MarketWalletAction findById(UUID actionId);
 

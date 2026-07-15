@@ -3,20 +3,20 @@ package com.nowcoder.community.wallet.application;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.infra.idempotency.EffectiveIdempotencyKey;
-import com.nowcoder.community.infra.idempotency.IdempotencyKeyResolver;
-import com.nowcoder.community.infra.idempotency.RequestFingerprint;
+import com.nowcoder.community.common.idempotency.EffectiveIdempotencyKey;
+import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
+import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import com.nowcoder.community.wallet.application.command.CreateRechargeCommand;
 import com.nowcoder.community.wallet.domain.model.RechargeOrder;
 import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
+import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.RechargeOrderRepository;
 import com.nowcoder.community.wallet.domain.service.WalletOrderDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -122,16 +122,24 @@ public class WalletRechargeApplicationService {
 
     private RechargeOrder createOrLoad(String requestId, UUID userId, long amount) {
         RechargeOrder order = RechargeOrder.create(idGenerator.next(), requestId, userId, amount);
-        try {
-            rechargeOrderRepository.insert(order);
-            return order;
-        } catch (DataIntegrityViolationException ex) {
-            RechargeOrder duplicated = rechargeOrderRepository.findByUserIdAndRequestId(userId, requestId);
-            if (duplicated != null) {
-                return duplicated;
-            }
-            throw ex;
+        CreationOutcome<RechargeOrder> outcome = rechargeOrderRepository.create(order);
+        if (outcome == null
+                || outcome.status() == CreationOutcome.Status.CONFLICT
+                || outcome.aggregate() == null) {
+            throw new BusinessException(
+                    WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                    "recharge order creation conflict: requestId=" + requestId
+            );
         }
+        RechargeOrder persisted = outcome.aggregate();
+        if (!Objects.equals(requestId, persisted.getRequestId())) {
+            throw new BusinessException(
+                    WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                    "requestId replay conflict: requestId=" + requestId
+            );
+        }
+        persisted.assertReplayMatches(userId, amount);
+        return persisted;
     }
 
     private RechargeOrder requireOrder(UUID userId, String requestId) {

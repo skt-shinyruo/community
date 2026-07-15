@@ -294,7 +294,7 @@ class FollowApplicationServiceTest {
     }
 
     @Test
-    void followShouldRollbackStateWhenPublisherFailsForCompensatingRepository() {
+    void followShouldPropagatePublisherFailure() {
         StatefulFollowRepository repo = new StatefulFollowRepository();
         FollowApplicationService service = newService(repo, new StatefulBlockRepository(), new FailingSocialDomainEventPublisher());
         UUID actorUserId = uuid(1);
@@ -303,10 +303,6 @@ class FollowApplicationServiceTest {
         assertThatThrownBy(() -> service.follow(new FollowCommand(actorUserId, USER, targetUserId)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("publish failed");
-
-        assertThat(service.hasFollowed(actorUserId, USER, targetUserId)).isFalse();
-        assertThat(service.followeeCount(actorUserId, USER)).isEqualTo(0);
-        assertThat(service.followerCount(USER, targetUserId)).isEqualTo(0);
     }
 
     @Test
@@ -431,11 +427,6 @@ class FollowApplicationServiceTest {
                     .toList();
         }
 
-        @Override
-        public boolean requiresExplicitCompensation() {
-            return true;
-        }
-
         private List<FollowRelation> list(Map<UUID, Long> map, int offset, int limit) {
             if (map == null || map.isEmpty()) {
                 return List.of();
@@ -500,10 +491,6 @@ class FollowApplicationServiceTest {
             return List.of();
         }
 
-        @Override
-        public boolean requiresExplicitCompensation() {
-            return true;
-        }
     }
 
     private static final class RecordingSocialDomainEventPublisher implements SocialDomainEventPublisher {

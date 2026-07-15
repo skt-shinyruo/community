@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.nowcoder.community.content.support.CommentTestBuilder.aComment;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,10 +63,11 @@ class PostReadApplicationServiceTest {
         post.setTitle("&lt;title&gt;");
         post.setCommentCount(3);
 
-        Comment lastActivity = new Comment();
-        lastActivity.setUserId(lastReplyUserId);
-        lastActivity.setCreateTime(new Date(2_000));
-        lastActivity.setContent("&lt;latest reply&gt;");
+        Comment lastActivity = aComment()
+                .userId(lastReplyUserId)
+                .createTime(new Date(2_000))
+                .content("&lt;latest reply&gt;")
+                .build();
 
         when(postService.listPosts(0, 10, PostContentRepository.ORDER_LATEST, null, null)).thenReturn(List.of(post));
         when(commentService.getLatestPostActivitiesByPostIds(List.of(postId))).thenReturn(Map.of(postId, lastActivity));
@@ -516,10 +518,11 @@ class PostReadApplicationServiceTest {
         second.setTitle("&lt;second&gt;");
         second.setCommentCount(1);
 
-        Comment lastActivity = new Comment();
-        lastActivity.setUserId(lastReplyUserId);
-        lastActivity.setCreateTime(new Date(3_000));
-        lastActivity.setContent("&lt;newest&gt;");
+        Comment lastActivity = aComment()
+                .userId(lastReplyUserId)
+                .createTime(new Date(3_000))
+                .content("&lt;newest&gt;")
+                .build();
 
         when(postService.listPostsByUser(userId, 0, 3)).thenReturn(List.of(first, second));
         when(commentService.getLatestPostActivitiesByPostIds(List.of(firstPostId, secondPostId))).thenReturn(Map.of(firstPostId, lastActivity));
@@ -566,21 +569,23 @@ class PostReadApplicationServiceTest {
         UUID firstPostId = uuid(201);
         UUID secondPostId = uuid(202);
 
-        Comment direct = new Comment();
-        direct.setId(directCommentId);
-        direct.setPostId(firstPostId);
-        direct.setUserId(userId);
-        direct.setContent("&lt;direct&gt;");
-        direct.setCreateTime(new Date(2_000));
+        Comment direct = aComment()
+                .id(directCommentId)
+                .postId(firstPostId)
+                .userId(userId)
+                .content("&lt;direct&gt;")
+                .createTime(new Date(2_000))
+                .build();
 
-        Comment reply = new Comment();
-        reply.setId(replyCommentId);
-        reply.setPostId(secondPostId);
-        reply.setRootCommentId(parentCommentId);
-        reply.setParentCommentId(parentCommentId);
-        reply.setUserId(userId);
-        reply.setContent("&lt;reply&gt;");
-        reply.setCreateTime(new Date(3_000));
+        Comment reply = aComment()
+                .id(replyCommentId)
+                .postId(secondPostId)
+                .rootCommentId(parentCommentId)
+                .parentCommentId(parentCommentId)
+                .userId(userId)
+                .content("&lt;reply&gt;")
+                .createTime(new Date(3_000))
+                .build();
 
         DiscussPost firstPost = new DiscussPost();
         firstPost.setId(firstPostId);
@@ -632,18 +637,19 @@ class PostReadApplicationServiceTest {
         UUID directCommentId = uuid(42);
         UUID postId = uuid(201);
 
-        Comment brokenReply = new Comment();
-        brokenReply.setId(brokenReplyId);
-        brokenReply.setUserId(userId);
-        brokenReply.setContent("&lt;reply&gt;");
-        brokenReply.setCreateTime(new Date(3_000));
+        Comment brokenReply = mock(Comment.class);
+        when(brokenReply.getId()).thenReturn(brokenReplyId);
+        when(brokenReply.getUserId()).thenReturn(userId);
+        when(brokenReply.getContent()).thenReturn("&lt;reply&gt;");
+        when(brokenReply.getCreateTime()).thenReturn(new Date(3_000));
 
-        Comment direct = new Comment();
-        direct.setId(directCommentId);
-        direct.setPostId(postId);
-        direct.setUserId(userId);
-        direct.setContent("&lt;direct&gt;");
-        direct.setCreateTime(new Date(2_000));
+        Comment direct = aComment()
+                .id(directCommentId)
+                .postId(postId)
+                .userId(userId)
+                .content("&lt;direct&gt;")
+                .createTime(new Date(2_000))
+                .build();
 
         DiscussPost firstPost = new DiscussPost();
         firstPost.setId(postId);
@@ -701,10 +707,11 @@ class PostReadApplicationServiceTest {
         second.setTitle("&lt;second&gt;");
         second.setCommentCount(2);
 
-        Comment lastActivity = new Comment();
-        lastActivity.setUserId(lastReplyUserId);
-        lastActivity.setCreateTime(new Date(3_000));
-        lastActivity.setContent("&lt;newest&gt;");
+        Comment lastActivity = aComment()
+                .userId(lastReplyUserId)
+                .createTime(new Date(3_000))
+                .content("&lt;newest&gt;")
+                .build();
 
         when(postService.listPostsByIds(requestedPostIds)).thenReturn(List.of(first, second));
         when(commentService.getLatestPostActivitiesByPostIds(requestedPostIds)).thenReturn(Map.of(firstPostId, lastActivity));

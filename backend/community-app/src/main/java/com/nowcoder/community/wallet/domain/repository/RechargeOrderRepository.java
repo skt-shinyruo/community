@@ -11,7 +11,7 @@ public interface RechargeOrderRepository {
 
     RechargeOrder findByUserIdAndRequestId(UUID userId, String requestId);
 
-    int insert(RechargeOrder order);
+    CreationOutcome<RechargeOrder> create(RechargeOrder order);
 
     int updateStatus(UUID userId, String requestId, String fromStatus, String toStatus);
 

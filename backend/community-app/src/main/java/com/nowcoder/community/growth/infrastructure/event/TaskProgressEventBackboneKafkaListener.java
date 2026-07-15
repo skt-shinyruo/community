@@ -1,11 +1,11 @@
 package com.nowcoder.community.growth.infrastructure.event;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.constants.EntityTypes;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService;
 import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
@@ -14,7 +14,9 @@ import com.nowcoder.community.growth.application.command.TriggerLikeRemovedComma
 import com.nowcoder.community.growth.application.command.TriggerPostPublishedCommand;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import com.nowcoder.community.social.contracts.event.SocialTypedEvent;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -23,14 +25,17 @@ import java.time.Instant;
 @Component
 public class TaskProgressEventBackboneKafkaListener {
 
-    private final JsonCodec jsonCodec;
+    private final ContentContractEventCodec contentContractEventCodec;
+    private final SocialContractEventCodec socialContractEventCodec;
     private final TaskProgressApplicationService applicationService;
 
     public TaskProgressEventBackboneKafkaListener(
-            JsonCodec jsonCodec,
+            ContentContractEventCodec contentContractEventCodec,
+            SocialContractEventCodec socialContractEventCodec,
             TaskProgressApplicationService applicationService
     ) {
-        this.jsonCodec = jsonCodec;
+        this.contentContractEventCodec = contentContractEventCodec;
+        this.socialContractEventCodec = socialContractEventCodec;
         this.applicationService = applicationService;
     }
 
@@ -45,12 +50,12 @@ public class TaskProgressEventBackboneKafkaListener {
         }
         if (ContentEventTypes.POST_PUBLISHED.equals(event.type())) {
             requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
-            handlePostPublished(event);
+            handlePostPublished(event, ((ContentTypedEvent.PostPublished) decodeContent(event)).payload());
             return;
         }
         if (ContentEventTypes.COMMENT_CREATED.equals(event.type())) {
             requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
-            handleCommentCreated(event);
+            handleCommentCreated(event, ((ContentTypedEvent.CommentCreated) decodeContent(event)).payload());
         }
     }
 
@@ -65,7 +70,10 @@ public class TaskProgressEventBackboneKafkaListener {
             return;
         }
         requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
-        LikePayload payload = normalizePayload(event.payload(), LikePayload.class);
+        SocialTypedEvent typedEvent = decodeSocial(event);
+        LikePayload payload = typedEvent instanceof SocialTypedEvent.LikeCreated value
+                ? value.payload()
+                : ((SocialTypedEvent.LikeRemoved) typedEvent).payload();
         if (SocialEventTypes.LIKE_REMOVED.equals(event.type())) {
             handleLikeRemoved(event, payload);
         } else {
@@ -73,8 +81,7 @@ public class TaskProgressEventBackboneKafkaListener {
         }
     }
 
-    private void handlePostPublished(ContentContractEvent event) {
-        PostPayload payload = normalizePayload(event.payload(), PostPayload.class);
+    private void handlePostPublished(ContentContractEvent event, PostPayload payload) {
         if (payload == null || payload.getPostId() == null || payload.getUserId() == null || payload.getCreateTime() == null) {
             throw malformed(event.type(), event.eventId());
         }
@@ -85,8 +92,7 @@ public class TaskProgressEventBackboneKafkaListener {
         ));
     }
 
-    private void handleCommentCreated(ContentContractEvent event) {
-        CommentPayload payload = normalizePayload(event.payload(), CommentPayload.class);
+    private void handleCommentCreated(ContentContractEvent event, CommentPayload payload) {
         if (payload == null || payload.getCommentId() == null || payload.getUserId() == null || payload.getCreateTime() == null) {
             throw malformed(event.type(), event.eventId());
         }
@@ -142,11 +148,19 @@ public class TaskProgressEventBackboneKafkaListener {
                 "invalid recognized Growth event: type=" + eventType + ", eventId=" + eventId);
     }
 
-    private <T> T normalizePayload(Object payload, Class<T> type) {
-        if (payload == null || type.isInstance(payload)) {
-            return type.cast(payload);
+    private ContentTypedEvent decodeContent(ContentContractEvent event) {
+        try {
+            return contentContractEventCodec.decode(event);
+        } catch (RuntimeException error) {
+            throw malformed(event.type(), event.eventId());
         }
-        JsonNode node = jsonCodec.valueToTree(payload);
-        return jsonCodec.treeToValue(node, type);
+    }
+
+    private SocialTypedEvent decodeSocial(SocialContractEvent event) {
+        try {
+            return socialContractEventCodec.decode(event);
+        } catch (RuntimeException error) {
+            throw malformed(event.type(), event.eventId());
+        }
     }
 }

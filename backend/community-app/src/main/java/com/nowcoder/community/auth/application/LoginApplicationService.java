@@ -154,6 +154,10 @@ public class LoginApplicationService {
                 refreshTokenService.revokeFamily(pending.familyId());
                 throw new RefreshFailure(AuthErrorCode.USER_DISABLED, true);
             }
+            if (pending.securityVersionAtIssue() != credentialView.securityVersion()) {
+                refreshTokenService.revokeFamily(pending.familyId());
+                throw new RefreshFailure(AuthErrorCode.REFRESH_TOKEN_INVALID, true);
+            }
             String accessToken = loginTokenIssuer.issueAccessToken(credentialView);
             RefreshTokenApplicationService.IssuedRefreshToken replacement = refreshTokenService.generateReplacementToken(
                     credentialView.userId(),
@@ -166,7 +170,8 @@ public class LoginApplicationService {
                     refreshToken,
                     replacement.refreshToken(),
                     credentialView.userId(),
-                    pending.familyId()
+                    pending.familyId(),
+                    credentialView.securityVersion()
             );
             if (!finished) {
                 throw new IllegalStateException("refresh rotation finish failed");

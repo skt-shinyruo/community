@@ -1,12 +1,12 @@
 package com.nowcoder.community.auth.application;
 
-import com.nowcoder.community.auth.application.port.RefreshTokenSessionPort;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.RefreshTokenDomainService;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -18,51 +18,25 @@ public class RefreshTokenApplicationService {
     private final RefreshTokenRepository refreshTokenStore;
     private final RefreshTokenDomainService refreshTokenDomainService;
     private final AuthSecretGenerator authSecretGenerator;
-    private final RefreshTokenSessionPort refreshTokenSessionPort;
 
     public RefreshTokenApplicationService(
             JwtProperties jwtProperties,
             RefreshTokenRepository refreshTokenStore,
             RefreshTokenDomainService refreshTokenDomainService,
-            AuthSecretGenerator authSecretGenerator,
-            RefreshTokenSessionPort refreshTokenSessionPort
+            AuthSecretGenerator authSecretGenerator
     ) {
         this.jwtProperties = jwtProperties;
         this.refreshTokenStore = refreshTokenStore;
         this.refreshTokenDomainService = refreshTokenDomainService;
         this.authSecretGenerator = authSecretGenerator;
-        this.refreshTokenSessionPort = refreshTokenSessionPort;
     }
 
-    public IssuedRefreshToken issue(UUID userId) {
+    public IssuedRefreshToken issue(UUID userId, long securityVersionAtIssue) {
         String familyId = UUID.randomUUID().toString().replace("-", "");
-        return issue(userId, familyId);
+        return issue(userId, familyId, securityVersionAtIssue);
     }
 
-    public IssuedRefreshToken rotate(String refreshToken) {
-        RefreshTokenRepository.StoredRefreshToken consumed = consume(refreshToken);
-        if (consumed == null) {
-            return null;
-        }
-        try {
-            return issueInFamily(consumed.userId(), consumed.familyId());
-        } catch (RuntimeException e) {
-            return null;
-        }
-    }
-
-    public RefreshTokenRepository.StoredRefreshToken consume(String refreshToken) {
-        RefreshTokenRepository.StoredRefreshToken consumed = refreshTokenStore.consume(refreshToken);
-        if (consumed == null) {
-            maybeRevokeFamilyForReusedToken(refreshToken);
-            return null;
-        }
-        if (refreshTokenDomainService.isExpired(consumed.expiresAt(), Instant.now())) {
-            return null;
-        }
-        return consumed;
-    }
-
+    @Transactional
     public RefreshTokenRepository.StoredRefreshToken beginRotation(String refreshToken) {
         Instant now = Instant.now();
         RefreshTokenRepository.StoredRefreshToken pending = refreshTokenStore.beginRotation(refreshToken, now.plusSeconds(30));
@@ -82,17 +56,27 @@ public class RefreshTokenApplicationService {
         return new IssuedRefreshToken(tokenValue, buildCookie(tokenValue));
     }
 
-    public boolean finishRotation(String pendingRefreshToken, String replacementRefreshToken, UUID userId, String familyId) {
+    @Transactional
+    public boolean finishRotation(
+            String pendingRefreshToken,
+            String replacementRefreshToken,
+            UUID userId,
+            String familyId,
+            long securityVersionAtIssue
+    ) {
         Instant replacementExpiresAt = Instant.now().plusSeconds(jwtProperties.getRefreshTokenTtlSeconds());
-        return refreshTokenStore.finishRotation(pendingRefreshToken, replacementRefreshToken, userId, familyId, replacementExpiresAt);
+        return refreshTokenStore.finishRotation(
+                pendingRefreshToken,
+                replacementRefreshToken,
+                userId,
+                familyId,
+                securityVersionAtIssue,
+                replacementExpiresAt
+        );
     }
 
     public boolean rollbackPendingRotation(String refreshToken) {
         return refreshTokenStore.rollbackPendingRotation(refreshToken);
-    }
-
-    public IssuedRefreshToken issueInFamily(UUID userId, String familyId) {
-        return issue(userId, familyId);
     }
 
     public RefreshTokenRepository.StoredRefreshToken find(String refreshToken) {
@@ -111,11 +95,17 @@ public class RefreshTokenApplicationService {
         refreshTokenStore.revoke(refreshToken);
     }
 
+    @Transactional
     public void revokeFamilyByToken(String refreshToken) {
-        revokeFamilyByPresentedToken(refreshToken);
+        revokeFamilyByPresentedTokenCore(refreshToken);
     }
 
+    @Transactional
     public void revokeFamilyByPresentedToken(String refreshToken) {
+        revokeFamilyByPresentedTokenCore(refreshToken);
+    }
+
+    private void revokeFamilyByPresentedTokenCore(String refreshToken) {
         RefreshTokenRepository.StoredRefreshToken token = refreshTokenStore.find(refreshToken);
         if (token != null) {
             refreshTokenStore.revoke(refreshToken);
@@ -128,6 +118,7 @@ public class RefreshTokenApplicationService {
         }
     }
 
+    @Transactional
     public void revokeFamily(String familyId) {
         refreshTokenStore.revokeFamily(familyId);
     }
@@ -161,13 +152,13 @@ public class RefreshTokenApplicationService {
     }
 
     public int cleanupExpiredBefore(Instant expiresBefore) {
-        return refreshTokenSessionPort.deleteExpiredBefore(expiresBefore);
+        return refreshTokenStore.deleteExpiredBefore(expiresBefore);
     }
 
-    private IssuedRefreshToken issue(UUID userId, String familyId) {
+    private IssuedRefreshToken issue(UUID userId, String familyId, long securityVersionAtIssue) {
         String tokenValue = secureTokenValue();
         Instant expiresAt = Instant.now().plusSeconds(jwtProperties.getRefreshTokenTtlSeconds());
-        refreshTokenStore.store(tokenValue, userId, familyId, expiresAt);
+        refreshTokenStore.store(tokenValue, userId, familyId, securityVersionAtIssue, expiresAt);
         return new IssuedRefreshToken(tokenValue, buildCookie(tokenValue));
     }
 

@@ -4,9 +4,18 @@ import com.nowcoder.community.growth.domain.model.UserLevelRuleConfig;
 
 public interface UserLevelRuleConfigRepository {
 
+    enum CreateStatus {
+        CREATED,
+        ALREADY_EXISTS,
+        CONFLICT
+    }
+
+    record CreateResult(CreateStatus status, UserLevelRuleConfig config) {
+    }
+
     UserLevelRuleConfig selectCurrent();
 
     int updateCurrent(UserLevelRuleConfig config);
 
-    int insert(UserLevelRuleConfig config);
+    CreateResult create(UserLevelRuleConfig config);
 }

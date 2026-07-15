@@ -6,6 +6,7 @@ import com.nowcoder.community.content.application.PostMediaStoragePort;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.oss.client.CommunityOssClient;
+import com.nowcoder.community.oss.client.OssClientException;
 import com.nowcoder.community.oss.client.model.OssBindReferenceRequest;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
@@ -14,6 +15,7 @@ import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
 import org.springframework.stereotype.Component;
 
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
@@ -45,6 +47,7 @@ public class OssPostMediaStorageAdapter implements PostMediaStoragePort {
     public PostMediaUploadSessionResult prepareUpload(PostMediaAsset draft, String checksumSha256) {
         requireDraftIdentity(draft);
         OssUploadSessionResponse response = ossClient.prepareUpload(new OssUploadSessionRequest(
+                draft.id(),
                 USAGE,
                 OWNER_SERVICE,
                 OWNER_DOMAIN,
@@ -95,7 +98,7 @@ public class OssPostMediaStorageAdapter implements PostMediaStoragePort {
         } catch (RuntimeException e) {
             throw new BusinessException(INTERNAL_ERROR, "上传媒体失败", e);
         }
-        if (metadata == null || metadata.currentVersionId() == null) {
+        if (!matchesExpectedActiveMetadata(draft, metadata)) {
             throw new BusinessException(INTERNAL_ERROR, "上传媒体失败");
         }
         return new UploadedPostMedia(
@@ -107,6 +110,61 @@ public class OssPostMediaStorageAdapter implements PostMediaStoragePort {
     }
 
     @Override
+    public CanonicalPostMedia queryCanonicalMetadata(PostMediaAsset asset) {
+        if (asset == null || asset.ossObjectId() == null) {
+            return unknownCanonical();
+        }
+        OssMetadataResponse metadata;
+        try {
+            metadata = ossClient.getMetadata(asset.ossObjectId());
+        } catch (OssClientException exception) {
+            if (exception.category() == OssClientException.Category.NOT_FOUND) {
+                return new CanonicalPostMedia(
+                        CanonicalMetadataOutcome.NOT_FOUND, asset.ossObjectId(), null, "", "", 0L, "");
+            }
+            return unknownCanonical();
+        } catch (RuntimeException exception) {
+            return unknownCanonical();
+        }
+        if (!matchesExpectedActiveMetadata(asset, metadata)) {
+            return unknownCanonical();
+        }
+        return new CanonicalPostMedia(
+                CanonicalMetadataOutcome.FOUND,
+                metadata.objectId(),
+                metadata.currentVersionId(),
+                metadata.publicUrl(),
+                metadata.contentType(),
+                metadata.contentLength(),
+                metadata.checksumSha256()
+        );
+    }
+
+    private CanonicalPostMedia unknownCanonical() {
+        return new CanonicalPostMedia(CanonicalMetadataOutcome.UNKNOWN, null, null, "", "", 0L, "");
+    }
+
+    private static boolean matchesExpectedActiveMetadata(PostMediaAsset asset, OssMetadataResponse metadata) {
+        return asset != null
+                && asset.id() != null
+                && metadata != null
+                && Objects.equals(asset.ossObjectId(), metadata.objectId())
+                && Objects.equals(asset.ossVersionId(), metadata.currentVersionId())
+                && USAGE.equals(metadata.usage())
+                && OWNER_SERVICE.equals(metadata.ownerService())
+                && OWNER_DOMAIN.equals(metadata.ownerDomain())
+                && DRAFT_OWNER_TYPE.equals(metadata.ownerType())
+                && Objects.equals(asset.id().toString(), metadata.ownerId())
+                && VISIBILITY_PUBLIC.equalsIgnoreCase(metadata.visibility())
+                && "ACTIVE".equalsIgnoreCase(metadata.status())
+                && Objects.equals(asset.fileName(), metadata.fileName())
+                && Objects.equals(asset.contentType(), metadata.contentType())
+                && asset.contentLength() == metadata.contentLength()
+                && metadata.publicUrl() != null
+                && !metadata.publicUrl().isBlank();
+    }
+
+    @Override
     public void deleteDraftObject(PostMediaAsset asset, UUID actorUserId) {
         if (asset == null || asset.ossObjectId() == null) {
             return;
@@ -115,11 +173,12 @@ public class OssPostMediaStorageAdapter implements PostMediaStoragePort {
     }
 
     @Override
-    public UUID bindReference(PostMediaAsset asset, UUID postId, UUID actorUserId) {
+    public UUID bindReference(PostMediaAsset asset, UUID postId, UUID requestedReferenceId, UUID actorUserId) {
         if (asset == null || asset.ossObjectId() == null || asset.ossVersionId() == null || postId == null || actorUserId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "媒体绑定上下文非法");
         }
         OssReferenceResponse response = ossClient.bindObjectReference(asset.ossObjectId(), new OssBindReferenceRequest(
+                requestedReferenceId == null ? null : requestedReferenceId.toString(),
                 asset.ossVersionId().toString(),
                 OWNER_SERVICE,
                 OWNER_DOMAIN,
@@ -138,6 +197,10 @@ public class OssPostMediaStorageAdapter implements PostMediaStoragePort {
     @Override
     public void releaseReference(PostMediaAsset asset, UUID actorUserId) {
         if (asset == null || asset.ossObjectId() == null || asset.ossReferenceId() == null) {
+            return;
+        }
+        OssReferenceResponse reference = ossClient.getObjectReference(asset.ossObjectId(), asset.ossReferenceId());
+        if (reference == null || "RELEASED".equalsIgnoreCase(reference.status())) {
             return;
         }
         ossClient.releaseObjectReference(asset.ossObjectId(), asset.ossReferenceId(), actorUserId == null ? "" : actorUserId.toString());

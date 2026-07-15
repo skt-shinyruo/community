@@ -11,9 +11,13 @@ import java.util.UUID;
 @Mapper
 public interface OssObjectReferenceMapper {
 
-    int upsert(OssObjectReferenceDataObject row);
+    int insert(OssObjectReferenceDataObject row);
+
+    int updateLifecycle(OssObjectReferenceDataObject row);
 
     OssObjectReferenceDataObject selectById(UUID referenceId);
+
+    OssObjectReferenceDataObject selectByIdForUpdate(UUID referenceId);
 
     List<OssObjectReferenceDataObject> selectByObjectId(UUID objectId);
 }

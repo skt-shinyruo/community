@@ -1,25 +1,26 @@
 package com.nowcoder.community.search.exception;
 
 import com.nowcoder.community.common.exception.ErrorCode;
+import com.nowcoder.community.common.exception.ErrorKind;
 
 /**
  * search 域错误码（搜索/索引等）。
  *
- * <p>约定：HTTP status 表达“错误类别”，Result.code 表达“业务细分”。</p>
+ * <p>约定：ErrorKind 表达稳定类别，Web adapter 映射 HTTP status。</p>
  */
 public enum SearchErrorCode implements ErrorCode {
 
-    INDEX_UNAVAILABLE(15001, "搜索索引不可用", 503),
-    INTERNAL_ERROR(15003, "搜索服务异常", 500);
+    INDEX_UNAVAILABLE(15001, "搜索索引不可用", ErrorKind.UNAVAILABLE),
+    INTERNAL_ERROR(15003, "搜索服务异常", ErrorKind.INTERNAL);
 
     private final int code;
     private final String message;
-    private final int httpStatus;
+    private final ErrorKind kind;
 
-    SearchErrorCode(int code, String message, int httpStatus) {
+    SearchErrorCode(int code, String message, ErrorKind kind) {
         this.code = code;
         this.message = message;
-        this.httpStatus = httpStatus;
+        this.kind = kind;
     }
 
     @Override
@@ -33,7 +34,7 @@ public enum SearchErrorCode implements ErrorCode {
     }
 
     @Override
-    public int getHttpStatus() {
-        return httpStatus;
+    public ErrorKind getKind() {
+        return kind;
     }
 }

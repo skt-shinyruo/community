@@ -10,12 +10,13 @@ import com.nowcoder.community.market.domain.model.MarketWalletActionStatus;
 import com.nowcoder.community.market.domain.model.MarketWalletActionType;
 import com.nowcoder.community.market.domain.service.MarketWalletActionDomainService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
 import java.util.UUID;
+
+import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 
 @Service
 public class MarketWalletActionApplicationService {
@@ -99,17 +100,24 @@ public class MarketWalletActionApplicationService {
         action.setCounterpartyUserId(counterpartyUserId);
         action.setAmount(amount);
         action.setStatus(MarketWalletActionStatus.PENDING);
-        try {
-            walletActionRepository.save(action);
-            return action;
-        } catch (DataIntegrityViolationException ex) {
-            MarketWalletAction duplicated = walletActionRepository.findByRequestId(requestId);
-            if (duplicated != null) {
-                ensureReplayMatches(duplicated, orderId, disputeId, actionType, actorUserId, counterpartyUserId, amount);
-                return duplicated;
-            }
-            throw ex;
+        MarketWalletActionRepository.CreateResult createResult = walletActionRepository.create(action);
+        if (createResult == null
+                || createResult.status() == null
+                || createResult.status() == MarketWalletActionRepository.CreateStatus.CONFLICT
+                || createResult.aggregate() == null) {
+            throw new BusinessException(INTERNAL_ERROR, "market wallet action creation conflict: requestId=" + requestId);
         }
+        MarketWalletAction createdOrExisting = createResult.aggregate();
+        ensureReplayMatches(
+                createdOrExisting,
+                orderId,
+                disputeId,
+                actionType,
+                actorUserId,
+                counterpartyUserId,
+                amount
+        );
+        return createdOrExisting;
     }
 
     private String requestId(UUID orderId, String actionType) {

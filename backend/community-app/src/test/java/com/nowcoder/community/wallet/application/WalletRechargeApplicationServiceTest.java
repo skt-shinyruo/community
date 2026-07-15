@@ -5,6 +5,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.domain.model.RechargeOrder;
+import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.domain.repository.RechargeOrderRepository;
 import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
@@ -15,7 +16,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.UUID;
@@ -139,14 +139,13 @@ class WalletRechargeApplicationServiceTest {
         RechargeOrder paidOrder = order(orderId, "recharge:req-race", userId, 1200, "PAID");
 
         when(repository.findByUserIdAndRequestId(userId, "recharge:req-race"))
-                .thenReturn(null, createdOrder, paidOrder);
+                .thenReturn(null, paidOrder);
+        when(repository.create(any(RechargeOrder.class)))
+                .thenReturn(CreationOutcome.alreadyExists(createdOrder));
         when(mockedAccountService.ensureSystemAccount("PLATFORM_CASH"))
                 .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000623"));
         when(mockedAccountService.ensureUserWallet(userId))
                 .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000624"));
-        org.mockito.Mockito.doThrow(new DuplicateKeyException("duplicate request"))
-                .when(repository).insert(any(RechargeOrder.class));
-
         RechargeOrderResult result = service.complete("recharge:req-race", userId, 1200);
 
         assertThat(result.orderId()).isEqualTo(orderId);

@@ -1,6 +1,7 @@
 package com.nowcoder.community.common.idempotency;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.ErrorKind;
 import com.nowcoder.community.common.exception.SimpleErrorCode;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
@@ -44,7 +45,7 @@ class IdempotencyGuardFingerprintTest {
                 USER_ID,
                 "idem-1",
                 "hash-1",
-                new SimpleErrorCode(17007, "replay conflict", 409),
+                new SimpleErrorCode(17007, "replay conflict", ErrorKind.CONFLICT),
                 String.class,
                 () -> {
                     supplierCalls.incrementAndGet();
@@ -71,7 +72,7 @@ class IdempotencyGuardFingerprintTest {
                 USER_ID,
                 "idem-1",
                 "hash-new",
-                new SimpleErrorCode(17007, "replay conflict", 409),
+                new SimpleErrorCode(17007, "replay conflict", ErrorKind.CONFLICT),
                 String.class,
                 () -> {
                     supplierCalls.incrementAndGet();
@@ -82,7 +83,7 @@ class IdempotencyGuardFingerprintTest {
                 .satisfies(ex -> {
                     BusinessException error = (BusinessException) ex;
                     assertThat(error.getErrorCode().getCode()).isEqualTo(17007);
-                    assertThat(error.getErrorCode().getHttpStatus()).isEqualTo(409);
+                    assertThat(error.getErrorCode().getKind()).isEqualTo(ErrorKind.CONFLICT);
                 });
         assertThat(supplierCalls).hasValue(0);
         verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), anyString(), any(Duration.class));
@@ -102,7 +103,7 @@ class IdempotencyGuardFingerprintTest {
                 USER_ID,
                 "idem-1",
                 "hash-1",
-                new SimpleErrorCode(18001, "replay conflict", 409),
+                new SimpleErrorCode(18001, "replay conflict", ErrorKind.CONFLICT),
                 String.class,
                 () -> "NEW"
         ))
@@ -120,7 +121,7 @@ class IdempotencyGuardFingerprintTest {
                 USER_ID,
                 "idem-1",
                 "h".repeat(65),
-                new SimpleErrorCode(17007, "replay conflict", 409),
+                new SimpleErrorCode(17007, "replay conflict", ErrorKind.CONFLICT),
                 String.class,
                 () -> "NEW"
         ))

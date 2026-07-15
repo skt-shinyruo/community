@@ -128,6 +128,10 @@ services:
         condition: service_healthy
       mock-data-studio-db-bootstrap:
         condition: service_completed_successfully
+      community-db-migrations:
+        condition: service_completed_successfully
+      community-dev-seed:
+        condition: service_completed_successfully
       mysql-primary:
         condition: service_healthy
       xxl-job-admin-1:
@@ -212,6 +216,10 @@ services:
         condition: service_healthy
       mock-data-studio-db-bootstrap:
         condition: service_completed_successfully
+      community-db-migrations:
+        condition: service_completed_successfully
+      community-dev-seed:
+        condition: service_completed_successfully
       mysql-primary:
         condition: service_healthy
       xxl-job-admin-1:
@@ -292,6 +300,10 @@ services:
         condition: service_healthy
       mock-data-studio-db-bootstrap:
         condition: service_completed_successfully
+      community-db-migrations:
+        condition: service_completed_successfully
+      community-dev-seed:
+        condition: service_completed_successfully
       mysql-primary:
         condition: service_healthy
       xxl-job-admin-1:
@@ -354,6 +366,8 @@ services:
     - OSS_OBJECT_STORE_ACCESS_KEY=${GARAGE_DEFAULT_ACCESS_KEY:-GK000000000000000000000001}
     - OSS_OBJECT_STORE_SECRET_KEY=${GARAGE_DEFAULT_SECRET_KEY:-0000000000000000000000000000000000000000000000000000000000000001}
     depends_on:
+      community-oss-db-migrations:
+        condition: service_completed_successfully
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-config-bootstrap:
@@ -426,6 +440,8 @@ services:
     - OSS_OBJECT_STORE_ACCESS_KEY=${GARAGE_DEFAULT_ACCESS_KEY:-GK000000000000000000000001}
     - OSS_OBJECT_STORE_SECRET_KEY=${GARAGE_DEFAULT_SECRET_KEY:-0000000000000000000000000000000000000000000000000000000000000001}
     depends_on:
+      community-oss-db-migrations:
+        condition: service_completed_successfully
       community-oss-1:
         condition: service_healthy
       nacos-config-bootstrap:
@@ -482,6 +498,8 @@ services:
     - OSS_OBJECT_STORE_ACCESS_KEY=${GARAGE_DEFAULT_ACCESS_KEY:-GK000000000000000000000001}
     - OSS_OBJECT_STORE_SECRET_KEY=${GARAGE_DEFAULT_SECRET_KEY:-0000000000000000000000000000000000000000000000000000000000000001}
     depends_on:
+      community-oss-db-migrations:
+        condition: service_completed_successfully
       community-oss-1:
         condition: service_healthy
       nacos-config-bootstrap:
@@ -937,6 +955,8 @@ services:
         condition: service_healthy
       mysql-primary:
         condition: service_healthy
+      community-im-db-migrations:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
     networks:
@@ -1003,6 +1023,8 @@ services:
         condition: service_healthy
       mysql-primary:
         condition: service_healthy
+      community-im-db-migrations:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
   im-core-3:
@@ -1065,6 +1087,8 @@ services:
         condition: service_healthy
       mysql-primary:
         condition: service_healthy
+      community-im-db-migrations:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
   im-realtime-1:

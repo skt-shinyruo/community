@@ -5,14 +5,14 @@
 <mapper namespace="com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper">
 
     <sql id="selectFields">
-        id, post_id, user_id, root_comment_id, parent_comment_id, reply_to_user_id, content, status, create_time, update_time, edit_count, deleted_by, deleted_reason, deleted_time
+        id, post_id, user_id, root_comment_id, parent_comment_id, reply_to_user_id, content, status, create_time, update_time, edit_count, deleted_by, deleted_reason, deleted_time, version
     </sql>
 
     <sql id="insertFields">
-        id, post_id, user_id, root_comment_id, parent_comment_id, reply_to_user_id, content, status, create_time
+        id, post_id, user_id, root_comment_id, parent_comment_id, reply_to_user_id, content, status, create_time, version
     </sql>
 
-    <select id="selectRootComments" resultType="com.nowcoder.community.content.domain.model.Comment">
+    <select id="selectRootComments" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
         select <include refid="selectFields"></include>
         from comment
         where status = 0
@@ -22,7 +22,7 @@
         limit #{offset}, #{limit}
     </select>
 
-    <select id="selectRepliesByRootComment" resultType="com.nowcoder.community.content.domain.model.Comment">
+    <select id="selectRepliesByRootComment" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
         select <include refid="selectFields"></include>
         from comment
         where status = 0
@@ -32,7 +32,7 @@
         limit #{offset}, #{limit}
     </select>
 
-    <select id="selectRecentCommentsByUser" resultType="com.nowcoder.community.content.domain.model.Comment">
+    <select id="selectRecentCommentsByUser" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
         select <include refid="selectFields"></include>
         from comment
         where status = 0
@@ -41,7 +41,7 @@
         limit #{offset}, #{limit}
     </select>
 
-    <insert id="insertComment" parameterType="com.nowcoder.community.content.domain.model.Comment">
+    <insert id="insert" parameterType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
         insert into comment(<include refid="insertFields"></include>)
         values(
             #{id, jdbcType=BINARY},
@@ -52,14 +52,32 @@
             #{replyToUserId, jdbcType=BINARY},
             #{content},
             #{status},
-            #{createTime}
+            #{createTime},
+            #{version}
         )
     </insert>
 
-    <select id="selectCommentById" resultType="com.nowcoder.community.content.domain.model.Comment">
+    <select id="selectById" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
         select <include refid="selectFields"></include>
         from comment
         where id = #{id, jdbcType=BINARY}
+    </select>
+
+    <select id="selectByIdForUpdate" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
+        select <include refid="selectFields"></include>
+        from comment
+        where id = #{id, jdbcType=BINARY}
+        for update
+    </select>
+
+    <select id="selectThreadForUpdate" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
+        select <include refid="selectFields"></include>
+        from comment
+        where root_comment_id = #{rootCommentId, jdbcType=BINARY}
+        order by case when id = #{rootCommentId, jdbcType=BINARY} then 0 else 1 end,
+                 create_time asc,
+                 id asc
+        for update
     </select>
 
     <select id="existsRootComment" resultType="int">
@@ -71,7 +89,7 @@
           and parent_comment_id is null
     </select>
 
-    <select id="selectLatestPostActivitiesByPostIds" resultType="com.nowcoder.community.content.domain.model.Comment">
+    <select id="selectLatestPostActivitiesByPostIds" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
         select <include refid="selectFields"></include>
         from (
             select
@@ -88,41 +106,43 @@
         order by post_id asc
     </select>
 
-    <update id="updateCommentContent">
+    <update id="applyEdit">
         update comment
         set content = #{content},
             update_time = #{updateTime},
-            edit_count = edit_count + 1
-        where id = #{id, jdbcType=BINARY}
+            edit_count = edit_count + 1,
+            version = version + 1
+        where id = #{commentId, jdbcType=BINARY}
           and status = 0
+          and version = #{expectedVersion}
     </update>
 
-    <update id="updateModerationDeleteMeta">
-        update comment
-        set status = #{status},
-            deleted_by = #{deletedBy, jdbcType=BINARY},
-            deleted_reason = #{deletedReason},
-            deleted_time = #{deletedTime}
-        where id = #{id, jdbcType=BINARY}
-    </update>
-
-    <select id="selectActiveRepliesByRootComment" resultType="java.util.UUID">
-        select id
-        from comment
-        where status = 0
-          and root_comment_id = #{rootCommentId, jdbcType=BINARY}
-          and parent_comment_id is not null
-        order by create_time asc, id asc
-    </select>
-
-    <update id="updateActiveCommentDeleted">
+    <update id="applyDeletion">
         update comment
         set status = 1,
             deleted_by = #{deletedBy, jdbcType=BINARY},
             deleted_reason = #{deletedReason},
-            deleted_time = #{deletedTime}
+            deleted_time = #{deletedTime},
+            version = version + 1
+        where id = #{commentId, jdbcType=BINARY}
+          and status = 0
+          and version = #{expectedVersion}
+    </update>
+
+    <update id="applyThreadDeletion">
+        update comment
+        set status = 1,
+            deleted_by = #{deletedBy, jdbcType=BINARY},
+            deleted_reason = #{deletedReason},
+            deleted_time = #{deletedTime},
+            version = version + 1
         where status = 0
-          and id = #{id, jdbcType=BINARY}
+          and root_comment_id = #{rootCommentId, jdbcType=BINARY}
+          and (
+            <foreach collection="targets" item="target" separator=" or ">
+                (id = #{target.commentId, jdbcType=BINARY} and version = #{target.expectedVersion})
+            </foreach>
+          )
     </update>
 
 </mapper>

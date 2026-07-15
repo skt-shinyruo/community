@@ -7,6 +7,7 @@ import com.nowcoder.community.wallet.domain.model.WalletEntry;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
+import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.WalletAdminActionRepository;
 import com.nowcoder.community.wallet.domain.repository.WalletLedgerRepository;
 import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
@@ -14,11 +15,11 @@ import com.nowcoder.community.wallet.domain.service.WalletAdminDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -146,17 +147,7 @@ public class WalletAdminOpsApplicationService {
 
     private void insertReverseAuditIfAbsent(UUID actorUserId, WalletTxn txn, String reason) {
         String requestId = reverseAuditRequestId(txn.getRequestId());
-        if (walletAdminActionRepository.findByRequestId(requestId) != null) {
-            return;
-        }
-        try {
-            insertAudit(requestId, actorUserId, txn.getTxnId(), ACTION_REVERSE_TXN, txn.getAmount(), reason);
-        } catch (DataIntegrityViolationException ex) {
-            if (walletAdminActionRepository.findByRequestId(requestId) != null) {
-                return;
-            }
-            throw ex;
-        }
+        insertAudit(requestId, actorUserId, txn.getTxnId(), ACTION_REVERSE_TXN, txn.getAmount(), reason);
     }
 
     private void insertAudit(String requestId, UUID actorUserId, UUID targetAccountId, String actionType, long amount, String reason) {
@@ -168,7 +159,27 @@ public class WalletAdminOpsApplicationService {
         action.setActionType(actionType);
         action.setAmount(amount);
         action.setRemark(reason);
-        walletAdminActionRepository.insert(action);
+        CreationOutcome<WalletAdminAction> outcome = walletAdminActionRepository.create(action);
+        if (outcome == null
+                || outcome.status() == CreationOutcome.Status.CONFLICT
+                || outcome.aggregate() == null) {
+            throw new BusinessException(
+                    WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                    "wallet admin action creation conflict: requestId=" + requestId
+            );
+        }
+        WalletAdminAction persisted = outcome.aggregate();
+        if (!Objects.equals(requestId, persisted.getRequestId())
+                || !Objects.equals(actorUserId, persisted.getActorUserId())
+                || !Objects.equals(targetAccountId, persisted.getTargetAccountId())
+                || !Objects.equals(actionType, persisted.getActionType())
+                || amount != persisted.getAmount()
+                || !Objects.equals(reason, persisted.getRemark())) {
+            throw new BusinessException(
+                    WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                    "wallet admin action replay conflict: requestId=" + requestId
+            );
+        }
     }
 
     private String reverseAuditRequestId(String txnRef) {

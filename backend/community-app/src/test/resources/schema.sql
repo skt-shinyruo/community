@@ -357,6 +357,7 @@ create table if not exists auth_refresh_token (
   token_hash char(64) primary key,
   user_id binary(16) not null,
   family_id varchar(64) not null,
+  security_version bigint not null,
   expires_at timestamp not null,
   state varchar(32) not null default 'ACTIVE',
   pending_expires_at timestamp,
@@ -400,6 +401,12 @@ create table if not exists post_media_asset (
   content_length bigint not null,
   media_kind varchar(32) not null,
   lifecycle varchar(32) not null,
+  upload_status varchar(32) not null default 'PREPARED',
+  upload_operation_version bigint not null default 0,
+  upload_updated_at timestamp,
+  reference_status varchar(32) not null default 'UNBOUND',
+  reference_operation_version bigint not null default 0,
+  reference_updated_at timestamp,
   video_state varchar(32) not null default 'NONE',
   public_url varchar(1024) default '',
   failure_reason varchar(512) default '',
@@ -410,6 +417,8 @@ create table if not exists post_media_asset (
 create index if not exists idx_post_media_asset_owner_lifecycle on post_media_asset(owner_user_id, lifecycle);
 create index if not exists idx_post_media_asset_post on post_media_asset(post_id);
 create index if not exists idx_post_media_asset_video_state on post_media_asset(video_state);
+create index if not exists idx_post_media_upload_recovery on post_media_asset(upload_status, upload_updated_at, id);
+create index if not exists idx_post_media_reference_pending on post_media_asset(reference_status, reference_updated_at);
 
 create table if not exists post_content_block (
   id binary(16) primary key,
@@ -451,7 +460,8 @@ create table if not exists comment (
   edit_count int default 0,
   deleted_by binary(16) default null,
   deleted_reason varchar(255) default '',
-  deleted_time timestamp default null
+  deleted_time timestamp default null,
+  version bigint not null default 0
 );
 
 create index if not exists idx_comment_post_root on comment(post_id, parent_comment_id, create_time, id);
@@ -517,6 +527,21 @@ create table if not exists social_like (
 );
 
 create index if not exists idx_like_entity_user on social_like(entity_type, entity_id, user_id);
+
+create table if not exists social_like_target_state (
+  entity_type int not null,
+  entity_id binary(16) not null,
+  status varchar(16) not null default 'ACTIVE',
+  source_event_id varchar(128),
+  source_version bigint not null default 0,
+  deleted_at timestamp,
+  updated_at timestamp not null default current_timestamp,
+  primary key (entity_type, entity_id),
+  constraint ck_social_like_target_state_status check (status in ('ACTIVE', 'DELETED'))
+);
+
+create index if not exists idx_social_like_target_state_status_updated
+  on social_like_target_state(status, updated_at);
 
 create table if not exists social_user_like_count (
   user_id binary(16) not null primary key,
@@ -591,7 +616,7 @@ create table if not exists http_idempotency (
 
 create table if not exists outbox_event (
   id binary(16) primary key,
-  event_id varchar(64) not null,
+  event_id varchar(128) not null,
   topic varchar(255) not null,
   event_key varchar(255) not null,
   payload clob not null,
@@ -722,6 +747,7 @@ delete from post_tag;
 delete from tag;
 delete from category;
 delete from social_like;
+delete from social_like_target_state;
 delete from social_user_like_count;
 delete from social_follow;
 delete from social_block;

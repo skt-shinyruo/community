@@ -42,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -160,7 +161,7 @@ class LoginApplicationServiceTest {
         RefreshCookieSpec cookie = issuedCookie("rt");
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
         when(authTokenPort.createAccessToken(eq(userId), eq("alice"), eq(List.of("ROLE_USER")), eq(0L))).thenReturn("access-token");
-        when(refreshTokenService.issue(userId)).thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("rt", cookie));
+        when(refreshTokenService.issue(userId, 0L)).thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("rt", cookie));
 
         LoginResult result = authService.login(loginCommand("alice", "secret", null, null));
 
@@ -185,7 +186,7 @@ class LoginApplicationServiceTest {
                 .thenReturn(UserAuthenticationResultView.authenticated(user));
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
         when(authTokenPort.createAccessToken(eq(userId), eq("alice"), anyList(), eq(0L))).thenReturn("access-token");
-        when(refreshTokenService.issue(userId)).thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("refresh-token", issuedCookie("refresh-token")));
+        when(refreshTokenService.issue(userId, 0L)).thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("refresh-token", issuedCookie("refresh-token")));
 
         authService.login(new LoginCommand("alice", "pw", null, null, "1.1.1.1", ClientIpResolver.SOURCE_REMOTE));
 
@@ -244,7 +245,7 @@ class LoginApplicationServiceTest {
         when(userCredentialQueryApi.authenticate("alice", "secret")).thenReturn(UserAuthenticationResultView.authenticated(user));
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
         when(authTokenPort.createAccessToken(eq(userId), eq("alice"), eq(List.of("ROLE_USER")), eq(0L))).thenReturn("access-token");
-        when(refreshTokenService.issue(userId)).thenThrow(new RuntimeException("issue failed"));
+        when(refreshTokenService.issue(userId, 0L)).thenThrow(new RuntimeException("issue failed"));
 
         Throwable thrown = catchThrowable(() -> authService.login(loginCommand("alice", "secret", null, null)));
 
@@ -276,7 +277,7 @@ class LoginApplicationServiceTest {
     void refreshShouldValidateUserBeforeIssuingReplacementRefreshToken() {
         UUID userId = uuid(9);
         RefreshTokenRepository.StoredRefreshToken consumed =
-                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-1", Instant.now().plusSeconds(600));
+                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-1", 0L, Instant.now().plusSeconds(600));
         UserCredentialView disabled = new UserCredentialView(userId, "alice", 0, 0, "h1", 0L, false, false);
         when(refreshTokenService.beginRotation("old-refresh")).thenReturn(consumed);
         when(userCredentialQueryApi.getByUserId(userId)).thenReturn(disabled);
@@ -293,7 +294,7 @@ class LoginApplicationServiceTest {
     void refreshShouldRejectBannedUserAndRevokeRefreshFamily() {
         UUID userId = uuid(21);
         RefreshTokenRepository.StoredRefreshToken consumed =
-                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-ban", Instant.now().plusSeconds(600));
+                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-ban", 77L, Instant.now().plusSeconds(600));
         UserCredentialView banned = new UserCredentialView(userId, "alice", 1, 0, "h1", 77L, false, false);
         when(refreshTokenService.beginRotation("old-refresh")).thenReturn(consumed);
         when(userCredentialQueryApi.getByUserId(userId)).thenReturn(banned);
@@ -310,7 +311,7 @@ class LoginApplicationServiceTest {
     void refreshShouldMapMissingUserToUserDisabledAndRevokeRefreshFamily() {
         UUID userId = uuid(10);
         RefreshTokenRepository.StoredRefreshToken consumed =
-                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-2", Instant.now().plusSeconds(600));
+                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-2", 0L, Instant.now().plusSeconds(600));
         when(refreshTokenService.beginRotation("old-refresh")).thenReturn(consumed);
         when(userCredentialQueryApi.getByUserId(userId)).thenReturn(null);
 
@@ -323,26 +324,67 @@ class LoginApplicationServiceTest {
     }
 
     @Test
+    void refreshShouldRevokeFamilyWhenSecurityVersionChangedAfterTokenWasIssued() {
+        UUID userId = uuid(12);
+        RefreshTokenRepository.StoredRefreshToken pending = new RefreshTokenRepository.StoredRefreshToken(
+                "old-refresh",
+                userId,
+                "family-security-version",
+                41L,
+                Instant.now().plusSeconds(600)
+        );
+        UserCredentialView currentCredential = new UserCredentialView(
+                userId,
+                "alice",
+                1,
+                0,
+                "h1",
+                42L,
+                true,
+                true
+        );
+        when(refreshTokenService.beginRotation("old-refresh")).thenReturn(pending);
+        when(userCredentialQueryApi.getByUserId(userId)).thenReturn(currentCredential);
+
+        Throwable thrown = catchThrowable(() -> authService.refresh(new RefreshCommand("old-refresh")));
+
+        assertThat(thrown).isInstanceOf(RefreshFailure.class);
+        RefreshFailure failure = (RefreshFailure) thrown;
+        assertThat(failure.getErrorCode()).isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID);
+        assertThat(failure.clearRefreshCookie()).isTrue();
+        verify(refreshTokenService).revokeFamily("family-security-version");
+        verify(refreshTokenService, never()).generateReplacementToken(any(UUID.class), anyString());
+        verify(refreshTokenService, never()).finishRotation(
+                anyString(),
+                anyString(),
+                any(UUID.class),
+                anyString(),
+                anyLong()
+        );
+        verify(authTokenPort, never()).createAccessToken(any(UUID.class), anyString(), anyList(), anyLong());
+    }
+
+    @Test
     void refreshShouldIssueReplacementOnlyAfterUserIsActive() {
         UUID userId = uuid(11);
         UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1", 0L, true, true);
         RefreshCookieSpec cookie = issuedCookie("new-refresh");
         RefreshTokenRepository.StoredRefreshToken consumed =
-                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-3", Instant.now().plusSeconds(600));
+                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-3", 0L, Instant.now().plusSeconds(600));
         when(refreshTokenService.beginRotation("old-refresh")).thenReturn(consumed);
         when(userCredentialQueryApi.getByUserId(userId)).thenReturn(user);
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
         when(authTokenPort.createAccessToken(userId, "alice", List.of("ROLE_USER"), 0L)).thenReturn("access-token");
         when(refreshTokenService.generateReplacementToken(userId, "family-3"))
                 .thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("new-refresh", cookie));
-        when(refreshTokenService.finishRotation("old-refresh", "new-refresh", userId, "family-3")).thenReturn(true);
+        when(refreshTokenService.finishRotation("old-refresh", "new-refresh", userId, "family-3", 0L)).thenReturn(true);
 
         RefreshResult result = authService.refresh(new RefreshCommand("old-refresh"));
 
         assertThat(result.accessToken()).isEqualTo("access-token");
         assertThat(result.refreshCookie()).isEqualTo(cookie);
         verify(refreshTokenService).generateReplacementToken(userId, "family-3");
-        verify(refreshTokenService).finishRotation("old-refresh", "new-refresh", userId, "family-3");
+        verify(refreshTokenService).finishRotation("old-refresh", "new-refresh", userId, "family-3", 0L);
         verify(refreshTokenService, never()).find("new-refresh");
     }
 
@@ -350,7 +392,7 @@ class LoginApplicationServiceTest {
     void refreshShouldReturnServiceUnavailableWithoutClearingCookieWhenRollbackSucceeds() {
         UUID userId = uuid(31);
         RefreshTokenRepository.StoredRefreshToken pending =
-                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-rollback", Instant.now().plusSeconds(600));
+                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-rollback", 0L, Instant.now().plusSeconds(600));
         when(refreshTokenService.beginRotation("old-refresh")).thenReturn(pending);
         when(userCredentialQueryApi.getByUserId(userId)).thenThrow(new RuntimeException("user api down"));
         when(refreshTokenService.rollbackPendingRotation("old-refresh")).thenReturn(true);
@@ -382,7 +424,7 @@ class LoginApplicationServiceTest {
     void refreshShouldRevokeFamilyAndClearCookieWhenRollbackFails() {
         UUID userId = uuid(32);
         RefreshTokenRepository.StoredRefreshToken pending =
-                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-fail-closed", Instant.now().plusSeconds(600));
+                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-fail-closed", 0L, Instant.now().plusSeconds(600));
         when(refreshTokenService.beginRotation("old-refresh")).thenReturn(pending);
         when(userCredentialQueryApi.getByUserId(userId)).thenThrow(new RuntimeException("user api down"));
         when(refreshTokenService.rollbackPendingRotation("old-refresh")).thenReturn(false);

@@ -6,8 +6,6 @@ import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.service.PostHotnessDomainService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -27,6 +25,7 @@ public class PostHotFeedProjectionApplicationService {
     private final PostHotnessDomainService postHotnessDomainService;
     private final ContentFeedPolicyProperties policyProperties;
     private final HotFeedProjectionGuard projectionGuard;
+    private final HotFeedProjectionCompletion projectionCompletion;
 
     @Autowired
     public PostHotFeedProjectionApplicationService(
@@ -38,7 +37,8 @@ public class PostHotFeedProjectionApplicationService {
             PostCounterCache postCounterCache,
             PostHotnessDomainService postHotnessDomainService,
             ContentFeedPolicyProperties policyProperties,
-            HotFeedProjectionGuard projectionGuard
+            HotFeedProjectionGuard projectionGuard,
+            HotFeedProjectionCompletion projectionCompletion
     ) {
         this.postContentRepository = postContentRepository;
         this.likeQueryPort = likeQueryPort;
@@ -49,6 +49,32 @@ public class PostHotFeedProjectionApplicationService {
         this.postHotnessDomainService = postHotnessDomainService;
         this.policyProperties = policyProperties == null ? new ContentFeedPolicyProperties() : policyProperties;
         this.projectionGuard = projectionGuard == null ? AllowAllHotFeedProjectionGuard.INSTANCE : projectionGuard;
+        this.projectionCompletion = Objects.requireNonNull(projectionCompletion, "projectionCompletion must not be null");
+    }
+
+    public PostHotFeedProjectionApplicationService(
+            PostContentRepository postContentRepository,
+            LikeQueryPort likeQueryPort,
+            PostFeedCache postFeedCache,
+            PostSummaryCache postSummaryCache,
+            PostDetailCache postDetailCache,
+            PostCounterCache postCounterCache,
+            PostHotnessDomainService postHotnessDomainService,
+            ContentFeedPolicyProperties policyProperties,
+            HotFeedProjectionGuard projectionGuard
+    ) {
+        this(
+                postContentRepository,
+                likeQueryPort,
+                postFeedCache,
+                postSummaryCache,
+                postDetailCache,
+                postCounterCache,
+                postHotnessDomainService,
+                policyProperties,
+                projectionGuard,
+                ImmediateHotFeedProjectionCompletion.INSTANCE
+        );
     }
 
     public PostHotFeedProjectionApplicationService(
@@ -161,23 +187,19 @@ public class PostHotFeedProjectionApplicationService {
     }
 
     private void commitAfterTransaction(HotFeedProjectionGuard.ProjectionAttempt attempt) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            projectionGuard.commit(attempt);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                projectionGuard.commit(attempt);
-            }
+        projectionCompletion.afterTransaction(
+                () -> projectionGuard.commit(attempt),
+                () -> projectionGuard.abort(attempt)
+        );
+    }
 
-            @Override
-            public void afterCompletion(int status) {
-                if (status != STATUS_COMMITTED) {
-                    projectionGuard.abort(attempt);
-                }
-            }
-        });
+    private enum ImmediateHotFeedProjectionCompletion implements HotFeedProjectionCompletion {
+        INSTANCE;
+
+        @Override
+        public void afterTransaction(Runnable committedAction, Runnable rolledBackAction) {
+            committedAction.run();
+        }
     }
 
     private enum AllowAllHotFeedProjectionGuard implements HotFeedProjectionGuard {

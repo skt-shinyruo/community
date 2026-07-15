@@ -83,163 +83,34 @@
         )
     </insert>
 
-    <update id="markDelivered">
+    <update id="apply" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderTransitionDataObject">
         update market_order
-        set status = 'DELIVERED',
-            auto_confirm_at = #{autoConfirmAt},
+        <set>
+            status = #{nextStatus},
+            <if test="escrowTxnId != null">
+                escrow_txn_id = #{escrowTxnId, jdbcType=BINARY},
+            </if>
+            <if test="releaseTxnId != null">
+                release_txn_id = #{releaseTxnId, jdbcType=BINARY},
+            </if>
+            <if test="refundTxnId != null">
+                refund_txn_id = #{refundTxnId, jdbcType=BINARY},
+            </if>
+            <choose>
+                <when test="autoConfirmPolicy == 'SET'">
+                    auto_confirm_at = #{autoConfirmAt},
+                </when>
+                <when test="autoConfirmPolicy == 'CLEAR'">
+                    auto_confirm_at = null,
+                </when>
+            </choose>
             update_time = current_timestamp
+        </set>
         where order_id = #{orderId, jdbcType=BINARY}
-          and status = 'ESCROWED'
-    </update>
-
-    <update id="markShipped">
-        update market_order
-        set status = 'SHIPPED',
-            auto_confirm_at = #{autoConfirmAt},
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status = 'ESCROWED'
-    </update>
-
-    <update id="markEscrowSucceeded">
-        update market_order
-        set status = 'ESCROWED',
-            escrow_txn_id = #{escrowTxnId, jdbcType=BINARY},
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status = 'ESCROW_PENDING'
-    </update>
-
-    <update id="markEscrowFailed">
-        update market_order
-        set status = 'ESCROW_FAILED',
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status = 'ESCROW_PENDING'
-    </update>
-
-    <update id="markReleasePending">
-        update market_order
-        set status = 'RELEASE_PENDING',
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status in ('DELIVERED', 'SHIPPED')
-    </update>
-
-    <update id="markReleaseSucceeded">
-        update market_order
-        set status = 'COMPLETED',
-            release_txn_id = #{releaseTxnId, jdbcType=BINARY},
-            auto_confirm_at = null,
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status in ('RELEASE_PENDING', 'DISPUTE_RELEASE_PENDING')
-    </update>
-
-    <update id="markRefundPending">
-        update market_order
-        set status = 'REFUND_PENDING',
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status = 'ESCROWED'
-    </update>
-
-    <update id="markEscrowCancelPending">
-        update market_order
-        set status = 'ESCROW_CANCEL_PENDING',
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status = 'ESCROW_PENDING'
-    </update>
-
-    <update id="markEscrowCancelRefundPending">
-        update market_order
-        set status = 'REFUND_PENDING',
-            escrow_txn_id = #{escrowTxnId, jdbcType=BINARY},
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status = 'ESCROW_CANCEL_PENDING'
-    </update>
-
-    <update id="markCancelledNoRefund">
-        update market_order
-        set status = 'CANCELLED',
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status in ('ESCROW_CANCEL_PENDING', 'ESCROW_FAILED')
-    </update>
-
-    <update id="markCancelledWithRefund">
-        update market_order
-        set status = 'CANCELLED',
-            refund_txn_id = #{refundTxnId, jdbcType=BINARY},
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status = 'REFUND_PENDING'
-    </update>
-
-    <update id="markDisputeRefundPending">
-        update market_order
-        set status = 'DISPUTE_REFUND_PENDING',
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status = 'DISPUTED'
-    </update>
-
-    <update id="markDisputeReleasePending">
-        update market_order
-        set status = 'DISPUTE_RELEASE_PENDING',
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status = 'DISPUTED'
-    </update>
-
-    <update id="markDisputeRefundSucceeded">
-        update market_order
-        set status = 'REFUNDED',
-            refund_txn_id = #{refundTxnId, jdbcType=BINARY},
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status = 'DISPUTE_REFUND_PENDING'
-    </update>
-
-    <update id="markCompleted">
-        update market_order
-        set status = 'COMPLETED',
-            release_txn_id = #{releaseTxnId, jdbcType=BINARY},
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-    </update>
-
-    <update id="markCancelled">
-        update market_order
-        set status = 'CANCELLED',
-            refund_txn_id = #{refundTxnId, jdbcType=BINARY},
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-    </update>
-
-    <update id="markDisputed">
-        update market_order
-        set status = 'DISPUTED',
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-          and status in ('DELIVERED', 'SHIPPED')
-    </update>
-
-    <update id="markRefunded">
-        update market_order
-        set status = 'REFUNDED',
-            refund_txn_id = #{refundTxnId, jdbcType=BINARY},
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
-    </update>
-
-    <update id="updateStatus">
-        update market_order
-        set status = #{status},
-            update_time = current_timestamp
-        where order_id = #{orderId, jdbcType=BINARY}
+          and status in
+        <foreach collection="expectedStatuses" item="expectedStatus" open="(" separator="," close=")">
+            #{expectedStatus}
+        </foreach>
     </update>
 
     <select id="selectDueForAutoConfirm" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">

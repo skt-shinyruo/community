@@ -4,7 +4,6 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.application.result.UserAuthenticationResult;
 import com.nowcoder.community.user.application.result.UserCredentialResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
-import com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
 import com.nowcoder.community.user.domain.service.UserCredentialDomainService;
@@ -26,19 +25,16 @@ public class UserCredentialApplicationService {
     private final UserRepository userRepository;
     private final UserCredentialDomainService userCredentialDomainService;
     private final PasswordPolicyDomainService passwordPolicyDomainService;
-    private final RefreshTokenSessionRepository refreshTokenSessionRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public UserCredentialApplicationService(
             UserRepository userRepository,
             UserCredentialDomainService userCredentialDomainService,
-            PasswordPolicyDomainService passwordPolicyDomainService,
-            RefreshTokenSessionRepository refreshTokenSessionRepository
+            PasswordPolicyDomainService passwordPolicyDomainService
     ) {
         this.userRepository = userRepository;
         this.userCredentialDomainService = userCredentialDomainService;
         this.passwordPolicyDomainService = passwordPolicyDomainService;
-        this.refreshTokenSessionRepository = refreshTokenSessionRepository;
     }
 
     public UserAuthenticationResult authenticate(String username, String password) {
@@ -85,12 +81,6 @@ public class UserCredentialApplicationService {
 
     public void validatePasswordPolicy(String newPassword) {
         passwordPolicyDomainService.requireValidPassword(newPassword);
-    }
-
-    @Transactional
-    public void resetPasswordAndRevokeRefreshSessions(UUID userId, String newPassword) {
-        updatePasswordOnly(userId, newPassword);
-        refreshTokenSessionRepository.revokeByUserId(userId);
     }
 
     private void updatePasswordOnly(UUID userId, String newPassword) {

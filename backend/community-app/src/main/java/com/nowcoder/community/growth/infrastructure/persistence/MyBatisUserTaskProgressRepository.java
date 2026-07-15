@@ -3,6 +3,7 @@ package com.nowcoder.community.growth.infrastructure.persistence;
 import com.nowcoder.community.growth.domain.model.UserTaskProgress;
 import com.nowcoder.community.growth.domain.repository.UserTaskProgressRepository;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserTaskProgressMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
@@ -33,8 +34,32 @@ public class MyBatisUserTaskProgressRepository implements UserTaskProgressReposi
     }
 
     @Override
-    public int insert(UUID id, UUID userId, String taskCode, String periodKey, int targetValue, String status, String lastSourceEventId) {
-        return userTaskProgressMapper.insert(id, userId, taskCode, periodKey, targetValue, status, lastSourceEventId);
+    public CreateResult create(UUID id, UUID userId, String taskCode, String periodKey, int targetValue, String status, String lastSourceEventId) {
+        try {
+            return userTaskProgressMapper.insert(id, userId, taskCode, periodKey, targetValue, status, lastSourceEventId) == 1
+                    ? new CreateResult(CreateStatus.CREATED, null)
+                    : new CreateResult(CreateStatus.CONFLICT, null);
+        } catch (DuplicateKeyException ignored) {
+            UserTaskProgress existing = findByUserTaskAndPeriod(userId, taskCode, periodKey);
+            if (matchesCreateTuple(existing, userId, taskCode, periodKey, targetValue)) {
+                return new CreateResult(CreateStatus.ALREADY_EXISTS, existing);
+            }
+            return new CreateResult(CreateStatus.CONFLICT, existing);
+        }
+    }
+
+    private static boolean matchesCreateTuple(
+            UserTaskProgress existing,
+            UUID userId,
+            String taskCode,
+            String periodKey,
+            int targetValue
+    ) {
+        return existing != null
+                && userId.equals(existing.getUserId())
+                && taskCode.equals(existing.getTaskCode())
+                && periodKey.equals(existing.getPeriodKey())
+                && targetValue == existing.getTargetValue();
     }
 
     @Override

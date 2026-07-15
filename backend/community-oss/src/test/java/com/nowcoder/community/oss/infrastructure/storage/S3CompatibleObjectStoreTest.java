@@ -9,6 +9,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 import java.io.ByteArrayInputStream;
@@ -16,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,5 +54,27 @@ class S3CompatibleObjectStoreTest {
         assertThat(metadata.contentLength()).isEqualTo(6);
         assertThat(metadata.etag()).isEqualTo("etag-1");
         verify(s3Client).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    }
+
+    @Test
+    void genericHead404MustMeanObjectIsAbsent() {
+        when(s3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
+                S3Exception.builder().statusCode(404).message("not found").build());
+        S3CompatibleObjectStore store = new S3CompatibleObjectStore(s3Client, presigner);
+
+        assertThat(store.head("community-oss", "missing-key")).isEmpty();
+    }
+
+    @Test
+    void non404HeadFailureMustRemainVisibleToRecovery() {
+        RuntimeException unavailable = S3Exception.builder()
+                .statusCode(503)
+                .message("temporarily unavailable")
+                .build();
+        when(s3Client.headObject(any(HeadObjectRequest.class))).thenThrow(unavailable);
+        S3CompatibleObjectStore store = new S3CompatibleObjectStore(s3Client, presigner);
+
+        assertThatThrownBy(() -> store.head("community-oss", "object-key"))
+                .isSameAs(unavailable);
     }
 }

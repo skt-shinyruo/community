@@ -30,7 +30,4 @@ public interface BlockRepository {
 
     long currentBlockProjectionVersion();
 
-    default boolean requiresExplicitCompensation() {
-        return false;
-    }
 }

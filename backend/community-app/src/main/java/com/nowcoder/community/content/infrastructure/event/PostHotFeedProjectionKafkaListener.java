@@ -1,17 +1,19 @@
 package com.nowcoder.community.content.infrastructure.event;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.constants.EntityTypes;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService;
 import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import com.nowcoder.community.social.contracts.event.SocialTypedEvent;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -29,14 +31,17 @@ public class PostHotFeedProjectionKafkaListener {
     private static final double LIKE_CREATED_SIGNAL = 1.0;
     private static final double LIKE_REMOVED_SIGNAL = -1.0;
 
-    private final JsonCodec jsonCodec;
+    private final ContentContractEventCodec contentContractEventCodec;
+    private final SocialContractEventCodec socialContractEventCodec;
     private final PostHotFeedProjectionApplicationService applicationService;
 
     public PostHotFeedProjectionKafkaListener(
-            JsonCodec jsonCodec,
+            ContentContractEventCodec contentContractEventCodec,
+            SocialContractEventCodec socialContractEventCodec,
             PostHotFeedProjectionApplicationService applicationService
     ) {
-        this.jsonCodec = jsonCodec;
+        this.contentContractEventCodec = contentContractEventCodec;
+        this.socialContractEventCodec = socialContractEventCodec;
         this.applicationService = applicationService;
     }
 
@@ -53,11 +58,12 @@ public class PostHotFeedProjectionKafkaListener {
             return;
         }
         requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
+        ContentTypedEvent typedEvent = decodeContent(event);
         ProjectPostHotFeedCommand command = switch (event.type()) {
             case ContentEventTypes.POST_PUBLISHED, ContentEventTypes.POST_UPDATED, ContentEventTypes.POST_DELETED ->
-                    commandForPostEvent(event);
+                    commandForPostEvent(event, postPayload(typedEvent));
             case ContentEventTypes.COMMENT_CREATED, ContentEventTypes.COMMENT_DELETED ->
-                    commandForCommentEvent(event);
+                    commandForCommentEvent(event, commentPayload(typedEvent));
             default -> null;
         };
         if (command != null) {
@@ -78,7 +84,10 @@ public class PostHotFeedProjectionKafkaListener {
             return;
         }
         requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
-        LikePayload payload = normalizePayload(event.payload(), LikePayload.class);
+        SocialTypedEvent typedEvent = decodeSocial(event);
+        LikePayload payload = typedEvent instanceof SocialTypedEvent.LikeCreated value
+                ? value.payload()
+                : ((SocialTypedEvent.LikeRemoved) typedEvent).payload();
         if (payload == null
                 || !EntityTypes.isValid(payload.getEntityType())
                 || !StringUtils.hasText(payload.getRelationKey())) {
@@ -119,8 +128,7 @@ public class PostHotFeedProjectionKafkaListener {
                 "invalid recognized event: type=" + eventType + ", eventId=" + eventId);
     }
 
-    private ProjectPostHotFeedCommand commandForPostEvent(ContentContractEvent event) {
-        PostPayload payload = normalizePayload(event.payload(), PostPayload.class);
+    private ProjectPostHotFeedCommand commandForPostEvent(ContentContractEvent event, PostPayload payload) {
         if (payload == null || payload.getPostId() == null) {
             throw malformed(event.type(), event.eventId());
         }
@@ -137,8 +145,7 @@ public class PostHotFeedProjectionKafkaListener {
         );
     }
 
-    private ProjectPostHotFeedCommand commandForCommentEvent(ContentContractEvent event) {
-        CommentPayload payload = normalizePayload(event.payload(), CommentPayload.class);
+    private ProjectPostHotFeedCommand commandForCommentEvent(ContentContractEvent event, CommentPayload payload) {
         if (payload == null || payload.getPostId() == null) {
             throw malformed(event.type(), event.eventId());
         }
@@ -153,14 +160,35 @@ public class PostHotFeedProjectionKafkaListener {
         );
     }
 
-    private <T> T normalizePayload(Object payload, Class<T> type) {
-        if (payload == null) {
-            return null;
+    private PostPayload postPayload(ContentTypedEvent event) {
+        if (event instanceof ContentTypedEvent.PostPublished value) {
+            return value.payload();
         }
-        if (type.isInstance(payload)) {
-            return type.cast(payload);
+        if (event instanceof ContentTypedEvent.PostUpdated value) {
+            return value.payload();
         }
-        JsonNode node = jsonCodec.valueToTree(payload);
-        return jsonCodec.treeToValue(node, type);
+        return ((ContentTypedEvent.PostDeleted) event).payload();
+    }
+
+    private CommentPayload commentPayload(ContentTypedEvent event) {
+        return event instanceof ContentTypedEvent.CommentCreated value
+                ? value.payload()
+                : ((ContentTypedEvent.CommentDeleted) event).payload();
+    }
+
+    private ContentTypedEvent decodeContent(ContentContractEvent event) {
+        try {
+            return contentContractEventCodec.decode(event);
+        } catch (RuntimeException error) {
+            throw malformed(event.type(), event.eventId());
+        }
+    }
+
+    private SocialTypedEvent decodeSocial(SocialContractEvent event) {
+        try {
+            return socialContractEventCodec.decode(event);
+        } catch (RuntimeException error) {
+            throw malformed(event.type(), event.eventId());
+        }
     }
 }

@@ -5,7 +5,6 @@ import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
 import com.nowcoder.community.user.application.port.UserAuditLogPort;
 import com.nowcoder.community.user.application.result.AdminUserResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
-import com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserRoleDomainService;
 import org.junit.jupiter.api.Test;
@@ -22,6 +21,9 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -40,9 +42,6 @@ class AdminUserApplicationServiceTest {
 
     @Mock
     private UserAuditLogPort userAuditLogPort;
-
-    @Mock
-    private RefreshTokenSessionRepository refreshTokenSessionRepository;
 
     @Test
     void searchShouldRejectWhenNoSelectorProvided() {
@@ -99,7 +98,7 @@ class AdminUserApplicationServiceTest {
         assertThat(thrown).isInstanceOf(BusinessException.class)
                 .hasMessage("目标用户不存在");
         verify(userRepository).findById(TARGET_ID);
-        verify(userRepository, never()).updateRole(TARGET_ID, 1);
+        verify(userRepository, never()).updateRole(any(), anyInt(), anyLong());
         verifyNoInteractions(userAuditLogPort);
     }
 
@@ -120,7 +119,7 @@ class AdminUserApplicationServiceTest {
 
         service.updateRole(command);
 
-        verify(userRepository, never()).updateRole(TARGET_ID, 1);
+        verify(userRepository, never()).updateRole(any(), anyInt(), anyLong());
         verifyNoInteractions(userAuditLogPort);
     }
 
@@ -140,25 +139,8 @@ class AdminUserApplicationServiceTest {
         inOrder.verify(userAuditLogPort).recordRoleUpdated(ACTOR_ID, TARGET_ID, 1, 2, "delegate moderation");
     }
 
-    @Test
-    void updateRoleShouldIncrementSecurityVersionRevokeTargetSessionsAndWriteAuditLogInOrder() {
-        AdminUserApplicationService service = service();
-        UpdateUserRoleCommand command = new UpdateUserRoleCommand(ACTOR_ID, TARGET_ID, 2, "  delegate moderation  ", true);
-        when(userRepository.findById(TARGET_ID)).thenReturn(Optional.of(user(TARGET_ID, "admin", "admin@example.com", 1, 0, "h8", new Date())));
-        when(userRepository.nextUserSecurityVersion(TARGET_ID)).thenReturn(123L);
-
-        service.updateRole(command);
-
-        InOrder inOrder = inOrder(userRepository, refreshTokenSessionRepository, userAuditLogPort);
-        inOrder.verify(userRepository).findById(TARGET_ID);
-        inOrder.verify(userRepository).nextUserSecurityVersion(TARGET_ID);
-        inOrder.verify(userRepository).updateRole(TARGET_ID, 2, 123L);
-        inOrder.verify(refreshTokenSessionRepository).revokeByUserId(TARGET_ID);
-        inOrder.verify(userAuditLogPort).recordRoleUpdated(ACTOR_ID, TARGET_ID, 1, 2, "delegate moderation");
-    }
-
     private AdminUserApplicationService service() {
-        return new AdminUserApplicationService(userRepository, new UserRoleDomainService(), userAuditLogPort, refreshTokenSessionRepository);
+        return new AdminUserApplicationService(userRepository, new UserRoleDomainService(), userAuditLogPort);
     }
 
     private static UserAccount user(UUID id, String username, String email, int type, int status, String headerUrl, Date createTime) {

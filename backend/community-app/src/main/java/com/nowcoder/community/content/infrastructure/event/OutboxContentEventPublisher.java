@@ -1,13 +1,13 @@
 package com.nowcoder.community.content.infrastructure.event;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.content.application.ContentEventPublisher;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
-import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,17 +19,17 @@ import java.util.UUID;
 @Component
 public class OutboxContentEventPublisher implements ContentEventPublisher {
 
-    private final JsonCodec jsonCodec;
+    private final ContentContractEventCodec contractEventCodec;
     private final JdbcOutboxEventStore store;
     private final String topic;
     private final UuidV7Generator idGenerator = new UuidV7Generator();
 
     public OutboxContentEventPublisher(
-            JsonCodec jsonCodec,
+            ContentContractEventCodec contractEventCodec,
             JdbcOutboxEventStore store,
             @Value("${content.events.outbox-topic:eventbus.content}") String topic
     ) {
-        this.jsonCodec = jsonCodec;
+        this.contractEventCodec = contractEventCodec;
         this.store = store;
         this.topic = topic;
     }
@@ -41,16 +41,14 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
             return;
         }
         Instant occurredAt = requiredOccurredAt(ContentEventTypes.POST_PUBLISHED, payload.getCreateTime());
-        publish(
+        publish(new ContentTypedEvent.PostPublished(
                 "content:PostPublished:" + postId,
-                ContentEventTypes.POST_PUBLISHED,
-                postId.toString(),
                 postId,
                 "post",
                 occurredAt,
                 positiveVersion(occurredAt),
                 payload
-        );
+        ), postId.toString());
     }
 
     @Override
@@ -63,16 +61,14 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
                 ContentEventTypes.POST_UPDATED,
                 payload.getUpdateTime() == null ? payload.getCreateTime() : payload.getUpdateTime()
         );
-        publish(
+        publish(new ContentTypedEvent.PostUpdated(
                 "ce:post:updated:" + idGenerator.next(),
-                ContentEventTypes.POST_UPDATED,
-                postId.toString(),
                 postId,
                 "post",
                 occurredAt,
                 positiveVersion(occurredAt),
                 payload
-        );
+        ), postId.toString());
     }
 
     @Override
@@ -85,16 +81,14 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
                 ContentEventTypes.POST_DELETED,
                 payload.getUpdateTime() == null ? payload.getCreateTime() : payload.getUpdateTime()
         );
-        publish(
+        publish(new ContentTypedEvent.PostDeleted(
                 "content:PostDeleted:" + postId,
-                ContentEventTypes.POST_DELETED,
-                postId.toString(),
                 postId,
                 "post",
                 occurredAt,
                 positiveVersion(occurredAt),
                 payload
-        );
+        ), postId.toString());
     }
 
     @Override
@@ -104,16 +98,14 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
             return;
         }
         Instant occurredAt = requiredOccurredAt(ContentEventTypes.COMMENT_CREATED, payload.getCreateTime());
-        publish(
+        publish(new ContentTypedEvent.CommentCreated(
                 "content:CommentCreated:" + commentId,
-                ContentEventTypes.COMMENT_CREATED,
-                commentId.toString(),
                 commentId,
                 "comment",
                 occurredAt,
                 positiveVersion(occurredAt),
                 payload
-        );
+        ), commentId.toString());
     }
 
     @Override
@@ -123,16 +115,14 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
             return;
         }
         Instant occurredAt = requiredOccurredAt(ContentEventTypes.COMMENT_DELETED, payload.getCreateTime());
-        publish(
+        publish(new ContentTypedEvent.CommentDeleted(
                 "content:CommentDeleted:" + commentId,
-                ContentEventTypes.COMMENT_DELETED,
-                commentId.toString(),
                 commentId,
                 "comment",
                 occurredAt,
                 positiveVersion(occurredAt),
                 payload
-        );
+        ), commentId.toString());
     }
 
     @Override
@@ -142,43 +132,25 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
             return;
         }
         Instant occurredAt = requiredOccurredAt(ContentEventTypes.MODERATION_ACTION_APPLIED, payload.getCreateTime());
-        publish(
+        publish(new ContentTypedEvent.ModerationActionApplied(
                 "ce:moderation:" + idGenerator.next(),
-                ContentEventTypes.MODERATION_ACTION_APPLIED,
-                toUserId.toString(),
                 toUserId,
                 "user",
                 occurredAt,
                 positiveVersion(occurredAt),
                 payload
-        );
+        ), toUserId.toString());
     }
 
-    private void publish(
-            String eventId,
-            String type,
-            String key,
-            UUID aggregateId,
-            String aggregateType,
-            Instant occurredAt,
-            long version,
-            Object payload
-    ) {
+    private void publish(ContentTypedEvent event, String key) {
         String payloadJson;
         try {
-            payloadJson = jsonCodec.toJson(new ContentContractEvent(
-                    eventId,
-                    aggregateId,
-                    aggregateType,
-                    type,
-                    occurredAt,
-                    version,
-                    payload
-            ));
+            payloadJson = contractEventCodec.serialize(event);
         } catch (JsonCodecException e) {
-            throw new IllegalStateException("content event outbox payload serialization failed: " + type, e);
+            throw new IllegalStateException(
+                    "content event outbox payload serialization failed: " + event.getClass().getSimpleName(), e);
         }
-        store.enqueue(eventId, topic, key, payloadJson);
+        store.enqueue(event.eventId(), topic, key, payloadJson);
     }
 
     private Instant requiredOccurredAt(String type, Instant occurredAt) {

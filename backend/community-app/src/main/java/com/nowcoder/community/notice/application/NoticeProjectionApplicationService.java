@@ -2,20 +2,12 @@ package com.nowcoder.community.notice.application;
 
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
-import com.nowcoder.community.content.contracts.event.CommentPayload;
-import com.nowcoder.community.content.contracts.event.ContentEventTypes;
-import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
-import com.nowcoder.community.notice.application.command.ProjectContentNoticeCommand;
-import com.nowcoder.community.notice.application.command.ProjectSocialNoticeCommand;
+import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
 import com.nowcoder.community.notice.domain.model.NoticeProjection;
+import com.nowcoder.community.notice.domain.model.NoticeProjectionContent;
 import com.nowcoder.community.notice.domain.model.NoticeTopic;
 import com.nowcoder.community.notice.domain.service.NoticeProjectionDomainService;
-import com.nowcoder.community.social.contracts.event.FollowPayload;
-import com.nowcoder.community.social.contracts.event.LikePayload;
-import com.nowcoder.community.social.contracts.event.SocialEventTypes;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -28,8 +20,6 @@ import java.util.UUID;
 
 @Service
 public class NoticeProjectionApplicationService {
-
-    private static final Logger log = LoggerFactory.getLogger(NoticeProjectionApplicationService.class);
 
     private final JsonCodec jsonCodec;
     private final NoticeApplicationService noticeApplicationService;
@@ -88,96 +78,113 @@ public class NoticeProjectionApplicationService {
         this.noticeProjectionEventRecorder = noticeProjectionEventRecorder;
     }
 
-    public void projectContentEvent(ProjectContentNoticeCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        if (!noticePolicyProperties.isProjectionEnabled()) {
-            return;
-        }
-        try {
-            project(commandForContentEvent(command));
-        } catch (RuntimeException e) {
-            log.warn("[notice] projection failed after commit (eventId={}, type={}): {}", command.sourceEventId(), command.eventType(), e.toString());
-        }
-    }
-
-    public void projectSocialEvent(ProjectSocialNoticeCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        if (!noticePolicyProperties.isProjectionEnabled()) {
-            return;
-        }
-        try {
-            project(commandForSocialEvent(command));
-        } catch (RuntimeException e) {
-            log.warn("[notice] projection failed after commit (eventId={}, type={}): {}", command.sourceEventId(), command.eventType(), e.toString());
-        }
-    }
-
     @Transactional
-    public void projectContentEventReliably(ProjectContentNoticeCommand command) {
+    public void projectReliably(ProjectNoticeCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         if (!noticePolicyProperties.isProjectionEnabled()) {
             return;
         }
-        projectReliably(commandForContentEvent(command));
-    }
-
-    @Transactional
-    public void projectSocialEventReliably(ProjectSocialNoticeCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        if (!noticePolicyProperties.isProjectionEnabled()) {
+        if (command instanceof ProjectNoticeCommand.LikeRemoved likeRemoved) {
+            revokeLikeNoticeReliably(likeRemoved);
             return;
         }
-        if (SocialEventTypes.LIKE_REMOVED.equals(command.eventType()) && command.payload() instanceof LikePayload payload) {
-            if (!StringUtils.hasText(command.sourceEventId())) {
-                throw new IllegalStateException("notice projection source event id is blank");
-            }
-            if (noticeProjectionEventRecorder != null && !noticeProjectionEventRecorder.tryRecord(command.sourceEventId())) {
-                return;
-            }
-            revokeProjectedLikeNotice(payload);
-            return;
-        }
-        projectReliably(commandForSocialEvent(command));
+        projectReliably(toProjection(command));
     }
 
-    NoticeProjection commandForContentEvent(ProjectContentNoticeCommand command) {
-        if (ContentEventTypes.COMMENT_CREATED.equals(command.eventType()) && command.payload() instanceof CommentPayload payload) {
-            return projection(command.sourceEventId(), command.eventType(), NoticeTopic.COMMENT, payload.getTargetUserId(), payload);
+    private NoticeProjection toProjection(ProjectNoticeCommand command) {
+        if (command instanceof ProjectNoticeCommand.CommentCreated comment) {
+            return projection(
+                    comment.sourceEventId(),
+                    comment.sourceEventType(),
+                    NoticeTopic.COMMENT,
+                    comment.targetUserId(),
+                    null,
+                    new NoticeProjectionContent.Comment(
+                            comment.commentId(),
+                            comment.postId(),
+                            comment.userId(),
+                            comment.entityType(),
+                            comment.entityId(),
+                            comment.targetUserId(),
+                            comment.content(),
+                            comment.createTime()
+                    )
+            );
         }
-        if (ContentEventTypes.MODERATION_ACTION_APPLIED.equals(command.eventType()) && command.payload() instanceof ModerationPayload payload) {
-            return projection(command.sourceEventId(), command.eventType(), NoticeTopic.MODERATION, payload.getToUserId(), payload);
+        if (command instanceof ProjectNoticeCommand.ModerationApplied moderation) {
+            return projection(
+                    moderation.sourceEventId(),
+                    moderation.sourceEventType(),
+                    NoticeTopic.MODERATION,
+                    moderation.toUserId(),
+                    null,
+                    new NoticeProjectionContent.Moderation(
+                            moderation.reportId(),
+                            moderation.kind(),
+                            moderation.toUserId(),
+                            moderation.actorUserId(),
+                            moderation.targetType(),
+                            moderation.targetId(),
+                            moderation.action(),
+                            moderation.reason(),
+                            moderation.durationSeconds(),
+                            moderation.createTime()
+                    )
+            );
         }
-        return null;
-    }
-
-    NoticeProjection commandForSocialEvent(ProjectSocialNoticeCommand command) {
-        if (SocialEventTypes.LIKE_CREATED.equals(command.eventType()) && command.payload() instanceof LikePayload payload) {
-            return projection(command.sourceEventId(), command.eventType(), NoticeTopic.LIKE, payload.getEntityUserId(), payload);
+        if (command instanceof ProjectNoticeCommand.LikeCreated like) {
+            return projection(
+                    like.sourceEventId(),
+                    like.sourceEventType(),
+                    NoticeTopic.LIKE,
+                    like.entityUserId(),
+                    like.relationKey(),
+                    new NoticeProjectionContent.Like(
+                            like.actorUserId(),
+                            like.entityType(),
+                            like.entityId(),
+                            like.entityUserId(),
+                            like.postId(),
+                            like.relationKey()
+                    )
+            );
         }
-        if (SocialEventTypes.FOLLOW_CREATED.equals(command.eventType()) && command.payload() instanceof FollowPayload payload) {
-            return projection(command.sourceEventId(), command.eventType(), NoticeTopic.FOLLOW, payload.getEntityUserId(), payload);
+        if (command instanceof ProjectNoticeCommand.FollowCreated follow) {
+            return projection(
+                    follow.sourceEventId(),
+                    follow.sourceEventType(),
+                    NoticeTopic.FOLLOW,
+                    follow.entityUserId(),
+                    null,
+                    new NoticeProjectionContent.Follow(
+                            follow.actorUserId(),
+                            follow.entityType(),
+                            follow.entityId(),
+                            follow.entityUserId(),
+                            follow.createTime()
+                    )
+            );
         }
-        return null;
-    }
-
-    private void project(NoticeProjection projection) {
-        if (!shouldProject(projection)) {
-            return;
-        }
-        createProjectedNotice(projection);
+        throw new IllegalArgumentException("unsupported notice projection command: " + command.getClass().getName());
     }
 
     private void projectReliably(NoticeProjection projection) {
         if (!shouldProject(projection)) {
             return;
         }
-        if (!StringUtils.hasText(projection.sourceEventId())) {
-            throw new IllegalStateException("notice projection source event id is blank");
-        }
+        requireSourceEventId(projection.sourceEventId());
         if (noticeProjectionEventRecorder != null && !noticeProjectionEventRecorder.tryRecord(projection.sourceEventId())) {
             return;
         }
         createProjectedNotice(projection);
+    }
+
+    private void revokeLikeNoticeReliably(ProjectNoticeCommand.LikeRemoved command) {
+        requireSourceEventId(command.sourceEventId());
+        if (noticeProjectionEventRecorder != null && !noticeProjectionEventRecorder.tryRecord(command.sourceEventId())) {
+            return;
+        }
+        noticeApplicationService.revokeLikeNotice(command.entityUserId(), command.relationKey());
     }
 
     private boolean shouldProject(NoticeProjection projection) {
@@ -195,38 +202,37 @@ public class NoticeProjectionApplicationService {
             String contentJson = jsonCodec.toJson(Map.of(
                     "eventId", projection.sourceEventId(),
                     "type", projection.sourceEventType(),
-                    "payload", projection.payload()
+                    "payload", projection.content()
             ));
             noticeApplicationService.createNotice(new CreateNoticeCommand(
                     projection.toUserId(),
                     projection.topic(),
                     contentJson,
                     projection.sourceEventType(),
-                    relationKey(projection.payload())
+                    projection.sourceRelationKey()
             ));
         } catch (JsonCodecException e) {
             throw new IllegalStateException("notice payload serialization failed: " + projection.sourceEventType(), e);
         }
     }
 
-    private NoticeProjection projection(String eventId, String eventType, String noticeTopic, UUID toUserId, Object payload) {
+    private NoticeProjection projection(
+            String eventId,
+            String eventType,
+            String noticeTopic,
+            UUID toUserId,
+            String sourceRelationKey,
+            NoticeProjectionContent content
+    ) {
         if (toUserId == null) {
             return null;
         }
-        return new NoticeProjection(toUserId, noticeTopic, eventId, eventType, payload);
+        return new NoticeProjection(toUserId, noticeTopic, eventId, eventType, sourceRelationKey, content);
     }
 
-    private void revokeProjectedLikeNotice(LikePayload payload) {
-        if (payload == null) {
-            return;
+    private void requireSourceEventId(String eventId) {
+        if (!StringUtils.hasText(eventId)) {
+            throw new IllegalStateException("notice projection source event id is blank");
         }
-        noticeApplicationService.revokeLikeNotice(payload.getEntityUserId(), payload.getRelationKey());
-    }
-
-    private String relationKey(Object payload) {
-        if (payload instanceof LikePayload likePayload) {
-            return likePayload.getRelationKey();
-        }
-        return null;
     }
 }

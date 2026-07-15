@@ -10,17 +10,14 @@ import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
@@ -35,7 +32,7 @@ public class DriveTrashApplicationService {
     private final DriveEntryRepository entryRepository;
     private final DriveObjectStoragePort objectStoragePort;
     private final Clock clock;
-    private final TransactionTemplate deleteTransactionTemplate;
+    private final DriveTransactionOperations transactionOperations;
 
     @Autowired
     public DriveTrashApplicationService(
@@ -43,19 +40,16 @@ public class DriveTrashApplicationService {
             DriveEntryRepository entryRepository,
             DriveObjectStoragePort objectStoragePort,
             Clock clock,
-            PlatformTransactionManager transactionManager
+            DriveTransactionOperations transactionOperations
     ) {
         this.spaceRepository = spaceRepository;
         this.entryRepository = entryRepository;
         this.objectStoragePort = objectStoragePort;
         this.clock = clock == null ? Clock.systemUTC() : clock;
-        if (transactionManager == null) {
-            this.deleteTransactionTemplate = null;
-        } else {
-            TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
-            transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-            this.deleteTransactionTemplate = transactionTemplate;
-        }
+        this.transactionOperations = Objects.requireNonNull(
+                transactionOperations,
+                "transactionOperations must not be null"
+        );
     }
 
     DriveTrashApplicationService(
@@ -64,7 +58,13 @@ public class DriveTrashApplicationService {
             DriveObjectStoragePort objectStoragePort,
             Clock clock
     ) {
-        this(spaceRepository, entryRepository, objectStoragePort, clock, null);
+        this(
+                spaceRepository,
+                entryRepository,
+                objectStoragePort,
+                clock,
+                DirectDriveTransactionOperations.INSTANCE
+        );
     }
 
     @Transactional
@@ -166,13 +166,14 @@ public class DriveTrashApplicationService {
 
     private DriveSpace createDefaultSpace(UUID userId, Instant now) {
         DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, now);
-        try {
-            spaceRepository.save(space);
-            return space;
-        } catch (DuplicateKeyException e) {
-            return spaceRepository.findByUserId(userId)
-                    .orElseThrow(() -> new BusinessException(INTERNAL_ERROR, "网盘空间创建失败", e));
+        DriveSpaceRepository.CreateResult result = spaceRepository.create(space);
+        if (result != null
+                && (result.status() == DriveSpaceRepository.CreateStatus.CREATED
+                || result.status() == DriveSpaceRepository.CreateStatus.ALREADY_EXISTS)
+                && result.space() != null) {
+            return result.space();
         }
+        throw new BusinessException(INTERNAL_ERROR, "网盘空间创建失败");
     }
 
     private void lockSpace(UUID spaceId) {
@@ -217,11 +218,7 @@ public class DriveTrashApplicationService {
                 spaceRepository.save(latest.release(releasedBytes, now));
             }
         };
-        if (deleteTransactionTemplate == null) {
-            deleteAction.run();
-            return;
-        }
-        deleteTransactionTemplate.executeWithoutResult(status -> deleteAction.run());
+        transactionOperations.requiresNew(deleteAction);
     }
 
     private void deleteObjects(List<DriveEntry> targets, UUID actorUserId) {

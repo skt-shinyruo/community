@@ -39,6 +39,7 @@ public class PostMediaController {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
         PostMediaUploadSessionResult result = applicationService.prepareUpload(new PreparePostMediaUploadCommand(
                 actorUserId,
+                request.getRequestId(),
                 request.getFileName(),
                 request.getContentType(),
                 request.getContentLength(),

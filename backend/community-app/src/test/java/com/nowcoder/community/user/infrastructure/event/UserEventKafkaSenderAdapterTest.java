@@ -1,5 +1,6 @@
 package com.nowcoder.community.user.infrastructure.event;
 
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
@@ -43,7 +44,7 @@ class UserEventKafkaSenderAdapterTest {
         UserContractEvent event = new UserContractEvent(
                 "user:UserPolicyChanged:" + uuid(101) + ":42",
                 UserEventTypes.USER_POLICY_CHANGED,
-                payload
+                JsonMappers.standard().valueToTree(payload)
         );
 
         adapter.dispatch(uuid(101).toString(), event);
@@ -62,7 +63,8 @@ class UserEventKafkaSenderAdapterTest {
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(failedSend());
         UserEventKafkaSenderAdapter adapter = new UserEventKafkaSenderAdapter(kafkaTemplate, KAFKA_TOPIC);
 
-        assertThatThrownBy(() -> adapter.dispatch("key", new UserContractEvent("event-1", "Type", new Object())))
+        assertThatThrownBy(() -> adapter.dispatch("key", new UserContractEvent(
+                "event-1", "Type", JsonMappers.standard().createObjectNode())))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("user event kafka publish failed: " + KAFKA_TOPIC)
                 .hasCauseInstanceOf(RuntimeException.class);

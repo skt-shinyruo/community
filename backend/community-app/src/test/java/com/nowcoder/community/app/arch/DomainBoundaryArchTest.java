@@ -61,31 +61,11 @@ class DomainBoundaryArchTest {
     @Test
     void coreDomainModelShouldCoverDocumentedMainSiteDomains() {
         assertThat(ArchitectureRulesSupport.CORE_DOMAINS)
-                .contains(
+                .containsExactlyInAnyOrder(
                         "auth",
                         "user",
                         "content",
                         "social",
-                        "message",
-                        "notice",
-                        "search",
-                        "analytics",
-                        "growth",
-                        "market",
-                        "wallet",
-                        "drive"
-                );
-    }
-
-    @Test
-    void commonDomainGuardShouldCoverDocumentedBusinessAndAdapterDomains() {
-        assertThat(ArchitectureRulesSupport.BUSINESS_OR_ADAPTER_DOMAINS)
-                .contains(
-                        "auth",
-                        "user",
-                        "content",
-                        "social",
-                        "message",
                         "notice",
                         "search",
                         "analytics",
@@ -93,8 +73,30 @@ class DomainBoundaryArchTest {
                         "market",
                         "wallet",
                         "drive",
+                        "interaction",
+                        "profile"
+                );
+    }
+
+    @Test
+    void commonDomainGuardShouldCoverDocumentedBusinessAndAdapterDomains() {
+        assertThat(ArchitectureRulesSupport.BUSINESS_OR_ADAPTER_DOMAINS)
+                .containsExactlyInAnyOrder(
+                        "auth",
+                        "user",
+                        "content",
+                        "social",
+                        "notice",
+                        "search",
+                        "analytics",
+                        "growth",
+                        "market",
+                        "wallet",
+                        "drive",
+                        "interaction",
                         "ops",
-                        "im"
+                        "im",
+                        "profile"
                 );
     }
 

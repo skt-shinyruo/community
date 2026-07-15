@@ -6,14 +6,20 @@ services:
     - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
     - MYSQL_ROOT_HOST=%
     - MYSQL_DATABASE=${MYSQL_DATABASE:-community}
-    - MYSQL_USER=${MYSQL_USER:-community}
-    - MYSQL_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+    - COMMUNITY_MYSQL_USER=${MYSQL_USER:-community}
+    - COMMUNITY_MYSQL_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+    - COMMUNITY_MIGRATION_USERNAME=${COMMUNITY_MIGRATION_USERNAME:-community_migrator}
+    - COMMUNITY_MIGRATION_PASSWORD=${COMMUNITY_MIGRATION_PASSWORD:?COMMUNITY_MIGRATION_PASSWORD is required}
     - IM_MYSQL_DATABASE=${IM_MYSQL_DATABASE:-im_core}
     - IM_MYSQL_USER=${IM_MYSQL_USER:-im_core}
     - IM_MYSQL_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
+    - IM_MIGRATION_USERNAME=${IM_MIGRATION_USERNAME:-im_core_migrator}
+    - IM_MIGRATION_PASSWORD=${IM_MIGRATION_PASSWORD:?IM_MIGRATION_PASSWORD is required}
     - OSS_MYSQL_DATABASE=${OSS_MYSQL_DATABASE:-community_oss}
     - OSS_MYSQL_USER=${OSS_MYSQL_USER:-community_oss}
     - OSS_MYSQL_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}
+    - OSS_MIGRATION_USERNAME=${OSS_MIGRATION_USERNAME:-community_oss_migrator}
+    - OSS_MIGRATION_PASSWORD=${OSS_MIGRATION_PASSWORD:?OSS_MIGRATION_PASSWORD is required}
     - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
     - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
     command:
@@ -24,20 +30,6 @@ services:
     - mysql_primary_data:/var/lib/mysql
     - ./mysql/conf/mysql-client.cnf:/etc/mysql/conf.d/mysql-client.cnf:ro
     - ./mysql/primary-init/001_create_databases.sh:/docker-entrypoint-initdb.d/001_create_databases.sh:ro
-    - ./mysql/community/010_schema_shared.sql:/docker-entrypoint-initdb.d/010_schema_shared.sql:ro
-    - ./mysql/community/011_schema_demo_metadata.sql:/docker-entrypoint-initdb.d/011_schema_demo_metadata.sql:ro
-    - ./mysql/community/020_schema_identity.sql:/docker-entrypoint-initdb.d/020_schema_identity.sql:ro
-    - ./mysql/community/031_schema_growth_wallet.sql:/docker-entrypoint-initdb.d/031_schema_growth_wallet.sql:ro
-    - ./mysql/community/032_schema_growth_market.sql:/docker-entrypoint-initdb.d/032_schema_growth_market.sql:ro
-    - ./mysql/community/033_schema_growth_task.sql:/docker-entrypoint-initdb.d/033_schema_growth_task.sql:ro
-    - ./mysql/community/040_schema_content_core.sql:/docker-entrypoint-initdb.d/040_schema_content_core.sql:ro
-    - ./mysql/community/050_schema_social.sql:/docker-entrypoint-initdb.d/050_schema_social.sql:ro
-    - ./mysql/community/060_schema_notice.sql:/docker-entrypoint-initdb.d/060_schema_notice.sql:ro
-    - ./mysql/community/070_schema_im_core.sql:/docker-entrypoint-initdb.d/070_schema_im_core.sql:ro
-    - ./mysql/community/080_schema_search.sql:/docker-entrypoint-initdb.d/080_schema_search.sql:ro
-    - ./mysql/community/090_schema_drive.sql:/docker-entrypoint-initdb.d/090_schema_drive.sql:ro
-    - ./mysql/community/090_seed_identity.sql:/docker-entrypoint-initdb.d/090_seed_identity.sql:ro
-    - ./mysql/community_oss/010_schema.sql:/docker-entrypoint-initdb.d/100_schema_community_oss.sql:ro
     healthcheck:
       test:
       - CMD-SHELL
@@ -50,3 +42,103 @@ services:
         aliases:
         - mysql
         - mysql-primary
+  community-db-user-bootstrap:
+    image: mysql:8.0
+    mem_limit: ${MYSQL_BOOTSTRAP_MEM_LIMIT:-256m}
+    entrypoint:
+    - /bin/bash
+    - /bootstrap/001_create_databases.sh
+    environment:
+    - MYSQL_HOST=${DB_PRIMARY_HOST:-mysql}
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - MYSQL_DATABASE=${MYSQL_DATABASE:-community}
+    - COMMUNITY_MYSQL_USER=${MYSQL_USER:-community}
+    - COMMUNITY_MYSQL_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+    - COMMUNITY_MIGRATION_USERNAME=${COMMUNITY_MIGRATION_USERNAME:-community_migrator}
+    - COMMUNITY_MIGRATION_PASSWORD=${COMMUNITY_MIGRATION_PASSWORD:?COMMUNITY_MIGRATION_PASSWORD is required}
+    - IM_MYSQL_DATABASE=${IM_MYSQL_DATABASE:-im_core}
+    - IM_MYSQL_USER=${IM_MYSQL_USER:-im_core}
+    - IM_MYSQL_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
+    - IM_MIGRATION_USERNAME=${IM_MIGRATION_USERNAME:-im_core_migrator}
+    - IM_MIGRATION_PASSWORD=${IM_MIGRATION_PASSWORD:?IM_MIGRATION_PASSWORD is required}
+    - OSS_MYSQL_DATABASE=${OSS_MYSQL_DATABASE:-community_oss}
+    - OSS_MYSQL_USER=${OSS_MYSQL_USER:-community_oss}
+    - OSS_MYSQL_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}
+    - OSS_MIGRATION_USERNAME=${OSS_MIGRATION_USERNAME:-community_oss_migrator}
+    - OSS_MIGRATION_PASSWORD=${OSS_MIGRATION_PASSWORD:?OSS_MIGRATION_PASSWORD is required}
+    - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
+    - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
+    volumes:
+    - ./mysql/primary-init/001_create_databases.sh:/bootstrap/001_create_databases.sh:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: 'no'
+  community-db-migrations:
+    image: community-db-migrations:local
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.db-migration
+    mem_limit: ${MYSQL_BOOTSTRAP_MEM_LIMIT:-256m}
+    environment:
+    - COMMUNITY_MIGRATION_JDBC_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql}:3306/${MYSQL_DATABASE:-community}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - COMMUNITY_MIGRATION_USERNAME=${COMMUNITY_MIGRATION_USERNAME:-community_migrator}
+    - COMMUNITY_MIGRATION_PASSWORD=${COMMUNITY_MIGRATION_PASSWORD:?COMMUNITY_MIGRATION_PASSWORD is required}
+    - COMMUNITY_MIGRATION_HISTORY_TABLE=community_schema_history
+    depends_on:
+      community-db-user-bootstrap:
+        condition: service_completed_successfully
+    restart: 'no'
+  community-oss-db-migrations:
+    image: community-oss-db-migrations:local
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.oss-db-migration
+    mem_limit: ${MYSQL_BOOTSTRAP_MEM_LIMIT:-256m}
+    environment:
+    - OSS_MIGRATION_JDBC_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql}:3306/${OSS_MYSQL_DATABASE:-community_oss}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - OSS_MIGRATION_USERNAME=${OSS_MIGRATION_USERNAME:-community_oss_migrator}
+    - OSS_MIGRATION_PASSWORD=${OSS_MIGRATION_PASSWORD:?OSS_MIGRATION_PASSWORD is required}
+    - OSS_MIGRATION_HISTORY_TABLE=oss_schema_history
+    depends_on:
+      community-db-user-bootstrap:
+        condition: service_completed_successfully
+    restart: 'no'
+  community-im-db-migrations:
+    image: community-im-db-migrations:local
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.im-db-migration
+    mem_limit: ${MYSQL_BOOTSTRAP_MEM_LIMIT:-256m}
+    environment:
+    - IM_MIGRATION_JDBC_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - IM_MIGRATION_USERNAME=${IM_MIGRATION_USERNAME:-im_core_migrator}
+    - IM_MIGRATION_PASSWORD=${IM_MIGRATION_PASSWORD:?IM_MIGRATION_PASSWORD is required}
+    - IM_MIGRATION_HISTORY_TABLE=im_core_schema_history
+    depends_on:
+      community-db-user-bootstrap:
+        condition: service_completed_successfully
+    restart: 'no'
+  community-dev-seed:
+    image: community-db-migrations:local
+    mem_limit: ${MYSQL_BOOTSTRAP_MEM_LIMIT:-256m}
+    entrypoint:
+    - /bin/sh
+    - -ec
+    command:
+    - |
+      if [ "$${COMMUNITY_DEV_SEED_ENABLED}" != "true" ]; then
+        echo '[community-dev-seed] disabled';
+        exit 0;
+      fi
+      exec java -jar /app/community-db-migrations.jar development-seed
+    environment:
+    - COMMUNITY_DEV_SEED_ENABLED=${COMMUNITY_DEV_SEED_ENABLED:-false}
+    - COMMUNITY_MIGRATION_PROFILE=${DEPLOYMENT_ENVIRONMENT:?DEPLOYMENT_ENVIRONMENT is required}
+    - COMMUNITY_MIGRATION_JDBC_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql}:3306/${MYSQL_DATABASE:-community}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - COMMUNITY_MIGRATION_USERNAME=${COMMUNITY_MIGRATION_USERNAME:-community_migrator}
+    - COMMUNITY_MIGRATION_PASSWORD=${COMMUNITY_MIGRATION_PASSWORD:?COMMUNITY_MIGRATION_PASSWORD is required}
+    depends_on:
+      community-db-migrations:
+        condition: service_completed_successfully
+    restart: 'no'

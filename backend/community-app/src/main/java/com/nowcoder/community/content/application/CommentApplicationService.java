@@ -13,19 +13,24 @@ import com.nowcoder.community.content.exception.ContentErrorCode;
 import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
 import com.nowcoder.community.content.domain.event.CommentDeletedDomainEvent;
 import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
+import com.nowcoder.community.content.domain.model.Comment;
+import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentDraft;
+import com.nowcoder.community.content.domain.model.CommentEdit;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
+import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
+import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
-import com.nowcoder.community.infra.idempotency.RequestFingerprint;
-import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
+import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -47,7 +52,6 @@ public class CommentApplicationService {
     private final PostCounterCache postCounterCache;
     private final CommentPageCache commentPageCache;
     private final SocialBlockQueryApi blockQueryApi;
-    private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private final CommentDomainEventPublisher domainEventPublisher;
 
     public CommentApplicationService(
@@ -61,7 +65,6 @@ public class CommentApplicationService {
             PostCounterCache postCounterCache,
             CommentPageCache commentPageCache,
             SocialBlockQueryApi blockQueryApi,
-            SocialLikeCleanupActionApi socialLikeCleanupActionApi,
             CommentDomainEventPublisher domainEventPublisher
     ) {
         this.sensitiveFilter = sensitiveFilter;
@@ -74,7 +77,6 @@ public class CommentApplicationService {
         this.postCounterCache = postCounterCache;
         this.commentPageCache = commentPageCache;
         this.blockQueryApi = blockQueryApi;
-        this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
         this.domainEventPublisher = domainEventPublisher;
     }
 
@@ -149,23 +151,36 @@ public class CommentApplicationService {
         postContentPort.getById(postId);
         CommentSnapshot existing = commentRepository.getRequiredSnapshot(commentId);
         Date now = new Date();
-        domainService.assertEditableByAuthor(existing, userId, postId, now);
-        commentRepository.updateContent(commentId, sanitize(command.content()), now);
-        evictCommentPageCacheAfterCommit(postId);
+        CommentEdit edit = Comment.reconstitute(existing)
+                .editByAuthor(userId, postId, sanitize(command.content()), now);
+        CommentTransitionStatus status = commentRepository.apply(edit);
+        switch (status) {
+            case APPLIED -> evictCommentPageCacheAfterCommit(postId);
+            case NO_OP, NOT_FOUND -> throw new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND);
+            case STALE -> throw staleTransition();
+        }
     }
 
     @Transactional
     public void deleteByAuthor(UUID userId, UUID postId, UUID commentId) {
         CommentSnapshot existing = commentRepository.getRequiredSnapshot(commentId);
         UUID actualPostId = resolvePostId(existing);
-        domainService.assertDeletableByAuthor(existing, userId, postId, actualPostId);
-        deleteActiveThread(existing, actualPostId, userId, "author_delete");
+        Comment aggregate = Comment.reconstitute(existing);
+        CommentDeletion deletion = aggregate.deleteByAuthor(
+                userId,
+                postId,
+                "author_delete",
+                new Date()
+        );
+        deleteActiveThread(aggregate, deletion, actualPostId);
     }
 
     @Transactional
     public void deleteByModeration(UUID actorUserId, UUID commentId, String deletedReason) {
         CommentSnapshot existing = commentRepository.getRequiredSnapshot(commentId);
-        deleteActiveThread(existing, resolvePostId(existing), actorUserId, deletedReason);
+        Comment aggregate = Comment.reconstitute(existing);
+        CommentDeletion deletion = aggregate.deleteByModerator(actorUserId, deletedReason, new Date());
+        deleteActiveThread(aggregate, deletion, resolvePostId(existing));
     }
 
     private UUID createInsideTransaction(CreateCommentCommand command) {
@@ -233,39 +248,45 @@ public class CommentApplicationService {
         return value == null ? "<null>" : String.valueOf(value);
     }
 
-    private void deleteActiveThread(CommentSnapshot existing, UUID postId, UUID deletedBy, String deletedReason) {
-        Date deletedTime = new Date();
-        CommentDeletionResult deletion = commentRepository.markActiveThreadDeleted(
-                existing.id(),
-                deletedBy,
-                deletedReason,
-                deletedTime
-        );
-        if (!deletion.changed()) {
-            return;
-        }
-        postContentPort.incrementCommentCount(postId, -deletion.deletedCount());
-        postCounterCache.incrementCommentCount(postId, -deletion.deletedCount());
-        evictCommentPageCacheAfterCommit(postId);
-        AfterCommitExecutor.runAfterCommit(() -> {
-            for (UUID deletedCommentId : deletion.deletedCommentIds()) {
-                try {
-                    socialLikeCleanupActionApi.cleanupEntityLikes(EntityTypes.COMMENT, deletedCommentId);
-                } catch (RuntimeException ignored) {
-                    // best-effort after-commit cleanup; event/outbox path remains the source for downstream repair
-                }
+    private void deleteActiveThread(Comment aggregate, CommentDeletion transition, UUID postId) {
+        CommentDeletionResult result;
+        if (aggregate.isRootComment()) {
+            List<CommentSnapshot> activeThread = commentRepository.getActiveThreadSnapshots(transition.commentId());
+            if (activeThread.isEmpty()) {
+                return;
             }
-        });
-        for (CommentSnapshot deletedComment : deletion.deletedComments()) {
+            result = commentRepository.apply(CommentThreadDeletion.from(transition, activeThread));
+        } else {
+            result = commentRepository.apply(transition);
+        }
+
+        switch (result.status()) {
+            case NO_OP -> {
+                return;
+            }
+            case STALE -> throw staleTransition();
+            case NOT_FOUND -> throw new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND);
+            case APPLIED -> {
+            }
+        }
+
+        postContentPort.incrementCommentCount(postId, -result.deletedCount());
+        postCounterCache.incrementCommentCount(postId, -result.deletedCount());
+        evictCommentPageCacheAfterCommit(postId);
+        for (CommentSnapshot deletedComment : result.deletedComments()) {
             domainEventPublisher.commentDeleted(new CommentDeletedDomainEvent(
                     deletedComment.id(),
                     postId,
                     deletedComment.userId(),
                     deletedComment.rootComment() ? EntityTypes.POST : EntityTypes.COMMENT,
                     deletedComment.rootComment() ? postId : deletedComment.parentCommentId(),
-                    deletedTime.toInstant()
+                    transition.deletedTime().toInstant()
             ));
         }
+    }
+
+    private static IllegalStateException staleTransition() {
+        return new IllegalStateException("comment transition stale");
     }
 
     private UUID resolvePostId(CommentSnapshot comment) {

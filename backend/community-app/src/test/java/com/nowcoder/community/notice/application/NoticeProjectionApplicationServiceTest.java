@@ -1,20 +1,17 @@
 package com.nowcoder.community.notice.application;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
-import com.nowcoder.community.content.contracts.event.CommentPayload;
-import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
-import com.nowcoder.community.notice.application.command.ProjectContentNoticeCommand;
-import com.nowcoder.community.notice.application.command.ProjectSocialNoticeCommand;
+import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
 import com.nowcoder.community.notice.domain.service.NoticeProjectionDomainService;
-import com.nowcoder.community.social.contracts.event.LikePayload;
-import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-import java.util.UUID;
+import java.time.Instant;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,46 +28,44 @@ import static org.mockito.Mockito.when;
 class NoticeProjectionApplicationServiceTest {
 
     @Test
-    void reliableContentProjectionShouldCreateOneNoticeForDuplicateEventId() {
+    void duplicateCommentEventShouldCreateOneNotice() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
         NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
         when(eventRecorder.tryRecord("evt-comment-duplicate")).thenReturn(true, false);
-        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
-        ProjectContentNoticeCommand command = commentCommand("evt-comment-duplicate");
+        NoticeProjectionApplicationService service = projectionService(noticeService, eventRecorder);
+        ProjectNoticeCommand command = commentCommand("evt-comment-duplicate", uuid(100), uuid(9));
 
-        projectionService.projectContentEventReliably(command);
-        projectionService.projectContentEventReliably(command);
+        service.projectReliably(command);
+        service.projectReliably(command);
 
         verify(eventRecorder, times(2)).tryRecord("evt-comment-duplicate");
         verify(noticeService, times(1)).createNotice(any(CreateNoticeCommand.class));
     }
 
     @Test
-    void replayedSourceEventShouldNotCreateDuplicateNoticeAcrossPayloadChanges() {
+    void replayIdentityShouldBeSourceEventIdEvenWhenPayloadChanges() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
         NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
         when(eventRecorder.tryRecord("event-1")).thenReturn(true, false);
-        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
-        ProjectContentNoticeCommand first = commentCommand("event-1");
-        ProjectContentNoticeCommand replayed = commentCommand("event-1", uuid(101), uuid(10));
+        NoticeProjectionApplicationService service = projectionService(noticeService, eventRecorder);
 
-        projectionService.projectContentEventReliably(first);
-        projectionService.projectContentEventReliably(replayed);
+        service.projectReliably(commentCommand("event-1", uuid(100), uuid(9)));
+        service.projectReliably(commentCommand("event-1", uuid(101), uuid(10)));
 
         verify(eventRecorder, times(2)).tryRecord("event-1");
         verify(noticeService, times(1)).createNotice(any(CreateNoticeCommand.class));
     }
 
     @Test
-    void reliableContentProjectionShouldPropagateNoticeCreationFailureForKafkaRetry() {
+    void noticeCreationFailureShouldPropagateForKafkaRetry() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
         NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
         when(eventRecorder.tryRecord("evt-comment-fails")).thenReturn(true);
         doThrow(new IllegalStateException("notice insert failed"))
                 .when(noticeService).createNotice(any(CreateNoticeCommand.class));
-        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
+        NoticeProjectionApplicationService service = projectionService(noticeService, eventRecorder);
 
-        assertThatThrownBy(() -> projectionService.projectContentEventReliably(commentCommand("evt-comment-fails")))
+        assertThatThrownBy(() -> service.projectReliably(commentCommand("evt-comment-fails", uuid(100), uuid(9))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("notice insert failed");
 
@@ -78,12 +73,12 @@ class NoticeProjectionApplicationServiceTest {
     }
 
     @Test
-    void reliableContentProjectionShouldRejectNullSourceEventIdBeforeRecording() {
+    void blankSourceEventIdShouldBeRejectedBeforeRecording() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
         NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
-        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
+        NoticeProjectionApplicationService service = projectionService(noticeService, eventRecorder);
 
-        assertThatThrownBy(() -> projectionService.projectContentEventReliably(commentCommand(null)))
+        assertThatThrownBy(() -> service.projectReliably(commentCommand("  ", uuid(100), uuid(9))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("notice projection source event id is blank");
 
@@ -92,88 +87,96 @@ class NoticeProjectionApplicationServiceTest {
     }
 
     @Test
-    void reliableContentProjectionShouldRejectBlankSourceEventIdBeforeRecording() {
+    void commentProjectionShouldPreserveTopicAndContentJsonShape() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
         NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
-        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
+        when(eventRecorder.tryRecord("evt-comment-json")).thenReturn(true);
+        NoticeProjectionApplicationService service = projectionService(noticeService, eventRecorder);
 
-        assertThatThrownBy(() -> projectionService.projectContentEventReliably(commentCommand("  ")))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("notice projection source event id is blank");
+        service.projectReliably(commentCommand("evt-comment-json", uuid(100), uuid(9)));
 
-        verifyNoInteractions(eventRecorder);
+        CreateNoticeCommand notice = capturedNotice(noticeService);
+        assertThat(notice.toUserId()).isEqualTo(uuid(9));
+        assertThat(notice.noticeTopic()).isEqualTo("comment");
+        assertThat(notice.sourceEventType()).isEqualTo("CommentCreated");
+        assertThat(notice.sourceRelationKey()).isNull();
+        JsonNode content = jsonCodec().readTree(notice.contentJson());
+        assertThat(content.path("eventId").asText()).isEqualTo("evt-comment-json");
+        assertThat(content.path("type").asText()).isEqualTo("CommentCreated");
+        assertThat(content.path("payload").path("commentId").asText()).isEqualTo(uuid(10).toString());
+        assertThat(content.path("payload").path("postId").asText()).isEqualTo(uuid(100).toString());
+        assertThat(content.path("payload").path("targetUserId").asText()).isEqualTo(uuid(9).toString());
+        assertThat(content.path("payload").path("content").asText()).isEqualTo("hello");
+    }
+
+    @Test
+    void moderationAndFollowCommandsShouldUseTheirNoticeTopics() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        when(eventRecorder.tryRecord("evt-moderation")).thenReturn(true);
+        when(eventRecorder.tryRecord("evt-follow")).thenReturn(true);
+        NoticeProjectionApplicationService service = projectionService(noticeService, eventRecorder);
+
+        service.projectReliably(new ProjectNoticeCommand.ModerationApplied(
+                "evt-moderation", 1L, "ModerationActionApplied", uuid(20), "report", uuid(9), uuid(1),
+                EntityTypes.POST, uuid(100), "delete", "spam", 60, Instant.EPOCH));
+        service.projectReliably(new ProjectNoticeCommand.FollowCreated(
+                "evt-follow", 2L, "FollowCreated", uuid(1), EntityTypes.USER, uuid(9), uuid(9), Instant.EPOCH));
+
+        ArgumentCaptor<CreateNoticeCommand> captor = ArgumentCaptor.forClass(CreateNoticeCommand.class);
+        verify(noticeService, times(2)).createNotice(captor.capture());
+        assertThat(captor.getAllValues()).extracting(CreateNoticeCommand::noticeTopic)
+                .containsExactly("moderation", "follow");
+    }
+
+    @Test
+    void likeCreatedShouldPreserveRelationKeyAndBeIdempotent() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        when(eventRecorder.tryRecord("evt-like-created")).thenReturn(true, false);
+        NoticeProjectionApplicationService service = projectionService(noticeService, eventRecorder);
+        String relationKey = "like:" + uuid(44) + ":3:" + uuid(100);
+        ProjectNoticeCommand command = new ProjectNoticeCommand.LikeCreated(
+                "evt-like-created", 21L, "LikeCreated", uuid(44), EntityTypes.POST,
+                uuid(100), uuid(55), uuid(100), relationKey);
+
+        service.projectReliably(command);
+        service.projectReliably(command);
+
+        CreateNoticeCommand notice = capturedNotice(noticeService);
+        verify(eventRecorder, times(2)).tryRecord("evt-like-created");
+        assertThat(notice.toUserId()).isEqualTo(uuid(55));
+        assertThat(notice.noticeTopic()).isEqualTo("like");
+        assertThat(notice.sourceEventType()).isEqualTo("LikeCreated");
+        assertThat(notice.sourceRelationKey()).isEqualTo(relationKey);
+        JsonNode payload = jsonCodec().readTree(notice.contentJson()).path("payload");
+        assertThat(payload.path("actorUserId").asText()).isEqualTo(uuid(44).toString());
+        assertThat(payload.path("relationKey").asText()).isEqualTo(relationKey);
+    }
+
+    @Test
+    void likeRemovedShouldRevokeOnceForDuplicateEventId() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        when(eventRecorder.tryRecord("evt-like-removed")).thenReturn(true, false);
+        NoticeProjectionApplicationService service = projectionService(noticeService, eventRecorder);
+        ProjectNoticeCommand command = likeRemovedCommand("evt-like-removed");
+
+        service.projectReliably(command);
+        service.projectReliably(command);
+
+        verify(eventRecorder, times(2)).tryRecord("evt-like-removed");
+        verify(noticeService, times(1)).revokeLikeNotice(uuid(55), "like:actor:3:entity");
         verify(noticeService, never()).createNotice(any(CreateNoticeCommand.class));
     }
 
     @Test
-    void shouldRevokeLikeNoticeOnLikeRemoved() {
+    void blankLikeRemovedEventIdShouldBeRejectedBeforeRevoking() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
         NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
-        when(eventRecorder.tryRecord("evt-like-removed-1")).thenReturn(true);
-        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
+        NoticeProjectionApplicationService service = projectionService(noticeService, eventRecorder);
 
-        LikePayload payload = new LikePayload();
-        payload.setEntityUserId(UUID.fromString("00000000-0000-0000-0000-000000000055"));
-        payload.setRelationKey("like:actor:3:entity");
-
-        projectionService.projectSocialEventReliably(new ProjectSocialNoticeCommand(
-                "evt-like-removed-1",
-                11L,
-                SocialEventTypes.LIKE_REMOVED,
-                payload
-        ));
-
-        verify(eventRecorder).tryRecord("evt-like-removed-1");
-        verify(noticeService).revokeLikeNotice(payload.getEntityUserId(), payload.getRelationKey());
-    }
-
-    @Test
-    void reliableLikeCreatedProjectionShouldCreateOneNoticeForDuplicateSocialEventId() {
-        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
-        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
-        when(eventRecorder.tryRecord("evt-like-created-duplicate")).thenReturn(true, false);
-        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(uuid(44));
-        payload.setEntityType(3);
-        payload.setEntityId(uuid(100));
-        payload.setEntityUserId(uuid(55));
-        payload.setPostId(uuid(100));
-        payload.setRelationKey("like:" + uuid(44) + ":3:" + uuid(100));
-        ProjectSocialNoticeCommand command = new ProjectSocialNoticeCommand(
-                "evt-like-created-duplicate",
-                21L,
-                SocialEventTypes.LIKE_CREATED,
-                payload
-        );
-
-        projectionService.projectSocialEventReliably(command);
-        projectionService.projectSocialEventReliably(command);
-
-        ArgumentCaptor<CreateNoticeCommand> noticeCaptor = ArgumentCaptor.forClass(CreateNoticeCommand.class);
-        verify(eventRecorder, times(2)).tryRecord("evt-like-created-duplicate");
-        verify(noticeService, times(1)).createNotice(noticeCaptor.capture());
-        assertThat(noticeCaptor.getValue().toUserId()).isEqualTo(uuid(55));
-        assertThat(noticeCaptor.getValue().sourceEventType()).isEqualTo(SocialEventTypes.LIKE_CREATED);
-        assertThat(noticeCaptor.getValue().sourceRelationKey()).isEqualTo("like:" + uuid(44) + ":3:" + uuid(100));
-        assertThat(noticeCaptor.getValue().contentJson()).contains("evt-like-created-duplicate");
-    }
-
-    @Test
-    void reliableLikeRemovedProjectionShouldRejectBlankSourceEventIdBeforeRevoking() {
-        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
-        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
-        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
-        LikePayload payload = new LikePayload();
-        payload.setEntityUserId(uuid(55));
-        payload.setRelationKey("like:actor:3:entity");
-
-        assertThatThrownBy(() -> projectionService.projectSocialEventReliably(new ProjectSocialNoticeCommand(
-                " ",
-                11L,
-                SocialEventTypes.LIKE_REMOVED,
-                payload
-        )))
+        assertThatThrownBy(() -> service.projectReliably(likeRemovedCommand(" ")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("notice projection source event id is blank");
 
@@ -182,76 +185,23 @@ class NoticeProjectionApplicationServiceTest {
     }
 
     @Test
-    void reliableLikeRemovedProjectionShouldRevokeOnceForDuplicateEventId() {
-        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
-        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
-        when(eventRecorder.tryRecord("evt-like-removed-duplicate")).thenReturn(true, false);
-        NoticeProjectionApplicationService projectionService = projectionService(noticeService, eventRecorder);
-        LikePayload payload = new LikePayload();
-        payload.setEntityUserId(uuid(55));
-        payload.setRelationKey("like:actor:3:entity");
-        ProjectSocialNoticeCommand command = new ProjectSocialNoticeCommand(
-                "evt-like-removed-duplicate",
-                12L,
-                SocialEventTypes.LIKE_REMOVED,
-                payload
-        );
-
-        projectionService.projectSocialEventReliably(command);
-        projectionService.projectSocialEventReliably(command);
-
-        verify(eventRecorder, times(2)).tryRecord("evt-like-removed-duplicate");
-        verify(noticeService, times(1)).revokeLikeNotice(payload.getEntityUserId(), payload.getRelationKey());
-    }
-
-    @Test
-    void reliableContentProjectionShouldSkipWhenProjectionDisabled() {
+    void projectionDisabledShouldSkipRecordingAndSideEffects() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
         NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
         NoticePolicyProperties properties = new NoticePolicyProperties();
-        properties.getChannels().setInAppEnabled(true);
         properties.setProjectionEnabled(false);
-        NoticeProjectionApplicationService projectionService = new NoticeProjectionApplicationService(
-                jsonCodec(),
-                noticeService,
-                new NoticeProjectionDomainService(),
-                properties,
-                eventRecorder
-        );
+        NoticeProjectionApplicationService service = new NoticeProjectionApplicationService(
+                jsonCodec(), noticeService, new NoticeProjectionDomainService(), properties, eventRecorder);
 
-        projectionService.projectContentEventReliably(commentCommand("evt-comment-disabled"));
+        service.projectReliably(commentCommand("evt-disabled", uuid(100), uuid(9)));
 
         verifyNoInteractions(noticeService, eventRecorder);
     }
 
     @Test
-    void projectContentEventShouldRejectNullCommand() {
-        assertThatThrownBy(() -> projectionService(mock(NoticeApplicationService.class), mock(NoticeProjectionEventRecorder.class))
-                .projectContentEvent(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("command must not be null");
-    }
-
-    @Test
-    void projectSocialEventShouldRejectNullCommand() {
-        assertThatThrownBy(() -> projectionService(mock(NoticeApplicationService.class), mock(NoticeProjectionEventRecorder.class))
-                .projectSocialEvent(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("command must not be null");
-    }
-
-    @Test
-    void projectContentEventReliablyShouldRejectNullCommand() {
-        assertThatThrownBy(() -> projectionService(mock(NoticeApplicationService.class), mock(NoticeProjectionEventRecorder.class))
-                .projectContentEventReliably(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("command must not be null");
-    }
-
-    @Test
-    void projectSocialEventReliablyShouldRejectNullCommand() {
-        assertThatThrownBy(() -> projectionService(mock(NoticeApplicationService.class), mock(NoticeProjectionEventRecorder.class))
-                .projectSocialEventReliably(null))
+    void nullCommandShouldBeRejected() {
+        assertThatThrownBy(() -> projectionService(
+                mock(NoticeApplicationService.class), mock(NoticeProjectionEventRecorder.class)).projectReliably(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
     }
@@ -261,23 +211,25 @@ class NoticeProjectionApplicationServiceTest {
             NoticeProjectionEventRecorder eventRecorder
     ) {
         return new NoticeProjectionApplicationService(
-                jsonCodec(),
-                noticeService,
-                new NoticeProjectionDomainService(),
-                new NoticePolicyProperties(),
-                eventRecorder
-        );
+                jsonCodec(), noticeService, new NoticeProjectionDomainService(), new NoticePolicyProperties(), eventRecorder);
     }
 
-    private static ProjectContentNoticeCommand commentCommand(String eventId) {
-        return commentCommand(eventId, uuid(100), uuid(9));
+    private static ProjectNoticeCommand commentCommand(String eventId, java.util.UUID postId, java.util.UUID targetUserId) {
+        return new ProjectNoticeCommand.CommentCreated(
+                eventId, 42L, "CommentCreated", uuid(10), postId, uuid(1), EntityTypes.POST,
+                postId, targetUserId, "hello", Instant.parse("2026-07-06T00:00:00Z"));
     }
 
-    private static ProjectContentNoticeCommand commentCommand(String eventId, UUID postId, UUID targetUserId) {
-        CommentPayload payload = new CommentPayload();
-        payload.setTargetUserId(targetUserId);
-        payload.setPostId(postId);
-        return new ProjectContentNoticeCommand(eventId, 42L, ContentEventTypes.COMMENT_CREATED, payload);
+    private static ProjectNoticeCommand likeRemovedCommand(String eventId) {
+        return new ProjectNoticeCommand.LikeRemoved(
+                eventId, 11L, "LikeRemoved", uuid(44), EntityTypes.POST,
+                uuid(100), uuid(55), uuid(100), "like:actor:3:entity");
+    }
+
+    private static CreateNoticeCommand capturedNotice(NoticeApplicationService noticeService) {
+        ArgumentCaptor<CreateNoticeCommand> captor = ArgumentCaptor.forClass(CreateNoticeCommand.class);
+        verify(noticeService).createNotice(captor.capture());
+        return captor.getValue();
     }
 
     private static JsonCodec jsonCodec() {

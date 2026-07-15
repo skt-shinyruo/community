@@ -5,6 +5,7 @@ import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;
+import com.nowcoder.community.content.domain.model.PostMediaUploadStatus;
 import com.nowcoder.community.content.domain.model.PostVideoState;
 import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.PostMediaAssetDataObject;
@@ -18,6 +19,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Date;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -148,5 +150,87 @@ class PostMediaAssetMapperPersistenceTest {
 
         PostMediaAssetDataObject saved = mapper.selectById(ASSET_ID);
         assertThat(saved.getLifecycle()).isEqualTo("DELETED");
+    }
+
+    @Test
+    void staleResetMustFenceTheOldCompletionWriterInRealPersistence() {
+        Date preparedAt = at("2026-07-15T01:00:00Z");
+        Date claimedAt = at("2026-07-15T01:01:00Z");
+        Date staleBefore = at("2026-07-15T01:02:00Z");
+        Date resetAt = at("2026-07-15T01:03:00Z");
+        UUID staleWriterVersionId = UUID.fromString("00000000-0000-7000-8000-000000000708");
+        repository.createDraft(preparedAsset(preparedAt));
+
+        assertThat(repository.claimUploadCompletion(ASSET_ID, OWNER_ID, 0L, claimedAt)).isTrue();
+        PostMediaAsset claimed = repository.getRequired(ASSET_ID);
+        assertThat(claimed.uploadStatus()).isEqualTo(PostMediaUploadStatus.COMPLETING);
+        assertThat(claimed.uploadOperationVersion()).isEqualTo(1L);
+        assertThat(repository.resetStaleUploadCompletion(
+                ASSET_ID, claimed.uploadOperationVersion(), staleBefore, resetAt)).isTrue();
+
+        assertThat(repository.markObjectCompleted(
+                ASSET_ID,
+                claimed.uploadOperationVersion(),
+                staleWriterVersionId,
+                "https://cdn.example.test/stale.mp4",
+                "video/mp4",
+                1234L,
+                at("2026-07-15T01:04:00Z")
+        )).isFalse();
+
+        PostMediaAsset reset = repository.getRequired(ASSET_ID);
+        assertThat(reset.uploadStatus()).isEqualTo(PostMediaUploadStatus.PREPARED);
+        assertThat(reset.uploadOperationVersion()).isEqualTo(2L);
+        assertThat(reset.uploadUpdatedAt().toInstant()).isEqualTo(resetAt.toInstant());
+        assertThat(reset.ossVersionId()).isEqualTo(VERSION_ID);
+        assertThat(reset.publicUrl()).isEmpty();
+    }
+
+    @Test
+    void recoveryFailureTouchMustPreserveTheClaimAndMoveItPastTheScannedCutoff() {
+        Date preparedAt = at("2026-07-15T02:00:00Z");
+        Date claimedAt = at("2026-07-15T02:01:00Z");
+        Date staleBefore = at("2026-07-15T02:02:00Z");
+        Date retryAt = at("2026-07-15T02:03:00Z");
+        repository.createDraft(preparedAsset(preparedAt));
+        assertThat(repository.claimUploadCompletion(ASSET_ID, OWNER_ID, 0L, claimedAt)).isTrue();
+
+        assertThat(repository.recordUploadRecoveryFailure(
+                ASSET_ID, 1L, staleBefore, "canonical lookup unavailable", retryAt)).isTrue();
+        assertThat(repository.recordUploadRecoveryFailure(
+                ASSET_ID, 1L, staleBefore, "must not touch twice", at("2026-07-15T02:04:00Z"))).isFalse();
+
+        PostMediaAsset touched = repository.getRequired(ASSET_ID);
+        assertThat(touched.uploadStatus()).isEqualTo(PostMediaUploadStatus.COMPLETING);
+        assertThat(touched.uploadOperationVersion()).isEqualTo(1L);
+        assertThat(touched.uploadUpdatedAt().toInstant()).isEqualTo(retryAt.toInstant());
+        assertThat(touched.failureReason()).isEqualTo("canonical lookup unavailable");
+        assertThat(repository.listStaleCompleting(staleBefore, 10)).isEmpty();
+    }
+
+    private PostMediaAsset preparedAsset(Date preparedAt) {
+        return new PostMediaAsset(
+                ASSET_ID,
+                OWNER_ID,
+                null,
+                OBJECT_ID,
+                VERSION_ID,
+                null,
+                UUID.fromString("00000000-0000-7000-8000-000000000707"),
+                "demo.mp4",
+                "video/mp4",
+                1234L,
+                PostMediaKind.VIDEO,
+                PostMediaAssetLifecycle.DRAFT,
+                PostVideoState.NONE,
+                "",
+                "",
+                preparedAt,
+                null
+        );
+    }
+
+    private static Date at(String value) {
+        return Date.from(Instant.parse(value));
     }
 }

@@ -4,6 +4,7 @@ import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.domain.repository.MarketWalletActionRepository;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
@@ -20,8 +21,17 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     }
 
     @Override
-    public int save(MarketWalletAction action) {
-        return mapper.insert(MarketWalletActionDataObject.from(action));
+    public CreateResult create(MarketWalletAction action) {
+        try {
+            return mapper.insert(MarketWalletActionDataObject.from(action)) == 1
+                    ? new CreateResult(CreateStatus.CREATED, action)
+                    : new CreateResult(CreateStatus.CONFLICT, null);
+        } catch (DuplicateKeyException ignored) {
+            MarketWalletAction existing = findByRequestId(action.getRequestId());
+            return existing == null
+                    ? new CreateResult(CreateStatus.CONFLICT, null)
+                    : new CreateResult(CreateStatus.ALREADY_EXISTS, existing);
+        }
     }
 
     @Override

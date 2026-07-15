@@ -5,6 +5,13 @@ import com.nowcoder.community.growth.application.command.UpdateUserLevelConfigCo
 import com.nowcoder.community.market.application.MarketOrderApplicationService;
 import com.nowcoder.community.market.application.MarketWalletActionRecoveryApplicationService;
 import com.nowcoder.community.market.application.command.CreateMarketOrderCommand;
+import com.nowcoder.community.social.application.LikeApplicationService;
+import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
+import com.nowcoder.community.user.application.AdminUserApplicationService;
+import com.nowcoder.community.user.application.UserCredentialApplicationService;
+import com.nowcoder.community.user.application.UserModerationApplicationService;
+import com.nowcoder.community.user.application.command.ApplyUserModerationCommand;
+import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
 import com.nowcoder.community.wallet.application.WalletRechargeApplicationService;
 import com.nowcoder.community.wallet.application.WalletTransferApplicationService;
 import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService;
@@ -19,12 +26,41 @@ import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TransactionBoundaryArchTest {
+
+    private static final String SPRING_TRANSACTIONAL =
+            "org.springframework.transaction.annotation.Transactional";
+    private static final String JAKARTA_TRANSACTIONAL =
+            "jakarta.transaction.Transactional";
+
+    @Test
+    void infrastructureMustNotOwnTransactionalBoundaries() {
+        List<String> violations = new ArrayList<>();
+        for (JavaClass javaClass : new ClassFileImporter()
+                .withImportOption(new ImportOption.DoNotIncludeTests())
+                .importPackages("com.nowcoder.community")) {
+            if (!isInfrastructure(javaClass)) {
+                continue;
+            }
+            if (isTransactional(javaClass)) {
+                violations.add(javaClass.getFullName() + " is annotated with @Transactional");
+            }
+            javaClass.getMethods().stream()
+                    .filter(this::isTransactional)
+                    .map(method -> method.getFullName() + " is annotated with @Transactional")
+                    .forEach(violations::add);
+        }
+
+        assertThat(violations)
+                .as("transaction ownership belongs to ApplicationService, not infrastructure")
+                .isEmpty();
+    }
 
     @Test
     void applicationServicesMustNotSelfInvokeTransactionalMethods() {
@@ -53,11 +89,32 @@ class TransactionBoundaryArchTest {
         assertTransactional(MarketOrderApplicationService.class, "createOrder", CreateMarketOrderCommand.class);
         assertTransactional(UserLevelApplicationService.class, "updateConfig", UUID.class, UpdateUserLevelConfigCommand.class);
         assertTransactional(MarketWalletActionRecoveryApplicationService.class, "reconcileOnce", int.class);
+        assertTransactional(AdminUserApplicationService.class, "updateRole", UpdateUserRoleCommand.class);
+        assertTransactional(UserCredentialApplicationService.class, "updatePassword", UUID.class, String.class);
+        assertTransactional(UserModerationApplicationService.class, "applyModeration", ApplyUserModerationCommand.class);
+        assertTransactional(
+                LikeApplicationService.class,
+                "cleanupDeletedContentLikes",
+                CleanupDeletedContentLikesCommand.class
+        );
     }
 
     private boolean isApplicationService(JavaClass javaClass) {
         return javaClass.getPackageName().contains(".application")
                 && javaClass.getSimpleName().endsWith("ApplicationService");
+    }
+
+    private boolean isInfrastructure(JavaClass javaClass) {
+        String packageName = javaClass.getPackageName();
+        return packageName.contains(".infrastructure.")
+                || packageName.endsWith(".infrastructure")
+                || packageName.startsWith("com.nowcoder.community.infra.")
+                || packageName.equals("com.nowcoder.community.infra");
+    }
+
+    private boolean isTransactional(com.tngtech.archunit.core.domain.properties.CanBeAnnotated element) {
+        return element.isAnnotatedWith(SPRING_TRANSACTIONAL)
+                || element.isAnnotatedWith(JAKARTA_TRANSACTIONAL);
     }
 
     private boolean isSameClassCall(JavaMethodCall call) {

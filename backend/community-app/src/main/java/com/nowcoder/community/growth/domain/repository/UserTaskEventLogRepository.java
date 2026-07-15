@@ -5,10 +5,16 @@ import java.util.UUID;
 
 public interface UserTaskEventLogRepository {
 
+    enum CreateStatus {
+        CREATED,
+        ALREADY_EXISTS,
+        CONFLICT
+    }
+
     record UserTaskContributionLog(UUID userId, String taskCode, String periodKey, String sourceEventId) {
     }
 
-    int insert(UUID id, UUID userId, String taskCode, String periodKey, String sourceEventId);
+    CreateStatus create(UUID id, UUID userId, String taskCode, String periodKey, String sourceEventId);
 
     List<UserTaskContributionLog> findLikeContributionLogs(UUID userId, String relationKey);
 

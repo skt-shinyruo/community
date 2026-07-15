@@ -6,6 +6,13 @@
         file_name, content_type, content_length, checksum_sha256, etag, cache_control,
         content_disposition, source_object_id, variant_type, created_at, activated_at, expired_at, purged_at
     </sql>
+    <insert id="insert" parameterType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectVersionDataObject">
+        insert into oss_object_version (<include refid="fields"/>)
+        values (#{versionId,jdbcType=BINARY}, #{objectId,jdbcType=BINARY}, #{versionNo}, #{storageBackend},
+        #{storageBucket}, #{storageKey}, #{status}, #{fileName}, #{contentType}, #{contentLength},
+        #{checksumSha256}, #{etag}, #{cacheControl}, #{contentDisposition}, #{sourceObjectId,jdbcType=BINARY},
+        #{variantType}, #{createdAt}, #{activatedAt}, #{expiredAt}, #{purgedAt})
+    </insert>
     <insert id="upsert" parameterType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectVersionDataObject">
         insert into oss_object_version (<include refid="fields"/>)
         values (#{versionId,jdbcType=BINARY}, #{objectId,jdbcType=BINARY}, #{versionNo}, #{storageBackend},

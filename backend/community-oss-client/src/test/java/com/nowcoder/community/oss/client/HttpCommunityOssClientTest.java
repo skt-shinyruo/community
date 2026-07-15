@@ -1,7 +1,10 @@
 package com.nowcoder.community.oss.client;
 
 import com.nowcoder.community.common.json.JsonCodecException;
+import com.nowcoder.community.common.json.JsonMappers;
+import com.nowcoder.community.oss.client.model.OssBindReferenceRequest;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
+import com.nowcoder.community.oss.client.model.OssReferenceResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
 import com.sun.net.httpserver.HttpServer;
@@ -15,6 +18,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -154,6 +158,40 @@ class HttpCommunityOssClientTest {
         }
     }
 
+    @Test
+    void bindReferenceShouldSendCallerSuppliedIdSoResponseLossCanBeRetried() throws Exception {
+        UUID objectId = UUID.fromString("00000000-0000-7000-8000-000000000001");
+        UUID versionId = UUID.fromString("00000000-0000-7000-8000-000000000002");
+        UUID referenceId = UUID.fromString("00000000-0000-7000-8000-000000000005");
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        CountDownLatch requestReceived = new CountDownLatch(1);
+        HttpServer server = startBindReferenceServer(
+                objectId, requestBody, requestReceived, wrappedReferenceResponse(objectId, versionId, referenceId));
+        try {
+            HttpCommunityOssClient client = new HttpCommunityOssClient(
+                    "http://127.0.0.1:" + server.getAddress().getPort());
+
+            OssReferenceResponse response = client.bindObjectReference(objectId, new OssBindReferenceRequest(
+                    referenceId.toString(),
+                    versionId.toString(),
+                    "community-app",
+                    "content",
+                    "post-media",
+                    "post-7",
+                    "PRIMARY",
+                    Instant.parse("2026-05-07T01:00:00Z"),
+                    "actor-7"
+            ));
+
+            assertThat(requestReceived.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(JsonMappers.standard().readTree(requestBody.get()).path("referenceId").asText())
+                    .isEqualTo(referenceId.toString());
+            assertThat(response.referenceId()).isEqualTo(referenceId);
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer startUploadSessionServer(
             AtomicReference<String> authorization,
             CountDownLatch requestReceived,
@@ -183,6 +221,26 @@ class HttpCommunityOssClientTest {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/oss/objects/" + objectId, exchange -> {
             authorization.set(exchange.getRequestHeaders().getFirst(HttpHeaders.AUTHORIZATION));
+            byte[] body = responseJson.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+            requestReceived.countDown();
+        });
+        server.start();
+        return server;
+    }
+
+    private static HttpServer startBindReferenceServer(
+            UUID objectId,
+            AtomicReference<String> requestBody,
+            CountDownLatch requestReceived,
+            String responseJson
+    ) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/internal/oss/objects/" + objectId + "/references", exchange -> {
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             byte[] body = responseJson.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, "application/json");
             exchange.sendResponseHeaders(200, body.length);
@@ -245,6 +303,32 @@ class HttpCommunityOssClientTest {
                       "traceId": "trace-1",
                       "timestamp": 1778396128900
                     }
-                    """;
+                """;
+    }
+
+    private static String wrappedReferenceResponse(UUID objectId, UUID versionId, UUID referenceId) {
+        return """
+                {
+                  "code": 0,
+                  "message": "OK",
+                  "httpStatus": 200,
+                  "data": {
+                    "referenceId": "%s",
+                    "objectId": "%s",
+                    "versionId": "%s",
+                    "subjectService": "community-app",
+                    "subjectDomain": "content",
+                    "subjectType": "post-media",
+                    "subjectId": "post-7",
+                    "referenceRole": "PRIMARY",
+                    "status": "ACTIVE",
+                    "retainUntil": "2026-05-07T01:00:00Z",
+                    "createdAt": "2026-05-07T00:00:00Z",
+                    "releasedAt": null
+                  },
+                  "traceId": "trace-1",
+                  "timestamp": 1778396128900
+                }
+                """.formatted(referenceId, objectId, versionId);
     }
 }

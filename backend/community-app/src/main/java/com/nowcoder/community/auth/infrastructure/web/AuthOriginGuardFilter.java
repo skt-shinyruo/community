@@ -149,7 +149,11 @@ public class AuthOriginGuardFilter extends OncePerRequestFilter {
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        Result<?> body = Result.error(CommonErrorCode.FORBIDDEN.getCode(), message);
+        Result<?> body = Result.error(
+                CommonErrorCode.FORBIDDEN.getCode(),
+                message,
+                HttpServletResponse.SC_FORBIDDEN
+        );
         response.getWriter().write(jsonCodec.toJson(body));
     }
 

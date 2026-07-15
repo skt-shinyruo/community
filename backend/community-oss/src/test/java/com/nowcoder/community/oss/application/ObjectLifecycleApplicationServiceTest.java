@@ -186,6 +186,11 @@ class ObjectLifecycleApplicationServiceTest {
         }
 
         @Override
+        public OssObjectReference insertOrFindExisting(OssObjectReference reference) {
+            return rows.computeIfAbsent(reference.referenceId(), ignored -> reference);
+        }
+
+        @Override
         public Optional<OssObjectReference> findById(UUID referenceId) {
             return Optional.ofNullable(rows.get(referenceId));
         }

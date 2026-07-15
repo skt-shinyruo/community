@@ -1,57 +1,67 @@
 package com.nowcoder.community.content.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.content.domain.model.Comment;
+import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
+import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentTransitionTargetDataObject;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
 @Mapper
 public interface CommentMapper {
 
-    List<Comment> selectRootComments(@Param("postId") UUID postId, @Param("offset") int offset, @Param("limit") int limit);
+    List<CommentDataObject> selectRootComments(
+            @Param("postId") UUID postId,
+            @Param("offset") int offset,
+            @Param("limit") int limit
+    );
 
-    List<Comment> selectRepliesByRootComment(@Param("rootCommentId") UUID rootCommentId, @Param("offset") int offset, @Param("limit") int limit);
+    List<CommentDataObject> selectRepliesByRootComment(
+            @Param("rootCommentId") UUID rootCommentId,
+            @Param("offset") int offset,
+            @Param("limit") int limit
+    );
 
-    List<Comment> selectRecentCommentsByUser(@Param("userId") UUID userId, @Param("offset") int offset, @Param("limit") int limit);
+    List<CommentDataObject> selectRecentCommentsByUser(
+            @Param("userId") UUID userId,
+            @Param("offset") int offset,
+            @Param("limit") int limit
+    );
 
-    /**
-     * 查询指定帖子集合的“最后活动”（包含：直接评论 + 回复评论）。
-     * <p>
-     * 返回的 Comment 实体中：
-     * - postId = 帖子 id
-     * - userId = 最后回复人 userId
-     * - createTime = 最后回复时间
-     */
-    List<Comment> selectLatestPostActivitiesByPostIds(@Param("postIds") List<UUID> postIds);
+    List<CommentDataObject> selectLatestPostActivitiesByPostIds(@Param("postIds") List<UUID> postIds);
 
-    int insertComment(Comment comment);
+    int insert(CommentDataObject comment);
 
-    Comment selectCommentById(UUID id);
+    CommentDataObject selectById(@Param("id") UUID id);
+
+    CommentDataObject selectByIdForUpdate(@Param("id") UUID id);
+
+    List<CommentDataObject> selectThreadForUpdate(@Param("rootCommentId") UUID rootCommentId);
 
     int existsRootComment(@Param("postId") UUID postId, @Param("commentId") UUID commentId);
 
-    int updateCommentContent(
-            @Param("id") UUID id,
+    int applyEdit(
+            @Param("commentId") UUID commentId,
+            @Param("expectedVersion") long expectedVersion,
             @Param("content") String content,
-            @Param("updateTime") java.util.Date updateTime
+            @Param("updateTime") Date updateTime
     );
 
-    int updateModerationDeleteMeta(
-            @Param("id") UUID id,
-            @Param("status") int status,
+    int applyDeletion(
+            @Param("commentId") UUID commentId,
+            @Param("expectedVersion") long expectedVersion,
             @Param("deletedBy") UUID deletedBy,
             @Param("deletedReason") String deletedReason,
-            @Param("deletedTime") java.util.Date deletedTime
+            @Param("deletedTime") Date deletedTime
     );
 
-    List<UUID> selectActiveRepliesByRootComment(@Param("rootCommentId") UUID rootCommentId);
-
-    int updateActiveCommentDeleted(
-            @Param("id") UUID id,
+    int applyThreadDeletion(
+            @Param("rootCommentId") UUID rootCommentId,
+            @Param("targets") List<CommentTransitionTargetDataObject> targets,
             @Param("deletedBy") UUID deletedBy,
             @Param("deletedReason") String deletedReason,
-            @Param("deletedTime") java.util.Date deletedTime
+            @Param("deletedTime") Date deletedTime
     );
 }

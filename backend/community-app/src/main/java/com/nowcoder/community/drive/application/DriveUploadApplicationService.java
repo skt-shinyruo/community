@@ -19,12 +19,8 @@ import com.nowcoder.community.drive.domain.repository.DriveUploadRepository;
 import com.nowcoder.community.drive.domain.service.DriveEntryDomainService;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -56,7 +52,7 @@ public class DriveUploadApplicationService {
     private final DriveUploadRepository uploadRepository;
     private final DriveObjectStoragePort objectStoragePort;
     private final Clock clock;
-    private final TransactionTemplate completionTransactionTemplate;
+    private final DriveTransactionOperations transactionOperations;
     private final DriveEntryDomainService entryDomainService = new DriveEntryDomainService();
 
     @Autowired
@@ -66,20 +62,17 @@ public class DriveUploadApplicationService {
             DriveUploadRepository uploadRepository,
             DriveObjectStoragePort objectStoragePort,
             Clock clock,
-            PlatformTransactionManager transactionManager
+            DriveTransactionOperations transactionOperations
     ) {
         this.spaceRepository = spaceRepository;
         this.entryRepository = entryRepository;
         this.uploadRepository = uploadRepository;
         this.objectStoragePort = objectStoragePort;
         this.clock = clock == null ? Clock.systemUTC() : clock;
-        if (transactionManager == null) {
-            this.completionTransactionTemplate = null;
-        } else {
-            TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
-            transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-            this.completionTransactionTemplate = transactionTemplate;
-        }
+        this.transactionOperations = Objects.requireNonNull(
+                transactionOperations,
+                "transactionOperations must not be null"
+        );
     }
 
     DriveUploadApplicationService(
@@ -89,7 +82,14 @@ public class DriveUploadApplicationService {
             DriveObjectStoragePort objectStoragePort,
             Clock clock
     ) {
-        this(spaceRepository, entryRepository, uploadRepository, objectStoragePort, clock, null);
+        this(
+                spaceRepository,
+                entryRepository,
+                uploadRepository,
+                objectStoragePort,
+                clock,
+                DirectDriveTransactionOperations.INSTANCE
+        );
     }
 
     @Transactional
@@ -156,13 +156,14 @@ public class DriveUploadApplicationService {
 
     private DriveSpace createDefaultSpace(UUID userId, Instant now) {
         DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, now);
-        try {
-            spaceRepository.save(space);
-            return space;
-        } catch (DuplicateKeyException e) {
-            return spaceRepository.findByUserId(userId)
-                    .orElseThrow(() -> new BusinessException(INTERNAL_ERROR, "网盘空间创建失败", e));
+        DriveSpaceRepository.CreateResult result = spaceRepository.create(space);
+        if (result != null
+                && (result.status() == DriveSpaceRepository.CreateStatus.CREATED
+                || result.status() == DriveSpaceRepository.CreateStatus.ALREADY_EXISTS)
+                && result.space() != null) {
+            return result.space();
         }
+        throw new BusinessException(INTERNAL_ERROR, "网盘空间创建失败");
     }
 
     public DriveEntryResult completeUpload(CompleteDriveUploadCommand command) {
@@ -427,17 +428,16 @@ public class DriveUploadApplicationService {
                         upload.mimeType(),
                         now
                 );
-                try {
-                    entryRepository.save(entry);
-                } catch (DuplicateKeyException e) {
-                    if (hasConcurrentDuplicate(upload, entryId)) {
-                        throw new TerminalObjectCompletedException(
-                                upload,
-                                now,
-                                new BusinessException(DriveErrorCode.DRIVE_DUPLICATE_NAME, "同名文件或文件夹已存在", e)
-                        );
-                    }
-                    throw e;
+                DriveEntryRepository.CreateResult createResult = entryRepository.create(entry);
+                if (createResult == null || createResult.status() == DriveEntryRepository.CreateStatus.CONFLICT) {
+                    throw new BusinessException(INTERNAL_ERROR, "网盘条目创建失败");
+                }
+                if (createResult.status() == DriveEntryRepository.CreateStatus.ACTIVE_NAME_CONFLICT) {
+                    throw new TerminalObjectCompletedException(
+                            upload,
+                            now,
+                            new BusinessException(DriveErrorCode.DRIVE_DUPLICATE_NAME, "同名文件或文件夹已存在")
+                    );
                 }
                 if (!spaceRepository.commitReserved(space.spaceId(), upload.sizeBytes(), now)) {
                     throw new TerminalObjectCompletedException(
@@ -494,12 +494,6 @@ public class DriveUploadApplicationService {
         }
     }
 
-    private boolean hasConcurrentDuplicate(DriveUpload upload, UUID entryId) {
-        return entryRepository.findActiveChildByName(upload.spaceId(), upload.parentId(), upload.name())
-                .filter(existing -> !existing.entryId().equals(entryId))
-                .isPresent();
-    }
-
     private DriveUpload loadUpload(UUID uploadId) {
         return uploadRepository.findById(uploadId)
                 .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用"));
@@ -533,10 +527,7 @@ public class DriveUploadApplicationService {
     }
 
     private <T> T runInCompletionTransaction(Supplier<T> action) {
-        if (completionTransactionTemplate == null) {
-            return action.get();
-        }
-        return completionTransactionTemplate.execute(status -> action.get());
+        return transactionOperations.requiresNew(action);
     }
 
     private record CompletionClaim(DriveUpload upload, boolean owned) {

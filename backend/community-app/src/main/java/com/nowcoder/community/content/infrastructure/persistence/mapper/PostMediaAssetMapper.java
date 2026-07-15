@@ -26,6 +26,56 @@ public interface PostMediaAssetMapper {
             @Param("updateTime") Date updateTime
     );
 
+    int claimUploadCompletion(
+            @Param("id") UUID id,
+            @Param("actorUserId") UUID actorUserId,
+            @Param("operationVersion") long operationVersion,
+            @Param("updateTime") Date updateTime
+    );
+
+    int markObjectCompleted(
+            @Param("id") UUID id,
+            @Param("operationVersion") long operationVersion,
+            @Param("versionId") UUID versionId,
+            @Param("publicUrl") String publicUrl,
+            @Param("contentType") String contentType,
+            @Param("contentLength") long contentLength,
+            @Param("updateTime") Date updateTime
+    );
+
+    int markUploadCompleted(
+            @Param("id") UUID id,
+            @Param("operationVersion") long operationVersion,
+            @Param("updateTime") Date updateTime
+    );
+
+    int markUploadFailed(
+            @Param("id") UUID id,
+            @Param("operationVersion") long operationVersion,
+            @Param("failureReason") String failureReason,
+            @Param("updateTime") Date updateTime
+    );
+
+    int resetStaleUploadCompletion(
+            @Param("id") UUID id,
+            @Param("operationVersion") long operationVersion,
+            @Param("staleBefore") Date staleBefore,
+            @Param("resetAt") Date resetAt
+    );
+
+    int recordUploadRecoveryFailure(
+            @Param("id") UUID id,
+            @Param("operationVersion") long operationVersion,
+            @Param("staleBefore") Date staleBefore,
+            @Param("failureReason") String failureReason,
+            @Param("updateTime") Date updateTime
+    );
+
+    List<PostMediaAssetDataObject> listStaleCompleting(
+            @Param("updatedBefore") Date updatedBefore,
+            @Param("limit") int limit
+    );
+
     int markDraftDeleted(
             @Param("id") UUID id,
             @Param("updateTime") Date updateTime
@@ -43,5 +93,47 @@ public interface PostMediaAssetMapper {
             @Param("postId") UUID postId,
             @Param("keepIds") List<UUID> keepIds,
             @Param("updateTime") Date updateTime
+    );
+
+    int requestBind(
+            @Param("id") UUID id,
+            @Param("postId") UUID postId,
+            @Param("ossReferenceId") UUID ossReferenceId,
+            @Param("videoState") String videoState,
+            @Param("updateTime") Date updateTime
+    );
+
+    int markBound(
+            @Param("id") UUID id,
+            @Param("operationVersion") long operationVersion,
+            @Param("updateTime") Date updateTime
+    );
+
+    int requestRelease(
+            @Param("id") UUID id,
+            @Param("updateTime") Date updateTime
+    );
+
+    int requestBindRepair(
+            @Param("id") UUID id,
+            @Param("updateTime") Date updateTime
+    );
+
+    int requestReleaseRepair(
+            @Param("id") UUID id,
+            @Param("updateTime") Date updateTime
+    );
+
+    int markReleased(
+            @Param("id") UUID id,
+            @Param("operationVersion") long operationVersion,
+            @Param("updateTime") Date updateTime
+    );
+
+    List<PostMediaAssetDataObject> listPending(@Param("limit") int limit);
+
+    List<PostMediaAssetDataObject> scanReferenceStatesAfter(
+            @Param("afterAssetId") UUID afterAssetId,
+            @Param("limit") int limit
     );
 }

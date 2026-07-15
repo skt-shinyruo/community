@@ -5,8 +5,10 @@ import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.content.infrastructure.event.JacksonContentContractEventCodec;
 import com.nowcoder.community.search.application.SearchPostProjectionApplicationService;
 import com.nowcoder.community.search.application.command.ProjectPostCommand;
 import org.junit.jupiter.api.Test;
@@ -25,11 +27,12 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class SearchPostProjectionKafkaListenerTest {
 
     private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final ContentContractEventCodec contractEventCodec = new JacksonContentContractEventCodec(jsonCodec);
 
     @Test
     void postUpdatedShouldDelegateToSearchProjectionApplication() {
         SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
-        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(jsonCodec, applicationService);
+        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(contractEventCodec, applicationService);
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(100));
 
@@ -47,7 +50,7 @@ class SearchPostProjectionKafkaListenerTest {
     @Test
     void mapLikePostPayloadShouldConvertBeforeDelegation() {
         SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
-        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(jsonCodec, applicationService);
+        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(contractEventCodec, applicationService);
 
         listener.onContentEvent(contentEvent(
                 "evt-post-map",
@@ -68,9 +71,11 @@ class SearchPostProjectionKafkaListenerTest {
     @Test
     void commentCreatedShouldBeIgnored() {
         SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
-        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(jsonCodec, applicationService);
+        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(contractEventCodec, applicationService);
 
-        listener.onContentEvent(new ContentContractEvent("evt-comment-created", null, null, ContentEventTypes.COMMENT_CREATED, java.time.Instant.EPOCH, 1L, new CommentPayload()));
+        listener.onContentEvent(new ContentContractEvent(
+                "evt-comment-created", null, null, ContentEventTypes.COMMENT_CREATED,
+                java.time.Instant.EPOCH, 1L, jsonCodec.valueToTree(new CommentPayload())));
 
         verifyNoInteractions(applicationService);
     }
@@ -78,11 +83,11 @@ class SearchPostProjectionKafkaListenerTest {
     @Test
     void recognizedEventWithMissingPostIdShouldFailDelivery() {
         SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
-        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(jsonCodec, applicationService);
+        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(contractEventCodec, applicationService);
 
         assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
                 "evt-post-missing", null, null, ContentEventTypes.POST_UPDATED,
-                Instant.EPOCH, 1L, new PostPayload())))
+                Instant.EPOCH, 1L, jsonCodec.valueToTree(new PostPayload()))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(ContentEventTypes.POST_UPDATED)
                 .hasMessageContaining("evt-post-missing");
@@ -93,19 +98,19 @@ class SearchPostProjectionKafkaListenerTest {
     @Test
     void recognizedEventWithInvalidSourceMetadataShouldFailDelivery() {
         SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
-        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(jsonCodec, applicationService);
+        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(contractEventCodec, applicationService);
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(100));
 
         assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
-                " ", null, null, ContentEventTypes.POST_DELETED, null, 0L, payload)))
+                " ", null, null, ContentEventTypes.POST_DELETED, null, 0L, jsonCodec.valueToTree(payload))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(ContentEventTypes.POST_DELETED);
 
         verifyNoInteractions(applicationService);
     }
 
-    private static ContentContractEvent contentEvent(String eventId, String type, long version, Object payload) {
+    private ContentContractEvent contentEvent(String eventId, String type, long version, Object payload) {
         return new ContentContractEvent(
                 eventId,
                 null,
@@ -113,7 +118,7 @@ class SearchPostProjectionKafkaListenerTest {
                 type,
                 Instant.parse("2026-07-06T00:00:00Z"),
                 version,
-                payload
+                jsonCodec.valueToTree(payload)
         );
     }
 }

@@ -8,12 +8,6 @@ services:
     command:
     - |
       set -euo pipefail
-      MYSQL_HOST="$${DB_PRIMARY_HOST:-mysql-primary}" \
-      MYSQL_PORT="3306" \
-      MYSQL_ROOT_PASSWORD="$${MYSQL_ROOT_PASSWORD}" \
-      BOOTSTRAP_DIR=/bootstrap/community \
-      /bootstrap/community/001_bootstrap.sh
-
       sql_escape() {
         local value="$${1//\\/\\\\}"
         value="$${value//\'/\'\'}"
@@ -38,8 +32,6 @@ services:
     - IM_MYSQL_DATABASE=${IM_MYSQL_DATABASE:-im_core}
     - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
     - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
-    volumes:
-    - ./mysql/community:/bootstrap/community:ro
     depends_on:
       mysql-primary:
         condition: service_healthy

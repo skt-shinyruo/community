@@ -1,20 +1,21 @@
 package com.nowcoder.community.growth.exception;
 
 import com.nowcoder.community.common.exception.ErrorCode;
+import com.nowcoder.community.common.exception.ErrorKind;
 
 public enum GrowthErrorCode implements ErrorCode {
 
-    INVALID_REQUEST(16001, "成长中心请求参数错误", 400),
-    TARGET_USER_NOT_FOUND(16002, "目标用户不存在", 404);
+    INVALID_REQUEST(16001, "成长中心请求参数错误", ErrorKind.INVALID_INPUT),
+    TARGET_USER_NOT_FOUND(16002, "目标用户不存在", ErrorKind.NOT_FOUND);
 
     private final int code;
     private final String message;
-    private final int httpStatus;
+    private final ErrorKind kind;
 
-    GrowthErrorCode(int code, String message, int httpStatus) {
+    GrowthErrorCode(int code, String message, ErrorKind kind) {
         this.code = code;
         this.message = message;
-        this.httpStatus = httpStatus;
+        this.kind = kind;
     }
 
     @Override
@@ -28,7 +29,7 @@ public enum GrowthErrorCode implements ErrorCode {
     }
 
     @Override
-    public int getHttpStatus() {
-        return httpStatus;
+    public ErrorKind getKind() {
+        return kind;
     }
 }

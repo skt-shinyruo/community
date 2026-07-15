@@ -4,14 +4,17 @@ import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.wallet.application.result.WalletSummaryResult;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
+import com.nowcoder.community.wallet.domain.model.WalletAccountChange;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
+import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository;
+import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository.ApplyResult;
 import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -101,8 +104,10 @@ public class WalletAccountApplicationService {
     public void setStatus(UUID accountId, String nextStatus) {
         domainService.validateUserAccountStatus(nextStatus);
         WalletAccount account = lock(accountId);
-        account.setStatus(nextStatus);
-        apply(account, 0L);
+        WalletAccountChange change = WalletAccountDomainService.STATUS_FROZEN.equals(nextStatus)
+                ? account.freeze()
+                : account.unfreeze();
+        apply(change);
     }
 
     public WalletAccount lock(UUID accountId) {
@@ -118,24 +123,7 @@ public class WalletAccountApplicationService {
     }
 
     public long apply(WalletAccount account, long delta) {
-        int updated = walletAccountRepository.updateBalanceWithVersion(
-                account.getAccountId(),
-                account.getVersion(),
-                delta,
-                account.getStatus()
-        );
-        if (updated != 1) {
-            throw new BusinessException(
-                    classifyUpdateFailure(account, delta),
-                    "wallet account update failed: accountId=" + account.getAccountId()
-            );
-        }
-
-        WalletAccount latest = walletAccountRepository.findByAccountId(account.getAccountId());
-        if (latest == null) {
-            throw new BusinessException(WalletErrorCode.ACCOUNT_NOT_FOUND, "wallet account not found: accountId=" + account.getAccountId());
-        }
-        return latest.getBalance();
+        return apply(account.post(delta));
     }
 
     private WalletAccount ensureAccount(String ownerType, UUID ownerId, String accountType) {
@@ -144,38 +132,49 @@ public class WalletAccountApplicationService {
             return existing;
         }
 
-        WalletAccount account = new WalletAccount();
-        account.setAccountId(idGenerator.next());
-        account.setOwnerType(ownerType);
-        account.setOwnerId(ownerId);
-        account.setAccountType(accountType);
-        account.setBalance(0L);
-        account.setStatus(WalletAccountDomainService.STATUS_ACTIVE);
-        account.setVersion(0L);
-        try {
-            walletAccountRepository.insert(account);
-            return account;
-        } catch (DataIntegrityViolationException ignored) {
-            WalletAccount duplicated = walletAccountRepository.findByOwner(ownerType, ownerId, accountType);
-            if (duplicated != null) {
-                return duplicated;
-            }
-            throw ignored;
+        WalletAccount account = WalletAccountDomainService.OWNER_TYPE_USER.equals(ownerType)
+                ? WalletAccount.openUser(idGenerator.next(), ownerId)
+                : WalletAccount.openSystem(idGenerator.next(), accountType);
+        CreationOutcome<WalletAccount> outcome = walletAccountRepository.create(account);
+        if (outcome == null
+                || outcome.status() == CreationOutcome.Status.CONFLICT
+                || outcome.aggregate() == null) {
+            throw new BusinessException(
+                    WalletErrorCode.ACCOUNT_UPDATE_CONFLICT,
+                    "wallet account creation conflict: ownerId=" + ownerId + ", accountType=" + accountType
+            );
         }
+        WalletAccount persisted = outcome.aggregate();
+        if (!Objects.equals(ownerType, persisted.getOwnerType())
+                || !Objects.equals(ownerId, persisted.getOwnerId())
+                || !Objects.equals(accountType, persisted.getAccountType())) {
+            throw new BusinessException(
+                    WalletErrorCode.ACCOUNT_UPDATE_CONFLICT,
+                    "wallet account replay conflict: ownerId=" + ownerId + ", accountType=" + accountType
+            );
+        }
+        return persisted;
     }
 
-    private WalletErrorCode classifyUpdateFailure(WalletAccount beforeAccount, long delta) {
-        WalletAccount latestAccount = walletAccountRepository.findByAccountId(beforeAccount.getAccountId());
-        if (latestAccount == null) {
-            return WalletErrorCode.ACCOUNT_NOT_FOUND;
+    private long apply(WalletAccountChange change) {
+        ApplyResult result = walletAccountRepository.apply(change);
+        if (result == ApplyResult.APPLIED) {
+            return change.nextBalance();
         }
-        if (latestAccount.getVersion() != beforeAccount.getVersion()) {
-            return WalletErrorCode.ACCOUNT_UPDATE_CONFLICT;
+        if (result == null) {
+            throw updateFailed(change, WalletErrorCode.ACCOUNT_UPDATE_CONFLICT);
         }
-        if (delta < 0 && latestAccount.getBalance() + delta < 0) {
-            return WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT;
-        }
-        return WalletErrorCode.ACCOUNT_UPDATE_CONFLICT;
+        WalletErrorCode errorCode = switch (result) {
+            case NOT_FOUND -> WalletErrorCode.ACCOUNT_NOT_FOUND;
+            case INSUFFICIENT_FUNDS -> WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT;
+            case VERSION_CONFLICT -> WalletErrorCode.ACCOUNT_UPDATE_CONFLICT;
+            case APPLIED -> throw new IllegalStateException("handled above");
+        };
+        throw updateFailed(change, errorCode);
+    }
+
+    private BusinessException updateFailed(WalletAccountChange change, WalletErrorCode errorCode) {
+        return new BusinessException(errorCode, "wallet account update failed: accountId=" + change.accountId());
     }
 
     private UUID requireUserId(UUID userId) {

@@ -1,5 +1,8 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.ErrorKind;
+import com.nowcoder.community.common.exception.SimpleErrorCode;
 import com.nowcoder.community.oss.application.command.BindObjectReferenceCommand;
 import com.nowcoder.community.oss.application.command.ReleaseObjectReferenceCommand;
 import com.nowcoder.community.oss.application.result.ObjectReferenceResult;
@@ -15,10 +18,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
 public class ObjectReferenceApplicationService {
+
+    private static final SimpleErrorCode REFERENCE_SEMANTIC_CONFLICT =
+            new SimpleErrorCode(40901, "object reference semantic conflict", ErrorKind.CONFLICT);
 
     private final OssObjectRepository objectRepository;
     private final OssObjectVersionRepository versionRepository;
@@ -40,25 +47,25 @@ public class ObjectReferenceApplicationService {
     @Transactional
     public ObjectReferenceResult bindReference(BindObjectReferenceCommand command) {
         requireCommand(command);
-        OssObject object = requireObject(command.objectId());
         Instant now = clock.instant();
+        if (command.referenceId() != null) {
+            var existing = referenceRepository.findById(command.referenceId());
+            if (existing.isPresent()) {
+                OssObjectReference stored = existing.orElseThrow();
+                return replayOrConflict(stored, requestedReference(
+                        command,
+                        command.versionId() == null ? stored.versionId() : command.versionId(),
+                        now
+                ));
+            }
+        }
+
+        OssObject object = requireObject(command.objectId());
         UUID versionId = command.versionId() == null ? object.currentVersionId() : command.versionId();
         requireVersionBelongsToObject(object, versionId);
         ensureVersionActive(versionId);
-        OssObjectReference reference = OssObjectReference.active(
-                UUID.randomUUID(),
-                object.objectId(),
-                versionId,
-                command.subjectService(),
-                command.subjectDomain(),
-                command.subjectType(),
-                command.subjectId(),
-                command.referenceRole(),
-                now,
-                command.retainUntil()
-        );
-        referenceRepository.save(reference);
-        return toResult(reference);
+        OssObjectReference reference = requestedReference(command, versionId, now);
+        return replayOrConflict(referenceRepository.insertOrFindExisting(reference), reference);
     }
 
     @Transactional
@@ -73,8 +80,64 @@ public class ObjectReferenceApplicationService {
             throw new IllegalArgumentException("reference does not belong to object");
         }
         OssObjectReference released = reference.release(clock.instant());
-        referenceRepository.save(released);
+        if (released != reference) {
+            referenceRepository.save(released);
+        }
         return toResult(released);
+    }
+
+    @Transactional(readOnly = true)
+    public ObjectReferenceResult findReference(UUID objectId, UUID referenceId) {
+        if (objectId == null || referenceId == null) {
+            throw new IllegalArgumentException("objectId and referenceId must not be null");
+        }
+        return referenceRepository.findById(referenceId)
+                .filter(reference -> reference.objectId().equals(objectId))
+                .map(this::toResult)
+                .orElse(null);
+    }
+
+    private ObjectReferenceResult replayOrConflict(
+            OssObjectReference existing,
+            OssObjectReference requested
+    ) {
+        if (!sameSemanticFingerprint(existing, requested)) {
+            throw new BusinessException(REFERENCE_SEMANTIC_CONFLICT);
+        }
+        return toResult(existing);
+    }
+
+    private OssObjectReference requestedReference(
+            BindObjectReferenceCommand command,
+            UUID versionId,
+            Instant now
+    ) {
+        return OssObjectReference.active(
+                command.referenceId() == null ? UUID.randomUUID() : command.referenceId(),
+                command.objectId(),
+                versionId,
+                command.subjectService(),
+                command.subjectDomain(),
+                command.subjectType(),
+                command.subjectId(),
+                command.referenceRole(),
+                now,
+                command.retainUntil()
+        );
+    }
+
+    private boolean sameSemanticFingerprint(
+            OssObjectReference existing,
+            OssObjectReference requested
+    ) {
+        return Objects.equals(existing.objectId(), requested.objectId())
+                && Objects.equals(existing.versionId(), requested.versionId())
+                && Objects.equals(existing.subjectService(), requested.subjectService())
+                && Objects.equals(existing.subjectDomain(), requested.subjectDomain())
+                && Objects.equals(existing.subjectType(), requested.subjectType())
+                && Objects.equals(existing.subjectId(), requested.subjectId())
+                && Objects.equals(existing.referenceRole(), requested.referenceRole())
+                && Objects.equals(existing.retainUntil(), requested.retainUntil());
     }
 
     private void requireCommand(BindObjectReferenceCommand command) {

@@ -45,6 +45,8 @@
 | 类 | 核心职责 |
 | --- | --- |
 | `auth.infrastructure.jwt.JwtTokenService` | HS256 access token 签发和 claims 组装。 |
+| `auth.infrastructure.persistence.MyBatisRefreshTokenRepository` | DB refresh session、rotation、family 撤销和清理。 |
+| `auth.infrastructure.persistence.RedisRefreshTokenRepository` | 可选 Redis refresh session 实现。 |
 | `auth.infrastructure.web.AuthOriginGuardFilter` | unsafe HTTP method 的 OriginGuard。 |
 | `auth.infrastructure.job.RefreshTokenCleanupJob` | 定时清理过期 refresh session。 |
 
@@ -53,4 +55,4 @@
 - 登录是 fail-closed 的：风控、验证码、凭据、下游写失败都会优先保护系统。
 - 注册是 Verify-First 的：先有 draft 和验证码，再有 active user。
 - refresh token 不是单个 token 的状态，而是 family 级状态。
-- 密码重置会影响 session 生命周期，不只是改一条密码 hash。
+- refresh session 记录 `securityVersionAtIssue`；密码、角色或活跃封禁变更后，续期会拒绝旧版本并撤销 family。

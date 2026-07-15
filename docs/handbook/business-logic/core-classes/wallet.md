@@ -7,7 +7,7 @@
 1. `WalletAccountApplicationService`
 2. `WalletLedgerApplicationService`
 3. `WalletRechargeApplicationService` / `WalletWithdrawApplicationService` / `WalletTransferApplicationService`
-4. `WalletMarketApplicationService` / `WalletRewardApplicationService`
+4. `WalletMarketApplicationService` / `WalletRewardProjectionApplicationService` / `WalletRewardApplicationService`
 5. `WalletAdminOpsApplicationService`
 
 ## 入口适配器
@@ -27,6 +27,7 @@
 | `wallet.application.WalletWithdrawApplicationService` | 提现 HTTP 幂等、订单、两段 WITHDRAW 总账。 | 看提现申请和出账确认如何拆开。 |
 | `wallet.application.WalletTransferApplicationService` | 转账 HTTP 幂等、订单和 TRANSFER 总账。 | 看转账 from/to 约束和幂等键。 |
 | `wallet.application.WalletMarketApplicationService` | market escrow / release / refund owner action。 | 看 market 与 wallet 的资金协作接口。 |
+| `wallet.application.WalletRewardProjectionApplicationService` | content/social owner event 到固定奖励 delta 和稳定 requestId 的映射。 | 看自点赞过滤、`+10/+2/+1/-1` 和 `wallet-reward:<sourceId>`。 |
 | `wallet.application.WalletRewardApplicationService` | growth / reward 入账 owner action。 | 看奖励发放如何由 requestId 保护。 |
 | `wallet.application.WalletAdminOpsApplicationService` | freeze / reverse 管理操作和审计。 | 看治理操作如何保持可追溯。 |
 
@@ -47,11 +48,12 @@
 | `wallet.infrastructure.api.WalletAccountQueryApiAdapter` | 账户查询同步适配。 |
 | `wallet.infrastructure.api.WalletMarketActionApiAdapter` | market 钱包动作同步适配。 |
 | `wallet.infrastructure.api.WalletRewardActionApiAdapter` | reward 入账同步适配。 |
+| `wallet.infrastructure.event.WalletRewardKafkaListener` | 消费 `content.events` / `social.events`，校验目标事件并进入 wallet projection application。 |
 | `wallet.infrastructure.persistence.*` | account、ledger、order、admin action 的 MyBatis 持久化。 |
 
 ## 关键语义
 
 - HTTP 幂等和总账 requestId 是两层不同语义。
 - 双分录 balance 是资金事实的底线。
-- market / growth / admin 都只是 wallet 的不同调用方。
+- market / growth / wallet reward projection / admin 都通过同一 wallet 账本收敛资金事实。
 - 冲正本身也是新的总账交易，不是简单回滚。

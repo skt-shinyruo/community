@@ -7,7 +7,7 @@
   <rect x="494" y="104" width="170" height="58" class="box own"/><text x="522" y="130" class="t">content domain</text><text x="515" y="151" class="s">post/comment facts</text>
   <rect x="732" y="58" width="130" height="52" class="box"/><text x="758" y="90" class="t">user API</text>
   <rect x="732" y="132" width="130" height="52" class="box"/><text x="759" y="164" class="t">OSS API</text>
-  <rect x="732" y="206" width="130" height="52" class="box read"/><text x="755" y="238" class="t">search outbox</text>
+  <rect x="732" y="206" width="130" height="52" class="box read"/><text x="748" y="228" class="t">content.events</text><text x="752" y="248" class="s">owner Kafka</text>
   <rect x="732" y="280" width="130" height="52" class="box read"/><text x="763" y="312" class="t">notice</text>
   <rect x="884" y="206" width="118" height="52" class="box"/><text x="906" y="238" class="t">growth</text>
   <rect x="884" y="280" width="118" height="52" class="box"/><text x="912" y="312" class="t">wallet</text>

@@ -13,7 +13,9 @@
 | 域 | 文档 | 备注 |
 | --- | --- | --- |
 | Auth | [auth.md](auth.md) | 登录、注册、验证码、密码重置、refresh token。 |
-| User | [user.md](user.md) | 用户资料、头像、处罚、积分、refresh session。 |
+| User | [user.md](user.md) | 用户账号、头像、凭据、角色、处罚和用户策略事件。 |
+| Profile | [../profile.md](../profile.md) | 用户主页的跨 owner 同步聚合。 |
+| Interaction | [../interaction.md](../interaction.md) | 点赞写入前的目标解析和 social action 编排。 |
 | OSS | [oss.md](oss.md) | 对象、版本、授权、引用和生命周期。 |
 | Drive | [drive.md](drive.md) | 空间、条目树、回收站、分享、OSS 代理。 |
 | Content | [content.md](content.md) | 帖子、评论、媒体、治理、事件和投影。 |
@@ -29,4 +31,4 @@
 
 - 这里故意不重复域级文档里的完整业务流程。
 - 每篇类级文档只强调“哪个类是入口、哪个类承载规则、哪个类只是适配器”。
-- 支撑域里 `notice / search / analytics` 保持在一个文件里，是因为它们在当前代码里共享一条读模型和采集链路。
+- 支撑域里 `notice / search / analytics / ops` 保持在一个文件里，因为它们围绕读模型、投影、采集和运行治理协作。

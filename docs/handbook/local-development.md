@@ -44,6 +44,8 @@ cp deploy/.env.cluster.example deploy/.env.cluster
 `single` 适合日常本地开发和功能联调：
 
 - `mysql`
+- `community-db-migrations` / `community-oss-db-migrations` / `community-im-db-migrations`（一次性 schema migration）
+- `community-dev-seed`（仅 development，按开关执行）
 - `redis`
 - `kafka`
 - `elasticsearch`
@@ -77,6 +79,8 @@ cp deploy/.env.single.example deploy/.env.single
 `cluster` 适合本地多副本、服务发现、worker lease、gateway 路由、IM backplane 演练：
 
 - `mysql-primary` + `mysql-replica-1/2`
+- `community-db-migrations` / `community-oss-db-migrations` / `community-im-db-migrations`（一次性 schema migration）
+- `community-dev-seed`（仅 development，按开关执行）
 - `redis-1..6`
 - `kafka-1..3`
 - `elasticsearch-1..3`
@@ -212,6 +216,24 @@ handbook 文档变更从仓库根目录执行：
 git diff --check -- docs/handbook
 ```
 
+### 本地数据库迁移
+
+`deployment.sh up` 会先运行三个 owner migration service。`community-app`、`community-oss` 和 `im-core` 只在对应 migration 以 `0` 退出后启动；`--scope infra` 也会运行 migration，因此可在其成功后从 IDE 启动业务 runtime。
+
+本地 example env 使用三个独立 DDL 账号：`community_migrator`、`community_oss_migrator`、`im_core_migrator`。业务 runtime 仍使用 DML-only 账号，不能为了方便把两类凭据合并。
+
+schema 校验与 Compose 契约：
+
+```bash
+./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example --no-observability
+./deploy/deployment.sh config --topology cluster --env-file deploy/.env.cluster.example --no-observability
+./deploy/tests/community_migration_contract.sh
+./deploy/tests/oss_migration_contract.sh
+./deploy/tests/im_migration_contract.sh
+```
+
+需要直接运行 JAR 时，第一个参数使用 `migrate` 或 `validate`，并分别提供 `COMMUNITY_MIGRATION_*`、`OSS_MIGRATION_*`、`IM_MIGRATION_*` 的 JDBC URL、用户名和密码。固定 classpath location 不支持 override。`baseline` 只用于经过备份和 V001 manifest 精确校验的接管场景，日常本地重建应删除 volume 后重新 `migrate`。
+
 ## Compose 文件分层
 
 - `deploy/compose.yml`：共享顶层元数据与 volume。
@@ -265,11 +287,13 @@ curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realt
 
 ## Dev-only 账号和开关
 
-本地种子数据来自：
+本地身份种子来自：
 
 ```text
-deploy/mysql/community/090_seed_identity.sql
+backend/community-db-migrations/src/main/resources/db/dev-seed/community/R__development_seed.sql
 ```
+
+example env 默认设置 `COMMUNITY_DEV_SEED_ENABLED=true`。Compose 的 `community-dev-seed` 仍会把真实 `DEPLOYMENT_ENVIRONMENT` 传为 `COMMUNITY_MIGRATION_PROFILE`；只有其值精确为 `development` 时 `development-seed` 才会运行，生产环境即使误开 seed 开关也会 fail-closed。OSS 和 IM 没有 development seed action。
 
 默认演示账号：
 

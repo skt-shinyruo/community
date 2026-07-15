@@ -9,7 +9,6 @@
 覆盖状态：
 
 - `Covered`：handbook 已说明入口、主路径和关键失败 / 一致性语义。
-- `Partial`：handbook 已说明域级行为，但类级细节主要还要读代码或测试。
 - `IndexOnly`：当前只作为薄包装、DTO 转换或适配入口列入索引，不单独展开业务语义。
 - `Excluded`：经人工确认不是核心运行时逻辑，例如配置属性、简单类型转换、纯测试辅助或无业务语义的技术 glue。
 
@@ -22,7 +21,7 @@
 | `auth.application.RefreshTokenApplicationService` | refresh / logout / refresh family reuse 处理 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.RegistrationApplicationService` | Verify-First registration start; creates registration draft and code after user-domain preparation | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.RegistrationVerificationApplicationService` | resolves registration drafts, resends codes through pending replacement, consumes verification codes, and asks user domain to create the active user | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
-| `auth.application.PasswordResetApplicationService` | 找回密码 token、邮件、密码更新和 session 撤销 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
+| `auth.application.PasswordResetApplicationService` | 找回密码 token、邮件和 user 凭据更新编排 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.CaptchaApplicationService` | 验证码发放和校验 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.LoginRateLimitApplicationService` | 登录失败计数和验证码触发 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.TokenFreshnessApplicationService` | 高风险入口 access token `security_version` 新鲜度校验 | [Token Freshness 与高风险请求安全](core-logic/security-token-freshness.md) | Covered |
@@ -32,12 +31,15 @@
 | `auth.domain.service.LoginRateLimitDomainService` | 登录风控规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.service.PasswordResetDomainService` | reset token 和重置规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.service.RefreshTokenDomainService` | refresh token 旋转 / family 规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
+| `auth.domain.repository.RefreshTokenRepository` | auth refresh session、rotation、family 撤销和 cleanup 持久化契约 | [登录与会话链路](auth-login-session-flow.md) | Covered |
 | `auth.domain.service.RegistrationDomainService` | registration input and Verify-First draft/code rules | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.repository.RegistrationDraftRepository` | opaque `registrationToken` to prepared registration draft store with TTL | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.infrastructure.jwt.JwtTokenService` | HS256 access token 签发和 claim 组装 | [安全模型](security.md#jwt-和-refresh-cookie) | Covered |
 | `auth.infrastructure.web.AuthOriginGuardFilter` | `community-app` unsafe HTTP method OriginGuard | [安全模型](security.md#cors-和-originguard) | Covered |
 | `auth.infrastructure.web.TokenFreshnessFilter` | 高风险 URI prefix 的 token freshness enforcement | [Token Freshness 与高风险请求安全](core-logic/security-token-freshness.md) | Covered |
 | `auth.infrastructure.job.RefreshTokenCleanupJob` | refresh session 清理 job | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
+| `auth.infrastructure.persistence.MyBatisRefreshTokenRepository` | 默认 DB refresh session 与 `securityVersionAtIssue` adapter | [登录与会话链路](auth-login-session-flow.md) | Covered |
+| `auth.infrastructure.persistence.RedisRefreshTokenRepository` | 可选 Redis refresh session adapter | [登录与会话链路](auth-login-session-flow.md) | Covered |
 
 ## User
 
@@ -45,17 +47,14 @@
 | --- | --- | --- | --- |
 | `user.controller.UserController` | `/api/users/**` HTTP binding | [User 用户业务逻辑](business-logic/user.md) | IndexOnly |
 | `user.controller.AdminUserController` | `/api/admin/users/**` HTTP binding | [User 用户业务逻辑](business-logic/user.md) | IndexOnly |
-| `user.application.RefreshTokenSessionApplicationService` | DB refresh token session 存储、begin/finish/rollback rotation、撤销和过期清理 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserRegistrationApplicationService` | registration preparation and verified active user creation aggregate | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserRegistrationApplicationService#prepareRegistrationUser` | validates and prepares registration material without database writes or events | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserRegistrationApplicationService#createVerifiedRegistrationUser` | inserts the active user and publishes user policy existence | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserCredentialApplicationService` | 密码校验、密码策略和密码更新 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserReadApplicationService` | 用户摘要、批量读取、跨域 user 查询 | [User 用户业务逻辑](business-logic/user.md) | Covered |
-| `user.application.UserProfileApplicationService` | 用户资料聚合、最近内容读取 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserAvatarApplicationService` | 头像 upload session / confirm | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserModerationApplicationService` | 禁言 / 封禁状态和 policy event | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.AdminUserApplicationService` | 管理员用户搜索和角色修改 | [User 用户业务逻辑](business-logic/user.md) | Covered |
-| `user.application.UserRewardApplicationService` | 用户奖励语义 / wallet 奖励协作入口 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserEventDispatchApplicationService` | user owner contract event outbox 到 Kafka dispatch | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `user.domain.service.PasswordPolicyDomainService` | 密码复杂度规则 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.domain.service.UserCredentialDomainService` | 凭证校验和密码更新规则 | [User 用户业务逻辑](business-logic/user.md) | Covered |
@@ -67,7 +66,13 @@
 | `user.infrastructure.event.OutboxUserPolicyEventPublisher` | user policy event 写 `eventbus.user` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `user.infrastructure.event.UserEventKafkaOutboxHandler` | `eventbus.user` outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `user.infrastructure.event.UserEventKafkaSenderAdapter` | user owner event 发布到 `user.events` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `user.infrastructure.event.UserRewardKafkaListener` | user reward Kafka projection listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
+
+## Profile
+
+| Core class | Role | Handbook section | Coverage |
+| --- | --- | --- | --- |
+| `profile.controller.UserProfileController` | 用户主页与最近内容 HTTP binding | [Profile 用户主页聚合逻辑](business-logic/profile.md) | IndexOnly |
+| `profile.application.UserProfileQueryApplicationService` | 聚合 user/social/content/growth owner query | [Profile 用户主页聚合逻辑](business-logic/profile.md) | Covered |
 
 ## OSS
 
@@ -85,6 +90,8 @@
 | `community-oss.application.ObjectReferenceApplicationService` | OSS deployable object reference bind / release | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
 | `community-oss.application.ObjectPermissionApplicationService` | OSS deployable grant / revoke object access | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
 | `community-oss.application.ObjectLifecycleApplicationService` | OSS deployable delete pending / purge lifecycle | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
+| `community-oss.application.ObjectUploadRecoveryApplicationService` | stale upload claim 的 head 校验、reset 或 fenced finalize | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
+| `community-oss.infrastructure.job.ObjectUploadRecoveryJob` | OSS stale upload recovery 调度入口 | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
 | `community-oss.domain.model.OssUsagePolicy` | usage max size, MIME, TTL, cache and lifecycle policy | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
 | `oss.controller.OssObjectController` | `/api/oss/**` HTTP binding | [OSS 对象存储业务逻辑](business-logic/oss.md) | IndexOnly |
 | `oss.controller.PublicFileController` | `/files/**` public file binding | [OSS 对象存储业务逻辑](business-logic/oss.md) | IndexOnly |
@@ -98,6 +105,7 @@
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
 | `content.controller.PostController` | posts and comments HTTP binding | [Content 内容业务逻辑](business-logic/content.md) | IndexOnly |
+| `content.controller.FeedController` | global/board/follow feed HTTP binding | [Content 内容业务逻辑](business-logic/content.md#帖子读取) | IndexOnly |
 | `content.controller.PostMediaController` | post media upload HTTP binding | [Content 内容业务逻辑](business-logic/content.md) | IndexOnly |
 | `content.controller.CategoryController` | category HTTP binding | [Content 内容业务逻辑](business-logic/content.md) | IndexOnly |
 | `content.controller.TagController` | tag HTTP binding | [Content 内容业务逻辑](business-logic/content.md) | IndexOnly |
@@ -107,7 +115,13 @@
 | `content.controller.ModerationController` | moderation HTTP binding | [Content 内容业务逻辑](business-logic/content.md) | IndexOnly |
 | `content.application.PostPublishingApplicationService` | 发帖、改帖、删帖写路径 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.PostReadApplicationService` | 帖子详情、批量摘要和 owner query 查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
+| `content.application.FeedReadApplicationService` | global/board hot feed、fallback、single-flight 与 degraded-safe 读取 | [Content 内容业务逻辑](business-logic/content.md#feed缓存与降级) | Covered |
+| `content.application.FollowFeedReadApplicationService` | followee owner query、关注流游标和页面缓存 | [Content 内容业务逻辑](business-logic/content.md#feed缓存与降级) | Covered |
 | `content.application.PostMediaApplicationService` | 帖子媒体上传会话、complete 和 OSS asset draft 状态 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
+| `content.application.PostMediaUploadRecoveryApplicationService` | stale `COMPLETING/OBJECT_COMPLETED` 上传恢复 | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) | Covered |
+| `content.application.PostMediaReferenceApplicationService` | version-fenced OSS bind/release 执行与状态完成 | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) | Covered |
+| `content.application.PostMediaReferenceSchedulingApplicationService` | desired state 与确定性 reference command 同事务调度 | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) | Covered |
+| `content.application.PostMediaReferenceReconciliationApplicationService` | pending command 重发与本地/远端引用漂移修复 | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) | Covered |
 | `content.application.CommentApplicationService` | 评论创建、编辑、删除和事件 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.CommentReadApplicationService` | 评论列表和用户最近评论查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.BookmarkApplicationService` | 收藏关系 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
@@ -122,6 +136,9 @@
 | `content.application.ContentEntityResolutionApplicationService` | POST / COMMENT owner entity resolution | [Content 内容业务逻辑](business-logic/content.md#owner-entity-resolution) | Covered |
 | `content.application.ContentEventDispatchApplicationService` | content owner contract event outbox 到 Kafka dispatch | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `content.application.PostHotFeedProjectionApplicationService` | owner event 到帖子 score/cache/hot-feed 投影 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
+| `content.application.HotPathPrewarmApplicationService` | owner 当前事实到 feed/summary/detail cache 的 single-flight 预热 | [Content 内容业务逻辑](business-logic/content.md#热度预热与-counter) | Covered |
+| `content.application.PostCounterApplicationService` | viewer 去重、counter 聚合读取和 dirty snapshot flush | [Content 内容业务逻辑](business-logic/content.md#热度预热与-counter) | Covered |
+| `content.application.CacheTtlPolicy` | summary/detail/comment/follow cache 稳定 TTL jitter | [Content 内容业务逻辑](business-logic/content.md#feed缓存与降级) | Covered |
 | `content.application.ContentEventPublisher` | content contract event 发布端口 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
 | `content.application.ModerationNoticePublisher` | moderation result notice 发布端口 | [Content 内容业务逻辑](business-logic/content.md#举报和审核) | Covered |
 | `content.application.UserModerationGuard` | 发帖 / 评论前同步回源 user 处罚状态 | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
@@ -131,6 +148,7 @@
 | `content.domain.service.CommentDomainService` | 评论目标解析、编辑和删除规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.domain.service.ModerationDecisionDomainService` | 内容治理决策规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.domain.service.PostModerationDomainService` | 帖子治理状态规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
+| `content.domain.service.PostHotnessDomainService` | epoch、加精、评论、点赞与 signal weight 热度公式 | [Content 内容业务逻辑](business-logic/content.md#热度预热与-counter) | Covered |
 | `content.domain.event.PostDomainEventPublisher` | post domain event 发布端口 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
 | `content.domain.event.CommentDomainEventPublisher` | comment domain event 发布端口 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
 | `content.infrastructure.api.ContentEntityQueryApiAdapter` | content owner entity resolve API 实现 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
@@ -144,6 +162,16 @@
 | `content.infrastructure.event.ContentEventKafkaOutboxHandler` | `eventbus.content` outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `content.infrastructure.event.ContentEventKafkaSenderAdapter` | content owner event 发布到 `content.events` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `content.infrastructure.event.PostHotFeedProjectionKafkaListener` | content/social Kafka event 到 hot-feed application | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
+| `content.infrastructure.event.PostMediaReferenceOutboxHandler` | reference command 到同域 reference application | [可靠性机制](reliability.md#content-media-upload-and-reference-recovery) | Covered |
+| `content.infrastructure.job.PostMediaUploadRecoveryJob` | stale content media upload recovery 调度入口 | [可靠性机制](reliability.md#content-media-upload-and-reference-recovery) | Covered |
+| `content.infrastructure.job.PostMediaReferenceReconciliationJob` | content media reference reconciliation 调度入口 | [可靠性机制](reliability.md#content-media-upload-and-reference-recovery) | Covered |
+
+## Interaction
+
+| Core class | Role | Handbook section | Coverage |
+| --- | --- | --- | --- |
+| `interaction.controller.LikeInteractionController` | `POST /api/likes` HTTP binding | [Interaction 互动写入编排逻辑](business-logic/interaction.md) | IndexOnly |
+| `interaction.application.LikeInteractionApplicationService` | user/content 可信目标解析后调用 social owner action | [Interaction 互动写入编排逻辑](business-logic/interaction.md) | Covered |
 
 ## Social
 
@@ -152,7 +180,8 @@
 | `social.controller.LikeController` | like HTTP binding | [Social 社交业务逻辑](business-logic/social.md) | IndexOnly |
 | `social.controller.FollowController` | follow HTTP binding | [Social 社交业务逻辑](business-logic/social.md) | IndexOnly |
 | `social.controller.BlockController` | block HTTP binding | [Social 社交业务逻辑](business-logic/social.md) | IndexOnly |
-| `social.application.LikeApplicationService` | 点赞关系、内容实体解析、任务 / 奖励协作和事件 | [Social 社交业务逻辑](business-logic/social.md) | Covered |
+| `social.application.LikeApplicationService` | resolved target 校验、点赞关系、删除 fence 和 owner event | [Social 社交业务逻辑](business-logic/social.md) | Covered |
+| `social.application.LikeCleanupReconciliationApplicationService` | deleted target 遗留点赞 reconciliation | [Social 社交业务逻辑](business-logic/social.md#一致性和补偿) | Covered |
 | `social.application.FollowApplicationService` | 关注关系和 follow event | [Social 社交业务逻辑](business-logic/social.md) | Covered |
 | `social.application.BlockApplicationService` | 拉黑关系、follow 清理和 owner event | [Social 社交业务逻辑](business-logic/social.md) | Covered |
 | `social.application.SocialEventDispatchApplicationService` | social owner contract event outbox 到 Kafka dispatch | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
@@ -163,6 +192,8 @@
 | `social.infrastructure.event.OutboxSocialDomainEventPublisher` | social domain event 映射后写 `eventbus.social` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `social.infrastructure.event.SocialEventKafkaOutboxHandler` | `eventbus.social` outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `social.infrastructure.event.SocialEventKafkaSenderAdapter` | social owner event 发布到 `social.events` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
+| `social.infrastructure.event.SocialContentDeletionKafkaListener` | content deletion event 到 version-fenced 分页清理 | [可靠性机制](reliability.md#social-deleted-content-like-cleanup) | Covered |
+| `social.infrastructure.job.SocialLikeCleanupReconciliationJob` | deleted target like cleanup reconciliation 调度入口 | [可靠性机制](reliability.md#social-deleted-content-like-cleanup) | Covered |
 
 ## Notice
 
@@ -193,10 +224,26 @@
 | `analytics.controller.AnalyticsController` | analytics HTTP binding | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | IndexOnly |
 | `analytics.application.AnalyticsApplicationService` | UV / DAU 查询和区间校验 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.application.AnalyticsIngestApplicationService` | 请求 / 登录成功采集写入，失败节流日志 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
+| `analytics.application.AnalyticsRequestCaptureApplicationService` | async publish 与同步 ingest 的采集边界选择 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#analytics-分析) | Covered |
 | `analytics.domain.service.AnalyticsDomainService` | UV / DAU 查询区间规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.domain.service.AnalyticsIngestDomainService` | UV / DAU 是否记录规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.infrastructure.web.AnalyticsRequestCaptureFilter` | 请求完成后的 analytics 采集过滤器 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.infrastructure.web.AnalyticsRequestClassifier` | include / exclude / status / method 采集判定 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
+| `analytics.infrastructure.event.AnalyticsRequestKafkaListener` | `analytics.request` 到 ingest application | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#analytics-分析) | Covered |
+
+## Ops Governance
+
+| Core class | Role | Handbook section | Coverage |
+| --- | --- | --- | --- |
+| `ops.controller.OutboxOpsController` | outbox status/retry HTTP binding | [可靠性机制](reliability.md#outbox-governance) | IndexOnly |
+| `ops.controller.CompensationOpsController` | allowlisted compensation trigger HTTP binding | [可靠性机制](reliability.md#compensation-governance) | IndexOnly |
+| `ops.controller.HotCacheOpsController` | hot-cache status/prewarm/degradation HTTP binding | [可靠性机制](reliability.md#hot-cache-governance) | IndexOnly |
+| `ops.controller.ProjectionOpsController` | projection lag HTTP binding | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#ops-投影治理) | IndexOnly |
+| `ops.application.OutboxGovernanceApplicationService` | outbox status、retry 与治理审计 | [可靠性机制](reliability.md#outbox-governance) | Covered |
+| `ops.application.CompensationGovernanceApplicationService` | allowlist、limit/reason 和 owner repair 协作 | [可靠性机制](reliability.md#compensation-governance) | Covered |
+| `ops.application.HotCacheGovernanceApplicationService` | ops 到 content hot-cache owner API 的治理编排 | [可靠性机制](reliability.md#hot-cache-governance) | Covered |
+| `ops.application.ProjectionGovernanceApplicationService` | projection outbox lag 只读查询 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#ops-投影治理) | Covered |
+| `content.application.HotFeedCacheGovernanceApplicationService` | content owner 的 status/prewarm/degradation 能力 | [可靠性机制](reliability.md#hot-cache-governance) | Covered |
 
 ## Growth
 
@@ -247,6 +294,8 @@
 | `wallet.application.WalletTransferApplicationService` | 转账订单和 TRANSFER 总账 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.application.WalletMarketApplicationService` | market escrow / release / refund owner action | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.application.WalletRewardApplicationService` | growth / reward 入账 owner action | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
+| `wallet.application.WalletRewardProjectionApplicationService` | content/social owner event 到标准奖励命令 | [Wallet 钱包业务逻辑](business-logic/wallet.md#奖励) | Covered |
+| `wallet.infrastructure.event.WalletRewardKafkaListener` | owner Kafka event 到 wallet reward projection application | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `wallet.application.WalletAdminOpsApplicationService` | freeze / reverse 管理操作和审计 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletAccountDomainService` | 账户类型、冻结状态和分录方向规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletLedgerDomainService` | 双分录平衡、金额上限和交易创建规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
@@ -366,12 +415,31 @@
 | `im.core.domain.service.RoomMessageDomainService` | room message draft, membership and seq rules | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.core.domain.service.RoomMembershipDomainService` | room membership rule model | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.core.domain.service.UnreadDomainService` | unread query limit normalization | [IM Core Runtime](core-logic/im-core-runtime.md) | IndexOnly |
+| `im.core.policy.PrivateMessagePolicyVerifier` | owner policy decision 端口与 fail-closed rejection 映射 | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
+| `im.core.policy.OwnerApiPrivateMessagePolicyVerifier` | internal JWT owner API 调用与仅拒绝结果短 TTL 缓存 | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.core.kafka.CommandConsumers` | consume IM command topics and publish persisted/rejected events | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.core.kafka.KafkaRoomMemberChangePublisher` | publish room membership changes via outbox | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.core.domain.event.RoomMemberChangePublisher` | room membership event publisher port | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.core.infrastructure.event.NoopRoomMemberChangePublisher` | no-op membership publisher when Kafka/outbox disabled | [IM Core Runtime](core-logic/im-core-runtime.md) | IndexOnly |
 | `im.core.outbox.ImMessageOutboxEnqueuer` | enqueue IM persisted/rejected/member events | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.core.outbox.ImKafkaOutboxHandler` | dispatch IM outbox rows to Kafka topics | [集成契约](integration-contracts.md#im-kafka-contract) | Covered |
+
+## Database Migrations
+
+| Core class | Role | Handbook section | Coverage |
+| --- | --- | --- | --- |
+| `community-db-migrations.CommunityMigrationApplication` | community migration `migrate/validate/baseline/development-seed` CLI entry | [数据与存储](data-and-storage.md#flyway-migration-deployables) | Covered |
+| `community-db-migrations.CommunityMigrationRunner` | 固定 production location、接收 history table、禁 clean 和 guarded baseline | [数据与存储](data-and-storage.md#flyway-migration-deployables) | Covered |
+| `community-db-migrations.CommunitySchemaCatalog` | 从 `information_schema` 捕获并读取 V001 manifest | [数据与存储](data-and-storage.md#v001-baseline-保护) | Covered |
+| `community-db-migrations.CommunitySchemaVerifier` | baseline 前精确验证 community V001 | [数据与存储](data-and-storage.md#v001-baseline-保护) | Covered |
+| `community-oss-db-migrations.OssMigrationApplication` | OSS migration `migrate/validate/baseline` CLI entry | [数据与存储](data-and-storage.md#flyway-migration-deployables) | Covered |
+| `community-oss-db-migrations.OssMigrationRunner` | 固定 location/history、禁 clean 和 guarded baseline | [数据与存储](data-and-storage.md#flyway-migration-deployables) | Covered |
+| `community-oss-db-migrations.OssSchemaCatalog` | 从 `information_schema` 捕获并读取 OSS V001 manifest | [数据与存储](data-and-storage.md#v001-baseline-保护) | Covered |
+| `community-oss-db-migrations.OssSchemaVerifier` | baseline 前精确验证 OSS V001 | [数据与存储](data-and-storage.md#v001-baseline-保护) | Covered |
+| `community-im-db-migrations.ImMigrationApplication` | IM Core migration `migrate/validate/baseline` CLI entry | [数据与存储](data-and-storage.md#flyway-migration-deployables) | Covered |
+| `community-im-db-migrations.ImMigrationRunner` | 固定 location/history、禁 clean 和 guarded baseline | [数据与存储](data-and-storage.md#flyway-migration-deployables) | Covered |
+| `community-im-db-migrations.ImSchemaCatalog` | 从 `information_schema` 捕获并读取 IM Core V001 manifest | [数据与存储](data-and-storage.md#v001-baseline-保护) | Covered |
+| `community-im-db-migrations.ImSchemaVerifier` | baseline 前精确验证 IM Core V001 | [数据与存储](data-and-storage.md#v001-baseline-保护) | Covered |
 
 ## Shared Infrastructure And Clients
 
@@ -386,6 +454,7 @@
 | `common-core.id.BinaryUuidCodec` | binary UUID conversion helper for persistence | [数据与存储](data-and-storage.md) | IndexOnly |
 | `community-app.infra.persistence.mybatis.UuidBinaryTypeHandler` | MyBatis UUID binary adapter for `community` schema | [数据与存储](data-and-storage.md#mysql) | IndexOnly |
 | `community-oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | MyBatis UUID binary adapter for `community_oss` schema | [数据与存储](data-and-storage.md#mysql) | IndexOnly |
+| `im.core.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | MyBatis UUID binary adapter for `im_core` schema | [数据与存储](data-and-storage.md#mysql) | IndexOnly |
 | `common-core.trace.TraceIdCodec` | trace id normalization helper | [安全模型](security.md) | Covered |
 | `common-web.TraceIdFilter` | servlet trace id filter | [安全模型](security.md) | Covered |
 | `common-web.AuditLogFilter` | servlet audit logging filter | [安全模型](security.md) | Covered |
@@ -401,6 +470,10 @@
 | --- | --- | --- | --- |
 | `content.infrastructure.job.HotPathPrewarmJob` | hot-feed / summary 缓存本地预热 | [运维与排障](operations.md#hot-cache-governance-runbook) | Covered |
 | `content.infrastructure.job.PostCounterSnapshotFlushJob` | 帖子 counter snapshot 批量落库 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
+| `content.infrastructure.job.PostMediaUploadRecoveryJob` | stale post media upload recovery | [可靠性机制](reliability.md#content-media-upload-and-reference-recovery) | Covered |
+| `content.infrastructure.job.PostMediaReferenceReconciliationJob` | post media reference reconciliation | [可靠性机制](reliability.md#content-media-upload-and-reference-recovery) | Covered |
+| `social.infrastructure.job.SocialLikeCleanupReconciliationJob` | deleted content like cleanup reconciliation | [可靠性机制](reliability.md#social-deleted-content-like-cleanup) | Covered |
+| `community-oss.infrastructure.job.ObjectUploadRecoveryJob` | OSS upload claim recovery | [可靠性机制](reliability.md#oss-upload-claim-recovery) | Covered |
 | `market.infrastructure.job.MarketOrderAutoConfirmHandler` | XXL `marketOrderAutoConfirm` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.infrastructure.job.MarketWalletActionProcessorHandler` | XXL `marketWalletActionProcessor` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.infrastructure.job.MarketWalletActionRecoveryHandler` | XXL `marketWalletActionRecovery` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
@@ -437,13 +510,14 @@
 | `frontend.views.driveState` | quota, entry capabilities and share-form validation | [前端业务状态与 API 编排](core-logic/frontend-business-state.md) | Covered |
 | `frontend.views.walletState` | wallet status and transaction projection | [前端业务状态与 API 编排](core-logic/frontend-business-state.md) | Covered |
 | `frontend.views.postsViewState` | composer tag rules and hydration id collection | [前端业务状态与 API 编排](core-logic/frontend-business-state.md) | Covered |
+| `frontend.views.postsFeedState` | latest-feed detection, last-seen divider and append-page state | [前端业务状态与 API 编排](core-logic/frontend-business-state.md) | Covered |
 | `frontend.views.postDetailState` | comment / reply hydration and social state assembly | [前端业务状态与 API 编排](core-logic/frontend-business-state.md) | Covered |
 
 ## Maintenance Rule
 
 When adding or changing core backend or frontend runtime behavior, update this index in the same change as the relevant handbook section:
 
-1. Add the new `ApplicationService`, domain service, listener, handler, enqueuer, job, gateway filter, WebSocket handler, IM service, shared guard/scheduler, typed client, or other core runtime entry.
+1. Add the new `ApplicationService`, domain service, listener, handler, enqueuer, job, gateway filter, WebSocket handler, IM service, migration runner/catalog/verifier, shared guard/scheduler, typed client, or other core runtime entry.
 2. Link it to the exact handbook section that describes current behavior.
-3. `Partial` 只能短期使用；优先补充 [business-logic/README.md](business-logic/README.md) 下对应域文档，直到该行可以标为 `Covered`。
+3. Every candidate must end as `Covered`, `IndexOnly`, or an explicitly justified `Excluded` item in the audit; do not leave a `Partial` or unclassified state.
 4. Do not point current behavior only at `docs/superpowers/specs` or `docs/superpowers/plans`; those are design and migration history unless explicitly restated in handbook.

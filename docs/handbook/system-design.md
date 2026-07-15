@@ -77,8 +77,9 @@ caller ApplicationService
 
 当前典型协作：
 
-- social 点赞/关注解析内容 owner：`content.api.query`。
-- content 发帖/评论同步回源 user owner 判断发言资格；growth task 和 user reward 通过 content contract event、outbox 和 Kafka projection 追平。
+- `interaction` 的点赞写入先通过 user/content owner query 解析可信目标，再调用 `social.api.action`；social 的点赞 HTTP controller 只承担读取入口。
+- `profile` 通过 user/social/content/growth owner query 同步组装用户主页，不复制这些 owner 的主事实。
+- content 发帖/评论同步回源 user owner 判断发言资格；growth task 和 wallet reward projection 通过 content contract event、outbox 和 Kafka consumer 追平。
 - market 下单/退款/放款先写 `market_wallet_action` durable command，再由 market processor 调用 `wallet.api.action`。
 - user / social 为 IM policy snapshot 暴露同步查询面。
 
@@ -115,10 +116,10 @@ owner 跨域事件统一先走 owner outbox 到 Kafka；consumer 从 Kafka liste
 | IM policy projection | `user.events` / `social.events` -> `projection.im.policy` -> IM Kafka | 确定性 source event 去重后发布给 `im-realtime` |
 | notice projection | owner Kafka -> listener | source event 去重后写通知读模型 |
 | growth task progress | owner Kafka -> listener | `user_task_event_log` 去重并保留 like-removal rollback |
-| wallet reward | owner Kafka -> user reward application -> wallet owner API | wallet 以稳定 request ID 幂等落账 |
+| wallet reward | `content.events` / `social.events` -> `WalletRewardKafkaListener` -> wallet application | wallet 以 `wallet-reward:<sourceId>` 幂等落账 |
 | hot feed | owner Kafka -> listener | 根据 owner event 更新热流状态 |
 | market fund action | `market_wallet_action` saga command -> wallet owner API | 市场事务先提交资金命令，后台 processor 调钱包并推进订单/争议状态 |
-| analytics | filter / application 写 Redis | 采集口径以当前配置和代码入口为准 |
+| analytics | filter -> capture application -> `analytics.request` 或同步 ingest -> Redis | 由配置选择交付路径；采集失败只记录日志，不改变已完成的业务响应 |
 
 social 严格互动链当前只支持 `social.storage=db`；其 contract event 固定通过 `eventbus.social -> social.events` 发布，Redis-backed social storage 不在支持矩阵内。
 
@@ -229,6 +230,20 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - 追平型任务从持久状态机读取待处理项，例如 outbox 或 `market_wallet_action`。
 - 自动动作型任务只写 owner command，例如市场自动确认只写 release command，不在 job 中直接记账。
 - 长任务或集群互斥任务需要 single-flight、lease 或条件更新保护。
+
+## Database Migration 设计
+
+三个 schema 分别由独立的一次性 deployable 管理：
+
+| Schema | Deployable | History table | 固定 location |
+| --- | --- | --- | --- |
+| `community` | `community-db-migrations` | `community_schema_history` | `classpath:db/migration/community` |
+| `community_oss` | `community-oss-db-migrations` | `oss_schema_history` | `classpath:db/migration/community-oss` |
+| `im_core` | `community-im-db-migrations` | `im_core_schema_history` | `classpath:db/migration/im-core` |
+
+runner 默认执行 `migrate`，也支持 `validate` 和受保护的 `baseline`。`baselineOnMigrate=false`，且 baseline 前必须提供对应确认值并由 `*SchemaVerifier` 将实际 schema 与 V001 manifest 做精确比对；location override 被显式拒绝，避免同一 deployable 在不同环境读取不同迁移集合。只有 community runner 支持 `development-seed`，并要求 `COMMUNITY_MIGRATION_PROFILE=development`。
+
+部署先创建独立 DDL 账号，再运行 migration deployable；`community-app`、`community-oss`、`im-core` 等 runtime 只使用 DML 账号，并等待对应 migration 成功。迁移失败必须阻断 owner runtime 启动，不能由应用启动时临时补表或静默 baseline。
 
 ## Config And Discovery 设计
 

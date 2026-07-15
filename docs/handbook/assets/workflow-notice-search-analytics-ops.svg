@@ -4,11 +4,11 @@
   <rect width="1040" height="390" fill="#fff"/><text x="36" y="40" class="h">Notice, Search, Analytics, Ops Projections</text>
   <rect x="58" y="112" width="150" height="56" class="box"/><text x="78" y="146" class="t">Owner fact event</text>
   <rect x="278" y="62" width="160" height="56" class="box read"/><text x="300" y="96" class="t">notice projection</text>
-  <rect x="278" y="154" width="160" height="56" class="box read"/><text x="304" y="188" class="t">search outbox</text>
+  <rect x="278" y="154" width="160" height="56" class="box read"/><text x="304" y="178" class="t">search projection</text><text x="306" y="198" class="s">owner Kafka trigger</text>
   <rect x="278" y="246" width="160" height="56" class="box read"/><text x="303" y="280" class="t">analytics Redis</text>
   <rect x="528" y="154" width="150" height="56" class="box read"/><text x="562" y="188" class="t">ES alias</text>
   <rect x="528" y="246" width="150" height="56" class="box ops"/><text x="561" y="280" class="t">ops entry</text>
   <rect x="748" y="200" width="150" height="56" class="box"/><text x="774" y="234" class="t">owner app svc</text>
   <path class="edge" d="M208 140 C236 122 248 90 278 90"/><path class="edge" d="M208 140 H278"/><path class="edge" d="M208 140 C236 186 248 274 278 274"/><path class="edge" d="M438 182 H528"/><path class="edge" d="M678 274 H748"/><path class="edge dash" d="M678 182 C720 188 720 228 748 228"/>
-  <text x="58" y="344" class="s">Notice is best-effort after commit. Search uses reliable outbox and alias switching. Ops dispatches tasks back to owner application services.</text>
+  <text x="58" y="344" class="s">Notice/search consume owner Kafka with retry/DLQ. Analytics capture cannot alter a completed response. Ops observes or calls owner APIs.</text>
 </svg>

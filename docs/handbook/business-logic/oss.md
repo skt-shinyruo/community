@@ -33,7 +33,7 @@ Gateway：
 OSS 的数据流只负责对象技术事实，业务授权仍由消费方 owner 决定：
 
 1. 上传：消费方先完成自己的业务授权，再通过 `community-oss-client` 请求 prepare upload。OSS 保存对象、版本、上传会话和 owner context，返回通用上传能力而不是存储凭证。
-2. 完成上传：消费方把浏览器上传结果回传给 OSS complete。OSS 检查 blob 是否存在，激活 version，并更新 object current version。
+2. 完成上传：消费方把浏览器上传结果回传给 OSS complete。OSS 先以 `claimVersion` claim session，再写带 claim 后缀的 blob，校验 metadata，最后以 session ID + claim version fencing 激活 version 和 object。
 3. 下载：`PUBLIC` 对象可匿名走 `/files/**`。canonical URL 以 objectId + versionId 为 authority。
 4. 引用和授权：业务 owner 在自己的主事实写入路径内先判断是否允许，再通过 OSS reference / grant API 绑定引用或发放临时访问权。OSS 只记录技术授权事实。
 5. 删除：对象删除先看 active reference 和 grant；如果还存在 active 依赖，只能进入 delete pending。没有 active 依赖时才删除 blob、purge version，并把对象标记为 purged。
@@ -50,9 +50,17 @@ OSS 的数据流只负责对象技术事实，业务授权仍由消费方 owner 
 代理上传：
 
 1. 消费方接收浏览器 multipart 后，通过 client 调 OSS complete。
-2. OSS 写入 `ObjectStore`，再读取 head 确认 blob 存在。
-3. OSS 激活 version，更新 object current version。
-4. 返回 canonical public URL，例如 `/files/{objectId}/{versionId}/{fileName}`。
+2. session 状态从 `READY` 条件 claim 为 `UPLOADING`，同时递增 `claimVersion`；并发 complete 只能有一个 claim 成功。
+3. 本次写入 key 固定为基础 storage key 加 `.claim-<claimVersion>`，旧尝试不能覆盖新 claim 的 blob。
+4. OSS 写入 `ObjectStore`，再用 head 校验 content type、content length 和期望 checksum。
+5. `ObjectUploadTransactionOperations.finalizeUpload(...)` 以 session ID 和 claim version 完成 `UPLOADING -> COMPLETED`；fence 丢失时不激活 version/object。
+6. OSS 激活 version，更新 object current version，返回 canonical public URL，例如 `/files/{objectId}/{versionId}/{fileName}`。
+
+上传状态机为 `READY -> UPLOADING -> COMPLETED`。PUT 明确失败时会在同一 claim 上记录失败证据，session 仍保持可恢复的 `UPLOADING`，而不是假装完成。
+
+`ObjectUploadRecoveryJob` 扫描 stale `UPLOADING` session。`ObjectUploadRecoveryApplicationService` 先验证 object/version metadata 仍存在且互相匹配，再 head 当前 claim 的 attempt key：blob 不存在时以原 claim version 条件重置为 `READY` 并续期，允许新 complete 取得更高 claim；blob 存在时重新校验 metadata，并走同一个 fenced finalize。恢复观察失败只记录到当前 claim，不能越过新 claim 改状态。
+
+Nacos seed `community-oss.yaml` 默认启用 recovery，batch `100`、stale `300s`、delay `60s`。代码级默认值是关闭，部署是否实际启用以发布到 Nacos 的配置为准。
 
 下载：
 
@@ -108,6 +116,8 @@ OSS 的数据流只负责对象技术事实，业务授权仍由消费方 owner 
 - `oss.controller.OssObjectController`
 - `oss.controller.PublicFileController`
 - `oss.application.ObjectUploadApplicationService`
+- `oss.application.ObjectUploadRecoveryApplicationService`
+- `oss.application.ObjectUploadTransactionOperations`
 - `oss.application.ObjectQueryApplicationService`
 - `oss.application.ObjectAccessApplicationService`
 - `oss.application.ObjectReferenceApplicationService`
@@ -117,5 +127,6 @@ OSS 的数据流只负责对象技术事实，业务授权仍由消费方 owner 
 - `oss.infrastructure.storage.ObjectStore`
 - `oss.infrastructure.storage.LocalFilesystemObjectStore`
 - `oss.infrastructure.storage.S3CompatibleObjectStore`
+- `oss.infrastructure.job.ObjectUploadRecoveryJob`
 - `backend/community-oss-client/src/main/java/com/nowcoder/community/oss/client/CommunityOssClient.java`
 - `user.infrastructure.oss.OssAvatarStorageAdapter`

@@ -12,6 +12,9 @@
 - `backend/community-oss`：独立 OSS deployable，负责对象元数据、版本、签名和公有文件访问。
 - `backend/community-oss-client`：给业务服务调用 OSS 的 typed client。
 - `backend/community-im`：IM 聚合模块，包含 `im-common`、`im-core`、`im-realtime`。
+- `backend/community-db-migrations`：`community` schema 的 Flyway migration deployable。
+- `backend/community-oss-db-migrations`：`community_oss` schema 的 Flyway migration deployable。
+- `backend/community-im-db-migrations`：`im_core` schema 的 Flyway migration deployable。
 - `backend/community-common/*`：共享 Web、安全、幂等、outbox、错误协议、trace 等横切能力。
 - `deploy/`：本地 single / cluster 拓扑和默认启用的 observability overlay。
 
@@ -23,12 +26,12 @@
 
 | 能力 | 对外入口 | SSOT / owner | 授权位置 |
 | --- | --- | --- | --- |
-| 认证与会话 | `/api/auth/**` | `auth` + user session 存储 | `community-app` |
-| 用户资料与头像 | `/api/users/**` | `user` | `community-app` |
+| 认证与会话 | `/api/auth/**` | `auth`，包括 refresh session | `community-app` |
+| 用户资料与头像 | `/api/users/**` | `user`；主页读取由 `profile` 聚合 | `community-app` |
 | OSS 对象存储 | `/api/oss/**`, `/files/**` | `oss` | `community-oss` |
 | 内容 | `/api/posts/**`, `/api/bookmarks`, `/api/categories/**`, `/api/tags/**` | `content` | `community-app` |
 | 举报与治理 | `/api/reports/**`, `/api/moderation/**` | `content` + `user` | `community-app` |
-| 社交 | `/api/likes/**`, `/api/follows/**`, `/api/blocks/**` | `social` | `community-app` |
+| 社交 | `/api/likes/**`, `/api/follows/**`, `/api/blocks/**` | `social`；点赞写入由 `interaction` 编排 | `community-app` |
 | 通知 | `/api/notices/**` | `notice` + `notice_record` 读模型 | `community-app` |
 | 搜索 | `/api/search/**` | `search` + ES alias/index | `community-app` |
 | analytics | `/api/analytics/**` | `analytics` + Redis | `community-app` |
@@ -170,9 +173,15 @@ owner domain event
 - `Controller -> UseCase`
 - `Controller -> same-domain api.*`
 - `Controller -> same-domain domain-named aggregate ApplicationService facade`
+- `Controller / Listener / Handler / Bridge / Enqueuer / Job -> foreign api.*`
+- `Controller / Listener / Handler / Bridge / Enqueuer / Job -> foreign application.*`
+- `Controller / Listener / Handler / Bridge / Enqueuer / Job -> domain repository/service/model`
+- `Controller / Listener / Handler / Bridge / Enqueuer / Job -> mapper/dataobject/persistence`
 - `ApplicationService -> MyBatis mapper`
+- `ApplicationService -> HTTP transport type`
 - `Domain -> infrastructure`
 - `Domain -> api.*`
+- `api.* -> contracts.event`
 - `UseCase + ApplicationService` 两套 competing entry style
 - `CommandService`、`ActionService`、`FacadeService` 作为应用入口命名
 - `AuthApplicationService` / `WalletApplicationService` 这类绕过 `FacadeService` 命名但实际只转发到同域多个应用服务的聚合入口
@@ -182,8 +191,10 @@ owner domain event
 
 ## 主要领域包
 
-- `auth`：登录、刷新、登出、验证码、注册/激活、找回密码、登录风控。
-- `user`：用户资料、头像、refresh token session、处罚状态和用户摘要。
+- `auth`：登录、刷新、登出、验证码、注册/激活、找回密码、登录风控和 refresh token session。
+- `user`：用户账号、资料、头像、凭据、处罚状态和用户摘要。
+- `profile`：用户主页同步聚合，只编排 user/social/content/growth owner query，不持有主事实。
+- `interaction`：点赞写入同步编排，先解析 user/content 目标，再进入 social owner action。
 - `content`：帖子、评论、回复、收藏、分类订阅、标签、举报和内容治理动作。
 - `social`：点赞、关注、拉黑。
 - `social` 严格互动链默认要求 `social.storage=db`；Redis-backed social storage 不是支持的 correctness runtime。
@@ -212,6 +223,8 @@ owner domain event
 - `cluster`：本地多副本 / 集群演练拓扑。
 - `--scope infra`：只启动基础设施，便于 IDE 启动业务服务。
 - `--no-observability`：关闭 observability overlay。
+
+MySQL 主业务 schema 不再由 runtime service 或 first-boot final-state SQL 隐式升级。single / cluster 拓扑先运行 `community-db-migrations`、`community-oss-db-migrations`、`community-im-db-migrations`，对应 runtime service 通过 `service_completed_successfully` 等待 owner migration 成功后再启动。迁移账号拥有 DDL 权限，runtime 账号只保留 DML 权限；具体命令、history table 和 baseline 保护见 [data-and-storage.md](data-and-storage.md#flyway-migration-deployables)。
 
 运行命令和端口见 [local-development.md](local-development.md)，观测和排障见 [operations.md](operations.md)。
 

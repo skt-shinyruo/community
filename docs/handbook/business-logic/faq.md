@@ -2,7 +2,7 @@
 
 ## 为什么认证和用户要分成 auth / user？
 
-auth 负责“如何进入系统”：注册流程、验证码、登录风控、JWT 签发、refresh token 旋转。user 负责“用户事实是什么”：账号、密码 hash、邮箱、角色、处罚状态、refresh session 存储事实。这样注册、登录和密码重置可以通过 user owner API 改用户事实，而不会让 auth 直接写 user 表。
+auth 负责“如何进入系统”：注册流程、验证码、登录风控、JWT 签发、refresh token 旋转和 refresh session。user 负责“用户事实是什么”：账号、密码 hash、邮箱、角色、处罚状态和 `securityVersion`。这样 auth 通过 user owner API 改用户事实，又能在自己的边界内管理会话。
 
 ## 为什么发帖成功后，搜索或通知可能还没出现？
 

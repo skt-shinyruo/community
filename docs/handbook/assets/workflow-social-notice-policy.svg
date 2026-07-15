@@ -1,15 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 1040 380">
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 1040 420">
   <title>Social notice and IM policy workflow</title>
   <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#334155"/></marker><style>text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:22px;font-weight:700}.t{font-size:14px;font-weight:700}.s{font-size:12px;fill:#475569}.box{fill:#f8fafc;stroke:#94a3b8;rx:10;stroke-width:1.5}.own{fill:#ecfeff;stroke:#0891b2}.read{fill:#f0fdf4;stroke:#16a34a}.im{fill:#eef2ff;stroke:#6366f1}.edge{stroke:#334155;stroke-width:1.8;fill:none;marker-end:url(#a)}</style></defs>
-  <rect width="1040" height="380" fill="#fff"/><text x="36" y="40" class="h">Likes, Follows, Blocks, Notice, IM Policy</text>
-  <rect x="56" y="112" width="142" height="56" class="box"/><text x="78" y="146" class="t">Like / Follow / Block</text>
-  <rect x="260" y="112" width="160" height="56" class="box own"/><text x="292" y="139" class="t">social app</text><text x="286" y="160" class="s">relationship owner</text>
+  <rect width="1040" height="420" fill="#fff"/><text x="36" y="40" class="h">Likes, Follows, Blocks, Deletion Cleanup, IM Policy</text>
+  <rect x="56" y="112" width="142" height="56" class="box"/><text x="72" y="137" class="t">Like POST</text><text x="70" y="158" class="s">Follow / Block</text>
+  <rect x="260" y="68" width="160" height="56" class="box own"/><text x="292" y="95" class="t">interaction app</text><text x="276" y="116" class="s">trusted target resolve</text>
+  <rect x="260" y="154" width="160" height="56" class="box own"/><text x="308" y="181" class="t">social app</text><text x="286" y="202" class="s">relationship owner</text>
   <rect x="482" y="68" width="142" height="52" class="box"/><text x="503" y="100" class="t">content API</text>
   <rect x="482" y="154" width="142" height="52" class="box own"/><text x="502" y="186" class="t">social facts</text>
   <rect x="684" y="68" width="142" height="52" class="box read"/><text x="708" y="100" class="t">notice</text>
   <rect x="684" y="154" width="142" height="52" class="box"/><text x="707" y="186" class="t">growth / wallet</text>
   <rect x="684" y="240" width="142" height="52" class="box read"/><text x="702" y="272" class="t">policy outbox</text>
   <rect x="866" y="240" width="130" height="52" class="box im"/><text x="890" y="272" class="t">im-realtime</text>
-  <path class="edge" d="M198 140 H260"/><path class="edge" d="M420 125 C446 108 456 94 482 94"/><path class="edge" d="M420 154 H482"/><path class="edge" d="M624 180 C650 168 658 102 684 94"/><path class="edge" d="M624 180 H684"/><path class="edge" d="M624 180 C656 198 652 260 684 266"/><path class="edge" d="M826 266 H866"/>
-  <text x="56" y="338" class="s">Social owns likes/follows/blocks. IM uses a local projection for speed; user/social remain the source of truth.</text>
+  <rect x="260" y="250" width="160" height="52" class="box"/><text x="282" y="272" class="t">content.events</text><text x="276" y="292" class="s">deleted post/comment</text>
+  <rect x="482" y="250" width="142" height="52" class="box own"/><text x="501" y="272" class="t">social cleanup</text><text x="496" y="292" class="s">version fence + paging</text>
+  <path class="edge" d="M198 128 C224 114 232 96 260 96"/><path class="edge" d="M198 154 C224 168 232 182 260 182"/>
+  <path class="edge" d="M420 96 H482"/><path class="edge" d="M420 124 C446 142 450 168 482 180"/><path class="edge" d="M420 182 H482"/>
+  <path class="edge" d="M420 276 H482"/><path class="edge" d="M553 250 V206"/>
+  <path class="edge" d="M624 180 C650 168 658 102 684 94"/><path class="edge" d="M624 180 H684"/><path class="edge" d="M624 180 C656 198 652 260 684 266"/><path class="edge" d="M826 266 H866"/>
+  <text x="56" y="362" class="s">Interaction resolves like targets before social writes. Content deletion cleanup is Kafka-backed, version-fenced, paged, and reconciled.</text>
+  <text x="56" y="386" class="s">Social owns likes/follows/blocks. IM uses a local projection for speed; user/social remain the source of truth.</text>
 </svg>

@@ -46,6 +46,8 @@ filter 响应映射：
 
 该机制是 read-only 且幂等的：它只读取当前 JWT、认证上下文和 user owner 暴露的凭证视图，不修改用户、access token 或 refresh session。
 
+密码更新、角色调整以及新增或延长活跃账号级封禁由 user owner 递增 `securityVersion`。同一个版本同时约束两类 token：高风险 URI 上的旧 access token 由本 filter 立即拒绝；auth refresh session 的 `securityVersionAtIssue` 在续期时由 `LoginApplicationService.refresh(...)` 比对，不一致会撤销整个 family。user 不需要也不允许跨域直接操作 auth refresh repository。
+
 `TokenFreshnessApplicationService.verify(...)` 不捕获 `UserCredentialQueryApi` 的异常；`TokenFreshnessFilter` 也没有把应用服务或运行时异常转成本地放行。除 subject UUID 解析失败会转换成 stale 外，意外的 user API / runtime failure 会继续向外传播。
 
 ## 关键代码

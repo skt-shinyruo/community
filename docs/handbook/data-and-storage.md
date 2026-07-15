@@ -1,14 +1,13 @@
 # 数据与存储
 
-本文档是存储事实索引，覆盖 MySQL schema、Redis key、Kafka topic、Elasticsearch alias/index、初始化脚本和本地种子数据。业务流程不在这里展开，见 [business-flows.md](business-flows.md)。
+本文档是存储事实索引，覆盖 MySQL schema 与迁移、Redis key、Kafka topic、Elasticsearch alias/index 和本地种子数据。业务流程不在这里展开，见 [business-flows.md](business-flows.md)。
 
 ## MySQL
 
-初始化脚本：
+数据库与账号 bootstrap：
 
 - `deploy/mysql/primary-init/001_create_databases.sh`：mysql-primary 首次建库和最小权限账号。
-- `deploy/mysql/community/*.sql`：最小表结构和本地种子数据，覆盖 `community` 与 `im_core`。
-- `deploy/mysql/community_oss/*.sql`：OSS 独立 schema 的初始化与种子数据。
+- 业务 schema 不再通过 MySQL `/docker-entrypoint-initdb.d` 或 helper bootstrap 重放最终态 SQL；结构变更统一由下面三个 Flyway deployable 执行。
 
 schema：
 
@@ -20,15 +19,59 @@ schema：
 最小权限账号：
 
 - `${MYSQL_USER:-community}` -> `${MYSQL_DATABASE:-community}`：`select/insert/update/delete`。
+- `${COMMUNITY_MIGRATION_USERNAME:-community_migrator}` -> `${MYSQL_DATABASE:-community}`：专用 DDL migration 账号。
 - `${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}` -> `${MYSQL_DATABASE:-community}`：`select/insert/update/delete/create/alter`。
 - `${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}` -> `${IM_MYSQL_DATABASE:-im_core}`：`select/insert/update/delete`。
 - `${IM_MYSQL_USER:-im_core}` -> `${IM_MYSQL_DATABASE:-im_core}`：`select/insert/update/delete`。
+- `${IM_MIGRATION_USERNAME:-im_core_migrator}` -> `${IM_MYSQL_DATABASE:-im_core}`：专用 DDL migration 账号。
+- `${OSS_MYSQL_USER:-community_oss}` -> `${OSS_MYSQL_DATABASE:-community_oss}`：`select/insert/update/delete`。
+- `${OSS_MIGRATION_USERNAME:-community_oss_migrator}` -> `${OSS_MYSQL_DATABASE:-community_oss}`：专用 DDL migration 账号。
+
+`community-app`、`im-core` 和 `community-oss` runtime 账号只保留 DML 权限；不要把 migration 账号配置给 runtime。Mock Data Studio 是 dev-only 控制面，其额外 metadata DDL 权限不是生产业务 runtime 的授权模板。
 
 UUID 持久化：
 
 - Java 层统一使用 `UUID`，MySQL 侧核心表优先用 16-byte `BINARY` / `VARBINARY` 保存。
 - `common-core.id.BinaryUuidCodec` 负责 UUID 与 16-byte 大端序二进制互转，非法长度会 fail fast。
-- `community-app` 的 `infra.persistence.mybatis.UuidBinaryTypeHandler` 和 `community-oss` 的 `oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` 把 MyBatis 参数 / 结果集接到同一个 codec，避免各业务仓储手写 UUID byte 转换。
+- `community-app` 的 `infra.persistence.mybatis.UuidBinaryTypeHandler`、`community-oss` 的 `oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` 和 `im-core` 的 `im.core.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` 把 MyBatis 参数 / 结果集接到同一个 codec，避免各 owner 仓储手写 UUID byte 转换。
+
+## Flyway Migration Deployables
+
+每个 owner schema 都有独立、一次性运行的 migration deployable：
+
+| Deployable | Owner schema | 默认/部署 history table | 固定 location |
+| --- | --- | --- | --- |
+| `community-db-migrations` | `community` | `community_schema_history` | `classpath:db/migration/community` |
+| `community-oss-db-migrations` | `community_oss` | `oss_schema_history` | `classpath:db/migration/community-oss` |
+| `community-im-db-migrations` | `im_core` | `im_core_schema_history` | `classpath:db/migration/im-core` |
+
+三个可执行 JAR 的默认 action 都是 `migrate`，并支持：
+
+- `migrate`：校验已应用记录并顺序执行待执行 migration。
+- `validate`：只校验 migration history 与随包脚本，不改 schema。
+- `baseline`：仅用于接管一个已经精确等于 V001、但尚无 Flyway history 的既有 schema；不是常规部署动作。
+
+Runner 固定 `baselineVersion=1`、`baselineOnMigrate=false`、`cleanDisabled=true`、migration 命名校验和 missing-location fail-fast。`COMMUNITY_MIGRATION_LOCATIONS`、`OSS_MIGRATION_LOCATIONS`、`IM_MIGRATION_LOCATIONS` 均被显式拒绝，不能把临时目录或额外脚本注入发布。OSS/IM 的 history table override 只能等于上表值；community application 仍接受 `COMMUNITY_MIGRATION_HISTORY_TABLE`，而 single/cluster Compose 将其固定为 `community_schema_history`。
+
+### V001 Baseline 保护
+
+每个模块都随包提供 V001 schema manifest：
+
+- `db/migration/community/community-schema-manifest.tsv`
+- `db/migration/community-oss/community-oss-schema-manifest.tsv`
+- `db/migration/im-core/im-core-schema-manifest.tsv`
+
+`*SchemaCatalog` 从 `information_schema` 捕获实际表、列/类型/默认值、索引和约束，`*SchemaVerifier.verifyExactV001(...)` 与 manifest 做精确比较。缺表、多表或任一受管结构变化都会拒绝 baseline；不能用 baseline 掩盖漂移、跳过 V002+ 或接管未知结构。
+
+baseline 还必须提供对应的精确确认值：
+
+| Deployable | 环境变量 | 必须等于 |
+| --- | --- | --- |
+| community | `COMMUNITY_MIGRATION_BASELINE_CONFIRMATION` | `I_HAVE_VERIFIED_THE_COMMUNITY_SCHEMA` |
+| OSS | `OSS_MIGRATION_BASELINE_CONFIRMATION` | `I_HAVE_VERIFIED_THE_OSS_SCHEMA` |
+| IM Core | `IM_MIGRATION_BASELINE_CONFIRMATION` | `I_HAVE_VERIFIED_THE_IM_CORE_SCHEMA` |
+
+部署拓扑先运行 migration，再让 `community-app`、`community-oss` 和 `im-core` 通过 `service_completed_successfully` 等待各自 owner migration。migration 失败时 runtime 不应绕过依赖启动；操作步骤见 [运行与排障](operations.md#database-migration-runbook)。
 
 ## community 主要表
 
@@ -57,7 +100,6 @@ UUID 持久化：
 | `withdraw_order` | 钱包提现订单，按 `user_id + request_id` 幂等 |
 | `transfer_order` | 钱包转账订单，按 `from_user_id + request_id` 幂等 |
 | `wallet_admin_action` | 钱包管理员冻结、冲正等操作记录 |
-| `oss_object` / `oss_object_version` / `oss_upload_session` / `oss_usage_policy` / `oss_object_reference` / `oss_access_grant` | OSS 对象、版本、会话、策略、引用和授权事实 |
 | `post_media_asset` | 帖子媒体资源 draft/uploaded/bound 状态和 OSS object/version/reference 投影 |
 | `post_content_block` | 帖子正文 block，承载 paragraph/code/media block 顺序 |
 | `market_listing` | 市场商品 listing |
@@ -80,6 +122,17 @@ UUID 持久化：
 | `demo_entity_ref` | Mock Data Studio 生成实体引用，支持后续清理 |
 | `ai_config` | Mock Data Studio AI 配置元数据 |
 
+## community_oss 主要表
+
+| 表 | 说明 |
+| --- | --- |
+| `oss_object` | 对象 metadata、owner context、current version、visibility 和 lifecycle |
+| `oss_object_version` | 对象版本、blob key、content metadata 和版本状态 |
+| `oss_upload_session` | 上传会话、claim version、过期时间和恢复状态 |
+| `oss_usage_policy` | usage 级上传和访问策略 |
+| `oss_object_reference` | consumer owner 对对象/版本的引用事实 |
+| `oss_access_grant` | principal 对对象/版本的临时访问授权 |
+
 ## im_core 主要表
 
 | 表 | 说明 |
@@ -96,10 +149,10 @@ IM 消息权威状态在 `im_core`，主站通知读模型在 `community.notice_
 
 ## 本地种子数据
 
-身份种子：
+身份种子由 community migration deployable 的 dev-only repeatable migration 提供：
 
 ```text
-deploy/mysql/community/090_seed_identity.sql
+backend/community-db-migrations/src/main/resources/db/dev-seed/community/R__development_seed.sql
 ```
 
 默认账号：
@@ -113,7 +166,7 @@ Mock Data Studio metadata bootstrap：
 - `tools/mock-data-studio/src/db/bootstrap.mjs` 可重复执行 canonical `CREATE TABLE IF NOT EXISTS`，并幂等创建 `Default` AI 配置。
 - 开发环境不支持旧 metadata schema 原地升级；表结构不匹配时删除并重建本地数据卷。
 
-`deploy/mysql/community` 下的 baseline SQL 只描述当前最终表结构，不包含旧列、旧约束或旧索引的条件迁移。开发环境结构不匹配时重建数据卷，不在应用初始化期间执行历史 schema 修补。
+只有 `community-db-migrations` 支持 `development-seed`。该 action 会先执行 production migrations，再使用独立的 `community_development_seed_history` 和 `classpath:db/dev-seed/community`；必须显式满足 `COMMUNITY_MIGRATION_PROFILE=development`。OSS 和 IM migration deployable 不接受 seed action。开发环境结构已漂移且不需要保留数据时，可重建本地 volume 后重新 migrate；不要在 runtime 初始化期间手工修补 schema。
 
 ## Redis
 

@@ -29,7 +29,7 @@
 9. content 发布帖子事实对应的 domain event。
 10. domain event bridge 映射为 content contract event。
 11. content contract event 与帖子主事实同事务写入 `eventbus.content`，owner handler 发布 `content.events`。
-12. Search、Notice、User reward、Growth 和 Hot feed Kafka listener 分别进入同域 ApplicationService 异步追平。
+12. Search、Notice、Wallet reward、Growth 和 Hot feed Kafka listener 分别进入同域 ApplicationService 异步追平。
 13. Hot-feed consumer 回源当前帖子/点赞事实，按 source event 版本去重后重算 score 和 feed 缓存。
 
 ## 媒体上传和绑定
@@ -38,9 +38,11 @@
 
 1. content 先创建 draft asset 或上传意图。
 2. 浏览器通过 OSS upload session 上传 blob。
-3. 上传完成后，OSS 激活 object/version。
-4. 发帖或改帖时，content 校验 asset 属于当前用户、类型匹配、仍可绑定。
-5. 新引用建立后，旧引用会释放 OSS reference。
+3. content complete 使用 `PREPARED -> COMPLETING -> OBJECT_COMPLETED -> COMPLETED` 和 `uploadOperationVersion`；stale 状态由 recovery 对照 OSS canonical metadata 修复。
+4. 上传完成后，OSS 激活 object/version。
+5. 发帖或改帖时，content 校验 asset 属于当前用户、类型匹配、仍可绑定。
+6. content 主事务把引用写成 `BIND_PENDING/RELEASE_PENDING`，递增 `referenceOperationVersion`，并写 `command.content.post-media-reference` outbox。
+7. handler 在事务外执行 OSS bind/release，再在新事务内标记 `BOUND/RELEASED`；reconciliation 重发 pending command 并修复漂移。
 
 这样 content 拥有“帖子引用了哪些媒体”的业务事实，OSS 拥有“文件对象和版本”的技术事实。
 
@@ -53,7 +55,7 @@
 5. content 可通过 social owner 判断双方拉黑关系。
 6. content 写 `comment`，同步更新帖子评论数或活动状态。
 7. content 发布评论事件，domain bridge 进入 content application，将 contract event 与主事实同事务写入 `eventbus.content`。
-8. owner handler 发布 `content.events`，Notice、Growth 和 User reward listener 分别进入同域 ApplicationService；有效奖励最终调用 wallet owner 幂等入账。
+8. owner handler 发布 `content.events`，Notice、Growth 和 Wallet reward listener 分别进入同域 ApplicationService；奖励最终在 wallet owner 幂等入账。
 
 ## 删除和治理
 
@@ -61,7 +63,7 @@
 
 - search 删除或更新 ES 文档。
 - notice 可生成治理通知。
-- social owner 清理失效内容实体上的点赞关系。
+- `SocialContentDeletionKafkaListener` 消费 `content.events`，以 target source version fencing 分页清理失效点赞；reconciliation 追平遗漏。
 - growth/wallet 根据当前业务规则处理奖励或撤销。
 
 ## 排查口径
@@ -71,4 +73,4 @@
 | 发帖重复或返回 replay conflict | `Idempotency-Key` 和 request fingerprint。 |
 | 发帖成功但搜索不到 | `eventbus.content`、`content.events` search consumer/DLQ、ES projection 和 reindex，不要先改 content。 |
 | 评论成功但没有通知 | `content.events` notice consumer/DLQ、source-event log 和投影规则。 |
-| 媒体链接不可访问 | content asset 绑定、OSS object/version 或 grant。 |
+| 媒体链接不可访问 | content upload/reference 状态、reference outbox/对账、OSS object/version 或 grant。 |

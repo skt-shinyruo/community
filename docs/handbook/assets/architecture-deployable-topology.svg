@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 960 520">
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 960 640">
   <title>Community deployable topology</title>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#334155"/></marker>
     <style>
-      text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:24px;font-weight:700}.t{font-size:15px}.s{font-size:13px;fill:#475569}.box{fill:#f8fafc;stroke:#94a3b8;stroke-width:1.6;rx:10}.edge{stroke:#334155;stroke-width:2;fill:none;marker-end:url(#arrow)}.dash{stroke-dasharray:7 5}.store{fill:#eef2ff;stroke:#818cf8}.svc{fill:#ecfeff;stroke:#06b6d4}.gw{fill:#fff7ed;stroke:#f97316}.infra{fill:#f1f5f9;stroke:#64748b}
+      text{font-family:Arial,sans-serif;fill:#0f172a}.h{font-size:24px;font-weight:700}.t{font-size:15px}.s{font-size:13px;fill:#475569}.box{fill:#f8fafc;stroke:#94a3b8;stroke-width:1.6;rx:10}.edge{stroke:#334155;stroke-width:2;fill:none;marker-end:url(#arrow)}.dash{stroke-dasharray:7 5}.store{fill:#eef2ff;stroke:#818cf8}.svc{fill:#ecfeff;stroke:#06b6d4}.gw{fill:#fff7ed;stroke:#f97316}.infra{fill:#f1f5f9;stroke:#64748b}.mig{fill:#f0fdf4;stroke:#16a34a}
     </style>
   </defs>
-  <rect width="960" height="520" fill="#ffffff"/>
+  <rect width="960" height="640" fill="#ffffff"/>
   <text x="40" y="42" class="h">Deployable Topology</text>
   <rect x="42" y="86" width="150" height="64" class="box"/><text x="72" y="112" class="t">Browser</text><text x="72" y="134" class="s">Client</text>
   <rect x="42" y="190" width="150" height="64" class="box"/><text x="72" y="217" class="t">Vue3 SPA</text><text x="72" y="239" class="s">frontend</text>
@@ -26,5 +26,12 @@
   <path class="edge" d="M765 102 H812"/><path class="edge" d="M765 286 C790 286 790 384 812 384"/><path class="edge" d="M765 378 H812"/>
   <path class="edge" d="M672 134 C672 154 784 175 812 175"/><path class="edge" d="M672 226 C690 246 784 244 812 244"/><path class="edge" d="M672 134 C710 134 774 315 812 315"/>
   <path class="edge" d="M672 318 C710 330 780 384 812 384"/>
-  <text x="580" y="458" class="s">Gateway is the stable external entry. Owner facts stay in the deployable that owns them.</text>
+  <text x="42" y="460" class="t">Schema migration deployables</text>
+  <rect x="42" y="480" width="220" height="58" class="box mig"/><text x="62" y="505" class="t">community-db-migrations</text><text x="78" y="526" class="s">community schema</text>
+  <rect x="282" y="480" width="220" height="58" class="box mig"/><text x="294" y="505" class="t">community-oss-db-migrations</text><text x="330" y="526" class="s">community_oss schema</text>
+  <rect x="522" y="480" width="220" height="58" class="box mig"/><text x="538" y="505" class="t">community-im-db-migrations</text><text x="574" y="526" class="s">im_core schema</text>
+  <rect x="792" y="480" width="126" height="58" class="box store"/><text x="814" y="505" class="t">MySQL DDL</text><text x="808" y="526" class="s">owner schemas</text>
+  <path class="edge" d="M152 538 V548 H760 V496 H792"/><path class="edge" d="M392 538 V556 H772 V509 H792"/><path class="edge" d="M632 538 V564 H784 V522 H792"/>
+  <text x="42" y="590" class="s">Each runtime waits for its owner migration to complete successfully; runtime database accounts remain DML-only.</text>
+  <text x="42" y="620" class="s">Gateway is the stable external entry. Owner facts stay in the deployable that owns them.</text>
 </svg>

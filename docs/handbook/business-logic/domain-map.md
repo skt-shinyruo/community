@@ -12,8 +12,10 @@
 
 | 领域 | 拥有什么 | 不拥有或不应该直接决定什么 | 深入阅读 |
 | --- | --- | --- | --- |
-| auth | 注册、登录、验证码、JWT 签发、refresh token 策略、登录风控。 | 用户账号事实、密码 hash 和 refresh session 存储事实。 | [auth.md](auth.md) |
-| user | 用户账号、资料、邮箱、密码 hash、角色、处罚状态、头像业务投影、refresh session 存储事实。 | 登录流程策略、帖子/评论主事实、OSS 对象事实、IM policy 缓存。 | [user.md](user.md) |
+| auth | 注册、登录、验证码、JWT 签发、refresh token 策略和 session、登录风控。 | 用户账号事实、密码 hash、角色和处罚事实。 | [auth.md](auth.md) |
+| user | 用户账号、资料、邮箱、密码 hash、角色、处罚状态和头像业务投影。 | 登录流程策略、refresh session、帖子/评论主事实、OSS 对象事实、IM policy 缓存。 | [user.md](user.md) |
+| profile | 用户主页读取用例和跨域结果组装。 | 用户、社交关系、内容、等级等 owner 主事实。 | [profile.md](profile.md) |
+| interaction | 点赞写入前的 user/content 目标解析和 social action 编排。 | 点赞关系、内容实体和用户事实。 | [interaction.md](interaction.md) |
 | content | 帖子、评论、回复、分类、标签、收藏、订阅、举报和内容治理状态。 | 用户身份事实、点赞关系、搜索索引、通知读模型。 | [content.md](content.md) |
 | social | 点赞、关注、拉黑关系，以及这些关系产生的社交事件。 | 内容实体事实、用户处罚事实、IM 消息事实。 | [social.md](social.md) |
 | growth | 任务模板、任务进度、事件去重、自动奖励触发、等级规则。 | 钱包入账事实、内容或社交事件事实。 | [growth.md](growth.md) |
@@ -29,13 +31,14 @@
 
 ## 核心边界
 
-1. `auth` 和 `user` 分开：auth 负责“如何进入系统”，user 负责“用户事实是什么”。
-2. `content` 和 `social` 分开：content 负责内容实体，social 负责互动关系。
-3. `notice` 和 `search` 都是读模型：它们服务查询和提醒，不拥有上游业务事实。
-4. `growth` 决定任务进度和奖励触发，`wallet` 决定奖励是否真正入账。
-5. `market` 决定订单和纠纷，`wallet` 决定资金事实。
-6. `drive` 决定网盘业务状态，OSS 决定对象存储技术事实。
-7. `community-im` 决定消息事实，`community-app` 只向它提供用户 policy 和拉黑关系投影。
+1. `auth` 和 `user` 分开：auth 负责“如何进入系统”和 refresh session，user 负责“用户事实是什么”。
+2. `profile` 只聚合 owner query；它不是 user、social、content 或 growth 的新 SSOT。
+3. `interaction` 负责点赞写入的跨域解析，`social` 仍负责互动关系。
+4. `notice` 和 `search` 都是读模型：它们服务查询和提醒，不拥有上游业务事实。
+5. `growth` 决定任务进度和任务奖励触发，`wallet` 决定所有奖励是否真正入账。
+6. `market` 决定订单和纠纷，`wallet` 决定资金事实。
+7. `drive` 决定网盘业务状态，OSS 决定对象存储技术事实。
+8. `community-im` 决定消息事实，`community-app` 只向它提供用户 policy 和拉黑关系投影。
 
 ## message 名称说明
 
@@ -46,9 +49,11 @@
 | 想改的能力 | 先看 owner | 再看协作方 |
 | --- | --- | --- |
 | 登录、注册、密码重置 | auth | user、analytics |
-| 用户资料、头像、处罚 | user | OSS、IM policy |
+| 用户账号、头像、处罚 | user | auth、OSS、IM policy |
+| 用户主页聚合 | profile | user、social、content、growth |
 | 发帖、评论、举报、收藏 | content | user、social、search、notice、growth |
-| 点赞、关注、拉黑 | social | content、notice、growth、IM policy |
+| 点赞写入 | interaction -> social | user、content、notice、growth、wallet |
+| 点赞读取、关注、拉黑 | social | content、notice、growth、IM policy |
 | 任务、等级、积分奖励 | growth | wallet、content、social |
 | 余额、奖励、交易资金 | wallet | market、growth |
 | 商品、订单、纠纷 | market | wallet、user |

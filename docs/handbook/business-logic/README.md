@@ -14,9 +14,9 @@
 
 最重要的端到端链路包括：
 
-1. 注册登录：`auth` 编排验证码、登录风控、JWT 和 refresh token，`user` 拥有账号、密码 hash、用户状态和 refresh session 存储事实。
+1. 注册登录：`auth` 编排验证码、登录风控、JWT、refresh token 和 session，`user` 拥有账号、密码 hash、角色和用户状态。
 2. 发帖评论：`content` 写帖子/评论主事实，回源 `user` 校验发言资格，媒体通过 OSS，搜索和通知通过事件最终一致。
-3. 点赞关注拉黑：`social` 写互动关系，点赞目标回源 `content` 解析，拉黑变化经 `eventbus.social -> social.events -> projection.im.policy` 追平 IM projection。
+3. 点赞关注拉黑：`interaction` 先回源 user/content 解析点赞写入目标，再调用 `social` 写互动关系；拉黑变化经 `eventbus.social -> social.events -> projection.im.policy` 追平 IM projection。
 4. 成长奖励：`growth` 根据内容和社交事件推进任务、去重和计算等级；真正入账由 `wallet` owner 决定。
 5. 市场交易：`market` 写商品、库存、订单和纠纷，资金动作进入 market wallet action saga，最终由 `wallet` 的复式账本落账。
 6. 网盘文件：`drive` 处理空间、目录、回收站、分享和提取码，OSS 处理对象、版本、引用、授权和签名 URL。
@@ -47,12 +47,14 @@
 
 ## 单域详解
 
-当前 active 业务域以 `backend/community-app` 的 `auth`、`user`、`content`、`social`、`notice`、`search`、`analytics`、`growth`、`market`、`wallet`、`drive`、`ops`、`im` 包，以及 `backend/community-im/*` 的 IM 模块为准。站内通知读模型在 notice 的 `notice_record`，IM 私信和群聊主事实在 `community-im`，因此不再单独写一篇 `message` 业务域文档。
+当前 active 业务域以 `backend/community-app` 的 `auth`、`user`、`profile`、`interaction`、`content`、`social`、`notice`、`search`、`analytics`、`growth`、`market`、`wallet`、`drive`、`ops`、`im` 包，以及 `backend/community-im/*` 的 IM 模块为准。站内通知读模型在 notice 的 `notice_record`，IM 私信和群聊主事实在 `community-im`，因此不再单独写一篇 `message` 业务域文档。
 
 | 业务域 | 文档 | 覆盖内容 |
 | --- | --- | --- |
 | 认证 | [auth.md](auth.md) | 登录、注册、验证码、密码重置、refresh token、会话清理。 |
-| 用户 | [user.md](user.md) | 用户资料、头像、凭据、角色、处罚状态、积分、refresh session。 |
+| 用户 | [user.md](user.md) | 用户账号、头像、凭据、角色、处罚状态和用户策略事件。 |
+| 用户主页聚合 | [profile.md](profile.md) | user/social/content/growth owner query 的主页组装。 |
+| 互动写入编排 | [interaction.md](interaction.md) | 点赞写入前的可信目标解析和 social action 调用。 |
 | OSS | [oss.md](oss.md) | 对象元数据、版本、签名 URL、生命周期和 Garage / S3-compatible 后端。 |
 | 网盘 | [drive.md](drive.md) | 10GiB 私有网盘、目录树、回收站、分享链接、提取码和 OSS 代理下载。 |
 | 内容 | [content.md](content.md) | 帖子、评论、分类、标签、收藏、订阅、举报、审核、内容事件。 |
@@ -70,7 +72,7 @@
 | --- | --- |
 | [core-classes/README.md](core-classes/README.md) | 某个域的核心 ApplicationService / DomainService / adapter 应该先看哪些类？ |
 | [core-classes/auth.md](core-classes/auth.md) | 认证域的登录、注册、验证码、密码重置、refresh token 具体先读哪些类？ |
-| [core-classes/user.md](core-classes/user.md) | 用户域的资料、头像、处罚、积分、refresh session 具体先读哪些类？ |
+| [core-classes/user.md](core-classes/user.md) | 用户域的账号、头像、凭据、角色和处罚具体先读哪些类？ |
 | [core-classes/oss.md](core-classes/oss.md) | OSS 对象、版本、授权、引用和生命周期的类级职责是什么？ |
 | [core-classes/drive.md](core-classes/drive.md) | 网盘空间、条目树、回收站、分享和 OSS 代理下载分别由哪些类承载？ |
 | [core-classes/content.md](core-classes/content.md) | 帖子、评论、媒体、治理、事件和投影类分别怎么分工？ |
@@ -78,7 +80,7 @@
 | [core-classes/growth.md](core-classes/growth.md) | 任务、奖励、等级和事件去重的关键类是什么？ |
 | [core-classes/wallet.md](core-classes/wallet.md) | 账户、总账、订单、奖励和管理员操作的关键类是什么？ |
 | [core-classes/market.md](core-classes/market.md) | 商品、库存、订单、纠纷和 wallet saga 的关键类是什么？ |
-| [core-classes/notice-search-analytics-ops.md](core-classes/notice-search-analytics-ops.md) | 通知、搜索、分析这组支撑域的关键类是什么？ |
+| [core-classes/notice-search-analytics-ops.md](core-classes/notice-search-analytics-ops.md) | 通知、搜索、分析和投影治理这组支撑域的关键类是什么？ |
 | [core-classes/im.md](core-classes/im.md) | IM gateway、realtime、core、policy projection 的关键类是什么？ |
 | [core-classes/shared-infrastructure.md](core-classes/shared-infrastructure.md) | 共享基础设施、UUID 适配、outbox、idempotency 和 trace 的关键类是什么？ |
 

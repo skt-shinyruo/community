@@ -4,8 +4,8 @@
 
 ## Owner / SSOT
 
-- `auth` 拥有登录流程、验证码流程、注册验证码流程、密码重置 token、JWT 签发、refresh token 策略和登录风控。
-- `user` 拥有用户账号、密码 hash、用户状态、角色和 DB refresh session 存储事实。
+- `auth` 拥有登录流程、验证码流程、注册验证码流程、密码重置 token、JWT 签发、refresh token 策略、refresh session 存储事实和登录风控。
+- `user` 拥有用户账号、密码 hash、用户状态、角色和 `securityVersion`。
 - access token 是客户端持有的短期 JWT，服务端不保存在线 access session。
 - refresh token 明文只存在于浏览器 HttpOnly cookie 和当前请求/响应内；默认 DB 存储只保存 SHA-256 hash。
 
@@ -47,9 +47,9 @@ HTTP 入口位于 `AuthController`：
 1. 注册：`AuthController` 接收请求后进入 `RegistrationApplicationService`，auth 先校验验证码、请求字段和邮件配置，再通过 `UserRegistrationActionApi.prepareRegistrationUser(...)` 让 user owner 检查用户名/邮箱冲突并准备用户名、邮箱、密码 hash 和默认头像。auth application 生成 registration token，draft 仓储只负责按 token 存储上下文；验证码通过后先进入 pending 消费态，再调用 `createVerifiedRegistrationUser(...)` 插入 active 用户，并复用登录签发链路返回 access token 和 refresh cookie。
 2. 登录：`LoginApplicationService.login(...)` 先经过登录风控和 captcha 判断，再用 `UserCredentialQueryApi.authenticate(...)` 回源 user owner 校验凭据。认证成功后签发 access token，写 refresh session，并异步/同步触发安全日志和 analytics 登录采集。
 3. refresh / logout：浏览器只把 refresh token 放在 HttpOnly cookie 中。refresh 时 auth 先把旧 session 转入 `PENDING_ROTATION`，再回源 user 校验用户仍允许登录和 refresh，并读取当前 `securityVersion`；校验通过后才生成 replacement token 并 finish rotation，把旧 session 标为 `CONSUMED`、新 session 标为 `ACTIVE`。失败时先尝试 rollback 旧 session；若无法安全恢复则撤销 family 并由 controller 清 cookie。logout 可从 active session 或 terminal tombstone 识别 family，并由 controller 写 clear cookie。
-4. 密码重置：auth 校验邮箱、captcha、请求限流和 reset token，user owner 校验新密码策略并更新 BCrypt hash；成功后撤销该用户 refresh sessions，避免旧会话继续刷新。
+4. 密码重置：auth 校验邮箱、captcha、请求限流和 reset token，user owner 校验新密码策略、更新 BCrypt hash 并递增 `securityVersion`。user 不同步调用 auth 撤销会话；旧 refresh token 下次续期时因 `securityVersionAtIssue` 不匹配而被拒绝，并撤销所在 family。
 
-auth 不直接写 user 表或 refresh session 表；这些状态变化都通过 user owner API 进入 user application。
+auth 不直接写 user 表；refresh session 则通过 auth 自己的 `RefreshTokenRepository` 进入 MyBatis 或 Redis infrastructure。
 
 ## 注册流程
 
@@ -102,8 +102,9 @@ refresh 使用 refresh token rotation：
 3. token hash 找不到、已撤销、过期或 family 被撤销都会失败；已撤销 token 复用会触发 family reuse 检测。
 4. 旧 session 处于 pending 后，通过 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在、允许登录且允许 refresh，并读取当前 `securityVersion`。
 5. 用户不存在、`loginAllowed=false` 或 `refreshAllowed=false` 时撤销该 family 并返回 `USER_DISABLED`，controller 清 cookie。
-6. 用户校验通过后签发新的 access token，生成同 family 的 256-bit base64url replacement refresh token，再调用 `finishRotation(...)` 持久化 replacement session。
-7. begin 后遇到临时失败时先 `rollbackPendingRotation(...)`，让旧 token 恢复 active；如果 rollback 失败，auth 撤销 family 并要求 controller 清 cookie。
+6. `securityVersionAtIssue` 与 user 当前 `securityVersion` 不一致时拒绝续期、撤销整个 family，并清 cookie；这使密码、角色或活跃封禁变更无需反向同步调用 auth。
+7. 用户校验通过后签发新的 access token，生成同 family 的 256-bit base64url replacement refresh token，再调用 `finishRotation(...)` 持久化 replacement session，同时记录当前安全版本。
+8. begin 后遇到临时失败时先 `rollbackPendingRotation(...)`，让旧 token 恢复 active；如果 rollback 失败，auth 撤销 family 并要求 controller 清 cookie。
 
 logout：
 
@@ -167,7 +168,7 @@ logout：
 5. HTTP 响应不返回 reset link。
 6. 确认阶段再次校验验证码、reset token 和新密码策略。
 7. user owner 更新密码；密码策略拒绝首尾空白字符，不静默修改用户输入。
-8. 密码更新成功后撤销该用户 refresh sessions。
+8. 密码更新成功后 user 递增 `securityVersion`；auth 不在该跨域事务中删除 refresh rows。旧 family 在下一次 refresh 比对失败时被撤销。
 9. 如果密码更新失败，reset token 会按消费时捕获的剩余 TTL 恢复，允许用户在原有效期内重试且不延长完整有效期。
 
 ## 跨域协作
@@ -176,8 +177,7 @@ logout：
 
 - `UserCredentialQueryApi`：认证账号、取角色、取凭据。
 - `UserRegistrationActionApi`：准备注册用户、创建已验证用户。
-- `UserRefreshTokenSessionActionApi` / `QueryApi`：DB refresh session 写入、begin/finish/rollback rotation、撤销、清理。
-- `UserCredentialActionApi`：密码更新和会话撤销。
+- `UserCredentialActionApi`：密码策略校验和密码更新。
 - `AnalyticsIngestActionApi`：登录成功采集。
 
 认证域不直接访问 user mapper 或 user dataobject。
@@ -195,7 +195,9 @@ logout：
 - `auth.application.TokenFreshnessApplicationService`
 - `auth.domain.service.*`
 - `auth.infrastructure.jwt.JwtTokenService`
+- `auth.domain.repository.RefreshTokenRepository`
+- `auth.infrastructure.persistence.MyBatisRefreshTokenRepository`
+- `auth.infrastructure.persistence.RedisRefreshTokenRepository`
 - `auth.infrastructure.web.TokenFreshnessFilter`
 - `auth.infrastructure.job.RefreshTokenCleanupJob`
 - `user.application.UserCredentialApplicationService`
-- `user.application.RefreshTokenSessionApplicationService`

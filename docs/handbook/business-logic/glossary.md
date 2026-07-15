@@ -16,6 +16,7 @@
 | Inbound adapter | 外部进入系统的适配器，例如 controller、listener、handler、bridge、job。 | HTTP controller、事件 listener、XXL job handler。 |
 | Owner API | owner 暴露给外域同步协作的 `api.query` / `api.action` / `api.model`。 | auth 调 user 创建已验证用户。 |
 | Contract event | owner 暴露给外域异步协作的 `contracts.event`。 | content/social 事件被 notice/growth/search 消费。 |
+| Orchestration domain | 不持有参与方主事实，只拥有一个跨域用例的同步编排边界。 | `profile` 聚合主页；`interaction` 解析点赞目标后调用 social action。 |
 
 ## 请求和身份
 
@@ -24,7 +25,7 @@
 | Actor | 正在执行动作的用户或系统身份。 | 发帖人、下单买家、管理员。 |
 | Viewer | 正在查看数据的用户身份，通常影响是否展示私有状态。 | 帖子详情是否展示已点赞、已收藏。 |
 | Access token | 短期 JWT，前端保存在内存中，用于普通业务请求鉴权。 | `/api/posts`、`/api/wallet/**`。 |
-| Refresh token | HttpOnly cookie 中的长期刷新凭证，服务端只保存 hash 和 session 状态。 | `/api/auth/refresh` 旋转 token。 |
+| Refresh token | HttpOnly cookie 中的长期刷新凭证；`auth` 只保存 hash、family、签发时安全版本和 session 状态。 | `/api/auth/refresh` 旋转 token。 |
 | Registration draft | 注册验证码通过前的草稿状态，不是正式用户行。 | Verify-First 注册流程。 |
 | Idempotency-Key | 客户端或服务端提供的幂等键，用于防止重复提交产生重复写入。 | 发帖、市场下单。 |
 | requestId | 业务请求标识，常用于钱包、市场 saga、奖励发放和重复请求判定。 | wallet ledger 的重复入账保护。 |
@@ -38,7 +39,7 @@
 | Projection | 为查询、推送或快速判定维护的派生视图。它不是 SSOT。 | notice 表、ES 索引、IM policy 本地缓存。 |
 | Feed cursor | Feed 翻页的不透明游标，客户端不能依赖内部结构。 | 全局热榜、板块热榜、关注流翻页。 |
 | Rank version | 一次榜单排序结果或投影批次的版本标识，用于解释 feed 页属于哪次排序视图。 | 热榜刷新后返回新的 `rankVersion`。 |
-| Best-effort | 主事务提交后尽力执行的非关键副作用，失败不回滚主事实。 | 提交后的社交清理或本地缓存预热；Notice 不属于此类。 |
+| Best-effort | 失败不会改变 owner 主请求结果、允许丢失或由其他机制恢复的非关键副作用。 | analytics capture 失败日志、本地缓存预热；Notice 和删除内容后的点赞清理不属于此类。 |
 | Reliability governance plane | 面向可靠性状态的治理面，只负责查询、重放、补偿触发、审计和观测，不拥有业务事实。 | outbox `DEAD` 查询和重放、projection lag 查询。 |
 | Replay | 将失败的可靠异步工作恢复到原处理路径再次执行。它不是伪造事件，也不是绕过 owner 规则直接调用 handler。 | outbox `DEAD` 事件重新置为 `PENDING`，由 worker 处理。 |
 | Disposition | 对终态失败或人工处置结果的分类记录。 | `REPLAYED`、`IGNORED`、`FIXED_BY_REBUILD`、`MANUAL_REPAIR_REQUIRED`。 |
@@ -57,6 +58,7 @@
 | 两级评论 | 帖子下 root comment 与 root comment 下 reply 的评论结构，不支持无限嵌套。 | `content` |
 | 内容可见性状态 | 内容是否公开、仅作者可见、待审核、拒绝或移除的业务状态。 | `content` |
 | 点赞 / 关注 / 拉黑 | 用户之间或用户对实体的社交关系。 | `social` |
+| 用户主页 | user 基础资料、social 计数、content 最近内容和 growth 等级的请求时聚合结果。 | `profile` 编排；事实仍属于各 owner |
 | 通知 | 点赞、评论、关注、治理等事件形成的站内通知读模型。 | `notice` |
 | 任务进度 | 用户因内容或社交事件推进的成长任务状态。 | `growth` |
 | 奖励 / 余额 / 账本 | 用户资金或积分的最终事实，采用复式账本入账。 | `wallet` |

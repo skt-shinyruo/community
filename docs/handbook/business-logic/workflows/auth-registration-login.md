@@ -6,8 +6,8 @@
 
 | 领域 | 职责 |
 | --- | --- |
-| auth | 注册流程、验证码、登录风控、JWT 签发、refresh token 策略。 |
-| user | 用户账号、密码 hash、用户状态、角色、refresh session 存储事实。 |
+| auth | 注册流程、验证码、登录风控、JWT 签发、refresh token 策略和 session。 |
+| user | 用户账号、密码 hash、用户状态、角色和 `securityVersion`。 |
 | analytics | 登录成功和访问行为采集。 |
 
 ![Auth registration login workflow](../../assets/workflow-auth-registration-login.svg)
@@ -54,17 +54,18 @@ refresh token 明文只出现在浏览器 HttpOnly cookie 和当前请求/响应
 
 1. 浏览器业务请求遇到 401 后，前端调用 `/api/auth/refresh`。
 2. auth 校验旧 refresh token，把旧 session 转入 `PENDING_ROTATION` 30 秒 lease。
-3. auth 回源 user owner 校验用户仍允许登录和 refresh，成功后生成 replacement token。
-4. user owner finish rotation：旧 session 变为 `CONSUMED`，replacement session 变为 `ACTIVE`。
-5. 返回新 access token 和新 refresh cookie。
-6. begin 后遇到临时失败时 rollback 旧 session；无法安全 rollback 时撤销 family 并清 cookie。
-7. logout 可从 active session 或 terminal tombstone 识别 family，并由 controller 写 clear cookie。
+3. auth 回源 user owner 校验用户仍允许登录和 refresh，并比较 session 的 `securityVersionAtIssue` 与当前 `securityVersion`。
+4. 版本不一致时 auth 撤销 family 并清 cookie；一致时生成 replacement token。
+5. auth repository finish rotation：旧 session 变为 `CONSUMED`，replacement session 变为 `ACTIVE` 并记录当前安全版本。
+6. 返回新 access token 和新 refresh cookie。
+7. begin 后遇到临时失败时 rollback 旧 session；无法安全 rollback 时撤销 family 并清 cookie。
+8. logout 可从 active session 或 terminal tombstone 识别 family，并由 controller 写 clear cookie。
 
 重要语义：
 
 - access token 是短期 JWT，服务端不保存在线 access session。
 - refresh token reuse 可触发 family 撤销。
-- 密码重置后会撤销用户 refresh sessions，避免旧会话继续刷新。
+- 密码、角色以及新增或延长活跃封禁会递增 user `securityVersion`；旧 refresh family 在下一次续期时由 auth 拒绝并撤销。
 
 ## 排查口径
 

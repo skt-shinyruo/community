@@ -10,6 +10,9 @@
 | --- | --- | --- |
 | 浏览器重复点击 / 网络重试 | HTTP `Idempotency-Key` | 同一次业务尝试只产生一次副作用 |
 | Search / Notice / Growth / Reward / Hot feed | owner outbox -> Kafka consumer | 主事务成功后通过 retry / `.dlq` 可靠追平 |
+| 内容媒体引用 | desired state + deterministic outbox command + version fencing | OSS bind/release 可重试且旧 command 不覆盖新意图 |
+| 内容删除后的点赞 | owner event + target deletion fence + reconciliation | 异步清理全部关系并发布 like-removed 事件 |
+| OSS 代理上传 | claim version + attempt blob key + recovery | 崩溃后可判断 reset 或 fenced finalize |
 | IM policy 内部投影 | owner Kafka -> `projection.im.policy` outbox | 消费端确定性去重后可靠发布到 IM Kafka |
 | worker 崩溃 | outbox lease recovery | 回收卡住的 `PROCESSING` |
 | handler 暂时失败 | retry + backoff | 自动重试 |
@@ -340,6 +343,66 @@ worker 不保证 exactly-once，handler 必须自己保证幂等。
 - 乱序事件是否会破坏最终状态。
 - 进入 `DEAD` 后如何排查和修复。
 
+## Content Media Upload And Reference Recovery
+
+帖子媒体有两条彼此独立的可靠性状态线。
+
+上传状态：
+
+```text
+PREPARED -> COMPLETING -> OBJECT_COMPLETED -> COMPLETED
+                              \
+                               -> FAILED
+```
+
+- `uploadOperationVersion` 在 completion claim 时递增；所有 object-completed、completed、failed 和 reset 更新都带期望版本。
+- OSS complete 在数据库事务外执行，canonical metadata 和最终状态分别在新事务内提交。
+- recovery 扫描 stale `COMPLETING/OBJECT_COMPLETED`：已写 metadata 的补 `COMPLETED`；远端未知则重置供重试；远端不存在标 `FAILED`；远端存在则补 metadata 后完成。
+- Nacos seed：enabled `true`、batch `50`、stale `300s`、delay `60s`。
+
+引用状态：
+
+```text
+UNBOUND -> BIND_PENDING -> BOUND -> RELEASE_PENDING -> RELEASED
+```
+
+- 主事务只写 desired state、递增 `referenceOperationVersion` 并 enqueue `command.content.post-media-reference`。
+- outbox event ID 固定为 `content-media-reference:<assetId>:<operationVersion>:<operation>`。
+- handler 在事务外调用 OSS bind/release，再以相同 version 在新事务内标记完成；command version 已落后时直接 no-op。
+- reconciliation 重发 `BIND_PENDING/RELEASE_PENDING`，并修复 `deleted_post`、`remote_missing`、`remote_active` 三类漂移。
+- Nacos seed：enabled `true`、batch `50`、delay `300s`。
+
+这两条状态线都不承诺 exactly-once remote call；正确性来自幂等 OSS reference ID、确定性 outbox ID、单调 operation version 和周期对账。
+
+## Social Deleted-Content Like Cleanup
+
+内容删除只提交 content 主事实和 contract event。social cleanup 的路径是：
+
+```text
+content.events
+  -> SocialContentDeletionKafkaListener
+  -> LikeApplicationService.cleanupDeletedContentLikes
+  -> LikeTargetState(DELETED, sourceVersion)
+  -> scan/delete likes in pages of 200
+  -> like-removed owner events
+```
+
+- listener 只接受完整的帖子/评论删除事件；缺少 event ID、发生时间、正数 owner version 或实体 ID 时抛错进入 retry / `.dlq`。
+- `LikeTargetState` 只接受更大的 `sourceVersion`，重复和乱序删除事件不会重复推进 fence；deleted target 也会阻止新的点赞写入。
+- 每条实际删除的关系继续发布 like-removed event，使 wallet、growth、notice 和 hot-feed 走正常消费路径。
+- `SocialLikeCleanupReconciliationJob` 扫描仍有点赞的 deleted target 并重跑 owner cleanup。代码默认 disabled，batch `50`、delay `300s`。
+
+## OSS Upload Claim Recovery
+
+OSS upload session 使用 `READY -> UPLOADING -> COMPLETED`。complete 先条件 claim session 并递增 `claimVersion`，本次 blob 写入 key 为 `<base>.claim-<claimVersion>`。
+
+- 旧 complete 尝试只能写自己的 attempt key，不能覆盖新 claim。
+- finalize 同时校验 session ID 和 claim version；失去 claim 后不能激活 object/version。
+- `ObjectUploadRecoveryApplicationService` 先验证 object/version metadata，再 head 当前 attempt key。
+- 没有 blob 时，以原 claim version 重置到 `READY` 并续期；有 blob 时校验 content type、length、checksum 后走同一个 fenced finalize。
+- metadata 不一致或恢复异常只记录当前 claim 的观察信息，不会越过新 claim。
+- Nacos seed：enabled `true`、batch `100`、stale `300s`、delay `60s`。
+
 ## Single-flight
 
 Single-flight 用于集群内保护长任务或高风险任务，例如批量补偿、清理和手工恢复任务。
@@ -477,7 +540,7 @@ Hot-feed 缓存治理入口位于 `/api/ops/hot-cache/**`，由 ops 应用层调
 - 通知投影失败：不回滚已提交的 owner 事务，交给 owner Kafka consumer retry / `.dlq`，不是本地 best-effort listener。
 - 帖子详情缓存读 / 写失败：fail-open 到 content 源数据，响应仍叠加 counter 和 viewer state。
 - 热榜 fallback 读路径的 feed cache warm-up / summary cache backfill 失败：fail-open，返回源数据 fallback 结果和 rank version。
-- analytics 采集失败：应避免影响主业务响应，具体以当前实现为准。
+- analytics 采集失败：filter 只在请求链正常完成后采集，并捕获 classifier、publish 或同步 ingest 异常；失败只节流记录日志，不改变已经完成的 HTTP status/body。
 - 市场钱包 release / refund 失败：优先保留 pending / retryable 状态，不把订单静默完成。
 - 市场钱包 escrow 业务失败：订单进入失败或无退款取消路径，并恢复 market 侧库存 / 预加载库存。
 

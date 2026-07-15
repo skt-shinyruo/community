@@ -24,7 +24,7 @@ Owner domain event
   -> consumer ApplicationService
 ```
 
-不要让 controller、listener、handler、job 直接调用 foreign application、foreign domain、repository、mapper 或 dataobject。
+不要让 controller、listener、handler、bridge、enqueuer、job 直接调用 foreign `api.*`、foreign application、same-domain application helper/port、domain model/service/repository、mapper、dataobject 或 persistence。所有这些入口先进入同域 `*ApplicationService`，再由 application 发起必要的跨域协作。
 
 ## 同步协作什么时候用
 
@@ -35,7 +35,7 @@ Owner domain event
 | 注册验证码通过后创建用户 | auth -> user action API | auth 不拥有用户事实，必须由 user 创建 active 用户。 |
 | 登录校验账号密码 | auth -> user query API | 密码 hash 和用户状态是 user 事实，登录必须立即知道认证结果。 |
 | 发帖前校验作者能否发言 | content -> user query/action API | content 不能自己判断用户处罚事实。 |
-| 点赞前解析内容实体 | social -> content query API | social 不能信任客户端传入的 `entityUserId` 和 `postId`。 |
+| 点赞前解析目标并写关系 | interaction -> user/content query API -> social action API | interaction 解析可信 owner / root post，social 只拥有关系写入和规则。 |
 | growth 自动奖励入账 | growth -> wallet action API | 奖励是否真正入账由 wallet 账本决定。 |
 | market 创建订单后的资金动作 | market -> wallet action/saga | 订单和资金事实分属不同 owner。 |
 
@@ -50,6 +50,8 @@ Owner domain event
 | 帖子创建、更新、删除 | `eventbus.content -> content.events -> search listener` | ES 索引最终一致，可 retry / DLQ，可 reindex。 |
 | 评论、点赞、关注、治理 | owner Kafka -> notice listener | source event 去重后写通知读模型，失败走 retry / DLQ。 |
 | 内容/社交事件推进任务 | owner Kafka -> growth listener | growth 做 source event 去重，避免重复推进任务。 |
+| 发帖、评论和点赞标准奖励 | owner Kafka -> wallet reward listener | wallet 按 source event 派生 delta / requestId 并通过总账去重。 |
+| 内容删除后的点赞清理 | `content.events` -> social deletion listener | social 写删除 fence、分页清理关系，失败由 retry / DLQ / reconciliation 追平。 |
 | 用户处罚或拉黑变化 | owner Kafka -> `projection.im.policy` -> IM Kafka | realtime 本地 policy projection 最终追平。 |
 | IM command 持久化完成 | im-core persisted event -> realtime push | 在线推送不等于消息事实，客户端可补拉 history。 |
 
@@ -66,7 +68,7 @@ PostController
       -> user owner API      # 发言资格
       -> content domain event
           -> eventbus.content -> content.events
-              -> search / notice / growth / reward listener
+              -> search / notice / growth / wallet reward / hot-feed listener
 ```
 
 content 拥有帖子事实；search 和 notice 只是下游读模型。
@@ -74,16 +76,18 @@ content 拥有帖子事实；search 和 notice 只是下游读模型。
 ### 点赞
 
 ```text
-LikeController
-  -> LikeApplicationService
-      -> content owner API   # 解析实体 owner 和 postId
-      -> social repository   # 写点赞关系
-      -> social contract event
-          -> eventbus.social -> social.events
-              -> notice / growth / reward / hot-feed listener
+LikeInteractionController
+  -> LikeInteractionApplicationService
+      -> user/content owner query API  # 解析可信 owner 和 postId
+      -> SocialLikeActionApi
+          -> LikeApplicationService
+              -> social repository     # 写点赞关系
+              -> social contract event
+                  -> eventbus.social -> social.events
+                      -> notice / growth / wallet reward / hot-feed listener
 ```
 
-social 不信任客户端提交的目标用户，而是回源 content 解析。
+interaction 不信任客户端提交的目标用户；social 仍负责拉黑、删除 fence、幂等关系写入和事件。`social.controller.LikeController` 只承担 GET/read 入口。
 
 ### 拉黑影响 IM
 

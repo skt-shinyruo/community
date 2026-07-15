@@ -39,12 +39,12 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 - refresh token、registration token 和 password reset token 明文由 auth application 使用统一的 256-bit `SecureRandom` 生成器生成，并使用 base64url 无填充编码。
 - refresh token store 支持 `redis` / `db`，当前默认 `db`；不提供进程内存实现。
 - DB store 使用 `community.auth_refresh_token`，仅保存 token hash。
-- refresh 支持 recoverable rotation：刷新时先把旧 session 转入 `PENDING_ROTATION`，再回源校验用户仍允许 refresh，成功后 finish rotation 使旧 session 变为 `CONSUMED` tombstone、同 family replacement 变为 `ACTIVE`；临时失败会 rollback，无法安全恢复或用户不存在、账号被禁用、`refreshAllowed=false` 时撤销 family 并清 cookie。当前实现里角色变更、密码重置和活跃账号级封禁会显式撤销 refresh sessions。
+- refresh 支持 recoverable rotation：刷新时先把旧 session 转入 `PENDING_ROTATION`，再回源校验用户仍允许 refresh，成功后 finish rotation 使旧 session 变为 `CONSUMED` tombstone、同 family replacement 变为 `ACTIVE`；临时失败会 rollback，无法安全恢复或用户不存在、账号被禁用、`refreshAllowed=false` 时撤销 family 并清 cookie。session 保存 `securityVersionAtIssue`；与 user 当前版本不一致时 auth 拒绝续期、撤销 family 并清 cookie。
 - token family 支持族撤销，复用旧 token 可触发 family revoke。
 
 `GET /api/auth/me` 直接读取已验证 JWT claim，不实时查库；高风险 admin/ops/wallet admin URI prefix 会额外校验 JWT 中的 `security_version`，版本落后时要求刷新或重新登录。普通前端权限展示可能仍滞后到下一次 access token 重新签发。具体 prefix、401/403 映射和失败语义见 [Token Freshness 与高风险请求安全](core-logic/security-token-freshness.md)。
 
-`security_version` 是 user owner 的认证授权版本。角色、密码、账号状态和活跃账号级封禁变化会递增该版本；其中角色、密码和活跃账号级封禁变更会撤销 refresh sessions，账号状态变化会在 login / refresh 校验中被拒绝。`muteUntil` 只影响发言能力，不影响登录或 refresh。
+`security_version` 是 user owner 的认证授权版本。角色、密码以及新增或延长活跃账号级封禁会递增该版本；user 不反向调用 auth 删除 refresh rows。账号状态和当前活跃封禁会在 login / refresh 校验中被拒绝，安全版本变化还会让旧 refresh family 在下一次续期时失效。`muteUntil` 只影响发言能力，不影响登录或 refresh。
 
 `banUntil` 是账号级暂停，影响 login、refresh 和依赖 moderation guard 的敏感写操作。`muteUntil` 是发言级限制，只影响发帖、评论、回复和 IM / 内容侧发言能力。
 
@@ -59,7 +59,7 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 - token 存储在 `auth:pwdreset:<token>`，带短 TTL，确认时一次性消费；token 明文是 256-bit base64url 随机值；若 token 写入后邮件发送失败，会 best-effort 删除该 token。
 - 确认重置也需要验证码。
 - 新密码由 user owner 的密码策略校验：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符，并拒绝首尾空白字符。
-- 密码更新成功后撤销该用户 refresh sessions，避免旧 cookie 继续刷新 access token。
+- 密码更新成功后递增 user `securityVersion`。旧 cookie 下次续期时因 `securityVersionAtIssue` 不匹配而被 auth 拒绝并撤销 family。
 - 如果密码更新失败，reset token 会按消费时捕获的剩余 TTL 恢复，避免把有效期延长回完整 TTL。
 - prod 下 `AuthStartupValidator` 要求找回密码基础配置可用，禁止 reset link 回传和注册验证码回传类 dev-only 行为；OriginGuard 启用且 fail-closed 时必须配置 allowlist。
 

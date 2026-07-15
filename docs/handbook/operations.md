@@ -493,6 +493,50 @@ XXL-JOB Admin 本地入口：
 http://localhost:12887/xxl-job-admin
 ```
 
+## Database Migration Runbook
+
+三个 owner schema 分别由 `community-db-migrations`、`community-oss-db-migrations`、`community-im-db-migrations` 管理。history table 和固定 classpath location 见 [数据与存储](data-and-storage.md#flyway-migration-deployables)。
+
+### 常规发布
+
+1. 备份目标 schema，并确认本次镜像包含预期 migration 文件和 manifest。
+2. 使用对应专用 DDL 账号运行 `migrate`；不要给 `community-app`、`community-oss` 或 `im-core` runtime 账号追加 DDL 权限。
+3. migration 成功后运行 `validate`，确认 history、checksum、命名和可见 location 一致。
+4. 再启动 runtime。Compose 已用 `service_completed_successfully` 建立依赖；migration 失败或退出非零时，不得移除依赖强行启动。
+5. 观察 owner runtime startup、数据库错误和 Flyway history；后续 schema 变化只通过新的 `VNNN__*.sql` 前向迁移，不修改已发布 migration。
+
+location 必须是随包固定值。检测到 `COMMUNITY_MIGRATION_LOCATIONS`、`OSS_MIGRATION_LOCATIONS` 或 `IM_MIGRATION_LOCATIONS` 时 runner 会拒绝启动；不要用 override 临时注入 SQL。`clean` 永久禁用，常规发布也不运行 `baseline`。
+
+### 既有 V001 Schema 接管
+
+baseline 只适用于“数据库已经精确等于该模块 V001，但没有 Flyway history”的一次性接管：
+
+1. 先做可恢复备份，并停止/冻结该 schema 的业务写入。
+2. 使用与目标 deployable 同版本的 JAR 和专用 DDL 账号。
+3. 设置对应确认变量为固定值：`COMMUNITY_MIGRATION_BASELINE_CONFIRMATION=I_HAVE_VERIFIED_THE_COMMUNITY_SCHEMA`、`OSS_MIGRATION_BASELINE_CONFIRMATION=I_HAVE_VERIFIED_THE_OSS_SCHEMA` 或 `IM_MIGRATION_BASELINE_CONFIRMATION=I_HAVE_VERIFIED_THE_IM_CORE_SCHEMA`。
+4. 执行 `baseline`。`*SchemaVerifier` 会在写 history 前将实际表、列/默认值、索引和约束与随包 V001 manifest 精确比较。
+5. 任意 missing/unexpected/changed 差异都应中止并调查；不要修 manifest、放宽 verifier 或用 baseline 跳过 V002+。
+6. baseline 成功后执行 `migrate` 和 `validate`，最后再放行业务 runtime。
+
+### Development Seed
+
+只有 community runner 接受 `development-seed`。必须同时设置 `COMMUNITY_MIGRATION_PROFILE=development`；它先执行 production migration，再使用独立 history `community_development_seed_history` 运行 `classpath:db/dev-seed/community`。生产环境不得把 `DEPLOYMENT_ENVIRONMENT` 伪装为 development；OSS/IM 不存在 seed action。
+
+### 故障定位
+
+- migration service 不成功：先看对应 one-shot service 日志，再查 JDBC 权限、目标 schema、history checksum 和脚本错误。
+- baseline 报 schema mismatch：按异常中的 `missing`、`unexpected`、`changed` facet 对照 manifest；保持 runtime 停止，不要写 baseline history。
+- runtime 未启动：确认对应 migration service 是否 `service_completed_successfully`，不要只重启 runtime container。
+- 开发卷包含旧的非 Flyway 最终态 schema：不需要数据时使用 documented `down ... -- -v` 重建；需要数据时按正式前向 migration 处理。
+
+契约验证：
+
+```bash
+./deploy/tests/community_migration_contract.sh
+./deploy/tests/oss_migration_contract.sh
+./deploy/tests/im_migration_contract.sh
+```
+
 ## Startup Fail-closed
 
 启动期校验分两层：

@@ -43,8 +43,9 @@ caller ApplicationService
 
 典型例子：
 
-- social 解析内容实体：`content.api.query.ContentEntityQueryApi`。
-- content / social 发放积分或奖励：wallet / growth owner action。
+- interaction 点赞写入编排：先用 `user.api.query.UserLookupQueryApi` 或 `content.api.query.ContentEntityQueryApi` 解析可信目标，再调用 `social.api.action.SocialLikeActionApi`；social 不接受客户端声明的 `entityUserId` / `postId` 作为事实。
+- growth 任务达成奖励：growth application 调 `wallet.api.action.WalletRewardActionApi`；标准发帖、评论和点赞奖励则通过 owner event 异步投影，不在 content / social 主事务中同步入账。
+- profile 主页聚合：`UserProfileQueryApplicationService` 只在 application 层调用 user/social/content/growth owner query，不复制这些 owner 的主事实。
 - market 资金托管、放款、退款：由 market wallet action processor 调用 `wallet.api.action.WalletMarketActionApi`。
 
 Market wallet action API 语义：
@@ -86,7 +87,8 @@ owner domain event
 
 典型消费：
 
-- notice、search、growth、user reward 和 hot feed listener 直接消费 `content.events` / `social.events` 并进入各自 ApplicationService。
+- notice、search、growth、wallet reward、hot feed 和 social deletion cleanup listener 直接消费 `content.events` / `social.events`，再进入各自同域 ApplicationService。
+- `WalletRewardKafkaListener` 把标准内容/点赞奖励事件交给 `WalletRewardProjectionApplicationService`；user 不拥有奖励 projection。
 - IM policy listener 直接消费 `user.events` / `social.events`，再进入唯一保留的内部 projection outbox。
 
 ## Outbox Topic Contract

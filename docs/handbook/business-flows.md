@@ -17,8 +17,8 @@
 
 Owner / SSOT：
 
-- auth 模块负责登录、注册、验证码、找回密码、JWT 签发、登录风控。
-- user/session 组件托管 DB refresh token 状态，表为 `auth_refresh_token`。
+- auth 模块负责登录、注册、验证码、找回密码、JWT 签发、登录风控和 refresh session；DB 表为 `auth_refresh_token`。
+- user owner 负责账号、凭据、角色、处罚和 `securityVersion`，不持久化 auth session。
 - JWT access token 是短期访问凭证；refresh token 是 HttpOnly cookie。
 
 Entry：
@@ -43,7 +43,7 @@ Main path：
 6. 登录先经过登录风控、验证码要求和密码校验。
 7. 密码只接受 BCrypt hash。
 8. 登录成功后签发 access token，并通过 HttpOnly cookie 下发 256-bit base64url refresh token；registration token 和 reset token 也由 auth application 使用同一安全随机生成策略。
-9. refresh 先把旧 session 转入 `PENDING_ROTATION`，回源 user 校验用户仍允许 refresh 后再 finish rotation；临时失败会 rollback，无法安全恢复时撤销 family 并清 cookie。
+9. refresh 先把旧 session 转入 `PENDING_ROTATION`，回源 user 校验用户仍允许 refresh，并比较 `securityVersionAtIssue`；版本不一致撤销 family，版本一致才 finish rotation。临时失败会 rollback，无法安全恢复时撤销 family 并清 cookie。
 10. logout 可从 active session 或 terminal tombstone 识别 family，撤销 refresh family 并清 cookie。
 11. cleanup job 清理过期 refresh session；registration draft 和验证码依赖各自 store TTL 自然过期。
 
@@ -66,13 +66,13 @@ Abandoned registrations expire from the draft/code stores and do not create user
 
 Refresh session DB state：
 
-- `auth_refresh_token` 只保存 refresh token hash、用户、family、过期时间、rotation 状态、pending lease 和 terminal 撤销时间。
-- `RefreshTokenSessionApplicationService.store(...)` 在签发 refresh token 时写入 DB session 状态。
+- `auth_refresh_token` 保存 refresh token hash、用户、family、`security_version_at_issue`、过期时间、rotation 状态、pending lease 和 terminal 撤销时间。
+- `MyBatisRefreshTokenRepository.store(...)` 在签发 refresh token 时写入 auth DB session 状态。
 - `/api/auth/refresh` 通过 `beginRotation(...)` 把当前 active token 转入 `PENDING_ROTATION`；找不到、已过期、已撤销或 family 已撤销都会视为不可刷新。
-- begin 成功后先回源 user owner 校验用户状态；用户不存在或已禁用时撤销该 refresh family，并清浏览器 cookie。
+- begin 成功后先回源 user owner 校验用户状态和当前安全版本；用户不存在、已禁用或版本不匹配时撤销该 refresh family，并清浏览器 cookie。
 - 刷新成功会 `finishRotation(...)`：旧 token 变成 `CONSUMED` tombstone，新 token 成为同 family 的 active session；不会在用户状态校验前提前持久化新 token。
 - begin 后出现临时失败时会 `rollbackPendingRotation(...)`；rollback 不安全时 fail-closed 撤销 family 并清 cookie。
-- `revoke(...)` 用于单 token 撤销；`revokeFamily(...)` 用于 family reuse 或整族撤销；`revokeByUserId(...)` 用于密码重置后撤销该用户会话。
+- `revoke(...)` 用于单 token 撤销；`revokeFamily(...)` 用于 logout、family reuse、安全版本失配或整族撤销。
 - `deleteExpiredBefore(...)` 由 cleanup job 调用，只清理已过期 refresh session，不影响已经签出的 access token。
 
 Password reset：
@@ -83,7 +83,7 @@ Password reset：
 4. 256-bit base64url token 存储在 `auth:pwdreset:<token>`，通过邮件下发链接，HTTP 响应体不返回 reset link；若 token 已写入但邮件发送失败，会 best-effort 删除该 token。
 5. 确认重置时再次校验验证码、token 和密码策略。
 6. 密码策略由 user owner 校验：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符，并拒绝首尾空白字符，避免静默修改用户输入。
-7. 密码更新成功后撤销该用户 refresh sessions；若密码更新失败，会按消费时捕获的剩余 TTL 恢复 reset token，允许用户在原有效期内重试。
+7. 密码更新成功后递增 user `securityVersion`；旧 refresh family 在下一次续期时失效。若密码更新失败，会按消费时捕获的剩余 TTL 恢复 reset token，允许用户在原有效期内重试。
 
 Security：
 
@@ -100,7 +100,7 @@ Key code：
 - `auth.application.CaptchaApplicationService`
 - `auth.application.PasswordResetApplicationService`
 - `auth.application.RefreshTokenApplicationService`
-- `user.application.RefreshTokenSessionApplicationService`
+- `auth.infrastructure.persistence.MyBatisRefreshTokenRepository`
 - `auth.infrastructure.web.AuthOriginGuardFilter`
 - `auth.config.AuthStartupValidator`
 - `auth.security.AuthSecurityRules`
@@ -147,7 +147,7 @@ Key code：
 Owner / SSOT：
 
 - user 域拥有用户基础资料、头像业务和用户摘要；头像对象与公共下载事实由 OSS owner 承担。
-- 资料聚合会回源内容域读取最近帖子 / 评论等只读视图。
+- profile 域拥有主页聚合用例，通过 user/social/content/growth owner query 组装，不复制这些主事实。
 
 Entry：
 
@@ -158,8 +158,8 @@ Entry：
 
 Main path：
 
-1. 用户资料聚合读取用户基础资料。
-2. 最近帖子和最近评论来自 content owner 查询。
+1. `UserProfileController` 进入 `UserProfileQueryApplicationService`。
+2. profile 回源 user 基础资料、social 计数/关注状态、content 最近帖子/评论和 growth 等级。
 3. 批量用户摘要用于内容、通知、社交等展示。
 4. 当前聚合字段和行为由测试锁定。
 5. 头像上传三段式：
@@ -180,6 +180,8 @@ Failure / security：
 Key code：
 
 - `user.controller.UserController`
+- `profile.controller.UserProfileController`
+- `profile.application.UserProfileQueryApplicationService`
 - `user.application.*ApplicationService`
 - `user.domain.*`
 - `user.infrastructure.*`
@@ -291,7 +293,7 @@ Main path: create post：
 6. tag 绑定；新 tag 通过 `ensureTagId(...)` 幂等创建。
 7. 发布 content domain event。
 8. domain event bridge 映射为 content contract event，并写入 outbox。
-9. content contract event 进入 Kafka 后，search、notice、user reward 和 growth task 等下游异步追平。
+9. content contract event 进入 Kafka 后，search、notice、wallet reward 和 growth task 等下游异步追平。
 10. `PostHotFeedProjectionKafkaListener` 消费 owner event，由 application 回源当前事实重算 score 和 hot feed。
 
 Main path: create comment：
@@ -304,7 +306,7 @@ Main path: create comment：
 6. 写 `comment` 并增加帖子 `comment_count`。
 7. 发布评论事件。
 8. content contract event 与评论主事实在同一事务写入 `eventbus.content`。
-9. owner outbox handler 发布 `content.events`；user reward、growth、notice、search 和 hot feed 各自的 Kafka listener 进入本域 ApplicationService。
+9. owner outbox handler 发布 `content.events`；wallet reward、growth、notice、search 和 hot feed 各自的 Kafka listener 进入本域 ApplicationService。
 
 Main path: update / delete comment：
 
@@ -316,7 +318,14 @@ Main path: update / delete comment：
 - 删除评论会软删除该评论及其 active descendant replies。
 - 帖子 `comment_count` 按本次从 visible 变为 deleted 的评论数递减。
 - 删除后发布每条被删评论的删除事件，由 `content.events` hot-feed consumer 重算帖子热度。
-- 删除后通过 social owner action 清理被删评论上的 like 关系。
+- 删除 event 由 `SocialContentDeletionKafkaListener` 消费，并在 social 内分页清理被删评论上的 like 关系。
+
+Media reliability：
+
+- upload 使用 `PREPARED -> COMPLETING -> OBJECT_COMPLETED -> COMPLETED` 与 `uploadOperationVersion`；recovery 修复 stale 状态。
+- reference 使用 `UNBOUND -> BIND_PENDING -> BOUND -> RELEASE_PENDING -> RELEASED` 与 `referenceOperationVersion`。
+- 发帖/改帖/删帖事务只写引用 desired state 和 `command.content.post-media-reference`；handler 在事务外调用 OSS，再在新事务内完成状态。
+- reference reconciliation 重发 pending command，并修复 deleted post、remote missing、remote active 漂移。
 
 Bookmarks / subscription：
 
@@ -330,7 +339,7 @@ Failure / idempotency：
 - 发帖和评论都在 `operation + userId + key` 幂等域内校验请求指纹；同 key 不同参数返回 replay conflict。
 - 搜索和通知通过 `content.events` 的 consumer retry / `.dlq` 最终追平，不回滚已经提交的 content 主事实。
 - 删除 / 下线帖子后，`SearchPostProjectionKafkaListener` 进入 application 回源 DB 当前状态并异步删除索引文档。
-- 评论删除后的 like 清理在事务提交后触发；清理失败不回滚已提交的评论删除。
+- 评论删除后的 like 清理由 Kafka retry / `.dlq` 和 social reconciliation 追平；不回滚已提交的评论删除。
 
 Key code：
 
@@ -348,7 +357,7 @@ Key code：
 
 Owner / SSOT：
 
-- social 域 owns 点赞、关注、拉黑关系。
+- interaction 拥有点赞写入的跨 owner 目标解析用例；social 域 owns 点赞、关注、拉黑关系。
 - content owns 被点赞/关注事件中的内容实体信息。
 - notice / growth / wallet 是下游或协作方。
 
@@ -360,16 +369,14 @@ Entry：
 
 Main path: like：
 
-1. controller 进入 `LikeApplicationService`。
-2. application 解析当前 actor。
-3. `ContentEntityResolver` 通过 `content.api.query.ContentEntityQueryApi` 回源解析内容实体。
-4. 服务端解析 `entityUserId`、`postId` 等事件字段，不信任客户端声明。
-5. repository 写点赞关系。
-6. storage adapter 若声明需要补偿，application 注册事务回滚补偿。
-7. 发布 social domain event。
-8. `OutboxSocialDomainEventPublisher` 映射为 `SocialContractEvent` 并写入 `eventbus.social`。
-9. social contract event 进入 Kafka。
-10. notice、growth、user reward 和 content score projection 等下游异步追平。
+1. `LikeInteractionController` 进入 `LikeInteractionApplicationService`。
+2. interaction 解析 actor，并通过 user/content owner query 得到可信 `entityUserId`、`postId`。
+3. interaction 调 `SocialLikeActionApi` 进入 `LikeApplicationService`。
+4. social 校验 resolved target、拉黑关系和 `LikeTargetState` 删除 fence，再写点赞关系。
+5. 发布 social domain event。
+6. `OutboxSocialDomainEventPublisher` 映射为 `SocialContractEvent` 并写入 `eventbus.social`。
+7. social contract event 进入 Kafka。
+8. notice、growth、wallet reward 和 content hot-feed projection 等下游异步追平。
 
 Main path: follow：
 
@@ -387,12 +394,14 @@ Consistency：
 - 点赞 / 关注主业务写入在当前事务域内。
 - 奖励 / 任务进度通过 social contract event、outbox 和 Kafka listener 异步追平。
 - notice 通过 social contract event 和 Kafka durable projection 异步追平。
+- 内容删除经 `SocialContentDeletionKafkaListener` 写 `LikeTargetState(DELETED, sourceVersion)`，每页清理 `200` 条关系；reconciliation 扫描仍有点赞的 deleted target。
 
 Key code：
 
+- `interaction.application.LikeInteractionApplicationService`
 - `social.application.LikeApplicationService`
+- `social.application.LikeCleanupReconciliationApplicationService`
 - `social.application.FollowApplicationService`
-- `social.application.ContentEntityResolver`
 - `social.domain.*`
 - `social.infrastructure.*`
 - `social.contracts.event.*`
@@ -684,8 +693,9 @@ Ingest path：
 1. `AnalyticsRequestCaptureFilter` 在请求链路完成后执行采集判断。
 2. `AnalyticsRequestClassifier` 根据开关、method、path、status、include / exclude path 决定是否采集。
 3. filter 从 `ClientIpResolver` 解析 IP，从当前 `Authentication` 解析用户 UUID。
-4. `AnalyticsIngestApplicationService.recordRequest(...)` 按配置分别记录 UV / DAU。
-5. 登录成功可通过 `AnalyticsIngestActionApi.recordLoginSuccess(...)` 记录 DAU，但同样受 analytics ingest 开关和 `recordDau` 约束。
+4. filter 进入 `AnalyticsRequestCaptureApplicationService`；async 开启且 publisher 存在时发布 `analytics.request`，否则同步调用 ingest。
+5. `AnalyticsRequestKafkaListener` 把异步事件转换回 `RecordRequestCommand`，进入 `AnalyticsIngestApplicationService.recordRequest(...)` 记录 UV / DAU。
+6. 登录成功可通过 `AnalyticsIngestActionApi.recordLoginSuccess(...)` 记录 DAU，但同样受 analytics ingest 开关和 `recordDau` 约束。
 
 UV：
 
@@ -710,6 +720,8 @@ Key code：
 
 - `analytics.application.AnalyticsApplicationService`
 - `analytics.application.AnalyticsIngestApplicationService`
+- `analytics.application.AnalyticsRequestCaptureApplicationService`
+- `analytics.infrastructure.event.AnalyticsRequestKafkaListener`
 - `analytics.domain.service.AnalyticsDomainService`
 - `analytics.domain.service.AnalyticsIngestDomainService`
 - `analytics.infrastructure.web.AnalyticsRequestCaptureFilter`
@@ -747,7 +759,7 @@ Task progress path：
 Reward / wallet：
 
 - 奖励通过钱包侧 requestId 去重和总账规则承担幂等。
-- user reward bridge 先把内容/社交奖励语义翻译成统一命令，再进入 wallet owner。
+- growth 达成任务时通过 `WalletRewardActionApi` 发显式任务奖励；标准内容/点赞奖励由 wallet projection 直接消费 owner event，不经过 user 或 growth。
 
 Level：
 
@@ -966,7 +978,8 @@ Ledger idempotency：
 Market / reward integration：
 
 - market 托管、放款、退款由 market wallet action processor 调用 wallet market action API。
-- growth / reward 奖励写入 wallet，由钱包 requestId 去重。
+- growth 任务奖励通过 wallet action 写入；标准内容/点赞奖励走 `WalletRewardKafkaListener -> WalletRewardProjectionApplicationService -> WalletRewardApplicationService`。
+- 标准 delta 为发帖 `+10`、评论 `+2`、点赞创建 `+1`、点赞移除 `-1`；自点赞不产生奖励，requestId 为 `wallet-reward:<sourceId>`。
 - 冻结钱包不能发起用户主动转账、提现或市场购买。
 - 冻结钱包仍可接收系统必须完成的入账或补偿动作，例如退款、放款、奖励和管理员调整。
 
@@ -996,6 +1009,8 @@ Key code：
 - `wallet.application.WalletLedgerApplicationService`
 - `wallet.application.WalletAccountApplicationService`
 - `wallet.application.WalletAdminOpsApplicationService`
+- `wallet.application.WalletRewardProjectionApplicationService`
+- `wallet.infrastructure.event.WalletRewardKafkaListener`
 - `wallet.domain.service.WalletLedgerDomainService`
 - `wallet.domain.service.WalletAccountDomainService`
 - `wallet.domain.service.WalletOrderDomainService`
@@ -1027,6 +1042,10 @@ Task details：
 - `RefreshTokenCleanupJob` 是本地 `@Scheduled` 清理，受 `auth.refresh.cleanup.interval-ms` 和 `auth.refresh.cleanup.enabled` 控制，调用 refresh token application 删除过期 session。
 - `HotPathPrewarmJob` 是本地 `@Scheduled`，受 `content.hot-path.prewarm.enabled` 和 `content.hot-path.prewarm.delay-ms` 控制，进入 `HotPathPrewarmApplicationService`。
 - `PostCounterSnapshotFlushJob` 受 `content.counter.flush.enabled`、`content.counter.flush.delay-ms` 和 flush batch size 控制，进入 `PostCounterApplicationService`。
+- `PostMediaUploadRecoveryJob` 进入 `PostMediaUploadRecoveryApplicationService`，Nacos seed 默认 batch `50`、stale `300s`、delay `60s`。
+- `PostMediaReferenceReconciliationJob` 进入 `PostMediaReferenceReconciliationApplicationService`，Nacos seed 默认 batch `50`、delay `300s`。
+- `SocialLikeCleanupReconciliationJob` 进入 `LikeCleanupReconciliationApplicationService`，默认关闭、batch `50`、delay `300s`。
+- `ObjectUploadRecoveryJob` 进入 OSS `ObjectUploadRecoveryApplicationService`，Nacos seed 默认 batch `100`、stale `300s`、delay `60s`。
 - `MarketOrderAutoConfirmHandler` 是 XXL `marketOrderAutoConfirm`，进入 market owner 自动确认 due orders，只写 release command。
 - `MarketWalletActionProcessorHandler` 是 XXL `marketWalletActionProcessor`，每轮处理数量受 `market.wallet-action.process-batch-size` 控制。
 - `MarketWalletActionRecoveryHandler` 是 XXL `marketWalletActionRecovery`，每轮 reconcile 数量受 `market.wallet-action.recovery-batch-size` 控制；同时恢复过期 lease、补齐命令和应用已有 wallet 结果。
@@ -1069,6 +1088,10 @@ Key code：
 - `auth.infrastructure.job.RefreshTokenCleanupJob`
 - `content.infrastructure.job.HotPathPrewarmJob`
 - `content.infrastructure.job.PostCounterSnapshotFlushJob`
+- `content.infrastructure.job.PostMediaUploadRecoveryJob`
+- `content.infrastructure.job.PostMediaReferenceReconciliationJob`
+- `social.infrastructure.job.SocialLikeCleanupReconciliationJob`
+- `oss.infrastructure.job.ObjectUploadRecoveryJob`
 - `market.infrastructure.job.MarketOrderAutoConfirmHandler`
 - `market.infrastructure.job.MarketWalletActionProcessorHandler`
 - `market.infrastructure.job.MarketWalletActionRecoveryHandler`

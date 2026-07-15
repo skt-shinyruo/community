@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | 后端单元 / slice / 集成测试 | 验证 domain、application、adapter、controller、infra 行为。 | `backend/**/src/test/java/**/*.java` |
 | 架构守卫 | 防止 DDD 分层、事务边界、DTO / domain / infra 依赖退化。 | `backend/community-app/src/test/java/com/nowcoder/community/app/arch` |
+| 数据库迁移契约 / 集成测试 | 验证三个 Flyway deployable、V001 manifest、升级、权限与 Compose 启动依赖。 | `backend/community-*-db-migrations/src/test/**`、`deploy/tests/*_migration_contract.sh` |
 | 前端单元 / 组件测试 | 验证路由、session、HTTP interceptor、状态纯函数、Vue 组件交互。 | `frontend/src/**/*.test.js` |
 | 压测套件结构测试 | 验证 k6 profile、运行器、共享库、场景和文档入口。 | `tests/k6/tests/*.test.mjs` |
 | 工具测试 | 验证本地工具的 env、API contract、job、planner、batch delete。 | `tools/**/test/*.mjs` |
@@ -21,6 +22,7 @@
 | 只改 handbook / README | `git diff --check -- docs README.md frontend/README.md backend/README.md deploy/README.md tools` | 视内容引用的命令，抽样运行相关测试。 |
 | 后端业务逻辑 | 定向 `mvn test -pl <module> -Dtest=<TestName>` | `cd backend && mvn test` |
 | 后端架构规则 / 包结构 | 对应 ArchUnit 测试 | `cd backend && mvn test -pl :community-app -Dtest='*ArchTest'` 和全量后端测试 |
+| Flyway migration / schema / Compose 依赖 | 对应 migration 模块测试 | 三个 `deploy/tests/*_migration_contract.sh`，可用 Docker 时再跑模块 Testcontainers 集成测试 |
 | 幂等 / outbox / scheduler / saga | 定向可靠性测试 | `cd backend && mvn test`，必要时本地 compose 演练 |
 | 前端路由 / session / HTTP / store / 页面状态 | 定向 Vitest 文件 | `cd frontend && npm test` |
 | 前端构建相关 | `cd frontend && npm run build` | `cd frontend && npm test && npm run build` |
@@ -89,7 +91,13 @@ mvn test -pl :community-app -Dtest='*ArchTest'
 | HTTP 幂等 | `common-idempotency/src/test/java/.../IdempotencyGuardFingerprintTest.java`、`IdempotencyGuardStoreFailureTest.java`、`backend/community-app/src/test/java/.../IdempotencyGuardSerializationFailureTest.java` |
 | Outbox | `backend/community-app/src/test/java/com/nowcoder/community/infra/outbox/OutboxWorkerRetryTest.java`、`JdbcOutboxEventStoreTest.java`、`OutboxWorkerSchedulerTest.java` |
 | Search projection | `SearchPostProjectionApplicationServiceTest.java`、`SearchPostProjectionKafkaListenerTest.java` |
-| Canonical owner consumers | `TaskProgressEventBackboneKafkaListenerTest.java`、`UserRewardKafkaListenerTest.java`、`NoticeProjectionKafkaListenerTest.java`、`PostHotFeedProjectionKafkaListenerTest.java` |
+| Canonical owner consumers | `TaskProgressEventBackboneKafkaListenerTest.java`、`WalletRewardKafkaListenerTest.java`、`NoticeProjectionKafkaListenerTest.java`、`PostHotFeedProjectionKafkaListenerTest.java` |
+| Analytics capture | `AnalyticsRequestCaptureFilterTest.java`、`AnalyticsRequestKafkaListenerTest.java` |
+| Content media recovery | `PostMediaUploadReliabilityContractTest.java`、`PostMediaUploadTransactionBoundaryTest.java`、`PostMediaReferenceApplicationServiceTest.java`、`PostMediaReferenceReconciliationApplicationServiceTest.java` |
+| Social deletion cleanup | `SocialContentDeletionKafkaListenerTest.java`、`LikeCleanupReconciliationApplicationServiceTest.java` |
+| OSS upload claim recovery | `community-oss/src/test/java/.../ObjectUploadReliabilityContractTest.java` |
+| Feed/cache/counter | `FeedReadApplicationServiceTest.java`、`CacheTtlPolicyTest.java`、`HotPathPrewarmApplicationServiceTest.java`、`PostCounterApplicationServiceTest.java` |
+| Projection governance | `ProjectionOpsControllerTest.java`、`OutboxProjectionLagAdapterTest.java` |
 | IM policy projection | `ImPolicyProjectionApplicationServiceTest.java`、`JdbcImPolicyProjectionOutboxAdapterTest.java` |
 | Market wallet saga | `MarketWalletAction*Test.java`、`MarketOrderAutoConfirmHandlerTest.java` |
 | IM command / event | `community-im/im-core/src/test/java/...`、`community-im/im-realtime/src/test/java/...` |
@@ -102,6 +110,27 @@ mvn test -pl :community-app -Dtest='*ArchTest'
 3. 并发 / processing 状态。
 4. 下游失败后的重试或补偿。
 5. 坏 payload / 不支持版本进入明确失败路径。
+
+## 数据库迁移验证
+
+只读渲染并验证三个 migration service、DDL/DML 账号和 runtime 等待关系：
+
+```bash
+./deploy/tests/community_migration_contract.sh
+./deploy/tests/oss_migration_contract.sh
+./deploy/tests/im_migration_contract.sh
+```
+
+模块测试从 `backend/` 执行；其中集成测试需要可用的 Docker/Testcontainers：
+
+```bash
+cd backend
+mvn test -pl :community-db-migrations
+mvn test -pl :community-oss-db-migrations
+mvn test -pl :community-im-db-migrations
+```
+
+这些测试应覆盖空库 migrate、V001 baseline 精确校验、后续版本升级、固定 location、默认或受约束的 history table，以及禁止危险 override。运行 `baseline` 命令会改数据库，不属于 handbook-only 变更的验证动作。
 
 ## 前端测试
 

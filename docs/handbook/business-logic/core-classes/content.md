@@ -17,6 +17,10 @@
 | --- | --- | --- |
 | `content.application.PostPublishingApplicationService` | 发帖、改帖、删帖主路径。 | 看 idempotency、user 回源、正文 block 和事件发布顺序。 |
 | `content.application.PostMediaApplicationService` | 帖子媒体 upload session、complete 和 asset draft 状态。 | 看 draft asset 如何在发帖时被绑定。 |
+| `content.application.PostMediaUploadRecoveryApplicationService` | 恢复 stale `COMPLETING/OBJECT_COMPLETED` 上传。 | 看 `uploadOperationVersion` 如何隔离迟到完成和恢复。 |
+| `content.application.PostMediaReferenceApplicationService` | 在事务外执行 OSS bind/release，并在新事务内完成状态。 | 看 `referenceOperationVersion` 如何丢弃旧 command。 |
+| `content.application.PostMediaReferenceSchedulingApplicationService` | 删帖事务内把媒体引用推进到 release pending 并 enqueue。 | 看 desired state 与 outbox 如何同事务提交。 |
+| `content.application.PostMediaReferenceReconciliationApplicationService` | 重发 pending command 并修复本地/远端引用漂移。 | 看 `deleted_post`、`remote_missing`、`remote_active` 三类修复。 |
 | `content.application.CommentApplicationService` | 评论创建、编辑、删除和事件。 | 看 target 解析、用户发言资格和点赞/通知联动。 |
 | `content.application.PostModerationApplicationService` | 帖子治理下线和状态变更。 | 看治理动作如何改主事实并驱动事件扩散。 |
 | `content.application.ModerationApplicationService` | 举报处理和治理动作编排。 | 看它如何把审核决策落成主事实。 |
@@ -43,6 +47,10 @@
 | `content.application.PostContractEventApplicationService` | post domain event 到 contract event 映射。 |
 | `content.application.CommentContractEventApplicationService` | comment domain event 到 contract event 映射。 |
 | `content.application.PostHotFeedProjectionApplicationService` | 从 owner event 重算帖子 score、缓存和 hot feed。 |
+| `content.application.FeedReadApplicationService` | 全局/版块 hot feed、fallback、opaque cursor 和 degraded-safe 读取。 |
+| `content.application.HotPathPrewarmApplicationService` | 从 owner 当前事实预热 hot feed 与 summary cache。 |
+| `content.application.PostCounterApplicationService` | counter cache 增量、持久 snapshot 合并和 flush。 |
+| `content.application.CacheTtlPolicy` | summary/detail/comment-page/follow-page 的稳定 TTL jitter 规则。 |
 | `content.application.ContentEventPublisher` | content contract event 发布端口。 |
 | `content.application.ModerationNoticePublisher` | moderation result notice 发布端口。 |
 | `content.application.UserModerationGuard` | 发帖 / 评论前同步回源 user 处罚状态。 |
@@ -57,6 +65,7 @@
 | `content.domain.service.CommentDomainService` | 评论目标解析、编辑和删除规则。 |
 | `content.domain.service.ModerationDecisionDomainService` | 内容治理决策规则。 |
 | `content.domain.service.PostModerationDomainService` | 帖子治理状态规则。 |
+| `content.domain.service.PostHotnessDomainService` | 固定 epoch 时间项、加精、评论、点赞和事件信号权重的热度重算。 |
 
 ## 基础设施
 
@@ -72,6 +81,12 @@
 | `content.infrastructure.event.SpringPostDomainEventPublisher` / `SpringCommentDomainEventPublisher` | Spring 领域事件发布。 |
 | `content.infrastructure.event.PostDomainEventBridge` / `CommentDomainEventBridge` | domain event 到 contract event 的桥接。 |
 | `content.infrastructure.event.PostHotFeedProjectionKafkaListener` | 从 `content.events` / `social.events` 进入 hot-feed application。 |
+| `content.infrastructure.event.OutboxPostMediaReferenceCommandPublisher` | 以确定性 event ID 写 `command.content.post-media-reference`。 |
+| `content.infrastructure.event.PostMediaReferenceOutboxHandler` | outbox command 进入同域 reference application。 |
+| `content.infrastructure.job.PostMediaUploadRecoveryJob` | stale media upload recovery 调度入口。 |
+| `content.infrastructure.job.PostMediaReferenceReconciliationJob` | media reference 对账调度入口。 |
+| `content.infrastructure.job.HotPathPrewarmJob` | hot-path 周期预热入口。 |
+| `content.infrastructure.job.PostCounterSnapshotFlushJob` | counter snapshot 周期落库入口。 |
 | `content.infrastructure.persistence.*` | post、comment、block、media、tag、bookmark、subscription、report、moderation 的持久化实现。 |
 | `content.infrastructure.persistence.RedisPostFeedCache` | 全局/版块 hot feed、rank version 和降级信号。 |
 | `content.infrastructure.persistence.RedisHotFeedProjectionGuard` | hot-feed source event 去重、版本顺序和短锁。 |
@@ -81,4 +96,6 @@
 - content 是主写路径事件源，search / notice / social cleanup 都是下游。
 - 删除和治理是软删除 + 事件扩散，不是物理删主事实。
 - 发帖和评论都是 HTTP 幂等写。
-- 媒体绑定必须先过 OSS draft / complete / reference 约束。
+- 媒体上传和引用各自有状态机与 operation-version fencing；引用 desired state 和 command 同事务提交，远端动作异步追平。
+- hot-feed 投影以 source event ID/version fencing 后回源当前事实；缓存失败不改变 content 主事实。
+- `CacheTtlPolicy` 用 cache key 的稳定 CRC32 偏移分散过期；counter cache 另由 dirty set + snapshot flush 持久化。

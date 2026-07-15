@@ -17,6 +17,7 @@
   - `im-realtime`：WebSocket 接入、在线连接、Kafka command 生产、在线推送。
   - `im-core`：消息持久化、历史查询、未读状态、房间和成员权威状态。
 - `backend/community-common/*`：共享错误协议、trace、JWT、安全、HTTP 幂等、outbox、Web 基础设施。
+- `backend/community-db-migrations`、`community-oss-db-migrations`、`community-im-db-migrations`：三个 owner schema 的一次性 Flyway deployable。
 - `deploy/`：single / cluster 两套本地拓扑和默认启用的 observability overlay。
 
 默认本地浏览器入口：
@@ -50,6 +51,8 @@ Browser / Client
 
 - `auth`
 - `user`
+- `profile`
+- `interaction`
 - `content`
 - `social`
 - `notice`
@@ -77,7 +80,7 @@ HTTP write
   -> consumer Kafka listener -> consumer ApplicationService
 ```
 
-当前 Content、Social、User 只使用 owner outbox -> owner Kafka 骨干。Search、Notice、Growth、User reward、Hot feed 和 IM policy 都从 owner Kafka listener 进入同域 ApplicationService；只有 IM policy 消费后再写入内部 `projection.im.policy` outbox。
+当前 Content、Social、User 只使用 owner outbox -> owner Kafka 骨干。Search、Notice、Growth、Wallet reward、Hot feed、Social deletion cleanup 和 IM policy 都从 owner Kafka listener 进入同域 ApplicationService；只有 IM policy 消费后再写入内部 `projection.im.policy` outbox。
 
 ### 资金写路径可能先进入 pending
 

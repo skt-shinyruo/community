@@ -7,6 +7,7 @@
 | 领域 | 职责 |
 | --- | --- |
 | social | 点赞、关注、拉黑关系主事实。 |
+| interaction | 点赞写入前的 user/content 目标解析和 social action 编排。 |
 | content | 被点赞或评论的内容实体、作者和帖子归属。 |
 | user | 用户存在性、资料和处罚事实。 |
 | notice | 点赞、评论、关注、治理等事件生成的通知读模型。 |
@@ -17,24 +18,21 @@
 
 ## 点赞流程
 
-1. `LikeController` 进入 `LikeApplicationService`。
-2. application 解析 actor、`entityType` 和 `entityId`。
-3. social 通过 `ContentEntityQueryApi` 回源 content 解析目标实体。
-4. 服务端解析 `entityUserId` 和 `postId`，不信任客户端声明。
-5. social 检查点赞关系当前是否存在。
-6. `liked` 参数为空时执行 toggle；非空时设置到目标状态。
-7. 目标状态和当前状态一致时直接返回当前结果。
-8. 新增点赞前检查 actor 和目标用户之间是否存在拉黑关系。
-9. repository 写入或删除点赞关系。
-10. 如底层 storage adapter 需要显式补偿，application 注册事务回滚补偿。
-11. social 发布 `LikeChangedDomainEvent`。
-12. social 将 domain event 映射为 contract event，并写入 outbox。
-13. social contract event 进入 Kafka 后，notice、growth、user reward 和 content score projection 等下游异步追平。
+1. `LikeInteractionController` 进入 `LikeInteractionApplicationService`。
+2. interaction 校验 actor、`entityType` 和 `entityId`。
+3. USER 目标回源 user；POST/COMMENT 目标通过 `ContentEntityQueryApi` 解析 `entityUserId` 和根 `postId`，不信任客户端声明。
+4. interaction 调 `SocialLikeActionApi` 进入 `LikeApplicationService`。
+5. social 再校验 resolved target，锁定内容目标的 `LikeTargetState`，deleted target 禁止新增点赞。
+6. social 检查当前关系；`liked` 为空时 toggle，目标状态相同则幂等返回。
+7. 新增点赞前检查双方拉黑关系，再写入或删除点赞关系。
+8. social 发布 `LikeChangedDomainEvent`，映射为 contract event 并写 owner outbox。
+9. social contract event 进入 Kafka 后，notice、growth、wallet reward 和 content hot-feed projection 等下游异步追平。
 
 关键语义：
 
 - 自己给自己点赞不会带来奖励收益。
-- 被删除内容的点赞清理由 content 在提交后调用 social owner action。
+- 被删除内容通过 `content.events -> SocialContentDeletionKafkaListener -> LikeApplicationService` 异步清理；每页 `200`，每条删除继续发 like-removed event。
+- `SocialLikeCleanupReconciliationJob` 扫描 deleted target 上的遗留关系；默认关闭，batch `50`、delay `300s`。
 - 取消点赞不一定撤销已经生成的通知，按 notice 投影规则执行。
 
 ## 关注流程

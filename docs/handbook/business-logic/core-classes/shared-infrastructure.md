@@ -18,6 +18,7 @@
 | `common-core.id.BinaryUuidCodec` | UUID 与 16-byte binary 的互转。 |
 | `community-app.infra.persistence.mybatis.UuidBinaryTypeHandler` | community schema 的 UUID binary 适配。 |
 | `community-oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | community_oss schema 的 UUID binary 适配。 |
+| `im.core.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | im_core schema 的 UUID binary 适配。 |
 
 ## 幂等、outbox 和事件
 

@@ -6,7 +6,7 @@
 
 - wallet owns `wallet_account`、`wallet_txn`、`wallet_entry`、充值订单、提现订单、转账订单和管理员钱包动作。
 - market owns 市场订单和资金动作请求状态，但不 owns 钱包余额。
-- growth/user owns 奖励来源语义，但不 owns 余额事实。
+- content/social owns 奖励来源事件事实，growth owns 任务奖励触发；wallet owns 标准内容/点赞奖励投影规则和最终入账事实。
 
 ## 入口
 
@@ -23,7 +23,8 @@ HTTP：
 owner API：
 
 - `WalletMarketActionApi`：market escrow/release/refund。
-- `WalletRewardActionApi`：growth/user reward issue/revoke。
+- `WalletRewardActionApi`：growth 等外域提交显式奖励 issue/revoke。
+- `WalletRewardKafkaListener`：从 `content.events` / `social.events` 接收标准内容和点赞奖励信号。
 - `WalletAccountQueryApi`：账户和余额查询。
 
 ## 数据流
@@ -33,7 +34,7 @@ owner API：
 1. 充值 / 提现 / 转账：HTTP 写入口先做 `Idempotency-Key` 归一化，再进入对应的 application service。每个业务先按 `userId + requestId` 查找或创建订单，订单领域模型负责重放校验和自身状态流转意图，再调用 `WalletLedgerApplicationService.post(...)` 写双分录总账，最后通过仓储条件更新订单状态。
 2. 余额事实：`wallet_account` 不是随意读写的缓存，而是由总账分录和条件更新共同维护。所有借贷动作都要先锁定账户，再按 transaction 指纹保证幂等。
 3. 市场协作：market 只通过 `WalletMarketActionApi` 提交 escrow / release / refund，不直接写余额。钱包返回 `wallet_txn_id` 后，market 再推进自己的 saga 状态。
-4. 奖励协作：growth 或 user reward 发放奖励时只传稳定 requestId，钱包以 requestId 作为总账幂等键，重复发放或撤销不会重复记账。
+4. 奖励协作：growth 的任务奖励通过 `WalletRewardActionApi` 提交稳定 requestId；标准内容/点赞奖励由 wallet 自己的 Kafka listener 和 projection application 从 owner event 映射。两条路径最终都以 wallet requestId 作为总账幂等键。
 5. 管理动作：冻结、冲正和管理员调整都写新的总账交易和审计记录，不直接修改旧交易或旧分录。
 
 ## 账户模型
@@ -145,7 +146,30 @@ market 侧传入 requestId、orderId、buyer、seller 和 amount。wallet 侧用
 - `revoke(...)`：撤销奖励。
 - `applyDelta(...)`：按正负 delta 写奖励/撤销总账。
 
-奖励 requestId 由上游业务语义生成，例如 growth 的 task reward grant id。钱包只保证同 requestId 不重复记账。
+显式奖励 requestId 由上游业务语义生成，例如 growth 的 task reward grant id。钱包只保证同 requestId 不重复记账。
+
+标准社区行为奖励走 wallet 自己的异步投影：
+
+```text
+content.events / social.events
+  -> WalletRewardKafkaListener
+  -> WalletRewardProjectionApplicationService
+  -> WalletRewardApplicationService
+  -> WalletLedgerApplicationService
+```
+
+当前映射规则：
+
+| owner event | 收益用户 | delta | sourceId |
+| --- | --- | ---: | --- |
+| `POST_PUBLISHED` | 发帖人 | `+10` | `post-published:<postId>` |
+| `COMMENT_CREATED` | 评论人 | `+2` | `comment-created:<commentId>` |
+| `LIKE_CREATED` | 被点赞实体 owner | `+1` | `<relationKey>:created` |
+| `LIKE_REMOVED` | 被点赞实体 owner | `-1` | `<relationKey>:removed` |
+
+点赞 actor 与实体 owner 相同时返回 no-op，不产生奖励或撤销。有效命令的总账 requestId 固定为 `wallet-reward:<sourceId>`；重复 Kafka 投递因此不会重复入账。已识别事件缺少 event ID、正数 owner version、发生时间或必需 payload 时 listener 抛错，进入 Kafka retry / `.dlq`；非目标事件直接忽略。
+
+Kafka consumer 的配置键仍沿用 `user.reward.kafka.consumer.*` 以保持部署兼容，这只是历史配置命名，不表示 user 仍拥有奖励 projection。
 
 ## 管理员操作
 
@@ -181,6 +205,8 @@ market 侧传入 requestId、orderId、buyer、seller 和 amount。wallet 侧用
 - `wallet.application.WalletTransferApplicationService`
 - `wallet.application.WalletMarketApplicationService`
 - `wallet.application.WalletRewardApplicationService`
+- `wallet.application.WalletRewardProjectionApplicationService`
 - `wallet.application.WalletAdminOpsApplicationService`
+- `wallet.infrastructure.event.WalletRewardKafkaListener`
 - `wallet.domain.service.*`
 - `wallet.infrastructure.api.*`

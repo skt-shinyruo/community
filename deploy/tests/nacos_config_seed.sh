@@ -89,7 +89,14 @@ for application_yml in "${kafka_producer_ymls[@]}"; do
   grep -F 'community.kafka-policy.producer.max-block-ms' "${application_yml}"
 done
 
-grep -F 'trusted-proxy:' "${CONFIG_DIR}/community-shared.yaml"
+if grep -F 'trusted-proxy:' "${CONFIG_DIR}/community-shared.yaml"; then
+  echo "trusted proxy CIDRs must be owned by each service config, not community-shared" >&2
+  exit 1
+fi
+grep -F 'enabled: ${GATEWAY_TRUSTED_PROXY_ENABLED:false}' "${CONFIG_DIR}/community-gateway.yaml"
+grep -F 'cidrs: ${GATEWAY_TRUSTED_PROXY_CIDRS:}' "${CONFIG_DIR}/community-gateway.yaml"
+grep -F 'enabled: ${COMMUNITY_APP_TRUSTED_PROXY_ENABLED:false}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'cidrs: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:}' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'username: prometheus' "${CONFIG_DIR}/community-shared.yaml"
 grep -F 'initialize: true' "${CONFIG_DIR}/community-app.yaml"
 grep -F -- '- /api/ops/**' "${CONFIG_DIR}/community-app.yaml"

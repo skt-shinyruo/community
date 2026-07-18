@@ -1,6 +1,8 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.content.application.command.RecordPostViewCommand;
 import com.nowcoder.community.content.application.result.CommentCreateResult;
 import com.nowcoder.community.content.application.result.CommentPageResult;
 import com.nowcoder.community.content.application.result.CommentResult;
@@ -28,6 +30,7 @@ import com.nowcoder.community.content.application.result.PostContentBlockResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -45,6 +48,7 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -69,6 +73,9 @@ class PostControllerUnitTest {
     @Mock
     private PostCounterApplicationService postCounterApplicationService;
 
+    @Mock
+    private ClientIpResolver clientIpResolver;
+
     private PostController controller;
 
     @BeforeEach
@@ -79,7 +86,8 @@ class PostControllerUnitTest {
                 postPublishingApplicationService,
                 postModerationApplicationService,
                 commentApplicationService,
-                postCounterApplicationService
+                postCounterApplicationService,
+                clientIpResolver
         );
     }
 
@@ -147,24 +155,8 @@ class PostControllerUnitTest {
         UUID categoryId = uuid(3);
         Authentication authentication = authentication(actorUserId);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/" + postId);
-        PostDetailResult detailView = new PostDetailResult(
-                postId,
-                actorUserId,
-                "detail",
-                List.of(new PostContentBlockResult(uuid(31), 0, "paragraph", "body", null, "", "", "", null, null)),
-                0,
-                0,
-                new Date(),
-                null,
-                0,
-                1,
-                10.0,
-                categoryId,
-                List.of("java"),
-                3L,
-                false,
-                false
-        );
+        request.addHeader("X-Forwarded-For", "198.51.100.1");
+        PostDetailResult detailView = postDetailView(postId, actorUserId, categoryId, "detail");
         CommentResult commentView = new CommentResult(
                 commentId,
                 actorUserId,
@@ -204,13 +196,69 @@ class PostControllerUnitTest {
             assertThat(response.getContent()).isEqualTo("comment");
         });
         verify(postReadApplicationService).getPostDetail(actorUserId, postId);
-        verify(postCounterApplicationService).recordView(argThat(command ->
-                command != null
-                        && postId.equals(command.postId())
-                        && command.viewerKey().startsWith("auth:")
-        ));
+        ArgumentCaptor<RecordPostViewCommand> viewCommandCaptor = ArgumentCaptor.forClass(RecordPostViewCommand.class);
+        verify(postCounterApplicationService).recordView(viewCommandCaptor.capture());
+        assertThat(viewCommandCaptor.getValue().postId()).isEqualTo(postId);
+        assertThat(viewCommandCaptor.getValue().viewerKey())
+                .isEqualTo("auth:" + actorUserId)
+                .doesNotContain("198.51.100.1");
+        verify(clientIpResolver, never()).resolve(request);
         verify(commentReadApplicationService).listRootComments(postId, "", 10);
         verify(commentReadApplicationService).listReplies(postId, commentId, "", 10);
+    }
+
+    @Test
+    void anonymousDetailShouldUseResolvedClientIpInsteadOfSpoofedForwardedHeader() {
+        UUID postId = uuid(11);
+        UUID authorUserId = uuid(7);
+        UUID categoryId = uuid(3);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/" + postId);
+        request.addHeader("X-Forwarded-For", "192.0.2.66");
+        request.addHeader("User-Agent", "test-agent");
+        when(clientIpResolver.resolve(request)).thenReturn(new ClientIpResolver.ResolvedClientIp(
+                "198.51.100.1",
+                ClientIpResolver.SOURCE_XFF
+        ));
+        when(postReadApplicationService.getPostDetail(null, postId))
+                .thenReturn(postDetailView(postId, authorUserId, categoryId, "detail"));
+
+        controller.detail(null, request, postId);
+
+        ArgumentCaptor<RecordPostViewCommand> commandCaptor = ArgumentCaptor.forClass(RecordPostViewCommand.class);
+        verify(postCounterApplicationService).recordView(commandCaptor.capture());
+        assertThat(commandCaptor.getValue().postId()).isEqualTo(postId);
+        assertThat(commandCaptor.getValue().viewerKey())
+                .contains("198.51.100.1")
+                .doesNotContain("192.0.2.66");
+    }
+
+    @Test
+    void anonymousDetailShouldUseUnknownWithoutResolverInsteadOfReadingForwardedHeader() {
+        UUID postId = uuid(11);
+        UUID authorUserId = uuid(7);
+        UUID categoryId = uuid(3);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/" + postId);
+        request.addHeader("X-Forwarded-For", "192.0.2.66");
+        request.addHeader("User-Agent", "test-agent");
+        when(postReadApplicationService.getPostDetail(null, postId))
+                .thenReturn(postDetailView(postId, authorUserId, categoryId, "detail"));
+        PostController controllerWithoutResolver = new PostController(
+                postReadApplicationService,
+                commentReadApplicationService,
+                postPublishingApplicationService,
+                postModerationApplicationService,
+                commentApplicationService,
+                postCounterApplicationService,
+                null
+        );
+
+        controllerWithoutResolver.detail(null, request, postId);
+
+        ArgumentCaptor<RecordPostViewCommand> commandCaptor = ArgumentCaptor.forClass(RecordPostViewCommand.class);
+        verify(postCounterApplicationService).recordView(commandCaptor.capture());
+        assertThat(commandCaptor.getValue().viewerKey())
+                .isEqualTo("anon:unknown|test-agent")
+                .doesNotContain("192.0.2.66");
     }
 
     @Test
@@ -295,6 +343,27 @@ class PostControllerUnitTest {
                 null,
                 createTime,
                 null
+        );
+    }
+
+    private static PostDetailResult postDetailView(UUID postId, UUID userId, UUID categoryId, String title) {
+        return new PostDetailResult(
+                postId,
+                userId,
+                title,
+                List.of(new PostContentBlockResult(uuid(31), 0, "paragraph", "body", null, "", "", "", null, null)),
+                0,
+                0,
+                new Date(),
+                null,
+                0,
+                1,
+                10.0,
+                categoryId,
+                List.of("java"),
+                3L,
+                false,
+                false
         );
     }
 

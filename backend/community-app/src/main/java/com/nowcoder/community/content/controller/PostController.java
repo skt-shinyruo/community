@@ -27,12 +27,12 @@ import com.nowcoder.community.content.application.CommentReadApplicationService;
 import com.nowcoder.community.content.application.PostModerationApplicationService;
 import com.nowcoder.community.content.application.PostReadApplicationService;
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -59,6 +59,7 @@ public class PostController {
     private final PostModerationApplicationService postModerationApplicationService;
     private final CommentApplicationService commentApplicationService;
     private final PostCounterApplicationService postCounterApplicationService;
+    private final ClientIpResolver clientIpResolver;
 
     public PostController(
             PostReadApplicationService postReadApplicationService,
@@ -66,7 +67,8 @@ public class PostController {
             PostPublishingApplicationService postPublishingApplicationService,
             PostModerationApplicationService postModerationApplicationService,
             CommentApplicationService commentApplicationService,
-            PostCounterApplicationService postCounterApplicationService
+            PostCounterApplicationService postCounterApplicationService,
+            ClientIpResolver clientIpResolver
     ) {
         this.postReadApplicationService = postReadApplicationService;
         this.commentReadApplicationService = commentReadApplicationService;
@@ -74,6 +76,7 @@ public class PostController {
         this.postModerationApplicationService = postModerationApplicationService;
         this.commentApplicationService = commentApplicationService;
         this.postCounterApplicationService = postCounterApplicationService;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @PostMapping
@@ -238,26 +241,16 @@ public class PostController {
                 .toList();
     }
 
-    private static String viewerFingerprint(Authentication authentication, HttpServletRequest request) {
+    private String viewerFingerprint(Authentication authentication, HttpServletRequest request) {
         UUID currentUserId = CurrentUser.tryUserUuid(authentication);
         if (currentUserId != null) {
             return "auth:" + currentUserId;
         }
-        return "anon:" + remoteAddress(request) + "|" + userAgent(request);
-    }
-
-    private static String remoteAddress(HttpServletRequest request) {
-        if (request == null) {
-            return "";
-        }
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwarded)) {
-            String first = forwarded.split(",")[0].trim();
-            if (!first.isEmpty()) {
-                return first;
-            }
-        }
-        return Objects.toString(request.getRemoteAddr(), "");
+        ClientIpResolver.ResolvedClientIp resolvedClientIp = clientIpResolver == null
+                ? null
+                : clientIpResolver.resolve(request);
+        String clientIp = resolvedClientIp == null ? null : resolvedClientIp.ip();
+        return "anon:" + Objects.toString(clientIp, "unknown") + "|" + userAgent(request);
     }
 
     private static String userAgent(HttpServletRequest request) {

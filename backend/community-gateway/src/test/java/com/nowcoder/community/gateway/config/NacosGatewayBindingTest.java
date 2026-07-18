@@ -1,6 +1,7 @@
 package com.nowcoder.community.gateway.config;
 
 import com.nowcoder.community.gateway.canary.CanaryRouteProperties;
+import com.nowcoder.community.gateway.edge.EdgeTrustedProxyProperties;
 import com.nowcoder.community.gateway.edge.RateLimitProperties;
 import com.nowcoder.community.gateway.edge.TrafficPolicyProperties;
 import com.nowcoder.community.gateway.http.GatewayHttpRouteProperties;
@@ -8,11 +9,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.env.MutablePropertySources;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.FileSystemResource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -50,11 +53,37 @@ class NacosGatewayBindingTest {
         assertThat(canary.getRules()).isEmpty();
     }
 
+    @Test
+    void bindsGatewayTrustedProxyFromOwnerSpecificRuntimeInputs() throws Exception {
+        StandardEnvironment environment = environmentFrom(
+                "community-gateway.yaml",
+                Map.of(
+                        "GATEWAY_TRUSTED_PROXY_ENABLED", "true",
+                        "GATEWAY_TRUSTED_PROXY_CIDRS", "172.30.0.0/24,fd00:30::/64"
+                )
+        );
+
+        EdgeTrustedProxyProperties trustedProxy = Binder.get(environment)
+                .bind("gateway.trusted-proxy", EdgeTrustedProxyProperties.class)
+                .orElseThrow(IllegalStateException::new);
+
+        assertThat(trustedProxy.isEnabled()).isTrue();
+        assertThat(trustedProxy.getCidrs()).containsExactly("172.30.0.0/24", "fd00:30::/64");
+    }
+
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {
+        return environmentFrom(fileName, Map.of());
+    }
+
+    private static StandardEnvironment environmentFrom(
+            String fileName,
+            Map<String, Object> runtimeInputs
+    ) throws Exception {
         Path path = seedFile(fileName);
         StandardEnvironment environment = new StandardEnvironment();
         MutablePropertySources sources = environment.getPropertySources();
         sources.addFirst(new YamlPropertySourceLoader().load(fileName, new FileSystemResource(path)).get(0));
+        sources.addFirst(new MapPropertySource("runtime-inputs", runtimeInputs));
         return environment;
     }
 

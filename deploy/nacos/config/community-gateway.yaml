@@ -11,6 +11,10 @@ security:
     issuer: community-auth
 
 gateway:
+  # Enable only with the controlled NGINX/load-balancer CIDRs supplied at runtime.
+  trusted-proxy:
+    enabled: ${GATEWAY_TRUSTED_PROXY_ENABLED:false}
+    cidrs: ${GATEWAY_TRUSTED_PROXY_CIDRS:}
   cors:
     allowed-origins:
       - http://localhost:5173

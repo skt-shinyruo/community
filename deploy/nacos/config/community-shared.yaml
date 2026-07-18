@@ -2,11 +2,6 @@ security:
   jwt:
     issuer: community-auth
 
-gateway:
-  trusted-proxy:
-    enabled: false
-    cidrs: []
-
 management:
   endpoints:
     web:

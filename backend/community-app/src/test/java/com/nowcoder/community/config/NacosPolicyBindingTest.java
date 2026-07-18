@@ -16,12 +16,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.env.MutablePropertySources;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.FileSystemResource;
 
 import java.time.Duration;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -71,15 +73,30 @@ class NacosPolicyBindingTest {
     @Test
     void bindsSharedSeedDataId() throws Exception {
         StandardEnvironment environment = environmentFrom("community-shared.yaml");
-        Binder binder = Binder.get(environment);
-        TrustedProxyProperties trustedProxy = binder.bind("gateway.trusted-proxy", TrustedProxyProperties.class)
-                .orElseThrow(IllegalStateException::new);
 
-        assertThat(trustedProxy.isEnabled()).isFalse();
-        assertThat(trustedProxy.getCidrs()).isEmpty();
+        assertThat(environment.containsProperty("gateway.trusted-proxy.enabled")).isFalse();
+        assertThat(environment.containsProperty("gateway.trusted-proxy.cidrs")).isFalse();
         assertThat(environment.getProperty("community.metrics.basic-auth.username")).isEqualTo("prometheus");
         assertThat(environment.getProperty("management.endpoints.web.exposure.include"))
                 .isEqualTo("health,info,prometheus");
+    }
+
+    @Test
+    void bindsCommunityTrustedProxyFromOwnerSpecificRuntimeInputs() throws Exception {
+        StandardEnvironment environment = environmentFrom(
+                "community-app.yaml",
+                Map.of(
+                        "COMMUNITY_APP_TRUSTED_PROXY_ENABLED", "true",
+                        "COMMUNITY_APP_TRUSTED_PROXY_CIDRS", "172.31.0.0/24,fd00:31::/64"
+                )
+        );
+
+        TrustedProxyProperties trustedProxy = Binder.get(environment)
+                .bind("gateway.trusted-proxy", TrustedProxyProperties.class)
+                .orElseThrow(IllegalStateException::new);
+
+        assertThat(trustedProxy.isEnabled()).isTrue();
+        assertThat(trustedProxy.getCidrs()).containsExactly("172.31.0.0/24", "fd00:31::/64");
     }
 
     @Test
@@ -227,10 +244,18 @@ class NacosPolicyBindingTest {
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {
+        return environmentFrom(fileName, Map.of());
+    }
+
+    private static StandardEnvironment environmentFrom(
+            String fileName,
+            Map<String, Object> runtimeInputs
+    ) throws Exception {
         Path path = seedFile(fileName);
         StandardEnvironment environment = new StandardEnvironment();
         MutablePropertySources sources = environment.getPropertySources();
         sources.addFirst(new YamlPropertySourceLoader().load(fileName, new FileSystemResource(path)).get(0));
+        sources.addFirst(new MapPropertySource("runtime-inputs", runtimeInputs));
         return environment;
     }
 

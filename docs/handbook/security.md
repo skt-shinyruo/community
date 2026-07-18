@@ -161,22 +161,35 @@ OriginGuard 位于 `community-app`：
 - 不信任 `X-Forwarded-For` / `X-Real-IP`。
 - 使用 `remoteAddr` 作为客户端 IP，避免客户端伪造转发头绕过风控、限流或统计。
 
-生产部署在 Nginx / Ingress / Load Balancer 后时，可显式开启：
+生产部署在 Nginx / Ingress / Load Balancer 后时，按服务 owner 分别配置 trusted proxy，不能把两个服务的 allowlist 放进共享配置：
+
+Gateway（WebFlux）使用 `gateway.trusted-proxy`，环境变量为 `GATEWAY_TRUSTED_PROXY_ENABLED` 和 `GATEWAY_TRUSTED_PROXY_CIDRS`：
 
 ```text
 gateway.trusted-proxy.enabled=true
 gateway.trusted-proxy.cidrs=[10.0.0.0/8,192.168.0.0/16,...]
 ```
 
+Community Servlet（`community-app` 及使用 common-web 的服务）使用 `community.web.trusted-proxy`，当前部署环境变量为 `COMMUNITY_APP_TRUSTED_PROXY_ENABLED` 和 `COMMUNITY_APP_TRUSTED_PROXY_CIDRS`：
+
+```text
+community.web.trusted-proxy.enabled=true
+community.web.trusted-proxy.cidrs=[10.0.0.0/8,192.168.0.0/16,...]
+```
+
 行为：
 
-- 只有 `remoteAddr` 命中 CIDR allowlist，才解析 `X-Forwarded-For` 第一个 IP。
-- 否则继续使用 `remoteAddr`。
+- 只有 `remoteAddr` 命中本服务的 CIDR allowlist，才读取 `X-Forwarded-For`。
+- XFF 按“客户端 -> 各级代理”排列；解析时从右向左剥离连续命中的可信代理 hop，选择最靠右的第一个不可信 hop 作为客户端 IP。
+- `remoteAddr` 不可信、XFF hop 格式非法或链路超出限制时，回退使用 `remoteAddr`。
+- Gateway 会先规范化转发头；Servlet 服务仍按自己的 `community.web.trusted-proxy` allowlist 独立解析。
 
-prod 下如果开启 trusted proxy：
+prod 下 `community-app` 如果开启 Servlet trusted proxy：
 
-- CIDR 为空会阻断启动。
+- CIDR 为空、无法绑定为列表或不是 IPv4/IPv6 literal CIDR 会阻断启动。
 - 禁止 `0.0.0.0/0` 或 `::/0`。
+
+迁移说明：历史 Servlet 配置若使用 `gateway.trusted-proxy` 前缀，必须迁移到 `community.web.trusted-proxy`，并将 `GATEWAY_TRUSTED_PROXY_*` 改为 `COMMUNITY_APP_TRUSTED_PROXY_*`。`gateway.trusted-proxy` 仍仅归 Gateway owner 使用。
 
 ## 限流和风控
 

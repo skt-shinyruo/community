@@ -1,5 +1,9 @@
 package com.nowcoder.community.infra.startup;
 
+import com.nowcoder.community.common.net.TrustedProxyChain;
+import org.springframework.boot.context.properties.bind.BindException;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.env.Environment;
 import org.springframework.util.StringUtils;
 
@@ -143,7 +147,10 @@ public class StartupValidation {
             return;
         }
 
-        List<String> cidrs = readList(environment, "community.web.trusted-proxy.cidrs");
+        List<String> cidrs = bindTrustedProxyCidrs(environment, errors);
+        if (cidrs == null) {
+            return;
+        }
         if (cidrs.isEmpty()) {
             errors.add("配置不安全：community.web.trusted-proxy.enabled=true 但 community.web.trusted-proxy.cidrs 为空（必须配置可信代理 CIDR allowlist，例如 10.0.0.0/8）");
             return;
@@ -160,9 +167,24 @@ public class StartupValidation {
                 errors.add("配置不安全：community.web.trusted-proxy.cidrs[" + i + "]=" + trimmed + "（禁止使用全量信任 CIDR）");
                 continue;
             }
-            if (!isValidCidr(trimmed)) {
-                errors.add("配置不合法：community.web.trusted-proxy.cidrs[" + i + "]=" + trimmed + "（CIDR 格式应为 ip/prefix，例如 10.0.0.0/8）");
+            try {
+                new TrustedProxyChain(List.of(trimmed));
+            } catch (IllegalArgumentException exception) {
+                errors.add("配置不合法：community.web.trusted-proxy.cidrs[" + i
+                        + "] 不是有效的 IPv4/IPv6 literal CIDR（禁止 hostname、端口和 zone id）");
             }
+        }
+    }
+
+    private List<String> bindTrustedProxyCidrs(Environment environment, List<String> errors) {
+        try {
+            return Binder.get(environment)
+                    .bind("community.web.trusted-proxy.cidrs", Bindable.listOf(String.class))
+                    .orElse(List.of());
+        } catch (BindException exception) {
+            errors.add("配置不合法：community.web.trusted-proxy.cidrs 无法绑定为 CIDR 列表"
+                    + "（请使用逗号分隔字符串或 YAML list）");
+            return null;
         }
     }
 
@@ -173,70 +195,6 @@ public class StartupValidation {
         }
         if (!"db".equalsIgnoreCase(socialStorage)) {
             errors.add("配置不安全：social.storage=" + socialStorage + "（strict social chain requires social.storage=db）");
-        }
-    }
-
-    private List<String> readList(Environment environment, String key) {
-        List<String> items = new ArrayList<>(8);
-        if (environment == null || !StringUtils.hasText(key)) {
-            return items;
-        }
-
-        // 1) 标准 YAML list：key[0..N]
-        for (int i = 0; i < 64; i++) {
-            String v = getTrimmed(environment, key + "[" + i + "]");
-            if (!StringUtils.hasText(v)) {
-                // 遇到第一个空直接 break：避免无意义遍历
-                break;
-            }
-            items.add(v);
-        }
-
-        if (!items.isEmpty()) {
-            return items;
-        }
-
-        String configured = getTrimmed(environment, key);
-        if (!StringUtils.hasText(configured)) {
-            return items;
-        }
-        items.add(configured);
-        return items;
-    }
-
-    private boolean isValidCidr(String cidr) {
-        if (!StringUtils.hasText(cidr) || !cidr.contains("/")) {
-            return false;
-        }
-        String[] parts = cidr.split("/", 2);
-        if (parts.length != 2) {
-            return false;
-        }
-        String base = parts[0] == null ? "" : parts[0].trim();
-        String prefixStr = parts[1] == null ? "" : parts[1].trim();
-        if (!StringUtils.hasText(base) || !StringUtils.hasText(prefixStr)) {
-            return false;
-        }
-
-        int prefix;
-        try {
-            prefix = Integer.parseInt(prefixStr);
-        } catch (NumberFormatException e) {
-            return false;
-        }
-
-        try {
-            java.net.InetAddress addr = java.net.InetAddress.getByName(base);
-            byte[] bytes = addr == null ? null : addr.getAddress();
-            if (bytes == null || bytes.length == 0) {
-                return false;
-            }
-            int totalBits = bytes.length * 8;
-            return prefix >= 0 && prefix <= totalBits;
-        } catch (java.net.UnknownHostException e) {
-            return false;
-        } catch (RuntimeException e) {
-            return false;
         }
     }
 

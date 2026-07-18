@@ -7,6 +7,7 @@ import org.springframework.mock.env.MockEnvironment;
 
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StartupValidationTest {
@@ -51,6 +52,60 @@ class StartupValidationTest {
         assertThatThrownBy(() -> new StartupValidation().validateOrThrow(environment))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("community.web.trusted-proxy.cidrs[0]=0.0.0.0/0");
+    }
+
+    @Test
+    void prodShouldAcceptClusterCommaSeparatedTrustedProxyCidrs() {
+        MockEnvironment environment = prodEnvironment()
+                .withProperty("community.web.trusted-proxy.enabled", "true")
+                .withProperty(
+                        "community.web.trusted-proxy.cidrs",
+                        "172.31.0.20/32,172.31.0.21/32,172.31.0.22/32"
+                );
+
+        assertThatCode(() -> new StartupValidation().validateOrThrow(environment))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void prodShouldTrimTrustedProxyCidrListItemsBeforeValidation() {
+        MockEnvironment environment = prodEnvironment()
+                .withProperty("community.web.trusted-proxy.enabled", "true")
+                .withProperty(
+                        "community.web.trusted-proxy.cidrs[0]",
+                        " 172.31.0.20/32 "
+                );
+
+        assertThatCode(() -> new StartupValidation().validateOrThrow(environment))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void prodShouldRejectBlankTrustedProxyCidrListItems() {
+        MockEnvironment environment = prodEnvironment()
+                .withProperty("community.web.trusted-proxy.enabled", "true")
+                .withProperty("community.web.trusted-proxy.cidrs[0]", "172.31.0.20/32")
+                .withProperty("community.web.trusted-proxy.cidrs[1]", "   ");
+
+        assertThatThrownBy(() -> new StartupValidation().validateOrThrow(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("community.web.trusted-proxy.cidrs[1]")
+                .hasMessageContaining("为空");
+    }
+
+    @Test
+    void prodShouldRejectHostnameTrustedProxyCidrWithoutLeakingConfigurationValues() {
+        MockEnvironment environment = prodEnvironment()
+                .withProperty("community.web.trusted-proxy.enabled", "true")
+                .withProperty("community.web.trusted-proxy.cidrs", "proxy.internal/24")
+                .withProperty("unrelated.api.secret", "do-not-log-this-secret");
+
+        assertThatThrownBy(() -> new StartupValidation().validateOrThrow(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("community.web.trusted-proxy.cidrs[0]")
+                .hasMessageContaining("IPv4/IPv6 literal CIDR")
+                .hasMessageNotContaining("proxy.internal")
+                .hasMessageNotContaining("do-not-log-this-secret");
     }
 
     @Test

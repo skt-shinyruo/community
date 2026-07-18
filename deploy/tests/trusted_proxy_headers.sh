@@ -47,6 +47,46 @@ assert_env_value() {
   fi
 }
 
+assert_env_absent() {
+  local variable="$1"
+  local file="$2"
+
+  if grep -q "^${variable}=" "${file}"; then
+    fail "${file#"${REPO_ROOT}/"} must not advertise ${variable} as an overridable setting"
+  fi
+}
+
+assert_ip_cidr_relation() {
+  local ip="$1"
+  local cidr="$2"
+  local expected_relation="$3"
+  local description="$4"
+
+  awk -v ip="${ip}" -v cidr="${cidr}" -v expected="${expected_relation}" '
+    function ipv4_number(value, octets, count, i, result) {
+      count = split(value, octets, ".")
+      if (count != 4) return -1
+      result = 0
+      for (i = 1; i <= 4; i++) {
+        if (octets[i] !~ /^[0-9]+$/ || octets[i] < 0 || octets[i] > 255) return -1
+        result = result * 256 + octets[i]
+      }
+      return result
+    }
+
+    BEGIN {
+      if (split(cidr, parts, "/") != 2 || parts[2] !~ /^[0-9]+$/ || parts[2] < 0 || parts[2] > 32) exit 2
+      address = ipv4_number(ip)
+      network = ipv4_number(parts[1])
+      if (address < 0 || network < 0) exit 2
+      block_size = 2 ^ (32 - parts[2])
+      first = int(network / block_size) * block_size
+      inside = address >= first && address < first + block_size
+      exit (expected == "inside" && inside) || (expected == "outside" && !inside) ? 0 : 1
+    }
+  ' || fail "${description}: ${ip} must be ${expected_relation} ${cidr}"
+}
+
 rendered_service_value() {
   local rendered_config="$1"
   local service="$2"
@@ -76,13 +116,15 @@ assert_rendered_service_value() {
   fi
 }
 
-rendered_default_subnet() {
+rendered_default_ipam_value() {
   local rendered_config="$1"
+  local property="$2"
 
-  awk '
+  awk -v property="${property}" '
     $0 == "networks:" { in_networks = 1; next }
     in_networks && /^[^ ]/ { exit }
-    in_networks && $1 == "-" && $2 == "subnet:" { print $3; exit }
+    in_networks && $1 == "-" && $2 == property ":" { print $3; exit }
+    in_networks && $1 == property ":" { print $2; exit }
   ' "${rendered_config}"
 }
 
@@ -252,6 +294,7 @@ single_env="${REPO_ROOT}/deploy/.env.single.example"
 cluster_env="${REPO_ROOT}/deploy/.env.cluster.example"
 
 assert_contains 'subnet: ${COMMUNITY_NETWORK_SUBNET:?COMMUNITY_NETWORK_SUBNET is required}' "${base_compose}"
+assert_contains 'ip_range: ${COMMUNITY_NETWORK_DYNAMIC_RANGE:?COMMUNITY_NETWORK_DYNAMIC_RANGE is required}' "${base_compose}"
 assert_contains 'ipv4_address: ${NGINX_STATIC_IP:?NGINX_STATIC_IP is required}' "${single_frontend_compose}"
 assert_contains 'ipv4_address: ${NGINX_STATIC_IP:?NGINX_STATIC_IP is required}' "${cluster_frontend_compose}"
 assert_contains 'ipv4_address: ${COMMUNITY_GATEWAY_STATIC_IP:?COMMUNITY_GATEWAY_STATIC_IP is required}' "${single_compose}"
@@ -259,32 +302,50 @@ assert_contains 'ipv4_address: ${COMMUNITY_GATEWAY_1_STATIC_IP:?COMMUNITY_GATEWA
 assert_contains 'ipv4_address: ${COMMUNITY_GATEWAY_2_STATIC_IP:?COMMUNITY_GATEWAY_2_STATIC_IP is required}' "${cluster_compose}"
 assert_contains 'ipv4_address: ${COMMUNITY_GATEWAY_3_STATIC_IP:?COMMUNITY_GATEWAY_3_STATIC_IP is required}' "${cluster_compose}"
 
-assert_count 1 'GATEWAY_TRUSTED_PROXY_ENABLED=${GATEWAY_TRUSTED_PROXY_ENABLED:?GATEWAY_TRUSTED_PROXY_ENABLED is required}' "${single_compose}"
+assert_count 1 'GATEWAY_TRUSTED_PROXY_ENABLED=true' "${single_compose}"
 assert_count 1 'GATEWAY_TRUSTED_PROXY_CIDRS=${GATEWAY_TRUSTED_PROXY_CIDRS:?GATEWAY_TRUSTED_PROXY_CIDRS is required}' "${single_compose}"
-assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_ENABLED=${COMMUNITY_APP_TRUSTED_PROXY_ENABLED:?COMMUNITY_APP_TRUSTED_PROXY_ENABLED is required}' "${single_compose}"
+assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_ENABLED=true' "${single_compose}"
 assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_CIDRS=${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:?COMMUNITY_APP_TRUSTED_PROXY_CIDRS is required}' "${single_compose}"
-assert_count 3 'GATEWAY_TRUSTED_PROXY_ENABLED=${GATEWAY_TRUSTED_PROXY_ENABLED:?GATEWAY_TRUSTED_PROXY_ENABLED is required}' "${cluster_compose}"
+assert_count 3 'GATEWAY_TRUSTED_PROXY_ENABLED=true' "${cluster_compose}"
 assert_count 3 'GATEWAY_TRUSTED_PROXY_CIDRS=${GATEWAY_TRUSTED_PROXY_CIDRS:?GATEWAY_TRUSTED_PROXY_CIDRS is required}' "${cluster_compose}"
-assert_count 3 'COMMUNITY_APP_TRUSTED_PROXY_ENABLED=${COMMUNITY_APP_TRUSTED_PROXY_ENABLED:?COMMUNITY_APP_TRUSTED_PROXY_ENABLED is required}' "${cluster_compose}"
+assert_count 3 'COMMUNITY_APP_TRUSTED_PROXY_ENABLED=true' "${cluster_compose}"
 assert_count 3 'COMMUNITY_APP_TRUSTED_PROXY_CIDRS=${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:?COMMUNITY_APP_TRUSTED_PROXY_CIDRS is required}' "${cluster_compose}"
 
 assert_env_value COMMUNITY_NETWORK_SUBNET 172.30.0.0/24 "${single_env}"
+assert_env_value COMMUNITY_NETWORK_DYNAMIC_RANGE 172.30.0.128/25 "${single_env}"
 assert_env_value NGINX_STATIC_IP 172.30.0.10 "${single_env}"
 assert_env_value COMMUNITY_GATEWAY_STATIC_IP 172.30.0.20 "${single_env}"
-assert_env_value GATEWAY_TRUSTED_PROXY_ENABLED true "${single_env}"
+assert_env_absent GATEWAY_TRUSTED_PROXY_ENABLED "${single_env}"
 assert_env_value GATEWAY_TRUSTED_PROXY_CIDRS 172.30.0.10/32 "${single_env}"
-assert_env_value COMMUNITY_APP_TRUSTED_PROXY_ENABLED true "${single_env}"
+assert_env_absent COMMUNITY_APP_TRUSTED_PROXY_ENABLED "${single_env}"
 assert_env_value COMMUNITY_APP_TRUSTED_PROXY_CIDRS 172.30.0.20/32 "${single_env}"
 
 assert_env_value COMMUNITY_NETWORK_SUBNET 172.31.0.0/24 "${cluster_env}"
+assert_env_value COMMUNITY_NETWORK_DYNAMIC_RANGE 172.31.0.128/25 "${cluster_env}"
 assert_env_value NGINX_STATIC_IP 172.31.0.10 "${cluster_env}"
 assert_env_value COMMUNITY_GATEWAY_1_STATIC_IP 172.31.0.20 "${cluster_env}"
 assert_env_value COMMUNITY_GATEWAY_2_STATIC_IP 172.31.0.21 "${cluster_env}"
 assert_env_value COMMUNITY_GATEWAY_3_STATIC_IP 172.31.0.22 "${cluster_env}"
-assert_env_value GATEWAY_TRUSTED_PROXY_ENABLED true "${cluster_env}"
+assert_env_absent GATEWAY_TRUSTED_PROXY_ENABLED "${cluster_env}"
 assert_env_value GATEWAY_TRUSTED_PROXY_CIDRS 172.31.0.10/32 "${cluster_env}"
-assert_env_value COMMUNITY_APP_TRUSTED_PROXY_ENABLED true "${cluster_env}"
+assert_env_absent COMMUNITY_APP_TRUSTED_PROXY_ENABLED "${cluster_env}"
 assert_env_value COMMUNITY_APP_TRUSTED_PROXY_CIDRS 172.31.0.20/32,172.31.0.21/32,172.31.0.22/32 "${cluster_env}"
+
+single_subnet="$(env_value COMMUNITY_NETWORK_SUBNET "${single_env}")"
+single_dynamic_range="$(env_value COMMUNITY_NETWORK_DYNAMIC_RANGE "${single_env}")"
+for variable in NGINX_STATIC_IP COMMUNITY_GATEWAY_STATIC_IP; do
+  static_ip="$(env_value "${variable}" "${single_env}")"
+  assert_ip_cidr_relation "${static_ip}" "${single_subnet}" inside "single ${variable}"
+  assert_ip_cidr_relation "${static_ip}" "${single_dynamic_range}" outside "single ${variable}"
+done
+
+cluster_subnet="$(env_value COMMUNITY_NETWORK_SUBNET "${cluster_env}")"
+cluster_dynamic_range="$(env_value COMMUNITY_NETWORK_DYNAMIC_RANGE "${cluster_env}")"
+for variable in NGINX_STATIC_IP COMMUNITY_GATEWAY_1_STATIC_IP COMMUNITY_GATEWAY_2_STATIC_IP COMMUNITY_GATEWAY_3_STATIC_IP; do
+  static_ip="$(env_value "${variable}" "${cluster_env}")"
+  assert_ip_cidr_relation "${static_ip}" "${cluster_subnet}" inside "cluster ${variable}"
+  assert_ip_cidr_relation "${static_ip}" "${cluster_dynamic_range}" outside "cluster ${variable}"
+done
 
 if [ "$(env_value COMMUNITY_NETWORK_SUBNET "${single_env}")" = "$(env_value COMMUNITY_NETWORK_SUBNET "${cluster_env}")" ]; then
   fail "single and cluster topologies must use distinct default-network subnets"
@@ -292,18 +353,32 @@ fi
 
 single_rendered="$(mktemp)"
 cluster_rendered="$(mktemp)"
-trap 'rm -f "${single_rendered}" "${cluster_rendered}"' EXIT
+single_false_override_rendered="$(mktemp)"
+cluster_false_override_rendered="$(mktemp)"
+trap 'rm -f "${single_rendered}" "${cluster_rendered}" "${single_false_override_rendered}" "${cluster_false_override_rendered}"' EXIT
 
 "${REPO_ROOT}/deploy/deployment.sh" config --topology single --scope full \
   --env-file deploy/.env.single.example --no-observability >"${single_rendered}"
 "${REPO_ROOT}/deploy/deployment.sh" config --topology cluster --scope full \
   --env-file deploy/.env.cluster.example --no-observability >"${cluster_rendered}"
+env GATEWAY_TRUSTED_PROXY_ENABLED=false COMMUNITY_APP_TRUSTED_PROXY_ENABLED=false SPRING_PROFILES_ACTIVE=prod \
+  "${REPO_ROOT}/deploy/deployment.sh" config --topology single --scope full \
+  --env-file deploy/.env.single.example --no-observability >"${single_false_override_rendered}"
+env GATEWAY_TRUSTED_PROXY_ENABLED=false COMMUNITY_APP_TRUSTED_PROXY_ENABLED=false SPRING_PROFILES_ACTIVE=prod \
+  "${REPO_ROOT}/deploy/deployment.sh" config --topology cluster --scope full \
+  --env-file deploy/.env.cluster.example --no-observability >"${cluster_false_override_rendered}"
 
-if [ "$(rendered_default_subnet "${single_rendered}")" != "172.30.0.0/24" ]; then
+if [ "$(rendered_default_ipam_value "${single_rendered}" subnet)" != "172.30.0.0/24" ]; then
   fail "rendered single default network must use subnet 172.30.0.0/24"
 fi
-if [ "$(rendered_default_subnet "${cluster_rendered}")" != "172.31.0.0/24" ]; then
+if [ "$(rendered_default_ipam_value "${single_rendered}" ip_range)" != "172.30.0.128/25" ]; then
+  fail "rendered single default network must reserve dynamic range 172.30.0.128/25"
+fi
+if [ "$(rendered_default_ipam_value "${cluster_rendered}" subnet)" != "172.31.0.0/24" ]; then
   fail "rendered cluster default network must use subnet 172.31.0.0/24"
+fi
+if [ "$(rendered_default_ipam_value "${cluster_rendered}" ip_range)" != "172.31.0.128/25" ]; then
+  fail "rendered cluster default network must reserve dynamic range 172.31.0.128/25"
 fi
 
 assert_rendered_service_value "${single_rendered}" nginx ipv4_address 172.30.0.10
@@ -326,6 +401,15 @@ for app_number in 1 2 3; do
   assert_rendered_service_value "${cluster_rendered}" "community-app-${app_number}" COMMUNITY_APP_TRUSTED_PROXY_ENABLED true
   assert_rendered_service_value "${cluster_rendered}" "community-app-${app_number}" COMMUNITY_APP_TRUSTED_PROXY_CIDRS \
     172.31.0.20/32,172.31.0.21/32,172.31.0.22/32
+done
+
+assert_rendered_service_value "${single_false_override_rendered}" community-gateway GATEWAY_TRUSTED_PROXY_ENABLED true
+assert_rendered_service_value "${single_false_override_rendered}" community-app COMMUNITY_APP_TRUSTED_PROXY_ENABLED true
+for gateway_number in 1 2 3; do
+  assert_rendered_service_value "${cluster_false_override_rendered}" "community-gateway-${gateway_number}" GATEWAY_TRUSTED_PROXY_ENABLED true
+done
+for app_number in 1 2 3; do
+  assert_rendered_service_value "${cluster_false_override_rendered}" "community-app-${app_number}" COMMUNITY_APP_TRUSTED_PROXY_ENABLED true
 done
 
 echo "trusted proxy header contract checks passed"

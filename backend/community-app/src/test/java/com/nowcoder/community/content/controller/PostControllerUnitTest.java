@@ -233,29 +233,22 @@ class PostControllerUnitTest {
     }
 
     @Test
-    void anonymousDetailShouldUseUnknownWithoutResolverInsteadOfReadingForwardedHeader() {
+    void anonymousDetailShouldUseUnknownWhenResolverReturnsNoResultInsteadOfReadingForwardedHeader() {
         UUID postId = uuid(11);
         UUID authorUserId = uuid(7);
         UUID categoryId = uuid(3);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/" + postId);
         request.addHeader("X-Forwarded-For", "192.0.2.66");
         request.addHeader("User-Agent", "test-agent");
+        when(clientIpResolver.resolve(request)).thenReturn(null);
         when(postReadApplicationService.getPostDetail(null, postId))
                 .thenReturn(postDetailView(postId, authorUserId, categoryId, "detail"));
-        PostController controllerWithoutResolver = new PostController(
-                postReadApplicationService,
-                commentReadApplicationService,
-                postPublishingApplicationService,
-                postModerationApplicationService,
-                commentApplicationService,
-                postCounterApplicationService,
-                null
-        );
 
-        controllerWithoutResolver.detail(null, request, postId);
+        controller.detail(null, request, postId);
 
         ArgumentCaptor<RecordPostViewCommand> commandCaptor = ArgumentCaptor.forClass(RecordPostViewCommand.class);
         verify(postCounterApplicationService).recordView(commandCaptor.capture());
+        verify(clientIpResolver).resolve(request);
         assertThat(commandCaptor.getValue().viewerKey())
                 .isEqualTo("anon:unknown|test-agent")
                 .doesNotContain("192.0.2.66");

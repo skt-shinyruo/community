@@ -39,6 +39,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ForwardedHeaderRoutingIntegrationTest {
 
     private static final String X_FORWARDED_FOR = "X-Forwarded-For";
+    private static final String X_FORWARDED_HOST = "X-Forwarded-Host";
+    private static final String X_FORWARDED_PORT = "X-Forwarded-Port";
+    private static final String X_FORWARDED_PREFIX = "X-Forwarded-Prefix";
+    private static final String X_FORWARDED_PROTO = "X-Forwarded-Proto";
     private static final String X_REAL_IP = "X-Real-IP";
     private static final String FORWARDED = "Forwarded";
     private static final BlockingQueue<ForwardingHeaders> CAPTURES = new LinkedBlockingQueue<>();
@@ -85,6 +89,10 @@ class ForwardedHeaderRoutingIntegrationTest {
                 .uri("/api/posts")
                 .header(FORWARDED, "for=203.0.113.7;proto=https", "for=198.51.100.77")
                 .header(X_FORWARDED_FOR, "203.0.113.99, 198.51.100.77", "10.0.0.8")
+                .header(X_FORWARDED_HOST, "attacker.example", "gateway.internal")
+                .header(X_FORWARDED_PORT, "444", "443")
+                .header(X_FORWARDED_PREFIX, "/attacker", "/internal")
+                .header(X_FORWARDED_PROTO, "http", "https")
                 .header(X_REAL_IP, "203.0.113.100", "198.51.100.100")
                 .exchange()
                 .expectStatus().isOk();
@@ -93,6 +101,10 @@ class ForwardedHeaderRoutingIntegrationTest {
         assertThat(capture).isNotNull();
         assertThat(capture.xForwardedFor()).containsExactly("198.51.100.77");
         assertThat(capture.forwarded()).isEmpty();
+        assertThat(capture.xForwardedHost()).isEmpty();
+        assertThat(capture.xForwardedPort()).isEmpty();
+        assertThat(capture.xForwardedPrefix()).isEmpty();
+        assertThat(capture.xForwardedProto()).isEmpty();
         assertThat(capture.xRealIp()).isEmpty();
     }
 
@@ -111,6 +123,10 @@ class ForwardedHeaderRoutingIntegrationTest {
                         CAPTURES.add(new ForwardingHeaders(
                                 List.copyOf(request.requestHeaders().getAll(FORWARDED)),
                                 List.copyOf(request.requestHeaders().getAll(X_FORWARDED_FOR)),
+                                List.copyOf(request.requestHeaders().getAll(X_FORWARDED_HOST)),
+                                List.copyOf(request.requestHeaders().getAll(X_FORWARDED_PORT)),
+                                List.copyOf(request.requestHeaders().getAll(X_FORWARDED_PREFIX)),
+                                List.copyOf(request.requestHeaders().getAll(X_FORWARDED_PROTO)),
                                 List.copyOf(request.requestHeaders().getAll(X_REAL_IP))
                         ));
                         return response.header(HttpHeaders.CONTENT_TYPE, "application/json")
@@ -125,6 +141,10 @@ class ForwardedHeaderRoutingIntegrationTest {
     private record ForwardingHeaders(
             List<String> forwarded,
             List<String> xForwardedFor,
+            List<String> xForwardedHost,
+            List<String> xForwardedPort,
+            List<String> xForwardedPrefix,
+            List<String> xForwardedProto,
             List<String> xRealIp
     ) {
     }

@@ -76,7 +76,7 @@ public class PostController {
         this.postModerationApplicationService = postModerationApplicationService;
         this.commentApplicationService = commentApplicationService;
         this.postCounterApplicationService = postCounterApplicationService;
-        this.clientIpResolver = clientIpResolver;
+        this.clientIpResolver = Objects.requireNonNull(clientIpResolver, "clientIpResolver");
     }
 
     @PostMapping
@@ -246,9 +246,7 @@ public class PostController {
         if (currentUserId != null) {
             return "auth:" + currentUserId;
         }
-        ClientIpResolver.ResolvedClientIp resolvedClientIp = clientIpResolver == null
-                ? null
-                : clientIpResolver.resolve(request);
+        ClientIpResolver.ResolvedClientIp resolvedClientIp = clientIpResolver.resolve(request);
         String clientIp = resolvedClientIp == null ? null : resolvedClientIp.ip();
         return "anon:" + Objects.toString(clientIp, "unknown") + "|" + userAgent(request);
     }

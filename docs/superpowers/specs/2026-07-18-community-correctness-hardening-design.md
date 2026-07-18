@@ -1,365 +1,365 @@
-# Community Correctness Hardening Design
+# Community 正确性加固设计
 
-- Date: 2026-07-18
-- Status: Approved design
-- Scope: the 15 correctness, security, concurrency, and frontend-session findings in the July 2026 code audit
-- Chosen approach: targeted hardening inside the existing owner-domain boundaries
+- 日期：2026-07-18
+- 状态：设计已批准
+- 范围：2026 年 7 月代码审计发现的 15 个正确性、安全性、并发和前端会话问题
+- 选定方案：在现有 owner-domain 边界内进行针对性加固
 
-## 1. Context
+## 1. 背景
 
-The audited implementation has fifteen defects that can expose private OSS objects, break background OSS work, collapse distinct user actions into one idempotent replay, duplicate business side effects, lose quota or inventory correctness under concurrency, accept spoofed server facts, and make public frontend routes depend on private authenticated data.
+本次审计发现了十五个实现缺陷。这些缺陷可能泄露私有 OSS 对象、破坏后台 OSS 任务、把两个独立用户操作错误合并为一次幂等重放、重复执行业务副作用、在并发下破坏配额或库存正确性、接受客户端伪造的服务端事实，以及让公开前端路由依赖私有认证数据。
 
-The fixes span `community-app`, `community-oss`, `community-oss-client`, `community-gateway`, shared idempotency/outbox/web modules, IM outbox storage, the frontend, deployment configuration, and forward-only Flyway migrations. They must preserve the repository's strict DDD Tactical Layering rather than introducing a second application-entry style or allowing adapters to orchestrate owner domains directly.
+修复范围涉及 `community-app`、`community-oss`、`community-oss-client`、`community-gateway`、共享幂等/outbox/web 模块、IM outbox 存储、前端、部署配置以及只向前的 Flyway 迁移。所有修复必须维持仓库的严格 DDD Tactical Layering，不能引入第二套应用入口风格，也不能让适配器直接编排其他 owner domain。
 
-## 2. Goals
+## 2. 目标
 
-1. Close every reported authorization and identity gap.
-2. Make HTTP idempotency, outbox leases, inventory compensation, drive quota release, and moderation decisions correct under retries and concurrency.
-3. Make wallet correction and like reward lifecycles reflect business identity rather than incidental request or relation keys.
-4. Ensure terminal content deletion and comment reply targets are derived from authoritative server state.
-5. Unify frontend refresh behavior and preserve anonymous market browsing.
-6. Ship the changes with forward-only migrations, explicit compatibility order, deterministic tests, and operational visibility.
+1. 关闭所有已报告的授权和身份漏洞。
+2. 保证 HTTP 幂等、outbox 租约、库存补偿、网盘配额释放和审核决策在重试与并发下正确。
+3. 让钱包冲正和点赞奖励生命周期使用真实业务身份，而不是偶然的请求键或关系键。
+4. 保证内容终态删除和评论回复目标来自服务端权威状态。
+5. 统一前端刷新行为，并保持市场详情可以匿名浏览。
+6. 通过只向前迁移、明确的兼容发布顺序、确定性测试和运维可观测性安全交付。
 
-## 3. Non-goals
+## 3. 非目标
 
-- Rewriting deployables or replacing the package-scoped monolith.
-- Introducing distributed transactions or a new workflow engine.
-- Changing the anonymous/public nature of market listing and detail routes.
-- Changing wallet storage from signed `BIGINT` or preventing privileged corrections from creating debt.
-- Editing frozen Flyway baselines to describe post-baseline changes.
-- Refactoring unrelated legacy packages.
+- 重写 deployable 或替换 package-scoped monolith。
+- 引入分布式事务或新的工作流引擎。
+- 改变市场列表和详情路由的匿名公开属性。
+- 改变钱包的有符号 `BIGINT` 存储，或禁止特权冲正产生负余额。
+- 修改冻结的 Flyway 基线以描述基线之后的变化。
+- 重构与本次问题无关的遗留包。
 
-## 4. Architectural Constraints
+## 4. 架构约束
 
-All touched `community-app` business paths follow:
+所有触及的 `community-app` 业务路径遵循：
 
 ```text
 Controller / Listener / Handler / Bridge / Enqueuer / Job
   -> same-domain *ApplicationService
       -> domain model / policy / repository interface
-      -> foreign owner api.query / api.action when synchronous collaboration is required
-      -> owner contracts.event when asynchronous collaboration is required
+      -> 需要同步跨域协作时调用 foreign owner api.query / api.action
+      -> 需要异步跨域协作时发布 owner contracts.event
           -> infrastructure implementation
 ```
 
-Inbound adapters only bind transport input, extract authenticated identity, and convert DTOs. Application services own transaction boundaries, commands, idempotency, authoritative lookups, cross-domain calls, and result assembly. Domain code remains independent of Spring, HTTP, persistence objects, infrastructure, and published owner APIs. MyBatis and Redis stay behind domain repositories or focused application-owned technical ports.
+入站适配器只绑定传输层输入、提取已认证身份并转换 DTO。ApplicationService 负责事务边界、命令、幂等、权威数据查询、跨域调用和结果装配。Domain 代码保持独立，不依赖 Spring、HTTP、持久化对象、infrastructure 或发布的 owner API。MyBatis 和 Redis 必须位于 domain repository 或聚焦的 application-owned technical port 之后。
 
-No fix may introduce a controller-to-repository path, an inbound-adapter-to-foreign-API path, a same-domain `api.*` detour, a mapper dependency in an application service, or HTTP types in application commands/results.
+任何修复都不得引入 Controller 到 Repository、入站适配器到 foreign API、同域 `api.*` 绕行、ApplicationService 到 Mapper，或 application command/result 到 HTTP 类型的依赖。
 
-## 5. Identity and Access
+## 5. 身份与访问控制
 
-### 5.1 OSS object authorization
+### 5.1 OSS 对象授权
 
-The OSS service separates three security surfaces:
+OSS 服务分离三个安全入口：
 
-| Surface | Identity | Rule |
+| 入口 | 身份 | 规则 |
 | --- | --- | --- |
-| `/api/oss/**` | user JWT | actor and owner are taken only from the authentication context |
-| `/internal/oss/**` | service JWT | token must have `aud=community-oss` and `scope=oss.internal` |
-| `/files/**` | anonymous | only `PUBLIC + ACTIVE` objects are served |
+| `/api/oss/**` | 用户 JWT | actor 和 owner 只能来自认证上下文 |
+| `/internal/oss/**` | 服务 JWT | token 必须具有 `aud=community-oss` 和 `scope=oss.internal` |
+| `/files/**` | 匿名 | 只允许读取 `PUBLIC + ACTIVE` 对象 |
 
-User-facing request DTOs remove `ownerId` and `actorId`. These values do not enter an application command through any compatibility alias or fallback.
+用户接口 DTO 删除 `ownerId` 和 `actorId`。这些字段不能通过兼容别名或回退逻辑进入 application command。
 
-Each user-facing operation enters an OSS application service. The application service loads the object plus any active grant required for the caller and invokes a pure domain access policy. The policy has these minimum rules:
+每个用户操作都先进入 OSS ApplicationService。ApplicationService 加载对象和调用者所需的有效 grant，再调用纯领域访问策略。策略至少执行以下规则：
 
-- object creation binds ownership to the authenticated user;
-- private metadata and signed download access require ownership or an applicable active grant;
-- grant creation/revocation and object deletion require ownership;
-- public bytes are exposed only through `/files/**`, and only while the object is both `PUBLIC` and `ACTIVE`;
-- nonexistent and concealed unauthorized objects produce the same external `404` result.
+- 创建对象时把 owner 绑定为已认证用户；
+- 私有元数据和签名下载需要 owner 身份或适用的有效 grant；
+- 创建/撤销 grant 和删除对象只允许 owner；
+- 公共字节只通过 `/files/**` 暴露，且对象必须同时为 `PUBLIC` 和 `ACTIVE`；
+- 对不存在对象和需要隐藏存在性的未授权对象，对外统一返回 `404`。
 
-The policy receives identity, object facts, grant facts, and requested capability. It does not inspect security contexts, HTTP requests, mappers, or storage adapters.
+策略只接收身份、对象事实、grant 事实和请求能力，不读取安全上下文、HTTP 请求、Mapper 或存储适配器。
 
-### 5.2 Background OSS service identity
+### 5.2 后台 OSS 服务身份
 
-`community-oss-client` gains a service-token provider for internal operations. Background handlers, jobs, and application services use typed internal client methods that call `/internal/oss/**` with a short-lived service JWT. They do not depend on a Servlet request and do not forward an arbitrary browser bearer token.
+`community-oss-client` 为内部操作增加 service token provider。后台 handler、job 和 ApplicationService 使用 typed internal client 调用 `/internal/oss/**`，并携带短期服务 JWT。它们不依赖 Servlet 请求，也不转发任意浏览器 Bearer Token。
 
-The service JWT identifies the calling service in `sub`, is signed by configured service credentials, and is rejected unless its audience and scope match OSS. OSS records the service subject in audit context. Internal endpoints expose only the capabilities needed by reference management, recovery, and cleanup; service identity is not treated as a synthetic end user.
+服务 JWT 在 `sub` 中标识调用服务，并使用配置的服务凭据签名。OSS 只有在 audience 和 scope 匹配时才接受它，并把服务 subject 写入审计上下文。内部接口只暴露引用管理、恢复和清理所需的能力；服务身份不能伪装成终端用户。
 
-Key material and issuer/audience configuration are validated at startup. Missing production credentials fail closed.
+启动时校验密钥以及 issuer/audience 配置。生产环境缺少凭据时 fail closed。
 
-### 5.3 Canonical client IP
+### 5.3 规范化客户端 IP
 
-The edge and application use one trust model:
+边缘层和应用层采用唯一的信任模型：
 
-1. The externally reachable NGINX removes client-supplied `Forwarded`, `X-Forwarded-For`, and `X-Real-IP`; it sets `X-Forwarded-For` to `$remote_addr` rather than using `$proxy_add_x_forwarded_for`.
-2. The gateway accepts that header only when its immediate peer is a configured trusted NGINX address. It walks the peer plus forwarded chain from right to left, discards trusted proxy hops, and selects the first untrusted hop as the canonical client.
-3. If the gateway's immediate peer is untrusted, it ignores forwarding headers and uses the socket peer address.
-4. Before proxying, the gateway removes all incoming forwarding headers and emits a new `X-Forwarded-For` containing only the canonical client address.
-5. An application accepts that canonical header only when its immediate peer is a configured gateway address; otherwise it uses its socket peer.
+1. 对外 NGINX 删除客户端提供的 `Forwarded`、`X-Forwarded-For` 和 `X-Real-IP`；设置 `X-Forwarded-For` 时使用 `$remote_addr`，不再使用 `$proxy_add_x_forwarded_for`。
+2. Gateway 只有在直接对端属于已配置的可信 NGINX 地址时才接受该 Header。它从右向左遍历直接对端和转发链，丢弃可信代理跳，选择第一个不可信跳作为规范客户端地址。
+3. 如果 Gateway 的直接对端不可信，则忽略全部转发 Header，使用 socket 对端地址。
+4. Gateway 转发前删除所有传入的转发 Header，并重新生成只包含规范客户端地址的 `X-Forwarded-For`。
+5. 应用只有在直接对端属于已配置的 Gateway 地址时才接受该规范 Header，否则使用自己的 socket 对端地址。
 
-All consumers, including post-view collection, use the canonical value supplied by the shared web boundary. Controllers do not parse forwarding headers independently. Deployment defaults include the actual NGINX/gateway networks so normal traffic does not collapse to a shared container IP.
+包括帖子浏览采集在内的所有消费者都使用 shared web boundary 提供的规范地址。Controller 不再自行解析转发 Header。部署默认配置包含真实的 NGINX/Gateway 网络，避免正常流量全部退化为同一个容器 IP。
 
-## 6. Reliability Infrastructure
+## 6. 可靠性基础设施
 
-### 6.1 Frontend idempotency identity
+### 6.1 前端幂等身份
 
-The frontend removes the global ten-second URL/body fingerprint cache. Every new business invocation receives a new idempotency key, even if its URL and body equal a recent invocation.
+前端删除全局的 10 秒 URL/请求体指纹缓存。每次新的业务调用都生成新的幂等键，即使 URL 和请求体与最近一次调用完全相同。
 
-The key is attached to the Axios request config. A transport retry of that same config preserves the existing header, while a new API method call creates a fresh key. Tests distinguish these two cases explicitly:
+幂等键保存在 Axios request config 中。同一个 config 的传输重试保留原 Header；新的 API 方法调用创建新键。测试明确区分：
 
-- two sequential equal recharge/order/post/comment calls use different keys;
-- retrying one failed request config uses the original key.
+- 两次连续且内容相同的充值、下单、发帖或评论使用不同键；
+- 同一个失败 request config 的重试继续使用原键。
 
-### 6.2 Transactional HTTP idempotency
+### 6.2 事务型 HTTP 幂等
 
-`executeRequired` is the correctness entry for protected write endpoints. It requires both a JDBC-backed idempotency store and an active transaction synchronized with the same datasource. A missing transaction or incompatible store fails before business work starts.
+`executeRequired` 是受保护写接口的正确性入口。它要求 JDBC-backed idempotency store，并要求当前存在与同一 datasource 同步的活动事务。缺少事务或 store 不兼容时，必须在业务执行前失败。
 
-Within one database transaction it:
+同一个数据库事务按顺序执行：
 
-1. claims `(operation, userId, idempotencyKey)` with the request fingerprint;
-2. executes the business function;
-3. serializes the successful result;
-4. writes the serialized response and `SUCCESS` status;
-5. commits the idempotency row and business changes atomically.
+1. 使用请求指纹占用 `(operation, userId, idempotencyKey)`；
+2. 执行业务函数；
+3. 序列化成功结果；
+4. 写入序列化响应和 `SUCCESS` 状态；
+5. 原子提交幂等记录和业务修改。
 
-There is no `afterCommit` success write. Serialization failure throws and rolls back the entire transaction; it is never converted to the string `"null"`. A successful replay must deserialize a valid stored response or fail as an infrastructure error.
+成功状态不再通过 `afterCommit` 写入。序列化失败会抛出异常并回滚整个事务，绝不能转换为字符串 `"null"`。成功重放必须反序列化出有效响应，否则按基础设施故障处理。
 
-The behavior of existing rows is:
+已有记录按以下规则处理：
 
-- same key and same fingerprint in `SUCCESS`: replay the stored result;
-- same key and different fingerprint: `409 IDEMPOTENCY_REPLAY_CONFLICT`;
-- live concurrent processing: `409 IDEMPOTENCY_IN_PROGRESS`;
-- quarantined historical processing: `409 IDEMPOTENCY_OUTCOME_INDETERMINATE`.
+- 同键、同指纹且状态为 `SUCCESS`：重放已保存结果；
+- 同键但指纹不同：`409 IDEMPOTENCY_REPLAY_CONFLICT`；
+- 当前仍在并发处理中：`409 IDEMPOTENCY_IN_PROGRESS`；
+- 被隔离的历史处理中记录：`409 IDEMPOTENCY_OUTCOME_INDETERMINATE`。
 
-Before deployment, old writers are stopped and drained. Any remaining legacy `PROCESSING` row has an unknowable outcome and is migrated to `INDETERMINATE`; it is never expired into permission to run the business action again. Clients must not be advised to generate a new key for an indeterminate action.
+发布前停止并排空旧 writer。任何残留的旧 `PROCESSING` 记录都具有无法判断的结果，迁移为 `INDETERMINATE`；它绝不能因超时而获得重新执行业务的许可。客户端遇到不确定结果时，不能被建议更换新键。
 
-### 6.3 Outbox lease fencing
+### 6.3 Outbox 租约 fencing
 
-Every claim generates a new opaque lease token and stores it with a dedicated processing deadline. A claimed event carries that token through the worker to the store.
+每次 claim 生成新的不透明 lease token，并与独立的 processing deadline 一起保存。被 claim 的事件把 token 从 worker 一直携带到 store。
 
-All `SUCCEEDED`, retry, and `DEAD` updates use a compare-and-set predicate containing at least event identity, `PROCESSING` status, and the lease token. Expired-row recovery also invalidates the previous token before an event can be reclaimed. Therefore an old worker cannot overwrite a result written by a newer owner.
+所有 `SUCCEEDED`、retry 和 `DEAD` 更新都使用 compare-and-set，条件至少包含事件身份、`PROCESSING` 状态和 lease token。过期记录恢复时也必须先使旧 token 失效，之后事件才能被重新 claim。因此旧 worker 不能覆盖新 owner 已写入的结果。
 
-A terminal update that affects zero rows means ownership was lost. The worker stops processing that result, emits a structured warning and counter, and does not perform an unconditional fallback update. Handlers remain idempotent because delivery is still at least once.
+终态更新影响 0 行表示当前 worker 已失去所有权。Worker 停止处理该结果，记录结构化 warning 和 counter，且不得执行无条件兜底更新。Outbox 仍然是至少一次投递，所以 handler 继续保持幂等。
 
-The same shared implementation and schema semantics apply to the Community and IM `outbox_event` tables. Old and fenced workers must never run concurrently.
+Community 和 IM 的 `outbox_event` 表使用同一份共享实现和 schema 语义。旧 worker 与 fenced worker 绝不能混跑。
 
-### 6.4 One frontend refresh coordinator
+### 6.4 唯一的前端刷新协调器
 
-Normal HTTP, IM HTTP, and authentication bootstrap share one refresh coordinator and one in-flight promise. They do not issue independent refresh requests.
+普通 HTTP、IM HTTP 和认证 bootstrap 共用一个 refresh coordinator 和一个 in-flight Promise，不再分别发起 refresh。
 
-Each authenticated request records the access-token generation it used. On `401`:
+每个认证请求记录自己使用的 access-token generation。收到 `401` 时：
 
-- if the auth store already holds a newer token, retry once with that token without refreshing;
-- otherwise join or start the shared refresh;
-- mark the retry so another `401` cannot loop.
+- 如果 auth store 已有更新 token，则直接用新 token 重试一次，不发 refresh；
+- 否则加入或发起共享 refresh；
+- 标记已重试，避免第二次 `401` 形成循环。
 
-After a successful refresh, the store installs the token and reloads the current user/roles once. Existing profile state may remain visible until replacement; it is not silently cleared with no reload. A terminal refresh failure clears frontend authentication state only if no newer token generation has appeared.
+刷新成功后，store 安装新 token，并且只重新加载一次当前用户和角色。替换数据返回前可以继续展示原 profile，不能清空后又不重新加载。终态刷新失败只有在没有出现更新 token generation 时才清空前端认证状态。
 
-The backend does not attach a cookie-deletion response to an invalid refresh attempt, because a concurrent successful rotation may already have installed a newer cookie. Explicit logout and explicit session revocation remain the operations that clear the refresh cookie.
+后端在无效 refresh 请求的响应中不附带删除 Cookie 的 Header，因为并发成功轮换可能已经安装了更新 Cookie。显式 logout 和显式 session revoke 仍负责清除 refresh Cookie。
 
-## 7. Business and Funds Consistency
+## 7. 业务与资金一致性
 
-### 7.1 Market escrow compensation
+### 7.1 市场托管补偿
 
-The market order state machine defines `ESCROW_FAILED` to mean that reserved stock has already been compensated. Recovery from that state may only transition the order to `CANCELLED`; it may not increment stock again.
+市场订单状态机把 `ESCROW_FAILED` 定义为“预留库存已经完成补偿”。从该状态恢复时只能转为 `CANCELLED`，不能再次增加库存。
 
-Inventory restoration is attached to the single guarded transition that first records escrow failure. Replaying `completeEscrowNoop` after an action-status write failure performs only the terminal order transition. Repository updates remain conditional, and tests inject failure between the order compensation and action completion to prove stock never exceeds its pre-order amount.
+库存恢复只绑定在第一次记录托管失败的 guarded transition 上。Action 状态写入失败后重放 `completeEscrowNoop`，只执行订单终态转换。Repository 更新继续使用条件更新；测试在订单补偿和 action 完成之间注入故障，证明库存永远不会超过下单前数值。
 
-### 7.2 Drive permanent deletion and quota
+### 7.2 网盘永久删除与配额
 
-Permanent deletion uses one `REQUIRES_NEW` transaction per operation. The application service locks the owner's space row, re-reads the requested entry and its subtree, and conditionally transitions each eligible row from `TRASHED -> DELETED`. The repository returns the rows whose transition this transaction actually won; quota is reduced by the sum of file bytes in that returned set only.
+每次永久删除使用一个 `REQUIRES_NEW` 事务。ApplicationService 锁定 owner 的 space row，重新读取目标 entry 和子树，并把每个符合条件的行从 `TRASHED -> DELETED`。Repository 返回本事务实际赢得转换的行；配额只减去该返回集合中文件字节数的总和。
 
-The space update and file transition commit together. A concurrent loser releases zero bytes and returns the existing terminal result. The quota invariant is preserved even when the user has other files.
+Space 更新和 entry 转换一起提交。并发 loser 释放 0 字节并返回既有终态。即使用户还有其他文件，配额不变量也保持成立。
 
-OSS byte deletion happens only after the database transaction commits, so no network call holds database locks. If deletion fails, the request reports storage unavailability; repeating permanent deletion selects the already-`DELETED` files for OSS cleanup but releases zero additional bytes.
+OSS 字节删除只在数据库事务提交后执行，因此网络调用不会持有数据库锁。如果 OSS 删除失败，请求返回存储不可用；再次执行永久删除时会选择已经 `DELETED` 的文件重试 OSS 清理，但不会再次释放配额。
 
-### 7.3 Wallet privileged corrections
+### 7.3 钱包特权冲正
 
-Wallet domain behavior distinguishes normal debits from privileged corrections:
+钱包领域行为区分普通扣款和特权冲正：
 
-| Operation | Freeze/minimum-balance checks | May create negative balance |
+| 操作 | 冻结/最低余额检查 | 是否可产生负余额 |
 | --- | --- | --- |
-| normal debit/spend/transfer | enforced | no |
-| privileged reward reversal or administrator correction | bypassed by explicit policy | yes |
-| ordinary credit | allowed and increases balance | repays existing debt first |
+| 普通扣款、消费、转账 | 执行 | 否 |
+| 特权撤奖或管理员冲正 | 由显式策略绕过 | 是 |
+| 普通入账 | 允许并增加余额 | 优先偿还已有负余额 |
 
-Privileged mode is not a client-controlled flag. Only dedicated, authorized application use cases can request a correction with an auditable correction reason and source identity. The domain model applies the policy; application services still own actor authorization and idempotency.
+特权模式不是客户端可控 Flag。只有专用且已授权的应用用例可以携带可审计的冲正原因和来源身份请求冲正。Domain model 执行策略；ApplicationService 继续负责 actor 授权和幂等。
 
-Double-entry invariants remain unchanged. The signed `BIGINT` balance column already supports debt and requires no type migration.
+双分录不变量保持不变。现有有符号 `BIGINT` balance 已支持负债，不需要类型迁移。
 
-### 7.4 Moderation claim and decision
+### 7.4 审核 claim 与决策
 
-Moderation processing uses an atomic `PENDING -> PROCESSING` claim. A request that did not win the claim cannot execute penalties, notifications, or action writes.
+审核处理使用原子的 `PENDING -> PROCESSING` claim。未赢得 claim 的请求不能执行处罚、通知或 action 写入。
 
-For the winner, decision validation, owner-domain side effects, the unique `moderation_action`, final report status, and notification outbox row commit in one transaction. No external network side effect is placed inside this transaction. A rollback returns all durable state to its pre-claim condition.
+对 winner 而言，决策校验、owner-domain 副作用、唯一 `moderation_action`、举报终态和通知 outbox row 在一个事务中提交。事务中不放置外部网络副作用。回滚会把全部持久状态恢复到 claim 之前。
 
-`moderation_action.report_id` is unique when non-null. A replay whose normalized decision fields equal the existing action returns that action without repeating side effects. A different decision for the same report, or a stale attempt after another decision won, returns `409 MODERATION_DECISION_CONFLICT`. Direct administrative actions with a null report ID remain allowed.
+非空 `moderation_action.report_id` 唯一。如果重放的规范化决策字段与已有 action 相同，则返回已有 action，不重复副作用。同一举报上的不同决策，或其他决策已获胜后的过期尝试，返回 `409 MODERATION_DECISION_CONFLICT`。不关联举报、`report_id` 为空的直接管理 action 继续允许存在多条。
 
-## 8. Event Lifecycle and Server-Derived Facts
+## 8. 事件生命周期与服务端事实
 
-### 8.1 Like relation instances and wallet rewards
+### 8.1 点赞关系实例与钱包奖励
 
-The stable relation key `(userId, entityType, entityId)` describes the current pair, but it does not identify separate like lifecycles. Each successful new like therefore receives a UUIDv7 `relationInstanceId`, persisted in `social_like` and carried through:
+稳定关系键 `(userId, entityType, entityId)` 描述当前关系对，但不能标识两次独立的点赞生命周期。因此，每次新点赞成功时生成 UUIDv7 `relationInstanceId`，持久化到 `social_like`，并贯穿：
 
-- `LikeRelation` and repository scans;
-- like-created and like-removed domain events;
-- the published `LikePayload` contract;
-- content-deletion cleanup that removes likes in bulk.
+- `LikeRelation` 和 Repository scan；
+- 点赞创建/移除 domain event；
+- 发布的 `LikePayload` contract；
+- 批量移除点赞的内容删除清理。
 
-Unlike removes by a compare-and-set containing the relation instance and publishes that exact instance. Re-liking the same target creates a new instance. The stable relation key remains available for notice grouping and existing notice semantics.
+取消点赞使用包含 relation instance 的 compare-and-set 删除，并发布完全相同的 instance。对同一目标再次点赞会创建新 instance。稳定 relation key 继续用于通知分组和现有通知语义。
 
-Wallet idempotency sources use `<relationInstanceId>:created` and `<relationInstanceId>:removed`. Duplicate delivery of either lifecycle event is harmless, while a later re-like is a distinct reward lifecycle. Consumers fall back to the legacy relation key only when reading an older event without `relationInstanceId`. This additive contract requires the compatible wallet consumer to deploy before the new social producer.
+钱包幂等来源使用 `<relationInstanceId>:created` 和 `<relationInstanceId>:removed`。任一生命周期事件重复投递都无害，后续重新点赞则属于新的奖励生命周期。Consumer 只有在读取不含 `relationInstanceId` 的旧事件时才回退到 legacy relation key。该加法 contract 要求兼容的钱包 consumer 先于新 social producer 发布。
 
-### 8.2 Terminal post deletion tombstones
+### 8.2 帖子终态删除 tombstone
 
-Deleting a post writes both terminal status and `update_time = deleted_time`. The hot-feed projection command explicitly identifies terminal deletion instead of presenting it as an ordinary versioned update.
+删除帖子时同时写入终态和 `update_time = deleted_time`。Hot-feed projection command 显式标识终态删除，不能把它表达成普通版本更新。
 
-The Redis projection applies deletion with these rules:
+Redis projection 按以下规则应用删除：
 
-1. deletion bypasses the ordinary stale-version rejection;
-2. it evicts hot-feed and related cached projections;
-3. one atomic operation writes the processed event identity, maximum observed version, and a permanent deletion tombstone;
-4. the tombstone has no TTL and rejects every later non-delete projection regardless of version;
-5. duplicate delete events remain idempotent.
+1. 删除绕过普通 stale-version 拒绝；
+2. 删除 hot-feed 和相关缓存 projection；
+3. 用一个原子操作写入已处理 event identity、最大已观察 version 和永久 deletion tombstone；
+4. tombstone 不设置 TTL，并拒绝任何后续非删除 projection，不考虑其 version；
+5. 重复删除 event 保持幂等。
 
-The contract keeps the stable event ID `content:PostDeleted:<postId>`. This ensures a higher-version comment/like projection cannot preserve or resurrect a deleted post.
+Contract 保持稳定 event ID：`content:PostDeleted:<postId>`。这样，更高版本的评论/点赞 projection 也不能保留或复活已删除帖子。
 
-### 8.3 Comment reply targets
+### 8.3 评论回复目标
 
-Clients no longer submit `replyToUserId` or `targetId` as trusted facts. Those fields are removed from the HTTP request, application command, idempotency fingerprint, and published synchronous action API.
+客户端不再提交 `replyToUserId` 或 `targetId` 作为可信事实。这些字段从 HTTP request、application command、幂等指纹和发布的同步 action API 中删除。
 
-`parentCommentId` means the comment directly replied to:
+`parentCommentId` 表示直接回复的评论：
 
-- a top-level comment has no parent;
-- a reply to a root comment sends the root comment ID;
-- a reply to a nested reply sends that reply's ID.
+- 顶级评论没有 parent；
+- 回复 root comment 时发送 root comment ID；
+- 回复嵌套 reply 时发送该 reply 的 ID。
 
-The application loads an `ACTIVE` direct parent. The domain derives the root comment, direct parent, target author, and notification recipient from stored facts. The repository locks and revalidates both root and direct parent before insert, including post membership and active state. Self-notification suppression remains a server policy.
+Application 加载 `ACTIVE` direct parent。Domain 根据已存储事实推导 root comment、direct parent、target author 和通知接收人。Repository 插入前锁定并重新校验 root 和 direct parent，包括 post 归属和 active 状态。是否抑制给自己的通知继续由服务端策略决定。
 
-The frontend changes only the submitted parent ID. Existing flat reply rendering remains compatible because stored root/thread fields are still derived and retained.
+前端只改变提交的 parent ID。已有扁平回复展示保持兼容，因为存储中的 root/thread 字段仍由服务端推导并保留。
 
-## 9. Anonymous Market Detail
+## 9. 匿名市场详情
 
-Market detail keeps public listing state separate from private address state. Loading the listing never depends on the address request.
+市场详情把公开 listing state 与私有 address state 分开。加载 listing 永远不依赖地址请求。
 
-Only an authenticated viewer of a physical listing requests the private address book. Address `401`, empty data, or transient failure cannot replace a successfully loaded public listing with a page-level error. Authenticated empty and error states provide the existing address-management and retry actions.
+只有已认证且正在查看实物 listing 的用户才请求私有地址簿。地址请求返回 `401`、空数据或暂时故障时，不能用页面级错误替换已经加载成功的公开 listing。已认证的空状态和错误状态继续提供已有地址管理和重试操作。
 
-The address loader watches both listing identity/type and authentication-token generation. It cancels or sequence-guards requests and discards responses that belong to a previous listing or auth state.
+Address loader 同时观察 listing identity/type 和 authentication-token generation。它取消旧请求或使用 sequence guard，并丢弃属于旧 listing 或旧认证状态的响应。
 
-When buying:
+购买流程：
 
-1. check authentication first;
-2. an anonymous viewer is redirected to login with `route.fullPath` as the return target;
-3. only an authenticated physical-item buyer is required to select a valid address;
-4. virtual-item purchases remain independent of address state.
+1. 先检查认证；
+2. 匿名用户跳转到登录页，并以 `route.fullPath` 作为返回目标；
+3. 只有已认证的实物买家才必须选择有效地址；
+4. 虚拟商品购买不依赖地址状态。
 
-The refresh-coordinator and anonymous-market changes ship in one frontend bundle.
+Refresh coordinator 和匿名市场改动作为同一个前端 bundle 发布。
 
-## 10. Error Semantics
+## 10. 错误语义
 
-| Condition | HTTP status | External behavior |
+| 条件 | HTTP 状态 | 对外行为 |
 | --- | --- | --- |
-| missing/invalid authentication | `401` | authentication required |
-| authenticated but globally unauthorized | `403` | access denied |
-| concealed object-level denial | `404` | indistinguishable from absence |
-| validation failure | `400` | stable validation code/details |
-| idempotency fingerprint conflict | `409` | do not execute business action |
-| indeterminate legacy idempotency outcome | `409` | do not suggest a new key |
-| conflicting/stale moderation decision | `409` | return existing outcome when identical |
-| transient dependency/infrastructure failure | `5xx`, normally `503` | retryable according to endpoint policy |
-| lost outbox lease | no HTTP mapping | benign CAS miss plus metric/log |
+| 缺少认证或认证无效 | `401` | 要求认证 |
+| 已认证但全局无权限 | `403` | 拒绝访问 |
+| 需要隐藏对象存在性的对象级拒绝 | `404` | 与对象不存在不可区分 |
+| 参数校验失败 | `400` | 返回稳定校验 code/detail |
+| 幂等请求指纹冲突 | `409` | 不执行业务操作 |
+| 历史幂等结果不确定 | `409` | 不建议更换新键 |
+| 审核决策冲突或已过期 | `409` | 相同决策返回既有结果 |
+| 暂时性依赖/基础设施故障 | `5xx`，通常为 `503` | 按接口策略允许重试 |
+| 丢失 outbox lease | 不映射 HTTP | 作为正常 CAS miss 记录 metric/log |
 
-All HTTP failures continue to use the repository's unified `Result<T>` envelope and trace propagation.
+所有 HTTP 失败继续使用仓库统一的 `Result<T>` envelope 和 trace 传播。
 
-## 11. Forward-only Migrations
+## 11. 只向前数据库迁移
 
 ### 11.1 Community schema
 
-Migrations after the current `V007` are:
+当前 `V007` 之后增加：
 
-- `V008__add_outbox_lease_fencing.sql`: add nullable `lease_token BINARY(16)`, nullable `processing_lease_until`, and the processing-lease scan index to `outbox_event`.
-- `V009__quarantine_indeterminate_http_idempotency.sql`: after the mandatory writer drain, convert remaining legacy processing rows to the explicit indeterminate status and clear obsolete processing expiry data.
-- `V010__enforce_unique_moderation_action_report.sql`: fail if duplicate non-null report IDs exist, then replace the non-unique report index with a unique report constraint that still permits multiple null report IDs.
-- `V011__add_social_like_relation_instance.sql`: add a nullable binary UUID column, backfill a distinct value per existing row, add a unique index, then make the column non-null.
+- `V008__add_outbox_lease_fencing.sql`：为 `outbox_event` 增加 nullable `lease_token BINARY(16)`、nullable `processing_lease_until` 和 processing-lease scan index。
+- `V009__quarantine_indeterminate_http_idempotency.sql`：完成强制 writer drain 后，把残留 legacy processing row 转为显式 indeterminate 状态，并清理已经失去意义的 processing expiry。
+- `V010__enforce_unique_moderation_action_report.sql`：发现重复的非空 report ID 时失败；否则把非唯一 report index 替换为唯一约束，同时继续允许多个 null report ID。
+- `V011__add_social_like_relation_instance.sql`：增加 nullable binary UUID 列，为每个已有 row 回填不同值，添加唯一索引，最后把列改为 non-null。
 
-New application-created relation instances are UUIDv7. Historical backfill values need uniqueness and stability after migration; they do not need to pretend to carry creation-time ordering.
+应用新建的 relation instance 使用 UUIDv7。历史回填值只需要在迁移后保持唯一和稳定，不需要伪装为带创建时间排序的信息。
 
 ### 11.2 IM schema
 
-After the current IM `V001`:
+当前 IM `V001` 之后增加：
 
-- `V002__add_outbox_lease_fencing.sql`: apply the same lease-token, processing-deadline, and scan-index shape to IM `outbox_event`.
+- `V002__add_outbox_lease_fencing.sql`：给 IM `outbox_event` 增加同样的 lease token、processing deadline 和 scan index。
 
-OSS remains at `V003` because these fixes require no OSS schema change.
+OSS 保持在 `V003`，因为本轮修复不需要 OSS schema 变化。
 
-### 11.3 Migration rules
+### 11.3 迁移规则
 
-- Do not edit `V001` or any already-applied migration.
-- The schema manifests describe the frozen version-one baseline used to validate legacy baselining; do not update them merely to represent later Flyway migrations.
-- Update migration-count assertions, post-migration column/index assertions, upgrade fixtures, and H2/test schemas that model current runtime tables.
-- Run migrations against real MySQL with Testcontainers, including empty-schema and version-one upgrade paths.
-- The moderation migration performs a duplicate preflight and aborts release rather than deleting or coalescing audit history.
+- 不修改 `V001` 或任何已执行 migration。
+- Schema manifest 描述用于校验 legacy baseline 的冻结 version-one 基线；不能仅为表示后续 Flyway migration 而修改它。
+- 更新 migration count 断言、迁移后 column/index 断言、upgrade fixture，以及模拟当前运行时表的 H2/test schema。
+- 使用 Testcontainers 在真实 MySQL 上测试空 schema 和 version-one upgrade。
+- 审核 migration 先检查重复数据；发现冲突时中止发布，不删除或合并审计历史。
 
-## 12. Compatibility and Deployment Order
+## 12. 兼容与发布顺序
 
-Two drains are mandatory correctness gates:
+以下两个 drain 是强制正确性门禁：
 
-1. Stop and drain old HTTP idempotency writers before quarantining legacy `PROCESSING` rows. Their outcomes cannot be inferred safely.
-2. Stop and drain all old outbox workers before enabling token fencing in Community and IM. Mixed old/new workers are unsafe because old terminal updates are unfenced.
+1. 在隔离 legacy `PROCESSING` row 前停止并排空旧 HTTP idempotency writer，其业务结果无法被安全推断。
+2. 在 Community 和 IM 启用 token fencing 前停止并排空所有旧 outbox worker。旧/新 worker 混跑不安全，因为旧终态更新没有 fencing。
 
-The complete order is:
+完整顺序如下：
 
-1. Configure service-JWT signing/verification keys and expected issuer/audience/scope.
-2. Deploy gateway/NGINX forwarding-header sanitation, then enable the matching trusted-proxy CIDRs in applications.
-3. Deploy OSS support for separated user/internal identities and internal endpoints.
-4. Deploy background OSS callers and `community-oss-client` service identity.
-5. Run a read-only moderation duplicate preflight. Any duplicate aborts the release for explicit data review before the maintenance window.
-6. Stop and drain every old Community application instance, including protected HTTP writers and outbox workers, and stop/drain IM outbox workers. This simultaneously satisfies the idempotency and fencing gates and prevents old social writers from inserting rows without a relation instance.
-7. Apply Community `V008` through `V011` and IM `V002`. The moderation migration repeats the duplicate assertion inside Flyway.
-8. Deploy the transactional idempotency implementation, every fenced-outbox worker, and the schema-compatible Community/IM applications. Verify that no old worker or Community writer remains, then resume traffic and workers.
-9. In this first Community rollout, the wallet consumer accepts optional `relationInstanceId`, while emission of new relation-instance events remains disabled by a rollout gate.
-10. After all wallet consumer instances are compatible, enable relation-instance emission in the social producer and content-deletion cleanup. A later release may remove the temporary rollout gate after the compatibility window.
-11. Ship the refresh coordinator and anonymous market behavior as one frontend bundle.
+1. 配置 service-JWT 签名/验证密钥以及预期 issuer/audience/scope。
+2. 部署 Gateway/NGINX 转发 Header 清洗，再在应用中启用匹配的 trusted-proxy CIDR。
+3. 部署分离用户/内部身份及 internal endpoint 的 OSS。
+4. 部署后台 OSS caller 和具备服务身份的 `community-oss-client`。
+5. 执行只读的审核重复数据预检；发现重复时，在维护窗口之前中止发布并进行显式数据审查。
+6. 停止并排空所有旧 Community application instance，包括受保护的 HTTP writer 和 outbox worker；同时停止并排空 IM outbox worker。这样同时满足幂等与 fencing 门禁，也防止旧 social writer 插入缺少 relation instance 的 row。
+7. 执行 Community `V008` 到 `V011` 以及 IM `V002`；审核 migration 在 Flyway 内再次执行重复断言。
+8. 部署事务型幂等实现、全部 fenced-outbox worker 和 schema-compatible Community/IM application。确认不存在旧 worker 或旧 Community writer 后，恢复流量和 worker。
+9. 第一次 Community rollout 中，钱包 consumer 接受 optional `relationInstanceId`，新 relation-instance event 的发送由 rollout gate 保持关闭。
+10. 所有钱包 consumer instance 兼容后，开启 social producer 和内容删除清理的 relation-instance event。兼容窗口结束后的后续版本可以删除临时 gate。
+11. 把 refresh coordinator 和匿名市场行为作为同一个前端 bundle 发布。
 
-Rollback is application-forward, not migration-down: disable or redeploy application code that remains compatible with the additive schema, correct the fault, and release a new migration if schema repair is required. Do not undo an applied Flyway file.
+回滚采用 application-forward，而不是 migration-down：停用或重新部署仍兼容加法 schema 的 application code，修复问题，并在需要修复 schema 时发布新的 migration。不能撤销已经执行的 Flyway 文件。
 
-## 13. Observability
+## 13. 可观测性
 
-Add or preserve structured signals for:
+增加或保留以下结构化信号：
 
-- OSS authorization denial by surface, capability, and caller type without exposing object secrets;
-- service-JWT validation failure by reason;
-- indeterminate idempotency responses and replay conflicts;
-- outbox lease-loss CAS misses by topic/handler;
-- market compensation attempts and affected-row counts;
-- drive delete winners/losers and released bytes;
-- moderation claim conflicts and replay classification;
-- refresh attempts joined, stale-token retries, success, and terminal failure;
-- discarded stale address responses.
+- OSS 授权拒绝，按入口、capability 和 caller type 分类，但不暴露对象秘密；
+- service-JWT 校验失败原因；
+- indeterminate 幂等响应和 replay conflict；
+- outbox lease-loss CAS miss，按 topic/handler 分类；
+- 市场补偿尝试和 affected-row count；
+- 网盘删除 winner/loser 和 released bytes；
+- 审核 claim conflict 和 replay 分类；
+- refresh 请求加入共享任务、stale-token retry、成功和终态失败；
+- 被丢弃的过期 address response。
 
-Logs keep trace context and omit JWTs, cookies, signed URLs, addresses, and raw private payloads.
+日志保留 trace context，但不得记录 JWT、Cookie、签名 URL、地址或原始私有 payload。
 
-## 14. Verification Strategy
+## 14. 验证策略
 
-Implementation follows red-green-refactor for every defect. The minimum matrix is:
+每个缺陷都按 red-green-refactor 实施。最低验证矩阵如下：
 
-| Area | Required proof |
+| 区域 | 必须证明 |
 | --- | --- |
-| OSS | owner, active grant, unrelated user, public-active, public-deleted/private, user JWT vs service JWT, background call without Servlet context |
-| Client IP | untrusted direct peer, trusted one/multi-hop chain, spoofed left prefix, malformed address, post-view path using canonical resolver |
-| Frontend idempotency | equal new actions get different keys; retry of the same config keeps one key |
-| Backend idempotency | atomic business/success commit, serialization rollback, conflicting fingerprint, concurrent key, indeterminate legacy row, missing transaction/store |
-| Market | injected action-finalization failure followed by recovery never restores stock twice |
-| Drive | two concurrent permanent deletes produce one state transition and one quota release; OSS failure does not release again |
-| Outbox | expired worker cannot mark success/retry/dead after a new token claim; Community and IM schemas both support fencing |
-| Wallet | normal overdraft rejected; frozen/minimum checks enforced normally; privileged correction can create debt; later credit repays debt; ledger balances |
-| Likes | create/remove duplicate delivery, remove-before-create delivery, unlike/re-like instances, legacy payload fallback, content-deletion bulk removal |
-| Post deletion | lower/equal/higher projection versions cannot survive or resurrect after terminal tombstone; duplicate delete is idempotent |
-| Moderation | two concurrent administrators yield one action/side-effect/notice; identical replay returns existing; conflicting replay returns `409` |
-| Comments | spoof fields absent, direct parent determines recipient, nested reply derives root, inactive/mismatched parent rejected under lock |
-| Refresh | HTTP/IM/bootstrap share one request, stale `401` retries newer token, failed old refresh does not clear new token/cookie, profile reloads |
-| Market detail | anonymous physical/virtual detail, authenticated address success/empty/error, auth/listing switch discards stale responses, login return path |
-| Migrations | empty MySQL, V001 upgrade, idempotent rerun, duplicate moderation preflight failure, unique relation backfill, frozen-baseline validation |
+| OSS | owner、有效 grant、无关用户、public-active、public-deleted/private、用户 JWT 与服务 JWT、无 Servlet context 的后台调用 |
+| 客户端 IP | 不可信直连、可信单跳/多跳、伪造左侧前缀、畸形地址、帖子浏览路径使用规范 resolver |
+| 前端幂等 | 相同的新操作使用不同键；同一 config 重试保持同一键 |
+| 后端幂等 | 业务与成功状态原子提交、序列化回滚、指纹冲突、并发同键、indeterminate legacy row、缺少事务/store |
+| 市场 | Action 完成写入故障后恢复，库存也绝不二次增加 |
+| 网盘 | 两个并发永久删除只产生一次状态转换和一次配额释放；OSS 失败不会再次释放 |
+| Outbox | 新 token claim 后，过期 worker 不能写 success/retry/dead；Community 和 IM schema 都支持 fencing |
+| 钱包 | 普通透支拒绝、正常执行冻结/最低余额规则、特权冲正可产生负债、后续入账偿债、总账平衡 |
+| 点赞 | create/remove 重复投递、remove-before-create、unlike/re-like instance、legacy payload fallback、内容删除批量移除 |
+| 帖子删除 | tombstone 后，低/相同/高版本 projection 都不能残留或复活；重复删除幂等 |
+| 审核 | 两个并发管理员只产生一个 action/副作用/通知；相同重放返回已有结果；冲突重放返回 `409` |
+| 评论 | 伪造字段消失、direct parent 决定接收人、嵌套回复推导 root、锁内拒绝 inactive/mismatched parent |
+| Refresh | HTTP/IM/bootstrap 共用一个请求、stale `401` 使用新 token 重试、旧 refresh 失败不清除新 token/Cookie、重新加载 profile |
+| 市场详情 | 匿名实物/虚拟详情、认证地址成功/空/失败、认证或 listing 切换丢弃旧响应、登录返回路径 |
+| Migration | 空 MySQL、V001 upgrade、重复执行、审核重复预检失败、relation 唯一回填、冻结 baseline 校验 |
 
-Architecture guardrails must pass after the backend boundary changes:
+后端边界修改后必须通过架构守卫：
 
 ```bash
 cd backend
 mvn test -pl :community-app -Dtest='*ArchTest'
 ```
 
-The broader backend verification target is:
+后端综合验证目标：
 
 ```bash
 cd backend
@@ -367,7 +367,7 @@ mvn -pl :community-common-idempotency,:community-common-outbox,:community-common
 mvn -pl :community-db-migrations,:community-im-db-migrations,:community-oss-db-migrations -am test
 ```
 
-Migration tests require Docker for MySQL Testcontainers. Frontend verification is:
+Migration 测试需要 Docker 来运行 MySQL Testcontainers。前端验证：
 
 ```bash
 cd frontend
@@ -375,24 +375,24 @@ npm test
 npm run build
 ```
 
-## 15. Finding Traceability
+## 15. 问题追踪
 
-| Finding | Design section | Completion criterion |
+| 问题 | 设计章节 | 完成判据 |
 | --- | --- | --- |
-| 1. OSS object-level authorization | 5.1 | no user-controlled identity; policy covers metadata, signed access, grants, deletion, public bytes |
-| 2. Background OSS identity | 5.2 | internal jobs succeed with scoped service identity and no request context |
-| 3. Frontend key reuse | 6.1 | distinct equal actions have distinct keys |
-| 4. Post-commit idempotency gap | 6.2 | business result, serialized response, and success status commit atomically |
-| 5. Duplicate market stock compensation | 7.1 | recovery from `ESCROW_FAILED` cannot add stock |
-| 6. Duplicate drive quota release | 7.2 | exactly one concurrent delete releases bytes |
-| 7. Unfenced outbox lease | 6.3 | every processing terminal update is token-CAS protected |
-| 8. Unreliable client IP | 5.3 | sanitized right-to-left trust-chain resolution is used everywhere |
-| 9. Reward/admin correction failure | 7.3 | privileged corrections bypass spend restrictions and may create debt |
-| 10. Like lifecycle reward collision | 8.1 | each like lifecycle has a durable relation instance |
-| 11. Deleted post surviving projections | 8.2 | permanent tombstone dominates every non-delete version |
-| 12. Concurrent moderation | 7.4 | one report produces at most one durable action and one side-effect set |
-| 13. Spoofed reply recipient | 8.3 | recipient and thread facts are derived only from locked stored comments |
-| 14. Refresh race | 6.4 | all clients coordinate refresh and stale failures cannot clear newer auth |
-| 15. Physical detail not anonymous | 9 | public detail succeeds independently of private address state |
+| 1. OSS 对象级越权 | 5.1 | 不存在用户控制身份；策略覆盖元数据、签名访问、grant、删除和公共字节 |
+| 2. 后台 OSS 无身份 | 5.2 | 内部 job 在无 request context 时也能使用 scoped service identity 成功调用 |
+| 3. 前端错误复用幂等键 | 6.1 | 内容相同的独立操作使用不同键 |
+| 4. 幂等事务提交后故障窗口 | 6.2 | 业务结果、序列化响应和成功状态原子提交 |
+| 5. 市场重复库存补偿 | 7.1 | 从 `ESCROW_FAILED` 恢复不能增加库存 |
+| 6. 网盘重复释放配额 | 7.2 | 并发删除中只有一个请求释放字节 |
+| 7. Outbox 租约无 fencing | 6.3 | 所有 processing 终态更新都受 token CAS 保护 |
+| 8. 客户端 IP 不可靠 | 5.3 | 所有路径使用经过清洗、从右向左解析的信任链 |
+| 9. 撤奖/管理员冲正失败 | 7.3 | 特权冲正绕过消费限制并可产生负债 |
+| 10. 点赞生命周期奖励碰撞 | 8.1 | 每个点赞生命周期具有持久 relation instance |
+| 11. 已删除帖子仍留在 projection | 8.2 | 永久 tombstone 支配所有非删除 version |
+| 12. 并发审核 | 7.4 | 一个举报最多产生一个持久 action 和一组副作用 |
+| 13. 伪造回复接收人 | 8.3 | 接收人和 thread 事实只由已锁定的存储评论推导 |
+| 14. Refresh 竞态 | 6.4 | 所有 client 协调 refresh，过期失败不能清除更新认证 |
+| 15. 实物详情不能匿名 | 9 | 公开详情不依赖私有地址状态也能成功 |
 
-The design is complete only when all fifteen criteria and the verification matrix pass without weakening the DDD architecture tests.
+只有全部十五项判据和验证矩阵通过，且未削弱 DDD 架构测试时，本设计才算完整实现。

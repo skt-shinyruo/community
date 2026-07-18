@@ -1,3 +1,11 @@
+spring:
+  cloud:
+    gateway:
+      forwarded:
+        enabled: false
+      x-forwarded:
+        enabled: false
+
 security:
   jwt:
     issuer: community-auth

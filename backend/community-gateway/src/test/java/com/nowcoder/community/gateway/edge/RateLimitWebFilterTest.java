@@ -1,6 +1,7 @@
 package com.nowcoder.community.gateway.edge;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
@@ -44,10 +45,18 @@ class RateLimitWebFilterTest {
         InetSocketAddress remote = new InetSocketAddress("127.0.0.1", 8080);
 
         ServerWebExchange first = buildExchange("/limited", principal, remote);
+        first.getAttributes().put(
+                ForwardedHeaderCanonicalizationWebFilter.CANONICAL_CLIENT_IP_ATTRIBUTE,
+                "198.51.100.1"
+        );
         filter.filter(first, chain).block();
         assertThat(chainInvocations).hasValue(1);
 
         ServerWebExchange second = buildExchange("/limited", principal, remote);
+        second.getAttributes().put(
+                ForwardedHeaderCanonicalizationWebFilter.CANONICAL_CLIENT_IP_ATTRIBUTE,
+                "198.51.100.1"
+        );
         filter.filter(second, chain).block();
         assertThat(second.getResponse().getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         assertThat(chainInvocations).hasValue(1);
@@ -80,6 +89,41 @@ class RateLimitWebFilterTest {
         filter.filter(second, chain).block();
         assertThat(second.getResponse().getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         assertThat(chainInvocations).hasValue(1);
+    }
+
+    @Test
+    void shouldUseCanonicalClientIpForAnonymousRequests() {
+        RateLimitProperties properties = new RateLimitProperties();
+        RateLimitProperties.Policy policy = new RateLimitProperties.Policy();
+        properties.getPolicies().put("/canonical", policy);
+
+        RateLimiter limiter = mock(RateLimiter.class);
+        when(limiter.allow("ip:198.51.100.1:/canonical", policy)).thenReturn(true);
+        RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
+        ServerWebExchange exchange = buildExchange(
+                "/canonical",
+                null,
+                new InetSocketAddress("10.0.0.5", 9090)
+        );
+        exchange.getAttributes().put(
+                ForwardedHeaderCanonicalizationWebFilter.CANONICAL_CLIENT_IP_ATTRIBUTE,
+                "198.51.100.1"
+        );
+
+        filter.filter(exchange, ignored -> Mono.empty()).block();
+
+        verify(limiter).allow("ip:198.51.100.1:/canonical", policy);
+        verify(limiter, never()).allow("ip:10.0.0.5:/canonical", policy);
+    }
+
+    @Test
+    void canonicalizationShouldRunBeforeRateLimiting() {
+        assertThat(ForwardedHeaderCanonicalizationWebFilter.ORDER)
+                .isLessThan(RateLimitWebFilter.ORDER);
+        assertThat(new RateLimitWebFilter(new RateLimitProperties(), mock(RateLimiter.class)))
+                .isInstanceOf(Ordered.class)
+                .extracting(filter -> ((Ordered) filter).getOrder())
+                .isEqualTo(RateLimitWebFilter.ORDER);
     }
 
     @Test

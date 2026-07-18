@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.edge;
 
+import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
@@ -7,7 +8,9 @@ import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
-public class RateLimitWebFilter implements WebFilter {
+public class RateLimitWebFilter implements WebFilter, Ordered {
+
+    public static final int ORDER = Ordered.HIGHEST_PRECEDENCE + 30;
 
     private final RateLimitProperties properties;
     private final RateLimiter limiter;
@@ -57,6 +60,12 @@ public class RateLimitWebFilter implements WebFilter {
     }
 
     private static String remoteAddressKey(ServerWebExchange exchange, String path) {
+        String canonicalClientIp = exchange == null
+                ? null
+                : exchange.getAttribute(ForwardedHeaderCanonicalizationWebFilter.CANONICAL_CLIENT_IP_ATTRIBUTE);
+        if (StringUtils.hasText(canonicalClientIp)) {
+            return "ip:" + canonicalClientIp + ":" + path;
+        }
         if (exchange == null || exchange.getRequest() == null || exchange.getRequest().getRemoteAddress() == null) {
             return "ip:unknown:" + path;
         }
@@ -64,5 +73,10 @@ public class RateLimitWebFilter implements WebFilter {
                 ? exchange.getRequest().getRemoteAddress().getHostString()
                 : exchange.getRequest().getRemoteAddress().getAddress().getHostAddress();
         return "ip:" + (StringUtils.hasText(host) ? host : "unknown") + ":" + path;
+    }
+
+    @Override
+    public int getOrder() {
+        return ORDER;
     }
 }

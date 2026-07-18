@@ -10,7 +10,7 @@ import java.util.List;
  *
  * <p>约定：仅当 remoteAddr ∈ CIDR 白名单时才解析 XFF，避免客户端伪造转发头绕过风控/限流。</p>
  */
-@ConfigurationProperties(prefix = "gateway.trusted-proxy")
+@ConfigurationProperties(prefix = "community.web.trusted-proxy")
 public class TrustedProxyProperties {
 
     public static final String SOURCE_APPLICATION_DEFAULT = "application-default";

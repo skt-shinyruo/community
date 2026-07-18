@@ -94,6 +94,11 @@ management:
       enabled: true
 
 community:
+  web:
+    trusted-proxy:
+      enabled: ${COMMUNITY_APP_TRUSTED_PROXY_ENABLED:false}
+      cidrs: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:}
+      source: application-default
   logging:
     service-version: ${SERVICE_VERSION:@project.version@}
   metrics:
@@ -173,10 +178,6 @@ drive:
     ticket-secret: ${DRIVE_SHARE_TICKET_SECRET:}
 
 gateway:
-  trusted-proxy:
-    enabled: ${COMMUNITY_APP_TRUSTED_PROXY_ENABLED:false}
-    cidrs: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:}
-    source: application-default
   origin-guard:
     enabled: true
     allowed-origins: ${AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS:}

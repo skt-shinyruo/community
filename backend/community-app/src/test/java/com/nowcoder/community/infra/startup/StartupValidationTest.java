@@ -1,7 +1,11 @@
 package com.nowcoder.community.infra.startup;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.core.env.StandardEnvironment;
+import org.springframework.core.env.SystemEnvironmentPropertySource;
 import org.springframework.mock.env.MockEnvironment;
+
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -36,6 +40,34 @@ class StartupValidationTest {
         assertThatThrownBy(() -> new StartupValidation().validateOrThrow(environment))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social.storage=db");
+    }
+
+    @Test
+    void prodShouldRejectUnsafeCommunityWebTrustedProxyCidr() {
+        MockEnvironment environment = prodEnvironment()
+                .withProperty("community.web.trusted-proxy.enabled", "true")
+                .withProperty("community.web.trusted-proxy.cidrs[0]", "0.0.0.0/0");
+
+        assertThatThrownBy(() -> new StartupValidation().validateOrThrow(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("community.web.trusted-proxy.cidrs[0]=0.0.0.0/0");
+    }
+
+    @Test
+    void prodShouldIgnoreGatewayOwnerTrustedProxyConfiguration() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.setActiveProfiles("prod");
+        environment.getPropertySources().addFirst(new SystemEnvironmentPropertySource(
+                "foreign-gateway-owner",
+                Map.of(
+                        "SPRING_APPLICATION_NAME", "community-app",
+                        "SECURITY_JWT_HMAC_SECRET", "01234567890123456789012345678901",
+                        "GATEWAY_TRUSTED_PROXY_ENABLED", "true",
+                        "GATEWAY_TRUSTED_PROXY_CIDRS", "0.0.0.0/0"
+                )
+        ));
+
+        new StartupValidation().validateOrThrow(environment);
     }
 
     private MockEnvironment prodEnvironment() {

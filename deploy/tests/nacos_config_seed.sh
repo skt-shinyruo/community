@@ -95,8 +95,20 @@ if grep -F 'trusted-proxy:' "${CONFIG_DIR}/community-shared.yaml"; then
 fi
 grep -F 'enabled: ${GATEWAY_TRUSTED_PROXY_ENABLED:false}' "${CONFIG_DIR}/community-gateway.yaml"
 grep -F 'cidrs: ${GATEWAY_TRUSTED_PROXY_CIDRS:}' "${CONFIG_DIR}/community-gateway.yaml"
+grep -Fx 'community:' "${CONFIG_DIR}/community-app.yaml"
+grep -Fx '  web:' "${CONFIG_DIR}/community-app.yaml"
+grep -Fx '    trusted-proxy:' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'enabled: ${COMMUNITY_APP_TRUSTED_PROXY_ENABLED:false}' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'cidrs: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:}' "${CONFIG_DIR}/community-app.yaml"
+if awk '
+  $0 == "gateway:" { in_gateway = 1; next }
+  in_gateway && /^[^ ]/ { in_gateway = 0 }
+  in_gateway && $0 == "  trusted-proxy:" { found = 1 }
+  END { exit found ? 0 : 1 }
+' "${CONFIG_DIR}/community-app.yaml"; then
+  echo "community-app must not consume the Gateway owner's trusted proxy path" >&2
+  exit 1
+fi
 grep -F 'username: prometheus' "${CONFIG_DIR}/community-shared.yaml"
 grep -F 'initialize: true' "${CONFIG_DIR}/community-app.yaml"
 grep -F -- '- /api/ops/**' "${CONFIG_DIR}/community-app.yaml"

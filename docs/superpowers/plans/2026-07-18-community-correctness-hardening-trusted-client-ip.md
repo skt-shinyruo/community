@@ -117,7 +117,7 @@ untrusted client headers
 ### 让 Servlet adapter 委托共享算法
 
 - [ ] `common-web` 显式依赖 `common-core`；`ClientIpResolver` 删除私有 `firstIp`、`normalizeIp`、`cidrMatch`。
-- [ ] `TrustedProxyProperties` 启用时构造 `TrustedProxyChain(properties.getCidrs())`；disabled 时只使用 request socket peer。
+- [ ] Servlet `TrustedProxyProperties` 使用 owner-safe 前缀 `community.web.trusted-proxy`；不得复用 Gateway owner 的 `gateway.trusted-proxy`。启用时构造 `TrustedProxyChain(properties.getCidrs())`；disabled 时只使用 request socket peer。
 - [ ] 把 `request.getHeaders("X-Forwarded-For")` 的所有行按逗号展开为有序 hop，不能只读第一个 Header 行。
 - [ ] 保持返回契约 `ResolvedClientIp(String ip, String source)`，避免认证/验证码调用者无关改动。
 - [ ] 再运行 `ClientIpResolverTest`，预期全部通过。
@@ -165,7 +165,7 @@ untrusted client headers
 
 ### 实现 Gateway filter
 
-- [ ] `EdgeTrustedProxyProperties` 使用 `gateway.trusted-proxy`，字段与 Servlet 配置的 `enabled/cidrs` 同义；在 `EdgeConfig` 的 `@EnableConfigurationProperties` 注册。
+- [ ] `EdgeTrustedProxyProperties` 保持使用 Gateway owner 前缀 `gateway.trusted-proxy`，与 Servlet 的 `community.web.trusted-proxy` 隔离；字段 `enabled/cidrs` 同义，并在 `EdgeConfig` 的 `@EnableConfigurationProperties` 注册。
 - [ ] `EdgeConfig` 显式创建 `ForwardedHeaderCanonicalizationWebFilter` bean，并把同一个 canonical client attribute 提供给限流；不能只注册 properties 而漏掉运行时 filter。
 - [ ] `ForwardedHeaderCanonicalizationWebFilter` 实现 `Ordered`，保持 `HIGHEST_PRECEDENCE + 20` 并先于安全过滤器清洗 Header；`RateLimitWebFilter` **不再使用原先的 `HIGHEST_PRECEDENCE + 30`**，改为 `SecurityProperties.DEFAULT_FILTER_ORDER + 1`（当前为 `-99`），确保 Spring Security 已经写入 authenticated principal 后再生成限流 key。
 - [ ] filter 用 `ServerHttpRequest.mutate().headers(...)` 原子清除并重建 Header；不能修改原始只读 headers map。
@@ -269,7 +269,7 @@ untrusted client headers
   proxy_set_header X-Forwarded-For $remote_addr;
   ```
 
-- [ ] Gateway 的 trusted CIDR 只配置 NGINX 容器/负载均衡器网络；Servlet 应用的 trusted CIDR 只配置 Gateway 网络。local 默认可 disabled，但部署配置必须列出真实网络。
+- [ ] Gateway 的 `gateway.trusted-proxy` 只配置 NGINX 容器/负载均衡器网络；Servlet 应用的 `community.web.trusted-proxy` 只配置 Gateway 网络。两者分别由 `GATEWAY_TRUSTED_PROXY_*` 与 `COMMUNITY_APP_TRUSTED_PROXY_*` 运行时变量注入，不能共享 owner 前缀。local 默认可 disabled，但部署配置必须列出真实网络。
 - [ ] 容器网络可能变化时使用受控环境变量注入 CIDR，并在启动日志只打印 CIDR 数量/配置来源，不打印请求 IP 列表。
 - [ ] 再运行脚本，预期退出码 `0`。
 - [ ] 提交部署配置：

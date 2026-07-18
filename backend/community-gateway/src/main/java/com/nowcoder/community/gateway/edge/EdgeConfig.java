@@ -1,6 +1,8 @@
 package com.nowcoder.community.gateway.edge;
 
 import com.nowcoder.community.gateway.canary.CanaryRouteProperties;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,6 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 @EnableConfigurationProperties({
         RateLimitProperties.class,
         TrafficPolicyProperties.class,
+        EdgeTrustedProxyProperties.class,
         CanaryRouteProperties.class
 })
 public class EdgeConfig {
@@ -22,6 +25,14 @@ public class EdgeConfig {
     @Bean
     RateLimitWebFilter rateLimitWebFilter(RateLimitProperties properties, RateLimiter limiter) {
         return new RateLimitWebFilter(properties, limiter);
+    }
+
+    @Bean
+    ForwardedHeaderCanonicalizationWebFilter forwardedHeaderCanonicalizationWebFilter(
+            EdgeTrustedProxyProperties properties,
+            ObjectProvider<MeterRegistry> meterRegistryProvider
+    ) {
+        return new ForwardedHeaderCanonicalizationWebFilter(properties, meterRegistryProvider.getIfAvailable());
     }
 
     @Bean

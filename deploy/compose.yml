@@ -5,6 +5,7 @@ networks:
     ipam:
       config:
       - subnet: ${COMMUNITY_NETWORK_SUBNET:?COMMUNITY_NETWORK_SUBNET is required}
+        ip_range: ${COMMUNITY_NETWORK_DYNAMIC_RANGE:?COMMUNITY_NETWORK_DYNAMIC_RANGE is required}
 
 volumes:
   mysql_primary_data:

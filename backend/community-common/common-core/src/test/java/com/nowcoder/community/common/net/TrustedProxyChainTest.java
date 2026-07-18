@@ -103,6 +103,97 @@ class TrustedProxyChainTest {
     }
 
     @ParameterizedTest(name = "{0}")
+    @MethodSource("nonByteAlignedCidrCases")
+    void shouldMaskAndMatchNonByteAlignedCidrs(
+            String description,
+            String trustedCidr,
+            String directPeer,
+            String expectedClientIp,
+            TrustedProxyChain.Source expectedSource
+    ) {
+        TrustedProxyChain resolver = new TrustedProxyChain(List.of(trustedCidr));
+
+        TrustedProxyChain.Resolution resolution = resolver.resolve(directPeer, List.of("203.0.113.77"));
+
+        assertThat(resolution).isEqualTo(new TrustedProxyChain.Resolution(expectedClientIp, expectedSource));
+    }
+
+    static Stream<Arguments> nonByteAlignedCidrCases() {
+        return Stream.of(
+                Arguments.of(
+                        "IPv4 /9 includes address after masking configured host bits",
+                        "10.200.30.40/9",
+                        "10.255.255.254",
+                        "203.0.113.77",
+                        TrustedProxyChain.Source.FORWARDED_CHAIN
+                ),
+                Arguments.of(
+                        "IPv4 /9 excludes address across partial-byte boundary",
+                        "10.200.30.40/9",
+                        "10.127.255.255",
+                        "10.127.255.255",
+                        TrustedProxyChain.Source.DIRECT_PEER
+                ),
+                Arguments.of(
+                        "IPv4 /25 includes address after masking configured host bits",
+                        "192.0.2.200/25",
+                        "192.0.2.254",
+                        "203.0.113.77",
+                        TrustedProxyChain.Source.FORWARDED_CHAIN
+                ),
+                Arguments.of(
+                        "IPv4 /25 excludes address across partial-byte boundary",
+                        "192.0.2.200/25",
+                        "192.0.2.127",
+                        "192.0.2.127",
+                        TrustedProxyChain.Source.DIRECT_PEER
+                ),
+                Arguments.of(
+                        "IPv6 /33 includes address after masking configured host bits",
+                        "2001:db8:ffff::1/33",
+                        "2001:db8:8000::5",
+                        "203.0.113.77",
+                        TrustedProxyChain.Source.FORWARDED_CHAIN
+                ),
+                Arguments.of(
+                        "IPv6 /33 excludes address across partial-byte boundary",
+                        "2001:db8:ffff::1/33",
+                        "2001:db8:7fff::5",
+                        "2001:db8:7fff::5",
+                        TrustedProxyChain.Source.DIRECT_PEER
+                ),
+                Arguments.of(
+                        "IPv6 /65 includes address after masking configured host bits",
+                        "2001:db8:1:2:ffff::1/65",
+                        "2001:db8:1:2:8000::5",
+                        "203.0.113.77",
+                        TrustedProxyChain.Source.FORWARDED_CHAIN
+                ),
+                Arguments.of(
+                        "IPv6 /65 excludes address across partial-byte boundary",
+                        "2001:db8:1:2:ffff::1/65",
+                        "2001:db8:1:2:7fff::5",
+                        "2001:db8:1:2:7fff::5",
+                        TrustedProxyChain.Source.DIRECT_PEER
+                ),
+                Arguments.of(
+                        "IPv4-mapped IPv6 /105 includes address after masking configured host bits",
+                        "::ffff:10.200.30.40/105",
+                        "::ffff:10.255.255.254",
+                        "203.0.113.77",
+                        TrustedProxyChain.Source.FORWARDED_CHAIN
+                ),
+                Arguments.of(
+                        "IPv4-mapped IPv6 /105 excludes address across partial-byte boundary",
+                        "::ffff:10.200.30.40/105",
+                        "::ffff:10.127.255.255",
+                        "10.127.255.255",
+                        TrustedProxyChain.Source.DIRECT_PEER
+                )
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
     @MethodSource("proxyChainCases")
     void shouldStripOnlyTrustedHopsFromRightToLeft(
             String description,
@@ -181,6 +272,40 @@ class TrustedProxyChainTest {
                 "2001:db8:::1",
                 "2001:db8::1::2",
                 "999.1.1.1"
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "010.0.0.1",
+            "10.00.0.1",
+            "10.0.0.001",
+            "::ffff:010.0.0.1"
+    })
+    void shouldRejectAmbiguousLeadingZeroOctetsInDirectPeer(String directPeer) {
+        TrustedProxyChain resolver = new TrustedProxyChain(List.of());
+
+        TrustedProxyChain.Resolution resolution = resolver.resolve(directPeer, List.of());
+
+        assertThat(resolution).isEqualTo(
+                new TrustedProxyChain.Resolution(null, TrustedProxyChain.Source.DIRECT_PEER)
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "010.0.0.1",
+            "10.00.0.1",
+            "10.0.0.001",
+            "::ffff:010.0.0.1"
+    })
+    void shouldRejectAmbiguousLeadingZeroOctetsInForwardedHop(String forwardedHop) {
+        TrustedProxyChain resolver = new TrustedProxyChain(List.of("192.0.2.10/32"));
+
+        TrustedProxyChain.Resolution resolution = resolver.resolve("192.0.2.10", List.of(forwardedHop));
+
+        assertThat(resolution).isEqualTo(
+                new TrustedProxyChain.Resolution("192.0.2.10", TrustedProxyChain.Source.DIRECT_PEER)
         );
     }
 

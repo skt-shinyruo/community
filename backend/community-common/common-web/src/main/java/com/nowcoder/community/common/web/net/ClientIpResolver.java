@@ -4,7 +4,6 @@ import com.nowcoder.community.common.net.TrustedProxyChain;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 
@@ -19,8 +18,10 @@ public class ClientIpResolver {
     public static final String SOURCE_XFF = "xff";
 
     private static final String HEADER_X_FORWARDED_FOR = "X-Forwarded-For";
+    private static final int MAX_FORWARDED_HOPS = 32;
 
     private final TrustedProxyChain trustedProxyChain;
+    private final boolean readForwardedHeaders;
 
     public ClientIpResolver(TrustedProxyProperties properties) {
         List<String> trustedCidrs = List.of();
@@ -31,17 +32,19 @@ public class ClientIpResolver {
             }
         }
         this.trustedProxyChain = new TrustedProxyChain(trustedCidrs);
+        this.readForwardedHeaders = !trustedCidrs.isEmpty();
     }
 
     public ResolvedClientIp resolve(HttpServletRequest request) {
         if (request == null) {
             return map(trustedProxyChain.resolve(null, List.of()));
         }
-        return map(trustedProxyChain.resolve(request.getRemoteAddr(), forwardedHops(request)));
+        List<String> forwardedHops = readForwardedHeaders ? forwardedHops(request) : List.of();
+        return map(trustedProxyChain.resolve(request.getRemoteAddr(), forwardedHops));
     }
 
     private List<String> forwardedHops(HttpServletRequest request) {
-        List<String> hops = new ArrayList<>();
+        List<String> hops = new ArrayList<>(MAX_FORWARDED_HOPS + 1);
         Enumeration<String> headerLines = request.getHeaders(HEADER_X_FORWARDED_FOR);
         if (headerLines == null) {
             return hops;
@@ -50,8 +53,24 @@ public class ClientIpResolver {
             String headerLine = headerLines.nextElement();
             if (headerLine == null) {
                 hops.add(null);
-            } else {
-                Collections.addAll(hops, headerLine.split(",", -1));
+                if (hops.size() > MAX_FORWARDED_HOPS) {
+                    return hops;
+                }
+                continue;
+            }
+
+            int tokenStart = 0;
+            while (true) {
+                int separator = headerLine.indexOf(',', tokenStart);
+                int tokenEnd = separator < 0 ? headerLine.length() : separator;
+                hops.add(headerLine.substring(tokenStart, tokenEnd));
+                if (hops.size() > MAX_FORWARDED_HOPS) {
+                    return hops;
+                }
+                if (separator < 0) {
+                    break;
+                }
+                tokenStart = separator + 1;
             }
         }
         return hops;

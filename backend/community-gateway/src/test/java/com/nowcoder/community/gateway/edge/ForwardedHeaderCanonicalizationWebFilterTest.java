@@ -1,10 +1,15 @@
 package com.nowcoder.community.gateway.edge;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
@@ -35,15 +40,64 @@ class ForwardedHeaderCanonicalizationWebFilterTest {
     private static final String FORWARDED = "Forwarded";
 
     @Test
+    void shouldLogSanitizedTrustedProxyConfigurationOnceAtConstruction() {
+        Logger logger = (Logger) LoggerFactory.getLogger(ForwardedHeaderCanonicalizationWebFilter.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            EdgeTrustedProxyProperties properties = trusted("10.24.0.0/16", "2001:db8:24::/48");
+            properties.setSource("request=192.0.2.24");
+            ForwardedHeaderCanonicalizationWebFilter filter =
+                    new ForwardedHeaderCanonicalizationWebFilter(
+                            properties,
+                            null
+                    );
+
+            filter(filter, request("/", resolved("10.24.0.4"))
+                    .header(X_FORWARDED_FOR, "198.51.100.24")
+                    .build());
+            filter(filter, request("/", resolved("10.24.0.5"))
+                    .header(X_FORWARDED_FOR, "203.0.113.24")
+                    .build());
+
+            assertThat(appender.list).hasSize(1);
+            ILoggingEvent event = appender.list.get(0);
+            assertThat(event.getLevel()).isEqualTo(Level.INFO);
+            assertThat(event.getFormattedMessage())
+                    .contains("enabled=true", "source=application-default", "cidrCount=2")
+                    .doesNotContain(
+                            "10.24.0.0/16",
+                            "2001:db8:24::/48",
+                            "10.24.0.4",
+                            "10.24.0.5",
+                            "192.0.2.24",
+                            "198.51.100.24",
+                            "203.0.113.24"
+                    );
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
+    @Test
     void propertiesShouldDefaultToDisabledAndDefensivelyHandleNullCidrs() {
         EdgeTrustedProxyProperties properties = new EdgeTrustedProxyProperties();
 
         assertThat(properties.isEnabled()).isFalse();
         assertThat(properties.getCidrs()).isEmpty();
+        assertThat(properties.getSource()).isEqualTo("application-default");
 
         properties.setCidrs(null);
+        properties.setSource("request=198.51.100.92");
 
         assertThat(properties.getCidrs()).isEmpty();
+        assertThat(properties.getSource()).isEqualTo("application-default");
+
+        properties.setSource("compose-environment");
+
+        assertThat(properties.getSource()).isEqualTo("compose-environment");
     }
 
     @Test

@@ -3,6 +3,7 @@ gateway:
   trusted-proxy:
     enabled: ${COMMUNITY_APP_TRUSTED_PROXY_ENABLED:false}
     cidrs: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:}
+    source: compose-environment
   origin-guard:
     enabled: true
     allowed-origins:

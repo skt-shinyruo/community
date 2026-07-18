@@ -2,6 +2,8 @@ package com.nowcoder.community.common.web.net;
 
 import com.nowcoder.community.common.net.TrustedProxyChain;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -14,6 +16,8 @@ import java.util.List;
  */
 public class ClientIpResolver {
 
+    private static final Logger log = LoggerFactory.getLogger(ClientIpResolver.class);
+
     public static final String SOURCE_REMOTE = "remote";
     public static final String SOURCE_XFF = "xff";
 
@@ -24,15 +28,26 @@ public class ClientIpResolver {
     private final boolean readForwardedHeaders;
 
     public ClientIpResolver(TrustedProxyProperties properties) {
+        boolean enabled = properties != null && properties.isEnabled();
+        List<String> configuredCidrs = properties == null ? List.of() : properties.getCidrs();
+        int configuredCidrCount = configuredCidrs == null ? 0 : configuredCidrs.size();
+        String configurationSource = properties == null
+                ? TrustedProxyProperties.SOURCE_APPLICATION_DEFAULT
+                : properties.getSource();
         List<String> trustedCidrs = List.of();
-        if (properties != null && properties.isEnabled()) {
-            List<String> configuredCidrs = properties.getCidrs();
+        if (enabled) {
             if (configuredCidrs != null && !configuredCidrs.isEmpty()) {
                 trustedCidrs = configuredCidrs;
             }
         }
         this.trustedProxyChain = new TrustedProxyChain(trustedCidrs);
         this.readForwardedHeaders = !trustedCidrs.isEmpty();
+        log.info(
+                "Trusted proxy configuration: enabled={} source={} cidrCount={}",
+                enabled,
+                configurationSource,
+                configuredCidrCount
+        );
     }
 
     public ResolvedClientIp resolve(HttpServletRequest request) {

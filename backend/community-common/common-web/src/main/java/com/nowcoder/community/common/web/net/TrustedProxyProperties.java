@@ -13,6 +13,9 @@ import java.util.List;
 @ConfigurationProperties(prefix = "gateway.trusted-proxy")
 public class TrustedProxyProperties {
 
+    public static final String SOURCE_APPLICATION_DEFAULT = "application-default";
+    public static final String SOURCE_COMPOSE_ENVIRONMENT = "compose-environment";
+
     /**
      * 是否启用可信代理模式。默认 false（不信任 XFF）。
      */
@@ -22,6 +25,11 @@ public class TrustedProxyProperties {
      * 可信代理 CIDR 列表（例如 10.0.0.0/8）。
      */
     private List<String> cidrs = new ArrayList<>();
+
+    /**
+     * Low-cardinality label describing where this configuration was supplied.
+     */
+    private String source = SOURCE_APPLICATION_DEFAULT;
 
     public boolean isEnabled() {
         return enabled;
@@ -37,5 +45,15 @@ public class TrustedProxyProperties {
 
     public void setCidrs(List<String> cidrs) {
         this.cidrs = cidrs == null ? new ArrayList<>() : cidrs;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = SOURCE_COMPOSE_ENVIRONMENT.equals(source)
+                ? SOURCE_COMPOSE_ENVIRONMENT
+                : SOURCE_APPLICATION_DEFAULT;
     }
 }

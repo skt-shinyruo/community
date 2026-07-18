@@ -1,6 +1,8 @@
 package com.nowcoder.community.infra.startup;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
 import org.springframework.mock.env.MockEnvironment;
@@ -43,15 +45,26 @@ class StartupValidationTest {
                 .hasMessageContaining("social.storage=db");
     }
 
-    @Test
-    void prodShouldRejectUnsafeCommunityWebTrustedProxyCidr() {
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "0.0.0.0/0",
+            "::/0",
+            "10.0.0.1/0",
+            "0.0.0.0/00",
+            "10.0.0.1/0000000000000000000000000000000000000000",
+            "2001:db8::1/0"
+    })
+    void prodShouldRejectEquivalentUniversalCommunityWebTrustedProxyCidrs(String cidr) {
         MockEnvironment environment = prodEnvironment()
                 .withProperty("community.web.trusted-proxy.enabled", "true")
-                .withProperty("community.web.trusted-proxy.cidrs[0]", "0.0.0.0/0");
+                .withProperty("community.web.trusted-proxy.cidrs[0]", cidr);
 
         assertThatThrownBy(() -> new StartupValidation().validateOrThrow(environment))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("community.web.trusted-proxy.cidrs[0]=0.0.0.0/0");
+                .hasMessageContaining("community.web.trusted-proxy.cidrs[0]")
+                .hasMessageContaining("禁止使用全量信任 CIDR")
+                .hasMessageNotContaining("community.web.trusted-proxy.cidrs[0]=")
+                .hasMessageNotContaining(cidr);
     }
 
     @Test

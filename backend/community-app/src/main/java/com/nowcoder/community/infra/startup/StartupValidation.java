@@ -163,17 +163,31 @@ public class StartupValidation {
                 continue;
             }
             String trimmed = cidr.trim();
-            if ("0.0.0.0/0".equals(trimmed) || "::/0".equals(trimmed)) {
-                errors.add("配置不安全：community.web.trusted-proxy.cidrs[" + i + "]=" + trimmed + "（禁止使用全量信任 CIDR）");
-                continue;
-            }
             try {
                 new TrustedProxyChain(List.of(trimmed));
             } catch (IllegalArgumentException exception) {
                 errors.add("配置不合法：community.web.trusted-proxy.cidrs[" + i
                         + "] 不是有效的 IPv4/IPv6 literal CIDR（禁止 hostname、端口和 zone id）");
+                continue;
+            }
+            if (hasZeroPrefixLength(trimmed)) {
+                errors.add("配置不安全：community.web.trusted-proxy.cidrs[" + i
+                        + "] 禁止使用全量信任 CIDR（prefix length 不能为 0）");
             }
         }
+    }
+
+    private boolean hasZeroPrefixLength(String cidr) {
+        int prefixStart = cidr.lastIndexOf('/') + 1;
+        if (prefixStart <= 0 || prefixStart == cidr.length()) {
+            return false;
+        }
+        for (int i = prefixStart; i < cidr.length(); i++) {
+            if (cidr.charAt(i) != '0') {
+                return false;
+            }
+        }
+        return true;
     }
 
     private List<String> bindTrustedProxyCidrs(Environment environment, List<String> errors) {

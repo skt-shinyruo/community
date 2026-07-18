@@ -25,6 +25,10 @@ public class ForwardedHeaderCanonicalizationWebFilter implements WebFilter, Orde
 
     private static final String FORWARDED = "Forwarded";
     private static final String X_FORWARDED_FOR = "X-Forwarded-For";
+    private static final String X_FORWARDED_HOST = "X-Forwarded-Host";
+    private static final String X_FORWARDED_PORT = "X-Forwarded-Port";
+    private static final String X_FORWARDED_PREFIX = "X-Forwarded-Prefix";
+    private static final String X_FORWARDED_PROTO = "X-Forwarded-Proto";
     private static final String X_REAL_IP = "X-Real-IP";
     private static final int MAX_FORWARDED_HOPS = 32;
     private static final int MAX_COPIED_HOP_LENGTH = 65;
@@ -79,6 +83,10 @@ public class ForwardedHeaderCanonicalizationWebFilter implements WebFilter, Orde
                 .request(request -> request.headers(headers -> {
                     headers.remove(FORWARDED);
                     headers.remove(X_FORWARDED_FOR);
+                    headers.remove(X_FORWARDED_HOST);
+                    headers.remove(X_FORWARDED_PORT);
+                    headers.remove(X_FORWARDED_PREFIX);
+                    headers.remove(X_FORWARDED_PROTO);
                     headers.remove(X_REAL_IP);
                     if (StringUtils.hasText(canonicalClientIp)) {
                         headers.set(X_FORWARDED_FOR, canonicalClientIp);

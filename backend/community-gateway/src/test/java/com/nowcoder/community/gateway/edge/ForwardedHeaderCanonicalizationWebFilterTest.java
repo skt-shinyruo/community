@@ -27,6 +27,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ForwardedHeaderCanonicalizationWebFilterTest {
 
     private static final String X_FORWARDED_FOR = "X-Forwarded-For";
+    private static final String X_FORWARDED_HOST = "X-Forwarded-Host";
+    private static final String X_FORWARDED_PORT = "X-Forwarded-Port";
+    private static final String X_FORWARDED_PREFIX = "X-Forwarded-Prefix";
+    private static final String X_FORWARDED_PROTO = "X-Forwarded-Proto";
     private static final String X_REAL_IP = "X-Real-IP";
     private static final String FORWARDED = "Forwarded";
 
@@ -203,6 +207,10 @@ class ForwardedHeaderCanonicalizationWebFilterTest {
         CapturedRequest capture = filter(filter, request("/", resolved("10.0.0.5"))
                 .header(FORWARDED, "for=203.0.113.9", "for=198.51.100.2")
                 .header(X_FORWARDED_FOR, "198.51.100.1", "10.0.0.8")
+                .header(X_FORWARDED_HOST, "attacker.example", "internal.example")
+                .header(X_FORWARDED_PORT, "444", "443")
+                .header(X_FORWARDED_PREFIX, "/attacker", "/internal")
+                .header(X_FORWARDED_PROTO, "http", "https")
                 .header(X_REAL_IP, "203.0.113.10", "203.0.113.11")
                 .build());
 
@@ -314,6 +322,10 @@ class ForwardedHeaderCanonicalizationWebFilterTest {
     private static void assertForwardingHeadersRemoved(ServerWebExchange exchange) {
         HttpHeaders headers = exchange.getRequest().getHeaders();
         assertThat(headers).doesNotContainKey(FORWARDED);
+        assertThat(headers).doesNotContainKey(X_FORWARDED_HOST);
+        assertThat(headers).doesNotContainKey(X_FORWARDED_PORT);
+        assertThat(headers).doesNotContainKey(X_FORWARDED_PREFIX);
+        assertThat(headers).doesNotContainKey(X_FORWARDED_PROTO);
         assertThat(headers).doesNotContainKey(X_REAL_IP);
     }
 

@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.edge;
 
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
@@ -10,7 +11,10 @@ import reactor.core.publisher.Mono;
 
 public class RateLimitWebFilter implements WebFilter, Ordered {
 
-    public static final int ORDER = Ordered.HIGHEST_PRECEDENCE + 30;
+    /**
+     * Run immediately after Spring Security so authenticated principals are visible to the key builder.
+     */
+    public static final int ORDER = SecurityProperties.DEFAULT_FILTER_ORDER + 1;
 
     private final RateLimitProperties properties;
     private final RateLimiter limiter;

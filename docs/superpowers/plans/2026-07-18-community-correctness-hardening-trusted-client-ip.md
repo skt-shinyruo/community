@@ -4,7 +4,7 @@
 
 **Goal:** 建立从 NGINX、Gateway 到 Servlet 应用的一致可信代理模型，阻止伪造转发 Header 绕过限流、风控和帖子浏览指纹。
 
-**Architecture:** `common-core` 提供不依赖 Spring/Servlet/WebFlux 的纯 `TrustedProxyChain`，只解析 IP literal 和 CIDR，不触发 DNS。NGINX 覆盖客户端转发 Header；Gateway 在限流前根据直接对端和可信 CIDR 从右向左剥离代理，删除全部传入转发 Header并写入单一规范 `X-Forwarded-For`；Servlet `ClientIpResolver` 使用同一算法。Controller 只消费 resolver 结果。
+**Architecture:** `common-core` 提供不依赖 Spring/Servlet/WebFlux 的纯 `TrustedProxyChain`，只解析 IP literal 和 CIDR，不触发 DNS。NGINX 覆盖客户端转发 Header；Gateway 先在安全过滤器之前根据直接对端和可信 CIDR 从右向左剥离代理，删除全部传入转发 Header并写入单一规范 `X-Forwarded-For`；限流再紧接 Spring Security 运行以确保认证 principal 可见；Servlet `ClientIpResolver` 使用同一算法。Controller 只消费 resolver 结果。
 
 **Tech Stack:** Java 21、Spring WebFlux Gateway、Servlet API、JUnit 5、MockMvc、Reactor Test、NGINX 配置、Maven。
 
@@ -167,7 +167,7 @@ untrusted client headers
 
 - [ ] `EdgeTrustedProxyProperties` 使用 `gateway.trusted-proxy`，字段与 Servlet 配置的 `enabled/cidrs` 同义；在 `EdgeConfig` 的 `@EnableConfigurationProperties` 注册。
 - [ ] `EdgeConfig` 显式创建 `ForwardedHeaderCanonicalizationWebFilter` bean，并把同一个 canonical client attribute 提供给限流；不能只注册 properties 而漏掉运行时 filter。
-- [ ] `ForwardedHeaderCanonicalizationWebFilter` 实现 `Ordered`，建议 `HIGHEST_PRECEDENCE + 20`；`RateLimitWebFilter` 为 `HIGHEST_PRECEDENCE + 30`。
+- [ ] `ForwardedHeaderCanonicalizationWebFilter` 实现 `Ordered`，保持 `HIGHEST_PRECEDENCE + 20` 并先于安全过滤器清洗 Header；`RateLimitWebFilter` **不再使用原先的 `HIGHEST_PRECEDENCE + 30`**，改为 `SecurityProperties.DEFAULT_FILTER_ORDER + 1`（当前为 `-99`），确保 Spring Security 已经写入 authenticated principal 后再生成限流 key。
 - [ ] filter 用 `ServerHttpRequest.mutate().headers(...)` 原子清除并重建 Header；不能修改原始只读 headers map。
 - [ ] 把 canonical address 放入 exchange attribute 常量，例如：
 

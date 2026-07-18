@@ -175,6 +175,11 @@ public final class TrustedProxyChain {
             if (offset >= value.length()) {
                 return null;
             }
+            if (value.charAt(offset) == '0'
+                    && offset + 1 < value.length()
+                    && value.charAt(offset + 1) != '.') {
+                return null;
+            }
 
             int octet = 0;
             int digits = 0;

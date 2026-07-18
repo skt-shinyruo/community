@@ -1,5 +1,11 @@
 name: community
 
+networks:
+  default:
+    ipam:
+      config:
+      - subnet: ${COMMUNITY_NETWORK_SUBNET:?COMMUNITY_NETWORK_SUBNET is required}
+
 volumes:
   mysql_primary_data:
     name: ${COMMUNITY_VOLUME_NAMESPACE}_mysql_primary_data

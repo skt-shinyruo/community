@@ -231,6 +231,30 @@ assert_gateway_header_filters_disabled() {
   ' "${file}" || fail "${file#"${REPO_ROOT}/"} must disable both Spring Cloud Gateway forwarded header filters"
 }
 
+assert_community_trusted_proxy_path() {
+  local file="$1"
+
+  awk '
+    $0 == "community:" { in_community = 1; next }
+    in_community && /^[^ ]/ { in_community = 0; in_web = 0 }
+    in_community && $0 == "  web:" { in_web = 1; next }
+    in_web && /^  [^ ]/ { in_web = 0 }
+    in_web && $0 == "    trusted-proxy:" { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "${file}" || fail "${file#"${REPO_ROOT}/"} must own trusted proxy config at community.web.trusted-proxy"
+}
+
+assert_no_gateway_trusted_proxy_path() {
+  local file="$1"
+
+  awk '
+    $0 == "gateway:" { in_gateway = 1; next }
+    in_gateway && /^[^ ]/ { in_gateway = 0 }
+    in_gateway && $0 == "  trusted-proxy:" { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' "${file}" || fail "${file#"${REPO_ROOT}/"} must not consume the Gateway owner's trusted proxy path"
+}
+
 nginx_configs=(
   "${REPO_ROOT}/deploy/nginx/nginx.single.conf"
   "${REPO_ROOT}/deploy/nginx/nginx.cluster.conf"
@@ -257,6 +281,8 @@ community_runtime_configs=(
 )
 
 for community_runtime_config in "${community_runtime_configs[@]}"; do
+  assert_community_trusted_proxy_path "${community_runtime_config}"
+  assert_no_gateway_trusted_proxy_path "${community_runtime_config}"
   assert_contains 'enabled: ${COMMUNITY_APP_TRUSTED_PROXY_ENABLED:false}' "${community_runtime_config}"
   assert_contains 'cidrs: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:}' "${community_runtime_config}"
 done

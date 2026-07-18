@@ -29,10 +29,10 @@ class ServletWebInfraAutoConfigurationTest {
                             ServletWebInfraAutoConfiguration.class
                     ))
                     .withPropertyValues(
-                            "gateway.trusted-proxy.enabled=true",
-                            "gateway.trusted-proxy.cidrs[0]=10.25.0.0/16",
-                            "gateway.trusted-proxy.cidrs[1]=2001:db8:25::/48",
-                            "gateway.trusted-proxy.source=compose-environment"
+                            "community.web.trusted-proxy.enabled=true",
+                            "community.web.trusted-proxy.cidrs[0]=10.25.0.0/16",
+                            "community.web.trusted-proxy.cidrs[1]=2001:db8:25::/48",
+                            "community.web.trusted-proxy.source=compose-environment"
                     )
                     .run(context -> {
                         assertThat(context).hasNotFailed();

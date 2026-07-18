@@ -138,30 +138,30 @@ public class StartupValidation {
         if (environment == null) {
             return;
         }
-        Boolean enabled = environment.getProperty("gateway.trusted-proxy.enabled", Boolean.class, Boolean.FALSE);
+        Boolean enabled = environment.getProperty("community.web.trusted-proxy.enabled", Boolean.class, Boolean.FALSE);
         if (enabled == null || !enabled) {
             return;
         }
 
-        List<String> cidrs = readList(environment, "gateway.trusted-proxy.cidrs");
+        List<String> cidrs = readList(environment, "community.web.trusted-proxy.cidrs");
         if (cidrs.isEmpty()) {
-            errors.add("配置不安全：gateway.trusted-proxy.enabled=true 但 gateway.trusted-proxy.cidrs 为空（必须配置可信代理 CIDR allowlist，例如 10.0.0.0/8）");
+            errors.add("配置不安全：community.web.trusted-proxy.enabled=true 但 community.web.trusted-proxy.cidrs 为空（必须配置可信代理 CIDR allowlist，例如 10.0.0.0/8）");
             return;
         }
 
         for (int i = 0; i < cidrs.size(); i++) {
             String cidr = cidrs.get(i);
             if (!StringUtils.hasText(cidr)) {
-                errors.add("配置不合法：gateway.trusted-proxy.cidrs[" + i + "] 为空");
+                errors.add("配置不合法：community.web.trusted-proxy.cidrs[" + i + "] 为空");
                 continue;
             }
             String trimmed = cidr.trim();
             if ("0.0.0.0/0".equals(trimmed) || "::/0".equals(trimmed)) {
-                errors.add("配置不安全：gateway.trusted-proxy.cidrs[" + i + "]=" + trimmed + "（禁止使用全量信任 CIDR）");
+                errors.add("配置不安全：community.web.trusted-proxy.cidrs[" + i + "]=" + trimmed + "（禁止使用全量信任 CIDR）");
                 continue;
             }
             if (!isValidCidr(trimmed)) {
-                errors.add("配置不合法：gateway.trusted-proxy.cidrs[" + i + "]=" + trimmed + "（CIDR 格式应为 ip/prefix，例如 10.0.0.0/8）");
+                errors.add("配置不合法：community.web.trusted-proxy.cidrs[" + i + "]=" + trimmed + "（CIDR 格式应为 ip/prefix，例如 10.0.0.0/8）");
             }
         }
     }

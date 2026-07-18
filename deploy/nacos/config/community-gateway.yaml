@@ -15,6 +15,7 @@ gateway:
   trusted-proxy:
     enabled: ${GATEWAY_TRUSTED_PROXY_ENABLED:false}
     cidrs: ${GATEWAY_TRUSTED_PROXY_CIDRS:}
+    source: compose-environment
   cors:
     allowed-origins:
       - http://localhost:5173

@@ -69,6 +69,9 @@ class NacosGatewayBindingTest {
 
         assertThat(trustedProxy.isEnabled()).isTrue();
         assertThat(trustedProxy.getCidrs()).containsExactly("172.30.0.0/24", "fd00:30::/64");
+        assertThat(trustedProxy.getSource()).isEqualTo("compose-environment");
+        assertThat(environment.getProperty("gateway.trusted-proxy.source"))
+                .isEqualTo("compose-environment");
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

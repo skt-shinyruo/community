@@ -219,6 +219,11 @@ for community_runtime_config in "${community_runtime_configs[@]}"; do
   assert_contains 'cidrs: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:}' "${community_runtime_config}"
 done
 
+assert_contains 'source: application-default' "${REPO_ROOT}/backend/community-gateway/src/main/resources/application.yml"
+assert_contains 'source: application-default' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
+assert_contains 'source: compose-environment' "${REPO_ROOT}/deploy/nacos/config/community-gateway.yaml"
+assert_contains 'source: compose-environment' "${REPO_ROOT}/deploy/nacos/config/community-app.yaml"
+
 shared_config="${REPO_ROOT}/deploy/nacos/config/community-shared.yaml"
 if grep -Fq 'trusted-proxy:' "${shared_config}"; then
   fail "deploy/nacos/config/community-shared.yaml must not share one owner domain's trusted proxy CIDRs with another"

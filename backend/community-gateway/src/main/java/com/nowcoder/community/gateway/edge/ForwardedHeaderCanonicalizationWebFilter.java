@@ -2,6 +2,8 @@ package com.nowcoder.community.gateway.edge;
 
 import com.nowcoder.community.common.net.TrustedProxyChain;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.util.StringUtils;
@@ -16,6 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ForwardedHeaderCanonicalizationWebFilter implements WebFilter, Ordered {
+
+    private static final Logger log = LoggerFactory.getLogger(ForwardedHeaderCanonicalizationWebFilter.class);
 
     public static final int ORDER = Ordered.HIGHEST_PRECEDENCE + 20;
     public static final String CANONICAL_CLIENT_IP_ATTRIBUTE =
@@ -42,9 +46,14 @@ public class ForwardedHeaderCanonicalizationWebFilter implements WebFilter, Orde
             EdgeTrustedProxyProperties properties,
             MeterRegistry meterRegistry
     ) {
+        boolean enabled = properties != null && properties.isEnabled();
+        List<String> configuredCidrs = properties == null ? List.of() : properties.getCidrs();
+        int configuredCidrCount = configuredCidrs == null ? 0 : configuredCidrs.size();
+        String configurationSource = properties == null
+                ? EdgeTrustedProxyProperties.SOURCE_APPLICATION_DEFAULT
+                : properties.getSource();
         List<String> trustedCidrs = List.of();
-        if (properties != null && properties.isEnabled()) {
-            List<String> configuredCidrs = properties.getCidrs();
+        if (enabled) {
             if (configuredCidrs != null && !configuredCidrs.isEmpty()) {
                 trustedCidrs = configuredCidrs;
             }
@@ -52,6 +61,12 @@ public class ForwardedHeaderCanonicalizationWebFilter implements WebFilter, Orde
         this.trustedProxyChain = new TrustedProxyChain(trustedCidrs);
         this.readForwardedHeaders = !trustedCidrs.isEmpty();
         this.meterRegistry = meterRegistry;
+        log.info(
+                "Trusted proxy configuration: enabled={} source={} cidrCount={}",
+                enabled,
+                configurationSource,
+                configuredCidrCount
+        );
     }
 
     @Override

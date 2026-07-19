@@ -26,4 +26,18 @@
         from oss_access_grant
         where object_id = #{objectId,jdbcType=BINARY}
     </select>
+    <select id="selectReadGrants" resultType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssAccessGrantDataObject">
+        select <include refid="fields"/>
+        from oss_access_grant
+        where object_id = #{objectId,jdbcType=BINARY}
+          and principal_type = 'USER'
+          and principal_value = #{principalValue}
+          and permission = 'READ'
+          and (
+            version_id is null
+            <if test="versionId != null">
+              or version_id = #{versionId,jdbcType=BINARY}
+            </if>
+          )
+    </select>
 </mapper>

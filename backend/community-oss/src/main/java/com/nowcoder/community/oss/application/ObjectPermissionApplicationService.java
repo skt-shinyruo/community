@@ -1,5 +1,7 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.oss.application.command.GrantObjectAccessCommand;
 import com.nowcoder.community.oss.application.command.RevokeObjectAccessCommand;
 import com.nowcoder.community.oss.application.result.ObjectAccessDecisionResult;
@@ -10,6 +12,8 @@ import com.nowcoder.community.oss.domain.model.OssObjectVersionStatus;
 import com.nowcoder.community.oss.domain.repository.OssAccessGrantRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
+import com.nowcoder.community.oss.domain.service.OssObjectAccessPolicy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +28,7 @@ public class ObjectPermissionApplicationService {
     private final OssObjectVersionRepository versionRepository;
     private final OssAccessGrantRepository grantRepository;
     private final Clock clock;
+    private final OssObjectAccessPolicy accessPolicy;
 
     public ObjectPermissionApplicationService(
             OssObjectRepository objectRepository,
@@ -31,16 +36,29 @@ public class ObjectPermissionApplicationService {
             OssAccessGrantRepository grantRepository,
             Clock clock
     ) {
+        this(objectRepository, versionRepository, grantRepository, clock, new OssObjectAccessPolicy());
+    }
+
+    @Autowired
+    public ObjectPermissionApplicationService(
+            OssObjectRepository objectRepository,
+            OssObjectVersionRepository versionRepository,
+            OssAccessGrantRepository grantRepository,
+            Clock clock,
+            OssObjectAccessPolicy accessPolicy
+    ) {
         this.objectRepository = objectRepository;
         this.versionRepository = versionRepository;
         this.grantRepository = grantRepository;
         this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.accessPolicy = accessPolicy == null ? new OssObjectAccessPolicy() : accessPolicy;
     }
 
     @Transactional
     public ObjectAccessDecisionResult grantAccess(GrantObjectAccessCommand command) {
         requireCommand(command);
         OssObject object = requireObject(command.objectId());
+        requireManage(object, command.actorId());
         Instant now = clock.instant();
         UUID versionId = command.versionId() == null ? object.currentVersionId() : command.versionId();
         requireVersionBelongsToObject(object, versionId);
@@ -66,7 +84,8 @@ public class ObjectPermissionApplicationService {
         if (command == null || command.objectId() == null || command.grantId() == null) {
             throw new IllegalArgumentException("objectId and grantId must not be null");
         }
-        requireObject(command.objectId());
+        OssObject object = requireObject(command.objectId());
+        requireManage(object, command.actorId());
         OssAccessGrant grant = grantRepository.findById(command.grantId())
                 .orElseThrow(() -> new IllegalArgumentException("grant not found"));
         if (!grant.objectId().equals(command.objectId())) {
@@ -88,7 +107,13 @@ public class ObjectPermissionApplicationService {
 
     private OssObject requireObject(UUID objectId) {
         return objectRepository.findById(objectId)
-                .orElseThrow(() -> new IllegalArgumentException("object not found"));
+                .orElseThrow(this::objectNotFound);
+    }
+
+    private void requireManage(OssObject object, String actorId) {
+        if (!accessPolicy.canManage(object, actorId)) {
+            throw objectNotFound();
+        }
     }
 
     private void requireVersionBelongsToObject(OssObject object, UUID versionId) {
@@ -134,5 +159,9 @@ public class ObjectPermissionApplicationService {
             throw new IllegalArgumentException(name + " must not be blank");
         }
         return value.trim();
+    }
+
+    private BusinessException objectNotFound() {
+        return new BusinessException(CommonErrorCode.NOT_FOUND, "OSS object not found");
     }
 }

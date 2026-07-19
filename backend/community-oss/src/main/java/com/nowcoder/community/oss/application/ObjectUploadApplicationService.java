@@ -1,5 +1,7 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
 import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.common.spring.policy.UploadPolicyDecisions;
@@ -304,12 +306,12 @@ public class ObjectUploadApplicationService {
             throw new IllegalArgumentException("upload command is incomplete");
         }
         OssUploadSession session = uploadSessionRepository.findById(command.sessionId())
-                .orElseThrow(() -> new IllegalArgumentException("upload session not found"));
-        if (!command.actorId().equals(session.createdBy())) {
-            throw new IllegalArgumentException("upload session not found");
+                .orElseThrow(this::objectNotFound);
+        if (!Objects.equals(command.actorId(), session.createdBy())) {
+            throw objectNotFound();
         }
         if (!session.objectId().equals(command.objectId()) || !session.versionId().equals(command.versionId())) {
-            throw new IllegalArgumentException("upload command does not match session");
+            throw objectNotFound();
         }
 
         if (session.status() == OssUploadSessionStatus.COMPLETED) {
@@ -325,15 +327,15 @@ public class ObjectUploadApplicationService {
         }
 
         OssObject object = objectRepository.findById(command.objectId())
-                .orElseThrow(() -> new IllegalArgumentException("object not found"));
+                .orElseThrow(this::objectNotFound);
         OssObjectVersion version = versionRepository.findById(command.versionId())
-                .orElseThrow(() -> new IllegalArgumentException("object version not found"));
+                .orElseThrow(this::objectNotFound);
         validateUploadPolicyChannel(object.usage());
         ObjectUploadContent content = command.content();
         validateContent(session, content);
         validateGlobalUploadPolicy(version.fileName(), content.contentType(), content.contentLength());
         if (!object.objectId().equals(version.objectId())) {
-            throw new IllegalArgumentException("object version does not belong to object");
+            throw objectNotFound();
         }
         usagePolicy(object.usage()).ifPresent(policy -> policy.validateUpload(
                 content.contentType(),
@@ -663,5 +665,9 @@ public class ObjectUploadApplicationService {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
         return normalized;
+    }
+
+    private BusinessException objectNotFound() {
+        return new BusinessException(CommonErrorCode.NOT_FOUND, "OSS object not found");
     }
 }

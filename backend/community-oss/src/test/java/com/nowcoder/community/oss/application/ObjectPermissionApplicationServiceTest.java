@@ -1,5 +1,7 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.oss.application.command.GrantObjectAccessCommand;
 import com.nowcoder.community.oss.application.command.RevokeObjectAccessCommand;
 import com.nowcoder.community.oss.application.result.ObjectAccessDecisionResult;
@@ -23,6 +25,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 class ObjectPermissionApplicationServiceTest {
 
@@ -51,7 +54,7 @@ class ObjectPermissionApplicationServiceTest {
                 "USER_AVATAR",
                 "community-app",
                 "user",
-                "avatar",
+                "USER",
                 "7",
                 OssVisibility.PUBLIC,
                 "7",
@@ -89,6 +92,62 @@ class ObjectPermissionApplicationServiceTest {
     }
 
     @Test
+    void grantAccessShouldHideObjectFromGrantUserAndUnrelatedUser() {
+        PermissionFixture fixture = permissionFixture();
+        fixture.grantRepository.save(OssAccessGrant.readGrant(
+                uuid(20), fixture.objectId, null, "USER", "grant-user", "owner-7",
+                CLOCK.instant().minusSeconds(60), CLOCK.instant().plusSeconds(300)));
+
+        Throwable grantUser = catchThrowable(() -> fixture.service.grantAccess(grantCommand(
+                fixture.objectId, "grant-user")));
+        Throwable unrelated = catchThrowable(() -> fixture.service.grantAccess(grantCommand(
+                fixture.objectId, "unrelated-user")));
+
+        assertHiddenObjectNotFound(grantUser);
+        assertHiddenObjectNotFound(unrelated);
+        assertThat(fixture.grantRepository.findByObjectId(fixture.objectId)).hasSize(1);
+    }
+
+    @Test
+    void revokeAccessShouldHideObjectFromGrantUserAndUnrelatedUser() {
+        PermissionFixture grantUserFixture = permissionFixture();
+        OssAccessGrant grantUserGrant = OssAccessGrant.readGrant(
+                uuid(21), grantUserFixture.objectId, null, "USER", "grant-user", "owner-7",
+                CLOCK.instant().minusSeconds(60), CLOCK.instant().plusSeconds(300));
+        grantUserFixture.grantRepository.save(grantUserGrant);
+        PermissionFixture unrelatedFixture = permissionFixture();
+        OssAccessGrant unrelatedGrant = OssAccessGrant.readGrant(
+                uuid(22), unrelatedFixture.objectId, null, "USER", "grant-user", "owner-7",
+                CLOCK.instant().minusSeconds(60), CLOCK.instant().plusSeconds(300));
+        unrelatedFixture.grantRepository.save(unrelatedGrant);
+
+        Throwable grantUser = catchThrowable(() -> grantUserFixture.service.revokeAccess(
+                new RevokeObjectAccessCommand(grantUserFixture.objectId, grantUserGrant.grantId(), "grant-user")));
+        Throwable unrelated = catchThrowable(() -> unrelatedFixture.service.revokeAccess(
+                new RevokeObjectAccessCommand(unrelatedFixture.objectId, unrelatedGrant.grantId(), "unrelated-user")));
+
+        assertHiddenObjectNotFound(grantUser);
+        assertHiddenObjectNotFound(unrelated);
+        assertThat(grantUserFixture.grantRepository.findById(grantUserGrant.grantId())).get()
+                .extracting(OssAccessGrant::revokedAt).isNull();
+        assertThat(unrelatedFixture.grantRepository.findById(unrelatedGrant.grantId())).get()
+                .extracting(OssAccessGrant::revokedAt).isNull();
+    }
+
+    @Test
+    void missingAndUnauthorizedObjectsShouldHaveTheSameHiddenError() {
+        PermissionFixture fixture = permissionFixture();
+
+        Throwable missing = catchThrowable(() -> fixture.service.grantAccess(
+                grantCommand(uuid(99), "unrelated-user")));
+        Throwable denied = catchThrowable(() -> fixture.service.grantAccess(
+                grantCommand(fixture.objectId, "unrelated-user")));
+
+        assertHiddenObjectNotFound(missing);
+        assertHiddenObjectNotFound(denied);
+    }
+
+    @Test
     void grantAccessShouldRejectVersionFromDifferentObject() {
         UUID objectId = uuid(1);
         UUID otherObjectId = uuid(3);
@@ -101,7 +160,7 @@ class ObjectPermissionApplicationServiceTest {
                 "USER_AVATAR",
                 "community-app",
                 "user",
-                "avatar",
+                "USER",
                 "7",
                 OssVisibility.PUBLIC,
                 "7",
@@ -125,6 +184,59 @@ class ObjectPermissionApplicationServiceTest {
                 "7"
         ))).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("object version does not belong to object");
+    }
+
+    private static PermissionFixture permissionFixture() {
+        UUID objectId = uuid(10);
+        UUID versionId = uuid(11);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeVersionRepository versionRepository = new FakeVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                OssVisibility.SIGNED,
+                "owner-7",
+                CLOCK.instant()
+        ).activate(version, CLOCK.instant()));
+        versionRepository.save(version);
+        return new PermissionFixture(
+                objectId,
+                grantRepository,
+                new ObjectPermissionApplicationService(
+                        objectRepository, versionRepository, grantRepository, CLOCK)
+        );
+    }
+
+    private static GrantObjectAccessCommand grantCommand(UUID objectId, String actorId) {
+        return new GrantObjectAccessCommand(
+                objectId,
+                null,
+                "USER",
+                "reader-8",
+                "READ",
+                CLOCK.instant().plusSeconds(300),
+                actorId
+        );
+    }
+
+    private static void assertHiddenObjectNotFound(Throwable throwable) {
+        assertThat(throwable).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND);
+            assertThat(exception.getMessage()).isEqualTo("OSS object not found");
+        });
+    }
+
+    private record PermissionFixture(
+            UUID objectId,
+            FakeGrantRepository grantRepository,
+            ObjectPermissionApplicationService service
+    ) {
     }
 
     private static OssObjectVersion activeVersion(UUID objectId, UUID versionId) {

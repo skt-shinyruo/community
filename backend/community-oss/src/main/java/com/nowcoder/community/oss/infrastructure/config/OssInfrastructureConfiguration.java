@@ -1,6 +1,7 @@
 package com.nowcoder.community.oss.infrastructure.config;
 
 import com.nowcoder.community.common.observability.oss.OssRuntimeLogger;
+import com.nowcoder.community.oss.domain.service.OssObjectAccessPolicy;
 import com.nowcoder.community.oss.infrastructure.storage.LocalFilesystemObjectStore;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
 import com.nowcoder.community.oss.infrastructure.storage.ObservedObjectStore;
@@ -28,6 +29,12 @@ public class OssInfrastructureConfiguration {
     @ConditionalOnMissingBean
     public Clock ossClock() {
         return Clock.systemUTC();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public OssObjectAccessPolicy ossObjectAccessPolicy() {
+        return new OssObjectAccessPolicy();
     }
 
     @Bean

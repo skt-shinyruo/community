@@ -1,5 +1,7 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.oss.application.result.ObjectDownloadResult;
 import com.nowcoder.community.oss.application.result.ObjectMetadataResult;
 import com.nowcoder.community.oss.domain.model.OssObject;
@@ -7,8 +9,10 @@ import com.nowcoder.community.oss.domain.model.OssObjectStatus;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssObjectVersionStatus;
 import com.nowcoder.community.oss.domain.model.OssVisibility;
+import com.nowcoder.community.oss.domain.repository.OssAccessGrantRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
+import com.nowcoder.community.oss.domain.service.OssObjectAccessPolicy;
 import com.nowcoder.community.oss.infrastructure.config.OssProperties;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStoreObject;
@@ -27,48 +31,58 @@ public class ObjectQueryApplicationService {
 
     private final OssObjectRepository objectRepository;
     private final OssObjectVersionRepository versionRepository;
+    private final OssAccessGrantRepository grantRepository;
     private final ObjectStore objectStore;
     private final String publicBaseUrl;
     private final Clock clock;
+    private final OssObjectAccessPolicy accessPolicy;
 
     @Autowired
     public ObjectQueryApplicationService(
             OssObjectRepository objectRepository,
             OssObjectVersionRepository versionRepository,
+            OssAccessGrantRepository grantRepository,
             ObjectStore objectStore,
             OssProperties properties,
-            Clock clock
+            Clock clock,
+            OssObjectAccessPolicy accessPolicy
     ) {
         this.objectRepository = objectRepository;
         this.versionRepository = versionRepository;
+        this.grantRepository = grantRepository;
         this.objectStore = objectStore;
         this.publicBaseUrl = normalizeBaseUrl(properties.publicBaseUrl());
         this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.accessPolicy = accessPolicy;
     }
 
     public ObjectQueryApplicationService(
             OssObjectRepository objectRepository,
             OssObjectVersionRepository versionRepository,
+            OssAccessGrantRepository grantRepository,
             ObjectStore objectStore,
-            OssProperties properties
+            OssProperties properties,
+            Clock clock
     ) {
-        this(objectRepository, versionRepository, objectStore, properties, Clock.systemUTC());
-    }
-
-    public ObjectMetadataResult getMetadata(UUID objectId) {
-        OssObject object = objectRepository.findById(objectId)
-                .orElseThrow(() -> new IllegalArgumentException("object not found"));
-        UUID versionId = object.currentVersionId();
-        OssObjectVersion version = versionId == null ? null : versionRepository.findById(versionId)
-                .orElseThrow(() -> new IllegalArgumentException("object version not found"));
-        return toMetadataResult(object, version);
+        this(objectRepository, versionRepository, grantRepository, objectStore, properties, clock,
+                new OssObjectAccessPolicy());
     }
 
     public ObjectMetadataResult getMetadata(UUID objectId, String actorId) {
-        if (actorId == null || actorId.isBlank()) {
-            throw new IllegalArgumentException("actorId must not be blank");
+        OssObject object = objectRepository.findById(objectId).orElseThrow(this::objectNotFound);
+        UUID versionId = object.currentVersionId();
+        if (!accessPolicy.canRead(
+                object,
+                versionId,
+                actorId,
+                grantRepository.findReadGrants(object.objectId(), versionId, actorId),
+                clock.instant()
+        )) {
+            throw objectNotFound();
         }
-        return getMetadata(objectId);
+        OssObjectVersion version = versionId == null ? null : versionRepository.findById(versionId)
+                .orElseThrow(this::objectNotFound);
+        return toMetadataResult(object, version);
     }
 
     public ObjectDownloadResult resolvePublicFile(String filePath) {
@@ -143,6 +157,10 @@ public class ObjectQueryApplicationService {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
         return normalized;
+    }
+
+    private BusinessException objectNotFound() {
+        return new BusinessException(CommonErrorCode.NOT_FOUND, "OSS object not found");
     }
 
     private record ResolvedVersion(OssObject object, OssObjectVersion version) {

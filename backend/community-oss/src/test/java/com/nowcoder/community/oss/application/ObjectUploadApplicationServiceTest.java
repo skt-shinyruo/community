@@ -1,5 +1,7 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.spring.policy.UploadPolicyDecisions;
 import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
 import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
@@ -68,8 +70,8 @@ class ObjectUploadApplicationServiceTest {
                 "USER_AVATAR",
                 "community-app",
                 "user",
-                "avatar",
-                ownerId.toString(),
+                "POST",
+                "post-42",
                 "PUBLIC",
                 "avatar.png",
                 "image/png",
@@ -134,6 +136,8 @@ class ObjectUploadApplicationServiceTest {
                 "sha256-avatar",
                 "creator-7"
         ));
+        objectRepository.saveCount = 0;
+        versionRepository.saveCount = 0;
 
         assertThatThrownBy(() -> service.completeUpload(new CompleteObjectUploadCommand(
                 prepared.sessionId(),
@@ -147,14 +151,20 @@ class ObjectUploadApplicationServiceTest {
                 ),
                 "attacker-9"
         )))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("upload session not found");
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND);
+                    assertThat(exception.getMessage()).isEqualTo("OSS object not found");
+                });
 
         assertThat(objectStore.capturedKey).isNull();
         assertThat(uploadSessionRepository.findById(prepared.sessionId()).orElseThrow().status())
                 .isEqualTo(OssUploadSessionStatus.READY);
         assertThat(objectRepository.findById(prepared.objectId()).orElseThrow().status())
                 .isEqualTo(OssObjectStatus.STAGED);
+        assertThat(versionRepository.findById(prepared.versionId()).orElseThrow().status())
+                .isEqualTo(com.nowcoder.community.oss.domain.model.OssObjectVersionStatus.STAGED);
+        assertThat(objectRepository.saveCount).isZero();
+        assertThat(versionRepository.saveCount).isZero();
     }
 
     @Test
@@ -509,9 +519,11 @@ class ObjectUploadApplicationServiceTest {
 
     private static final class FakeObjectRepository implements OssObjectRepository {
         private final Map<UUID, OssObject> rows = new HashMap<>();
+        private int saveCount;
 
         @Override
         public void save(OssObject object) {
+            saveCount++;
             rows.put(object.objectId(), object);
         }
 
@@ -523,9 +535,11 @@ class ObjectUploadApplicationServiceTest {
 
     private static final class FakeObjectVersionRepository implements OssObjectVersionRepository {
         private final Map<UUID, OssObjectVersion> rows = new HashMap<>();
+        private int saveCount;
 
         @Override
         public void save(OssObjectVersion version) {
+            saveCount++;
             rows.put(version.versionId(), version);
         }
 

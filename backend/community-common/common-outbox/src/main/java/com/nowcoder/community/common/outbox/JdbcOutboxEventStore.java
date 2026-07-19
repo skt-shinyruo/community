@@ -49,8 +49,9 @@ public class JdbcOutboxEventStore {
 
         try {
             jdbcTemplate.update(
-                    "insert into outbox_event(id, event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error, trace_id, traceparent) " +
-                            "values (?, ?, ?, ?, ?, ?, 0, null, null, ?, ?)",
+                    "insert into outbox_event(id, event_id, topic, event_key, payload, status, lease_token, " +
+                            "processing_lease_until, retry_count, next_retry_at, last_error, trace_id, traceparent) " +
+                            "values (?, ?, ?, ?, ?, ?, null, null, 0, null, null, ?, ?)",
                     BinaryUuidCodec.toBytes(id),
                     eid,
                     t,
@@ -82,74 +83,93 @@ public class JdbcOutboxEventStore {
         );
     }
 
-    public boolean tryClaimProcessing(UUID id, Instant leaseUntil, Instant now) {
+    public Optional<OutboxLease> tryClaimProcessing(UUID id, Instant leaseUntil, Instant now) {
         if (id == null) {
-            return false;
+            return Optional.empty();
         }
+        UUID token = idGenerator.next();
         Timestamp leaseTs = Timestamp.from(leaseUntil == null ? Instant.now().plusSeconds(30) : leaseUntil);
         Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
         int updated = jdbcTemplate.update(
-                "update outbox_event set status = ?, next_retry_at = ?, updated_at = ? where id = ? and status = ?",
+                "update outbox_event set status = ?, lease_token = ?, processing_lease_until = ?, " +
+                        "next_retry_at = null, updated_at = ? where id = ? and status = ?",
                 OutboxEventStatus.PROCESSING,
+                BinaryUuidCodec.toBytes(token),
                 leaseTs,
                 nowTs,
                 BinaryUuidCodec.toBytes(id),
                 OutboxEventStatus.PENDING
         );
-        return updated > 0;
+        return updated == 1 ? Optional.of(new OutboxLease(id, token)) : Optional.empty();
     }
 
-    public void markSucceeded(UUID id, Instant now) {
-        if (id == null) {
-            return;
+    public boolean markSucceeded(OutboxLease lease, Instant now) {
+        if (lease == null) {
+            return false;
         }
         Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
-        jdbcTemplate.update(
-                "update outbox_event set status = ?, next_retry_at = null, last_error = null, updated_at = ? where id = ?",
+        int updated = jdbcTemplate.update(
+                "update outbox_event set status = ?, lease_token = null, processing_lease_until = null, " +
+                        "next_retry_at = null, last_error = null, updated_at = ? " +
+                        "where id = ? and status = ? and lease_token = ?",
                 OutboxEventStatus.SUCCEEDED,
                 nowTs,
-                BinaryUuidCodec.toBytes(id)
+                BinaryUuidCodec.toBytes(lease.rowId()),
+                OutboxEventStatus.PROCESSING,
+                BinaryUuidCodec.toBytes(lease.token())
         );
+        return updated == 1;
     }
 
-    public void markDead(UUID id, Instant now, String lastError) {
-        if (id == null) {
-            return;
+    public boolean markDead(OutboxLease lease, Instant now, String lastError) {
+        if (lease == null) {
+            return false;
         }
         Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
-        jdbcTemplate.update(
-                "update outbox_event set status = ?, last_error = ?, updated_at = ? where id = ?",
+        int updated = jdbcTemplate.update(
+                "update outbox_event set status = ?, lease_token = null, processing_lease_until = null, " +
+                        "next_retry_at = null, last_error = ?, updated_at = ? " +
+                        "where id = ? and status = ? and lease_token = ?",
                 OutboxEventStatus.DEAD,
                 truncateError(lastError),
                 nowTs,
-                BinaryUuidCodec.toBytes(id)
+                BinaryUuidCodec.toBytes(lease.rowId()),
+                OutboxEventStatus.PROCESSING,
+                BinaryUuidCodec.toBytes(lease.token())
         );
+        return updated == 1;
     }
 
-    public void markFailedAndScheduleRetry(UUID id, Instant now, Instant nextRetryAt, String lastError) {
-        if (id == null) {
-            return;
+    public boolean markFailedAndScheduleRetry(OutboxLease lease, Instant now, Instant nextRetryAt, String lastError) {
+        if (lease == null) {
+            return false;
         }
         Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
         Timestamp nextTs = Timestamp.from(nextRetryAt == null ? nowTs.toInstant().plusSeconds(5) : nextRetryAt);
-        jdbcTemplate.update(
-                "update outbox_event set status = ?, retry_count = retry_count + 1, next_retry_at = ?, last_error = ?, updated_at = ? where id = ?",
+        int updated = jdbcTemplate.update(
+                "update outbox_event set status = ?, lease_token = null, processing_lease_until = null, " +
+                        "retry_count = retry_count + 1, next_retry_at = ?, last_error = ?, updated_at = ? " +
+                        "where id = ? and status = ? and lease_token = ?",
                 OutboxEventStatus.PENDING,
                 nextTs,
                 truncateError(lastError),
                 nowTs,
-                BinaryUuidCodec.toBytes(id)
+                BinaryUuidCodec.toBytes(lease.rowId()),
+                OutboxEventStatus.PROCESSING,
+                BinaryUuidCodec.toBytes(lease.token())
         );
+        return updated == 1;
     }
 
     /**
-     * Recover events stuck in PROCESSING whose lease has expired (lease stored in {@code next_retry_at}).
+     * Recover events stuck in PROCESSING whose lease has expired.
      */
     public int recoverExpiredLeases(Instant now) {
         Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
         return jdbcTemplate.update(
-                "update outbox_event set status = ?, next_retry_at = ?, updated_at = ? " +
-                        "where status = ? and next_retry_at is not null and next_retry_at <= ?",
+                "update outbox_event set status = ?, lease_token = null, processing_lease_until = null, " +
+                        "next_retry_at = ?, updated_at = ? where status = ? " +
+                        "and processing_lease_until is not null and processing_lease_until <= ?",
                 OutboxEventStatus.PENDING,
                 nowTs,
                 nowTs,
@@ -224,8 +244,8 @@ public class JdbcOutboxEventStore {
         }
         Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
         int updated = jdbcTemplate.update(
-                "update outbox_event set status = ?, retry_count = 0, next_retry_at = ?, last_error = ?, updated_at = ? " +
-                        "where id = ? and status = ?",
+                "update outbox_event set status = ?, lease_token = null, processing_lease_until = null, " +
+                        "retry_count = 0, next_retry_at = ?, last_error = ?, updated_at = ? where id = ? and status = ?",
                 OutboxEventStatus.PENDING,
                 nowTs,
                 truncateError("replay requested: " + (StringUtils.hasText(reason) ? reason.trim() : "manual")),
@@ -233,7 +253,7 @@ public class JdbcOutboxEventStore {
                 BinaryUuidCodec.toBytes(id),
                 OutboxEventStatus.DEAD
         );
-        return updated > 0;
+        return updated == 1;
     }
 
     private static String normalize(String value, String name) {

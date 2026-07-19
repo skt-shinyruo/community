@@ -9,6 +9,7 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -28,10 +29,17 @@ class JdbcOutboxEventStoreGovernanceTest {
             Instant now = Instant.parse("2026-07-07T00:00:00Z");
             UUID deadId = UUID.fromString("0197e6f0-0000-7000-8000-000000000001");
             UUID pendingId = UUID.fromString("0197e6f0-0000-7000-8000-000000000002");
+            UUID deadLeaseToken = UUID.fromString("0197e6f0-0000-7000-8000-000000000003");
             insertEvent(jdbcTemplate, deadId, "e-dead:search", "eventbus.content", "post-1",
                     OutboxEventStatus.DEAD, 4, now.minusSeconds(120), now.minusSeconds(60));
             insertEvent(jdbcTemplate, pendingId, "e-pending:growth", "projection.im.policy", "post-1",
                     OutboxEventStatus.PENDING, 1, now.minusSeconds(30), now.minusSeconds(20));
+            jdbcTemplate.update(
+                    "update outbox_event set lease_token = ?, processing_lease_until = ? where id = ?",
+                    BinaryUuidCodec.toBytes(deadLeaseToken),
+                    Timestamp.from(now.plusSeconds(30)),
+                    BinaryUuidCodec.toBytes(deadId)
+            );
 
             List<OutboxEventView> deadRows = store.findEvents(new OutboxEventQuery(
                     OutboxEventStatus.DEAD,
@@ -46,6 +54,9 @@ class JdbcOutboxEventStoreGovernanceTest {
             assertThat(deadRows.get(0).id()).isEqualTo(deadId);
             assertThat(deadRows.get(0).createdAt()).isEqualTo(now.minusSeconds(120));
             assertThat(deadRows.get(0).updatedAt()).isEqualTo(now.minusSeconds(60));
+            assertThat(Arrays.stream(OutboxEventView.class.getRecordComponents()))
+                    .extracting(component -> component.getName())
+                    .doesNotContain("leaseToken", "processingLeaseUntil");
 
             assertThat(store.findEventById(deadId)).isPresent();
             assertThat(store.countBacklogByTopicAndStatus())
@@ -60,6 +71,16 @@ class JdbcOutboxEventStoreGovernanceTest {
             assertThat(replayed.retryCount()).isEqualTo(0);
             assertThat(replayed.nextRetryAt()).isEqualTo(now);
             assertThat(replayed.lastError()).isEqualTo("replay requested: fixed es mapping");
+            assertThat(jdbcTemplate.queryForObject(
+                    "select lease_token from outbox_event where id = ?",
+                    byte[].class,
+                    BinaryUuidCodec.toBytes(deadId)
+            )).isNull();
+            assertThat(jdbcTemplate.queryForObject(
+                    "select processing_lease_until from outbox_event where id = ?",
+                    Timestamp.class,
+                    BinaryUuidCodec.toBytes(deadId)
+            )).isNull();
         } finally {
             db.shutdown();
         }
@@ -107,6 +128,8 @@ class JdbcOutboxEventStoreGovernanceTest {
                         "  event_key varchar(255) not null,\n" +
                         "  payload clob not null,\n" +
                         "  status varchar(32) not null,\n" +
+                        "  lease_token binary(16),\n" +
+                        "  processing_lease_until timestamp,\n" +
                         "  retry_count int not null default 0,\n" +
                         "  next_retry_at timestamp,\n" +
                         "  last_error varchar(512),\n" +
@@ -118,6 +141,7 @@ class JdbcOutboxEventStoreGovernanceTest {
                         ")"
         );
         jdbcTemplate.execute("create index if not exists idx_outbox_status_next on outbox_event(status, next_retry_at, id)");
+        jdbcTemplate.execute("create index if not exists idx_outbox_processing_lease on outbox_event(status, processing_lease_until, id)");
         jdbcTemplate.execute("delete from outbox_event");
     }
 }

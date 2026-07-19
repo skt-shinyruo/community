@@ -123,6 +123,8 @@ class JdbcOutboxGovernanceAdapterTest {
                         "  event_key varchar(255) not null,\n" +
                         "  payload clob not null,\n" +
                         "  status varchar(32) not null,\n" +
+                        "  lease_token binary(16),\n" +
+                        "  processing_lease_until timestamp,\n" +
                         "  retry_count int not null default 0,\n" +
                         "  next_retry_at timestamp,\n" +
                         "  last_error varchar(512),\n" +

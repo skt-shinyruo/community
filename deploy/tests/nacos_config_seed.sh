@@ -114,6 +114,11 @@ grep -F 'initialize: true' "${CONFIG_DIR}/community-app.yaml"
 grep -F -- '- /api/ops/**' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'max-file-size: 10GB' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'max-request-size: 10GB' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'base-url: ${OSS_CLIENT_BASE_URL:http://community-oss:18090}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'service-subject: ${OSS_CLIENT_SERVICE_SUBJECT:community-app}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'audience: ${OSS_CLIENT_AUDIENCE:community-oss}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'scope: ${OSS_CLIENT_SCOPE:oss.internal}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'token-ttl: ${OSS_CLIENT_TOKEN_TTL:PT5M}' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'max-file-size: 10GB' "${CONFIG_DIR}/community-oss.yaml"
 grep -F 'max-request-size: 10GB' "${CONFIG_DIR}/community-oss.yaml"
 grep -F 'max-file-size: 10GB' "${CONFIG_DIR}/community-frontend-runtime.yaml"
@@ -203,6 +208,10 @@ grep -F 'worker-id: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}' "${CONFIG_DIR}/i
 
 nacos_owned_env_vars=(
   OSS_CLIENT_BASE_URL
+  OSS_CLIENT_SERVICE_SUBJECT
+  OSS_CLIENT_AUDIENCE
+  OSS_CLIENT_SCOPE
+  OSS_CLIENT_TOKEN_TTL
   SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE
   SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE
   AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS

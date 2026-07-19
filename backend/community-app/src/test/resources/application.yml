@@ -33,6 +33,14 @@ security:
     hmac-secret: test-jwt-secret-please-change-at-least-32bytes
     issuer: community-auth
 
+oss:
+  client:
+    base-url: http://community-oss:18090
+    service-subject: community-app
+    audience: community-oss
+    scope: oss.internal
+    token-ttl: PT5M
+
 community:
   metrics:
     basic-auth:

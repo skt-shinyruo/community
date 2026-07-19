@@ -9,7 +9,10 @@ import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssSignedUrlResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.context.request.RequestContextHolder;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +27,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class OssDriveObjectStorageAdapterTest {
+
+    @BeforeEach
+    void clearServletRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
+        assertThat(RequestContextHolder.getRequestAttributes()).isNull();
+    }
+
+    @AfterEach
+    void resetServletRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
+    }
 
     @Test
     void adapterShouldMapDrivePortToCommunityOssClient() {

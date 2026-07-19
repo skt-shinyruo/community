@@ -8,6 +8,7 @@ import com.nowcoder.community.common.spring.policy.CachePolicyProperties;
 import com.nowcoder.community.common.spring.policy.KafkaPolicyProperties;
 import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
 import com.nowcoder.community.common.web.net.TrustedProxyProperties;
+import com.nowcoder.community.infra.oss.OssClientProperties;
 import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
 import com.nowcoder.community.notice.application.NoticePolicyProperties;
 import com.nowcoder.community.runtime.config.RuntimeConfigProperties;
@@ -41,6 +42,8 @@ class NacosPolicyBindingTest {
         RefreshTokenCleanupProperties refreshCleanup = binder
                 .bind("auth.refresh.cleanup", RefreshTokenCleanupProperties.class)
                 .orElseThrow(IllegalStateException::new);
+        OssClientProperties ossClient = binder.bind("oss.client", OssClientProperties.class)
+                .orElseThrow(IllegalStateException::new);
 
         assertThat(originGuard.isEnabled()).isTrue();
         assertThat(originGuard.isFailOpenWhenAllowlistEmpty()).isFalse();
@@ -68,6 +71,34 @@ class NacosPolicyBindingTest {
         assertThat(environment.getProperty("management.health.elasticsearch.enabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("analytics.ingest.exclude-paths[2]")).isEqualTo("/api/ops/**");
         assertThat(environment.getProperty("spring.servlet.multipart.max-file-size")).isEqualTo("10GB");
+        assertThat(ossClient.baseUrl()).isEqualTo("http://community-oss:18090");
+        assertThat(ossClient.serviceSubject()).isEqualTo("community-app");
+        assertThat(ossClient.audience()).isEqualTo("community-oss");
+        assertThat(ossClient.scope()).isEqualTo("oss.internal");
+        assertThat(ossClient.tokenTtl()).isEqualTo(Duration.ofMinutes(5));
+    }
+
+    @Test
+    void bindsCommunityOssClientFromRuntimeOverrides() throws Exception {
+        StandardEnvironment environment = environmentFrom(
+                "community-app.yaml",
+                Map.of(
+                        "OSS_CLIENT_BASE_URL", "https://oss.runtime.example.test",
+                        "OSS_CLIENT_SERVICE_SUBJECT", "community-app-runtime",
+                        "OSS_CLIENT_AUDIENCE", "community-oss-runtime",
+                        "OSS_CLIENT_SCOPE", "oss.runtime.internal",
+                        "OSS_CLIENT_TOKEN_TTL", "PT45S"
+                )
+        );
+        OssClientProperties ossClient = Binder.get(environment)
+                .bind("oss.client", OssClientProperties.class)
+                .orElseThrow(IllegalStateException::new);
+
+        assertThat(ossClient.baseUrl()).isEqualTo("https://oss.runtime.example.test");
+        assertThat(ossClient.serviceSubject()).isEqualTo("community-app-runtime");
+        assertThat(ossClient.audience()).isEqualTo("community-oss-runtime");
+        assertThat(ossClient.scope()).isEqualTo("oss.runtime.internal");
+        assertThat(ossClient.tokenTtl()).isEqualTo(Duration.ofSeconds(45));
     }
 
     @Test

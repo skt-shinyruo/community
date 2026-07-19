@@ -129,7 +129,11 @@ growth:
 
 oss:
   client:
-    base-url: http://community-oss:18090
+    base-url: ${OSS_CLIENT_BASE_URL:http://community-oss:18090}
+    service-subject: ${OSS_CLIENT_SERVICE_SUBJECT:community-app}
+    audience: ${OSS_CLIENT_AUDIENCE:community-oss}
+    scope: ${OSS_CLIENT_SCOPE:oss.internal}
+    token-ttl: ${OSS_CLIENT_TOKEN_TTL:PT5M}
 
 search:
   storage: es

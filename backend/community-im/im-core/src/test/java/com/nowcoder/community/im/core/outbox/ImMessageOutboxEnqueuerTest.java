@@ -1,10 +1,13 @@
 package com.nowcoder.community.im.core.outbox;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import org.junit.jupiter.api.Test;
@@ -13,7 +16,9 @@ import org.mockito.ArgumentCaptor;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,6 +31,7 @@ import static org.mockito.Mockito.when;
 
 class ImMessageOutboxEnqueuerTest {
 
+    private final ObjectMapper objectMapper = JsonMappers.standard();
     private final JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
     private final ImMessageOutboxEnqueuer enqueuer = new ImMessageOutboxEnqueuer(
             store,
@@ -38,6 +44,51 @@ class ImMessageOutboxEnqueuerTest {
             "im.event.room-rejected",
             "im.event.room-member-changed"
     );
+
+    @Test
+    void enqueuePrivatePersistedKeepsLeaseOwnershipOutOfEventPayload() throws Exception {
+        PrivateMessagePersistedEvent event = new PrivateMessagePersistedEvent(
+                "evt-private-persisted",
+                "conv-payload",
+                7L,
+                uuid(31),
+                uuid(32),
+                uuid(33),
+                "payload contract",
+                789L
+        );
+
+        enqueuer.enqueuePrivatePersisted(event);
+
+        ArgumentCaptor<String> eventId = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> topic = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> eventKey = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+        verify(store).enqueue(eventId.capture(), topic.capture(), eventKey.capture(), payload.capture());
+        assertThat(eventId.getValue()).isEqualTo(event.eventId());
+        assertThat(topic.getValue()).isEqualTo("im.event.private-persisted");
+        assertThat(eventKey.getValue()).isEqualTo(event.conversationId());
+
+        JsonNode payloadJson = objectMapper.readTree(payload.getValue());
+        assertThat(objectMapper.treeToValue(payloadJson, PrivateMessagePersistedEvent.class)).isEqualTo(event);
+        List<String> fieldNames = new ArrayList<>();
+        payloadJson.fieldNames().forEachRemaining(fieldNames::add);
+        assertThat(fieldNames).containsExactlyInAnyOrder(
+                "eventId",
+                "conversationId",
+                "seq",
+                "messageId",
+                "fromUserId",
+                "toUserId",
+                "content",
+                "createdAtEpochMs",
+                "schemaVersion"
+        );
+        assertThat(payloadJson.has("leaseToken")).isFalse();
+        assertThat(payloadJson.has("lease_token")).isFalse();
+        assertThat(payloadJson.has("processingLeaseUntil")).isFalse();
+        assertThat(payloadJson.has("processing_lease_until")).isFalse();
+    }
 
     @Test
     void enqueuePrivateRejectedAcceptsCanonicalAttemptIdentity() {

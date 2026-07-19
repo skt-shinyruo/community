@@ -37,7 +37,9 @@ cp deploy/.env.single.example deploy/.env.single
 cp deploy/.env.cluster.example deploy/.env.cluster
 ```
 
-`.env` 文件包含本地密钥、端口、浏览器 origin、Mock Data Studio、observability 等配置。不要提交真实 `.env`。
+`.env` 文件包含本地密钥、端口、浏览器 origin、Mock Data Studio、observability 等配置。不要提交真实 `.env`。`deployment.sh` 不执行 env 文件，只安全读取拓扑白名单键；这些键按 shell 环境、env 文件、内置拓扑默认值的顺序取值，因此未包含新网络键的旧本地 env 仍可正常启动默认 project。
+
+使用 `-p` / `--project-name` 启动并存的第二套 project 时，必须提供完全独立的 `COMMUNITY_VOLUME_NAMESPACE`、网络 subnet/dynamic range、NGINX/Gateway 静态 IP 和与这些 peer 一致的 trusted-proxy CIDR。任一值仍等于 single/cluster 默认值时，入口脚本会在 Compose 启动前失败；不能只改 project name 来复用固定 IPAM。完整键列表见 [deploy README](../../deploy/README.md)。
 
 ## single 拓扑
 
@@ -263,7 +265,7 @@ schema 校验与 Compose 契约：
 如果启动时带了 `--no-observability`，停止时也带上同一组选项。
 `-v` 是透传给 `docker compose down` 的参数，要放在 `--` 后面。
 默认 project name 为 `community-single` / `community-cluster`，默认 volume namespace 为 `community_single` / `community_cluster`，对应的数据卷分别是 `community_single_mysql_primary_data` / `community_cluster_mysql_primary_data`。
-如需给 volume 使用独立前缀，可在命令前设置 `COMMUNITY_VOLUME_NAMESPACE`。
+默认 project 可在命令前设置 `COMMUNITY_VOLUME_NAMESPACE` 调整 volume 前缀。自定义 project 必须同时覆盖 volume namespace 和完整网络拓扑，不能只改其中一项。
 
 Kafka 长时间 `health: starting` 且刚从旧拓扑切换时，优先执行带 `-v` 的 down 后重启。
 

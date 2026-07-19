@@ -641,7 +641,8 @@ class ObjectUploadReliabilityContractTest {
                         "image/png",
                         4L,
                         "sha256-post"
-                )
+                ),
+                "actor-7"
         );
     }
 

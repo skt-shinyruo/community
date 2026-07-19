@@ -64,6 +64,13 @@ public class ObjectQueryApplicationService {
         return toMetadataResult(object, version);
     }
 
+    public ObjectMetadataResult getMetadata(UUID objectId, String actorId) {
+        if (actorId == null || actorId.isBlank()) {
+            throw new IllegalArgumentException("actorId must not be blank");
+        }
+        return getMetadata(objectId);
+    }
+
     public ObjectDownloadResult resolvePublicFile(String filePath) {
         ResolvedVersion resolved = resolveVersion(filePath);
         if (resolved == null) {

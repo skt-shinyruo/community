@@ -305,6 +305,9 @@ public class ObjectUploadApplicationService {
         }
         OssUploadSession session = uploadSessionRepository.findById(command.sessionId())
                 .orElseThrow(() -> new IllegalArgumentException("upload session not found"));
+        if (!command.actorId().equals(session.createdBy())) {
+            throw new IllegalArgumentException("upload session not found");
+        }
         if (!session.objectId().equals(command.objectId()) || !session.versionId().equals(command.versionId())) {
             throw new IllegalArgumentException("upload command does not match session");
         }

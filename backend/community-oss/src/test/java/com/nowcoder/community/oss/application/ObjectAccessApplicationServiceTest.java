@@ -32,10 +32,137 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 class ObjectAccessApplicationServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-05-07T00:00:00Z");
+
+    @Test
+    void createInternalSignedDownloadUrlShouldHideForeignOwnerWithoutEffects() {
+        UUID objectId = uuid(80);
+        UUID versionId = uuid(81);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "DRIVE_FILE",
+                "community-app",
+                "drive",
+                "DRIVE_UPLOAD",
+                "upload-7",
+                OssVisibility.SIGNED,
+                "user-7",
+                NOW
+        ).activate(version, NOW.plusSeconds(1)));
+        versionRepository.save(version);
+        ObjectAccessApplicationService service = new ObjectAccessApplicationService(
+                objectRepository,
+                versionRepository,
+                grantRepository,
+                objectStore,
+                clock(),
+                new OssObjectAccessPolicy()
+        );
+
+        Throwable failure = catchThrowable(() -> service.createInternalSignedDownloadUrl(
+                new CreateSignedUrlCommand(objectId, versionId, 300, "user-7"),
+                "profile-service"));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(grantRepository.readPrincipals).isEmpty(),
+                () -> assertThat(objectStore.presignCount).isZero()
+        );
+    }
+
+    @Test
+    void createInternalSignedDownloadUrlShouldPresignForOwningServiceWithoutUserGrantLookup() {
+        UUID objectId = uuid(82);
+        UUID versionId = uuid(83);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "DRIVE_FILE",
+                "community-app",
+                "drive",
+                "DRIVE_UPLOAD",
+                "upload-7",
+                OssVisibility.SIGNED,
+                "user-7",
+                NOW
+        ).activate(version, NOW.plusSeconds(1)));
+        versionRepository.save(version);
+        ObjectAccessApplicationService service = new ObjectAccessApplicationService(
+                objectRepository,
+                versionRepository,
+                grantRepository,
+                objectStore,
+                clock(),
+                new OssObjectAccessPolicy()
+        );
+        ObjectSignedUrlResult[] signed = new ObjectSignedUrlResult[1];
+
+        Throwable failure = catchThrowable(() -> signed[0] = service.createInternalSignedDownloadUrl(
+                new CreateSignedUrlCommand(objectId, versionId, 300, "user-7"),
+                "community-app"));
+
+        assertAll(
+                () -> assertThat(failure).isNull(),
+                () -> assertThat(signed[0]).isNotNull(),
+                () -> assertThat(signed[0].method()).isEqualTo("GET"),
+                () -> assertThat(grantRepository.readPrincipals).isEmpty(),
+                () -> assertThat(objectStore.presignCount).isEqualTo(1)
+        );
+    }
+
+    @Test
+    void createInternalSignedDownloadUrlShouldHideUserOwnedObject() {
+        UUID objectId = uuid(84);
+        UUID versionId = uuid(85);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                OssVisibility.SIGNED,
+                "owner-7",
+                NOW
+        ).activate(version, NOW.plusSeconds(1)));
+        versionRepository.save(version);
+        ObjectAccessApplicationService service = new ObjectAccessApplicationService(
+                objectRepository,
+                versionRepository,
+                grantRepository,
+                objectStore,
+                clock(),
+                new OssObjectAccessPolicy()
+        );
+
+        Throwable failure = catchThrowable(() -> service.createInternalSignedDownloadUrl(
+                new CreateSignedUrlCommand(objectId, versionId, 300, "owner-7"),
+                "community-app"));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(grantRepository.readPrincipals).isEmpty(),
+                () -> assertThat(objectStore.presignCount).isZero()
+        );
+    }
 
     @Test
     void createSignedDownloadUrlShouldUseCurrentVersionAndClampTtl() {

@@ -2,10 +2,8 @@ package com.nowcoder.community.infra.observability;
 
 import com.nowcoder.community.common.observability.oss.OssRuntimeLogger;
 import com.nowcoder.community.oss.client.CommunityOssClient;
-import com.nowcoder.community.oss.client.model.OssAccessDecisionResponse;
 import com.nowcoder.community.oss.client.model.OssBindReferenceRequest;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
-import com.nowcoder.community.oss.client.model.OssGrantObjectAccessRequest;
 import com.nowcoder.community.oss.client.model.OssLifecycleResponse;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssPublicFileResponse;
@@ -55,16 +53,6 @@ public class ObservedCommunityOssClient implements CommunityOssClient {
     @Override
     public OssSignedUrlResponse createSignedDownloadUrl(UUID objectId, long ttlSeconds) {
         return observeTransfer("download", -1, () -> delegate.createSignedDownloadUrl(objectId, ttlSeconds));
-    }
-
-    @Override
-    public OssAccessDecisionResponse grantObjectAccess(UUID objectId, OssGrantObjectAccessRequest request) {
-        return observeClientCall("grant", () -> delegate.grantObjectAccess(objectId, request));
-    }
-
-    @Override
-    public OssAccessDecisionResponse revokeObjectAccess(UUID objectId, UUID grantId, String actorId) {
-        return observeClientCall("revoke", () -> delegate.revokeObjectAccess(objectId, grantId, actorId));
     }
 
     @Override

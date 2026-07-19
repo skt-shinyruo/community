@@ -34,10 +34,125 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 class ObjectQueryApplicationServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-05-07T00:00:00Z");
+
+    @Test
+    void getInternalMetadataShouldHideForeignOwnerWithoutUserGrantOrStorageEffects() {
+        UUID objectId = uuid(80);
+        UUID versionId = uuid(81);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "DRIVE_FILE",
+                "community-app",
+                "drive",
+                "DRIVE_UPLOAD",
+                "upload-7",
+                OssVisibility.SIGNED,
+                "user-7",
+                NOW
+        ).activate(version, NOW.plusSeconds(1)));
+        versionRepository.save(version);
+        ObjectQueryApplicationService service = new ObjectQueryApplicationService(
+                objectRepository,
+                versionRepository,
+                grantRepository,
+                objectStore,
+                properties("http://localhost:12880/"),
+                clock()
+        );
+
+        Throwable failure = catchThrowable(() -> service.getInternalMetadata(objectId, "profile-service"));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(grantRepository.readPrincipals).isEmpty(),
+                () -> assertThat(objectStore.capturedBucket).isNull(),
+                () -> assertThat(objectStore.capturedKey).isNull()
+        );
+    }
+
+    @Test
+    void getInternalMetadataShouldReturnNonUserObjectToOwningServiceWithoutUserGrantLookup() {
+        UUID objectId = uuid(82);
+        UUID versionId = uuid(83);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "DRIVE_FILE",
+                "community-app",
+                "drive",
+                "DRIVE_UPLOAD",
+                "upload-7",
+                OssVisibility.SIGNED,
+                "user-7",
+                NOW
+        ).activate(version, NOW.plusSeconds(1)));
+        versionRepository.save(version);
+        ObjectQueryApplicationService service = new ObjectQueryApplicationService(
+                objectRepository,
+                versionRepository,
+                grantRepository,
+                objectStore,
+                properties("http://localhost:12880/"),
+                clock()
+        );
+        ObjectMetadataResult[] metadata = new ObjectMetadataResult[1];
+
+        Throwable failure = catchThrowable(() ->
+                metadata[0] = service.getInternalMetadata(objectId, "community-app"));
+
+        assertAll(
+                () -> assertThat(failure).isNull(),
+                () -> assertThat(metadata[0]).isNotNull(),
+                () -> assertThat(metadata[0].objectId()).isEqualTo(objectId),
+                () -> assertThat(grantRepository.readPrincipals).isEmpty(),
+                () -> assertThat(objectStore.capturedBucket).isNull(),
+                () -> assertThat(objectStore.capturedKey).isNull()
+        );
+    }
+
+    @Test
+    void getInternalMetadataShouldHideUserOwnedObjectFromServiceSubject() {
+        UUID objectId = uuid(84);
+        UUID versionId = uuid(85);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(privateObject(objectId, version));
+        versionRepository.save(version);
+        ObjectQueryApplicationService service = new ObjectQueryApplicationService(
+                objectRepository,
+                versionRepository,
+                grantRepository,
+                objectStore,
+                properties("http://localhost:12880/"),
+                clock()
+        );
+
+        Throwable failure = catchThrowable(() -> service.getInternalMetadata(objectId, "community-app"));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(grantRepository.readPrincipals).isEmpty(),
+                () -> assertThat(objectStore.capturedBucket).isNull(),
+                () -> assertThat(objectStore.capturedKey).isNull()
+        );
+    }
 
     @Test
     void resolvePublicFileShouldUseCanonicalPathOnly() throws Exception {

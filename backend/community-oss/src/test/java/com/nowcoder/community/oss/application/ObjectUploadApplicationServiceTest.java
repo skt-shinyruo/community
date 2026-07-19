@@ -45,10 +45,362 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 class ObjectUploadApplicationServiceTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-05-07T00:00:00Z"), ZoneOffset.UTC);
+
+    @Test
+    void prepareInternalUploadShouldHideForeignOwnerWithoutEffects() {
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                sessionRepository,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+
+        Throwable failure = catchThrowable(() -> service.prepareInternalUpload(
+                "profile-service",
+                new PrepareObjectUploadCommand(
+                        uuid(800),
+                        "DRIVE_FILE",
+                        "community-app",
+                        "drive",
+                        "DRIVE_UPLOAD",
+                        "upload-7",
+                        "PRIVATE",
+                        "note.txt",
+                        "text/plain",
+                        2,
+                        "sha256-note",
+                        "user-7"
+                )));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(objectRepository.saveCount).isZero(),
+                () -> assertThat(versionRepository.saveCount).isZero(),
+                () -> assertThat(sessionRepository.mutationCount).isZero(),
+                () -> assertThat(objectStore.operationCount).isZero()
+        );
+    }
+
+    @Test
+    void prepareInternalUploadShouldHideUserOwnershipWithoutEffects() {
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                sessionRepository,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+
+        Throwable failure = catchThrowable(() -> service.prepareInternalUpload(
+                "community-app",
+                new PrepareObjectUploadCommand(
+                        uuid(801),
+                        "USER_AVATAR",
+                        "community-app",
+                        "user",
+                        "USER",
+                        "user-7",
+                        "PRIVATE",
+                        "avatar.png",
+                        "image/png",
+                        2,
+                        "sha256-avatar",
+                        "user-7"
+                )));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(objectRepository.saveCount).isZero(),
+                () -> assertThat(versionRepository.saveCount).isZero(),
+                () -> assertThat(sessionRepository.mutationCount).isZero(),
+                () -> assertThat(objectStore.operationCount).isZero()
+        );
+    }
+
+    @Test
+    void prepareInternalUploadShouldPreserveActorAndReturnInternalCompletionUrl() {
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                sessionRepository,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+
+        ObjectUploadSessionResult prepared = service.prepareInternalUpload(
+                "community-app",
+                new PrepareObjectUploadCommand(
+                        uuid(802),
+                        "DRIVE_FILE",
+                        "community-app",
+                        "drive",
+                        "DRIVE_UPLOAD",
+                        "upload-7",
+                        "PRIVATE",
+                        "note.txt",
+                        "text/plain",
+                        2,
+                        "sha256-note",
+                        "user-7"
+                ));
+        OssUploadSession session = sessionRepository.findById(prepared.sessionId()).orElseThrow();
+
+        assertAll(
+                () -> assertThat(prepared.uploadUrl()).isEqualTo(
+                        "/internal/oss/upload-sessions/" + prepared.sessionId() + "/complete"),
+                () -> assertThat(session.ownerService()).isEqualTo("community-app"),
+                () -> assertThat(session.ownerType()).isEqualTo("DRIVE_UPLOAD"),
+                () -> assertThat(session.createdBy()).isEqualTo("user-7"),
+                () -> assertThat(objectStore.operationCount).isZero()
+        );
+    }
+
+    @Test
+    void completeInternalUploadShouldHideForeignServiceWithoutEffects() {
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                sessionRepository,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+        ObjectUploadSessionResult prepared = service.prepareInternalUpload(
+                "community-app",
+                new PrepareObjectUploadCommand(
+                        uuid(810),
+                        "DRIVE_FILE",
+                        "community-app",
+                        "drive",
+                        "DRIVE_UPLOAD",
+                        "upload-7",
+                        "PRIVATE",
+                        "note.txt",
+                        "text/plain",
+                        2,
+                        "sha256-note",
+                        "user-7"
+                ));
+        objectRepository.saveCount = 0;
+        versionRepository.saveCount = 0;
+        sessionRepository.mutationCount = 0;
+        objectStore.operationCount = 0;
+        AtomicInteger streamOpenCount = new AtomicInteger();
+
+        Throwable failure = catchThrowable(() -> service.completeInternalUpload(
+                "profile-service",
+                completeCommand(prepared, streamOpenCount)));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(streamOpenCount).hasValue(0),
+                () -> assertThat(objectRepository.saveCount).isZero(),
+                () -> assertThat(versionRepository.saveCount).isZero(),
+                () -> assertThat(sessionRepository.mutationCount).isZero(),
+                () -> assertThat(objectStore.operationCount).isZero(),
+                () -> assertThat(sessionRepository.findById(prepared.sessionId()).orElseThrow().status())
+                        .isEqualTo(OssUploadSessionStatus.READY)
+        );
+    }
+
+    @Test
+    void completeInternalUploadShouldHideForeignObjectOwnerWithoutEffects() {
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                sessionRepository,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+        ObjectUploadSessionResult prepared = service.prepareInternalUpload(
+                "community-app",
+                new PrepareObjectUploadCommand(
+                        uuid(811),
+                        "DRIVE_FILE",
+                        "community-app",
+                        "drive",
+                        "DRIVE_UPLOAD",
+                        "upload-7",
+                        "PRIVATE",
+                        "note.txt",
+                        "text/plain",
+                        2,
+                        "sha256-note",
+                        "user-7"
+                ));
+        objectRepository.rows.put(prepared.objectId(), OssObject.stage(
+                prepared.objectId(),
+                "DRIVE_FILE",
+                "profile-service",
+                "drive",
+                "DRIVE_UPLOAD",
+                "upload-7",
+                OssVisibility.PRIVATE,
+                "user-7",
+                CLOCK.instant()
+        ));
+        objectRepository.saveCount = 0;
+        versionRepository.saveCount = 0;
+        sessionRepository.mutationCount = 0;
+        objectStore.operationCount = 0;
+        AtomicInteger streamOpenCount = new AtomicInteger();
+
+        Throwable failure = catchThrowable(() -> service.completeInternalUpload(
+                "community-app",
+                completeCommand(prepared, streamOpenCount)));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(streamOpenCount).hasValue(0),
+                () -> assertThat(objectRepository.saveCount).isZero(),
+                () -> assertThat(versionRepository.saveCount).isZero(),
+                () -> assertThat(sessionRepository.mutationCount).isZero(),
+                () -> assertThat(objectStore.operationCount).isZero(),
+                () -> assertThat(sessionRepository.findById(prepared.sessionId()).orElseThrow().status())
+                        .isEqualTo(OssUploadSessionStatus.READY)
+        );
+    }
+
+    @Test
+    void completeInternalUploadShouldHideUserOwnedSessionWithoutEffects() {
+        InternalUploadFixture fixture = internalUploadFixture(812);
+        OssUploadSession session = fixture.sessionRepository.findById(fixture.prepared.sessionId()).orElseThrow();
+        fixture.sessionRepository.rows.put(session.sessionId(), OssUploadSession.ready(
+                session.requestId(),
+                session.sessionId(),
+                session.objectId(),
+                session.versionId(),
+                session.uploadMode(),
+                session.ownerService(),
+                session.ownerDomain(),
+                "USER",
+                session.ownerId(),
+                session.expectedFileName(),
+                session.expectedContentType(),
+                session.expectedContentLength(),
+                session.expectedChecksumSha256(),
+                session.createdBy(),
+                session.createdAt(),
+                session.expiresAt()
+        ));
+        fixture.resetEffects();
+        AtomicInteger streamOpenCount = new AtomicInteger();
+
+        Throwable failure = catchThrowable(() -> fixture.service.completeInternalUpload(
+                "community-app",
+                completeCommand(fixture.prepared, streamOpenCount)));
+
+        assertInternalCompletionHiddenWithoutEffects(fixture, failure, streamOpenCount);
+    }
+
+    @Test
+    void completeInternalUploadShouldHideUserOwnedObjectWithoutEffects() {
+        InternalUploadFixture fixture = internalUploadFixture(813);
+        fixture.objectRepository.rows.put(fixture.prepared.objectId(), OssObject.stage(
+                fixture.prepared.objectId(),
+                "DRIVE_FILE",
+                "community-app",
+                "drive",
+                "USER",
+                "user-7",
+                OssVisibility.PRIVATE,
+                "user-7",
+                CLOCK.instant()
+        ));
+        fixture.resetEffects();
+        AtomicInteger streamOpenCount = new AtomicInteger();
+
+        Throwable failure = catchThrowable(() -> fixture.service.completeInternalUpload(
+                "community-app",
+                completeCommand(fixture.prepared, streamOpenCount)));
+
+        assertInternalCompletionHiddenWithoutEffects(fixture, failure, streamOpenCount);
+    }
+
+    @Test
+    void completeInternalUploadShouldHideMismatchedSessionVersionWithoutEffects() {
+        InternalUploadFixture fixture = internalUploadFixture(814);
+        AtomicInteger streamOpenCount = new AtomicInteger();
+        CompleteObjectUploadCommand mismatched = new CompleteObjectUploadCommand(
+                fixture.prepared.sessionId(),
+                fixture.prepared.objectId(),
+                uuid(999),
+                uploadContent(streamOpenCount),
+                "user-7"
+        );
+
+        Throwable failure = catchThrowable(() -> fixture.service.completeInternalUpload(
+                "community-app",
+                mismatched));
+
+        assertInternalCompletionHiddenWithoutEffects(fixture, failure, streamOpenCount);
+    }
+
+    @Test
+    void completeInternalUploadShouldUsePersistedSessionActorWhenIncomingActorDiffers() {
+        InternalUploadFixture fixture = internalUploadFixture(815);
+        AtomicInteger streamOpenCount = new AtomicInteger();
+        CompleteObjectUploadCommand incoming = new CompleteObjectUploadCommand(
+                fixture.prepared.sessionId(),
+                fixture.prepared.objectId(),
+                fixture.prepared.versionId(),
+                uploadContent(streamOpenCount),
+                "internal-upload-placeholder"
+        );
+
+        ObjectMetadataResult completed = fixture.service.completeInternalUpload(
+                "community-app",
+                incoming);
+
+        assertAll(
+                () -> assertThat(incoming.actorId()).isNotEqualTo(
+                        fixture.sessionRepository.findById(fixture.prepared.sessionId()).orElseThrow().createdBy()),
+                () -> assertThat(completed.status()).isEqualTo(OssObjectStatus.ACTIVE.name()),
+                () -> assertThat(completed.ownerService()).isEqualTo("community-app"),
+                () -> assertThat(completed.ownerId()).isEqualTo("upload-7"),
+                () -> assertThat(streamOpenCount).hasValue(1),
+                () -> assertThat(fixture.sessionRepository.findById(fixture.prepared.sessionId()).orElseThrow().createdBy())
+                        .isEqualTo("user-7"),
+                () -> assertThat(fixture.sessionRepository.findById(fixture.prepared.sessionId()).orElseThrow().status())
+                        .isEqualTo(OssUploadSessionStatus.COMPLETED)
+        );
+    }
 
     @Test
     void prepareAndCompleteProxyUploadShouldActivateVersionAndReturnCanonicalPublicUrl() {
@@ -654,6 +1006,38 @@ class ObjectUploadApplicationServiceTest {
         );
     }
 
+    private static CompleteObjectUploadCommand completeCommand(
+            ObjectUploadSessionResult prepared,
+            AtomicInteger streamOpenCount
+    ) {
+        return new CompleteObjectUploadCommand(
+                prepared.sessionId(),
+                prepared.objectId(),
+                prepared.versionId(),
+                uploadContent(streamOpenCount),
+                "user-7"
+        );
+    }
+
+    private static ObjectUploadContent uploadContent(AtomicInteger streamOpenCount) {
+        return new ObjectUploadContent(
+                () -> {
+                    streamOpenCount.incrementAndGet();
+                    return new ByteArrayInputStream("ok".getBytes(StandardCharsets.UTF_8));
+                },
+                "text/plain",
+                2,
+                "sha256-note"
+        );
+    }
+
+    private static void assertHiddenObjectNotFound(Throwable throwable) {
+        assertThat(throwable).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND);
+            assertThat(exception.getMessage()).isEqualTo("OSS object not found");
+        });
+    }
+
     private static void assertCompletedReplayHiddenWithoutSideEffects(CompletedReplayFixture fixture) {
         AtomicInteger streamOpenCount = new AtomicInteger();
 
@@ -688,6 +1072,81 @@ class ObjectUploadApplicationServiceTest {
             CapturingObjectStore objectStore,
             ObjectUploadApplicationService service
     ) {
+    }
+
+    private static InternalUploadFixture internalUploadFixture(long requestSuffix) {
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                sessionRepository,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+        ObjectUploadSessionResult prepared = service.prepareInternalUpload(
+                "community-app",
+                new PrepareObjectUploadCommand(
+                        uuid(requestSuffix),
+                        "DRIVE_FILE",
+                        "community-app",
+                        "drive",
+                        "DRIVE_UPLOAD",
+                        "upload-7",
+                        "PRIVATE",
+                        "note.txt",
+                        "text/plain",
+                        2,
+                        "sha256-note",
+                        "user-7"
+                ));
+        InternalUploadFixture fixture = new InternalUploadFixture(
+                objectRepository,
+                versionRepository,
+                sessionRepository,
+                objectStore,
+                service,
+                prepared
+        );
+        fixture.resetEffects();
+        return fixture;
+    }
+
+    private static void assertInternalCompletionHiddenWithoutEffects(
+            InternalUploadFixture fixture,
+            Throwable failure,
+            AtomicInteger streamOpenCount
+    ) {
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(streamOpenCount).hasValue(0),
+                () -> assertThat(fixture.objectRepository.saveCount).isZero(),
+                () -> assertThat(fixture.versionRepository.saveCount).isZero(),
+                () -> assertThat(fixture.sessionRepository.mutationCount).isZero(),
+                () -> assertThat(fixture.objectStore.operationCount).isZero(),
+                () -> assertThat(fixture.sessionRepository.findById(fixture.prepared.sessionId()).orElseThrow().status())
+                        .isEqualTo(OssUploadSessionStatus.READY)
+        );
+    }
+
+    private record InternalUploadFixture(
+            FakeObjectRepository objectRepository,
+            FakeObjectVersionRepository versionRepository,
+            FakeUploadSessionRepository sessionRepository,
+            CapturingObjectStore objectStore,
+            ObjectUploadApplicationService service,
+            ObjectUploadSessionResult prepared
+    ) {
+        private void resetEffects() {
+            objectRepository.saveCount = 0;
+            versionRepository.saveCount = 0;
+            sessionRepository.mutationCount = 0;
+            objectStore.operationCount = 0;
+        }
     }
 
     private static ObjectUploadApplicationService serviceWithUploadPolicy(UploadPolicyProperties uploadPolicy) {

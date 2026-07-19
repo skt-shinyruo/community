@@ -88,6 +88,22 @@ public class ObjectQueryApplicationService {
         return toMetadataResult(object, version);
     }
 
+    public ObjectMetadataResult getInternalMetadata(UUID objectId, String serviceSubject) {
+        OssObject object = objectRepository.findById(objectId).orElseThrow(this::objectNotFound);
+        if (serviceSubject == null || serviceSubject.isBlank()
+                || !object.ownerService().equals(serviceSubject.trim())
+                || "USER".equalsIgnoreCase(object.ownerType())) {
+            throw objectNotFound();
+        }
+        UUID versionId = object.currentVersionId();
+        OssObjectVersion version = versionId == null ? null : versionRepository.findById(versionId)
+                .orElseThrow(this::objectNotFound);
+        if (version != null && !object.objectId().equals(version.objectId())) {
+            throw objectNotFound();
+        }
+        return toMetadataResult(object, version);
+    }
+
     public ObjectDownloadResult resolvePublicFile(String filePath) {
         ResolvedVersion resolved = resolveVersion(filePath);
         if (resolved == null) {

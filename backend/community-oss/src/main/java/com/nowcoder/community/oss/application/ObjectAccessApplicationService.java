@@ -61,6 +61,14 @@ public class ObjectAccessApplicationService {
         )) {
             throw objectNotFound();
         }
+        return createSignedDownloadUrl(command, object, versionId);
+    }
+
+    private ObjectSignedUrlResult createSignedDownloadUrl(
+            CreateSignedUrlCommand command,
+            OssObject object,
+            UUID versionId
+    ) {
         if (object.status() == OssObjectStatus.DELETE_PENDING || object.status() == OssObjectStatus.PURGED) {
             throw new IllegalStateException("object is not available for download");
         }
@@ -78,6 +86,21 @@ public class ObjectAccessApplicationService {
         long ttlSeconds = command.ttlSeconds() <= 0 ? 300 : Math.min(command.ttlSeconds(), 86_400);
         PresignedObjectUrl signed = objectStore.presignDownload(version.storageBucket(), version.storageKey(), Duration.ofSeconds(ttlSeconds));
         return new ObjectSignedUrlResult(signed.url(), signed.method(), signed.expiresAt(), "private, max-age=" + ttlSeconds);
+    }
+
+    public ObjectSignedUrlResult createInternalSignedDownloadUrl(
+            CreateSignedUrlCommand command,
+            String serviceSubject
+    ) {
+        OssObject object = objectRepository.findById(command.objectId())
+                .orElseThrow(this::objectNotFound);
+        if (serviceSubject == null || serviceSubject.isBlank()
+                || !object.ownerService().equals(serviceSubject.trim())
+                || "USER".equalsIgnoreCase(object.ownerType())) {
+            throw objectNotFound();
+        }
+        UUID versionId = command.versionId() == null ? object.currentVersionId() : command.versionId();
+        return createSignedDownloadUrl(command, object, versionId);
     }
 
     private BusinessException objectNotFound() {

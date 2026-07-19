@@ -2,9 +2,7 @@ package com.nowcoder.community.oss.client;
 
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
-import com.nowcoder.community.oss.client.model.OssAccessDecisionResponse;
 import com.nowcoder.community.oss.client.model.OssBindReferenceRequest;
-import com.nowcoder.community.oss.client.model.OssGrantObjectAccessRequest;
 import com.nowcoder.community.oss.client.model.OssLifecycleResponse;
 import com.nowcoder.community.oss.client.model.OssPublicFileResponse;
 import com.nowcoder.community.oss.client.model.OssReferenceResponse;
@@ -25,10 +23,6 @@ public interface CommunityOssClient {
     OssPublicFileResponse loadPublicFile(String fileKey);
 
     OssSignedUrlResponse createSignedDownloadUrl(UUID objectId, long ttlSeconds);
-
-    OssAccessDecisionResponse grantObjectAccess(UUID objectId, OssGrantObjectAccessRequest request);
-
-    OssAccessDecisionResponse revokeObjectAccess(UUID objectId, UUID grantId, String actorId);
 
     OssReferenceResponse bindObjectReference(UUID objectId, OssBindReferenceRequest request);
 

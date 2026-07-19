@@ -172,6 +172,33 @@ class OssPersistenceMappingTest {
         assertThat(referenceRepository.findByObjectId(objectId)).hasSize(1);
     }
 
+    @Test
+    void accessGrantRepositoryShouldUseFocusedReadGrantQuery() {
+        UUID objectId = uuid(20);
+        UUID versionId = uuid(21);
+        FakeGrantMapper mapper = new FakeGrantMapper();
+        MyBatisOssAccessGrantRepository repository = new MyBatisOssAccessGrantRepository(mapper);
+        OssAccessGrant grant = OssAccessGrant.readGrant(
+                uuid(22),
+                objectId,
+                versionId,
+                "USER",
+                "reader-7",
+                "owner-7",
+                NOW,
+                NOW.plusSeconds(300)
+        );
+        repository.save(grant);
+
+        List<OssAccessGrant> candidates = repository.findReadGrants(objectId, versionId, "reader-7");
+
+        assertThat(candidates).containsExactly(grant);
+        assertThat(mapper.focusedReadQueryCount).isEqualTo(1);
+        assertThat(mapper.focusedObjectId).isEqualTo(objectId);
+        assertThat(mapper.focusedVersionId).isEqualTo(versionId);
+        assertThat(mapper.focusedPrincipalValue).isEqualTo("reader-7");
+    }
+
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
@@ -356,6 +383,10 @@ class OssPersistenceMappingTest {
 
     private static final class FakeGrantMapper implements OssAccessGrantMapper {
         private final Map<UUID, OssAccessGrantDataObject> rows = new HashMap<>();
+        private int focusedReadQueryCount;
+        private UUID focusedObjectId;
+        private UUID focusedVersionId;
+        private String focusedPrincipalValue;
 
         @Override
         public int upsert(OssAccessGrantDataObject row) {
@@ -372,6 +403,25 @@ class OssPersistenceMappingTest {
         public List<OssAccessGrantDataObject> selectByObjectId(UUID objectId) {
             return rows.values().stream()
                     .filter(row -> objectId.equals(row.getObjectId()))
+                    .toList();
+        }
+
+        @Override
+        public List<OssAccessGrantDataObject> selectReadGrants(
+                UUID objectId,
+                UUID versionId,
+                String principalValue
+        ) {
+            focusedReadQueryCount++;
+            focusedObjectId = objectId;
+            focusedVersionId = versionId;
+            focusedPrincipalValue = principalValue;
+            return rows.values().stream()
+                    .filter(row -> objectId.equals(row.getObjectId()))
+                    .filter(row -> row.getVersionId() == null || row.getVersionId().equals(versionId))
+                    .filter(row -> "USER".equals(row.getPrincipalType()))
+                    .filter(row -> principalValue.equals(row.getPrincipalValue()))
+                    .filter(row -> "READ".equals(row.getPermission()))
                     .toList();
         }
     }

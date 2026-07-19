@@ -1,5 +1,7 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.oss.application.command.DeleteObjectCommand;
 import com.nowcoder.community.oss.application.result.ObjectLifecycleResult;
 import com.nowcoder.community.oss.domain.model.OssAccessGrant;
@@ -10,7 +12,9 @@ import com.nowcoder.community.oss.domain.repository.OssAccessGrantRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectReferenceRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
+import com.nowcoder.community.oss.domain.service.OssObjectAccessPolicy;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +32,7 @@ public class ObjectLifecycleApplicationService {
     private final OssAccessGrantRepository grantRepository;
     private final ObjectStore objectStore;
     private final Clock clock;
+    private final OssObjectAccessPolicy accessPolicy;
 
     public ObjectLifecycleApplicationService(
             OssObjectRepository objectRepository,
@@ -37,12 +42,34 @@ public class ObjectLifecycleApplicationService {
             ObjectStore objectStore,
             Clock clock
     ) {
+        this(
+                objectRepository,
+                versionRepository,
+                referenceRepository,
+                grantRepository,
+                objectStore,
+                clock,
+                new OssObjectAccessPolicy()
+        );
+    }
+
+    @Autowired
+    public ObjectLifecycleApplicationService(
+            OssObjectRepository objectRepository,
+            OssObjectVersionRepository versionRepository,
+            OssObjectReferenceRepository referenceRepository,
+            OssAccessGrantRepository grantRepository,
+            ObjectStore objectStore,
+            Clock clock,
+            OssObjectAccessPolicy accessPolicy
+    ) {
         this.objectRepository = objectRepository;
         this.versionRepository = versionRepository;
         this.referenceRepository = referenceRepository;
         this.grantRepository = grantRepository;
         this.objectStore = objectStore;
         this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.accessPolicy = accessPolicy == null ? new OssObjectAccessPolicy() : accessPolicy;
     }
 
     @Transactional
@@ -51,7 +78,10 @@ public class ObjectLifecycleApplicationService {
             throw new IllegalArgumentException("objectId must not be null");
         }
         OssObject object = objectRepository.findById(command.objectId())
-                .orElseThrow(() -> new IllegalArgumentException("object not found"));
+                .orElseThrow(this::objectNotFound);
+        if (!accessPolicy.canManage(object, command.actorId())) {
+            throw objectNotFound();
+        }
         Instant now = clock.instant();
         if (object.status() == OssObjectStatus.PURGED) {
             return toResult(object, "object already purged");
@@ -91,5 +121,9 @@ public class ObjectLifecycleApplicationService {
                 message,
                 object.updatedAt()
         );
+    }
+
+    private BusinessException objectNotFound() {
+        return new BusinessException(CommonErrorCode.NOT_FOUND, "OSS object not found");
     }
 }

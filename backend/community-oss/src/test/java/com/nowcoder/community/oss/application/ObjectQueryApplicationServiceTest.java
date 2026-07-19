@@ -1,12 +1,16 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.oss.application.result.ObjectDownloadResult;
 import com.nowcoder.community.oss.application.result.ObjectMetadataResult;
 import com.nowcoder.community.oss.domain.model.OssObject;
+import com.nowcoder.community.oss.domain.model.OssAccessGrant;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssVisibility;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
+import com.nowcoder.community.oss.domain.repository.OssAccessGrantRepository;
 import com.nowcoder.community.oss.infrastructure.config.OssProperties;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStoreObject;
@@ -18,13 +22,18 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 class ObjectQueryApplicationServiceTest {
 
@@ -43,7 +52,7 @@ class ObjectQueryApplicationServiceTest {
                 "USER_AVATAR",
                 "community-app",
                 "user",
-                "avatar",
+                "USER",
                 "7",
                 OssVisibility.PUBLIC,
                 "7",
@@ -54,11 +63,13 @@ class ObjectQueryApplicationServiceTest {
         ObjectQueryApplicationService service = new ObjectQueryApplicationService(
                 objectRepository,
                 versionRepository,
+                new FakeGrantRepository(),
                 objectStore,
-                properties("http://localhost:12880/")
+                properties("http://localhost:12880/"),
+                clock()
         );
 
-        ObjectMetadataResult metadata = service.getMetadata(objectId);
+        ObjectMetadataResult metadata = service.getMetadata(objectId, "7");
         ObjectDownloadResult download = service.resolvePublicFile(objectId + "/" + versionId + "/avatar.png");
 
         assertThat(metadata.publicUrl()).isEqualTo(
@@ -72,6 +83,68 @@ class ObjectQueryApplicationServiceTest {
         assertThat(download.fileName()).isEqualTo("avatar.png");
         assertThat(objectStore.capturedBucket).isEqualTo("community-oss");
         assertThat(objectStore.capturedKey).isEqualTo("objects/1/2/avatar.png");
+    }
+
+    @Test
+    void getMetadataShouldAllowOwnerAndValidReadGrant() {
+        UUID objectId = uuid(10);
+        UUID versionId = uuid(12);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(privateObject(objectId, version));
+        versionRepository.save(version);
+        grantRepository.save(readGrant(uuid(13), objectId, "grant-user", NOW.plusSeconds(300)));
+        ObjectQueryApplicationService service = new ObjectQueryApplicationService(
+                objectRepository,
+                versionRepository,
+                grantRepository,
+                new CapturingObjectStore(),
+                properties("http://localhost:12880/"),
+                clock()
+        );
+
+        ObjectMetadataResult ownerMetadata = service.getMetadata(objectId, "owner-7");
+        ObjectMetadataResult grantMetadata = service.getMetadata(objectId, "grant-user");
+
+        assertThat(ownerMetadata.objectId()).isEqualTo(objectId);
+        assertThat(grantMetadata.objectId()).isEqualTo(objectId);
+        assertThat(grantRepository.readPrincipals).containsExactly("owner-7", "grant-user");
+    }
+
+    @Test
+    void getMetadataShouldHideMissingAndUnauthorizedPrivateObjects() {
+        UUID objectId = uuid(10);
+        UUID missingObjectId = uuid(11);
+        UUID versionId = uuid(12);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(privateObject(objectId, version));
+        versionRepository.save(version);
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        grantRepository.save(readGrant(uuid(13), objectId, "expired-user", NOW));
+        grantRepository.save(readGrant(uuid(14), objectId, "revoked-user", NOW.plusSeconds(300))
+                .revoke(NOW.minusSeconds(1)));
+        ObjectQueryApplicationService service = new ObjectQueryApplicationService(
+                objectRepository,
+                versionRepository,
+                grantRepository,
+                new CapturingObjectStore(),
+                properties("http://localhost:12880/"),
+                clock()
+        );
+
+        Throwable missing = catchThrowable(() -> service.getMetadata(missingObjectId, "unrelated-user"));
+        Throwable denied = catchThrowable(() -> service.getMetadata(objectId, "unrelated-user"));
+        Throwable expired = catchThrowable(() -> service.getMetadata(objectId, "expired-user"));
+        Throwable revoked = catchThrowable(() -> service.getMetadata(objectId, "revoked-user"));
+
+        assertHiddenObjectNotFound(missing);
+        assertHiddenObjectNotFound(denied);
+        assertHiddenObjectNotFound(expired);
+        assertHiddenObjectNotFound(revoked);
     }
 
     @Test
@@ -97,8 +170,10 @@ class ObjectQueryApplicationServiceTest {
         ObjectQueryApplicationService service = new ObjectQueryApplicationService(
                 objectRepository,
                 versionRepository,
+                new FakeGrantRepository(),
                 objectStore,
-                properties("http://localhost:12880/")
+                properties("http://localhost:12880/"),
+                clock()
         );
 
         ObjectDownloadResult download = service.resolvePublicFile(objectId + "/" + versionId + "/avatar.png");
@@ -131,8 +206,10 @@ class ObjectQueryApplicationServiceTest {
         ObjectQueryApplicationService service = new ObjectQueryApplicationService(
                 objectRepository,
                 versionRepository,
+                new FakeGrantRepository(),
                 objectStore,
-                properties("http://localhost:12880/")
+                properties("http://localhost:12880/"),
+                clock()
         );
 
         ObjectDownloadResult download = service.resolvePublicFile(objectId + "/" + versionId + "/avatar.png");
@@ -164,8 +241,10 @@ class ObjectQueryApplicationServiceTest {
         ObjectQueryApplicationService service = new ObjectQueryApplicationService(
                 objectRepository,
                 versionRepository,
+                new FakeGrantRepository(),
                 objectStore,
-                properties("http://localhost:12880/")
+                properties("http://localhost:12880/"),
+                clock()
         );
 
         ObjectDownloadResult download = service.resolvePublicFile("avatar/7/0123456789abcdef0123456789abcdef");
@@ -189,6 +268,38 @@ class ObjectQueryApplicationServiceTest {
         ).withUploadedContent("image/png", 6, "sha256-avatar").activate("etag-1", NOW.plusSeconds(1));
     }
 
+    private static OssObject privateObject(UUID objectId, OssObjectVersion version) {
+        return OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                OssVisibility.SIGNED,
+                "owner-7",
+                NOW
+        ).activate(version, NOW.plusSeconds(1));
+    }
+
+    private static OssAccessGrant readGrant(
+            UUID grantId,
+            UUID objectId,
+            String principalValue,
+            Instant expiresAt
+    ) {
+        return OssAccessGrant.readGrant(
+                grantId,
+                objectId,
+                null,
+                "USER",
+                principalValue,
+                "owner-7",
+                NOW.minusSeconds(60),
+                expiresAt
+        );
+    }
+
     private static OssProperties properties(String publicBaseUrl) {
         OssProperties properties = new OssProperties();
         properties.setPublicBaseUrl(publicBaseUrl);
@@ -197,6 +308,17 @@ class ObjectQueryApplicationServiceTest {
 
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+
+    private static Clock clock() {
+        return Clock.fixed(NOW, ZoneOffset.UTC);
+    }
+
+    private static void assertHiddenObjectNotFound(Throwable throwable) {
+        assertThat(throwable).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND);
+            assertThat(exception.getMessage()).isEqualTo("OSS object not found");
+        });
     }
 
     private static final class FakeObjectRepository implements OssObjectRepository {
@@ -224,6 +346,35 @@ class ObjectQueryApplicationServiceTest {
         @Override
         public Optional<OssObjectVersion> findById(UUID versionId) {
             return Optional.ofNullable(rows.get(versionId));
+        }
+    }
+
+    private static final class FakeGrantRepository implements OssAccessGrantRepository {
+
+        private final Map<UUID, OssAccessGrant> rows = new HashMap<>();
+        private final List<String> readPrincipals = new ArrayList<>();
+
+        @Override
+        public void save(OssAccessGrant grant) {
+            rows.put(grant.grantId(), grant);
+        }
+
+        @Override
+        public Optional<OssAccessGrant> findById(UUID grantId) {
+            return Optional.ofNullable(rows.get(grantId));
+        }
+
+        @Override
+        public List<OssAccessGrant> findByObjectId(UUID objectId) {
+            return rows.values().stream()
+                    .filter(grant -> objectId.equals(grant.objectId()))
+                    .toList();
+        }
+
+        @Override
+        public List<OssAccessGrant> findReadGrants(UUID objectId, UUID versionId, String principalValue) {
+            readPrincipals.add(principalValue);
+            return OssAccessGrantRepository.super.findReadGrants(objectId, versionId, principalValue);
         }
     }
 

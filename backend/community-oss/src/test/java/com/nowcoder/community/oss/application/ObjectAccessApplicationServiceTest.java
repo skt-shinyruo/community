@@ -1,12 +1,17 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.oss.application.command.CreateSignedUrlCommand;
 import com.nowcoder.community.oss.application.result.ObjectSignedUrlResult;
+import com.nowcoder.community.oss.domain.model.OssAccessGrant;
 import com.nowcoder.community.oss.domain.model.OssObject;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssVisibility;
+import com.nowcoder.community.oss.domain.repository.OssAccessGrantRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
+import com.nowcoder.community.oss.domain.service.OssObjectAccessPolicy;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStoreObject;
 import com.nowcoder.community.oss.infrastructure.storage.PresignedObjectUrl;
@@ -15,14 +20,19 @@ import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 class ObjectAccessApplicationServiceTest {
 
@@ -34,6 +44,7 @@ class ObjectAccessApplicationServiceTest {
         UUID versionId = uuid(2);
         FakeObjectRepository objectRepository = new FakeObjectRepository();
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
         OssObjectVersion version = activeVersion(objectId, versionId);
         objectRepository.save(OssObject.stage(
@@ -41,7 +52,7 @@ class ObjectAccessApplicationServiceTest {
                 "USER_AVATAR",
                 "community-app",
                 "user",
-                "avatar",
+                "USER",
                 "7",
                 OssVisibility.SIGNED,
                 "7",
@@ -51,7 +62,10 @@ class ObjectAccessApplicationServiceTest {
         ObjectAccessApplicationService service = new ObjectAccessApplicationService(
                 objectRepository,
                 versionRepository,
-                objectStore
+                grantRepository,
+                objectStore,
+                clock(),
+                new OssObjectAccessPolicy()
         );
 
         ObjectSignedUrlResult signed = service.createSignedDownloadUrl(new CreateSignedUrlCommand(
@@ -70,19 +84,110 @@ class ObjectAccessApplicationServiceTest {
     }
 
     @Test
+    void createSignedDownloadUrlShouldHideMissingAndUnauthorizedPrivateObjectsBeforeSigning() {
+        UUID objectId = uuid(10);
+        UUID missingObjectId = uuid(11);
+        UUID versionId = uuid(12);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                OssVisibility.SIGNED,
+                "owner-7",
+                NOW
+        ).activate(version, NOW.plusSeconds(1)));
+        versionRepository.save(version);
+        ObjectAccessApplicationService service = new ObjectAccessApplicationService(
+                objectRepository,
+                versionRepository,
+                grantRepository,
+                objectStore,
+                clock(),
+                new OssObjectAccessPolicy()
+        );
+
+        Throwable missing = catchThrowable(() -> service.createSignedDownloadUrl(
+                new CreateSignedUrlCommand(missingObjectId, null, 300, "unrelated-user")));
+        Throwable denied = catchThrowable(() -> service.createSignedDownloadUrl(
+                new CreateSignedUrlCommand(objectId, null, 300, "unrelated-user")));
+
+        assertHiddenObjectNotFound(missing);
+        assertHiddenObjectNotFound(denied);
+        assertThat(objectStore.capturedKey).isNull();
+    }
+
+    @Test
+    void createSignedDownloadUrlShouldAllowValidGrantAndHideExpiredOrRevokedGrants() {
+        UUID objectId = uuid(20);
+        UUID versionId = uuid(21);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                OssVisibility.SIGNED,
+                "owner-7",
+                NOW
+        ).activate(version, NOW.plusSeconds(1)));
+        versionRepository.save(version);
+        grantRepository.save(readGrant(uuid(22), objectId, "grant-user", NOW.plusSeconds(300)));
+        grantRepository.save(readGrant(uuid(23), objectId, "expired-user", NOW));
+        grantRepository.save(readGrant(uuid(24), objectId, "revoked-user", NOW.plusSeconds(300))
+                .revoke(NOW.minusSeconds(1)));
+        ObjectAccessApplicationService service = new ObjectAccessApplicationService(
+                objectRepository,
+                versionRepository,
+                grantRepository,
+                objectStore,
+                clock(),
+                new OssObjectAccessPolicy()
+        );
+
+        ObjectSignedUrlResult granted = service.createSignedDownloadUrl(
+                new CreateSignedUrlCommand(objectId, versionId, 300, "grant-user"));
+        Throwable expired = catchThrowable(() -> service.createSignedDownloadUrl(
+                new CreateSignedUrlCommand(objectId, versionId, 300, "expired-user")));
+        Throwable revoked = catchThrowable(() -> service.createSignedDownloadUrl(
+                new CreateSignedUrlCommand(objectId, versionId, 300, "revoked-user")));
+
+        assertThat(granted.method()).isEqualTo("GET");
+        assertHiddenObjectNotFound(expired);
+        assertHiddenObjectNotFound(revoked);
+        assertThat(objectStore.presignCount).isEqualTo(1);
+        assertThat(grantRepository.readPrincipals)
+                .containsExactly("grant-user", "expired-user", "revoked-user");
+    }
+
+    @Test
     void createSignedDownloadUrlShouldRejectVersionFromDifferentObject() {
         UUID objectId = uuid(1);
         UUID otherObjectId = uuid(3);
         UUID versionId = uuid(2);
         FakeObjectRepository objectRepository = new FakeObjectRepository();
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
         objectRepository.save(OssObject.stage(
                 objectId,
                 "USER_AVATAR",
                 "community-app",
                 "user",
-                "avatar",
+                "USER",
                 "7",
                 OssVisibility.SIGNED,
                 "7",
@@ -92,7 +197,10 @@ class ObjectAccessApplicationServiceTest {
         ObjectAccessApplicationService service = new ObjectAccessApplicationService(
                 objectRepository,
                 versionRepository,
-                objectStore
+                grantRepository,
+                objectStore,
+                clock(),
+                new OssObjectAccessPolicy()
         );
 
         assertThatThrownBy(() -> service.createSignedDownloadUrl(new CreateSignedUrlCommand(
@@ -102,6 +210,35 @@ class ObjectAccessApplicationServiceTest {
                 "7"
         ))).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("object version does not belong to object");
+    }
+
+    private static OssAccessGrant readGrant(
+            UUID grantId,
+            UUID objectId,
+            String principalValue,
+            Instant expiresAt
+    ) {
+        return OssAccessGrant.readGrant(
+                grantId,
+                objectId,
+                null,
+                "USER",
+                principalValue,
+                "owner-7",
+                NOW.minusSeconds(60),
+                expiresAt
+        );
+    }
+
+    private static Clock clock() {
+        return Clock.fixed(NOW, ZoneOffset.UTC);
+    }
+
+    private static void assertHiddenObjectNotFound(Throwable throwable) {
+        assertThat(throwable).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND);
+            assertThat(exception.getMessage()).isEqualTo("OSS object not found");
+        });
     }
 
     private static OssObjectVersion activeVersion(UUID objectId, UUID versionId) {
@@ -151,10 +288,39 @@ class ObjectAccessApplicationServiceTest {
         }
     }
 
+    private static final class FakeGrantRepository implements OssAccessGrantRepository {
+        private final Map<UUID, OssAccessGrant> rows = new HashMap<>();
+        private final List<String> readPrincipals = new ArrayList<>();
+
+        @Override
+        public void save(OssAccessGrant grant) {
+            rows.put(grant.grantId(), grant);
+        }
+
+        @Override
+        public Optional<OssAccessGrant> findById(UUID grantId) {
+            return Optional.ofNullable(rows.get(grantId));
+        }
+
+        @Override
+        public List<OssAccessGrant> findByObjectId(UUID objectId) {
+            return rows.values().stream()
+                    .filter(grant -> objectId.equals(grant.objectId()))
+                    .toList();
+        }
+
+        @Override
+        public List<OssAccessGrant> findReadGrants(UUID objectId, UUID versionId, String principalValue) {
+            readPrincipals.add(principalValue);
+            return OssAccessGrantRepository.super.findReadGrants(objectId, versionId, principalValue);
+        }
+    }
+
     private static final class CapturingObjectStore implements ObjectStore {
         private String capturedBucket;
         private String capturedKey;
         private Duration capturedTtl;
+        private int presignCount;
 
         @Override
         public void put(String bucket, String key, InputStream content, long contentLength, String contentType) {
@@ -181,6 +347,7 @@ class ObjectAccessApplicationServiceTest {
 
         @Override
         public PresignedObjectUrl presignDownload(String bucket, String key, Duration ttl) {
+            presignCount++;
             capturedBucket = bucket;
             capturedKey = key;
             capturedTtl = ttl;

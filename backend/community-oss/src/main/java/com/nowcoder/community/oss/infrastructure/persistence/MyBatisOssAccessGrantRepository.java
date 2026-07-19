@@ -6,8 +6,9 @@ import com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssAcces
 import com.nowcoder.community.oss.infrastructure.persistence.mapper.OssAccessGrantMapper;
 import org.springframework.stereotype.Repository;
 
-import java.util.Optional;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -32,5 +33,16 @@ public class MyBatisOssAccessGrantRepository implements OssAccessGrantRepository
     @Override
     public List<OssAccessGrant> findByObjectId(UUID objectId) {
         return mapper.selectByObjectId(objectId).stream().map(OssAccessGrantDataObject::toDomain).toList();
+    }
+
+    @Override
+    public List<OssAccessGrant> findReadGrants(UUID objectId, UUID versionId, String principalValue) {
+        Objects.requireNonNull(objectId, "objectId");
+        if (principalValue == null || principalValue.isBlank()) {
+            return List.of();
+        }
+        return mapper.selectReadGrants(objectId, versionId, principalValue.trim()).stream()
+                .map(OssAccessGrantDataObject::toDomain)
+                .toList();
     }
 }

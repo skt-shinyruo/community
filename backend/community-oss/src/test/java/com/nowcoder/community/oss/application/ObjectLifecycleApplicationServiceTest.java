@@ -1,5 +1,7 @@
 package com.nowcoder.community.oss.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.oss.application.command.DeleteObjectCommand;
 import com.nowcoder.community.oss.application.result.ObjectLifecycleResult;
 import com.nowcoder.community.oss.domain.model.OssAccessGrant;
@@ -30,6 +32,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 class ObjectLifecycleApplicationServiceTest {
 
@@ -50,7 +53,7 @@ class ObjectLifecycleApplicationServiceTest {
                 "USER_AVATAR",
                 "community-app",
                 "user",
-                "avatar",
+                "USER",
                 "7",
                 OssVisibility.PUBLIC,
                 "7",
@@ -63,7 +66,7 @@ class ObjectLifecycleApplicationServiceTest {
                 versionId,
                 "community-app",
                 "user",
-                "avatar",
+                "USER",
                 "7",
                 "PRIMARY",
                 CLOCK.instant(),
@@ -102,7 +105,7 @@ class ObjectLifecycleApplicationServiceTest {
                 "USER_AVATAR",
                 "community-app",
                 "user",
-                "avatar",
+                "USER",
                 "7",
                 OssVisibility.PUBLIC,
                 "7",
@@ -128,6 +131,90 @@ class ObjectLifecycleApplicationServiceTest {
                 .isEqualTo(com.nowcoder.community.oss.domain.model.OssObjectVersionStatus.PURGED);
         assertThat(objectStore.deletedBucket).isEqualTo("community-oss");
         assertThat(objectStore.deletedKey).isEqualTo("objects/1/2/avatar.png");
+    }
+
+    @Test
+    void deleteObjectShouldHideObjectFromGrantUserAndUnrelatedUserWithoutMutation() {
+        LifecycleFixture grantUserFixture = lifecycleFixture();
+        grantUserFixture.grantRepository.save(OssAccessGrant.readGrant(
+                uuid(20), grantUserFixture.objectId, null, "USER", "grant-user", "owner-7",
+                CLOCK.instant().minusSeconds(60), CLOCK.instant().plusSeconds(300)));
+        LifecycleFixture unrelatedFixture = lifecycleFixture();
+
+        Throwable grantUser = catchThrowable(() -> grantUserFixture.service.deleteObject(
+                new DeleteObjectCommand(grantUserFixture.objectId, "grant-user")));
+        Throwable unrelated = catchThrowable(() -> unrelatedFixture.service.deleteObject(
+                new DeleteObjectCommand(unrelatedFixture.objectId, "unrelated-user")));
+
+        assertHiddenObjectNotFound(grantUser);
+        assertHiddenObjectNotFound(unrelated);
+        assertThat(grantUserFixture.objectRepository.findById(grantUserFixture.objectId)).get()
+                .extracting(OssObject::status).isEqualTo(OssObjectStatus.ACTIVE);
+        assertThat(unrelatedFixture.objectRepository.findById(unrelatedFixture.objectId)).get()
+                .extracting(OssObject::status).isEqualTo(OssObjectStatus.ACTIVE);
+        assertThat(grantUserFixture.objectStore.deletedKey).isNull();
+        assertThat(unrelatedFixture.objectStore.deletedKey).isNull();
+    }
+
+    @Test
+    void missingAndUnauthorizedObjectsShouldHaveTheSameHiddenDeleteError() {
+        LifecycleFixture fixture = lifecycleFixture();
+
+        Throwable missing = catchThrowable(() -> fixture.service.deleteObject(
+                new DeleteObjectCommand(uuid(99), "unrelated-user")));
+        Throwable denied = catchThrowable(() -> fixture.service.deleteObject(
+                new DeleteObjectCommand(fixture.objectId, "unrelated-user")));
+
+        assertHiddenObjectNotFound(missing);
+        assertHiddenObjectNotFound(denied);
+    }
+
+    private static LifecycleFixture lifecycleFixture() {
+        UUID objectId = uuid(10);
+        UUID versionId = uuid(11);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeVersionRepository versionRepository = new FakeVersionRepository();
+        FakeReferenceRepository referenceRepository = new FakeReferenceRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                OssVisibility.SIGNED,
+                "owner-7",
+                CLOCK.instant()
+        ).activate(version, CLOCK.instant()));
+        versionRepository.save(version);
+        return new LifecycleFixture(
+                objectId,
+                objectRepository,
+                grantRepository,
+                objectStore,
+                new ObjectLifecycleApplicationService(
+                        objectRepository, versionRepository, referenceRepository,
+                        grantRepository, objectStore, CLOCK)
+        );
+    }
+
+    private static void assertHiddenObjectNotFound(Throwable throwable) {
+        assertThat(throwable).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND);
+            assertThat(exception.getMessage()).isEqualTo("OSS object not found");
+        });
+    }
+
+    private record LifecycleFixture(
+            UUID objectId,
+            FakeObjectRepository objectRepository,
+            FakeGrantRepository grantRepository,
+            CapturingObjectStore objectStore,
+            ObjectLifecycleApplicationService service
+    ) {
     }
 
     private static OssObjectVersion activeVersion(UUID objectId, UUID versionId) {

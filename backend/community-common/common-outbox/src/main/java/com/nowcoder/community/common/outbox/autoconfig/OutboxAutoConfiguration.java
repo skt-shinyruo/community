@@ -4,6 +4,7 @@ import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.common.outbox.OutboxProperties;
 import com.nowcoder.community.common.outbox.OutboxWorkerScheduler;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -44,8 +45,9 @@ public class OutboxAutoConfiguration {
             JdbcOutboxEventStore store,
             ObjectProvider<java.util.List<OutboxHandler>> handlersProvider,
             OutboxProperties properties,
-            Clock clock
+            Clock clock,
+            ObjectProvider<MeterRegistry> meterRegistryProvider
     ) {
-        return new OutboxWorkerScheduler(store, handlersProvider, properties, clock);
+        return new OutboxWorkerScheduler(store, handlersProvider, properties, clock, meterRegistryProvider);
     }
 }

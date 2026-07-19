@@ -3,6 +3,7 @@ package com.nowcoder.community.common.outbox;
 import com.nowcoder.community.common.logging.EventLogFields;
 import com.nowcoder.community.common.trace.OtelTraceContext;
 import com.nowcoder.community.common.trace.TraceContextSnapshot;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.opentelemetry.api.trace.SpanKind;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,17 +28,33 @@ public class OutboxWorker {
     private static final String MDC_CATEGORY = EventLogFields.EVENT_CATEGORY;
     private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
     private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
+    private static final String LEASE_LOST_METRIC = "outbox.lease.lost";
+    private static final String UNHANDLED_TOPIC = "unhandled";
+    private static final String TRANSITION_SUCCESS = "success";
+    private static final String TRANSITION_RETRY = "retry";
+    private static final String TRANSITION_DEAD = "dead";
 
     private final JdbcOutboxEventStore store;
     private final Map<String, OutboxHandler> handlers;
     private final OutboxProperties properties;
     private final Clock clock;
+    private final MeterRegistry meterRegistry;
 
     public OutboxWorker(
             JdbcOutboxEventStore store,
             Map<String, OutboxHandler> handlers,
             OutboxProperties properties,
             Clock clock
+    ) {
+        this(store, handlers, properties, clock, null);
+    }
+
+    public OutboxWorker(
+            JdbcOutboxEventStore store,
+            Map<String, OutboxHandler> handlers,
+            OutboxProperties properties,
+            Clock clock,
+            MeterRegistry meterRegistry
     ) {
         if (store == null) {
             throw new IllegalArgumentException("store is required");
@@ -46,6 +63,7 @@ public class OutboxWorker {
         this.handlers = handlers == null ? Map.of() : handlers;
         this.properties = properties == null ? new OutboxProperties() : properties;
         this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.meterRegistry = meterRegistry;
     }
 
     public int pollOnce() {
@@ -107,28 +125,33 @@ public class OutboxWorker {
                             nextRetryAt,
                             "no handler for topic=" + event.topic()
                     );
-                    if (retryScheduled) {
-                        warnEvent(
-                                "outbox_dispatch",
-                                "degraded",
-                                null,
-                                "community.reason_code", "no_handler",
-                                "community.event_id", event.eventId(),
-                                "community.topic", event.topic(),
-                                "community.retry_count", Math.max(0, event.retryCount()) + 1,
-                                "community.next_retry_at", nextRetryAt
-                        );
+                    if (!retryScheduled) {
+                        recordLeaseLost(event, TRANSITION_RETRY);
+                        continue;
                     }
+                    warnEvent(
+                            "outbox_dispatch",
+                            "degraded",
+                            null,
+                            "community.reason_code", "no_handler",
+                            "community.event_id", event.eventId(),
+                            "community.topic", event.topic(),
+                            "community.retry_count", Math.max(0, event.retryCount()) + 1,
+                            "community.next_retry_at", nextRetryAt
+                    );
                     continue;
                 }
 
                 try {
                     handler.handle(event);
-                    if (!store.markSucceeded(lease, now)) {
-                        continue;
-                    }
                 } catch (RuntimeException e) {
                     handleFailure(event, lease, now, e);
+                    continue;
+                }
+
+                if (!store.markSucceeded(lease, now)) {
+                    recordLeaseLost(event, TRANSITION_SUCCESS);
+                    continue;
                 }
             }
         }
@@ -136,11 +159,12 @@ public class OutboxWorker {
         return processed;
     }
 
-    private void handleFailure(OutboxEvent event, OutboxLease lease, Instant now, RuntimeException e) {
+    private void handleFailure(OutboxEvent event, OutboxLease lease, Instant now, RuntimeException error) {
         int currentRetryCount = Math.max(0, event.retryCount());
         int nextAttemptNumber = currentRetryCount + 1;
         if (nextAttemptNumber > properties.getMaxRetries()) {
-            if (!store.markDead(lease, now, e.toString())) {
+            if (!store.markDead(lease, now, error.toString())) {
+                recordLeaseLost(event, TRANSITION_DEAD, error.getClass().getName());
                 return;
             }
             warnEvent(
@@ -150,15 +174,16 @@ public class OutboxWorker {
                     "community.event_id", event.eventId(),
                     "community.topic", event.topic(),
                     "community.retry_count", nextAttemptNumber,
-                    "community.error_class", e.getClass().getName(),
-                    "community.error_message", e.getMessage()
+                    "community.error_class", error.getClass().getName(),
+                    "community.error_message", error.getMessage()
             );
             return;
         }
 
         Duration delay = backoffDelay(currentRetryCount, properties.getBaseBackoff(), properties.getMaxBackoff());
         Instant nextRetryAt = now.plus(delay);
-        if (!store.markFailedAndScheduleRetry(lease, now, nextRetryAt, e.toString())) {
+        if (!store.markFailedAndScheduleRetry(lease, now, nextRetryAt, error.toString())) {
+            recordLeaseLost(event, TRANSITION_RETRY, error.getClass().getName());
             return;
         }
         warnEvent(
@@ -169,9 +194,59 @@ public class OutboxWorker {
                 "community.topic", event.topic(),
                 "community.retry_count", nextAttemptNumber,
                 "community.next_retry_at", nextRetryAt,
-                "community.error_class", e.getClass().getName(),
-                "community.error_message", e.getMessage()
+                "community.error_class", error.getClass().getName(),
+                "community.error_message", error.getMessage()
         );
+    }
+
+    private void recordLeaseLost(OutboxEvent event, String transition) {
+        recordLeaseLost(event, transition, null);
+    }
+
+    private void recordLeaseLost(OutboxEvent event, String transition, String errorClass) {
+        int retryCount = leaseLostRetryCount(event, transition);
+        if (errorClass == null) {
+            warnEvent(
+                    "outbox_lease_lost",
+                    "degraded",
+                    null,
+                    "community.event_id", event.eventId(),
+                    "community.topic", event.topic(),
+                    "community.transition", transition,
+                    "community.retry_count", retryCount
+            );
+        } else {
+            warnEvent(
+                    "outbox_lease_lost",
+                    "degraded",
+                    null,
+                    "community.event_id", event.eventId(),
+                    "community.topic", event.topic(),
+                    "community.transition", transition,
+                    "community.retry_count", retryCount,
+                    "community.error_class", errorClass
+            );
+        }
+
+        if (meterRegistry != null) {
+            meterRegistry.counter(
+                    LEASE_LOST_METRIC,
+                    "topic", metricTopic(event.topic()),
+                    "transition", transition
+            ).increment();
+        }
+    }
+
+    private int leaseLostRetryCount(OutboxEvent event, String transition) {
+        int currentRetryCount = Math.max(0, event.retryCount());
+        if (TRANSITION_SUCCESS.equals(transition) || currentRetryCount == Integer.MAX_VALUE) {
+            return currentRetryCount;
+        }
+        return currentRetryCount + 1;
+    }
+
+    private String metricTopic(String eventTopic) {
+        return handlers.containsKey(eventTopic) ? eventTopic : UNHANDLED_TOPIC;
     }
 
     static Duration backoffDelay(int currentRetryCount, Duration base, Duration max) {

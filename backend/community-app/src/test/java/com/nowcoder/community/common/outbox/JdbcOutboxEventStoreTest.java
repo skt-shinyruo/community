@@ -71,6 +71,49 @@ class JdbcOutboxEventStoreTest {
     }
 
     @Test
+    void publicEventRecordsShouldNotExposeLeaseOwnership() {
+        List<String> eventComponents = Arrays.stream(OutboxEvent.class.getRecordComponents())
+                .map(component -> component.getName())
+                .toList();
+        List<String> viewComponents = Arrays.stream(OutboxEventView.class.getRecordComponents())
+                .map(component -> component.getName())
+                .toList();
+
+        assertThat(eventComponents)
+                .doesNotContain("leaseToken", "processingLeaseUntil")
+                .containsExactly(
+                        "id",
+                        "eventId",
+                        "topic",
+                        "eventKey",
+                        "payload",
+                        "status",
+                        "retryCount",
+                        "nextRetryAt",
+                        "lastError",
+                        "traceId",
+                        "traceparent"
+                );
+        assertThat(viewComponents)
+                .doesNotContain("leaseToken", "processingLeaseUntil")
+                .containsExactly(
+                        "id",
+                        "eventId",
+                        "topic",
+                        "eventKey",
+                        "payload",
+                        "status",
+                        "retryCount",
+                        "nextRetryAt",
+                        "lastError",
+                        "traceId",
+                        "traceparent",
+                        "createdAt",
+                        "updatedAt"
+                );
+    }
+
+    @Test
     void enqueueAndClaimShouldStoreLeaseOutsideRetrySchedule() {
         Instant now = TOKEN_TIME;
         SpanContext spanContext = SpanContext.create(
@@ -160,7 +203,7 @@ class JdbcOutboxEventStoreTest {
         LeaseState heldByB = readState(rowId);
 
         assertThat(store.markSucceeded(leases.a(), recoveryTime.plusSeconds(1))).isFalse();
-        assertThat(readState(rowId)).isEqualTo(heldByB);
+        assertState(rowId, heldByB);
 
         assertThat(store.markSucceeded(leases.b(), recoveryTime.plusSeconds(2))).isTrue();
         assertThat(readState(rowId)).isEqualTo(new LeaseState(
@@ -187,7 +230,7 @@ class JdbcOutboxEventStoreTest {
                 recoveryTime.plusSeconds(20),
                 "stale retry"
         )).isFalse();
-        assertThat(readState(rowId)).isEqualTo(heldByB);
+        assertState(rowId, heldByB);
 
         Instant nextRetryAt = recoveryTime.plusSeconds(30);
         assertThat(store.markFailedAndScheduleRetry(
@@ -215,7 +258,7 @@ class JdbcOutboxEventStoreTest {
         LeaseState heldByB = readState(rowId);
 
         assertThat(store.markDead(leases.a(), recoveryTime.plusSeconds(1), "stale dead")).isFalse();
-        assertThat(readState(rowId)).isEqualTo(heldByB);
+        assertState(rowId, heldByB);
 
         assertThat(store.markDead(leases.b(), recoveryTime.plusSeconds(2), "current dead")).isTrue();
         assertThat(readState(rowId)).isEqualTo(new LeaseState(
@@ -229,23 +272,47 @@ class JdbcOutboxEventStoreTest {
     }
 
     private LeasePair expireRecoverAndReclaim(UUID rowId, Instant recoveryTime) {
+        LeaseState pending = readState(rowId);
+        assertThat(pending.status()).isEqualTo(OutboxEventStatus.PENDING);
+        assertThat(pending.nextRetryAt()).isBefore(recoveryTime);
+        assertThat(pending.leaseToken()).isNull();
+        assertThat(pending.leaseUntil()).isNull();
+
         OutboxLease leaseA = store.tryClaimProcessing(
                 rowId,
                 recoveryTime,
                 recoveryTime.minusSeconds(30)
         ).orElseThrow();
+        assertState(rowId, new LeaseState(
+                OutboxEventStatus.PROCESSING,
+                pending.retryCount(),
+                null,
+                pending.lastError(),
+                leaseA.token(),
+                recoveryTime
+        ));
+
         assertThat(store.recoverExpiredLeases(recoveryTime)).isEqualTo(1);
+        assertState(rowId, new LeaseState(
+                OutboxEventStatus.PENDING,
+                pending.retryCount(),
+                recoveryTime,
+                pending.lastError(),
+                null,
+                null
+        ));
+
         OutboxLease leaseB = store.tryClaimProcessing(
                 rowId,
                 recoveryTime.plusSeconds(30),
                 recoveryTime
         ).orElseThrow();
         assertThat(leaseB.token()).isNotEqualTo(leaseA.token());
-        assertThat(readState(rowId)).isEqualTo(new LeaseState(
+        assertState(rowId, new LeaseState(
                 OutboxEventStatus.PROCESSING,
-                readRetryCount(rowId),
+                pending.retryCount(),
                 null,
-                "old error",
+                pending.lastError(),
                 leaseB.token(),
                 recoveryTime.plusSeconds(30)
         ));
@@ -279,12 +346,14 @@ class JdbcOutboxEventStoreTest {
         );
     }
 
-    private int readRetryCount(UUID id) {
-        return jdbcTemplate.queryForObject(
-                "select retry_count from outbox_event where id = ?",
-                Integer.class,
-                BinaryUuidCodec.toBytes(id)
-        );
+    private void assertState(UUID id, LeaseState expected) {
+        LeaseState actual = readState(id);
+        assertThat(actual.status()).isEqualTo(expected.status());
+        assertThat(actual.retryCount()).isEqualTo(expected.retryCount());
+        assertThat(actual.nextRetryAt()).isEqualTo(expected.nextRetryAt());
+        assertThat(actual.lastError()).isEqualTo(expected.lastError());
+        assertThat(actual.leaseToken()).isEqualTo(expected.leaseToken());
+        assertThat(actual.leaseUntil()).isEqualTo(expected.leaseUntil());
     }
 
     private LeaseState readState(UUID id) {

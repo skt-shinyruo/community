@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.core.outbox;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
@@ -19,6 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -34,7 +37,7 @@ class ImKafkaOutboxHandlerTest {
     private final ObjectMapper objectMapper = JsonMappers.standard();
 
     @Test
-    void handleSendsDeserializedPayloadToKafkaAndWaitsForSuccess() throws Exception {
+    void handleSendsEventPayloadWithoutLeaseOwnershipAndWaitsForSuccess() throws Exception {
         @SuppressWarnings("unchecked")
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class)))
@@ -80,7 +83,30 @@ class ImKafkaOutboxHandlerTest {
         assertThat(record.key()).isEqualTo("conv-1");
         assertThat(record.value()).isInstanceOf(PrivateMessagePersistedEvent.class);
         PrivateMessagePersistedEvent published = (PrivateMessagePersistedEvent) record.value();
+        assertThat(published).isEqualTo(event);
         assertThat(published.messageId()).isEqualTo(uuid(7));
+        JsonNode publishedJson = objectMapper.valueToTree(published);
+        List<String> fieldNames = new ArrayList<>();
+        publishedJson.fieldNames().forEachRemaining(fieldNames::add);
+        assertThat(fieldNames).containsExactlyInAnyOrder(
+                "eventId",
+                "conversationId",
+                "seq",
+                "messageId",
+                "fromUserId",
+                "toUserId",
+                "content",
+                "createdAtEpochMs",
+                "schemaVersion"
+        );
+        assertThat(publishedJson.has("leaseToken")).isFalse();
+        assertThat(publishedJson.has("lease_token")).isFalse();
+        assertThat(publishedJson.has("processingLeaseUntil")).isFalse();
+        assertThat(publishedJson.has("processing_lease_until")).isFalse();
+        assertThat(record.headers().lastHeader("leaseToken")).isNull();
+        assertThat(record.headers().lastHeader("lease_token")).isNull();
+        assertThat(record.headers().lastHeader("processingLeaseUntil")).isNull();
+        assertThat(record.headers().lastHeader("processing_lease_until")).isNull();
         assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACEPARENT))
                 .isEqualTo(snapshot.traceparent());
     }

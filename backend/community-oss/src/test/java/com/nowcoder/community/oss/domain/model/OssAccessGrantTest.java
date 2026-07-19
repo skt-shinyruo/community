@@ -34,6 +34,19 @@ class OssAccessGrantTest {
         assertThat(revoked.activeAt(now.plusSeconds(11))).isFalse();
     }
 
+    @Test
+    void grantShouldExpireAtTheExactDeadlineAndAllowNoExpiry() {
+        Instant now = Instant.parse("2026-05-07T00:00:00Z");
+        OssAccessGrant expiring = OssAccessGrant.readGrant(
+                uuid(4), uuid(5), null, "USER", "reader", "owner", now, now.plusSeconds(10));
+        OssAccessGrant noExpiry = OssAccessGrant.readGrant(
+                uuid(6), uuid(5), null, "USER", "reader", "owner", now, null);
+
+        assertThat(expiring.activeAt(now.plusSeconds(9))).isTrue();
+        assertThat(expiring.activeAt(now.plusSeconds(10))).isFalse();
+        assertThat(noExpiry.activeAt(now.plusSeconds(10_000))).isTrue();
+    }
+
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }

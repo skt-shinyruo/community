@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -68,7 +69,8 @@ class HttpCommunityOssClientFailureContractTest {
         requestFactory.setReadTimeout(50);
         HttpCommunityOssClient client = new HttpCommunityOssClient(
                 baseUrl(server),
-                RestClient.builder().requestFactory(requestFactory)
+                RestClient.builder().requestFactory(requestFactory),
+                () -> "service-token-1"
         );
 
         Throwable failure = catchThrowable(() -> client.getMetadata(OBJECT_ID));
@@ -85,8 +87,46 @@ class HttpCommunityOssClientFailureContractTest {
         assertTypedFailure(failure, "BAD_RESPONSE", 200, false);
     }
 
+    @Test
+    void blankServiceTokenMustFailClosedBeforeSendingHttp() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        HttpServer server = startServer(exchange -> {
+            requestCount.incrementAndGet();
+            exchange.close();
+        });
+        HttpCommunityOssClient client = new HttpCommunityOssClient(baseUrl(server), () -> "   ");
+
+        Throwable failure = catchThrowable(() -> client.getMetadata(OBJECT_ID));
+
+        assertTypedFailure(failure, "BAD_RESPONSE", 0, false);
+        assertThat(failure.getMessage()).isEqualTo("OSS service authentication unavailable");
+        assertThat(failure.getCause()).isNull();
+        assertThat(requestCount).hasValue(0);
+    }
+
+    @Test
+    void tokenProviderExceptionMustBeSanitizedAndFailBeforeSendingHttp() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        HttpServer server = startServer(exchange -> {
+            requestCount.incrementAndGet();
+            exchange.close();
+        });
+        HttpCommunityOssClient client = new HttpCommunityOssClient(baseUrl(server), () -> {
+            throw new IllegalStateException("could not sign secret-service-token-7");
+        });
+
+        Throwable failure = catchThrowable(() -> client.getMetadata(OBJECT_ID));
+
+        assertTypedFailure(failure, "BAD_RESPONSE", 0, false);
+        assertThat(failure.getMessage())
+                .isEqualTo("OSS service authentication unavailable")
+                .doesNotContain("secret-service-token-7", "could not sign");
+        assertThat(failure.getCause()).isNull();
+        assertThat(requestCount).hasValue(0);
+    }
+
     private Throwable callMetadata(HttpServer server) {
-        HttpCommunityOssClient client = new HttpCommunityOssClient(baseUrl(server));
+        HttpCommunityOssClient client = new HttpCommunityOssClient(baseUrl(server), () -> "service-token-1");
         return catchThrowable(() -> client.getMetadata(OBJECT_ID));
     }
 
@@ -115,7 +155,7 @@ class HttpCommunityOssClientFailureContractTest {
 
     private HttpServer startServer(com.sun.net.httpserver.HttpHandler handler) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/api/oss/objects/" + OBJECT_ID, handler);
+        server.createContext("/internal/oss/objects/" + OBJECT_ID, handler);
         server.start();
         servers.add(server);
         return server;

@@ -1,6 +1,7 @@
 package com.nowcoder.community.oss.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.ErrorKind;
 import com.nowcoder.community.common.exception.SimpleErrorCode;
 import com.nowcoder.community.oss.application.command.BindObjectReferenceCommand;
@@ -69,6 +70,27 @@ public class ObjectReferenceApplicationService {
     }
 
     @Transactional
+    public ObjectReferenceResult bindInternalReference(
+            String serviceSubject,
+            BindObjectReferenceCommand command
+    ) {
+        requireCommand(command);
+        OssObject object = requireInternalObject(command.objectId(), serviceSubject);
+        if (!object.ownerService().equals(command.subjectService().trim())) {
+            throw objectNotFound();
+        }
+        if (command.referenceId() != null) {
+            referenceRepository.findById(command.referenceId()).ifPresent(existing -> {
+                if (!command.objectId().equals(existing.objectId())
+                        || !object.ownerService().equals(existing.subjectService())) {
+                    throw objectNotFound();
+                }
+            });
+        }
+        return bindReference(command);
+    }
+
+    @Transactional
     public ObjectReferenceResult releaseReference(ReleaseObjectReferenceCommand command) {
         if (command == null || command.objectId() == null || command.referenceId() == null) {
             throw new IllegalArgumentException("objectId and referenceId must not be null");
@@ -86,6 +108,18 @@ public class ObjectReferenceApplicationService {
         return toResult(released);
     }
 
+    @Transactional
+    public ObjectReferenceResult releaseInternalReference(
+            String serviceSubject,
+            ReleaseObjectReferenceCommand command
+    ) {
+        if (command == null || command.objectId() == null || command.referenceId() == null) {
+            throw new IllegalArgumentException("objectId and referenceId must not be null");
+        }
+        requireInternalReference(command.objectId(), command.referenceId(), serviceSubject);
+        return releaseReference(command);
+    }
+
     @Transactional(readOnly = true)
     public ObjectReferenceResult findReference(UUID objectId, UUID referenceId) {
         if (objectId == null || referenceId == null) {
@@ -95,6 +129,16 @@ public class ObjectReferenceApplicationService {
                 .filter(reference -> reference.objectId().equals(objectId))
                 .map(this::toResult)
                 .orElse(null);
+    }
+
+    @Transactional(readOnly = true)
+    public ObjectReferenceResult getInternalReference(
+            UUID objectId,
+            UUID referenceId,
+            String serviceSubject
+    ) {
+        requireInternalReference(objectId, referenceId, serviceSubject);
+        return findReference(objectId, referenceId);
     }
 
     private ObjectReferenceResult replayOrConflict(
@@ -154,6 +198,32 @@ public class ObjectReferenceApplicationService {
     private OssObject requireObject(UUID objectId) {
         return objectRepository.findById(objectId)
                 .orElseThrow(() -> new IllegalArgumentException("object not found"));
+    }
+
+    private OssObject requireInternalObject(UUID objectId, String serviceSubject) {
+        OssObject object = objectRepository.findById(objectId).orElseThrow(this::objectNotFound);
+        if (serviceSubject == null || serviceSubject.isBlank()
+                || !object.ownerService().equals(serviceSubject.trim())) {
+            throw objectNotFound();
+        }
+        return object;
+    }
+
+    private OssObjectReference requireInternalReference(
+            UUID objectId,
+            UUID referenceId,
+            String serviceSubject
+    ) {
+        requireInternalObject(objectId, serviceSubject);
+        String normalizedSubject = serviceSubject.trim();
+        return referenceRepository.findById(referenceId)
+                .filter(reference -> objectId.equals(reference.objectId()))
+                .filter(reference -> normalizedSubject.equals(reference.subjectService()))
+                .orElseThrow(this::objectNotFound);
+    }
+
+    private BusinessException objectNotFound() {
+        return new BusinessException(CommonErrorCode.NOT_FOUND, "OSS object not found");
     }
 
     private void requireVersionBelongsToObject(OssObject object, UUID versionId) {

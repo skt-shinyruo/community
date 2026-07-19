@@ -33,10 +33,149 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 class ObjectLifecycleApplicationServiceTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-05-07T00:00:00Z"), ZoneOffset.UTC);
+
+    @Test
+    void deleteInternalObjectShouldHideForeignOwnerBeforeAnyMutationOrStorageDelete() {
+        UUID objectId = uuid(80);
+        UUID versionId = uuid(81);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeVersionRepository versionRepository = new FakeVersionRepository();
+        FakeReferenceRepository referenceRepository = new FakeReferenceRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.rows.put(objectId, OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                OssVisibility.SIGNED,
+                "owner-7",
+                CLOCK.instant()
+        ).activate(version, CLOCK.instant()));
+        versionRepository.rows.put(versionId, version);
+        ObjectLifecycleApplicationService service = new ObjectLifecycleApplicationService(
+                objectRepository,
+                versionRepository,
+                referenceRepository,
+                grantRepository,
+                objectStore,
+                CLOCK
+        );
+
+        Throwable failure = catchThrowable(() -> service.deleteInternalObject(
+                new DeleteObjectCommand(objectId, "owner-7"),
+                "profile-service"));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(objectRepository.saveCount).isZero(),
+                () -> assertThat(versionRepository.saveCount).isZero(),
+                () -> assertThat(referenceRepository.saveCount).isZero(),
+                () -> assertThat(grantRepository.saveCount).isZero(),
+                () -> assertThat(objectStore.deletedKey).isNull()
+        );
+    }
+
+    @Test
+    void deleteInternalObjectShouldPurgeNonUserObjectForOwningService() {
+        UUID objectId = uuid(82);
+        UUID versionId = uuid(83);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeVersionRepository versionRepository = new FakeVersionRepository();
+        FakeReferenceRepository referenceRepository = new FakeReferenceRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.rows.put(objectId, OssObject.stage(
+                objectId,
+                "DRIVE_FILE",
+                "community-app",
+                "drive",
+                "DRIVE_UPLOAD",
+                "upload-7",
+                OssVisibility.SIGNED,
+                "user-7",
+                CLOCK.instant()
+        ).activate(version, CLOCK.instant()));
+        versionRepository.rows.put(versionId, version);
+        ObjectLifecycleApplicationService service = new ObjectLifecycleApplicationService(
+                objectRepository,
+                versionRepository,
+                referenceRepository,
+                grantRepository,
+                objectStore,
+                CLOCK
+        );
+        ObjectLifecycleResult[] result = new ObjectLifecycleResult[1];
+
+        Throwable failure = catchThrowable(() -> result[0] = service.deleteInternalObject(
+                new DeleteObjectCommand(objectId, "user-7"),
+                "community-app"));
+
+        assertAll(
+                () -> assertThat(failure).isNull(),
+                () -> assertThat(result[0]).isNotNull(),
+                () -> assertThat(result[0].purged()).isTrue(),
+                () -> assertThat(objectRepository.saveCount).isEqualTo(1),
+                () -> assertThat(versionRepository.saveCount).isEqualTo(1),
+                () -> assertThat(referenceRepository.saveCount).isZero(),
+                () -> assertThat(grantRepository.saveCount).isZero(),
+                () -> assertThat(objectStore.deletedKey).isEqualTo("objects/1/2/avatar.png")
+        );
+    }
+
+    @Test
+    void deleteInternalObjectShouldHideUserOwnedObjectBeforeAnyMutationOrStorageDelete() {
+        UUID objectId = uuid(84);
+        UUID versionId = uuid(85);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeVersionRepository versionRepository = new FakeVersionRepository();
+        FakeReferenceRepository referenceRepository = new FakeReferenceRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.rows.put(objectId, OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                OssVisibility.SIGNED,
+                "owner-7",
+                CLOCK.instant()
+        ).activate(version, CLOCK.instant()));
+        versionRepository.rows.put(versionId, version);
+        ObjectLifecycleApplicationService service = new ObjectLifecycleApplicationService(
+                objectRepository,
+                versionRepository,
+                referenceRepository,
+                grantRepository,
+                objectStore,
+                CLOCK
+        );
+
+        Throwable failure = catchThrowable(() -> service.deleteInternalObject(
+                new DeleteObjectCommand(objectId, "owner-7"),
+                "community-app"));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(objectRepository.saveCount).isZero(),
+                () -> assertThat(versionRepository.saveCount).isZero(),
+                () -> assertThat(referenceRepository.saveCount).isZero(),
+                () -> assertThat(grantRepository.saveCount).isZero(),
+                () -> assertThat(objectStore.deletedKey).isNull()
+        );
+    }
 
     @Test
     void deleteObjectShouldMarkPendingWhenReferencesOrGrantsRemain() {

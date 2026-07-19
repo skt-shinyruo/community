@@ -13,13 +13,60 @@ import com.nowcoder.community.oss.client.model.OssReferenceResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestClient;
 
 import java.time.Instant;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 class CommunityOssClientContractTest {
+
+    @Test
+    void serviceTokenProviderShouldBeAMinimalFunctionalContract() {
+        AtomicReference<Class<?>> providerType = new AtomicReference<>();
+        Throwable lookupFailure = catchThrowable(() -> providerType.set(
+                Class.forName("com.nowcoder.community.oss.client.OssServiceTokenProvider")));
+
+        assertThat(lookupFailure).isNull();
+        assertThat(providerType.get().isInterface()).isTrue();
+        assertThat(providerType.get().isAnnotationPresent(FunctionalInterface.class)).isTrue();
+        assertThat(Arrays.stream(providerType.get().getDeclaredMethods())
+                .filter(method -> Modifier.isAbstract(method.getModifiers())))
+                .singleElement()
+                .satisfies(method -> {
+                    assertThat(method.getName()).isEqualTo("tokenValue");
+                    assertThat(method.getReturnType()).isEqualTo(String.class);
+                    assertThat(method.getParameterCount()).isZero();
+                });
+    }
+
+    @Test
+    void internalClientShouldNotExposeUserGrantManagementCapabilities() {
+        assertThat(Arrays.stream(CommunityOssClient.class.getMethods())
+                .map(method -> method.getName()))
+                .doesNotContain("grantObjectAccess", "revokeObjectAccess");
+    }
+
+    @Test
+    void httpClientShouldAcceptAnExplicitServiceTokenProvider() {
+        assertThat(hasPublicConstructor(String.class, OssServiceTokenProvider.class)).isTrue();
+        assertThat(hasPublicConstructor(
+                String.class,
+                RestClient.Builder.class,
+                OssServiceTokenProvider.class
+        )).isTrue();
+    }
+
+    @Test
+    void everyHttpClientConstructorShouldRequireAServiceTokenProvider() {
+        assertThat(HttpCommunityOssClient.class.getConstructors()).allSatisfy(constructor ->
+                assertThat(constructor.getParameterTypes()).contains(OssServiceTokenProvider.class));
+    }
 
     @Test
     void clientShouldExposeStableUploadMetadataAndSignedUrlContracts() {
@@ -181,5 +228,10 @@ class CommunityOssClientContractTest {
 
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+
+    private static boolean hasPublicConstructor(Class<?>... parameterTypes) {
+        return Arrays.stream(HttpCommunityOssClient.class.getConstructors())
+                .anyMatch(constructor -> Arrays.equals(constructor.getParameterTypes(), parameterTypes));
     }
 }

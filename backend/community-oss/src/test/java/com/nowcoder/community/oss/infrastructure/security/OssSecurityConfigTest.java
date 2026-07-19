@@ -48,6 +48,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -159,7 +160,7 @@ class OssSecurityConfigTest {
                 "/api/oss/objects/" + objectId + "/complete",
                 Instant.parse("2026-05-07T00:15:00Z")
         ));
-        when(referenceService.bindReference(any())).thenReturn(new ObjectReferenceResult(
+        when(referenceService.bindInternalReference(eq("community-app"), any())).thenReturn(new ObjectReferenceResult(
                 uuid(4),
                 objectId,
                 versionId,

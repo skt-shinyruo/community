@@ -300,13 +300,38 @@ public class ObjectUploadApplicationService {
         return toUploadSessionResult(session);
     }
 
-    public ObjectMetadataResult completeUpload(CompleteObjectUploadCommand command) {
-        if (command == null || command.sessionId() == null
-                || command.objectId() == null || command.versionId() == null) {
-            throw new IllegalArgumentException("upload command is incomplete");
+    public ObjectUploadSessionResult prepareInternalUpload(
+            String serviceSubject,
+            PrepareObjectUploadCommand command
+    ) {
+        requirePrepareCommand(command);
+        if (serviceSubject == null || serviceSubject.isBlank()
+                || !requireText(command.ownerService(), "ownerService").equals(serviceSubject.trim())
+                || "USER".equalsIgnoreCase(command.ownerType())) {
+            throw objectNotFound();
         }
+        ObjectUploadSessionResult prepared = prepareUpload(command);
+        return new ObjectUploadSessionResult(
+                prepared.sessionId(),
+                prepared.objectId(),
+                prepared.versionId(),
+                prepared.uploadMode(),
+                "/internal/oss/upload-sessions/" + prepared.sessionId() + "/complete",
+                prepared.expiresAt()
+        );
+    }
+
+    public ObjectMetadataResult completeUpload(CompleteObjectUploadCommand command) {
+        requireCompleteCommand(command);
         OssUploadSession session = uploadSessionRepository.findById(command.sessionId())
                 .orElseThrow(this::objectNotFound);
+        return completeUpload(command, session);
+    }
+
+    private ObjectMetadataResult completeUpload(
+            CompleteObjectUploadCommand command,
+            OssUploadSession session
+    ) {
         if (!Objects.equals(command.actorId(), session.createdBy())) {
             throw objectNotFound();
         }
@@ -382,6 +407,40 @@ public class ObjectUploadApplicationService {
         transactionOperations.finalizeUpload(activatedVersion, activatedObject, completedSession);
 
         return toMetadataResult(activatedObject, activatedVersion);
+    }
+
+    public ObjectMetadataResult completeInternalUpload(
+            String serviceSubject,
+            CompleteObjectUploadCommand command
+    ) {
+        requireCompleteCommand(command);
+        if (serviceSubject == null || serviceSubject.isBlank()) {
+            throw objectNotFound();
+        }
+        String authenticatedService = serviceSubject.trim();
+        OssUploadSession session = uploadSessionRepository.findById(command.sessionId())
+                .orElseThrow(this::objectNotFound);
+        if (!session.ownerService().equals(authenticatedService)
+                || "USER".equalsIgnoreCase(session.ownerType())
+                || !session.objectId().equals(command.objectId())
+                || !session.versionId().equals(command.versionId())
+                || session.createdBy() == null
+                || session.createdBy().isBlank()) {
+            throw objectNotFound();
+        }
+        OssObject object = objectRepository.findById(command.objectId())
+                .orElseThrow(this::objectNotFound);
+        if (!object.ownerService().equals(authenticatedService)
+                || "USER".equalsIgnoreCase(object.ownerType())) {
+            throw objectNotFound();
+        }
+        return completeUpload(new CompleteObjectUploadCommand(
+                command.sessionId(),
+                command.objectId(),
+                command.versionId(),
+                command.content(),
+                session.createdBy()
+        ), session);
     }
 
     private void recordDefinitivePutFailureIfMissing(
@@ -596,6 +655,15 @@ public class ObjectUploadApplicationService {
         requireText(command.ownerType(), "ownerType");
         requireText(command.ownerId(), "ownerId");
         requireText(command.fileName(), "fileName");
+    }
+
+    private void requireCompleteCommand(CompleteObjectUploadCommand command) {
+        if (command == null || command.sessionId() == null
+                || command.objectId() == null || command.versionId() == null
+                || command.content() == null || command.actorId() == null
+                || command.actorId().isBlank()) {
+            throw new IllegalArgumentException("upload command is incomplete");
+        }
     }
 
     private Optional<OssUsagePolicy> usagePolicy(String usage) {

@@ -83,6 +83,10 @@ public class ObjectLifecycleApplicationService {
         if (!accessPolicy.canManage(object, command.actorId())) {
             throw objectNotFound();
         }
+        return deleteObject(object);
+    }
+
+    private ObjectLifecycleResult deleteObject(OssObject object) {
         OssObjectVersion currentVersion = findCurrentVersion(object);
         Instant now = clock.instant();
         if (object.status() == OssObjectStatus.PURGED) {
@@ -108,6 +112,21 @@ public class ObjectLifecycleApplicationService {
         OssObject purged = object.purge(now);
         objectRepository.save(purged);
         return toResult(purged, "object purged");
+    }
+
+    @Transactional
+    public ObjectLifecycleResult deleteInternalObject(
+            DeleteObjectCommand command,
+            String serviceSubject
+    ) {
+        OssObject object = objectRepository.findById(command.objectId())
+                .orElseThrow(this::objectNotFound);
+        if (serviceSubject == null || serviceSubject.isBlank()
+                || !object.ownerService().equals(serviceSubject.trim())
+                || "USER".equalsIgnoreCase(object.ownerType())) {
+            throw objectNotFound();
+        }
+        return deleteObject(object);
     }
 
     private OssObjectVersion findCurrentVersion(OssObject object) {

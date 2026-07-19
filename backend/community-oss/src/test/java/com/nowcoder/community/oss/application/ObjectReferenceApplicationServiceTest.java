@@ -1,6 +1,7 @@
 package com.nowcoder.community.oss.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.ErrorKind;
 import com.nowcoder.community.oss.application.command.BindObjectReferenceCommand;
 import com.nowcoder.community.oss.application.command.ReleaseObjectReferenceCommand;
@@ -25,10 +26,104 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 class ObjectReferenceApplicationServiceTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-05-07T00:00:00Z"), ZoneOffset.UTC);
+
+    @Test
+    void bindInternalReferenceShouldHideForeignServiceWithoutInsertion() {
+        Fixture fixture = fixture();
+
+        Throwable failure = catchThrowable(() -> fixture.serviceAt(CLOCK.instant()).bindInternalReference(
+                "profile-service",
+                deterministicCommand(
+                        uuid(80),
+                        fixture.objectId(),
+                        fixture.versionId(),
+                        "upload-7",
+                        "PRIMARY",
+                        null,
+                        "user-7")));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(fixture.referenceRepository.saveCount()).isZero(),
+                () -> assertThat(fixture.referenceRepository.findByObjectId(fixture.objectId())).isEmpty()
+        );
+    }
+
+    @Test
+    void bindInternalReferenceShouldHideForeignStoredSubjectOnReplayWithoutMutation() {
+        Fixture fixture = fixture();
+        UUID referenceId = uuid(81);
+        OssObjectReference foreignReference = OssObjectReference.active(
+                referenceId,
+                fixture.objectId(),
+                fixture.versionId(),
+                "profile-service",
+                "profile",
+                "avatar",
+                "upload-7",
+                "PRIMARY",
+                CLOCK.instant(),
+                null
+        );
+        fixture.referenceRepository.rows.put(referenceId, foreignReference);
+
+        Throwable failure = catchThrowable(() -> fixture.serviceAt(CLOCK.instant()).bindInternalReference(
+                "community-app",
+                deterministicCommand(
+                        referenceId,
+                        fixture.objectId(),
+                        fixture.versionId(),
+                        "upload-7",
+                        "PRIMARY",
+                        null,
+                        "user-7")));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(fixture.referenceRepository.saveCount()).isZero(),
+                () -> assertThat(fixture.referenceRepository.findById(referenceId)).contains(foreignReference)
+        );
+    }
+
+    @Test
+    void getAndReleaseInternalReferenceShouldHideForeignReferenceSubjectWithoutMutation() {
+        Fixture fixture = fixture();
+        UUID referenceId = uuid(81);
+        OssObjectReference foreignReference = OssObjectReference.active(
+                referenceId,
+                fixture.objectId(),
+                fixture.versionId(),
+                "profile-service",
+                "profile",
+                "avatar",
+                "upload-7",
+                "PRIMARY",
+                CLOCK.instant(),
+                null
+        );
+        fixture.referenceRepository.rows.put(referenceId, foreignReference);
+
+        Throwable getFailure = catchThrowable(() -> fixture.serviceAt(CLOCK.instant()).getInternalReference(
+                fixture.objectId(),
+                referenceId,
+                "community-app"));
+        Throwable releaseFailure = catchThrowable(() -> fixture.serviceAt(CLOCK.instant()).releaseInternalReference(
+                "community-app",
+                new ReleaseObjectReferenceCommand(fixture.objectId(), referenceId, "user-7")));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(getFailure),
+                () -> assertHiddenObjectNotFound(releaseFailure),
+                () -> assertThat(fixture.referenceRepository.saveCount()).isZero(),
+                () -> assertThat(fixture.referenceRepository.findById(referenceId)).contains(foreignReference)
+        );
+    }
 
     @Test
     void bindAndReleaseShouldPersistReferenceLifecycle() {
@@ -208,6 +303,13 @@ class ObjectReferenceApplicationServiceTest {
                     assertThat(exception.getErrorCode().getKind()).isEqualTo(ErrorKind.CONFLICT);
                     assertThat(exception.getMessage()).contains("reference").contains("conflict");
                 });
+    }
+
+    private static void assertHiddenObjectNotFound(Throwable throwable) {
+        assertThat(throwable).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND);
+            assertThat(exception.getMessage()).isEqualTo("OSS object not found");
+        });
     }
 
     private static BindObjectReferenceCommand deterministicCommand(

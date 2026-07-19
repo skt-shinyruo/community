@@ -224,7 +224,7 @@ public class JdbcIdempotencyStore implements TransactionalIdempotencyStore {
         }
         if (STATUS_SUCCESS.equals(status)) {
             if (successExpiresAt == null || now.isAfter(successExpiresAt.toInstant())) {
-                delete(op, userId, key);
+                deleteExpiredSuccess(op, userId, key, now);
                 return null;
             }
             return new Entry(Status.SUCCESS, responseJson == null ? "null" : responseJson, requestHash);
@@ -233,6 +233,23 @@ public class JdbcIdempotencyStore implements TransactionalIdempotencyStore {
             return new Entry(Status.INDETERMINATE, null, requestHash);
         }
         throw new IllegalStateException("unknown idempotency state");
+    }
+
+    private void deleteExpiredSuccess(String operation, UUID userId, String key, Instant cutoff) {
+        jdbcTemplate.update(
+                """
+                        delete from http_idempotency
+                        where operation = ?
+                          and user_id = ?
+                          and idem_key = ?
+                          and status = 'S'
+                          and success_expires_at < ?
+                        """,
+                operation,
+                BinaryUuidCodec.toBytes(userId),
+                key,
+                Timestamp.from(cutoff)
+        );
     }
 
     private String normalizeOp(String operation) {

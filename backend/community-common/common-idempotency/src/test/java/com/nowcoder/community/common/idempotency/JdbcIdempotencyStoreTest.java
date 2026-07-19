@@ -14,6 +14,7 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -372,6 +373,47 @@ class JdbcIdempotencyStoreTest {
         );
     }
 
+    @Test
+    void getShouldNotDeleteExpiredSuccessReacquiredBeforeCleanup() {
+        String key = "idem-reclaimed-before-cleanup";
+        StoreFixture fixture = processingFixture(key, "hash-a");
+        forceState(fixture, key, "S", "{\"id\":1}", Instant.now().minusSeconds(5));
+        AtomicBoolean cleanupReached = new AtomicBoolean();
+        JdbcTemplate staleReadTemplate = new BeforeDeleteJdbcTemplate(
+                fixture.jdbcTemplate().getDataSource(),
+                () -> {
+                    assertThat(fixture.store().tryAcquireProcessing(
+                            "post:create",
+                            USER_ID,
+                            key,
+                            "hash-b",
+                            Duration.ofSeconds(30)
+                    )).isTrue();
+                    cleanupReached.set(true);
+                }
+        );
+        JdbcIdempotencyStore staleReader = new JdbcIdempotencyStore(staleReadTemplate);
+
+        IdempotencyStore.Entry staleEntry = staleReader.get("post:create", USER_ID, key);
+        IdempotencyStore.Entry currentEntry = fixture.store().get("post:create", USER_ID, key);
+        Integer rowCount = fixture.jdbcTemplate().queryForObject(
+                "select count(*) from http_idempotency where idem_key = ?",
+                Integer.class,
+                key
+        );
+
+        assertAll(
+                () -> assertThat(cleanupReached).isTrue(),
+                () -> assertThat(staleEntry).isNull(),
+                () -> assertThat(currentEntry).isEqualTo(new IdempotencyStore.Entry(
+                        IdempotencyStore.Status.PROCESSING,
+                        null,
+                        "hash-b"
+                )),
+                () -> assertThat(rowCount).isOne()
+        );
+    }
+
     private StoreFixture processingFixture(String key, String requestHash) {
         StoreFixture fixture = storeFixture();
         assertThat(fixture.store().tryAcquireProcessing(
@@ -446,6 +488,26 @@ class JdbcIdempotencyStoreTest {
     }
 
     private record StoreFixture(JdbcIdempotencyStore store, JdbcTemplate jdbcTemplate) {
+    }
+
+    private static final class BeforeDeleteJdbcTemplate extends JdbcTemplate {
+
+        private final Runnable beforeDelete;
+        private boolean hookPending = true;
+
+        private BeforeDeleteJdbcTemplate(DataSource dataSource, Runnable beforeDelete) {
+            super(dataSource);
+            this.beforeDelete = beforeDelete;
+        }
+
+        @Override
+        public int update(String sql, Object... args) {
+            if (hookPending && sql.stripLeading().startsWith("delete from http_idempotency")) {
+                hookPending = false;
+                beforeDelete.run();
+            }
+            return super.update(sql, args);
+        }
     }
 
     private record PersistedEntry(String status,

@@ -2,6 +2,7 @@ package com.nowcoder.community.common.outbox;
 
 import com.nowcoder.community.common.logging.EventLogFields;
 import com.nowcoder.community.common.trace.TraceJobRunner;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -34,7 +35,18 @@ public class OutboxWorkerScheduler {
             OutboxProperties properties,
             Clock clock
     ) {
+        this(store, handlersProvider, properties, clock, null);
+    }
+
+    public OutboxWorkerScheduler(
+            JdbcOutboxEventStore store,
+            ObjectProvider<List<OutboxHandler>> handlersProvider,
+            OutboxProperties properties,
+            Clock clock,
+            ObjectProvider<MeterRegistry> meterRegistryProvider
+    ) {
         List<OutboxHandler> handlers = handlersProvider == null ? null : handlersProvider.getIfAvailable();
+        MeterRegistry meterRegistry = meterRegistryProvider == null ? null : meterRegistryProvider.getIfAvailable();
         Map<String, OutboxHandler> handlerMap = new HashMap<>();
         if (handlers != null) {
             for (OutboxHandler handler : handlers) {
@@ -46,7 +58,7 @@ public class OutboxWorkerScheduler {
         }
 
         this.properties = properties == null ? new OutboxProperties() : properties;
-        this.worker = new OutboxWorker(store, Map.copyOf(handlerMap), this.properties, clock);
+        this.worker = new OutboxWorker(store, Map.copyOf(handlerMap), this.properties, clock, meterRegistry);
     }
 
     @Scheduled(fixedDelayString = "${events.outbox.worker-fixed-delay-ms:1000}")

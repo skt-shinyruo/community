@@ -3,6 +3,7 @@ package com.nowcoder.community.oss.infrastructure.security;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.common.security.jwt.JwtSubjects;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +14,9 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
@@ -25,10 +29,42 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.util.StringUtils;
+
+import java.nio.charset.StandardCharsets;
 
 @Configuration
 @EnableConfigurationProperties(OssServiceJwtProperties.class)
 public class OssSecurityConfig {
+
+    @Bean
+    public UserDetailsService ossPrometheusUserDetailsService(
+            @Value("${community.metrics.basic-auth.username:prometheus}") String configuredUsername,
+            @Value("${community.metrics.basic-auth.password:}") String configuredPassword
+    ) {
+        String username = StringUtils.hasText(configuredUsername) ? configuredUsername.trim() : "prometheus";
+        if (!StringUtils.hasText(configuredPassword)) {
+            return requestedUsername -> {
+                throw new UsernameNotFoundException(requestedUsername);
+            };
+        }
+
+        String password = configuredPassword.trim();
+        if (password.getBytes(StandardCharsets.UTF_8).length < 12) {
+            throw new IllegalArgumentException(
+                    "community.metrics.basic-auth.password length must be at least 12 bytes"
+            );
+        }
+        return requestedUsername -> {
+            if (!username.equals(requestedUsername)) {
+                throw new UsernameNotFoundException(requestedUsername);
+            }
+            return User.withUsername(username)
+                    .password("{noop}" + password)
+                    .roles("PROMETHEUS")
+                    .build();
+        };
+    }
 
     @Bean
     @Order(1)
@@ -73,7 +109,7 @@ public class OssSecurityConfig {
             OssServiceJwtProperties serviceJwtProperties
     ) throws Exception {
         return http
-                .securityMatcher("/api/**", "/files/**", "/actuator/health", "/actuator/info")
+                .securityMatcher("/api/**", "/files/**")
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -84,7 +120,6 @@ public class OssSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS).permitAll()
                         .requestMatchers(HttpMethod.GET, "/files/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
                         .anyRequest().access((authentication, context) -> new AuthorizationDecision(
                                 isAuthorizedUser(authentication.get(), serviceJwtProperties.audience())
                         ))
@@ -94,6 +129,63 @@ public class OssSecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler)
                         .jwt(jwt -> jwt.decoder(jwtDecoder))
                 )
+                .build();
+    }
+
+    @Bean
+    @Order(3)
+    public SecurityFilterChain ossActuatorSecurityFilterChain(
+            HttpSecurity http,
+            AuthenticationEntryPoint authenticationEntryPoint,
+            AccessDeniedHandler accessDeniedHandler,
+            @Value("${community.metrics.basic-auth.password:}") String metricsPassword
+    ) throws Exception {
+        boolean prometheusAuthConfigured = StringUtils.hasText(metricsPassword);
+        HttpSecurity builder = http
+                .securityMatcher("/actuator/**")
+                .cors(Customizer.withDefaults())
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
+                )
+                .authorizeHttpRequests(auth -> {
+                    auth.requestMatchers(HttpMethod.OPTIONS).permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll();
+                    if (prometheusAuthConfigured) {
+                        auth.requestMatchers(HttpMethod.GET, "/actuator/prometheus").hasRole("PROMETHEUS");
+                    } else {
+                        auth.requestMatchers(HttpMethod.GET, "/actuator/prometheus").denyAll();
+                    }
+                    auth.anyRequest().denyAll();
+                });
+        if (prometheusAuthConfigured) {
+            builder.httpBasic(httpBasic -> httpBasic.authenticationEntryPoint(authenticationEntryPoint));
+        } else {
+            builder.httpBasic(httpBasic -> httpBasic.disable());
+        }
+        return builder.build();
+    }
+
+    @Bean
+    @Order(4)
+    public SecurityFilterChain ossFallbackSecurityFilterChain(
+            HttpSecurity http,
+            AuthenticationEntryPoint authenticationEntryPoint,
+            AccessDeniedHandler accessDeniedHandler
+    ) throws Exception {
+        return http
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
+                )
+                .authorizeHttpRequests(auth -> auth.anyRequest().denyAll())
+                .httpBasic(httpBasic -> httpBasic.disable())
+                .formLogin(formLogin -> formLogin.disable())
+                .logout(logout -> logout.disable())
                 .build();
     }
 

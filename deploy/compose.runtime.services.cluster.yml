@@ -440,6 +440,8 @@ services:
     - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
     - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
+    - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+    - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
     - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${OSS_MYSQL_DATABASE:-community_oss}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - OSS_DB_USERNAME=${OSS_MYSQL_USER:-community_oss}
     - OSS_DB_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}
@@ -498,6 +500,8 @@ services:
     - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
     - NACOS_CONFIG_GROUP=${NACOS_CONFIG_GROUP:-COMMUNITY}
     - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
+    - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+    - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
     - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${OSS_MYSQL_DATABASE:-community_oss}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - OSS_DB_USERNAME=${OSS_MYSQL_USER:-community_oss}
     - OSS_DB_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}

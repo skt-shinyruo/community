@@ -55,6 +55,10 @@ mybatis:
     map-underscore-to-camel-case: true
 
 community:
+  metrics:
+    basic-auth:
+      username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
+      password: ${METRICS_BASIC_AUTH_PASSWORD:}
   logging:
     service-version: ${SERVICE_VERSION:@project.version@}
   observability:

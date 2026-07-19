@@ -4,6 +4,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.idempotency.IdempotencyProperties;
 import com.nowcoder.community.common.idempotency.IdempotencyStore;
+import com.nowcoder.community.common.idempotency.TransactionalIdempotencyStore;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
@@ -311,9 +312,14 @@ class PostPublishingApplicationServiceTest {
         );
     }
 
-    private static final class InMemoryIdempotencyStore implements IdempotencyStore {
+    private static final class InMemoryIdempotencyStore implements TransactionalIdempotencyStore {
 
         private final Map<String, Entry> entries = new HashMap<>();
+
+        @Override
+        public boolean isEnlistedInCurrentTransaction() {
+            return true;
+        }
 
         @Override
         public boolean tryAcquireProcessing(String operation, UUID userId, String key, String requestHash, Duration ttl) {

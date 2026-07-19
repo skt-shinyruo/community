@@ -1,17 +1,15 @@
 package com.nowcoder.community.common.idempotency;
 
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.ErrorCode;
 import com.nowcoder.community.common.exception.ErrorKind;
 import com.nowcoder.community.common.exception.SimpleErrorCode;
-import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -59,7 +57,7 @@ public class IdempotencyGuard {
                                  ErrorCode replayConflictCode,
                                  Class<T> type,
                                  Supplier<T> supplier) {
-        return execute(operation, userId, idempotencyKey, requestHash, replayConflictCode, type, supplier, true);
+        return execute(operation, userId, idempotencyKey, requestHash, replayConflictCode, type, supplier);
     }
 
     private <T> T execute(String operation,
@@ -68,8 +66,7 @@ public class IdempotencyGuard {
                           String requestHash,
                           ErrorCode replayConflictCode,
                           Class<T> type,
-                          Supplier<T> supplier,
-                          boolean failClosedOnStoreError) {
+                          Supplier<T> supplier) {
         if (userId == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "userId 非法");
         }
@@ -88,51 +85,53 @@ public class IdempotencyGuard {
             record(operation, "invalid_key");
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, HEADER_IDEMPOTENCY_KEY + " 过长");
         }
-        if (supplier == null) {
-            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "supplier 不能为空");
-        }
-
         Duration processingTtl = safeDuration(properties == null ? null : properties.getProcessingTtl(), Duration.ofSeconds(30));
         Duration successTtl = safeDuration(properties == null ? null : properties.getSuccessTtl(), Duration.ofHours(24));
         String op = operation.trim().toLowerCase(Locale.ROOT);
         String hash = normalizeRequestHash(requestHash);
+        if (supplier == null) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "supplier 不能为空");
+        }
+        if (!(store instanceof TransactionalIdempotencyStore transactional)
+                || !transactional.isEnlistedInCurrentTransaction()) {
+            record(operation, "store_unavailable");
+            throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
+        }
 
         boolean acquired;
         try {
             acquired = store.tryAcquireProcessing(op, userId, key, hash, processingTtl);
         } catch (RuntimeException e) {
-            record(operation, "store_error");
-            if (failClosedOnStoreError) {
-                throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等存储不可用");
-            }
-            return supplier.get();
+            record(operation, "store_unavailable");
+            throw e;
         }
 
         if (acquired) {
             record(operation, "first_time");
-            final T result;
+            T result;
             try {
                 result = supplier.get();
             } catch (RuntimeException e) {
-                // 失败允许重试：删除占用 key，避免永久卡死在 PROCESSING
-                safeDelete(op, userId, key);
                 record(operation, "failed");
                 throw e;
             }
-
             String json;
             try {
                 json = toJson(result);
             } catch (RuntimeException e) {
                 record(operation, "serialize_error");
-                json = "null";
+                throw e;
             }
+            boolean saved;
             try {
-                saveSuccess(op, userId, key, hash, json, successTtl);
+                saved = store.saveSuccess(op, userId, key, hash, json, successTtl);
             } catch (RuntimeException e) {
-                record(operation, "store_error");
-                safeExtendProcessing(op, userId, key, successTtl);
-                throw pendingConfirmation();
+                record(operation, "store_unavailable");
+                throw e;
+            }
+            if (!saved) {
+                record(operation, "store_unavailable");
+                throw new IllegalStateException("idempotency success transition was not applied");
             }
             record(operation, "succeeded");
             return result;
@@ -142,16 +141,12 @@ public class IdempotencyGuard {
         try {
             existing = store.get(op, userId, key);
         } catch (RuntimeException e) {
-            record(operation, "store_error");
-            if (failClosedOnStoreError) {
-                throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等存储不可用");
-            }
-            return supplier.get();
+            record(operation, "store_unavailable");
+            throw e;
         }
         if (existing == null) {
-            // 极端情况：刚判断为“已存在”，但随后读不到（可能已过期/被清理）
             record(operation, "race_miss");
-            throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等状态读取失败");
+            throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
         }
         if (!hash.equals(existing.requestHash())) {
             record(operation, "replay_conflict");
@@ -159,15 +154,24 @@ public class IdempotencyGuard {
         }
         if (existing.status() == IdempotencyStore.Status.SUCCESS) {
             record(operation, "duplicate");
-            return fromJson(existing.successJson(), type);
+            try {
+                return fromJson(existing.successJson(), type);
+            } catch (BusinessException e) {
+                record(operation, "store_unavailable");
+                throw e;
+            }
         }
         if (existing.status() == IdempotencyStore.Status.PROCESSING) {
             record(operation, "concurrent_conflict");
-            throw new BusinessException(new SimpleErrorCode(409, "请求处理中，请稍后重试", ErrorKind.CONFLICT));
+            throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_IN_PROGRESS);
+        }
+        if (existing.status() == IdempotencyStore.Status.INDETERMINATE) {
+            record(operation, "indeterminate");
+            throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_OUTCOME_INDETERMINATE);
         }
 
         record(operation, "unknown_state");
-        throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等状态不合法");
+        throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
     }
 
     private String normalizeKey(String key) {
@@ -190,79 +194,45 @@ public class IdempotencyGuard {
 
     private String toJson(Object value) {
         if (value == null) {
-            return "null";
+            throw new IllegalStateException("idempotency response is null");
         }
+        if (jsonCodec == null) {
+            throw new IllegalStateException("jsonCodec is null");
+        }
+        String json;
         try {
-            return jsonCodec == null ? String.valueOf(value) : jsonCodec.toJson(value);
+            json = jsonCodec.toJson(value);
         } catch (JsonCodecException e) {
             throw new IllegalStateException("serialize idempotency response failed", e);
         }
+        if (!StringUtils.hasText(json) || "null".equals(json.trim())) {
+            throw new IllegalStateException("serialized idempotency response is empty or null");
+        }
+        return json;
     }
 
     private <T> T fromJson(String json, Class<T> type) {
-        if (type == null || type == Void.class) {
-            return null;
+        if (!StringUtils.hasText(json) || "null".equals(json.trim())) {
+            throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
         }
-        if (!StringUtils.hasText(json) || "null".equals(json)) {
+        if (type == null) {
+            throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
+        }
+        if (type == Void.class) {
             return null;
         }
         try {
             if (jsonCodec == null) {
-                throw new IllegalStateException("jsonCodec is null");
+                throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
             }
-            return jsonCodec.fromJson(json, type);
+            T value = jsonCodec.fromJson(json, type);
+            if (value == null) {
+                throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
+            }
+            return value;
         } catch (JsonCodecException e) {
-            throw new IllegalStateException("deserialize idempotency response failed", e);
+            throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE, e);
         }
-    }
-
-    private void safeDelete(String operation, UUID userId, String key) {
-        try {
-            store.delete(operation, userId, key);
-        } catch (RuntimeException ignored) {
-        }
-    }
-
-    private void safeExtendProcessing(String operation, UUID userId, String key, Duration ttl) {
-        try {
-            store.extendProcessing(operation, userId, key, ttl);
-        } catch (RuntimeException ignored) {
-        }
-    }
-
-    private void saveSuccess(String operation,
-                             UUID userId,
-                             String key,
-                             String requestHash,
-                             String successJson,
-                             Duration successTtl) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()
-                || !TransactionSynchronizationManager.isSynchronizationActive()) {
-            doSaveSuccess(operation, userId, key, requestHash, successJson, successTtl);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                doSaveSuccess(operation, userId, key, requestHash, successJson, successTtl);
-            }
-
-            @Override
-            public void afterCompletion(int status) {
-                if (status != STATUS_COMMITTED) {
-                    safeDelete(operation, userId, key);
-                }
-            }
-        });
-    }
-
-    private void doSaveSuccess(String operation,
-                               UUID userId,
-                               String key,
-                               String requestHash,
-                               String successJson,
-                               Duration successTtl) {
-        store.saveSuccess(operation, userId, key, requestHash, successJson, successTtl);
     }
 
     private Duration safeDuration(Duration v, Duration fallback) {
@@ -273,10 +243,6 @@ public class IdempotencyGuard {
             return fallback;
         }
         return v;
-    }
-
-    private BusinessException pendingConfirmation() {
-        return new BusinessException(new SimpleErrorCode(409, "请求结果确认中，请稍后重试", ErrorKind.CONFLICT));
     }
 
     private BusinessException replayConflict(ErrorCode replayConflictCode) {

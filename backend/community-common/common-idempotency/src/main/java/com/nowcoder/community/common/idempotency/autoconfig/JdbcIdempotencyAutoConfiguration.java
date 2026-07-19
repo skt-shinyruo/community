@@ -2,6 +2,7 @@ package com.nowcoder.community.common.idempotency.autoconfig;
 
 import com.nowcoder.community.common.idempotency.IdempotencyStore;
 import com.nowcoder.community.common.idempotency.JdbcIdempotencyStore;
+import com.nowcoder.community.common.idempotency.TransactionalIdempotencyStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -18,8 +19,8 @@ public class JdbcIdempotencyAutoConfiguration {
 
     @Bean
     @ConditionalOnProperty(prefix = "http.idempotency", name = "store", havingValue = "DB")
-    @ConditionalOnMissingBean
-    public IdempotencyStore idempotencyStore(ObjectProvider<JdbcTemplate> jdbcTemplateProvider) {
+    @ConditionalOnMissingBean(IdempotencyStore.class)
+    public TransactionalIdempotencyStore idempotencyStore(ObjectProvider<JdbcTemplate> jdbcTemplateProvider) {
         JdbcTemplate jdbcTemplate = jdbcTemplateProvider == null ? null : jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
             throw new IllegalStateException("http.idempotency.store=DB 需要 JdbcTemplate");

@@ -56,8 +56,8 @@ http.interceptors.request.use((config) => {
 
   if (shouldAttachIdempotencyKey(config)) {
     config.headers = config.headers || {}
-    if (!config.headers[IDEMPOTENCY_HEADER]) {
-      config.headers[IDEMPOTENCY_HEADER] = generateIdempotencyKey()
+    if (!config.headers.has(IDEMPOTENCY_HEADER)) {
+      config.headers.set(IDEMPOTENCY_HEADER, generateIdempotencyKey())
     }
   }
   return config

@@ -331,8 +331,9 @@ class PostPublishingApplicationServiceTest {
         }
 
         @Override
-        public void saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl) {
+        public boolean saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl) {
             entries.put(storageKey(operation, userId, key), new Entry(Status.SUCCESS, successJson, requestHash));
+            return true;
         }
 
         @Override

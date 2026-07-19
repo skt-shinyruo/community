@@ -95,7 +95,7 @@ public class RedisIdempotencyStore implements IdempotencyStore {
     }
 
     @Override
-    public void saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl) {
+    public boolean saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl) {
         if (!StringUtils.hasText(operation)) {
             throw new IllegalArgumentException("operation is blank");
         }
@@ -113,6 +113,7 @@ public class RedisIdempotencyStore implements IdempotencyStore {
         String storeKey = buildStoreKey(operation, userId, key);
         String json = successJson == null ? "null" : successJson;
         redisTemplate.opsForValue().set(storeKey, successValue(hash, json), safeTtl);
+        return true;
     }
 
     @Override

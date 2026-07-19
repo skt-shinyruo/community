@@ -105,6 +105,11 @@ security:
     issuer: ${JWT_ISSUER:community-auth}
 
 oss:
+  security:
+    service-jwt:
+      issuer: ${OSS_SERVICE_JWT_ISSUER:community-auth}
+      audience: ${OSS_SERVICE_JWT_AUDIENCE:community-oss}
+      scope: ${OSS_SERVICE_JWT_SCOPE:oss.internal}
   object-store:
     mode: ${OSS_OBJECT_STORE_MODE:garage}
     endpoint: ${OSS_OBJECT_STORE_ENDPOINT:http://garage:3900}

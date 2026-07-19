@@ -5,6 +5,11 @@ spring:
       max-request-size: 10GB
 
 oss:
+  security:
+    service-jwt:
+      issuer: ${OSS_SERVICE_JWT_ISSUER:community-auth}
+      audience: ${OSS_SERVICE_JWT_AUDIENCE:community-oss}
+      scope: ${OSS_SERVICE_JWT_SCOPE:oss.internal}
   public-base-url: http://localhost:12880
   object-store:
     mode: garage

@@ -95,7 +95,7 @@ class ObjectUploadApplicationServiceTest {
     }
 
     @Test
-    void prepareInternalUploadShouldHideUserOwnershipWithoutEffects() {
+    void prepareInternalUploadShouldHidePaddedCaseVariedUserOwnershipWithoutEffects() {
         FakeObjectRepository objectRepository = new FakeObjectRepository();
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
@@ -117,7 +117,7 @@ class ObjectUploadApplicationServiceTest {
                         "USER_AVATAR",
                         "community-app",
                         "user",
-                        "USER",
+                        " UsEr ",
                         "user-7",
                         "PRIVATE",
                         "avatar.png",
@@ -137,7 +137,7 @@ class ObjectUploadApplicationServiceTest {
     }
 
     @Test
-    void prepareInternalUploadShouldPreserveActorAndReturnInternalCompletionUrl() {
+    void prepareInternalUploadShouldPreserveActorAndReturnBrowserCompletionUrl() {
         FakeObjectRepository objectRepository = new FakeObjectRepository();
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
@@ -172,7 +172,7 @@ class ObjectUploadApplicationServiceTest {
 
         assertAll(
                 () -> assertThat(prepared.uploadUrl()).isEqualTo(
-                        "/internal/oss/upload-sessions/" + prepared.sessionId() + "/complete"),
+                        "/api/oss/objects/" + prepared.objectId() + "/complete"),
                 () -> assertThat(session.ownerService()).isEqualTo("community-app"),
                 () -> assertThat(session.ownerType()).isEqualTo("DRIVE_UPLOAD"),
                 () -> assertThat(session.createdBy()).isEqualTo("user-7"),
@@ -252,7 +252,7 @@ class ObjectUploadApplicationServiceTest {
                 () -> assertThat(replayed.objectId()).isEqualTo(first.objectId()),
                 () -> assertThat(replayed.versionId()).isEqualTo(first.versionId()),
                 () -> assertThat(replayed.uploadUrl()).isEqualTo(
-                        "/internal/oss/upload-sessions/" + first.sessionId() + "/complete"),
+                        "/api/oss/objects/" + first.objectId() + "/complete"),
                 () -> assertThat(stored.ownerService()).isEqualTo("service-a"),
                 () -> assertThat(stored.createdBy()).isEqualTo("actor-a"),
                 () -> assertThat(objectRepository.saveCount).isZero(),

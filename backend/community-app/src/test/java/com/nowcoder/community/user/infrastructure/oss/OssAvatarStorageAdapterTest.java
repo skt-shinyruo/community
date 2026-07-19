@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 class OssAvatarStorageAdapterTest {
 
     @Test
-    void createUploadSessionShouldUseDirectCommunityOssSession() {
+    void createUploadSessionShouldExposePublicBrowserCompletionRoute() {
         UUID userId = uuid(7);
         UUID objectId = uuid(1);
         UUID versionId = uuid(2);
@@ -37,7 +37,7 @@ class OssAvatarStorageAdapterTest {
                 objectId,
                 versionId,
                 "PROXY",
-                "/api/oss/objects/" + objectId + "/complete",
+                "/internal/oss/upload-sessions/" + sessionId + "/complete",
                 Instant.parse("2026-05-07T00:15:00Z")
         ));
         OssAvatarStorageAdapter adapter = new OssAvatarStorageAdapter(ossClient);
@@ -51,6 +51,7 @@ class OssAvatarStorageAdapterTest {
         assertThat(session.objectId()).isEqualTo(objectId);
         assertThat(session.versionId()).isEqualTo(versionId);
         assertThat(session.uploadUrl()).isEqualTo("/api/oss/objects/" + objectId + "/complete");
+        assertThat(session.uploadUrl()).doesNotStartWith("/internal/");
         assertThat(session.uploadMethod()).isEqualTo("POST");
         assertThat(session.fileField()).isEqualTo("file");
         assertThat(session.fields()).containsEntry("sessionId", sessionId.toString());

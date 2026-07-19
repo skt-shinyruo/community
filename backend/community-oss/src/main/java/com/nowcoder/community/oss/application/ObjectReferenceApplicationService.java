@@ -52,27 +52,34 @@ public class ObjectReferenceApplicationService {
         OssObjectReference existing = findExistingReference(command.referenceId());
         if (existing != null) {
             UUID versionId = command.versionId() == null ? existing.versionId() : command.versionId();
-            return bindReferenceCore(command, existing, versionId, now);
+            return bindReferenceCore(command, existing, versionId, now, null);
         }
 
         OssObject object = requireObject(command.objectId());
         UUID versionId = command.versionId() == null ? object.currentVersionId() : command.versionId();
         requireVersionBelongsToObject(object, versionId);
-        return bindReferenceCore(command, null, versionId, now);
+        return bindReferenceCore(command, null, versionId, now, null);
     }
 
     private ObjectReferenceResult bindReferenceCore(
             BindObjectReferenceCommand command,
             OssObjectReference existing,
             UUID versionId,
-            Instant now
+            Instant now,
+            String expectedInternalSubjectService
     ) {
         if (existing != null) {
             return replayOrConflict(existing, requestedReference(command, versionId, now));
         }
         ensureVersionActive(versionId);
         OssObjectReference reference = requestedReference(command, versionId, now);
-        return replayOrConflict(referenceRepository.insertOrFindExisting(reference), reference);
+        OssObjectReference insertedOrExisting = referenceRepository.insertOrFindExisting(reference);
+        if (expectedInternalSubjectService != null
+                && (!command.objectId().equals(insertedOrExisting.objectId())
+                || !expectedInternalSubjectService.equals(insertedOrExisting.subjectService()))) {
+            throw objectNotFound();
+        }
+        return replayOrConflict(insertedOrExisting, reference);
     }
 
     @Transactional
@@ -94,7 +101,7 @@ public class ObjectReferenceApplicationService {
                 ? command.versionId()
                 : existing == null ? object.currentVersionId() : existing.versionId();
         requireInternalVersionBelongsToObject(object, versionId);
-        return bindReferenceCore(command, existing, versionId, clock.instant());
+        return bindReferenceCore(command, existing, versionId, clock.instant(), object.ownerService());
     }
 
     @Transactional

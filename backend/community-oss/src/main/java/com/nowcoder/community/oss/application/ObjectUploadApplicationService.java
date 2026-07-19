@@ -317,18 +317,10 @@ public class ObjectUploadApplicationService {
         requirePrepareCommand(command);
         if (serviceSubject == null || serviceSubject.isBlank()
                 || !requireText(command.ownerService(), "ownerService").equals(serviceSubject.trim())
-                || "USER".equalsIgnoreCase(command.ownerType())) {
+                || "USER".equalsIgnoreCase(command.ownerType().trim())) {
             throw objectNotFound();
         }
-        ObjectUploadSessionResult prepared = prepareUploadCore(command, serviceSubject.trim());
-        return new ObjectUploadSessionResult(
-                prepared.sessionId(),
-                prepared.objectId(),
-                prepared.versionId(),
-                prepared.uploadMode(),
-                "/internal/oss/upload-sessions/" + prepared.sessionId() + "/complete",
-                prepared.expiresAt()
-        );
+        return prepareUploadCore(command, serviceSubject.trim());
     }
 
     public ObjectMetadataResult completeUpload(CompleteObjectUploadCommand command) {

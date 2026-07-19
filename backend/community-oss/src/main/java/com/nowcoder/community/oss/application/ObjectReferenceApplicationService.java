@@ -49,21 +49,27 @@ public class ObjectReferenceApplicationService {
     public ObjectReferenceResult bindReference(BindObjectReferenceCommand command) {
         requireCommand(command);
         Instant now = clock.instant();
-        if (command.referenceId() != null) {
-            var existing = referenceRepository.findById(command.referenceId());
-            if (existing.isPresent()) {
-                OssObjectReference stored = existing.orElseThrow();
-                return replayOrConflict(stored, requestedReference(
-                        command,
-                        command.versionId() == null ? stored.versionId() : command.versionId(),
-                        now
-                ));
-            }
+        OssObjectReference existing = findExistingReference(command.referenceId());
+        if (existing != null) {
+            UUID versionId = command.versionId() == null ? existing.versionId() : command.versionId();
+            return bindReferenceCore(command, existing, versionId, now);
         }
 
         OssObject object = requireObject(command.objectId());
         UUID versionId = command.versionId() == null ? object.currentVersionId() : command.versionId();
         requireVersionBelongsToObject(object, versionId);
+        return bindReferenceCore(command, null, versionId, now);
+    }
+
+    private ObjectReferenceResult bindReferenceCore(
+            BindObjectReferenceCommand command,
+            OssObjectReference existing,
+            UUID versionId,
+            Instant now
+    ) {
+        if (existing != null) {
+            return replayOrConflict(existing, requestedReference(command, versionId, now));
+        }
         ensureVersionActive(versionId);
         OssObjectReference reference = requestedReference(command, versionId, now);
         return replayOrConflict(referenceRepository.insertOrFindExisting(reference), reference);
@@ -79,15 +85,16 @@ public class ObjectReferenceApplicationService {
         if (!object.ownerService().equals(command.subjectService().trim())) {
             throw objectNotFound();
         }
-        if (command.referenceId() != null) {
-            referenceRepository.findById(command.referenceId()).ifPresent(existing -> {
-                if (!command.objectId().equals(existing.objectId())
-                        || !object.ownerService().equals(existing.subjectService())) {
-                    throw objectNotFound();
-                }
-            });
+        OssObjectReference existing = findExistingReference(command.referenceId());
+        if (existing != null && (!command.objectId().equals(existing.objectId())
+                || !object.ownerService().equals(existing.subjectService()))) {
+            throw objectNotFound();
         }
-        return bindReference(command);
+        UUID versionId = command.versionId() != null
+                ? command.versionId()
+                : existing == null ? object.currentVersionId() : existing.versionId();
+        requireInternalVersionBelongsToObject(object, versionId);
+        return bindReferenceCore(command, existing, versionId, clock.instant());
     }
 
     @Transactional
@@ -101,6 +108,10 @@ public class ObjectReferenceApplicationService {
         if (!reference.objectId().equals(command.objectId())) {
             throw new IllegalArgumentException("reference does not belong to object");
         }
+        return releaseReferenceCore(reference);
+    }
+
+    private ObjectReferenceResult releaseReferenceCore(OssObjectReference reference) {
         OssObjectReference released = reference.release(clock.instant());
         if (released != reference) {
             referenceRepository.save(released);
@@ -116,8 +127,9 @@ public class ObjectReferenceApplicationService {
         if (command == null || command.objectId() == null || command.referenceId() == null) {
             throw new IllegalArgumentException("objectId and referenceId must not be null");
         }
-        requireInternalReference(command.objectId(), command.referenceId(), serviceSubject);
-        return releaseReference(command);
+        OssObjectReference reference = requireInternalReference(
+                command.objectId(), command.referenceId(), serviceSubject);
+        return releaseReferenceCore(reference);
     }
 
     @Transactional(readOnly = true)
@@ -125,6 +137,10 @@ public class ObjectReferenceApplicationService {
         if (objectId == null || referenceId == null) {
             throw new IllegalArgumentException("objectId and referenceId must not be null");
         }
+        return findReferenceCore(objectId, referenceId);
+    }
+
+    private ObjectReferenceResult findReferenceCore(UUID objectId, UUID referenceId) {
         return referenceRepository.findById(referenceId)
                 .filter(reference -> reference.objectId().equals(objectId))
                 .map(this::toResult)
@@ -138,7 +154,11 @@ public class ObjectReferenceApplicationService {
             String serviceSubject
     ) {
         requireInternalReference(objectId, referenceId, serviceSubject);
-        return findReference(objectId, referenceId);
+        return findReferenceCore(objectId, referenceId);
+    }
+
+    private OssObjectReference findExistingReference(UUID referenceId) {
+        return referenceId == null ? null : referenceRepository.findById(referenceId).orElse(null);
     }
 
     private ObjectReferenceResult replayOrConflict(
@@ -234,6 +254,16 @@ public class ObjectReferenceApplicationService {
                 .orElseThrow(() -> new IllegalArgumentException("object version not found"));
         if (!object.objectId().equals(version.objectId())) {
             throw new IllegalArgumentException("object version does not belong to object");
+        }
+    }
+
+    private void requireInternalVersionBelongsToObject(OssObject object, UUID versionId) {
+        if (versionId == null) {
+            return;
+        }
+        OssObjectVersion version = versionRepository.findById(versionId).orElseThrow(this::objectNotFound);
+        if (!object.objectId().equals(version.objectId())) {
+            throw objectNotFound();
         }
     }
 

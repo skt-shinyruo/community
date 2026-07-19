@@ -218,6 +218,13 @@ public class ObjectUploadApplicationService {
 
     public ObjectUploadSessionResult prepareUpload(PrepareObjectUploadCommand command) {
         requirePrepareCommand(command);
+        return prepareUploadCore(command, null);
+    }
+
+    private ObjectUploadSessionResult prepareUploadCore(
+            PrepareObjectUploadCommand command,
+            String internalServiceSubject
+    ) {
         validateUploadPolicyChannel(command.usage());
         String safeFileName = safeFileName(command.fileName());
         validateGlobalUploadPolicy(safeFileName, command.contentType(), command.contentLength());
@@ -281,6 +288,9 @@ public class ObjectUploadApplicationService {
             OssUploadSession concurrentWinner = uploadSessionRepository.findByRequestId(requestId)
                     .orElseThrow(() -> new IllegalStateException(
                             "upload prepare request was claimed but cannot be reloaded"));
+            if (internalServiceSubject != null) {
+                requireInternalPrepareReplayOwner(concurrentWinner, internalServiceSubject);
+            }
             validatePrepareReplay(command, safeFileName, visibility, concurrentWinner);
             if (concurrentWinner.status() == OssUploadSessionStatus.READY
                     && concurrentWinner.expiredAt(now)) {
@@ -310,7 +320,7 @@ public class ObjectUploadApplicationService {
                 || "USER".equalsIgnoreCase(command.ownerType())) {
             throw objectNotFound();
         }
-        ObjectUploadSessionResult prepared = prepareUpload(command);
+        ObjectUploadSessionResult prepared = prepareUploadCore(command, serviceSubject.trim());
         return new ObjectUploadSessionResult(
                 prepared.sessionId(),
                 prepared.objectId(),
@@ -538,6 +548,19 @@ public class ObjectUploadApplicationService {
                 && Objects.equals(session.createdBy(), normalize(command.actorId()));
         if (!matches) {
             throw new IllegalArgumentException("prepare request id conflict");
+        }
+    }
+
+    private void requireInternalPrepareReplayOwner(
+            OssUploadSession session,
+            String serviceSubject
+    ) {
+        OssObject object = objectRepository.findById(session.objectId()).orElseThrow(this::objectNotFound);
+        if (!serviceSubject.equals(session.ownerService())
+                || "USER".equalsIgnoreCase(session.ownerType())
+                || !serviceSubject.equals(object.ownerService())
+                || "USER".equalsIgnoreCase(object.ownerType())) {
+            throw objectNotFound();
         }
     }
 

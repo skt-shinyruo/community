@@ -1,6 +1,5 @@
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
-import { createIdempotencyKeyCache } from './idempotencyKeyCache'
 import { resolveApiBaseUrl } from '../config/endpointResolution'
 import { showToast } from '../ui/toastService'
 
@@ -13,8 +12,6 @@ const http = axios.create({
 let refreshingPromise = null
 
 const IDEMPOTENCY_HEADER = 'Idempotency-Key'
-const IDEMPOTENCY_WINDOW_MS = 10000
-const IDEMPOTENCY_MAX_CACHE_SIZE = 5000
 
 function shouldAttachIdempotencyKey(config) {
   const method = String(config?.method || '').toLowerCase()
@@ -31,13 +28,6 @@ function shouldAttachIdempotencyKey(config) {
   return false
 }
 
-function resolveIdempotencyKey(config) {
-  const url = String(config?.url || '')
-  const body = safeStringify(config?.data)
-  const fingerprint = `post:${url}:${hashString(body)}`
-  return idempotencyKeyCache.getOrReuse(fingerprint)
-}
-
 function generateIdempotencyKey() {
   try {
     const cryptoObj = globalThis?.crypto
@@ -47,31 +37,6 @@ function generateIdempotencyKey() {
   const rand = Math.random().toString(36).slice(2)
   const now = Date.now().toString(36)
   return `idem_${now}_${rand}`
-}
-
-const idempotencyKeyCache = createIdempotencyKeyCache({
-  windowMs: IDEMPOTENCY_WINDOW_MS,
-  maxSize: IDEMPOTENCY_MAX_CACHE_SIZE,
-  generateKey: generateIdempotencyKey
-})
-
-function safeStringify(data) {
-  if (data == null) return ''
-  if (typeof data === 'string') return data
-  try {
-    return JSON.stringify(data)
-  } catch {
-    return ''
-  }
-}
-
-function hashString(str) {
-  const s = String(str || '')
-  let h = 5381
-  for (let i = 0; i < s.length; i += 1) {
-    h = ((h << 5) + h) ^ s.charCodeAt(i)
-  }
-  return (h >>> 0).toString(36)
 }
 
 function isAuthEndpointUrl(url) {
@@ -92,7 +57,7 @@ http.interceptors.request.use((config) => {
   if (shouldAttachIdempotencyKey(config)) {
     config.headers = config.headers || {}
     if (!config.headers[IDEMPOTENCY_HEADER]) {
-      config.headers[IDEMPOTENCY_HEADER] = resolveIdempotencyKey(config)
+      config.headers[IDEMPOTENCY_HEADER] = generateIdempotencyKey()
     }
   }
   return config

@@ -16,11 +16,8 @@ import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
 import org.springframework.core.io.AbstractResource;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.ClientHttpRequestExecution;
-import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
@@ -33,7 +30,6 @@ import java.io.InputStream;
 import java.net.SocketTimeoutException;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static com.nowcoder.community.oss.client.OssClientException.Category.BAD_RESPONSE;
@@ -46,8 +42,9 @@ public class HttpCommunityOssClient implements CommunityOssClient {
 
     private static final JsonCodec JSON = new JacksonJsonCodec(JsonMappers.standard());
 
-    private final RestClient.Builder restClientBuilder;
     private final RestClient publicRestClient;
+    private final RestClient internalRestClient;
+    private final RestClient multipartInternalRestClient;
     private final OssServiceTokenProvider serviceTokenProvider;
 
     public HttpCommunityOssClient(String baseUrl, OssServiceTokenProvider serviceTokenProvider) {
@@ -60,20 +57,19 @@ public class HttpCommunityOssClient implements CommunityOssClient {
             OssServiceTokenProvider serviceTokenProvider
     ) {
         this.serviceTokenProvider = Objects.requireNonNull(serviceTokenProvider, "serviceTokenProvider");
-        this.restClientBuilder = (restClientBuilder == null ? RestClient.builder() : restClientBuilder.clone())
-                .baseUrl(baseUrl == null || baseUrl.isBlank() ? "http://community-oss:18090" : baseUrl.trim());
-        this.publicRestClient = buildClient(null);
-    }
-
-    public HttpCommunityOssClient(RestClient restClient, OssServiceTokenProvider serviceTokenProvider) {
-        this.serviceTokenProvider = Objects.requireNonNull(serviceTokenProvider, "serviceTokenProvider");
-        this.restClientBuilder = Objects.requireNonNull(restClient, "restClient").mutate();
-        this.publicRestClient = buildClient(null);
+        String normalizedBaseUrl = baseUrl == null || baseUrl.isBlank()
+                ? "http://community-oss:18090"
+                : baseUrl.trim();
+        RestClient.Builder baseBuilder = (restClientBuilder == null ? RestClient.builder() : restClientBuilder.clone())
+                .baseUrl(normalizedBaseUrl);
+        this.publicRestClient = buildPublicClient(baseBuilder);
+        this.internalRestClient = buildInternalClient(baseBuilder);
+        this.multipartInternalRestClient = buildMultipartInternalClient(normalizedBaseUrl);
     }
 
     @Override
     public OssUploadSessionResponse prepareUpload(OssUploadSessionRequest request) {
-        return executeInternal(client -> client.post()
+        return execute(() -> internalRestClient.post()
                 .uri("/internal/oss/upload-sessions")
                 .body(request)
                 .retrieve()
@@ -82,13 +78,13 @@ public class HttpCommunityOssClient implements CommunityOssClient {
 
     @Override
     public OssMetadataResponse completeProxyUpload(OssCompleteUploadRequest request) {
-        return executeInternal(client -> {
+        return execute(() -> {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             HttpHeaders partHeaders = new HttpHeaders();
             partHeaders.setContentType(MediaType.parseMediaType(request.contentType()));
             partHeaders.setContentDispositionFormData("file", request.fileName());
             body.add("file", new org.springframework.http.HttpEntity<>(new UploadContentResource(request), partHeaders));
-            return client.post()
+            return multipartInternalRestClient.post()
                     .uri(builder -> builder
                             .path("/internal/oss/upload-sessions/{sessionId}/complete")
                             .queryParam("objectId", request.objectId())
@@ -103,7 +99,7 @@ public class HttpCommunityOssClient implements CommunityOssClient {
 
     @Override
     public OssMetadataResponse getMetadata(UUID objectId) {
-        return executeInternal(client -> client.get()
+        return execute(() -> internalRestClient.get()
                 .uri("/internal/oss/objects/{objectId}", objectId)
                 .retrieve()
                 .body(String.class), OssMetadataResponse.class);
@@ -141,7 +137,7 @@ public class HttpCommunityOssClient implements CommunityOssClient {
 
     @Override
     public OssSignedUrlResponse createSignedDownloadUrl(UUID objectId, long ttlSeconds) {
-        return executeInternal(client -> client.get()
+        return execute(() -> internalRestClient.get()
                 .uri(builder -> builder
                         .path("/internal/oss/objects/{objectId}/signed-url")
                         .queryParam("ttlSeconds", ttlSeconds)
@@ -152,7 +148,7 @@ public class HttpCommunityOssClient implements CommunityOssClient {
 
     @Override
     public OssReferenceResponse bindObjectReference(UUID objectId, OssBindReferenceRequest request) {
-        return executeInternal(client -> client.post()
+        return execute(() -> internalRestClient.post()
                 .uri("/internal/oss/objects/{objectId}/references", objectId)
                 .body(request)
                 .retrieve()
@@ -161,7 +157,7 @@ public class HttpCommunityOssClient implements CommunityOssClient {
 
     @Override
     public OssReferenceResponse getObjectReference(UUID objectId, UUID referenceId) {
-        return executeInternal(client -> client.get()
+        return execute(() -> internalRestClient.get()
                 .uri("/internal/oss/objects/{objectId}/references/{referenceId}", objectId, referenceId)
                 .retrieve()
                 .body(String.class), OssReferenceResponse.class);
@@ -169,7 +165,7 @@ public class HttpCommunityOssClient implements CommunityOssClient {
 
     @Override
     public OssReferenceResponse releaseObjectReference(UUID objectId, UUID referenceId, String actorId) {
-        return executeInternal(client -> client.delete()
+        return execute(() -> internalRestClient.delete()
                 .uri(builder -> builder
                         .path("/internal/oss/objects/{objectId}/references/{referenceId}")
                         .queryParam("actorId", actorId == null ? "" : actorId)
@@ -180,19 +176,13 @@ public class HttpCommunityOssClient implements CommunityOssClient {
 
     @Override
     public OssLifecycleResponse deleteObject(UUID objectId, String actorId) {
-        return executeInternal(client -> client.delete()
+        return execute(() -> internalRestClient.delete()
                 .uri(builder -> builder
                         .path("/internal/oss/objects/{objectId}")
                         .queryParam("actorId", actorId == null ? "" : actorId)
                         .build(objectId))
                 .retrieve()
                 .body(String.class), OssLifecycleResponse.class);
-    }
-
-    private <T> T executeInternal(Function<RestClient, String> request, Class<T> responseType) {
-        String authorization = serviceAuthorization();
-        RestClient client = buildClient(authorization);
-        return execute(() -> request.apply(client), responseType);
     }
 
     private static <T> T execute(Supplier<String> request, Class<T> responseType) {
@@ -284,28 +274,33 @@ public class HttpCommunityOssClient implements CommunityOssClient {
         return false;
     }
 
-    private ClientHttpResponse applyFinalAuthentication(
-            HttpRequest request,
-            byte[] body,
-            ClientHttpRequestExecution execution,
-            String internalAuthorization
-    ) throws IOException {
-        String path = request.getURI().getPath();
-        if (path.startsWith("/files/")) {
-            request.getHeaders().remove(HttpHeaders.AUTHORIZATION);
-        } else if (path.startsWith("/internal/oss/")) {
-            if (internalAuthorization == null) {
-                throw serviceAuthenticationUnavailable();
-            }
-            request.getHeaders().set(HttpHeaders.AUTHORIZATION, internalAuthorization);
-        }
-        return execution.execute(request, body);
+    private RestClient buildPublicClient(RestClient.Builder baseBuilder) {
+        return baseBuilder.clone()
+                .requestInterceptor((request, body, execution) -> {
+                    request.getHeaders().remove(HttpHeaders.AUTHORIZATION);
+                    return execution.execute(request, body);
+                })
+                .build();
     }
 
-    private RestClient buildClient(String internalAuthorization) {
-        return restClientBuilder.clone()
-                .requestInterceptor((request, body, execution) ->
-                        applyFinalAuthentication(request, body, execution, internalAuthorization))
+    private RestClient buildInternalClient(RestClient.Builder baseBuilder) {
+        return baseBuilder.clone()
+                .requestInterceptor((request, body, execution) -> {
+                    request.getHeaders().set(HttpHeaders.AUTHORIZATION, serviceAuthorization());
+                    return execution.execute(request, body);
+                })
+                .build();
+    }
+
+    private RestClient buildMultipartInternalClient(String baseUrl) {
+        // Spring 6.1 buffers request bodies whenever its interceptor list is non-null, even when empty.
+        return RestClient.builder()
+                .baseUrl(baseUrl)
+                .defaultRequest(spec -> {
+                    String authorization = serviceAuthorization();
+                    spec.httpRequest(request ->
+                            request.getHeaders().set(HttpHeaders.AUTHORIZATION, authorization));
+                })
                 .build();
     }
 

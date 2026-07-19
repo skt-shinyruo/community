@@ -19,8 +19,9 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.io.IOException;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -146,6 +147,34 @@ class HttpCommunityOssClientTest {
 
             assertThat(requestReceived.await(2, TimeUnit.SECONDS)).isTrue();
             assertThat(authorization.get()).isNull();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void callerDefaultAuthorizationShouldNotReachPrefixedPublicFiles() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        CountDownLatch requestReceived = new CountDownLatch(1);
+        HttpServer server = startPublicFileServer(
+                authorization, requestReceived, "/proxy/files/public.txt");
+        try {
+            AtomicInteger tokenCalls = new AtomicInteger();
+            HttpCommunityOssClient client = new HttpCommunityOssClient(
+                    "http://127.0.0.1:" + server.getAddress().getPort() + "/proxy",
+                    RestClient.builder().defaultHeader(
+                            HttpHeaders.AUTHORIZATION, "Bearer leaked-default"),
+                    () -> {
+                        tokenCalls.incrementAndGet();
+                        return "service-token-1";
+                    }
+            );
+
+            client.loadPublicFile("public.txt");
+
+            assertThat(requestReceived.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(authorization.get()).isNull();
+            assertThat(tokenCalls).hasValue(0);
         } finally {
             server.stop(0);
         }
@@ -330,6 +359,108 @@ class HttpCommunityOssClientTest {
                             List.of("Bearer service-token-1"),
                             List.of("Bearer service-token-2")
                     );
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void prefixedInternalBaseUrlShouldOverrideCallerInterceptorWithFreshServiceToken() throws Exception {
+        UUID objectId = UUID.fromString("00000000-0000-7000-8000-000000000001");
+        UUID versionId = UUID.fromString("00000000-0000-7000-8000-000000000002");
+        UUID referenceId = UUID.fromString("00000000-0000-7000-8000-000000000005");
+        List<CapturedRequest> requests = new ArrayList<>();
+        AtomicInteger tokenCalls = new AtomicInteger();
+        HttpServer server = startCapabilityServer(requests, objectId, versionId, referenceId);
+        try {
+            RestClient.Builder callerBuilder = RestClient.builder()
+                    .requestInterceptor((request, body, execution) -> {
+                        request.getHeaders().set(
+                                HttpHeaders.AUTHORIZATION, "Bearer leaked-interceptor");
+                        return execution.execute(request, body);
+                    });
+            HttpCommunityOssClient client = new HttpCommunityOssClient(
+                    "http://127.0.0.1:" + server.getAddress().getPort() + "/proxy",
+                    callerBuilder,
+                    () -> "service-token-" + tokenCalls.incrementAndGet()
+            );
+
+            client.prepareUpload(uploadSessionRequest());
+            client.prepareUpload(uploadSessionRequest());
+
+            assertThat(requests).extracting(CapturedRequest::path)
+                    .containsExactly(
+                            "/proxy/internal/oss/upload-sessions",
+                            "/proxy/internal/oss/upload-sessions"
+                    );
+            assertThat(requests).extracting(CapturedRequest::authorization)
+                    .containsExactly(
+                            List.of("Bearer service-token-1"),
+                            List.of("Bearer service-token-2")
+                    );
+            assertThat(tokenCalls).hasValue(2);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void completeProxyUploadShouldReachNetworkBeforeSourceEofWithoutCallerInterceptors() throws Exception {
+        UUID objectId = UUID.fromString("00000000-0000-7000-8000-000000000001");
+        UUID versionId = UUID.fromString("00000000-0000-7000-8000-000000000002");
+        UUID sessionId = UUID.fromString("00000000-0000-7000-8000-000000000003");
+        byte[] uploadContent = new byte[32 * 1024 + 16];
+        AtomicInteger tokenCalls = new AtomicInteger();
+        AtomicInteger callerInterceptorCalls = new AtomicInteger();
+        AtomicInteger streamOpenCount = new AtomicInteger();
+        AtomicInteger streamCloseCount = new AtomicInteger();
+        AtomicInteger sequence = new AtomicInteger();
+        AtomicInteger tokenOrder = new AtomicInteger();
+        AtomicInteger streamOpenOrder = new AtomicInteger();
+        AtomicReference<List<String>> authorization = new AtomicReference<>();
+        CountDownLatch requestBodyObserved = new CountDownLatch(1);
+        HttpServer server = startGatedCompleteUploadServer(
+                authorization, requestBodyObserved, wrappedMetadataResponseWithOwnerFields());
+        try {
+            RestClient.Builder callerBuilder = RestClient.builder()
+                    .requestInterceptor((request, body, execution) -> {
+                        callerInterceptorCalls.incrementAndGet();
+                        request.getHeaders().set(
+                                HttpHeaders.AUTHORIZATION, "Bearer leaked-interceptor");
+                        return execution.execute(request, body);
+                    });
+            HttpCommunityOssClient client = new HttpCommunityOssClient(
+                    "http://127.0.0.1:" + server.getAddress().getPort(),
+                    callerBuilder,
+                    () -> {
+                        tokenCalls.incrementAndGet();
+                        tokenOrder.set(sequence.incrementAndGet());
+                        return "service-token-1";
+                    }
+            );
+
+            OssMetadataResponse response = client.completeProxyUpload(new OssCompleteUploadRequest(
+                    sessionId,
+                    objectId,
+                    versionId,
+                    () -> {
+                        streamOpenCount.incrementAndGet();
+                        streamOpenOrder.set(sequence.incrementAndGet());
+                        return new GatedInputStream(uploadContent, requestBodyObserved, streamCloseCount);
+                    },
+                    "avatar.png",
+                    "image/png",
+                    uploadContent.length,
+                    "sha256-avatar"
+            ));
+
+            assertThat(response.objectId()).isEqualTo(objectId);
+            assertThat(authorization.get()).containsExactly("Bearer service-token-1");
+            assertThat(tokenCalls).hasValue(1);
+            assertThat(callerInterceptorCalls).hasValue(0);
+            assertThat(streamOpenCount).hasValue(1);
+            assertThat(streamCloseCount).hasValue(1);
+            assertThat(tokenOrder.get()).isPositive().isLessThan(streamOpenOrder.get());
         } finally {
             server.stop(0);
         }
@@ -528,8 +659,16 @@ class HttpCommunityOssClientTest {
             AtomicReference<String> authorization,
             CountDownLatch requestReceived
     ) throws IOException {
+        return startPublicFileServer(authorization, requestReceived, "/files/public.txt");
+    }
+
+    private static HttpServer startPublicFileServer(
+            AtomicReference<String> authorization,
+            CountDownLatch requestReceived,
+            String contextPath
+    ) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/files/public.txt", exchange -> {
+        server.createContext(contextPath, exchange -> {
             authorization.set(exchange.getRequestHeaders().getFirst(HttpHeaders.AUTHORIZATION));
             byte[] body = "ok".getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, "text/plain");
@@ -537,6 +676,30 @@ class HttpCommunityOssClientTest {
             exchange.getResponseBody().write(body);
             exchange.close();
             requestReceived.countDown();
+        });
+        server.start();
+        return server;
+    }
+
+    private static HttpServer startGatedCompleteUploadServer(
+            AtomicReference<List<String>> authorization,
+            CountDownLatch requestBodyObserved,
+            String responseJson
+    ) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/internal/oss/upload-sessions/", exchange -> {
+            authorization.set(List.copyOf(
+                    exchange.getRequestHeaders().getOrDefault(HttpHeaders.AUTHORIZATION, List.of())));
+            InputStream requestBody = exchange.getRequestBody();
+            if (requestBody.read() >= 0) {
+                requestBodyObserved.countDown();
+            }
+            requestBody.readAllBytes();
+            byte[] body = responseJson.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
         });
         server.start();
         return server;
@@ -781,5 +944,71 @@ class HttpCommunityOssClientTest {
     }
 
     private record CapturedMultipartPart(String headers, byte[] content) {
+    }
+
+    private static final class GatedInputStream extends InputStream {
+
+        private static final int INITIAL_CHUNK_SIZE = 32 * 1024;
+
+        private final byte[] content;
+        private final CountDownLatch requestBodyObserved;
+        private final AtomicInteger closeCount;
+        private int offset;
+        private boolean gatePassed;
+
+        private GatedInputStream(
+                byte[] content,
+                CountDownLatch requestBodyObserved,
+                AtomicInteger closeCount
+        ) {
+            this.content = content;
+            this.requestBodyObserved = requestBodyObserved;
+            this.closeCount = closeCount;
+        }
+
+        @Override
+        public int read() throws IOException {
+            awaitNetworkAfterInitialChunk();
+            if (offset >= content.length) {
+                return -1;
+            }
+            return content[offset++] & 0xff;
+        }
+
+        @Override
+        public int read(byte[] destination, int destinationOffset, int length) throws IOException {
+            if (length == 0) {
+                return 0;
+            }
+            awaitNetworkAfterInitialChunk();
+            if (offset >= content.length) {
+                return -1;
+            }
+            int bytesUntilGate = gatePassed ? content.length - offset : INITIAL_CHUNK_SIZE - offset;
+            int copied = Math.min(length, Math.min(bytesUntilGate, content.length - offset));
+            System.arraycopy(content, offset, destination, destinationOffset, copied);
+            offset += copied;
+            return copied;
+        }
+
+        @Override
+        public void close() {
+            closeCount.incrementAndGet();
+        }
+
+        private void awaitNetworkAfterInitialChunk() throws IOException {
+            if (gatePassed || offset < Math.min(INITIAL_CHUNK_SIZE, content.length)) {
+                return;
+            }
+            gatePassed = true;
+            try {
+                if (!requestBodyObserved.await(2, TimeUnit.SECONDS)) {
+                    throw new IOException("request body was buffered before network I/O");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted while waiting for request body observation", e);
+            }
+        }
     }
 }

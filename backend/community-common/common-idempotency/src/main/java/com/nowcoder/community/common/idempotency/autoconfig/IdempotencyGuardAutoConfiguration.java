@@ -38,6 +38,7 @@ public class IdempotencyGuardAutoConfiguration {
             ObjectProvider<MeterRegistry> meterRegistryProvider,
             IdempotencyProperties properties
     ) {
+        // Keep Redis configuration bootable; the guard rejects non-transactional stores before executing a write.
         return new IdempotencyGuard(jsonCodec, store, meterRegistryProvider, properties);
     }
 }

@@ -72,6 +72,29 @@ class IdempotencyGuardAutoConfigurationTest {
     }
 
     @Test
+    void jdbcStoreBacksOffWhenGenericIdempotencyStoreAlreadyExists() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        IdempotencyAutoConfiguration.class,
+                        JdbcIdempotencyAutoConfiguration.class,
+                        RedisIdempotencyAutoConfiguration.class,
+                        IdempotencyGuardAutoConfiguration.class,
+                        JdbcTemplateAutoConfiguration.class
+                ))
+                .withUserConfiguration(DataSourceAndJsonCodecConfiguration.class, CustomStoreConfiguration.class)
+                .withPropertyValues(
+                        "http.idempotency.enabled=true",
+                        "http.idempotency.store=DB"
+                )
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(IdempotencyStore.class);
+                    assertThat(context.getBean(IdempotencyStore.class)).isInstanceOf(NoopIdempotencyStore.class);
+                    assertThat(context).hasSingleBean(IdempotencyGuard.class);
+                });
+    }
+
+    @Test
     void createsDbBackedGuardWhenJsonCodecComesFromServletWebAutoConfiguration() {
         new WebApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
@@ -117,6 +140,15 @@ class IdempotencyGuardAutoConfigurationTest {
         @Bean
         JsonCodec jsonCodec() {
             return new JacksonJsonCodec(JsonMappers.standard());
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class CustomStoreConfiguration {
+
+        @Bean
+        IdempotencyStore customIdempotencyStore() {
+            return new NoopIdempotencyStore();
         }
     }
 

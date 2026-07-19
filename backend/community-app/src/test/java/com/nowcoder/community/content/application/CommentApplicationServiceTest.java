@@ -6,6 +6,7 @@ import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.idempotency.IdempotencyProperties;
 import com.nowcoder.community.common.idempotency.IdempotencyStore;
+import com.nowcoder.community.common.idempotency.TransactionalIdempotencyStore;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
@@ -274,9 +275,12 @@ class CommentApplicationServiceTest {
         UUID postId = uuid(100);
         UUID postAuthorId = uuid(2);
         UUID commentId = uuid(200);
-        IdempotencyStore store = mock(IdempotencyStore.class);
+        TransactionalIdempotencyStore store = mock(TransactionalIdempotencyStore.class);
         IdempotencyGuard realGuard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
+        when(store.isEnlistedInCurrentTransaction()).thenReturn(true);
         when(store.tryAcquireProcessing(eq("content:create_comment"), eq(userId), eq("idem-transaction"), anyString(), any(Duration.class)))
+                .thenReturn(true);
+        when(store.saveSuccess(anyString(), any(), anyString(), anyString(), anyString(), any(Duration.class)))
                 .thenReturn(true);
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
         when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
@@ -740,9 +744,14 @@ class CommentApplicationServiceTest {
         );
     }
 
-    private static final class InMemoryIdempotencyStore implements IdempotencyStore {
+    private static final class InMemoryIdempotencyStore implements TransactionalIdempotencyStore {
 
         private final Map<String, Entry> entries = new HashMap<>();
+
+        @Override
+        public boolean isEnlistedInCurrentTransaction() {
+            return true;
+        }
 
         @Override
         public boolean tryAcquireProcessing(String operation, UUID userId, String key, String requestHash, Duration ttl) {

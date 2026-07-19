@@ -7,6 +7,9 @@ import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -26,18 +29,14 @@ class IdempotencyGuardFingerprintTest {
 
     private static final UUID USER_ID = UUID.fromString("01966f76-9d81-7f10-8d11-223344556677");
 
-    private static JsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JsonMappers.standard());
-    }
-
     @Test
-    void executeRequiredWithFingerprintShouldReturnCachedResponseWhenFingerprintMatches() {
-        IdempotencyStore store = mock(IdempotencyStore.class);
+    void executeRequiredWithFingerprintShouldReturnCachedResponseWithoutCallingSupplier() {
+        TransactionalIdempotencyStore store = enlistedStore();
         when(store.tryAcquireProcessing(anyString(), eq(USER_ID), anyString(), eq("hash-1"), any(Duration.class)))
                 .thenReturn(false);
         when(store.get("wallet:recharge", USER_ID, "idem-1"))
                 .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.SUCCESS, "\"OK\"", "hash-1"));
-        IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
+        IdempotencyGuard guard = guard(store);
         AtomicInteger supplierCalls = new AtomicInteger();
 
         String result = guard.executeRequired(
@@ -58,13 +57,14 @@ class IdempotencyGuardFingerprintTest {
     }
 
     @Test
-    void executeRequiredWithFingerprintShouldRejectReplayWhenFingerprintDiffers() {
-        IdempotencyStore store = mock(IdempotencyStore.class);
+    void executeRequiredWithFingerprintShouldUseCallerConflictCodeWhenFingerprintDiffers() {
+        TransactionalIdempotencyStore store = enlistedStore();
         when(store.tryAcquireProcessing(anyString(), eq(USER_ID), anyString(), eq("hash-new"), any(Duration.class)))
                 .thenReturn(false);
         when(store.get("wallet:recharge", USER_ID, "idem-1"))
                 .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.SUCCESS, "\"OK\"", "hash-old"));
-        IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
+        IdempotencyGuard guard = guard(store);
+        SimpleErrorCode conflictCode = new SimpleErrorCode(17007, "replay conflict", ErrorKind.CONFLICT);
         AtomicInteger supplierCalls = new AtomicInteger();
 
         assertThatThrownBy(() -> guard.executeRequired(
@@ -72,31 +72,28 @@ class IdempotencyGuardFingerprintTest {
                 USER_ID,
                 "idem-1",
                 "hash-new",
-                new SimpleErrorCode(17007, "replay conflict", ErrorKind.CONFLICT),
+                conflictCode,
                 String.class,
                 () -> {
                     supplierCalls.incrementAndGet();
                     return "NEW";
                 }
         ))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> {
-                    BusinessException error = (BusinessException) ex;
-                    assertThat(error.getErrorCode().getCode()).isEqualTo(17007);
-                    assertThat(error.getErrorCode().getKind()).isEqualTo(ErrorKind.CONFLICT);
-                });
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isSameAs(conflictCode));
+
         assertThat(supplierCalls).hasValue(0);
         verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), anyString(), any(Duration.class));
     }
 
     @Test
-    void executeRequiredWithFingerprintShouldReturnProcessingConflictWhenSameFingerprintIsProcessing() {
-        IdempotencyStore store = mock(IdempotencyStore.class);
+    void executeRequiredWithFingerprintShouldReturnStableProcessingError() {
+        TransactionalIdempotencyStore store = enlistedStore();
         when(store.tryAcquireProcessing(anyString(), eq(USER_ID), anyString(), eq("hash-1"), any(Duration.class)))
                 .thenReturn(false);
         when(store.get("market:create_order", USER_ID, "idem-1"))
                 .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.PROCESSING, null, "hash-1"));
-        IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
+        IdempotencyGuard guard = guard(store);
 
         assertThatThrownBy(() -> guard.executeRequired(
                 "market:create_order",
@@ -107,14 +104,73 @@ class IdempotencyGuardFingerprintTest {
                 String.class,
                 () -> "NEW"
         ))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode().getCode()).isEqualTo(409));
+                .isInstanceOfSatisfying(BusinessException.class, error -> {
+                    assertThat(error.getErrorCode()).isSameAs(IdempotencyErrorCode.IDEMPOTENCY_IN_PROGRESS);
+                    assertThat(error.getMessage()).isEqualTo(IdempotencyErrorCode.IDEMPOTENCY_IN_PROGRESS.getMessage());
+                });
     }
 
     @Test
-    void executeRequiredShouldRejectFingerprintLongerThanPersistenceContract() {
-        IdempotencyStore store = mock(IdempotencyStore.class);
-        IdempotencyGuard guard = new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
+    void executeRequiredWithFingerprintShouldReturnStableIndeterminateError() {
+        TransactionalIdempotencyStore store = enlistedStore();
+        when(store.tryAcquireProcessing(anyString(), eq(USER_ID), anyString(), eq("hash-1"), any(Duration.class)))
+                .thenReturn(false);
+        when(store.get("market:create_order", USER_ID, "idem-1"))
+                .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.INDETERMINATE, null, "hash-1"));
+        IdempotencyGuard guard = guard(store);
+
+        assertThatThrownBy(() -> guard.executeRequired(
+                "market:create_order",
+                USER_ID,
+                "idem-1",
+                "hash-1",
+                new SimpleErrorCode(18001, "replay conflict", ErrorKind.CONFLICT),
+                String.class,
+                () -> "NEW"
+        ))
+                .isInstanceOfSatisfying(BusinessException.class, error -> {
+                    assertThat(error.getErrorCode()).isSameAs(IdempotencyErrorCode.IDEMPOTENCY_OUTCOME_INDETERMINATE);
+                    assertThat(error.getMessage()).isEqualTo("请求结果不确定，请查询业务状态");
+                    assertThat(error.getMessage()).doesNotContain("key", "幂等键");
+                });
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "null", "{broken-json"})
+    void executeRequiredShouldRejectMissingOrCorruptCachedResponse(String responseJson) {
+        TransactionalIdempotencyStore store = enlistedStore();
+        when(store.tryAcquireProcessing(anyString(), eq(USER_ID), anyString(), eq("hash-1"), any(Duration.class)))
+                .thenReturn(false);
+        when(store.get("wallet:recharge", USER_ID, "idem-1"))
+                .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.SUCCESS, responseJson, "hash-1"));
+        IdempotencyGuard guard = guard(store);
+        AtomicInteger supplierCalls = new AtomicInteger();
+
+        assertThatThrownBy(() -> guard.executeRequired(
+                "wallet:recharge",
+                USER_ID,
+                "idem-1",
+                "hash-1",
+                null,
+                String.class,
+                () -> {
+                    supplierCalls.incrementAndGet();
+                    return "NEW";
+                }
+        ))
+                .isInstanceOfSatisfying(BusinessException.class, error -> {
+                    assertThat(error.getErrorCode()).isSameAs(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
+                    assertThat(error.getErrorCode().getCode()).isEqualTo(503);
+                });
+
+        assertThat(supplierCalls).hasValue(0);
+    }
+
+    @Test
+    void executeRequiredShouldValidateFingerprintBeforeTransactionEligibility() {
+        TransactionalIdempotencyStore store = mock(TransactionalIdempotencyStore.class);
+        IdempotencyGuard guard = guard(store);
 
         assertThatThrownBy(() -> guard.executeRequired(
                 "wallet:recharge",
@@ -128,12 +184,22 @@ class IdempotencyGuardFingerprintTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("requestHash 过长");
 
+        verify(store, never()).isEnlistedInCurrentTransaction();
         verify(store, never()).tryAcquireProcessing(
-                anyString(),
-                any(),
-                anyString(),
-                anyString(),
-                any(Duration.class)
-        );
+                anyString(), any(), anyString(), anyString(), any(Duration.class));
+    }
+
+    private static TransactionalIdempotencyStore enlistedStore() {
+        TransactionalIdempotencyStore store = mock(TransactionalIdempotencyStore.class);
+        when(store.isEnlistedInCurrentTransaction()).thenReturn(true);
+        return store;
+    }
+
+    private static IdempotencyGuard guard(IdempotencyStore store) {
+        return new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
+    }
+
+    private static JsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JsonMappers.standard());
     }
 }

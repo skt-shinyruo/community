@@ -13,20 +13,25 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.IOException;
 import java.io.ByteArrayInputStream;
 import java.net.InetSocketAddress;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -123,6 +128,68 @@ class HttpCommunityOssClientTest {
     }
 
     @Test
+    void callerDefaultAuthorizationShouldNotReachPublicFiles() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        CountDownLatch requestReceived = new CountDownLatch(1);
+        HttpServer server = startPublicFileServer(authorization, requestReceived);
+        try {
+            HttpCommunityOssClient client = new HttpCommunityOssClient(
+                    "http://127.0.0.1:" + server.getAddress().getPort(),
+                    RestClient.builder().defaultHeader(
+                            HttpHeaders.AUTHORIZATION, "Bearer leaked-default"),
+                    () -> {
+                        throw new AssertionError("public file loading must not request a service token");
+                    }
+            );
+
+            client.loadPublicFile("public.txt");
+
+            assertThat(requestReceived.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(authorization.get()).isNull();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void finalClientAuthenticationShouldOverrideCallerInterceptorByRoute() throws Exception {
+        UUID objectId = UUID.fromString("00000000-0000-7000-8000-000000000001");
+        UUID versionId = UUID.fromString("00000000-0000-7000-8000-000000000002");
+        UUID referenceId = UUID.fromString("00000000-0000-7000-8000-000000000005");
+        List<CapturedRequest> requests = new ArrayList<>();
+        AtomicInteger tokenCalls = new AtomicInteger();
+        HttpServer server = startCapabilityServer(requests, objectId, versionId, referenceId);
+        try {
+            RestClient.Builder callerBuilder = RestClient.builder()
+                    .requestInterceptor((request, body, execution) -> {
+                        request.getHeaders().set(
+                                HttpHeaders.AUTHORIZATION, "Bearer leaked-interceptor");
+                        return execution.execute(request, body);
+                    });
+            HttpCommunityOssClient client = new HttpCommunityOssClient(
+                    "http://127.0.0.1:" + server.getAddress().getPort(),
+                    callerBuilder,
+                    () -> {
+                        tokenCalls.incrementAndGet();
+                        return "service-token-1";
+                    }
+            );
+
+            client.loadPublicFile("public.txt");
+            client.prepareUpload(uploadSessionRequest());
+
+            assertThat(requests).extracting(CapturedRequest::authorization)
+                    .containsExactly(
+                            List.of(),
+                            List.of("Bearer service-token-1")
+                    );
+            assertThat(tokenCalls).hasValue(1);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void everyNonPublicCapabilityShouldUseInternalRouteAndExactlyOneServiceToken() throws Exception {
         UUID objectId = UUID.fromString("00000000-0000-7000-8000-000000000001");
         UUID versionId = UUID.fromString("00000000-0000-7000-8000-000000000002");
@@ -178,6 +245,63 @@ class HttpCommunityOssClientTest {
                     );
             assertThat(requests).allSatisfy(request ->
                     assertThat(request.authorization()).containsExactly("Bearer service-token-1"));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void completeProxyUploadShouldPreserveOneShotMultipartContent() throws Exception {
+        UUID objectId = UUID.fromString("00000000-0000-7000-8000-000000000001");
+        UUID versionId = UUID.fromString("00000000-0000-7000-8000-000000000002");
+        UUID sessionId = UUID.fromString("00000000-0000-7000-8000-000000000003");
+        byte[] uploadContent = "avatar-data".getBytes(StandardCharsets.UTF_8);
+        AtomicInteger tokenCalls = new AtomicInteger();
+        AtomicInteger streamOpenCount = new AtomicInteger();
+        AtomicInteger streamCloseCount = new AtomicInteger();
+        AtomicReference<CapturedMultipartRequest> capturedRequest = new AtomicReference<>();
+        HttpServer server = startCompleteUploadServer(capturedRequest, wrappedMetadataResponseWithOwnerFields());
+        try {
+            HttpCommunityOssClient client = new HttpCommunityOssClient(
+                    "http://127.0.0.1:" + server.getAddress().getPort(),
+                    () -> {
+                        tokenCalls.incrementAndGet();
+                        return "service-token-1";
+                    }
+            );
+
+            OssMetadataResponse response = client.completeProxyUpload(new OssCompleteUploadRequest(
+                    sessionId,
+                    objectId,
+                    versionId,
+                    () -> {
+                        streamOpenCount.incrementAndGet();
+                        return new ByteArrayInputStream(uploadContent) {
+                            @Override
+                            public void close() throws IOException {
+                                streamCloseCount.incrementAndGet();
+                                super.close();
+                            }
+                        };
+                    },
+                    "avatar.png",
+                    "image/png",
+                    uploadContent.length,
+                    "sha256-avatar"
+            ));
+
+            CapturedMultipartRequest request = capturedRequest.get();
+            CapturedMultipartPart part = parseSingleMultipartPart(request.contentType(), request.body());
+            assertThat(response.objectId()).isEqualTo(objectId);
+            assertThat(tokenCalls).hasValue(1);
+            assertThat(streamOpenCount).hasValue(1);
+            assertThat(streamCloseCount).hasValue(1);
+            assertThat(request.authorization()).containsExactly("Bearer service-token-1");
+            assertThat(part.headers())
+                    .contains("Content-Disposition: form-data; name=\"file\"; filename=\"avatar.png\"")
+                    .contains("Content-Type: image/png")
+                    .contains("Content-Length: " + uploadContent.length);
+            assertThat(part.content()).containsExactly(uploadContent);
         } finally {
             server.stop(0);
         }
@@ -418,6 +542,27 @@ class HttpCommunityOssClientTest {
         return server;
     }
 
+    private static HttpServer startCompleteUploadServer(
+            AtomicReference<CapturedMultipartRequest> capturedRequest,
+            String responseJson
+    ) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/internal/oss/upload-sessions/", exchange -> {
+            capturedRequest.set(new CapturedMultipartRequest(
+                    List.copyOf(exchange.getRequestHeaders().getOrDefault(HttpHeaders.AUTHORIZATION, List.of())),
+                    exchange.getRequestHeaders().getFirst(HttpHeaders.CONTENT_TYPE),
+                    exchange.getRequestBody().readAllBytes()
+            ));
+            byte[] body = responseJson.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
     private static HttpServer startCapabilityServer(
             List<CapturedRequest> requests,
             UUID objectId,
@@ -597,6 +742,44 @@ class HttpCommunityOssClientTest {
                 """.formatted(objectId, versionId);
     }
 
+    private static CapturedMultipartPart parseSingleMultipartPart(String contentType, byte[] body) {
+        String boundary = MediaType.parseMediaType(contentType).getParameter("boundary");
+        if (boundary == null || boundary.isBlank()) {
+            throw new IllegalArgumentException("multipart boundary is missing");
+        }
+        Charset charset = StandardCharsets.ISO_8859_1;
+        byte[] openingBoundary = ("--" + boundary + "\r\n").getBytes(charset);
+        byte[] headerSeparator = "\r\n\r\n".getBytes(charset);
+        byte[] closingBoundary = ("\r\n--" + boundary + "--").getBytes(charset);
+        int headersStart = requireSequence(body, openingBoundary, 0) + openingBoundary.length;
+        int headersEnd = requireSequence(body, headerSeparator, headersStart);
+        int contentStart = headersEnd + headerSeparator.length;
+        int contentEnd = requireSequence(body, closingBoundary, contentStart);
+        return new CapturedMultipartPart(
+                new String(body, headersStart, headersEnd - headersStart, charset),
+                Arrays.copyOfRange(body, contentStart, contentEnd)
+        );
+    }
+
+    private static int requireSequence(byte[] source, byte[] sequence, int fromIndex) {
+        outer:
+        for (int index = fromIndex; index <= source.length - sequence.length; index++) {
+            for (int offset = 0; offset < sequence.length; offset++) {
+                if (source[index + offset] != sequence[offset]) {
+                    continue outer;
+                }
+            }
+            return index;
+        }
+        throw new IllegalArgumentException("multipart sequence is missing");
+    }
+
     private record CapturedRequest(String method, String path, List<String> authorization) {
+    }
+
+    private record CapturedMultipartRequest(List<String> authorization, String contentType, byte[] body) {
+    }
+
+    private record CapturedMultipartPart(String headers, byte[] content) {
     }
 }

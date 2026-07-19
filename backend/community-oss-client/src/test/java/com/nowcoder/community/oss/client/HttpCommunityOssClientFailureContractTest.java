@@ -1,11 +1,13 @@
 package com.nowcoder.community.oss.client;
 
+import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
@@ -125,6 +127,62 @@ class HttpCommunityOssClientFailureContractTest {
         assertThat(requestCount).hasValue(0);
     }
 
+    @Test
+    void blankServiceTokenMustNotOpenMultipartStreamOrSendHttp() throws Exception {
+        UploadFailure failure = captureUploadAuthenticationFailure(() -> "   ");
+
+        assertTypedFailure(failure.throwable(), "BAD_RESPONSE", 0, false);
+        assertThat(failure.throwable().getMessage()).isEqualTo("OSS service authentication unavailable");
+        assertThat(failure.streamOpenCount()).hasValue(0);
+        assertThat(failure.streamCloseCount()).hasValue(0);
+        assertThat(failure.requestCount()).hasValue(0);
+    }
+
+    @Test
+    void throwingServiceTokenProviderMustNotOpenMultipartStreamOrSendHttp() throws Exception {
+        UploadFailure failure = captureUploadAuthenticationFailure(() -> {
+            throw new IllegalStateException("could not sign secret-service-token-8");
+        });
+
+        assertTypedFailure(failure.throwable(), "BAD_RESPONSE", 0, false);
+        assertThat(failure.throwable().getMessage())
+                .isEqualTo("OSS service authentication unavailable")
+                .doesNotContain("secret-service-token-8", "could not sign");
+        assertThat(failure.streamOpenCount()).hasValue(0);
+        assertThat(failure.streamCloseCount()).hasValue(0);
+        assertThat(failure.requestCount()).hasValue(0);
+    }
+
+    private UploadFailure captureUploadAuthenticationFailure(OssServiceTokenProvider tokenProvider) throws IOException {
+        AtomicInteger streamOpenCount = new AtomicInteger();
+        AtomicInteger streamCloseCount = new AtomicInteger();
+        AtomicInteger requestCount = new AtomicInteger();
+        HttpServer server = startAnyPathServer(requestCount);
+        HttpCommunityOssClient client = new HttpCommunityOssClient(baseUrl(server), tokenProvider);
+        OssCompleteUploadRequest request = new OssCompleteUploadRequest(
+                UUID.fromString("00000000-0000-7000-8000-000000007303"),
+                OBJECT_ID,
+                UUID.fromString("00000000-0000-7000-8000-000000007302"),
+                () -> {
+                    streamOpenCount.incrementAndGet();
+                    return new ByteArrayInputStream("data".getBytes(StandardCharsets.UTF_8)) {
+                        @Override
+                        public void close() throws IOException {
+                            streamCloseCount.incrementAndGet();
+                            super.close();
+                        }
+                    };
+                },
+                "avatar.png",
+                "image/png",
+                4,
+                "sha256-avatar"
+        );
+
+        Throwable failure = catchThrowable(() -> client.completeProxyUpload(request));
+        return new UploadFailure(failure, streamOpenCount, streamCloseCount, requestCount);
+    }
+
     private Throwable callMetadata(HttpServer server) {
         HttpCommunityOssClient client = new HttpCommunityOssClient(baseUrl(server), () -> "service-token-1");
         return catchThrowable(() -> client.getMetadata(OBJECT_ID));
@@ -156,6 +214,17 @@ class HttpCommunityOssClientFailureContractTest {
     private HttpServer startServer(com.sun.net.httpserver.HttpHandler handler) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/internal/oss/objects/" + OBJECT_ID, handler);
+        server.start();
+        servers.add(server);
+        return server;
+    }
+
+    private HttpServer startAnyPathServer(AtomicInteger requestCount) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            requestCount.incrementAndGet();
+            exchange.close();
+        });
         server.start();
         servers.add(server);
         return server;
@@ -210,5 +279,13 @@ class HttpCommunityOssClientFailureContractTest {
                   }
                 }
                 """;
+    }
+
+    private record UploadFailure(
+            Throwable throwable,
+            AtomicInteger streamOpenCount,
+            AtomicInteger streamCloseCount,
+            AtomicInteger requestCount
+    ) {
     }
 }

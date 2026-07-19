@@ -140,6 +140,127 @@ class ObjectReferenceApplicationServiceTest {
     }
 
     @Test
+    void bindInternalReferenceShouldHideForeignObjectWonDuringAtomicInsertWithoutMutation() {
+        Fixture fixture = fixture();
+        UUID referenceId = uuid(90);
+        OssObjectReference foreignWinner = OssObjectReference.active(
+                referenceId,
+                uuid(91),
+                uuid(92),
+                "community-app",
+                "user",
+                "avatar",
+                "upload-7",
+                "PRIMARY",
+                CLOCK.instant().minusSeconds(1),
+                null
+        );
+        fixture.referenceRepository.returnOnceFromAtomicInsert(foreignWinner);
+        assertThat(fixture.referenceRepository.findById(referenceId)).isEmpty();
+
+        Throwable failure = catchThrowable(() -> fixture.serviceAt(CLOCK.instant()).bindInternalReference(
+                "community-app",
+                deterministicCommand(
+                        referenceId,
+                        fixture.objectId(),
+                        fixture.versionId(),
+                        "upload-7",
+                        "PRIMARY",
+                        null,
+                        "user-7")));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(fixture.referenceRepository.insertCount()).isEqualTo(1),
+                () -> assertThat(fixture.referenceRepository.saveCount()).isZero(),
+                () -> assertThat(fixture.referenceRepository.findByObjectId(fixture.objectId())).isEmpty(),
+                () -> assertThat(foreignWinner.objectId()).isEqualTo(uuid(91)),
+                () -> assertThat(foreignWinner.subjectService()).isEqualTo("community-app")
+        );
+    }
+
+    @Test
+    void bindInternalReferenceShouldHideForeignSubjectWonDuringAtomicInsertWithoutMutation() {
+        Fixture fixture = fixture();
+        UUID referenceId = uuid(93);
+        OssObjectReference foreignWinner = OssObjectReference.active(
+                referenceId,
+                fixture.objectId(),
+                fixture.versionId(),
+                "profile-service",
+                "user",
+                "avatar",
+                "upload-7",
+                "PRIMARY",
+                CLOCK.instant().minusSeconds(1),
+                null
+        );
+        fixture.referenceRepository.returnOnceFromAtomicInsert(foreignWinner);
+        assertThat(fixture.referenceRepository.findById(referenceId)).isEmpty();
+
+        Throwable failure = catchThrowable(() -> fixture.serviceAt(CLOCK.instant()).bindInternalReference(
+                "community-app",
+                deterministicCommand(
+                        referenceId,
+                        fixture.objectId(),
+                        fixture.versionId(),
+                        "upload-7",
+                        "PRIMARY",
+                        null,
+                        "user-7")));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(fixture.referenceRepository.insertCount()).isEqualTo(1),
+                () -> assertThat(fixture.referenceRepository.saveCount()).isZero(),
+                () -> assertThat(fixture.referenceRepository.findByObjectId(fixture.objectId())).isEmpty(),
+                () -> assertThat(foreignWinner.objectId()).isEqualTo(fixture.objectId()),
+                () -> assertThat(foreignWinner.subjectService()).isEqualTo("profile-service")
+        );
+    }
+
+    @Test
+    void bindInternalReferenceShouldReturnMatchingWinnerFromAtomicInsertWithoutMutation() {
+        Fixture fixture = fixture();
+        UUID referenceId = uuid(94);
+        Instant winnerCreatedAt = CLOCK.instant().minusSeconds(1);
+        OssObjectReference matchingWinner = OssObjectReference.active(
+                referenceId,
+                fixture.objectId(),
+                fixture.versionId(),
+                "community-app",
+                "user",
+                "avatar",
+                "upload-7",
+                "PRIMARY",
+                winnerCreatedAt,
+                null
+        );
+        fixture.referenceRepository.returnOnceFromAtomicInsert(matchingWinner);
+        assertThat(fixture.referenceRepository.findById(referenceId)).isEmpty();
+
+        ObjectReferenceResult result = fixture.serviceAt(CLOCK.instant()).bindInternalReference(
+                "community-app",
+                deterministicCommand(
+                        referenceId,
+                        fixture.objectId(),
+                        fixture.versionId(),
+                        "upload-7",
+                        "PRIMARY",
+                        null,
+                        "user-7"));
+
+        assertAll(
+                () -> assertThat(result.referenceId()).isEqualTo(referenceId),
+                () -> assertThat(result.createdAt()).isEqualTo(winnerCreatedAt),
+                () -> assertThat(result.subjectService()).isEqualTo("community-app"),
+                () -> assertThat(fixture.referenceRepository.insertCount()).isEqualTo(1),
+                () -> assertThat(fixture.referenceRepository.saveCount()).isZero(),
+                () -> assertThat(fixture.referenceRepository.findByObjectId(fixture.objectId())).isEmpty()
+        );
+    }
+
+    @Test
     void bindInternalReferenceShouldReplayMatchingVersionWithoutMutation() {
         Fixture fixture = fixture();
         UUID referenceId = uuid(89);
@@ -537,6 +658,8 @@ class ObjectReferenceApplicationServiceTest {
     private static final class FakeReferenceRepository implements OssObjectReferenceRepository {
         private final Map<UUID, OssObjectReference> rows = new HashMap<>();
         private int saveCount;
+        private int insertCount;
+        private OssObjectReference nextAtomicInsertResult;
 
         @Override
         public void save(OssObjectReference reference) {
@@ -546,6 +669,12 @@ class ObjectReferenceApplicationServiceTest {
 
         @Override
         public OssObjectReference insertOrFindExisting(OssObjectReference reference) {
+            insertCount++;
+            if (nextAtomicInsertResult != null) {
+                OssObjectReference result = nextAtomicInsertResult;
+                nextAtomicInsertResult = null;
+                return result;
+            }
             OssObjectReference existing = rows.get(reference.referenceId());
             if (existing != null) {
                 return existing;
@@ -566,6 +695,14 @@ class ObjectReferenceApplicationServiceTest {
 
         int saveCount() {
             return saveCount;
+        }
+
+        int insertCount() {
+            return insertCount;
+        }
+
+        void returnOnceFromAtomicInsert(OssObjectReference result) {
+            nextAtomicInsertResult = result;
         }
     }
 

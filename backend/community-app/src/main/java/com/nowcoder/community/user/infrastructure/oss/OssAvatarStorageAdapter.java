@@ -83,7 +83,7 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
                 response.sessionId().toString(),
                 response.objectId(),
                 response.versionId(),
-                response.uploadUrl(),
+                "/api/oss/objects/" + response.objectId() + "/complete",
                 UPLOAD_METHOD,
                 FILE_FIELD,
                 fields,

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -43,6 +44,53 @@ class ObjectReferenceApplicationServiceTest {
                         uuid(80),
                         fixture.objectId(),
                         fixture.versionId(),
+                        "upload-7",
+                        "PRIMARY",
+                        null,
+                        "user-7")));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(fixture.referenceRepository.saveCount()).isZero(),
+                () -> assertThat(fixture.referenceRepository.findByObjectId(fixture.objectId())).isEmpty()
+        );
+    }
+
+    @Test
+    void bindInternalReferenceShouldHideMissingVersionWithoutInsertion() {
+        Fixture fixture = fixture();
+
+        Throwable failure = catchThrowable(() -> fixture.serviceAt(CLOCK.instant()).bindInternalReference(
+                "community-app",
+                deterministicCommand(
+                        uuid(82),
+                        fixture.objectId(),
+                        uuid(83),
+                        "upload-7",
+                        "PRIMARY",
+                        null,
+                        "user-7")));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(fixture.referenceRepository.saveCount()).isZero(),
+                () -> assertThat(fixture.referenceRepository.findByObjectId(fixture.objectId())).isEmpty()
+        );
+    }
+
+    @Test
+    void bindInternalReferenceShouldHideCrossObjectVersionWithoutInsertion() {
+        Fixture fixture = fixture();
+        UUID foreignObjectId = uuid(84);
+        UUID foreignVersionId = uuid(85);
+        fixture.versionRepository.rows.put(foreignVersionId, activeVersion(foreignObjectId, foreignVersionId));
+
+        Throwable failure = catchThrowable(() -> fixture.serviceAt(CLOCK.instant()).bindInternalReference(
+                "community-app",
+                deterministicCommand(
+                        uuid(86),
+                        fixture.objectId(),
+                        foreignVersionId,
                         "upload-7",
                         "PRIMARY",
                         null,
@@ -92,6 +140,35 @@ class ObjectReferenceApplicationServiceTest {
     }
 
     @Test
+    void bindInternalReferenceShouldReplayMatchingVersionWithoutMutation() {
+        Fixture fixture = fixture();
+        UUID referenceId = uuid(89);
+        BindObjectReferenceCommand command = deterministicCommand(
+                referenceId,
+                fixture.objectId(),
+                fixture.versionId(),
+                "upload-7",
+                "PRIMARY",
+                null,
+                "user-7");
+
+        ObjectReferenceResult first = fixture.serviceAt(CLOCK.instant()).bindInternalReference(
+                "community-app",
+                command);
+        ObjectReferenceResult replayed = fixture.serviceAt(CLOCK.instant().plusSeconds(60)).bindInternalReference(
+                "community-app",
+                command);
+
+        assertAll(
+                () -> assertThat(replayed.referenceId()).isEqualTo(first.referenceId()),
+                () -> assertThat(replayed.versionId()).isEqualTo(fixture.versionId()),
+                () -> assertThat(replayed.createdAt()).isEqualTo(first.createdAt()),
+                () -> assertThat(fixture.referenceRepository.findByObjectId(fixture.objectId())).hasSize(1),
+                () -> assertThat(fixture.referenceRepository.saveCount()).isEqualTo(1)
+        );
+    }
+
+    @Test
     void getAndReleaseInternalReferenceShouldHideForeignReferenceSubjectWithoutMutation() {
         Fixture fixture = fixture();
         UUID referenceId = uuid(81);
@@ -122,6 +199,73 @@ class ObjectReferenceApplicationServiceTest {
                 () -> assertHiddenObjectNotFound(releaseFailure),
                 () -> assertThat(fixture.referenceRepository.saveCount()).isZero(),
                 () -> assertThat(fixture.referenceRepository.findById(referenceId)).contains(foreignReference)
+        );
+    }
+
+    @Test
+    void internalReferenceEntriesShouldNotInvokePublicReferenceEntries() {
+        Fixture fixture = fixture();
+        UUID referenceId = uuid(87);
+        OssObjectReference stored = OssObjectReference.active(
+                referenceId,
+                fixture.objectId(),
+                fixture.versionId(),
+                "community-app",
+                "community-app",
+                "user",
+                "upload-7",
+                "PRIMARY",
+                CLOCK.instant(),
+                null
+        );
+        fixture.referenceRepository.rows.put(referenceId, stored);
+        AtomicInteger bindCalls = new AtomicInteger();
+        AtomicInteger findCalls = new AtomicInteger();
+        AtomicInteger releaseCalls = new AtomicInteger();
+        ObjectReferenceApplicationService service = new ObjectReferenceApplicationService(
+                fixture.objectRepository,
+                fixture.versionRepository,
+                fixture.referenceRepository,
+                CLOCK
+        ) {
+            @Override
+            public ObjectReferenceResult bindReference(BindObjectReferenceCommand command) {
+                bindCalls.incrementAndGet();
+                return super.bindReference(command);
+            }
+
+            @Override
+            public ObjectReferenceResult findReference(UUID objectId, UUID referenceId) {
+                findCalls.incrementAndGet();
+                return super.findReference(objectId, referenceId);
+            }
+
+            @Override
+            public ObjectReferenceResult releaseReference(ReleaseObjectReferenceCommand command) {
+                releaseCalls.incrementAndGet();
+                return super.releaseReference(command);
+            }
+        };
+
+        service.bindInternalReference(
+                "community-app",
+                deterministicCommand(
+                        uuid(88),
+                        fixture.objectId(),
+                        fixture.versionId(),
+                        "upload-7",
+                        "PRIMARY",
+                        null,
+                        "user-7"));
+        service.getInternalReference(fixture.objectId(), referenceId, "community-app");
+        service.releaseInternalReference(
+                "community-app",
+                new ReleaseObjectReferenceCommand(fixture.objectId(), referenceId, "user-7"));
+
+        assertAll(
+                () -> assertThat(bindCalls).hasValue(0),
+                () -> assertThat(findCalls).hasValue(0),
+                () -> assertThat(releaseCalls).hasValue(0)
         );
     }
 

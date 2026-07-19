@@ -4,9 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssPublicFileResponse;
-import com.nowcoder.community.oss.client.model.OssAccessDecisionResponse;
 import com.nowcoder.community.oss.client.model.OssBindReferenceRequest;
-import com.nowcoder.community.oss.client.model.OssGrantObjectAccessRequest;
 import com.nowcoder.community.oss.client.model.OssLifecycleResponse;
 import com.nowcoder.community.oss.client.model.OssSignedUrlResponse;
 import com.nowcoder.community.oss.client.model.OssReferenceResponse;
@@ -50,6 +48,16 @@ class CommunityOssClientContractTest {
         assertThat(Arrays.stream(CommunityOssClient.class.getMethods())
                 .map(method -> method.getName()))
                 .doesNotContain("grantObjectAccess", "revokeObjectAccess");
+    }
+
+    @Test
+    void internalClientShouldNotPublishRetiredUserGrantModels() {
+        assertThat(catchThrowable(() -> Class.forName(
+                "com.nowcoder.community.oss.client.model.OssAccessDecisionResponse")))
+                .isInstanceOf(ClassNotFoundException.class);
+        assertThat(catchThrowable(() -> Class.forName(
+                "com.nowcoder.community.oss.client.model.OssGrantObjectAccessRequest")))
+                .isInstanceOf(ClassNotFoundException.class);
     }
 
     @Test
@@ -124,19 +132,6 @@ class CommunityOssClientContractTest {
                 "public, max-age=31536000, immutable",
                 "avatar.png"
         );
-        OssAccessDecisionResponse access = new OssAccessDecisionResponse(
-                uuid(4),
-                objectId,
-                versionId,
-                "USER",
-                "7",
-                "READ",
-                Instant.parse("2026-05-07T01:00:00Z"),
-                "7",
-                Instant.parse("2026-05-07T00:00:00Z"),
-                null,
-                true
-        );
         OssReferenceResponse reference = new OssReferenceResponse(
                 uuid(5),
                 objectId,
@@ -160,14 +155,6 @@ class CommunityOssClientContractTest {
                 "object purged",
                 Instant.parse("2026-05-07T00:10:00Z")
         );
-        OssGrantObjectAccessRequest grantRequest = new OssGrantObjectAccessRequest(
-                versionId.toString(),
-                "USER",
-                "7",
-                "READ",
-                Instant.parse("2026-05-07T01:00:00Z"),
-                "7"
-        );
         OssBindReferenceRequest bindRequest = new OssBindReferenceRequest(
                 versionId.toString(),
                 "community-app",
@@ -185,10 +172,8 @@ class CommunityOssClientContractTest {
         assertThat(metadata.currentVersionId()).isEqualTo(versionId);
         assertThat(signedUrl.method()).isEqualTo("GET");
         assertThat(publicFile.contentType()).isEqualTo("text/plain");
-        assertThat(access.permission()).isEqualTo("READ");
         assertThat(reference.status()).isEqualTo("ACTIVE");
         assertThat(lifecycle.purged()).isTrue();
-        assertThat(grantRequest.permission()).isEqualTo("READ");
         assertThat(bindRequest.referenceRole()).isEqualTo("PRIMARY");
         assertThat(bindRequest.referenceId()).isNull();
     }

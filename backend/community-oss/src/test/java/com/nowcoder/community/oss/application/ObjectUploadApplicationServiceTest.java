@@ -181,6 +181,118 @@ class ObjectUploadApplicationServiceTest {
     }
 
     @Test
+    void prepareInternalUploadShouldHideForeignRequestReplayWithoutEffects() {
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                sessionRepository,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+        UUID requestId = uuid(803);
+        ObjectUploadSessionResult first = service.prepareInternalUpload(
+                "service-a",
+                internalPrepareCommand(requestId, "service-a", "actor-a"));
+        objectRepository.saveCount = 0;
+        versionRepository.saveCount = 0;
+        sessionRepository.mutationCount = 0;
+        objectStore.operationCount = 0;
+
+        Throwable failure = catchThrowable(() -> service.prepareInternalUpload(
+                "service-b",
+                internalPrepareCommand(requestId, "service-b", "actor-b")));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(failure),
+                () -> assertThat(objectRepository.saveCount).isZero(),
+                () -> assertThat(versionRepository.saveCount).isZero(),
+                () -> assertThat(sessionRepository.mutationCount).isZero(),
+                () -> assertThat(objectStore.operationCount).isZero(),
+                () -> assertThat(sessionRepository.findById(first.sessionId()).orElseThrow().ownerService())
+                        .isEqualTo("service-a"),
+                () -> assertThat(sessionRepository.findById(first.sessionId()).orElseThrow().createdBy())
+                        .isEqualTo("actor-a")
+        );
+    }
+
+    @Test
+    void prepareInternalUploadShouldReplayMatchingServiceWithoutEffects() {
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                sessionRepository,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+        UUID requestId = uuid(804);
+        PrepareObjectUploadCommand command = internalPrepareCommand(requestId, "service-a", "actor-a");
+        ObjectUploadSessionResult first = service.prepareInternalUpload("service-a", command);
+        objectRepository.saveCount = 0;
+        versionRepository.saveCount = 0;
+        sessionRepository.mutationCount = 0;
+        objectStore.operationCount = 0;
+
+        ObjectUploadSessionResult replayed = service.prepareInternalUpload("service-a", command);
+        OssUploadSession stored = sessionRepository.findById(first.sessionId()).orElseThrow();
+
+        assertAll(
+                () -> assertThat(replayed.sessionId()).isEqualTo(first.sessionId()),
+                () -> assertThat(replayed.objectId()).isEqualTo(first.objectId()),
+                () -> assertThat(replayed.versionId()).isEqualTo(first.versionId()),
+                () -> assertThat(replayed.uploadUrl()).isEqualTo(
+                        "/internal/oss/upload-sessions/" + first.sessionId() + "/complete"),
+                () -> assertThat(stored.ownerService()).isEqualTo("service-a"),
+                () -> assertThat(stored.createdBy()).isEqualTo("actor-a"),
+                () -> assertThat(objectRepository.saveCount).isZero(),
+                () -> assertThat(versionRepository.saveCount).isZero(),
+                () -> assertThat(sessionRepository.mutationCount).isZero(),
+                () -> assertThat(objectStore.operationCount).isZero()
+        );
+    }
+
+    @Test
+    void prepareInternalUploadShouldNotInvokePublicPrepareEntry() {
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        AtomicInteger publicEntryCalls = new AtomicInteger();
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                sessionRepository,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        ) {
+            @Override
+            public ObjectUploadSessionResult prepareUpload(PrepareObjectUploadCommand command) {
+                publicEntryCalls.incrementAndGet();
+                return super.prepareUpload(command);
+            }
+        };
+
+        service.prepareInternalUpload(
+                "service-a",
+                internalPrepareCommand(uuid(805), "service-a", "actor-a"));
+
+        assertThat(publicEntryCalls).hasValue(0);
+    }
+
+    @Test
     void completeInternalUploadShouldHideForeignServiceWithoutEffects() {
         FakeObjectRepository objectRepository = new FakeObjectRepository();
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
@@ -1016,6 +1128,27 @@ class ObjectUploadApplicationServiceTest {
                 prepared.versionId(),
                 uploadContent(streamOpenCount),
                 "user-7"
+        );
+    }
+
+    private static PrepareObjectUploadCommand internalPrepareCommand(
+            UUID requestId,
+            String ownerService,
+            String actorId
+    ) {
+        return new PrepareObjectUploadCommand(
+                requestId,
+                "DRIVE_FILE",
+                ownerService,
+                "drive",
+                "DRIVE_UPLOAD",
+                "upload-7",
+                "PRIVATE",
+                "note.txt",
+                "text/plain",
+                2,
+                "sha256-note",
+                actorId
         );
     }
 

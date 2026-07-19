@@ -10,10 +10,16 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -26,6 +32,10 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 class ImMigrationTest {
 
     private static final String HISTORY_TABLE = "im_core_schema_history";
+    private static final String VERSION_ONE_SHA256 =
+            "d91805a186e2328a50f8eb992a4baf63a68a79f1a7c7b834c9b35d97f93949b1";
+    private static final String MANIFEST_SHA256 =
+            "58fcaf4d49790fd4827757953ddec3e48515b52b663baa24d486c1504a9e9b26";
 
     @Container
     private static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.0")
@@ -45,16 +55,18 @@ class ImMigrationTest {
         Object result = ImMigrationReflectionSupport.invoke(
                 runner, "migrate", new Class<?>[0]);
 
-        assertThat(ImMigrationReflectionSupport.migrationsExecuted(result)).isEqualTo(1);
+        assertThat(ImMigrationReflectionSupport.migrationsExecuted(result)).isEqualTo(2);
         assertThat(tableNames(migrated))
                 .containsExactlyInAnyOrderElementsOf(union(ImSchemaTestSupport.IM_TABLES, HISTORY_TABLE));
         assertThat(ImSchemaTestSupport.captureMysqlExact(
-                migrated.url(), MYSQL.getUsername(), MYSQL.getPassword(), Set.of(HISTORY_TABLE)))
+                migrated.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                Set.of(HISTORY_TABLE, "outbox_event")))
                 .isEqualTo(ImSchemaTestSupport.captureMysqlExact(
-                        legacy.url(), MYSQL.getUsername(), MYSQL.getPassword(), Set.of()));
+                        legacy.url(), MYSQL.getUsername(), MYSQL.getPassword(), Set.of("outbox_event")));
         assertThat(queryLong(migrated,
                 "select current_version from im_membership_version_counter where id = 1"))
                 .isZero();
+        assertOutboxLeaseFencingSchema(migrated);
         assertCanonicalCatalog(migrated);
     }
 
@@ -68,11 +80,11 @@ class ImMigrationTest {
         Object second = ImMigrationReflectionSupport.invoke(runner, "migrate", new Class<?>[0]);
         ImMigrationReflectionSupport.invoke(runner, "validate", new Class<?>[0]);
 
-        assertThat(ImMigrationReflectionSupport.migrationsExecuted(first)).isEqualTo(1);
+        assertThat(ImMigrationReflectionSupport.migrationsExecuted(first)).isEqualTo(2);
         assertThat(ImMigrationReflectionSupport.migrationsExecuted(second)).isZero();
         assertThat(queryLong(database,
                 "select count(*) from " + HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(1L);
+                .isEqualTo(2L);
     }
 
     @Test
@@ -100,6 +112,17 @@ class ImMigrationTest {
     }
 
     @Test
+    void versionOneMigrationAndManifestShouldRemainFrozen() throws Exception {
+        Path migrationDirectory = ImSchemaTestSupport.findRepositoryRoot().resolve(
+                "backend/community-im-db-migrations/src/main/resources/db/migration/im-core");
+
+        assertThat(sha256(migrationDirectory.resolve("V001__im_core_baseline.sql")))
+                .isEqualTo(VERSION_ONE_SHA256);
+        assertThat(sha256(migrationDirectory.resolve("im-core-schema-manifest.tsv")))
+                .isEqualTo(MANIFEST_SHA256);
+    }
+
+    @Test
     void exactLegacyBaselineShouldUpgradeAndPreserveImBusinessData(@TempDir Path tempDir)
             throws Exception {
         Database database = freshDatabase("upgrade");
@@ -110,7 +133,7 @@ class ImMigrationTest {
                 MYSQL.getUsername(),
                 MYSQL.getPassword(),
                 "im_upgrade_history",
-                "classpath:db/test/im-core-upgrade"
+                "classpath:db/migration/im-core"
         );
 
         assertThatThrownBy(() -> ImMigrationReflectionSupport.invoke(
@@ -136,12 +159,32 @@ class ImMigrationTest {
                         + "x'30000000000070008000000000000004'"))
                 .isEqualTo("legacy-message");
         assertThat(queryString(database,
-                "select payload from outbox_event where event_id = 'legacy-im-event'"))
-                .isEqualTo("{\"preserve\":true}");
+                "select payload from outbox_event where event_id = 'legacy-im-pending'"))
+                .isEqualTo("{\"phase\":\"pending\"}");
         assertThat(queryLong(database,
                 "select current_version from im_membership_version_counter where id = 1"))
                 .isEqualTo(3L);
-        assertThat(columnNames(database, "im_room")).contains("migration_probe");
+        assertOutboxLeaseFencingSchema(database);
+        assertThat(outboxEventStates(database, "legacy-im-%")).containsExactly(
+                new OutboxEventState(
+                        "30000000000070008000000000000005",
+                        "legacy-im-pending",
+                        "{\"phase\":\"pending\"}",
+                        "PENDING",
+                        3,
+                        null,
+                        null
+                ),
+                new OutboxEventState(
+                        "30000000000070008000000000000006",
+                        "legacy-im-processing",
+                        "{\"phase\":\"processing\"}",
+                        "PROCESSING",
+                        7,
+                        null,
+                        null
+                )
+        );
     }
 
     @Test
@@ -176,10 +219,12 @@ class ImMigrationTest {
     }
 
     @Test
-    void h2FixtureShouldExactlyMatchMysqlColumnsIndexesOnUpdateAndCounterSeed(@TempDir Path tempDir)
+    void h2FixtureShouldExactlyMatchMigratedMysqlColumnsIndexesOnUpdateAndCounterSeed()
             throws Exception {
         Database mysql = freshDatabase("h2_equivalence");
-        applyLegacySchema(mysql, tempDir.resolve("legacy"));
+        Object runner = ImMigrationReflectionSupport.newStandardRunner(
+                mysql.url(), MYSQL.getUsername(), MYSQL.getPassword());
+        ImMigrationReflectionSupport.invoke(runner, "migrate", new Class<?>[0]);
         String h2Url = "jdbc:h2:mem:im_core_" + UUID.randomUUID().toString().replace("-", "")
                 + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1";
 
@@ -189,7 +234,7 @@ class ImMigrationTest {
 
             ImSchemaTestSupport.PortableCatalog mysqlCatalog =
                     ImSchemaTestSupport.captureMysqlPortable(
-                            mysql.url(), MYSQL.getUsername(), MYSQL.getPassword(), Set.of());
+                            mysql.url(), MYSQL.getUsername(), MYSQL.getPassword(), Set.of(HISTORY_TABLE));
             ImSchemaTestSupport.PortableCatalog h2Catalog =
                     ImSchemaTestSupport.captureH2Portable(h2);
 
@@ -218,10 +263,13 @@ class ImMigrationTest {
                 MYSQL.getPassword()
         );
         Object withoutHistory = ImMigrationReflectionSupport.invoke(
-                actual, "withoutTables", new Class<?>[]{Set.class}, Set.of(HISTORY_TABLE));
+                actual, "withoutTables", new Class<?>[]{Set.class},
+                Set.of(HISTORY_TABLE, "outbox_event"));
         Object canonical = ImMigrationReflectionSupport.invokeStatic(
                 catalogClass, "canonical", new Class<?>[0]);
-        assertThat(withoutHistory).isEqualTo(canonical);
+        Object canonicalWithoutOutbox = ImMigrationReflectionSupport.invoke(
+                canonical, "withoutTables", new Class<?>[]{Set.class}, Set.of("outbox_event"));
+        assertThat(withoutHistory).isEqualTo(canonicalWithoutOutbox);
     }
 
     private static void applyLegacySchema(Database database, Path directory) throws Exception {
@@ -252,9 +300,11 @@ class ImMigrationTest {
                 + "x'30000000000070008000000000000002', "
                 + "'legacy-message', 'legacy-client-message')");
         execute(database, "insert into outbox_event("
-                + "id, event_id, topic, event_key, payload, status) values ("
-                + "x'30000000000070008000000000000005', 'legacy-im-event', "
-                + "'im.events', 'legacy-room', '{\\\"preserve\\\":true}', 'NEW')");
+                + "id, event_id, topic, event_key, payload, status, retry_count) values ("
+                + "x'30000000000070008000000000000005', 'legacy-im-pending', "
+                + "'im.events', 'legacy-room', '{\\\"phase\\\":\\\"pending\\\"}', 'PENDING', 3), ("
+                + "x'30000000000070008000000000000006', 'legacy-im-processing', "
+                + "'im.events', 'legacy-room', '{\\\"phase\\\":\\\"processing\\\"}', 'PROCESSING', 7)");
     }
 
     private static Database freshDatabase(String prefix) throws Exception {
@@ -297,6 +347,97 @@ class ImMigrationTest {
         }
     }
 
+    private static void assertOutboxLeaseFencingSchema(Database database) throws Exception {
+        assertThat(columnDefinition(database, "outbox_event", "lease_token"))
+                .isEqualTo(new ColumnDefinition("binary(16)", true));
+        assertThat(columnDefinition(database, "outbox_event", "processing_lease_until"))
+                .isEqualTo(new ColumnDefinition("timestamp", true));
+        assertThat(indexColumns(database, "outbox_event", "idx_outbox_processing_lease"))
+                .containsExactly("status", "processing_lease_until", "id");
+    }
+
+    private static ColumnDefinition columnDefinition(
+            Database database,
+            String table,
+            String column
+    ) throws Exception {
+        String sql = "select column_type, is_nullable from information_schema.columns "
+                + "where table_schema = ? and table_name = ? and column_name = ?";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database.name());
+            statement.setString(2, table);
+            statement.setString(3, column);
+            try (ResultSet rows = statement.executeQuery()) {
+                if (!rows.next()) {
+                    return null;
+                }
+                return new ColumnDefinition(
+                        rows.getString("column_type").toLowerCase(Locale.ROOT),
+                        "YES".equals(rows.getString("is_nullable"))
+                );
+            }
+        }
+    }
+
+    private static List<String> indexColumns(
+            Database database,
+            String table,
+            String index
+    ) throws Exception {
+        String sql = "select column_name from information_schema.statistics "
+                + "where table_schema = ? and table_name = ? and index_name = ? order by seq_in_index";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database.name());
+            statement.setString(2, table);
+            statement.setString(3, index);
+            try (ResultSet rows = statement.executeQuery()) {
+                List<String> columns = new ArrayList<>();
+                while (rows.next()) {
+                    columns.add(rows.getString("column_name").toLowerCase(Locale.ROOT));
+                }
+                return columns;
+            }
+        }
+    }
+
+    private static List<OutboxEventState> outboxEventStates(
+            Database database,
+            String eventIdPattern
+    ) throws Exception {
+        String sql = "select hex(id), event_id, payload, status, retry_count, "
+                + "hex(lease_token), processing_lease_until from outbox_event "
+                + "where event_id like ? order by event_id";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, eventIdPattern);
+            try (ResultSet rows = statement.executeQuery()) {
+                List<OutboxEventState> states = new ArrayList<>();
+                while (rows.next()) {
+                    states.add(new OutboxEventState(
+                            rows.getString(1),
+                            rows.getString(2),
+                            rows.getString(3),
+                            rows.getString(4),
+                            rows.getInt(5),
+                            rows.getString(6),
+                            rows.getTimestamp(7)
+                    ));
+                }
+                return states;
+            }
+        }
+    }
+
+    private static String sha256(Path path) throws Exception {
+        return HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
+    }
+
     private static long queryLong(Database database, String sql) throws Exception {
         try (Connection connection = DriverManager.getConnection(
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword())) {
@@ -337,5 +478,19 @@ class ImMigrationTest {
     }
 
     private record Database(String name, String url) {
+    }
+
+    private record ColumnDefinition(String type, boolean nullable) {
+    }
+
+    private record OutboxEventState(
+            String rowId,
+            String eventId,
+            String payload,
+            String status,
+            int retryCount,
+            String leaseToken,
+            Timestamp processingLeaseUntil
+    ) {
     }
 }

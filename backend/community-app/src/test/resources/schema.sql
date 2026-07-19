@@ -621,6 +621,8 @@ create table if not exists outbox_event (
   event_key varchar(255) not null,
   payload clob not null,
   status varchar(32) not null,
+  lease_token binary(16) null,
+  processing_lease_until timestamp null,
   retry_count int not null default 0,
   next_retry_at timestamp,
   last_error varchar(512),
@@ -632,6 +634,7 @@ create table if not exists outbox_event (
 );
 
 create index if not exists idx_outbox_status_next on outbox_event(status, next_retry_at, id);
+create index if not exists idx_outbox_processing_lease on outbox_event(status, processing_lease_until, id);
 create index if not exists idx_outbox_status_updated on outbox_event(status, updated_at, id);
 create index if not exists idx_outbox_status_created on outbox_event(status, created_at, id);
 

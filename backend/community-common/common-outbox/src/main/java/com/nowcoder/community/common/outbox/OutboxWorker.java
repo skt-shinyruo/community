@@ -12,6 +12,7 @@ import org.slf4j.MDC;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -60,7 +61,7 @@ public class OutboxWorker {
             throw new IllegalArgumentException("store is required");
         }
         this.store = store;
-        this.handlers = handlers == null ? Map.of() : handlers;
+        this.handlers = immutableHandlerSnapshot(handlers);
         this.properties = properties == null ? new OutboxProperties() : properties;
         this.clock = clock == null ? Clock.systemUTC() : clock;
         this.meterRegistry = meterRegistry;
@@ -247,6 +248,19 @@ public class OutboxWorker {
 
     private String metricTopic(String eventTopic) {
         return handlers.containsKey(eventTopic) ? eventTopic : UNHANDLED_TOPIC;
+    }
+
+    private static Map<String, OutboxHandler> immutableHandlerSnapshot(Map<String, OutboxHandler> handlers) {
+        if (handlers == null || handlers.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, OutboxHandler> snapshot = new HashMap<>();
+        handlers.forEach((topic, handler) -> {
+            if (topic != null && handler != null) {
+                snapshot.put(topic, handler);
+            }
+        });
+        return Map.copyOf(snapshot);
     }
 
     static Duration backoffDelay(int currentRetryCount, Duration base, Duration max) {

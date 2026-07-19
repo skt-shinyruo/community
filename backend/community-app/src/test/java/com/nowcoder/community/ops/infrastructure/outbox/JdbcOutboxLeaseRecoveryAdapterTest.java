@@ -17,7 +17,9 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -110,6 +112,44 @@ class JdbcOutboxLeaseRecoveryAdapterTest {
     }
 
     @Test
+    void recoveryShouldUseOneCapturedClockInstant() {
+        UUID rowId = UUID.fromString("01982900-0000-7000-8000-000000000013");
+        UUID leaseToken = UUID.fromString("01982900-0000-7000-8000-000000000014");
+        insertProcessing(rowId, leaseToken, NOW, NOW.minusSeconds(30));
+        AdvancingClock clock = new AdvancingClock(NOW, Duration.ofMinutes(1));
+        JdbcOutboxLeaseRecoveryAdapter adapter = new JdbcOutboxLeaseRecoveryAdapter(jdbcTemplate, clock);
+
+        OutboxLeaseRecoveryResult result = adapter.recoverExpiredLeases(10);
+
+        LeaseState state = readState(rowId);
+        assertThat(result.selectedCount()).isEqualTo(1);
+        assertThat(result.recoveredCount()).isEqualTo(1);
+        assertThat(clock.instantCalls()).isEqualTo(1);
+        assertThat(state.status()).isEqualTo(OutboxEventStatus.PENDING);
+        assertThat(state.nextRetryAt()).isEqualTo(NOW);
+        assertThat(state.leaseToken()).isNull();
+        assertThat(state.leaseUntil()).isNull();
+        assertThat(readUpdatedAt(rowId)).isEqualTo(NOW);
+    }
+
+    @Test
+    void recoveryShouldRecoverExpiredTokenlessLease() {
+        UUID rowId = UUID.fromString("01982900-0000-7000-8000-000000000015");
+        insertProcessing(rowId, null, NOW.minusSeconds(1), NOW.minusSeconds(30));
+
+        OutboxLeaseRecoveryResult result = adapter(jdbcTemplate).recoverExpiredLeases(10);
+
+        LeaseState state = readState(rowId);
+        assertThat(result.selectedCount()).isEqualTo(1);
+        assertThat(result.recoveredCount()).isEqualTo(1);
+        assertThat(state.status()).isEqualTo(OutboxEventStatus.PENDING);
+        assertThat(state.nextRetryAt()).isEqualTo(NOW);
+        assertThat(state.lastError()).isEqualTo("old error");
+        assertThat(state.leaseToken()).isNull();
+        assertThat(state.leaseUntil()).isNull();
+    }
+
+    @Test
     void recoveredLeaseShouldRemainFencedAfterSharedStoreReclaimsIt() {
         UUID rowId = UUID.fromString("01982900-0000-7000-8000-000000000021");
         insertPending(rowId, "adapter-reclaim");
@@ -136,11 +176,12 @@ class JdbcOutboxLeaseRecoveryAdapterTest {
     }
 
     @Test
-    void recoveryUpdateShouldRecheckDeadlineAfterSelection() {
+    void recoveryUpdateShouldRecheckOwnershipWhenDeadlineIsReusedAfterSelection() {
         UUID rowId = UUID.fromString("01982900-0000-7000-8000-000000000031");
         insertPending(rowId, "adapter-race");
         store.tryClaimProcessing(rowId, NOW, NOW.minusSeconds(30)).orElseThrow();
         AtomicReference<OutboxLease> leaseB = new AtomicReference<>();
+        AtomicReference<LeaseState> heldByB = new AtomicReference<>();
         AfterQueryJdbcTemplate racingTemplate = new AfterQueryJdbcTemplate(database, () -> {
             int released = jdbcTemplate.update(
                     """
@@ -157,7 +198,8 @@ class JdbcOutboxLeaseRecoveryAdapterTest {
                     Timestamp.from(NOW)
             );
             assertThat(released).isEqualTo(1);
-            leaseB.set(store.tryClaimProcessing(rowId, NOW.plusSeconds(30), NOW).orElseThrow());
+            leaseB.set(store.tryClaimProcessing(rowId, NOW, NOW).orElseThrow());
+            heldByB.set(readState(rowId));
         });
 
         OutboxLeaseRecoveryResult result = adapter(racingTemplate).recoverExpiredLeases(10);
@@ -165,10 +207,46 @@ class JdbcOutboxLeaseRecoveryAdapterTest {
 
         assertThat(result.selectedCount()).isEqualTo(1);
         assertThat(result.recoveredCount()).isZero();
+        assertThat(state).isEqualTo(heldByB.get());
         assertThat(state.status()).isEqualTo(OutboxEventStatus.PROCESSING);
-        assertThat(state.leaseToken()).isEqualTo(leaseB.get().token());
-        assertThat(state.leaseUntil()).isEqualTo(NOW.plusSeconds(30));
+        assertThat(state.retryCount()).isZero();
         assertThat(state.nextRetryAt()).isNull();
+        assertThat(state.lastError()).isEqualTo("old error");
+        assertThat(state.leaseToken()).isEqualTo(leaseB.get().token());
+        assertThat(state.leaseUntil()).isEqualTo(NOW);
+    }
+
+    @Test
+    void tokenlessRecoveryShouldNotClearSameDeadlineReclaim() {
+        UUID rowId = UUID.fromString("01982900-0000-7000-8000-000000000032");
+        insertProcessing(rowId, null, NOW, NOW.minusSeconds(30));
+        AtomicReference<LeaseState> heldByB = new AtomicReference<>();
+        AfterQueryJdbcTemplate racingTemplate = new AfterQueryJdbcTemplate(database, () -> {
+            int released = jdbcTemplate.update(
+                    """
+                            update outbox_event
+                            set status = ?, next_retry_at = ?, lease_token = null,
+                                processing_lease_until = null, updated_at = ?
+                            where id = ? and status = ? and processing_lease_until = ?
+                                and lease_token is null
+                            """,
+                    OutboxEventStatus.PENDING,
+                    Timestamp.from(NOW),
+                    Timestamp.from(NOW),
+                    BinaryUuidCodec.toBytes(rowId),
+                    OutboxEventStatus.PROCESSING,
+                    Timestamp.from(NOW)
+            );
+            assertThat(released).isEqualTo(1);
+            store.tryClaimProcessing(rowId, NOW, NOW).orElseThrow();
+            heldByB.set(readState(rowId));
+        });
+
+        OutboxLeaseRecoveryResult result = adapter(racingTemplate).recoverExpiredLeases(10);
+
+        assertThat(result.selectedCount()).isEqualTo(1);
+        assertThat(result.recoveredCount()).isZero();
+        assertThat(readState(rowId)).isEqualTo(heldByB.get());
     }
 
     private JdbcOutboxLeaseRecoveryAdapter adapter(JdbcTemplate template) {
@@ -220,7 +298,7 @@ class JdbcOutboxLeaseRecoveryAdapterTest {
                 id.toString(),
                 "{}",
                 OutboxEventStatus.PROCESSING,
-                BinaryUuidCodec.toBytes(token),
+                token == null ? null : BinaryUuidCodec.toBytes(token),
                 Timestamp.from(leaseUntil),
                 nextRetryAt == null ? null : Timestamp.from(nextRetryAt),
                 "old error"
@@ -257,6 +335,14 @@ class JdbcOutboxLeaseRecoveryAdapterTest {
                 },
                 BinaryUuidCodec.toBytes(id)
         );
+    }
+
+    private Instant readUpdatedAt(UUID id) {
+        return jdbcTemplate.queryForObject(
+                "select updated_at from outbox_event where id = ?",
+                Timestamp.class,
+                BinaryUuidCodec.toBytes(id)
+        ).toInstant();
     }
 
     private static void createOutboxSchema(JdbcTemplate jdbcTemplate) {
@@ -296,6 +382,45 @@ class JdbcOutboxLeaseRecoveryAdapterTest {
             UUID leaseToken,
             Instant leaseUntil
     ) {
+    }
+
+    private static final class AdvancingClock extends Clock {
+
+        private final Instant firstInstant;
+        private final Duration step;
+        private final ZoneId zone;
+        private int instantCalls;
+
+        private AdvancingClock(Instant firstInstant, Duration step) {
+            this(firstInstant, step, ZoneOffset.UTC);
+        }
+
+        private AdvancingClock(Instant firstInstant, Duration step, ZoneId zone) {
+            this.firstInstant = firstInstant;
+            this.step = step;
+            this.zone = zone;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return new AdvancingClock(firstInstant, step, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            Instant current = firstInstant.plus(step.multipliedBy(instantCalls));
+            instantCalls++;
+            return current;
+        }
+
+        private int instantCalls() {
+            return instantCalls;
+        }
     }
 
     private static final class AfterQueryJdbcTemplate extends JdbcTemplate {

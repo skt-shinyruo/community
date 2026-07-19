@@ -126,14 +126,14 @@ describe('http', () => {
     expect(retried.data.idem).toBe(firstKey)
   })
 
-  it('should preserve an explicitly provided Idempotency-Key', async () => {
+  it('should preserve an explicitly provided Idempotency-Key regardless of casing', async () => {
     const url = '/api/wallet/withdrawals'
     mock.onPost(url).replyOnce((config) => {
-      return [200, { idem: config.headers?.[IDEMPOTENCY_HEADER] || '' }]
+      return [200, { idem: config.headers?.get(IDEMPOTENCY_HEADER) || '' }]
     })
 
     const response = await http.post(url, { amount: 10 }, {
-      headers: { [IDEMPOTENCY_HEADER]: 'caller-provided-key' }
+      headers: { 'idempotency-key': 'caller-provided-key' }
     })
 
     expect(response.data.idem).toBe('caller-provided-key')

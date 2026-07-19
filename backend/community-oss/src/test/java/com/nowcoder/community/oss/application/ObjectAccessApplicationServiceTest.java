@@ -31,7 +31,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 class ObjectAccessApplicationServiceTest {
@@ -174,7 +173,7 @@ class ObjectAccessApplicationServiceTest {
     }
 
     @Test
-    void createSignedDownloadUrlShouldRejectVersionFromDifferentObject() {
+    void createSignedDownloadUrlShouldHideVersionFromDifferentObject() {
         UUID objectId = uuid(1);
         UUID otherObjectId = uuid(3);
         UUID versionId = uuid(2);
@@ -203,13 +202,15 @@ class ObjectAccessApplicationServiceTest {
                 new OssObjectAccessPolicy()
         );
 
-        assertThatThrownBy(() -> service.createSignedDownloadUrl(new CreateSignedUrlCommand(
+        Throwable foreignVersion = catchThrowable(() -> service.createSignedDownloadUrl(new CreateSignedUrlCommand(
                 objectId,
                 versionId,
                 300,
                 "7"
-        ))).isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("object version does not belong to object");
+        )));
+
+        assertHiddenObjectNotFound(foreignVersion);
+        assertThat(objectStore.presignCount).isZero();
     }
 
     private static OssAccessGrant readGrant(

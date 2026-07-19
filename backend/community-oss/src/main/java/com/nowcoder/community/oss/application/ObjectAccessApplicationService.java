@@ -70,7 +70,7 @@ public class ObjectAccessApplicationService {
         OssObjectVersion version = versionRepository.findById(versionId)
                 .orElseThrow(this::objectNotFound);
         if (!object.objectId().equals(version.objectId())) {
-            throw new IllegalArgumentException("object version does not belong to object");
+            throw objectNotFound();
         }
         if (version.status() != OssObjectVersionStatus.ACTIVE) {
             throw new IllegalStateException("object version is not available for download");

@@ -24,7 +24,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 class ObjectPermissionApplicationServiceTest {
@@ -148,42 +147,53 @@ class ObjectPermissionApplicationServiceTest {
     }
 
     @Test
-    void grantAccessShouldRejectVersionFromDifferentObject() {
-        UUID objectId = uuid(1);
-        UUID otherObjectId = uuid(3);
-        UUID versionId = uuid(2);
-        FakeObjectRepository objectRepository = new FakeObjectRepository();
-        FakeVersionRepository versionRepository = new FakeVersionRepository();
-        FakeGrantRepository grantRepository = new FakeGrantRepository();
-        objectRepository.save(OssObject.stage(
-                objectId,
-                "USER_AVATAR",
-                "community-app",
-                "user",
-                "USER",
-                "7",
-                OssVisibility.PUBLIC,
-                "7",
-                CLOCK.instant()
-        ).activate(activeVersion(objectId, versionId), CLOCK.instant()));
-        versionRepository.save(activeVersion(otherObjectId, versionId));
-        ObjectPermissionApplicationService service = new ObjectPermissionApplicationService(
-                objectRepository,
-                versionRepository,
-                grantRepository,
-                CLOCK
-        );
+    void grantAccessShouldHideMissingVersion() {
+        PermissionFixture fixture = permissionFixture();
 
-        assertThatThrownBy(() -> service.grantAccess(new GrantObjectAccessCommand(
-                objectId,
-                versionId,
-                "USER",
-                "7",
-                "READ",
-                CLOCK.instant().plusSeconds(300),
-                "7"
-        ))).isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("object version does not belong to object");
+        Throwable missingVersion = catchThrowable(() -> fixture.service.grantAccess(
+                grantCommand(fixture.objectId, uuid(98), "owner-7")));
+
+        assertHiddenObjectNotFound(missingVersion);
+        assertThat(fixture.grantRepository.findByObjectId(fixture.objectId)).isEmpty();
+    }
+
+    @Test
+    void grantAccessShouldHideVersionFromDifferentObject() {
+        PermissionFixture fixture = permissionFixture();
+        UUID foreignVersionId = uuid(97);
+        fixture.versionRepository.save(activeVersion(uuid(96), foreignVersionId));
+
+        Throwable foreignVersion = catchThrowable(() -> fixture.service.grantAccess(
+                grantCommand(fixture.objectId, foreignVersionId, "owner-7")));
+
+        assertHiddenObjectNotFound(foreignVersion);
+        assertThat(fixture.grantRepository.findByObjectId(fixture.objectId)).isEmpty();
+    }
+
+    @Test
+    void revokeAccessShouldHideMissingGrant() {
+        PermissionFixture fixture = permissionFixture();
+
+        Throwable missingGrant = catchThrowable(() -> fixture.service.revokeAccess(
+                new RevokeObjectAccessCommand(fixture.objectId, uuid(95), "owner-7")));
+
+        assertHiddenObjectNotFound(missingGrant);
+    }
+
+    @Test
+    void revokeAccessShouldHideGrantFromDifferentObjectWithoutMutation() {
+        PermissionFixture fixture = permissionFixture();
+        OssAccessGrant foreignGrant = OssAccessGrant.readGrant(
+                uuid(94), uuid(93), null, "USER", "reader-8", "foreign-owner",
+                CLOCK.instant().minusSeconds(60), CLOCK.instant().plusSeconds(300));
+        fixture.grantRepository.save(foreignGrant);
+
+        Throwable foreignRelationship = catchThrowable(() -> fixture.service.revokeAccess(
+                new RevokeObjectAccessCommand(fixture.objectId, foreignGrant.grantId(), "owner-7")));
+
+        assertHiddenObjectNotFound(foreignRelationship);
+        assertThat(fixture.grantRepository.findById(foreignGrant.grantId())).get()
+                .extracting(OssAccessGrant::revokedAt).isNull();
     }
 
     private static PermissionFixture permissionFixture() {
@@ -207,6 +217,7 @@ class ObjectPermissionApplicationServiceTest {
         versionRepository.save(version);
         return new PermissionFixture(
                 objectId,
+                versionRepository,
                 grantRepository,
                 new ObjectPermissionApplicationService(
                         objectRepository, versionRepository, grantRepository, CLOCK)
@@ -214,9 +225,13 @@ class ObjectPermissionApplicationServiceTest {
     }
 
     private static GrantObjectAccessCommand grantCommand(UUID objectId, String actorId) {
+        return grantCommand(objectId, null, actorId);
+    }
+
+    private static GrantObjectAccessCommand grantCommand(UUID objectId, UUID versionId, String actorId) {
         return new GrantObjectAccessCommand(
                 objectId,
-                null,
+                versionId,
                 "USER",
                 "reader-8",
                 "READ",
@@ -234,6 +249,7 @@ class ObjectPermissionApplicationServiceTest {
 
     private record PermissionFixture(
             UUID objectId,
+            FakeVersionRepository versionRepository,
             FakeGrantRepository grantRepository,
             ObjectPermissionApplicationService service
     ) {

@@ -163,7 +163,8 @@ class IdempotencyGuardAutoConfigurationTest {
         }
 
         @Override
-        public void saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl) {
+        public boolean saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl) {
+            return true;
         }
 
         @Override

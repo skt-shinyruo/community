@@ -87,9 +87,9 @@ public class ObjectPermissionApplicationService {
         OssObject object = requireObject(command.objectId());
         requireManage(object, command.actorId());
         OssAccessGrant grant = grantRepository.findById(command.grantId())
-                .orElseThrow(() -> new IllegalArgumentException("grant not found"));
+                .orElseThrow(this::objectNotFound);
         if (!grant.objectId().equals(command.objectId())) {
-            throw new IllegalArgumentException("grant does not belong to object");
+            throw objectNotFound();
         }
         OssAccessGrant revoked = grant.revoke(clock.instant());
         grantRepository.save(revoked);
@@ -121,9 +121,9 @@ public class ObjectPermissionApplicationService {
             return;
         }
         OssObjectVersion version = versionRepository.findById(versionId)
-                .orElseThrow(() -> new IllegalArgumentException("object version not found"));
+                .orElseThrow(this::objectNotFound);
         if (!object.objectId().equals(version.objectId())) {
-            throw new IllegalArgumentException("object version does not belong to object");
+            throw objectNotFound();
         }
     }
 
@@ -132,7 +132,7 @@ public class ObjectPermissionApplicationService {
             return;
         }
         OssObjectVersion version = versionRepository.findById(versionId)
-                .orElseThrow(() -> new IllegalArgumentException("object version not found"));
+                .orElseThrow(this::objectNotFound);
         if (version.status() != OssObjectVersionStatus.ACTIVE) {
             throw new IllegalStateException("object version is not available for grant");
         }

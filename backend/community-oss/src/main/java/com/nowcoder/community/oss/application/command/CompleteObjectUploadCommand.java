@@ -7,7 +7,8 @@ public record CompleteObjectUploadCommand(
         UUID sessionId,
         UUID objectId,
         UUID versionId,
-        ObjectUploadContent content
+        ObjectUploadContent content,
+        String actorId
 ) {
 
     public CompleteObjectUploadCommand {
@@ -15,5 +16,9 @@ public record CompleteObjectUploadCommand(
         Objects.requireNonNull(objectId, "objectId");
         Objects.requireNonNull(versionId, "versionId");
         Objects.requireNonNull(content, "content");
+        if (actorId == null || actorId.isBlank()) {
+            throw new IllegalArgumentException("actorId must not be blank");
+        }
+        actorId = actorId.trim();
     }
 }

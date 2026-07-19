@@ -90,7 +90,8 @@ class ObjectUploadApplicationServiceTest {
                         "image/png",
                         6,
                         "sha256-avatar"
-                )
+                ),
+                ownerId.toString()
         ));
 
         assertThat(completed.status()).isEqualTo(OssObjectStatus.ACTIVE.name());
@@ -103,6 +104,57 @@ class ObjectUploadApplicationServiceTest {
         );
         assertThat(uploadSessionRepository.findById(prepared.sessionId()).orElseThrow().status())
                 .isEqualTo(OssUploadSessionStatus.COMPLETED);
+    }
+
+    @Test
+    void completeUploadShouldRejectActorDifferentFromSessionCreatorBeforeClaimOrStorageWrite() {
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository uploadSessionRepository = new FakeUploadSessionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                uploadSessionRepository,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+        ObjectUploadSessionResult prepared = service.prepareUpload(new PrepareObjectUploadCommand(
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                "PUBLIC",
+                "avatar.png",
+                "image/png",
+                6,
+                "sha256-avatar",
+                "creator-7"
+        ));
+
+        assertThatThrownBy(() -> service.completeUpload(new CompleteObjectUploadCommand(
+                prepared.sessionId(),
+                prepared.objectId(),
+                prepared.versionId(),
+                new ObjectUploadContent(
+                        () -> new ByteArrayInputStream("avatar".getBytes(StandardCharsets.UTF_8)),
+                        "image/png",
+                        6,
+                        "sha256-avatar"
+                ),
+                "attacker-9"
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("upload session not found");
+
+        assertThat(objectStore.capturedKey).isNull();
+        assertThat(uploadSessionRepository.findById(prepared.sessionId()).orElseThrow().status())
+                .isEqualTo(OssUploadSessionStatus.READY);
+        assertThat(objectRepository.findById(prepared.objectId()).orElseThrow().status())
+                .isEqualTo(OssObjectStatus.STAGED);
     }
 
     @Test
@@ -380,7 +432,8 @@ class ObjectUploadApplicationServiceTest {
                         "image/png",
                         6,
                         ""
-                )
+                ),
+                "7"
         ))).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("upload exceeds usage policy maxBytes");
         assertThat(objectStore.capturedKey).isNull();
@@ -429,7 +482,8 @@ class ObjectUploadApplicationServiceTest {
                         "text/plain",
                         5,
                         ""
-                )
+                ),
+                "7"
         ))).isInstanceOf(IllegalStateException.class)
                 .hasMessage("media upload is disabled by upload policy");
         assertThat(objectStore.capturedKey).isNull();

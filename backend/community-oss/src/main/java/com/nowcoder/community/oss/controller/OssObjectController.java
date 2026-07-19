@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -57,20 +58,24 @@ public class OssObjectController {
     }
 
     @PostMapping("/api/oss/objects/upload-sessions")
-    public ObjectUploadSessionResult prepareUpload(@RequestBody PrepareUploadSessionRequest request) {
+    public ObjectUploadSessionResult prepareUpload(
+            @RequestBody PrepareUploadSessionRequest request,
+            Authentication authentication
+    ) {
+        String actorId = requireUserSubject(authentication);
         return uploadApplicationService.prepareUpload(new PrepareObjectUploadCommand(
                 request.requestId(),
                 request.usage(),
                 request.ownerService(),
                 request.ownerDomain(),
-                request.ownerType(),
-                request.ownerId(),
+                "USER",
+                actorId,
                 request.visibility(),
                 request.fileName(),
                 request.contentType(),
                 request.contentLength(),
                 request.checksumSha256(),
-                request.actorId()
+                actorId
         ));
     }
 
@@ -80,8 +85,10 @@ public class OssObjectController {
             @RequestParam UUID sessionId,
             @RequestParam UUID versionId,
             @RequestParam(required = false) String checksumSha256,
-            @RequestParam("file") MultipartFile file
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication
     ) {
+        String actorId = requireUserSubject(authentication);
         return uploadApplicationService.completeUpload(new CompleteObjectUploadCommand(
                 sessionId,
                 objectId,
@@ -91,33 +98,39 @@ public class OssObjectController {
                         file == null ? "application/octet-stream" : file.getContentType(),
                         file == null ? 0 : file.getSize(),
                         checksumSha256
-                )
+                ),
+                actorId
         ));
     }
 
     @GetMapping("/api/oss/objects/{objectId}")
-    public ObjectMetadataResult getMetadata(@PathVariable UUID objectId) {
-        return queryApplicationService.getMetadata(objectId);
+    public ObjectMetadataResult getMetadata(
+            @PathVariable UUID objectId,
+            Authentication authentication
+    ) {
+        return queryApplicationService.getMetadata(objectId, requireUserSubject(authentication));
     }
 
     @GetMapping("/api/oss/objects/{objectId}/signed-url")
     public ObjectSignedUrlResult createSignedUrl(
             @PathVariable UUID objectId,
             @RequestParam(name = "versionId", required = false) UUID versionId,
-            @RequestParam(name = "ttlSeconds", required = false, defaultValue = "300") long ttlSeconds
+            @RequestParam(name = "ttlSeconds", required = false, defaultValue = "300") long ttlSeconds,
+            Authentication authentication
     ) {
         return accessApplicationService.createSignedDownloadUrl(new CreateSignedUrlCommand(
                 objectId,
                 versionId,
                 ttlSeconds,
-                ""
+                requireUserSubject(authentication)
         ));
     }
 
     @PostMapping("/api/oss/objects/{objectId}/grants")
     public ObjectAccessDecisionResult grantAccess(
             @PathVariable UUID objectId,
-            @RequestBody GrantObjectAccessRequest request
+            @RequestBody GrantObjectAccessRequest request,
+            Authentication authentication
     ) {
         return permissionApplicationService.grantAccess(new GrantObjectAccessCommand(
                 objectId,
@@ -126,7 +139,7 @@ public class OssObjectController {
                 request.principalValue(),
                 request.permission(),
                 request.expiresAt(),
-                request.actorId()
+                requireUserSubject(authentication)
         ));
     }
 
@@ -134,17 +147,19 @@ public class OssObjectController {
     public ObjectAccessDecisionResult revokeAccess(
             @PathVariable UUID objectId,
             @PathVariable UUID grantId,
-            @RequestParam(name = "actorId", required = false, defaultValue = "") String actorId
+            Authentication authentication
     ) {
-        return permissionApplicationService.revokeAccess(new RevokeObjectAccessCommand(objectId, grantId, actorId));
+        return permissionApplicationService.revokeAccess(new RevokeObjectAccessCommand(
+                objectId, grantId, requireUserSubject(authentication)));
     }
 
     @DeleteMapping("/api/oss/objects/{objectId}")
     public ObjectLifecycleResult deleteObject(
             @PathVariable UUID objectId,
-            @RequestParam(name = "actorId", required = false, defaultValue = "") String actorId
+            Authentication authentication
     ) {
-        return lifecycleApplicationService.deleteObject(new DeleteObjectCommand(objectId, actorId));
+        return lifecycleApplicationService.deleteObject(new DeleteObjectCommand(
+                objectId, requireUserSubject(authentication)));
     }
 
     private InputStream openUploadStream(MultipartFile file) {
@@ -160,5 +175,13 @@ public class OssObjectController {
             return null;
         }
         return UUID.fromString(value.trim());
+    }
+
+    private String requireUserSubject(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()
+                || authentication.getName() == null || authentication.getName().isBlank()) {
+            throw new IllegalArgumentException("authenticated user subject must not be blank");
+        }
+        return authentication.getName().trim();
     }
 }

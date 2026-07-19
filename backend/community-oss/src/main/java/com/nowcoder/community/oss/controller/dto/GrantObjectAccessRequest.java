@@ -7,7 +7,6 @@ public record GrantObjectAccessRequest(
         String principalType,
         String principalValue,
         String permission,
-        Instant expiresAt,
-        String actorId
+        Instant expiresAt
 ) {
 }

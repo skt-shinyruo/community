@@ -4,7 +4,10 @@ import com.nowcoder.community.content.application.PostMediaReferenceQueryPort;
 import com.nowcoder.community.content.application.PostMediaReferenceQueryPort.RemoteReferenceStatus;
 import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssReferenceResponse;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.context.request.RequestContextHolder;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -18,6 +21,17 @@ class OssPostMediaReferenceQueryAdapterTest {
 
     private static final UUID OBJECT_ID = uuid(801);
     private static final UUID REFERENCE_ID = uuid(802);
+
+    @BeforeEach
+    void clearServletRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
+        assertThat(RequestContextHolder.getRequestAttributes()).isNull();
+    }
+
+    @AfterEach
+    void resetServletRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
+    }
 
     @Test
     void adapterShouldImplementApplicationOwnedQueryPort() {

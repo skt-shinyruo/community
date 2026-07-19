@@ -62,7 +62,11 @@ class OssAvatarStorageMigrationRetirementTest {
         assertThat(yaml).contains(
                 "oss:",
                 "client:",
-                "base-url: http://community-oss:18090"
+                "base-url: ${OSS_CLIENT_BASE_URL:http://community-oss:18090}",
+                "service-subject: ${OSS_CLIENT_SERVICE_SUBJECT:community-app}",
+                "audience: ${OSS_CLIENT_AUDIENCE:community-oss}",
+                "scope: ${OSS_CLIENT_SCOPE:oss.internal}",
+                "token-ttl: ${OSS_CLIENT_TOKEN_TTL:PT5M}"
         );
     }
 
@@ -93,6 +97,10 @@ class OssAvatarStorageMigrationRetirementTest {
                 .as(path.toString())
                 .doesNotContain(
                         "OSS_CLIENT_BASE_URL",
+                        "OSS_CLIENT_SERVICE_SUBJECT",
+                        "OSS_CLIENT_AUDIENCE",
+                        "OSS_CLIENT_SCOPE",
+                        "OSS_CLIENT_TOKEN_TTL",
                         "OSS_AVATAR_PUBLIC_BASE_URL"
                 );
     }

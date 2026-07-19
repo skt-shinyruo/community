@@ -148,6 +148,36 @@ class ObjectQueryApplicationServiceTest {
     }
 
     @Test
+    void getMetadataShouldHideCrossObjectCurrentVersionFromOwnerAndGrantReader() {
+        UUID objectId = uuid(20);
+        UUID versionId = uuid(21);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion canonicalVersion = activeVersion(objectId, versionId);
+        objectRepository.save(privateObject(objectId, canonicalVersion));
+        versionRepository.save(activeVersion(uuid(22), versionId));
+        grantRepository.save(readGrant(uuid(23), objectId, "grant-user", NOW.plusSeconds(300)));
+        ObjectQueryApplicationService service = new ObjectQueryApplicationService(
+                objectRepository,
+                versionRepository,
+                grantRepository,
+                objectStore,
+                properties("http://localhost:12880/"),
+                clock()
+        );
+
+        Throwable owner = catchThrowable(() -> service.getMetadata(objectId, "owner-7"));
+        Throwable grantReader = catchThrowable(() -> service.getMetadata(objectId, "grant-user"));
+
+        assertHiddenObjectNotFound(owner);
+        assertHiddenObjectNotFound(grantReader);
+        assertThat(objectStore.capturedBucket).isNull();
+        assertThat(objectStore.capturedKey).isNull();
+    }
+
+    @Test
     void resolvePublicFileShouldRejectNonPublicCanonicalPath() {
         UUID objectId = uuid(1);
         UUID versionId = uuid(2);

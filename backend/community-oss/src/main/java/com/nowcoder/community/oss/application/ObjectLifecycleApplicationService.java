@@ -8,6 +8,7 @@ import com.nowcoder.community.oss.domain.model.OssAccessGrant;
 import com.nowcoder.community.oss.domain.model.OssObject;
 import com.nowcoder.community.oss.domain.model.OssObjectReference;
 import com.nowcoder.community.oss.domain.model.OssObjectStatus;
+import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.repository.OssAccessGrantRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectReferenceRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
@@ -82,6 +83,7 @@ public class ObjectLifecycleApplicationService {
         if (!accessPolicy.canManage(object, command.actorId())) {
             throw objectNotFound();
         }
+        OssObjectVersion currentVersion = findCurrentVersion(object);
         Instant now = clock.instant();
         if (object.status() == OssObjectStatus.PURGED) {
             return toResult(object, "object already purged");
@@ -99,16 +101,26 @@ public class ObjectLifecycleApplicationService {
             return toResult(deletePending, "object delete pending");
         }
 
-        UUID currentVersionId = object.currentVersionId();
-        if (currentVersionId != null) {
-            versionRepository.findById(currentVersionId).ifPresent(version -> {
-                objectStore.delete(version.storageBucket(), version.storageKey());
-                versionRepository.save(version.purge(now));
-            });
+        if (currentVersion != null) {
+            objectStore.delete(currentVersion.storageBucket(), currentVersion.storageKey());
+            versionRepository.save(currentVersion.purge(now));
         }
         OssObject purged = object.purge(now);
         objectRepository.save(purged);
         return toResult(purged, "object purged");
+    }
+
+    private OssObjectVersion findCurrentVersion(OssObject object) {
+        UUID currentVersionId = object.currentVersionId();
+        if (currentVersionId == null) {
+            return null;
+        }
+        OssObjectVersion version = versionRepository.findById(currentVersionId)
+                .orElseThrow(this::objectNotFound);
+        if (!object.objectId().equals(version.objectId())) {
+            throw objectNotFound();
+        }
+        return version;
     }
 
     private ObjectLifecycleResult toResult(OssObject object, String message) {

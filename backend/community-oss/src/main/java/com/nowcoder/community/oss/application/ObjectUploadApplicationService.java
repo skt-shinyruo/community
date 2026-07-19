@@ -326,17 +326,13 @@ public class ObjectUploadApplicationService {
             throw new IllegalStateException("upload session expired");
         }
 
-        OssObject object = objectRepository.findById(command.objectId())
-                .orElseThrow(this::objectNotFound);
-        OssObjectVersion version = versionRepository.findById(command.versionId())
-                .orElseThrow(this::objectNotFound);
+        UploadTarget target = loadUploadTarget(command.objectId(), command.versionId());
+        OssObject object = target.object();
+        OssObjectVersion version = target.version();
         validateUploadPolicyChannel(object.usage());
         ObjectUploadContent content = command.content();
         validateContent(session, content);
         validateGlobalUploadPolicy(version.fileName(), content.contentType(), content.contentLength());
-        if (!object.objectId().equals(version.objectId())) {
-            throw objectNotFound();
-        }
         usagePolicy(object.usage()).ifPresent(policy -> policy.validateUpload(
                 content.contentType(),
                 content.contentLength(),
@@ -427,14 +423,24 @@ public class ObjectUploadApplicationService {
     }
 
     private ObjectMetadataResult canonicalMetadata(UUID objectId, UUID versionId) {
-        OssObject object = objectRepository.findById(objectId)
-                .orElseThrow(() -> new IllegalStateException("completed upload object not found"));
-        OssObjectVersion version = versionRepository.findById(versionId)
-                .orElseThrow(() -> new IllegalStateException("completed upload version not found"));
+        UploadTarget target = loadUploadTarget(objectId, versionId);
+        OssObject object = target.object();
+        OssObjectVersion version = target.version();
         if (!Objects.equals(object.currentVersionId(), version.versionId())) {
-            throw new IllegalStateException("completed upload metadata is inconsistent");
+            throw objectNotFound();
         }
         return toMetadataResult(object, version);
+    }
+
+    private UploadTarget loadUploadTarget(UUID objectId, UUID versionId) {
+        OssObject object = objectRepository.findById(objectId)
+                .orElseThrow(this::objectNotFound);
+        OssObjectVersion version = versionRepository.findById(versionId)
+                .orElseThrow(this::objectNotFound);
+        if (!object.objectId().equals(version.objectId())) {
+            throw objectNotFound();
+        }
+        return new UploadTarget(object, version);
     }
 
     private ObjectUploadSessionResult toUploadSessionResult(OssUploadSession session) {
@@ -669,5 +675,8 @@ public class ObjectUploadApplicationService {
 
     private BusinessException objectNotFound() {
         return new BusinessException(CommonErrorCode.NOT_FOUND, "OSS object not found");
+    }
+
+    private record UploadTarget(OssObject object, OssObjectVersion version) {
     }
 }

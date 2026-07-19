@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -165,6 +166,58 @@ class ObjectUploadApplicationServiceTest {
                 .isEqualTo(com.nowcoder.community.oss.domain.model.OssObjectVersionStatus.STAGED);
         assertThat(objectRepository.saveCount).isZero();
         assertThat(versionRepository.saveCount).isZero();
+    }
+
+    @Test
+    void completedUploadReplayShouldHideMissingObjectWithoutSideEffects() {
+        CompletedReplayFixture fixture = completedReplayFixture();
+        fixture.objectRepository.rows.remove(fixture.objectId);
+
+        assertCompletedReplayHiddenWithoutSideEffects(fixture);
+    }
+
+    @Test
+    void completedUploadReplayShouldHideMissingVersionWithoutSideEffects() {
+        CompletedReplayFixture fixture = completedReplayFixture();
+        fixture.versionRepository.rows.remove(fixture.versionId);
+
+        assertCompletedReplayHiddenWithoutSideEffects(fixture);
+    }
+
+    @Test
+    void completedUploadReplayShouldHideMismatchedCurrentVersionWithoutSideEffects() {
+        CompletedReplayFixture fixture = completedReplayFixture();
+        OssObject current = fixture.objectRepository.rows.get(fixture.objectId);
+        current = current.activate(
+                activeVersion(fixture.objectId, uuid(704)),
+                CLOCK.instant().plusSeconds(2));
+        fixture.objectRepository.rows.put(fixture.objectId, current);
+
+        assertCompletedReplayHiddenWithoutSideEffects(fixture);
+    }
+
+    @Test
+    void completedUploadReplayShouldHideCrossObjectVersionWithoutSideEffects() {
+        CompletedReplayFixture fixture = completedReplayFixture();
+        fixture.versionRepository.rows.put(
+                fixture.versionId,
+                activeVersion(uuid(705), fixture.versionId));
+
+        assertCompletedReplayHiddenWithoutSideEffects(fixture);
+    }
+
+    @Test
+    void completedUploadReplayShouldReturnCanonicalMetadataWithoutSideEffects() {
+        CompletedReplayFixture fixture = completedReplayFixture();
+        AtomicInteger streamOpenCount = new AtomicInteger();
+
+        ObjectMetadataResult result = fixture.service.completeUpload(
+                completedReplayCommand(fixture, streamOpenCount));
+
+        assertThat(result.objectId()).isEqualTo(fixture.objectId);
+        assertThat(result.currentVersionId()).isEqualTo(fixture.versionId);
+        assertThat(result.status()).isEqualTo(OssObjectStatus.ACTIVE.name());
+        assertCompletedReplayHasNoSideEffects(fixture, streamOpenCount);
     }
 
     @Test
@@ -503,6 +556,140 @@ class ObjectUploadApplicationServiceTest {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 
+    private static CompletedReplayFixture completedReplayFixture() {
+        UUID objectId = uuid(701);
+        UUID versionId = uuid(702);
+        UUID sessionId = uuid(703);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        OssObject object = OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                OssVisibility.PUBLIC,
+                "creator-7",
+                CLOCK.instant()
+        ).activate(version, CLOCK.instant().plusSeconds(1));
+        OssUploadSession session = OssUploadSession.ready(
+                sessionId,
+                objectId,
+                versionId,
+                "PROXY",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                "avatar.png",
+                "image/png",
+                6,
+                "sha256-avatar",
+                "creator-7",
+                CLOCK.instant(),
+                CLOCK.instant().plusSeconds(900)
+        ).complete(CLOCK.instant().plusSeconds(1));
+        objectRepository.rows.put(objectId, object);
+        versionRepository.rows.put(versionId, version);
+        sessionRepository.rows.put(sessionId, session);
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                sessionRepository,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+        return new CompletedReplayFixture(
+                objectId,
+                versionId,
+                sessionId,
+                objectRepository,
+                versionRepository,
+                sessionRepository,
+                objectStore,
+                service
+        );
+    }
+
+    private static OssObjectVersion activeVersion(UUID objectId, UUID versionId) {
+        return OssObjectVersion.staged(
+                versionId,
+                objectId,
+                "S3_COMPATIBLE",
+                "community-oss",
+                "objects/" + objectId + "/" + versionId + "/avatar.png",
+                "avatar.png",
+                "image/png",
+                6,
+                "sha256-avatar",
+                CLOCK.instant()
+        ).withUploadedContent("image/png", 6, "sha256-avatar")
+                .activate("etag-avatar", CLOCK.instant().plusSeconds(1));
+    }
+
+    private static CompleteObjectUploadCommand completedReplayCommand(
+            CompletedReplayFixture fixture,
+            AtomicInteger streamOpenCount
+    ) {
+        return new CompleteObjectUploadCommand(
+                fixture.sessionId,
+                fixture.objectId,
+                fixture.versionId,
+                new ObjectUploadContent(
+                        () -> {
+                            streamOpenCount.incrementAndGet();
+                            return new ByteArrayInputStream("avatar".getBytes(StandardCharsets.UTF_8));
+                        },
+                        "image/png",
+                        6,
+                        "sha256-avatar"
+                ),
+                "creator-7"
+        );
+    }
+
+    private static void assertCompletedReplayHiddenWithoutSideEffects(CompletedReplayFixture fixture) {
+        AtomicInteger streamOpenCount = new AtomicInteger();
+
+        assertThatThrownBy(() -> fixture.service.completeUpload(
+                completedReplayCommand(fixture, streamOpenCount)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND);
+                    assertThat(exception.getMessage()).isEqualTo("OSS object not found");
+                });
+
+        assertCompletedReplayHasNoSideEffects(fixture, streamOpenCount);
+    }
+
+    private static void assertCompletedReplayHasNoSideEffects(
+            CompletedReplayFixture fixture,
+            AtomicInteger streamOpenCount
+    ) {
+        assertThat(streamOpenCount).hasValue(0);
+        assertThat(fixture.objectRepository.saveCount).isZero();
+        assertThat(fixture.versionRepository.saveCount).isZero();
+        assertThat(fixture.sessionRepository.mutationCount).isZero();
+        assertThat(fixture.objectStore.operationCount).isZero();
+    }
+
+    private record CompletedReplayFixture(
+            UUID objectId,
+            UUID versionId,
+            UUID sessionId,
+            FakeObjectRepository objectRepository,
+            FakeObjectVersionRepository versionRepository,
+            FakeUploadSessionRepository sessionRepository,
+            CapturingObjectStore objectStore,
+            ObjectUploadApplicationService service
+    ) {
+    }
+
     private static ObjectUploadApplicationService serviceWithUploadPolicy(UploadPolicyProperties uploadPolicy) {
         return new ObjectUploadApplicationService(
                 new FakeObjectRepository(),
@@ -551,14 +738,20 @@ class ObjectUploadApplicationServiceTest {
 
     private static final class FakeUploadSessionRepository implements OssUploadSessionRepository {
         private final Map<UUID, OssUploadSession> rows = new HashMap<>();
+        private int mutationCount;
 
         @Override
         public boolean create(OssUploadSession session) {
-            return rows.putIfAbsent(session.sessionId(), session) == null;
+            boolean created = rows.putIfAbsent(session.sessionId(), session) == null;
+            if (created) {
+                mutationCount++;
+            }
+            return created;
         }
 
         @Override
         public void save(OssUploadSession session) {
+            mutationCount++;
             rows.put(session.sessionId(), session);
         }
 
@@ -578,6 +771,7 @@ class ObjectUploadApplicationServiceTest {
             if (!matchesClaim(current, claimVersion)) {
                 return false;
             }
+            mutationCount++;
             rows.put(sessionId, current.recordClaimError(updatedAt, lastError));
             return true;
         }
@@ -593,6 +787,7 @@ class ObjectUploadApplicationServiceTest {
             if (!matchesClaim(current, claimVersion)) {
                 return false;
             }
+            mutationCount++;
             rows.put(sessionId, current.resetFailedClaim(updatedAt, retryExpiresAt));
             return true;
         }
@@ -603,6 +798,7 @@ class ObjectUploadApplicationServiceTest {
             if (!matchesClaim(current, claimVersion)) {
                 return false;
             }
+            mutationCount++;
             rows.put(sessionId, current.complete(completedAt));
             return true;
         }
@@ -633,9 +829,11 @@ class ObjectUploadApplicationServiceTest {
         private String capturedKey;
         private String capturedContentType;
         private long capturedContentLength;
+        private int operationCount;
 
         @Override
         public void put(String bucket, String key, InputStream content, long contentLength, String contentType) {
+            operationCount++;
             capturedBucket = bucket;
             capturedKey = key;
             capturedContentType = contentType;
@@ -644,6 +842,7 @@ class ObjectUploadApplicationServiceTest {
 
         @Override
         public Optional<ObjectStoreObject> head(String bucket, String key) {
+            operationCount++;
             if (!java.util.Objects.equals(capturedBucket, bucket)
                     || !java.util.Objects.equals(capturedKey, key)) {
                 return Optional.empty();
@@ -660,20 +859,24 @@ class ObjectUploadApplicationServiceTest {
 
         @Override
         public StoredObject get(String bucket, String key) {
+            operationCount++;
             throw new UnsupportedOperationException("not needed");
         }
 
         @Override
         public void delete(String bucket, String key) {
+            operationCount++;
         }
 
         @Override
         public PresignedObjectUrl presignUpload(String bucket, String key, Duration ttl, String contentType) {
+            operationCount++;
             throw new UnsupportedOperationException("not needed");
         }
 
         @Override
         public PresignedObjectUrl presignDownload(String bucket, String key, Duration ttl) {
+            operationCount++;
             throw new UnsupportedOperationException("not needed");
         }
     }

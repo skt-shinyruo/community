@@ -28,6 +28,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -505,6 +506,86 @@ class OutboxWorkerRetryTest {
         } finally {
             stopOutboxWorkerLogCapture(logs);
         }
+    }
+
+    @Test
+    void workerShouldUseUnhandledMetricTopicWhenHandlerMapContainsNullValue() {
+        Instant now = Instant.parse("2026-03-14T00:00:00Z");
+        String arbitraryTopic = "arbitrary-topic-01965429-b34a-7000-8000-000000000010";
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxProperties properties = enabledProperties();
+        UUID outboxId = UUID.fromString("01965429-b34a-7000-8000-000000000010");
+        OutboxLease lease = leaseFor(outboxId);
+        OutboxEvent event = new OutboxEvent(
+                outboxId,
+                "e-null-handler",
+                arbitraryTopic,
+                "1",
+                PAYLOAD_SECRET,
+                OutboxEventStatus.PENDING,
+                0,
+                null,
+                LAST_ERROR_SECRET,
+                null,
+                null
+        );
+        Map<String, OutboxHandler> handlers = new HashMap<>();
+        handlers.put(arbitraryTopic, null);
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+        stubClaim(store, properties, now, event, lease);
+        when(store.markFailedAndScheduleRetry(
+                lease,
+                now,
+                now.plus(Duration.ofSeconds(10)),
+                "no handler for topic=" + arbitraryTopic
+        )).thenReturn(false);
+
+        OutboxWorker worker = new OutboxWorker(
+                store,
+                handlers,
+                properties,
+                Clock.fixed(now, ZoneOffset.UTC),
+                registry
+        );
+
+        assertThat(worker.pollOnce()).isEqualTo(1);
+
+        assertThat(registry.find("outbox.lease.lost")
+                .tags("topic", "unhandled", "transition", "retry")
+                .counter()).isNotNull();
+        assertThat(registry.find("outbox.lease.lost")
+                .tag("topic", arbitraryTopic)
+                .counter()).isNull();
+    }
+
+    @Test
+    void workerShouldUseImmutableHandlerSnapshotAfterCallerMapMutation() {
+        Instant now = Instant.parse("2026-03-14T00:00:00Z");
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxProperties properties = enabledProperties();
+        UUID outboxId = UUID.fromString("01965429-b34a-7000-8000-000000000011");
+        OutboxLease lease = leaseFor(outboxId);
+        OutboxEvent event = leaseLossEvent(outboxId, "e-handler-snapshot", 0);
+        AtomicInteger handlerCalls = new AtomicInteger();
+        OutboxHandler handler = successfulHandler(handlerCalls);
+        Map<String, OutboxHandler> handlers = new HashMap<>();
+        handlers.put(handler.topic(), handler);
+
+        stubClaim(store, properties, now, event, lease);
+        when(store.markSucceeded(lease, now)).thenReturn(true);
+        OutboxWorker worker = new OutboxWorker(
+                store,
+                handlers,
+                properties,
+                Clock.fixed(now, ZoneOffset.UTC)
+        );
+
+        handlers.clear();
+        assertThat(worker.pollOnce()).isEqualTo(1);
+
+        assertThat(handlerCalls).hasValue(1);
+        verify(store).markSucceeded(same(lease), eq(now));
     }
 
     @Test

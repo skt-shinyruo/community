@@ -37,6 +37,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -47,6 +49,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -57,7 +60,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = {
         InternalOssObjectController.class,
         OssObjectController.class,
-        PublicFileController.class
+        PublicFileController.class,
+        OssSecurityConfigTest.SecurityProbeController.class
 }, properties = {
         "spring.cloud.discovery.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",
@@ -66,12 +70,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "security.jwt.issuer=community-auth",
         "oss.security.service-jwt.issuer=community-auth",
         "oss.security.service-jwt.audience=community-oss",
-        "oss.security.service-jwt.scope=oss.internal"
+        "oss.security.service-jwt.scope=oss.internal",
+        "METRICS_BASIC_AUTH_USERNAME=metrics-reader",
+        "METRICS_BASIC_AUTH_PASSWORD=metrics-password-123"
 })
 @Import({
         InternalOssObjectController.class,
         OssObjectController.class,
         PublicFileController.class,
+        OssSecurityConfigTest.SecurityProbeController.class,
         OssSecurityConfig.class,
         SecurityCommonAutoConfiguration.class,
         SecurityExceptionHandler.class,
@@ -80,9 +87,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OssSecurityConfigTest {
 
     private static final String JWT_SECRET = "01234567890123456789012345678901";
+    private static final String INVALID_JWT_SECRET = "98765432109876543210987654321098";
     private static final String USER_ISSUER = "community-auth";
     private static final String SERVICE_AUDIENCE = "community-oss";
     private static final String SERVICE_SCOPE = "oss.internal";
+    private static final String METRICS_USERNAME = "metrics-reader";
+    private static final String METRICS_PASSWORD = "metrics-password-123";
     private static final String TRACE_ID = "abcdefabcdefabcdefabcdefabcdefab";
     private static final String TRACEPARENT = "00-" + TRACE_ID + "-1234567890abcdef-01";
     private static final UUID USER_ID = uuid(9);
@@ -119,6 +129,21 @@ class OssSecurityConfigTest {
         @Bean
         JsonCodec jsonCodec(ObjectMapper objectMapper) {
             return new JacksonJsonCodec(objectMapper);
+        }
+    }
+
+    @RestController
+    static class SecurityProbeController {
+
+        @GetMapping({
+                "/actuator/health",
+                "/actuator/info",
+                "/actuator/prometheus",
+                "/actuator/env",
+                "/unmatched-security-probe"
+        })
+        String probe() {
+            return "ok";
         }
     }
 
@@ -247,6 +272,67 @@ class OssSecurityConfigTest {
     }
 
     @Test
+    void userApiShouldRejectJwtWithInvalidSignature() throws Exception {
+        String token = token(
+                USER_ISSUER,
+                USER_ID.toString(),
+                null,
+                null,
+                futureExpiry(),
+                INVALID_JWT_SECRET
+        );
+
+        expectSecurityError(mvc.perform(userApiRequest(token)), 401);
+    }
+
+    @Test
+    void internalApiShouldRejectJwtWithInvalidSignature() throws Exception {
+        String token = token(
+                USER_ISSUER,
+                "community-app",
+                SERVICE_AUDIENCE,
+                SERVICE_SCOPE,
+                futureExpiry(),
+                INVALID_JWT_SECRET
+        );
+
+        expectSecurityError(mvc.perform(internalApiRequest(token)), 401);
+    }
+
+    @Test
+    void healthAndInfoShouldRemainAnonymous() throws Exception {
+        mvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/actuator/info"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void prometheusShouldRejectAnonymousAndInvalidBasicAuth() throws Exception {
+        expectSecurityError(mvc.perform(securityProbeRequest("/actuator/prometheus")), 401);
+        expectSecurityError(mvc.perform(securityProbeRequest("/actuator/prometheus")
+                .with(httpBasic(METRICS_USERNAME, "wrong-password"))), 401);
+    }
+
+    @Test
+    void prometheusShouldAcceptConfiguredBasicAuth() throws Exception {
+        mvc.perform(get("/actuator/prometheus")
+                        .with(httpBasic(METRICS_USERNAME, METRICS_PASSWORD)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void nonPublicActuatorEndpointShouldRemainDenied() throws Exception {
+        expectSecurityError(mvc.perform(securityProbeRequest("/actuator/env")
+                .with(httpBasic(METRICS_USERNAME, METRICS_PASSWORD))), 403);
+    }
+
+    @Test
+    void unmatchedRouteShouldBeDeniedByFallbackChain() throws Exception {
+        expectSecurityError(mvc.perform(securityProbeRequest("/unmatched-security-probe")), 401);
+    }
+
+    @Test
     void publicFilesShouldRemainAnonymous() throws Exception {
         mvc.perform(get("/files/not-present"))
                 .andExpect(status().isNotFound());
@@ -277,6 +363,10 @@ class OssSecurityConfigTest {
                 .content(referencePayload(uuid(2))), token);
     }
 
+    private MockHttpServletRequestBuilder securityProbeRequest(String path) {
+        return get(path).header(TraceHeaders.HEADER_TRACEPARENT, TRACEPARENT);
+    }
+
     private MockHttpServletRequestBuilder withBearer(MockHttpServletRequestBuilder request, String token) {
         if (token != null) {
             request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
@@ -285,6 +375,17 @@ class OssSecurityConfigTest {
     }
 
     private String token(String issuer, String subject, String audience, String scope, Instant expiresAt) throws Exception {
+        return token(issuer, subject, audience, scope, expiresAt, JWT_SECRET);
+    }
+
+    private String token(
+            String issuer,
+            String subject,
+            String audience,
+            String scope,
+            Instant expiresAt,
+            String secret
+    ) throws Exception {
         JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
                 .issuer(issuer)
                 .subject(subject)
@@ -297,7 +398,7 @@ class OssSecurityConfigTest {
             claims.claim("scope", scope);
         }
         SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims.build());
-        jwt.sign(new MACSigner(JWT_SECRET.getBytes(StandardCharsets.UTF_8)));
+        jwt.sign(new MACSigner(secret.getBytes(StandardCharsets.UTF_8)));
         return jwt.serialize();
     }
 

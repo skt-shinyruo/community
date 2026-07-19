@@ -25,6 +25,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -155,6 +156,7 @@ class OutboxWorkerRetryTest {
         OutboxProperties properties = enabledProperties();
         properties.setMaxRetries(0);
         UUID outboxId = UUID.fromString("01965429-b34a-7000-8000-000000000001");
+        OutboxLease lease = leaseFor(outboxId);
         OutboxEvent event = new OutboxEvent(
                 outboxId,
                 "e-dead:points",
@@ -182,7 +184,8 @@ class OutboxWorkerRetryTest {
 
         when(store.recoverExpiredLeases(now)).thenReturn(0);
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
-        when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(true);
+        when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(Optional.of(lease));
+        when(store.markDead(lease, now, "java.lang.RuntimeException: boom")).thenReturn(true);
 
         ListAppender<ILoggingEvent> logs = startOutboxWorkerLogCapture();
         try {
@@ -191,7 +194,7 @@ class OutboxWorkerRetryTest {
             int processed = worker.pollOnce();
 
             assertThat(processed).isEqualTo(1);
-            verify(store).markDead(outboxId, now, "java.lang.RuntimeException: boom");
+            verify(store).markDead(lease, now, "java.lang.RuntimeException: boom");
             ILoggingEvent deadEvent = findSingleEventByActionAndOutcome(logs, "outbox_dispatch", "dead");
             assertThat(deadEvent.getMDCPropertyMap())
                     .containsEntry(EventLogFields.EVENT_CATEGORY, "async")
@@ -216,6 +219,7 @@ class OutboxWorkerRetryTest {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxProperties properties = enabledProperties();
         UUID outboxId = UUID.fromString("01965429-b34a-7000-8000-000000000002");
+        OutboxLease lease = leaseFor(outboxId);
         OutboxEvent event = new OutboxEvent(
                 outboxId,
                 "e-missing:points",
@@ -232,7 +236,13 @@ class OutboxWorkerRetryTest {
 
         when(store.recoverExpiredLeases(now)).thenReturn(0);
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
-        when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(true);
+        when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(Optional.of(lease));
+        when(store.markFailedAndScheduleRetry(
+                lease,
+                now,
+                now.plus(Duration.ofSeconds(10)),
+                "no handler for topic=projection.points"
+        )).thenReturn(true);
 
         OutboxWorker worker = new OutboxWorker(store, Map.of(), properties, Clock.fixed(now, ZoneOffset.UTC));
 
@@ -241,7 +251,7 @@ class OutboxWorkerRetryTest {
             int processed = worker.pollOnce();
 
             assertThat(processed).isEqualTo(1);
-            verify(store).markFailedAndScheduleRetry(outboxId, now, now.plus(Duration.ofSeconds(10)), "no handler for topic=projection.points");
+            verify(store).markFailedAndScheduleRetry(lease, now, now.plus(Duration.ofSeconds(10)), "no handler for topic=projection.points");
             ILoggingEvent missingHandlerEvent = findSingleEventByActionAndOutcome(logs, "outbox_dispatch", "degraded");
             assertThat(missingHandlerEvent.getMDCPropertyMap())
                     .containsEntry(EventLogFields.EVENT_CATEGORY, "async")
@@ -263,6 +273,7 @@ class OutboxWorkerRetryTest {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxProperties properties = enabledProperties();
         UUID outboxId = UUID.fromString("01965429-b34a-7000-8000-000000000003");
+        OutboxLease lease = leaseFor(outboxId);
         OutboxEvent event = new OutboxEvent(
                 outboxId,
                 "e-trace:points",
@@ -291,7 +302,8 @@ class OutboxWorkerRetryTest {
 
         when(store.recoverExpiredLeases(now)).thenReturn(0);
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
-        when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(true);
+        when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(Optional.of(lease));
+        when(store.markSucceeded(lease, now)).thenReturn(true);
 
         OutboxWorker worker = new OutboxWorker(store, Map.of(handler.topic(), handler), properties, Clock.fixed(now, ZoneOffset.UTC));
 
@@ -300,7 +312,7 @@ class OutboxWorkerRetryTest {
         assertThat(processed).isEqualTo(1);
         assertThat(seenTrace.get()).isEqualTo("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
         assertThat(com.nowcoder.community.common.trace.TraceId.get()).isNull();
-        verify(store).markSucceeded(outboxId, now);
+        verify(store).markSucceeded(lease, now);
     }
 
     @Test
@@ -309,6 +321,7 @@ class OutboxWorkerRetryTest {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxProperties properties = enabledProperties();
         UUID outboxId = UUID.fromString("01965429-b34a-7000-8000-000000000004");
+        OutboxLease lease = leaseFor(outboxId);
         OutboxEvent event = new OutboxEvent(
                 outboxId,
                 "e-trace-active:points",
@@ -343,7 +356,8 @@ class OutboxWorkerRetryTest {
 
         when(store.recoverExpiredLeases(now)).thenReturn(0);
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
-        when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(true);
+        when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(Optional.of(lease));
+        when(store.markSucceeded(lease, now)).thenReturn(true);
 
         OutboxWorker worker = new OutboxWorker(store, Map.of(handler.topic(), handler), properties, Clock.fixed(now, ZoneOffset.UTC));
 
@@ -354,7 +368,7 @@ class OutboxWorkerRetryTest {
             assertThat(seenTrace.get()).isEqualTo("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
             assertThat(com.nowcoder.community.common.trace.TraceId.get()).isEqualTo("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         }
-        verify(store).markSucceeded(outboxId, now);
+        verify(store).markSucceeded(lease, now);
     }
 
     private static OutboxProperties enabledProperties() {
@@ -366,6 +380,13 @@ class OutboxWorkerRetryTest {
         properties.setMaxBackoff(Duration.ofSeconds(60));
         properties.setMaxRetries(3);
         return properties;
+    }
+
+    private static OutboxLease leaseFor(UUID rowId) {
+        return new OutboxLease(
+                rowId,
+                UUID.fromString("01965429-b34a-7000-8000-ffffffffffff")
+        );
     }
 
     private ListAppender<ILoggingEvent> startOutboxWorkerLogCapture() {
@@ -403,6 +424,8 @@ class OutboxWorkerRetryTest {
                         "  event_key varchar(255) not null,\n" +
                         "  payload clob not null,\n" +
                         "  status varchar(32) not null,\n" +
+                        "  lease_token binary(16),\n" +
+                        "  processing_lease_until timestamp,\n" +
                         "  retry_count int not null default 0,\n" +
                         "  next_retry_at timestamp,\n" +
                         "  last_error varchar(512),\n" +
@@ -414,6 +437,7 @@ class OutboxWorkerRetryTest {
                         ")"
         );
         jdbcTemplate.execute("create index if not exists idx_outbox_status_next on outbox_event(status, next_retry_at, id)");
+        jdbcTemplate.execute("create index if not exists idx_outbox_processing_lease on outbox_event(status, processing_lease_until, id)");
         jdbcTemplate.execute("delete from outbox_event");
     }
 }

@@ -99,7 +99,8 @@ class JdbcImPolicyProjectionOutboxAdapterTest {
                 "create table if not exists outbox_event (" +
                         "id binary(16) primary key, event_id varchar(64) not null, " +
                         "topic varchar(255) not null, event_key varchar(255) not null, " +
-                        "payload clob not null, status varchar(32) not null, retry_count int not null default 0, " +
+                        "payload clob not null, status varchar(32) not null, lease_token binary(16), " +
+                        "processing_lease_until timestamp, retry_count int not null default 0, " +
                         "next_retry_at timestamp, last_error varchar(512), trace_id varchar(32), " +
                         "traceparent varchar(128), created_at timestamp default current_timestamp, " +
                         "updated_at timestamp default current_timestamp, constraint uk_outbox_event_id unique (event_id))"

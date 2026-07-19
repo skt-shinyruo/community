@@ -85,8 +85,8 @@ public class OutboxWorker {
             }
 
             Instant leaseUntil = now.plus(properties.getProcessingLease());
-            boolean claimed = store.tryClaimProcessing(event.id(), leaseUntil, now);
-            if (!claimed) {
+            OutboxLease lease = store.tryClaimProcessing(event.id(), leaseUntil, now).orElse(null);
+            if (lease == null) {
                 continue;
             }
 
@@ -101,25 +101,34 @@ public class OutboxWorker {
                 OutboxHandler handler = handlers.get(event.topic());
                 if (handler == null) {
                     Instant nextRetryAt = now.plus(Duration.ofSeconds(10));
-                    store.markFailedAndScheduleRetry(event.id(), now, nextRetryAt, "no handler for topic=" + event.topic());
-                    warnEvent(
-                            "outbox_dispatch",
-                            "degraded",
-                            null,
-                            "community.reason_code", "no_handler",
-                            "community.event_id", event.eventId(),
-                            "community.topic", event.topic(),
-                            "community.retry_count", Math.max(0, event.retryCount()) + 1,
-                            "community.next_retry_at", nextRetryAt
+                    boolean retryScheduled = store.markFailedAndScheduleRetry(
+                            lease,
+                            now,
+                            nextRetryAt,
+                            "no handler for topic=" + event.topic()
                     );
+                    if (retryScheduled) {
+                        warnEvent(
+                                "outbox_dispatch",
+                                "degraded",
+                                null,
+                                "community.reason_code", "no_handler",
+                                "community.event_id", event.eventId(),
+                                "community.topic", event.topic(),
+                                "community.retry_count", Math.max(0, event.retryCount()) + 1,
+                                "community.next_retry_at", nextRetryAt
+                        );
+                    }
                     continue;
                 }
 
                 try {
                     handler.handle(event);
-                    store.markSucceeded(event.id(), now);
+                    if (!store.markSucceeded(lease, now)) {
+                        continue;
+                    }
                 } catch (RuntimeException e) {
-                    handleFailure(event, now, e);
+                    handleFailure(event, lease, now, e);
                 }
             }
         }
@@ -127,11 +136,13 @@ public class OutboxWorker {
         return processed;
     }
 
-    private void handleFailure(OutboxEvent event, Instant now, RuntimeException e) {
+    private void handleFailure(OutboxEvent event, OutboxLease lease, Instant now, RuntimeException e) {
         int currentRetryCount = Math.max(0, event.retryCount());
         int nextAttemptNumber = currentRetryCount + 1;
         if (nextAttemptNumber > properties.getMaxRetries()) {
-            store.markDead(event.id(), now, e.toString());
+            if (!store.markDead(lease, now, e.toString())) {
+                return;
+            }
             warnEvent(
                     "outbox_dispatch",
                     "dead",
@@ -147,7 +158,9 @@ public class OutboxWorker {
 
         Duration delay = backoffDelay(currentRetryCount, properties.getBaseBackoff(), properties.getMaxBackoff());
         Instant nextRetryAt = now.plus(delay);
-        store.markFailedAndScheduleRetry(event.id(), now, nextRetryAt, e.toString());
+        if (!store.markFailedAndScheduleRetry(lease, now, nextRetryAt, e.toString())) {
+            return;
+        }
         warnEvent(
                 "outbox_dispatch",
                 "retry",

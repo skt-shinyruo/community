@@ -134,6 +134,91 @@ class ObjectLifecycleApplicationServiceTest {
     }
 
     @Test
+    void deleteObjectShouldHideMissingCurrentVersionBeforeDependencyMutation() {
+        UUID objectId = uuid(30);
+        UUID versionId = uuid(31);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeVersionRepository versionRepository = new FakeVersionRepository();
+        FakeReferenceRepository referenceRepository = new FakeReferenceRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObject object = OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                OssVisibility.SIGNED,
+                "owner-7",
+                CLOCK.instant()
+        ).activate(activeVersion(objectId, versionId), CLOCK.instant());
+        OssObjectReference reference = OssObjectReference.active(
+                uuid(32), objectId, versionId, "community-app", "user", "USER", "owner-7",
+                "PRIMARY", CLOCK.instant(), CLOCK.instant().plusSeconds(3600));
+        OssAccessGrant grant = OssAccessGrant.readGrant(
+                uuid(33), objectId, null, "USER", "reader-8", "owner-7",
+                CLOCK.instant(), CLOCK.instant().plusSeconds(3600));
+        objectRepository.rows.put(objectId, object);
+        referenceRepository.rows.put(reference.referenceId(), reference);
+        grantRepository.rows.put(grant.grantId(), grant);
+        ObjectLifecycleApplicationService service = new ObjectLifecycleApplicationService(
+                objectRepository, versionRepository, referenceRepository,
+                grantRepository, objectStore, CLOCK);
+
+        Throwable failure = catchThrowable(() -> service.deleteObject(
+                new DeleteObjectCommand(objectId, "owner-7")));
+
+        assertHiddenObjectNotFound(failure);
+        assertThat(objectRepository.findById(objectId)).contains(object);
+        assertThat(objectRepository.saveCount).isZero();
+        assertThat(versionRepository.saveCount).isZero();
+        assertThat(referenceRepository.saveCount).isZero();
+        assertThat(grantRepository.saveCount).isZero();
+        assertThat(objectStore.deletedKey).isNull();
+    }
+
+    @Test
+    void deleteObjectShouldHideCrossObjectCurrentVersionWithoutMutation() {
+        UUID objectId = uuid(40);
+        UUID versionId = uuid(41);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeVersionRepository versionRepository = new FakeVersionRepository();
+        FakeReferenceRepository referenceRepository = new FakeReferenceRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObject object = OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "USER",
+                "owner-7",
+                OssVisibility.SIGNED,
+                "owner-7",
+                CLOCK.instant()
+        ).activate(activeVersion(objectId, versionId), CLOCK.instant());
+        OssObjectVersion foreignVersion = activeVersion(uuid(42), versionId);
+        objectRepository.rows.put(objectId, object);
+        versionRepository.rows.put(versionId, foreignVersion);
+        ObjectLifecycleApplicationService service = new ObjectLifecycleApplicationService(
+                objectRepository, versionRepository, referenceRepository,
+                grantRepository, objectStore, CLOCK);
+
+        Throwable failure = catchThrowable(() -> service.deleteObject(
+                new DeleteObjectCommand(objectId, "owner-7")));
+
+        assertHiddenObjectNotFound(failure);
+        assertThat(objectRepository.findById(objectId)).contains(object);
+        assertThat(versionRepository.findById(versionId)).contains(foreignVersion);
+        assertThat(objectRepository.saveCount).isZero();
+        assertThat(versionRepository.saveCount).isZero();
+        assertThat(referenceRepository.saveCount).isZero();
+        assertThat(grantRepository.saveCount).isZero();
+        assertThat(objectStore.deletedKey).isNull();
+    }
+
+    @Test
     void deleteObjectShouldHideObjectFromGrantUserAndUnrelatedUserWithoutMutation() {
         LifecycleFixture grantUserFixture = lifecycleFixture();
         grantUserFixture.grantRepository.save(OssAccessGrant.readGrant(
@@ -238,9 +323,11 @@ class ObjectLifecycleApplicationServiceTest {
 
     private static final class FakeObjectRepository implements OssObjectRepository {
         private final Map<UUID, OssObject> rows = new HashMap<>();
+        private int saveCount;
 
         @Override
         public void save(OssObject object) {
+            saveCount++;
             rows.put(object.objectId(), object);
         }
 
@@ -252,9 +339,11 @@ class ObjectLifecycleApplicationServiceTest {
 
     private static final class FakeVersionRepository implements OssObjectVersionRepository {
         private final Map<UUID, OssObjectVersion> rows = new HashMap<>();
+        private int saveCount;
 
         @Override
         public void save(OssObjectVersion version) {
+            saveCount++;
             rows.put(version.versionId(), version);
         }
 
@@ -266,9 +355,11 @@ class ObjectLifecycleApplicationServiceTest {
 
     private static final class FakeReferenceRepository implements OssObjectReferenceRepository {
         private final Map<UUID, OssObjectReference> rows = new HashMap<>();
+        private int saveCount;
 
         @Override
         public void save(OssObjectReference reference) {
+            saveCount++;
             rows.put(reference.referenceId(), reference);
         }
 
@@ -290,9 +381,11 @@ class ObjectLifecycleApplicationServiceTest {
 
     private static final class FakeGrantRepository implements OssAccessGrantRepository {
         private final Map<UUID, OssAccessGrant> rows = new HashMap<>();
+        private int saveCount;
 
         @Override
         public void save(OssAccessGrant grant) {
+            saveCount++;
             rows.put(grant.grantId(), grant);
         }
 

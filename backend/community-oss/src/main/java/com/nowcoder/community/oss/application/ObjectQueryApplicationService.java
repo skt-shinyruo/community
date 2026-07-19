@@ -82,6 +82,9 @@ public class ObjectQueryApplicationService {
         }
         OssObjectVersion version = versionId == null ? null : versionRepository.findById(versionId)
                 .orElseThrow(this::objectNotFound);
+        if (version != null && !object.objectId().equals(version.objectId())) {
+            throw objectNotFound();
+        }
         return toMetadataResult(object, version);
     }
 

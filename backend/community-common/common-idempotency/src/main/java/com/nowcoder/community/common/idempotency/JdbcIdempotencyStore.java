@@ -92,8 +92,7 @@ public class JdbcIdempotencyStore implements TransactionalIdempotencyStore {
                               and user_id = ?
                               and idem_key = ?
                               and status = ?
-                              and success_expires_at is not null
-                              and success_expires_at < ?
+                              and (success_expires_at is null or success_expires_at < ?)
                             """,
                     STATUS_PROCESSING,
                     hash,
@@ -243,7 +242,7 @@ public class JdbcIdempotencyStore implements TransactionalIdempotencyStore {
                           and user_id = ?
                           and idem_key = ?
                           and status = 'S'
-                          and success_expires_at < ?
+                          and (success_expires_at is null or success_expires_at < ?)
                         """,
                 operation,
                 BinaryUuidCodec.toBytes(userId),

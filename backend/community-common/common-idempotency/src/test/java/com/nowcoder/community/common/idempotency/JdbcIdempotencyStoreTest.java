@@ -337,6 +337,31 @@ class JdbcIdempotencyStoreTest {
     }
 
     @Test
+    void successWithoutExpiryShouldBeReacquiredAsProcessing() {
+        String key = "idem-success-without-expiry";
+        StoreFixture fixture = processingFixture(key, "hash-a");
+        forceState(fixture, key, "S", "{\"id\":1}", null);
+
+        boolean reacquired = fixture.store().tryAcquireProcessing(
+                "post:create",
+                USER_ID,
+                key,
+                "hash-b",
+                Duration.ofSeconds(30)
+        );
+        PersistedEntry entry = persistedEntry(fixture, key);
+
+        assertAll(
+                () -> assertThat(reacquired).isTrue(),
+                () -> assertThat(entry.status()).isEqualTo("P"),
+                () -> assertThat(entry.requestHash()).isEqualTo("hash-b"),
+                () -> assertThat(entry.processingExpiresAt()).isNotNull(),
+                () -> assertThat(entry.responseJson()).isNull(),
+                () -> assertThat(entry.successExpiresAt()).isNull()
+        );
+    }
+
+    @Test
     void indeterminateShouldNotBeReacquired() {
         StoreFixture fixture = processingFixture("idem-indeterminate", "hash-a");
         forceState(fixture, "idem-indeterminate", "I", null, null);
@@ -365,6 +390,25 @@ class JdbcIdempotencyStoreTest {
                 "select count(*) from http_idempotency where idem_key = ?",
                 Integer.class,
                 "idem-expired-success"
+        );
+
+        assertAll(
+                () -> assertThat(entry).isNull(),
+                () -> assertThat(rowCount).isZero()
+        );
+    }
+
+    @Test
+    void getShouldDeleteSuccessWithoutExpiry() {
+        String key = "idem-success-without-expiry";
+        StoreFixture fixture = processingFixture(key, "hash-a");
+        forceState(fixture, key, "S", "{\"id\":1}", null);
+
+        IdempotencyStore.Entry entry = fixture.store().get("post:create", USER_ID, key);
+        Integer rowCount = fixture.jdbcTemplate().queryForObject(
+                "select count(*) from http_idempotency where idem_key = ?",
+                Integer.class,
+                key
         );
 
         assertAll(

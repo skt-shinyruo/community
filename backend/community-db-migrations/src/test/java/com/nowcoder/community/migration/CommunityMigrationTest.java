@@ -9,10 +9,15 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +29,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Testcontainers
 class CommunityMigrationTest {
+
+    private static final String VERSION_ONE_SHA256 =
+            "3c2c2541d68342d92c4ccd840dbde8aabe2e6bcad53ef64cc0251b148b63a829";
+    private static final String MANIFEST_SHA256 =
+            "afac5a24716bd1c339b51963f028c3af3ac1430a3f8ac94d4485b0eb47f3e3e6";
 
     private static final List<String> LEGACY_COMMUNITY_SCHEMA_FILES = List.of(
             "010_schema_shared.sql",
@@ -52,7 +62,7 @@ class CommunityMigrationTest {
         var result = CommunityMigrationRunner.standard(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .migrate();
 
-        assertThat(result.migrationsExecuted).isEqualTo(7);
+        assertThat(result.migrationsExecuted).isEqualTo(8);
         CommunitySchemaCatalog migratedCatalog = CommunitySchemaCatalog
                 .capture(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .withoutTables(Set.of(
@@ -76,6 +86,7 @@ class CommunityMigrationTest {
                 "upload_status", "upload_operation_version", "upload_updated_at");
         assertThat(columnNames(database, "auth_refresh_token")).contains("security_version");
         assertThat(columnNames(database, "comment")).contains("version");
+        assertOutboxLeaseFencingSchema(database);
         assertThat(tableNames(database)).doesNotContain(
                 "im_conversation",
                 "im_message",
@@ -96,13 +107,13 @@ class CommunityMigrationTest {
         CommunityMigrationRunner runner = CommunityMigrationRunner.standard(
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword());
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(7);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(8);
         assertThat(runner.migrate().migrationsExecuted).isZero();
         runner.validate();
 
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(7L);
+                .isEqualTo(8L);
     }
 
     @Test
@@ -120,6 +131,32 @@ class CommunityMigrationTest {
         assertThatThrownBy(runner::validate)
                 .isInstanceOf(FlywayException.class)
                 .hasMessageContaining("checksum");
+    }
+
+    @Test
+    void versionOneMigrationAndManifestShouldRemainFrozen() throws Exception {
+        Path migrationDirectory = findRepositoryRoot().resolve(
+                "backend/community-db-migrations/src/main/resources/db/migration/community");
+
+        assertThat(sha256(migrationDirectory.resolve("V001__baseline.sql")))
+                .isEqualTo(VERSION_ONE_SHA256);
+        assertThat(sha256(migrationDirectory.resolve("community-schema-manifest.tsv")))
+                .isEqualTo(MANIFEST_SHA256);
+    }
+
+    @Test
+    void h2FixtureShouldDeclareTheMigratedOutboxLeaseFencingShape() throws Exception {
+        String schema = Files.readString(findRepositoryRoot().resolve(
+                "backend/community-app/src/test/resources/schema.sql"));
+
+        assertThat(schema).contains(
+                "  status varchar(32) not null,\n"
+                        + "  lease_token binary(16) null,\n"
+                        + "  processing_lease_until timestamp null,\n"
+                        + "  retry_count int not null default 0,");
+        assertThat(schema).contains(
+                "create index if not exists idx_outbox_processing_lease "
+                        + "on outbox_event(status, processing_lease_until, id);");
     }
 
     @Test
@@ -182,6 +219,13 @@ class CommunityMigrationTest {
                 "x'10000000000070008000000000000012', x'10000000000070008000000000000001', " +
                 "null, x'10000000000070008000000000000032', null, 'draft.png', 'image/png', 11, " +
                 "'IMAGE', 'UPLOADED', 'NONE')");
+        execute(database, "insert into outbox_event(" +
+                "id, event_id, topic, event_key, payload, status, retry_count" +
+                ") values (" +
+                "x'10000000000070008000000000000052', 'migration-lease-pending', " +
+                "'migration.topic', 'pending', '{\"phase\":\"pending\"}', 'PENDING', 2), (" +
+                "x'10000000000070008000000000000053', 'migration-lease-processing', " +
+                "'migration.topic', 'processing', '{\"phase\":\"processing\"}', 'PROCESSING', 5)");
 
         var result = CommunityMigrationRunner.standard(
                         database.url(), MYSQL.getUsername(), MYSQL.getPassword())
@@ -194,7 +238,28 @@ class CommunityMigrationTest {
                 ") values (x'10000000000070008000000000000051', '" + mediaReleaseEventId + "', " +
                 "'content.media.reference', 'media-reference', '{}', 'NEW')");
 
-        assertThat(result.migrationsExecuted).isEqualTo(6);
+        assertThat(result.migrationsExecuted).isEqualTo(7);
+        assertOutboxLeaseFencingSchema(database);
+        assertThat(outboxEventStates(database, "migration-lease-%")).containsExactly(
+                new OutboxEventState(
+                        "10000000000070008000000000000052",
+                        "migration-lease-pending",
+                        "{\"phase\":\"pending\"}",
+                        "PENDING",
+                        2,
+                        null,
+                        null
+                ),
+                new OutboxEventState(
+                        "10000000000070008000000000000053",
+                        "migration-lease-processing",
+                        "{\"phase\":\"processing\"}",
+                        "PROCESSING",
+                        5,
+                        null,
+                        null
+                )
+        );
         assertThat(queryString(database,
                 "select event_id from outbox_event where event_key = 'media-reference'"))
                 .isEqualTo(mediaReleaseEventId);
@@ -231,7 +296,7 @@ class CommunityMigrationTest {
                 .isEqualTo(2L);
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(7L);
+                .isEqualTo(8L);
     }
 
     @Test
@@ -371,6 +436,97 @@ class CommunityMigrationTest {
         }
     }
 
+    private static void assertOutboxLeaseFencingSchema(Database database) throws Exception {
+        assertThat(columnDefinition(database, "outbox_event", "lease_token"))
+                .isEqualTo(new ColumnDefinition("binary(16)", true));
+        assertThat(columnDefinition(database, "outbox_event", "processing_lease_until"))
+                .isEqualTo(new ColumnDefinition("timestamp", true));
+        assertThat(indexColumns(database, "outbox_event", "idx_outbox_processing_lease"))
+                .containsExactly("status", "processing_lease_until", "id");
+    }
+
+    private static ColumnDefinition columnDefinition(
+            Database database,
+            String table,
+            String column
+    ) throws Exception {
+        String sql = "select column_type, is_nullable from information_schema.columns "
+                + "where table_schema = ? and table_name = ? and column_name = ?";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database.name());
+            statement.setString(2, table);
+            statement.setString(3, column);
+            try (ResultSet rows = statement.executeQuery()) {
+                if (!rows.next()) {
+                    return null;
+                }
+                return new ColumnDefinition(
+                        rows.getString("column_type").toLowerCase(),
+                        "YES".equals(rows.getString("is_nullable"))
+                );
+            }
+        }
+    }
+
+    private static List<String> indexColumns(
+            Database database,
+            String table,
+            String index
+    ) throws Exception {
+        String sql = "select column_name from information_schema.statistics "
+                + "where table_schema = ? and table_name = ? and index_name = ? order by seq_in_index";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database.name());
+            statement.setString(2, table);
+            statement.setString(3, index);
+            try (ResultSet rows = statement.executeQuery()) {
+                List<String> columns = new ArrayList<>();
+                while (rows.next()) {
+                    columns.add(rows.getString("column_name").toLowerCase());
+                }
+                return columns;
+            }
+        }
+    }
+
+    private static List<OutboxEventState> outboxEventStates(
+            Database database,
+            String eventIdPattern
+    ) throws Exception {
+        String sql = "select hex(id), event_id, payload, status, retry_count, "
+                + "hex(lease_token), processing_lease_until from outbox_event "
+                + "where event_id like ? order by event_id";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, eventIdPattern);
+            try (ResultSet rows = statement.executeQuery()) {
+                List<OutboxEventState> states = new ArrayList<>();
+                while (rows.next()) {
+                    states.add(new OutboxEventState(
+                            rows.getString(1),
+                            rows.getString(2),
+                            rows.getString(3),
+                            rows.getString(4),
+                            rows.getInt(5),
+                            rows.getString(6),
+                            rows.getTimestamp(7)
+                    ));
+                }
+                return states;
+            }
+        }
+    }
+
+    private static String sha256(Path path) throws Exception {
+        return HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
+    }
+
     private static long queryLong(Database database, String sql) throws Exception {
         try (Connection connection = DriverManager.getConnection(database.url(), MYSQL.getUsername(), MYSQL.getPassword());
              Statement statement = connection.createStatement();
@@ -404,5 +560,19 @@ class CommunityMigrationTest {
     }
 
     private record Database(String name, String url) {
+    }
+
+    private record ColumnDefinition(String type, boolean nullable) {
+    }
+
+    private record OutboxEventState(
+            String rowId,
+            String eventId,
+            String payload,
+            String status,
+            int retryCount,
+            String leaseToken,
+            Timestamp processingLeaseUntil
+    ) {
     }
 }

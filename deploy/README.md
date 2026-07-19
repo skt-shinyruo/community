@@ -24,7 +24,7 @@
 - `community-single`
 - `community-cluster`
 
-如需覆盖，继续使用 `-p` / `--project-name`。
+如需覆盖，继续使用 `-p` / `--project-name`。自定义 project 必须同时提供独立的 volume namespace、网段、动态地址范围、NGINX/Gateway 静态地址和对应 trusted-proxy CIDR；脚本会在调用 Compose 前拒绝仍复用任一默认拓扑值的配置，避免两个 project 争用相同地址或数据卷。
 
 ## 环境文件
 
@@ -32,6 +32,12 @@
 
 - `cp deploy/.env.single.example deploy/.env.single`
 - `cp deploy/.env.cluster.example deploy/.env.cluster`
+
+`deployment.sh` 只按白名单读取拓扑变量，不会 `source` env 文件。拓扑值的优先级为当前 shell 环境、env 文件、内置默认值。这样升级前创建、尚未包含新网络键的 `.env.single` / `.env.cluster` 仍可使用默认拓扑；Compose 文件中的必填插值继续保护绕过入口脚本的直接调用。
+
+内置 single 默认值为 `172.30.0.0/24`、动态范围 `172.30.0.128/25`、NGINX `172.30.0.10`、Gateway `172.30.0.20`。cluster 对应为 `172.31.0.0/24`、动态范围 `172.31.0.128/25`、NGINX `172.31.0.10`、三个 Gateway `172.31.0.20` 到 `172.31.0.22`。
+
+自定义 single project 需要覆盖：`COMMUNITY_VOLUME_NAMESPACE`、`COMMUNITY_NETWORK_SUBNET`、`COMMUNITY_NETWORK_DYNAMIC_RANGE`、`NGINX_STATIC_IP`、`COMMUNITY_GATEWAY_STATIC_IP`、`GATEWAY_TRUSTED_PROXY_CIDRS`、`COMMUNITY_APP_TRUSTED_PROXY_CIDRS`。cluster 使用同一组公共键，并把单 Gateway 键替换为 `COMMUNITY_GATEWAY_1_STATIC_IP`、`COMMUNITY_GATEWAY_2_STATIC_IP`、`COMMUNITY_GATEWAY_3_STATIC_IP`。
 
 ## 文件结构
 

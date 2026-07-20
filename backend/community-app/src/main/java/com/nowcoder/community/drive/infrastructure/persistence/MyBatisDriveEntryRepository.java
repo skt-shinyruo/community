@@ -93,6 +93,11 @@ public class MyBatisDriveEntryRepository implements DriveEntryRepository {
     }
 
     @Override
+    public boolean markDeletedIfTrashed(DriveEntry deletedEntry) {
+        return mapper.markDeletedIfTrashed(DriveEntryDataObject.fromDomain(deletedEntry)) == 1;
+    }
+
+    @Override
     public void save(DriveEntry entry) {
         DriveEntryDataObject dataObject = DriveEntryDataObject.fromDomain(entry);
         if (mapper.update(dataObject) == 0) {

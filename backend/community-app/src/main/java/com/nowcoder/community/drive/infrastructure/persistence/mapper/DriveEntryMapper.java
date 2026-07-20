@@ -33,5 +33,7 @@ public interface DriveEntryMapper {
 
     int insert(DriveEntryDataObject entry);
 
+    int markDeletedIfTrashed(DriveEntryDataObject entry);
+
     int update(DriveEntryDataObject entry);
 }

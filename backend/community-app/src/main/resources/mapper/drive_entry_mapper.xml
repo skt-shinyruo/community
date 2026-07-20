@@ -125,6 +125,13 @@
         )
     </insert>
 
+    <update id="markDeletedIfTrashed" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
+        update drive_entry
+        set status = 'DELETED', updated_at = #{updatedAt},
+            trashed_at = #{trashedAt}, delete_after = #{deleteAfter}, trash_root_id = #{trashRootId}
+        where space_id = #{spaceId} and entry_id = #{entryId} and status = 'TRASHED'
+    </update>
+
     <update id="update" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
         update drive_entry
         set parent_id = #{parentId, jdbcType=BINARY},

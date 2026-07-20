@@ -179,6 +179,10 @@ public class MarketOrder {
         return status() == MarketOrderStatus.ESCROW_CANCEL_PENDING;
     }
 
+    public boolean holdsReservedInventoryForEscrowCancellation() {
+        return status() == MarketOrderStatus.ESCROW_CANCEL_PENDING;
+    }
+
     public boolean isPreloadedDelivery() {
         return MarketDeliveryMode.PRELOADED.code().equals(deliveryModeSnapshot);
     }

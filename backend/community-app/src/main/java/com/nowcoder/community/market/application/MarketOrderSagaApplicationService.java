@@ -6,6 +6,8 @@ import com.nowcoder.community.market.domain.model.MarketOrderStatus;
 import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +19,8 @@ import java.util.UUID;
 
 @Service
 public class MarketOrderSagaApplicationService {
+
+    private static final Logger log = LoggerFactory.getLogger(MarketOrderSagaApplicationService.class);
 
     private final MarketOrderRepository marketOrderRepository;
     private final MarketListingRepository marketListingRepository;
@@ -45,7 +49,19 @@ public class MarketOrderSagaApplicationService {
                 && order.status() != MarketOrderStatus.ESCROW_FAILED)) {
             return;
         }
-        if (marketOrderRepository.apply(order.cancelWithoutRefund()) == MarketOrderRepository.ApplyStatus.APPLIED) {
+        MarketOrderStatus fromStatus = order.status();
+        boolean restoreInventory = order.holdsReservedInventoryForEscrowCancellation();
+        MarketOrderRepository.ApplyStatus outcome = marketOrderRepository.apply(order.cancelWithoutRefund());
+        boolean transitionAffected = outcome == MarketOrderRepository.ApplyStatus.APPLIED;
+        boolean inventoryCompensationAttempted = transitionAffected && restoreInventory;
+        log.info(
+                "[market-escrow-noop] orderId={} fromStatus={} transitionAffected={} inventoryCompensationAttempted={}",
+                orderId,
+                fromStatus,
+                transitionAffected,
+                inventoryCompensationAttempted
+        );
+        if (inventoryCompensationAttempted) {
             restoreReservedInventoryAndStock(order);
         }
     }

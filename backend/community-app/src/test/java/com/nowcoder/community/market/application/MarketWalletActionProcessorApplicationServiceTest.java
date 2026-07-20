@@ -4,6 +4,7 @@ import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.domain.model.MarketOrderTransition;
+import com.nowcoder.community.market.domain.model.MarketWalletActionStatus;
 import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
@@ -112,6 +113,8 @@ class MarketWalletActionProcessorApplicationServiceTest {
         AtomicInteger stock = new AtomicInteger(0);
         AtomicInteger maximumObservedStock = new AtomicInteger(0);
         AtomicInteger reservedReleaseCalls = new AtomicInteger(0);
+        AtomicReference<String> walletActionStatus = new AtomicReference<>(MarketWalletActionStatus.PENDING);
+        AtomicReference<Date> processingLeaseUntil = new AtomicReference<>();
         MarketListing listing = new MarketListing();
         listing.setListingId(listingId);
         listing.setSellerUserId(action.getCounterpartyUserId());
@@ -141,9 +144,33 @@ class MarketWalletActionProcessorApplicationServiceTest {
             int call = reservedReleaseCalls.incrementAndGet();
             return call == 1 ? 1 : 0;
         });
-        when(mapper.claimProcessing(eq(action.getActionId()), any())).thenReturn(1, 1);
-        when(mapper.recoverExpiredProcessing(any())).thenReturn(1);
-        when(mapper.markCancelled(action.getActionId(), "NOOP")).thenReturn(1);
+        when(mapper.claimProcessing(eq(action.getActionId()), any())).thenAnswer(invocation -> {
+            String status = walletActionStatus.get();
+            if (!MarketWalletActionStatus.PENDING.equals(status)
+                    && !MarketWalletActionStatus.RETRYING.equals(status)) {
+                return 0;
+            }
+            walletActionStatus.set(MarketWalletActionStatus.PROCESSING);
+            processingLeaseUntil.set(invocation.getArgument(1));
+            return 1;
+        });
+        when(mapper.recoverExpiredProcessing(any())).thenAnswer(invocation -> {
+            Date asOf = invocation.getArgument(0);
+            Date leaseUntil = processingLeaseUntil.get();
+            if (!MarketWalletActionStatus.PROCESSING.equals(walletActionStatus.get())
+                    || leaseUntil == null
+                    || leaseUntil.after(asOf)) {
+                return 0;
+            }
+            walletActionStatus.set(MarketWalletActionStatus.RETRYING);
+            processingLeaseUntil.set(null);
+            return 1;
+        });
+        when(mapper.markCancelled(action.getActionId(), "NOOP")).thenAnswer(ignored -> {
+            walletActionStatus.set(MarketWalletActionStatus.CANCELLED);
+            processingLeaseUntil.set(null);
+            return 1;
+        });
         when(walletApi.escrowOrder(
                 action.getRequestId(),
                 action.getActorUserId(),
@@ -179,11 +206,26 @@ class MarketWalletActionProcessorApplicationServiceTest {
         assertThat(currentOrder.get().getStatus()).isEqualTo("ESCROW_FAILED");
         assertThat(stock.get()).isEqualTo(1);
         assertThat(reservedReleaseCalls.get()).isEqualTo(1);
+        assertThat(walletActionStatus.get()).isEqualTo(MarketWalletActionStatus.PROCESSING);
+        Date firstProcessingLease = processingLeaseUntil.get();
+        assertThat(firstProcessingLease.toInstant()).isEqualTo(clock.instant().plusSeconds(60));
 
-        assertThat(recovery.recoverExpiredProcessing(clock.instant())).isEqualTo(1);
+        assertThat(processor.processOne(action)).isFalse();
+        assertThat(walletActionStatus.get()).isEqualTo(MarketWalletActionStatus.PROCESSING);
+        assertThat(processingLeaseUntil.get()).isEqualTo(firstProcessingLease);
+
+        assertThat(recovery.recoverExpiredProcessing(clock.instant())).isZero();
+        assertThat(walletActionStatus.get()).isEqualTo(MarketWalletActionStatus.PROCESSING);
+        assertThat(processingLeaseUntil.get()).isEqualTo(firstProcessingLease);
+
+        assertThat(recovery.recoverExpiredProcessing(clock.instant().plusSeconds(61))).isEqualTo(1);
+        assertThat(walletActionStatus.get()).isEqualTo(MarketWalletActionStatus.RETRYING);
+        assertThat(processingLeaseUntil.get()).isNull();
         assertThat(processor.processOne(action)).isTrue();
 
         assertThat(currentOrder.get().getStatus()).isEqualTo("CANCELLED");
+        assertThat(walletActionStatus.get()).isEqualTo(MarketWalletActionStatus.CANCELLED);
+        assertThat(processingLeaseUntil.get()).isNull();
         assertThat(stock.get()).isEqualTo(1);
         assertThat(maximumObservedStock.get()).isLessThanOrEqualTo(1);
         assertThat(reservedReleaseCalls.get()).isEqualTo(1);

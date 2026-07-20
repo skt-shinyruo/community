@@ -2,6 +2,7 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
 import com.nowcoder.community.social.application.command.SetLikeCommand;
 import com.nowcoder.community.social.application.result.LikeResult;
@@ -19,7 +20,9 @@ import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -36,11 +39,14 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class LikeApplicationServiceTest {
+
+    private static final Instant ID_TIME = Instant.parse("2026-07-15T08:30:00Z");
 
     @Test
     void selfLikeShouldBeRejectedForUserEntity() {
@@ -95,11 +101,18 @@ class LikeApplicationServiceTest {
     }
 
     @Test
-    void likeShouldBeIdempotentAndPublishOnce() {
+    void likeLifecycleShouldPersistAndPublishOneInstanceThenRenewItAfterRelike() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
         RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
+        UuidV7Generator idGenerator = new UuidV7Generator(Clock.fixed(ID_TIME, ZoneOffset.UTC));
 
-        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher);
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                publisher,
+                new StatefulLikeTargetStateRepository(),
+                idGenerator
+        );
 
         SetLikeCommand like = new SetLikeCommand(uuid(1), POST, uuid(100), true, uuid(2), uuid(100));
         SetLikeCommand unlike = new SetLikeCommand(uuid(1), POST, uuid(100), false, uuid(2), uuid(100));
@@ -109,6 +122,10 @@ class LikeApplicationServiceTest {
         assertThat(service.userLikeCount(uuid(2))).isEqualTo(1);
         assertThat(publisher.snapshot()).hasSize(1);
         assertThat(publisher.snapshot().get(0)).isInstanceOf(LikeChangedDomainEvent.class);
+        LikeRelation firstRelation = repo.findLike(uuid(1), POST, uuid(100)).orElseThrow();
+        LikeChangedDomainEvent firstCreated = (LikeChangedDomainEvent) publisher.snapshot().get(0);
+        assertThat(firstRelation.relationInstanceId()).isEqualTo(firstCreated.relationInstanceId());
+        assertThat(firstRelation.relationInstanceId().version()).isEqualTo(7);
 
         LikeResult repeatedLike = service.setLike(like);
         assertThat(repeatedLike.liked()).isTrue();
@@ -121,12 +138,28 @@ class LikeApplicationServiceTest {
         assertThat(r3.likeCount()).isEqualTo(0);
         assertThat(service.userLikeCount(uuid(2))).isEqualTo(0);
         assertThat(publisher.snapshot()).hasSize(2);
+        LikeChangedDomainEvent firstRemoved = (LikeChangedDomainEvent) publisher.snapshot().get(1);
+        assertThat(firstRemoved.relationInstanceId()).isEqualTo(firstRelation.relationInstanceId());
 
         LikeResult r4 = service.setLike(unlike);
         assertThat(r4.liked()).isFalse();
         assertThat(r4.likeCount()).isEqualTo(0);
         assertThat(service.userLikeCount(uuid(2))).isEqualTo(0);
         assertThat(publisher.snapshot()).hasSize(2);
+
+        LikeResult reliked = service.setLike(like);
+        LikeRelation secondRelation = repo.findLike(uuid(1), POST, uuid(100)).orElseThrow();
+        LikeChangedDomainEvent secondCreated = (LikeChangedDomainEvent) publisher.snapshot().get(2);
+        assertThat(reliked.liked()).isTrue();
+        assertThat(secondRelation.relationInstanceId()).isEqualTo(secondCreated.relationInstanceId());
+        assertThat(secondRelation.relationInstanceId()).isNotEqualTo(firstRelation.relationInstanceId());
+        assertThat(secondRelation.relationInstanceId().getMostSignificantBits() & 0x0fffL)
+                .isEqualTo((firstRelation.relationInstanceId().getMostSignificantBits() & 0x0fffL) + 1L);
+
+        service.setLike(unlike);
+        LikeChangedDomainEvent secondRemoved = (LikeChangedDomainEvent) publisher.snapshot().get(3);
+        assertThat(secondRemoved.relationInstanceId()).isEqualTo(secondRelation.relationInstanceId());
+        assertThat(publisher.snapshot()).hasSize(4);
     }
 
     @Test
@@ -142,15 +175,38 @@ class LikeApplicationServiceTest {
         LikeChangedDomainEvent created = (LikeChangedDomainEvent) publisher.snapshot().get(0);
         LikeChangedDomainEvent removed = (LikeChangedDomainEvent) publisher.snapshot().get(1);
         assertThat(created.relationKey()).isEqualTo(removed.relationKey());
+        assertThat(created.relationInstanceId()).isEqualTo(removed.relationInstanceId());
         assertThat(created.relationKey()).isEqualTo("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
+    }
+
+    @Test
+    void compareAndSetLoserShouldNotAdjustOwnerCountOrPublish() {
+        LikeRepository repo = mock(LikeRepository.class);
+        SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
+        LikeRelation existing = new LikeRelation(uuid(800), uuid(1), POST, uuid(100), uuid(2));
+        when(repo.findLike(uuid(1), POST, uuid(100))).thenReturn(Optional.of(existing));
+        when(repo.removeLike(existing)).thenReturn(false);
+        when(repo.isLiked(uuid(1), POST, uuid(100))).thenReturn(true);
+        when(repo.countEntityLikes(POST, uuid(100))).thenReturn(1L);
+        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher);
+
+        LikeResult result = service.setLike(new SetLikeCommand(
+                uuid(1), POST, uuid(100), false, uuid(2), uuid(100)
+        ));
+
+        assertThat(result.liked()).isTrue();
+        assertThat(result.likeCount()).isOne();
+        verify(repo).removeLike(existing);
+        verify(repo, never()).incrementUserLikeCount(uuid(2), -1L);
+        verifyNoInteractions(publisher);
     }
 
     @Test
     void deleteLikesByEntityShouldDecrementStoredOwnerCounts() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
 
-        assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
-        assertThat(repo.setLike(uuid(3), POST, uuid(100), uuid(2), true)).isTrue();
+        seedLike(repo, uuid(801), uuid(1), POST, uuid(100), uuid(2));
+        seedLike(repo, uuid(802), uuid(3), POST, uuid(100), uuid(2));
         assertThat(repo.getUserLikeCount(uuid(2))).isEqualTo(2);
 
         assertThat(repo.deleteLikesByEntity(POST, uuid(100))).isEqualTo(2);
@@ -169,8 +225,8 @@ class LikeApplicationServiceTest {
                 publisher
         );
 
-        assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
-        assertThat(repo.setLike(uuid(3), POST, uuid(100), uuid(2), true)).isTrue();
+        LikeRelation first = seedLike(repo, uuid(803), uuid(1), POST, uuid(100), uuid(2));
+        LikeRelation second = seedLike(repo, uuid(804), uuid(3), POST, uuid(100), uuid(2));
 
         long removed = service.cleanupDeletedContentLikes(deletionCommand(POST, uuid(100)));
 
@@ -179,7 +235,9 @@ class LikeApplicationServiceTest {
         assertThat(publisher.snapshot())
                 .filteredOn(LikeChangedDomainEvent.class::isInstance)
                 .extracting(LikeChangedDomainEvent.class::cast)
-                .allSatisfy(event -> assertThat(event.liked()).isFalse());
+                .allSatisfy(event -> assertThat(event.liked()).isFalse())
+                .extracting(LikeChangedDomainEvent::relationInstanceId)
+                .containsExactlyInAnyOrder(first.relationInstanceId(), second.relationInstanceId());
         assertThat(publisher.snapshot())
                 .filteredOn(LikeChangedDomainEvent.class::isInstance)
                 .hasSize(2);
@@ -194,8 +252,8 @@ class LikeApplicationServiceTest {
                 new StatefulBlockRepository(),
                 publisher
         );
-        assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
-        assertThat(repo.setLike(uuid(3), POST, uuid(100), uuid(2), true)).isTrue();
+        seedLike(repo, uuid(805), uuid(1), POST, uuid(100), uuid(2));
+        seedLike(repo, uuid(806), uuid(3), POST, uuid(100), uuid(2));
         CleanupDeletedContentLikesCommand command = new CleanupDeletedContentLikesCommand(
                 POST,
                 uuid(100),
@@ -226,7 +284,7 @@ class LikeApplicationServiceTest {
                 command.sourceVersion(),
                 command.deletedAt()
         ));
-        assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
+        seedLike(repo, uuid(807), uuid(1), POST, uuid(100), uuid(2));
         LikeApplicationService service = newService(
                 repo,
                 new StatefulBlockRepository(),
@@ -255,7 +313,7 @@ class LikeApplicationServiceTest {
                 new FailingSocialDomainEventPublisher()
         );
 
-        assertThat(repo.setLike(uuid(1), POST, uuid(100), uuid(2), true)).isTrue();
+        seedLike(repo, uuid(808), uuid(1), POST, uuid(100), uuid(2));
 
         assertThatThrownBy(() -> service.cleanupDeletedContentLikes(deletionCommand(POST, uuid(100))))
                 .isInstanceOf(IllegalStateException.class)
@@ -418,7 +476,8 @@ class LikeApplicationServiceTest {
                 likeRepository,
                 blockRepository,
                 publisher,
-                new StatefulLikeTargetStateRepository()
+                new StatefulLikeTargetStateRepository(),
+                new UuidV7Generator(Clock.fixed(ID_TIME, ZoneOffset.UTC))
         );
     }
 
@@ -428,14 +487,53 @@ class LikeApplicationServiceTest {
             SocialDomainEventPublisher publisher,
             LikeTargetStateRepository targetStateRepository
     ) {
+        return newService(
+                likeRepository,
+                blockRepository,
+                publisher,
+                targetStateRepository,
+                new UuidV7Generator(Clock.fixed(ID_TIME, ZoneOffset.UTC))
+        );
+    }
+
+    private LikeApplicationService newService(
+            LikeRepository likeRepository,
+            BlockRepository blockRepository,
+            SocialDomainEventPublisher publisher,
+            LikeTargetStateRepository targetStateRepository,
+            UuidV7Generator idGenerator
+    ) {
         return new LikeApplicationService(
                 likeRepository,
                 blockRepository,
                 new LikeDomainService(),
                 new BlockDomainService(),
                 publisher,
-                targetStateRepository
+                targetStateRepository,
+                idGenerator
         );
+    }
+
+    private LikeRelation seedLike(
+            StatefulLikeRepository repository,
+            UUID relationInstanceId,
+            UUID actorUserId,
+            int entityType,
+            UUID entityId,
+            UUID entityUserId
+    ) {
+        LikeRelation relation = new LikeRelation(
+                relationInstanceId,
+                actorUserId,
+                entityType,
+                entityId,
+                entityUserId
+        );
+        assertThat(repository.addLike(relation)).isTrue();
+        if (entityUserId != null) {
+            repository.incrementUserLikeCount(entityUserId, 1L);
+        }
+        return relation;
     }
 
     private CleanupDeletedContentLikesCommand deletionCommand(int entityType, UUID entityId) {
@@ -450,47 +548,42 @@ class LikeApplicationServiceTest {
 
     private static final class StatefulLikeRepository implements LikeRepository {
 
-        private static final UUID UNKNOWN_OWNER = new UUID(0L, 0L);
-
-        private final Map<String, Map<UUID, UUID>> entityLikes = new ConcurrentHashMap<>();
+        private final Map<String, Map<UUID, LikeRelation>> entityLikes = new ConcurrentHashMap<>();
         private final Map<UUID, Long> userLikeCounts = new ConcurrentHashMap<>();
 
         @Override
-        public boolean addLike(UUID userId, int entityType, UUID entityId) {
-            return addLike(userId, entityType, entityId, null);
+        public boolean addLike(LikeRelation relation) {
+            Map<UUID, LikeRelation> map = entityLikes.computeIfAbsent(
+                    entityKey(relation.entityType(), relation.entityId()),
+                    ignored -> new ConcurrentHashMap<>()
+            );
+            return map.putIfAbsent(relation.actorUserId(), relation) == null;
         }
 
         @Override
-        public boolean addLike(UUID userId, int entityType, UUID entityId, UUID entityUserId) {
-            Map<UUID, UUID> map = entityLikes.computeIfAbsent(entityKey(entityType, entityId), ignored -> new ConcurrentHashMap<>());
-            return map.putIfAbsent(userId, entityUserId == null ? UNKNOWN_OWNER : entityUserId) == null;
-        }
-
-        @Override
-        public boolean removeLike(UUID userId, int entityType, UUID entityId) {
-            Map<UUID, UUID> map = entityLikes.get(entityKey(entityType, entityId));
-            return map != null && map.remove(userId) != null;
+        public boolean removeLike(LikeRelation expectedRelation) {
+            Map<UUID, LikeRelation> map = entityLikes.get(entityKey(
+                    expectedRelation.entityType(),
+                    expectedRelation.entityId()
+            ));
+            return map != null && map.remove(expectedRelation.actorUserId(), expectedRelation);
         }
 
         @Override
         public Optional<LikeRelation> findLike(UUID userId, int entityType, UUID entityId) {
-            Map<UUID, UUID> map = entityLikes.get(entityKey(entityType, entityId));
-            if (map == null || !map.containsKey(userId)) {
-                return Optional.empty();
-            }
-            UUID ownerUserId = map.get(userId);
-            return Optional.of(new LikeRelation(userId, entityType, entityId, UNKNOWN_OWNER.equals(ownerUserId) ? null : ownerUserId));
+            Map<UUID, LikeRelation> map = entityLikes.get(entityKey(entityType, entityId));
+            return map == null ? Optional.empty() : Optional.ofNullable(map.get(userId));
         }
 
         @Override
         public long deleteLikesByEntity(int entityType, UUID entityId) {
-            Map<UUID, UUID> removed = entityLikes.remove(entityKey(entityType, entityId));
+            Map<UUID, LikeRelation> removed = entityLikes.remove(entityKey(entityType, entityId));
             if (removed == null || removed.isEmpty()) {
                 return 0;
             }
-            for (UUID ownerUserId : removed.values()) {
-                if (ownerUserId != null && !UNKNOWN_OWNER.equals(ownerUserId)) {
-                    incrementUserLikeCount(ownerUserId, -1);
+            for (LikeRelation relation : removed.values()) {
+                if (relation.entityUserId() != null) {
+                    incrementUserLikeCount(relation.entityUserId(), -1);
                 }
             }
             return removed.size();
@@ -498,7 +591,7 @@ class LikeApplicationServiceTest {
 
         @Override
         public List<LikeRelation> scanLikesByEntity(int entityType, UUID entityId, UUID afterActorUserId, int limit) {
-            Map<UUID, UUID> map = entityLikes.get(entityKey(entityType, entityId));
+            Map<UUID, LikeRelation> map = entityLikes.get(entityKey(entityType, entityId));
             if (map == null || map.isEmpty()) {
                 return List.of();
             }
@@ -507,12 +600,7 @@ class LikeApplicationServiceTest {
                     .filter(entry -> entry.getKey().compareTo(cursor) > 0)
                     .sorted(Map.Entry.comparingByKey())
                     .limit(limit)
-                    .map(entry -> new LikeRelation(
-                            entry.getKey(),
-                            entityType,
-                            entityId,
-                            UNKNOWN_OWNER.equals(entry.getValue()) ? null : entry.getValue()
-                    ))
+                    .map(Map.Entry::getValue)
                     .toList();
         }
 
@@ -530,13 +618,13 @@ class LikeApplicationServiceTest {
 
         @Override
         public boolean isLiked(UUID userId, int entityType, UUID entityId) {
-            Map<UUID, UUID> map = entityLikes.get(entityKey(entityType, entityId));
+            Map<UUID, LikeRelation> map = entityLikes.get(entityKey(entityType, entityId));
             return map != null && map.containsKey(userId);
         }
 
         @Override
         public long countEntityLikes(int entityType, UUID entityId) {
-            Map<UUID, UUID> map = entityLikes.get(entityKey(entityType, entityId));
+            Map<UUID, LikeRelation> map = entityLikes.get(entityKey(entityType, entityId));
             return map == null ? 0 : map.size();
         }
 

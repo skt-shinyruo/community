@@ -163,9 +163,9 @@ class MyBatisLikeTargetStateRepositoryTest {
         deleteTarget(second, 11L);
         deleteTarget(deletedWithoutLikes, 12L);
         repository.insertActiveIfAbsent(POST, activeWithLikes);
-        insertLike(uuid(1), first);
-        insertLike(uuid(2), second);
-        insertLike(uuid(3), activeWithLikes);
+        insertLike(uuid(7001), uuid(1), first);
+        insertLike(uuid(7002), uuid(2), second);
+        insertLike(uuid(7003), uuid(3), activeWithLikes);
 
         List<LikeTargetState> firstPage = repository.scanDeletedTargetsWithLikesAfter(
                 POST,
@@ -193,9 +193,11 @@ class MyBatisLikeTargetStateRepositoryTest {
         ))).isTrue();
     }
 
-    private void insertLike(UUID actorUserId, UUID entityId) {
+    private void insertLike(UUID relationInstanceId, UUID actorUserId, UUID entityId) {
         jdbcTemplate.update(
-                "insert into social_like(user_id, entity_type, entity_id, entity_user_id) values (?, ?, ?, ?)",
+                "insert into social_like(relation_instance_id, user_id, entity_type, entity_id, entity_user_id) "
+                        + "values (?, ?, ?, ?, ?)",
+                BinaryUuidCodec.toBytes(relationInstanceId),
                 BinaryUuidCodec.toBytes(actorUserId),
                 POST,
                 BinaryUuidCodec.toBytes(entityId),

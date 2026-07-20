@@ -2,6 +2,7 @@ package com.nowcoder.community.social.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
+import com.nowcoder.community.social.domain.model.LikeRelation;
 import com.nowcoder.community.social.domain.model.ResolvedSocialEntity;
 
 import java.time.Instant;
@@ -39,20 +40,21 @@ public class LikeDomainService {
     }
 
     public LikeChangedDomainEvent likeChangedEvent(
-            UUID actorUserId,
-            int entityType,
-            UUID entityId,
+            LikeRelation relation,
             ResolvedSocialEntity resolved,
             boolean liked,
             Instant occurredAt
     ) {
         return new LikeChangedDomainEvent(
-                actorUserId,
-                entityType,
-                entityId,
-                resolved == null ? null : resolved.entityUserId(),
-                entityType == POST ? entityId : resolved == null ? null : resolved.postId(),
-                relationKey(actorUserId, entityType, entityId),
+                relation.actorUserId(),
+                relation.entityType(),
+                relation.entityId(),
+                relation.entityUserId(),
+                relation.entityType() == POST
+                        ? relation.entityId()
+                        : resolved == null ? null : resolved.postId(),
+                relationKey(relation.actorUserId(), relation.entityType(), relation.entityId()),
+                relation.relationInstanceId(),
                 liked,
                 occurredAt
         );

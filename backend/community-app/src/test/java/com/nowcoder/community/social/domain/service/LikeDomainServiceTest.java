@@ -4,6 +4,7 @@ import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
+import com.nowcoder.community.social.domain.model.LikeRelation;
 import com.nowcoder.community.social.domain.model.ResolvedSocialEntity;
 import org.junit.jupiter.api.Test;
 
@@ -78,16 +79,16 @@ class LikeDomainServiceTest {
     void likeChangedEventShouldCarryResolvedOwnerAndPost() {
         LikeDomainService service = new LikeDomainService();
         Instant createdAt = Instant.parse("2026-04-28T00:00:00Z");
+        LikeRelation relation = new LikeRelation(uuid(900), uuid(1), EntityTypes.POST, uuid(10), uuid(2));
 
         LikeChangedDomainEvent event = service.likeChangedEvent(
-                uuid(1),
-                EntityTypes.POST,
-                uuid(10),
+                relation,
                 new ResolvedSocialEntity(uuid(2), uuid(10)),
                 true,
                 createdAt
         );
 
+        assertThat(event.relationInstanceId()).isEqualTo(uuid(900));
         assertThat(event.actorUserId()).isEqualTo(uuid(1));
         assertThat(event.entityType()).isEqualTo(EntityTypes.POST);
         assertThat(event.entityId()).isEqualTo(uuid(10));
@@ -101,11 +102,10 @@ class LikeDomainServiceTest {
     @Test
     void postLikeEventShouldUseEntityIdWhenResolvedPostIdIsMissing() {
         LikeDomainService service = new LikeDomainService();
+        LikeRelation relation = new LikeRelation(uuid(901), uuid(1), EntityTypes.POST, uuid(10), uuid(2));
 
         LikeChangedDomainEvent event = service.likeChangedEvent(
-                uuid(1),
-                EntityTypes.POST,
-                uuid(10),
+                relation,
                 new ResolvedSocialEntity(uuid(2), null),
                 false,
                 Instant.EPOCH

@@ -6,6 +6,7 @@ import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
 import com.nowcoder.community.social.application.command.SetLikeCommand;
+import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.infrastructure.event.OutboxSocialDomainEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,10 +67,13 @@ class LikeCleanupTransactionIntegrationTest {
 
     @Test
     void publisherFailureInSecondPageShouldRollbackFenceLikesCountsAndOutboxThenRetryFromStart() {
-        seedLikes(205);
+        List<UUID> relationInstanceIds = seedLikes(205);
+        List<UUID> firstAttemptInstances = new java.util.concurrent.CopyOnWriteArrayList<>();
         AtomicInteger publicationAttempt = new AtomicInteger();
         doAnswer(invocation -> {
             invocation.callRealMethod();
+            LikeChangedDomainEvent event = invocation.getArgument(0);
+            firstAttemptInstances.add(event.relationInstanceId());
             if (publicationAttempt.incrementAndGet() == 201) {
                 throw new IllegalStateException("publish failed on second page");
             }
@@ -85,14 +89,26 @@ class LikeCleanupTransactionIntegrationTest {
         assertThat(likeCount()).isEqualTo(205L);
         assertThat(ownerLikeCount()).isEqualTo(205L);
         assertThat(outboxCount()).isZero();
+        assertThat(storedRelationInstanceIds())
+                .containsExactlyInAnyOrderElementsOf(relationInstanceIds);
+        assertThat(firstAttemptInstances)
+                .containsExactlyElementsOf(relationInstanceIds.subList(0, 201));
 
         reset(outboxPublisher);
+        List<UUID> retryInstances = new java.util.concurrent.CopyOnWriteArrayList<>();
+        doAnswer(invocation -> {
+            invocation.callRealMethod();
+            LikeChangedDomainEvent event = invocation.getArgument(0);
+            retryInstances.add(event.relationInstanceId());
+            return null;
+        }).when(outboxPublisher).publishLikeChanged(any());
         assertThat(likeApplicationService.cleanupDeletedContentLikes(command)).isEqualTo(205L);
         assertThat(targetStatus()).isEqualTo("DELETED");
         assertThat(targetSourceVersion()).isEqualTo(42L);
         assertThat(likeCount()).isZero();
         assertThat(ownerLikeCount()).isZero();
         assertThat(outboxCount()).isEqualTo(205L);
+        assertThat(retryInstances).containsExactlyElementsOf(relationInstanceIds);
 
         assertThat(likeApplicationService.cleanupDeletedContentLikes(command)).isZero();
         assertThat(outboxCount()).isEqualTo(205L);
@@ -111,9 +127,13 @@ class LikeCleanupTransactionIntegrationTest {
         assertThat(outboxCount()).isZero();
     }
 
-    private void seedLikes(int count) {
+    private List<UUID> seedLikes(int count) {
+        List<UUID> relationInstanceIds = IntStream.range(0, count)
+                .mapToObj(index -> uuid(20_000L + index))
+                .toList();
         List<Object[]> rows = IntStream.range(0, count)
                 .mapToObj(index -> new Object[]{
+                        BinaryUuidCodec.toBytes(relationInstanceIds.get(index)),
                         BinaryUuidCodec.toBytes(uuid(10_000L + index)),
                         POST,
                         BinaryUuidCodec.toBytes(TARGET_ID),
@@ -121,8 +141,8 @@ class LikeCleanupTransactionIntegrationTest {
                 })
                 .toList();
         jdbcTemplate.batchUpdate(
-                "insert into social_like(user_id, entity_type, entity_id, entity_user_id, created_at) "
-                        + "values (?, ?, ?, ?, current_timestamp)",
+                "insert into social_like(relation_instance_id, user_id, entity_type, entity_id, entity_user_id, created_at) "
+                        + "values (?, ?, ?, ?, ?, current_timestamp)",
                 rows
         );
         jdbcTemplate.update(
@@ -131,6 +151,7 @@ class LikeCleanupTransactionIntegrationTest {
                 BinaryUuidCodec.toBytes(OWNER_ID),
                 count
         );
+        return relationInstanceIds;
     }
 
     private CleanupDeletedContentLikesCommand deletionCommand() {
@@ -173,6 +194,15 @@ class LikeCleanupTransactionIntegrationTest {
     private long likeCount() {
         return queryCount(
                 "select count(*) from social_like where entity_type = ? and entity_id = ?",
+                POST,
+                BinaryUuidCodec.toBytes(TARGET_ID)
+        );
+    }
+
+    private List<UUID> storedRelationInstanceIds() {
+        return jdbcTemplate.query(
+                "select relation_instance_id from social_like where entity_type = ? and entity_id = ? order by user_id",
+                (resultSet, rowNum) -> BinaryUuidCodec.fromBytes(resultSet.getBytes("relation_instance_id")),
                 POST,
                 BinaryUuidCodec.toBytes(TARGET_ID)
         );

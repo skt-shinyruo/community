@@ -623,6 +623,18 @@ class DriveUploadApplicationServiceTest {
         }
 
         @Override
+        public boolean markDeletedIfTrashed(DriveEntry deletedEntry) {
+            DriveEntry current = rows.get(deletedEntry.entryId());
+            if (current == null
+                    || !current.spaceId().equals(deletedEntry.spaceId())
+                    || current.status() != DriveEntryStatus.TRASHED) {
+                return false;
+            }
+            rows.put(deletedEntry.entryId(), deletedEntry);
+            return true;
+        }
+
+        @Override
         public void save(DriveEntry entry) {
             rows.put(entry.entryId(), entry);
         }

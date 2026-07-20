@@ -276,6 +276,11 @@ class DriveEntryApplicationServiceTest {
             }
 
             @Override
+            public boolean markDeletedIfTrashed(DriveEntry deletedEntry) {
+                return false;
+            }
+
+            @Override
             public void save(DriveEntry entry) {
                 assertThat(locked.get()).isTrue();
             }

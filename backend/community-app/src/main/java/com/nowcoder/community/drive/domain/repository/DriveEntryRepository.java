@@ -32,5 +32,7 @@ public interface DriveEntryRepository {
 
     CreateResult create(DriveEntry entry);
 
+    boolean markDeletedIfTrashed(DriveEntry deletedEntry);
+
     void save(DriveEntry entry);
 }

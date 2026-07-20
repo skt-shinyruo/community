@@ -168,6 +168,64 @@ class IdempotencyGuardFingerprintTest {
     }
 
     @Test
+    void executeRequiredShouldMapUnexpectedReplayCodecRuntimeExceptionToStoreUnavailable() {
+        TransactionalIdempotencyStore store = enlistedStore();
+        when(store.tryAcquireProcessing(anyString(), eq(USER_ID), anyString(), eq("hash-1"), any(Duration.class)))
+                .thenReturn(false);
+        when(store.get("wallet:recharge", USER_ID, "idem-1"))
+                .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.SUCCESS, "\"OK\"", "hash-1"));
+        JsonCodec codec = mock(JsonCodec.class);
+        when(codec.fromJson(anyString(), eq(String.class)))
+                .thenThrow(new IllegalArgumentException("codec exploded"));
+        IdempotencyGuard guard = guard(codec, store);
+        AtomicInteger supplierCalls = new AtomicInteger();
+
+        assertThatThrownBy(() -> guard.executeRequired(
+                "wallet:recharge",
+                USER_ID,
+                "idem-1",
+                "hash-1",
+                null,
+                String.class,
+                () -> {
+                    supplierCalls.incrementAndGet();
+                    return "NEW";
+                }
+        ))
+                .isInstanceOfSatisfying(BusinessException.class, error -> {
+                    assertThat(error.getErrorCode()).isSameAs(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
+                    assertThat(error.getErrorCode().getCode()).isEqualTo(503);
+                });
+
+        assertThat(supplierCalls).hasValue(0);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{broken-json", "{}", "\"OK\""})
+    void executeRequiredShouldRejectNonNullVoidReplayPayload(String responseJson) {
+        TransactionalIdempotencyStore store = enlistedStore();
+        when(store.tryAcquireProcessing(anyString(), eq(USER_ID), anyString(), eq("hash-1"), any(Duration.class)))
+                .thenReturn(false);
+        when(store.get("wallet:recharge", USER_ID, "idem-1"))
+                .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.SUCCESS, responseJson, "hash-1"));
+        IdempotencyGuard guard = guard(store);
+
+        assertThatThrownBy(() -> guard.executeRequired(
+                "wallet:recharge",
+                USER_ID,
+                "idem-1",
+                "hash-1",
+                null,
+                Void.class,
+                () -> null
+        ))
+                .isInstanceOfSatisfying(BusinessException.class, error -> {
+                    assertThat(error.getErrorCode()).isSameAs(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
+                    assertThat(error.getErrorCode().getCode()).isEqualTo(503);
+                });
+    }
+
+    @Test
     void executeRequiredShouldValidateFingerprintBeforeTransactionEligibility() {
         TransactionalIdempotencyStore store = mock(TransactionalIdempotencyStore.class);
         IdempotencyGuard guard = guard(store);
@@ -196,7 +254,11 @@ class IdempotencyGuardFingerprintTest {
     }
 
     private static IdempotencyGuard guard(IdempotencyStore store) {
-        return new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
+        return guard(jsonCodec(), store);
+    }
+
+    private static IdempotencyGuard guard(JsonCodec jsonCodec, IdempotencyStore store) {
+        return new IdempotencyGuard(jsonCodec, store, null, new IdempotencyProperties());
     }
 
     private static JsonCodec jsonCodec() {

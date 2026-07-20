@@ -218,9 +218,6 @@ public class IdempotencyGuard {
         if (type == null) {
             throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
         }
-        if (type == Void.class) {
-            return null;
-        }
         try {
             if (jsonCodec == null) {
                 throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
@@ -230,7 +227,9 @@ public class IdempotencyGuard {
                 throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE);
             }
             return value;
-        } catch (JsonCodecException e) {
+        } catch (BusinessException e) {
+            throw e;
+        } catch (RuntimeException e) {
             throw new BusinessException(IdempotencyErrorCode.IDEMPOTENCY_STORE_UNAVAILABLE, e);
         }
     }

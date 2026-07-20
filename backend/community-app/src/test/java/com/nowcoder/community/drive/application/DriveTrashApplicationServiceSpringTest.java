@@ -18,7 +18,9 @@ import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -181,6 +183,63 @@ class DriveTrashApplicationServiceSpringTest {
 
         assertThat(spaceRepository.findById(space.spaceId()).orElseThrow().usedBytes()).isZero();
         verify(objectStoragePort, times(2)).deleteObject(objectId, userId.toString());
+    }
+
+    @Test
+    void deletedParentRetryShouldCleanupEarlierDeletedChildWithoutReleasingQuotaAgain() {
+        UUID userId = uuid(7);
+        Instant now = Instant.parse("2026-05-09T00:00:00Z");
+        DriveSpace space = DriveSpace.createDefault(uuid(90), userId, now)
+                .reserve(8, now)
+                .commitReserved(8, now);
+        spaceRepository.save(space);
+
+        UUID folderId = uuid(91);
+        UUID fileId = uuid(92);
+        UUID objectId = uuid(93);
+        DriveEntry folder = DriveEntry.folder(folderId, space.spaceId(), null, "folder", now)
+                .trash(now, now.plusSeconds(86_400));
+        DriveEntry child = DriveEntry.file(
+                        fileId, space.spaceId(), folderId, "child.txt", objectId, uuid(94), 8, "text/plain", now
+                )
+                .trash(folderId, now, now.plusSeconds(86_400));
+        entryRepository.save(folder);
+        entryRepository.save(child);
+        clearInvocations(spaceRepository);
+
+        doThrow(new RuntimeException("oss down"))
+                .doNothing()
+                .when(objectStoragePort)
+                .deleteObject(objectId, userId.toString());
+
+        assertThatThrownBy(() -> serviceAt(now.plusSeconds(1)).deletePermanently(userId, fileId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("网盘存储服务不可用");
+
+        assertThat(entryRepository.findById(space.spaceId(), folderId).orElseThrow().status())
+                .isEqualTo(DriveEntryStatus.TRASHED);
+        assertThat(entryRepository.findById(space.spaceId(), fileId).orElseThrow().status())
+                .isEqualTo(DriveEntryStatus.DELETED);
+        assertThat(spaceRepository.findById(space.spaceId()).orElseThrow().usedBytes()).isZero();
+
+        serviceAt(now.plusSeconds(2)).deletePermanently(userId, folderId);
+        serviceAt(now.plusSeconds(3)).deletePermanently(userId, folderId);
+
+        assertThat(entryRepository.findById(space.spaceId(), folderId).orElseThrow().status())
+                .isEqualTo(DriveEntryStatus.DELETED);
+        assertThat(spaceRepository.findById(space.spaceId()).orElseThrow().usedBytes()).isZero();
+        verify(spaceRepository, times(1)).save(any(DriveSpace.class));
+        verify(objectStoragePort, times(2)).deleteObject(objectId, userId.toString());
+    }
+
+    private DriveTrashApplicationService serviceAt(Instant now) {
+        return new DriveTrashApplicationService(
+                spaceRepository,
+                entryRepository,
+                objectStoragePort,
+                Clock.fixed(now, ZoneOffset.UTC),
+                transactionOperations
+        );
     }
 
     private static void await(CountDownLatch latch) {

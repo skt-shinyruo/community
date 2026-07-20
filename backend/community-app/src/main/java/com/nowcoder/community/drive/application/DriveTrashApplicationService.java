@@ -148,11 +148,9 @@ public class DriveTrashApplicationService {
             }
             return new PermanentDeletionWork(winners);
         }
-        Instant retryWatermark = entry.updatedAt();
         List<DriveEntry> retryTargets = entries.stream()
                 .filter(DriveEntry::file)
                 .filter(item -> item.status() == DriveEntryStatus.DELETED)
-                .filter(item -> retryWatermark != null && !item.updatedAt().isBefore(retryWatermark))
                 .toList();
         return new PermanentDeletionWork(retryTargets);
     }

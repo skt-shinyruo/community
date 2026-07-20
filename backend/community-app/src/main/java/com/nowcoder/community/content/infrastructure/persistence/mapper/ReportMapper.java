@@ -29,5 +29,17 @@ public interface ReportMapper {
             @Param("limit") int limit
     );
 
+    int claimPending(
+            @Param("id") UUID id,
+            @Param("pending") int pending,
+            @Param("processing") int processing
+    );
+
+    int transitionStatus(
+            @Param("id") UUID id,
+            @Param("expectedStatus") int expectedStatus,
+            @Param("nextStatus") int nextStatus
+    );
+
     int updateStatus(@Param("id") UUID id, @Param("status") int status);
 }

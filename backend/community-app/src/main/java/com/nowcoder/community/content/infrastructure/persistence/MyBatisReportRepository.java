@@ -13,6 +13,8 @@ import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
+import static com.nowcoder.community.content.domain.model.ReportStatuses.PENDING;
+import static com.nowcoder.community.content.domain.model.ReportStatuses.PROCESSING;
 
 @Repository
 public class MyBatisReportRepository implements ReportRepository {
@@ -52,6 +54,24 @@ public class MyBatisReportRepository implements ReportRepository {
         int updated = reportMapper.updateStatus(reportId, status);
         if (updated <= 0) {
             throw new BusinessException(NOT_FOUND, "举报不存在或更新失败");
+        }
+    }
+
+    @Override
+    public boolean claimPending(UUID reportId) {
+        requireReportId(reportId);
+        return reportMapper.claimPending(reportId, PENDING, PROCESSING) == 1;
+    }
+
+    @Override
+    public boolean transitionStatus(UUID reportId, int expectedStatus, int nextStatus) {
+        requireReportId(reportId);
+        return reportMapper.transitionStatus(reportId, expectedStatus, nextStatus) == 1;
+    }
+
+    private void requireReportId(UUID reportId) {
+        if (reportId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "reportId 非法");
         }
     }
 

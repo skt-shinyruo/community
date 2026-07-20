@@ -25,6 +25,8 @@ import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.content.exception.ContentErrorCode.INTERNAL_ERROR;
+import static com.nowcoder.community.content.exception.ContentErrorCode.MODERATION_DECISION_CONFLICT;
 
 @Service
 public class ModerationApplicationService {
@@ -77,10 +79,15 @@ public class ModerationApplicationService {
                 command.reason(),
                 command.durationSeconds()
         );
-        ReportSnapshot report = reportRepository.getRequired(decision.reportId());
-        if (report.status() != ReportStatuses.PENDING) {
-            throw new BusinessException(INVALID_ARGUMENT, "该举报已处理");
+        if (!reportRepository.claimPending(decision.reportId())) {
+            return moderationActionRepository.findByReportId(decision.reportId())
+                    .filter(decision::matches)
+                    .map(ModerationActionRecord::id)
+                    .orElseThrow(() -> new BusinessException(MODERATION_DECISION_CONFLICT));
         }
+        ReportSnapshot report = reportRepository.getRequired(decision.reportId());
+        ModerationTarget target = moderationTargetRepository.resolveTarget(report);
+        applyModerationSideEffect(decision, target);
 
         ModerationActionRecord action = moderationActionRepository.writeAction(
                 decision.actorId(),
@@ -89,28 +96,16 @@ public class ModerationApplicationService {
                 decision.normalizedReason(),
                 decision.auditDurationSeconds()
         );
-        ModerationTarget target = moderationTargetRepository.resolveTarget(report);
+        int terminalStatus = decision.isReject() ? ReportStatuses.REJECTED : ReportStatuses.PROCESSED;
+        if (!reportRepository.transitionStatus(decision.reportId(), ReportStatuses.PROCESSING, terminalStatus)) {
+            throw new BusinessException(INTERNAL_ERROR, "举报状态更新失败");
+        }
 
-        if (decision.isReject()) {
-            reportRepository.markStatus(decision.reportId(), ReportStatuses.REJECTED);
-            moderationNoticePort.publish(report, action, target, "to_reporter", report.reporterId());
-            return action.id();
+        if (!decision.isReject()) {
+            moderationNoticePort.publish(report, action, target, "to_target", target.targetUserId());
         }
-        if (decision.isContentAction()) {
-            applyContentModeration(decision.actorId(), target, decision.normalizedAction(), decision.normalizedReason());
-            markProcessedAndNotify(report, action, target);
-            return action.id();
-        }
-        if (decision.isWarn()) {
-            markProcessedAndNotify(report, action, target);
-            return action.id();
-        }
-        if (decision.isUserModerationAction()) {
-            userModerationActionApi.applyModeration(target.targetUserId(), decision.normalizedAction(), decision.resolvedDurationSeconds());
-            markProcessedAndNotify(report, action, target);
-            return action.id();
-        }
-        throw new BusinessException(INVALID_ARGUMENT, "未支持的 action");
+        moderationNoticePort.publish(report, action, target, "to_reporter", report.reporterId());
+        return action.id();
     }
 
     @Transactional(readOnly = true)
@@ -122,10 +117,28 @@ public class ModerationApplicationService {
                 .toList();
     }
 
-    private void markProcessedAndNotify(ReportSnapshot report, ModerationActionRecord action, ModerationTarget target) {
-        reportRepository.markStatus(report.id(), ReportStatuses.PROCESSED);
-        moderationNoticePort.publish(report, action, target, "to_target", target.targetUserId());
-        moderationNoticePort.publish(report, action, target, "to_reporter", report.reporterId());
+    private void applyModerationSideEffect(ModerationDecision decision, ModerationTarget target) {
+        if (decision.isReject() || decision.isWarn()) {
+            return;
+        }
+        if (decision.isContentAction()) {
+            applyContentModeration(
+                    decision.actorId(),
+                    target,
+                    decision.normalizedAction(),
+                    decision.normalizedReason()
+            );
+            return;
+        }
+        if (decision.isUserModerationAction()) {
+            userModerationActionApi.applyModeration(
+                    target.targetUserId(),
+                    decision.normalizedAction(),
+                    decision.resolvedDurationSeconds()
+            );
+            return;
+        }
+        throw new BusinessException(INVALID_ARGUMENT, "未支持的 action");
     }
 
     private void applyContentModeration(UUID actorId, ModerationTarget target, String action, String reason) {

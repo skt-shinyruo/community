@@ -11,5 +11,9 @@ public interface ReportRepository {
 
     List<ReportSnapshot> listReports(Integer status, Integer targetType, UUID reporterId, int page, int size);
 
+    boolean claimPending(UUID reportId);
+
+    boolean transitionStatus(UUID reportId, int expectedStatus, int nextStatus);
+
     void markStatus(UUID reportId, int status);
 }

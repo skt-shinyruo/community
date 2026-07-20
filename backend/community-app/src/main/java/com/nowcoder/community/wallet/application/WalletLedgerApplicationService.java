@@ -9,6 +9,7 @@ import com.nowcoder.community.wallet.domain.model.WalletEntry;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerItem;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
+import com.nowcoder.community.wallet.domain.model.WalletPostingPolicy;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
 import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
@@ -103,21 +104,39 @@ public class WalletLedgerApplicationService {
 
     @Transactional
     public WalletTxnResult post(String requestId, WalletTxnType txnType, List<WalletPosting> postings) {
-        return postInsideTransaction(new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), requestId, postings));
+        return postInsideTransaction(
+                new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), requestId, postings),
+                WalletPostingPolicy.NORMAL
+        );
     }
 
     @Transactional
     public WalletTxnResult post(String requestId, WalletTxnType txnType, String bizId, List<WalletPosting> postings) {
-        return postInsideTransaction(new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), bizId, postings));
+        return postInsideTransaction(
+                new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), bizId, postings),
+                WalletPostingPolicy.NORMAL
+        );
     }
 
     @Transactional
     public WalletTxnResult post(WalletLedgerCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        return postInsideTransaction(command);
+        return postInsideTransaction(command, WalletPostingPolicy.NORMAL);
     }
 
-    private WalletTxnResult postInsideTransaction(WalletLedgerCommand command) {
+    @Transactional
+    WalletTxnResult postPrivilegedCorrection(
+            String requestId,
+            WalletTxnType txnType,
+            List<WalletPosting> postings
+    ) {
+        return postInsideTransaction(
+                new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), requestId, postings),
+                WalletPostingPolicy.PRIVILEGED_CORRECTION
+        );
+    }
+
+    private WalletTxnResult postInsideTransaction(WalletLedgerCommand command, WalletPostingPolicy policy) {
         validateRequest(command);
         String requestId = command.requestId();
         WalletTxnType txnType = command.txnType();
@@ -158,7 +177,11 @@ public class WalletLedgerApplicationService {
 
         for (WalletPosting posting : postings) {
             WalletAccount account = walletAccountService.lock(posting.accountId());
-            long nextBalance = walletAccountService.apply(account, walletAccountService.deltaOf(account, posting));
+            long nextBalance = walletAccountService.apply(
+                    account,
+                    walletAccountService.deltaOf(account, posting),
+                    policy
+            );
 
             WalletEntry entry = new WalletEntry();
             entry.setEntryId(idGenerator.next());

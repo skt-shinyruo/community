@@ -213,6 +213,63 @@ class WalletLedgerApplicationServiceTest {
     }
 
     @Test
+    void privilegedCorrectionShouldAllowDebtAndReuseReplayValidation() {
+        UUID userId = uuid(101);
+        UUID userAccountId = service.ensureUserWallet(userId);
+        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+        List<WalletPosting> correction = List.of(
+                WalletPosting.debit(userAccountId, 5),
+                WalletPosting.credit(systemAccountId, 5)
+        );
+
+        WalletTxnResult first = service.postPrivilegedCorrection(
+                "wallet:correction:debt",
+                WalletTxnType.REVERSAL,
+                correction
+        );
+        WalletTxnResult replay = service.postPrivilegedCorrection(
+                "wallet:correction:debt",
+                WalletTxnType.REVERSAL,
+                correction
+        );
+
+        assertThat(replay).isEqualTo(first);
+        assertThat(service.balanceOfUser(userId)).isEqualTo(-5L);
+        assertThat(systemBalance("PLATFORM_REWARD_EXPENSE")).isEqualTo(-5L);
+        assertThat(service.entriesOfTxn(first.txnId()))
+                .extracting(entry -> entry.getBalanceAfter())
+                .containsExactly(-5L, -5L);
+        assertThat(txnCount()).isEqualTo(1);
+        assertThat(entryCount()).isEqualTo(2);
+
+        assertThatThrownBy(() -> service.postPrivilegedCorrection(
+                "wallet:correction:debt",
+                WalletTxnType.REVERSAL,
+                List.of(
+                        WalletPosting.debit(userAccountId, 6),
+                        WalletPosting.credit(systemAccountId, 6)
+                )
+        ))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(WalletErrorCode.REQUEST_REPLAY_CONFLICT));
+
+        assertThatThrownBy(() -> service.post(
+                "wallet:normal:debt",
+                WalletTxnType.TRANSFER,
+                List.of(
+                        WalletPosting.debit(userAccountId, 1),
+                        WalletPosting.credit(systemAccountId, 1)
+                )
+        ))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT));
+        assertThat(txnCount()).isEqualTo(1);
+        assertThat(entryCount()).isEqualTo(2);
+    }
+
+    @Test
     void postShouldRejectIfAnyPostingWouldDriveBalanceBelowZero() {
         UUID senderUserId = uuid(101);
         UUID receiverUserId = uuid(202);

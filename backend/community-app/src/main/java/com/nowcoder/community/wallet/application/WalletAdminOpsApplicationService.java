@@ -104,16 +104,10 @@ public class WalletAdminOpsApplicationService {
         }
 
         String reversalRequestId = reversalRequestId(txn.getRequestId());
-        if (walletLedgerRepository.findTxnByRequestId(reversalRequestId) != null) {
-            insertReverseAuditIfAbsent(actorUserId, txn, normalizedReason);
-            return;
-        }
-
         List<WalletPosting> reversal = entries.stream()
                 .map(this::reverseOf)
                 .toList();
-        ensureReversalCanBeApplied(txnRef, reversal);
-        ledgerService.post(reversalRequestId, WalletTxnType.REVERSAL, reversal);
+        ledgerService.postPrivilegedCorrection(reversalRequestId, WalletTxnType.REVERSAL, reversal);
         insertReverseAuditIfAbsent(actorUserId, txn, normalizedReason);
     }
 
@@ -130,19 +124,6 @@ public class WalletAdminOpsApplicationService {
             return WalletPosting.credit(entry.getAccountId(), entry.getAmount());
         }
         return WalletPosting.debit(entry.getAccountId(), entry.getAmount());
-    }
-
-    private void ensureReversalCanBeApplied(String txnRef, List<WalletPosting> reversal) {
-        for (WalletPosting posting : reversal) {
-            var account = accountService.lock(posting.accountId());
-            long delta = accountService.deltaOf(account, posting);
-            if (delta < 0 && account.getBalance() + delta < 0) {
-                throw new BusinessException(
-                        WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT,
-                        "reversal rejected: txnRef=" + txnRef + ", accountId=" + account.getAccountId() + ", availableBalance=" + account.getBalance()
-                );
-            }
-        }
     }
 
     private void insertReverseAuditIfAbsent(UUID actorUserId, WalletTxn txn, String reason) {

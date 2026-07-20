@@ -111,6 +111,19 @@ class MarketOrderTest {
     }
 
     @Test
+    void onlyEscrowCancelPendingShouldHoldReservedInventoryForEscrowCancellation() {
+        for (MarketOrderStatus status : MarketOrderStatus.values()) {
+            MarketOrder candidate = order(uuid(100 + status.ordinal()))
+                    .status(status.code())
+                    .build();
+
+            assertThat(candidate.holdsReservedInventoryForEscrowCancellation())
+                    .as("status %s", status)
+                    .isEqualTo(status == MarketOrderStatus.ESCROW_CANCEL_PENDING);
+        }
+    }
+
+    @Test
     void autoConfirmShouldRequireDueConfirmableOrder() {
         MarketOrder order = order(MarketOrder.place(physicalPlacement()))
                 .status("DELIVERED")

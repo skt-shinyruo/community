@@ -4,6 +4,10 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
+import com.nowcoder.community.market.domain.model.MarketOrderStatus;
+import com.nowcoder.community.market.domain.model.MarketOrderTransition;
+import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
+import com.nowcoder.community.market.domain.repository.MarketListingRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject;
@@ -12,6 +16,7 @@ import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketLis
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketOrderMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -23,6 +28,13 @@ import java.util.UUID;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static com.nowcoder.community.market.support.MarketOrderTestFixture.order;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(
         classes = CommunityAppApplication.class,
@@ -89,6 +101,98 @@ class MarketOrderSagaApplicationServiceTest {
         assertThat(advanced).isFalse();
         assertThat(storedOrder(orderId).getEscrowTxnId()).isNull();
         assertThat(storedOrder(orderId).getStatus()).isEqualTo("ESCROW_CANCEL_PENDING");
+    }
+
+    @Test
+    void completeEscrowNoopShouldCancelEscrowFailedWithoutCompensatingInventoryAgain() {
+        MarketOrderRepository orderRepository = mock(MarketOrderRepository.class);
+        MarketListingRepository listingRepository = mock(MarketListingRepository.class);
+        MarketInventoryRepository inventoryRepository = mock(MarketInventoryRepository.class);
+        UUID failedOrderId = uuid(301);
+        UUID failedListingId = uuid(302);
+        MarketOrder failedOrder = order(failedOrderId)
+                .listingId(failedListingId)
+                .goodsType("VIRTUAL")
+                .deliveryModeSnapshot("PRELOADED")
+                .status("ESCROW_FAILED")
+                .build();
+        MarketListing listing = finiteListing(failedListingId, 1);
+        when(orderRepository.lockById(failedOrderId)).thenReturn(failedOrder);
+        when(orderRepository.apply(any())).thenReturn(MarketOrderRepository.ApplyStatus.APPLIED);
+        when(listingRepository.lockById(failedListingId)).thenReturn(listing);
+        MarketOrderSagaApplicationService service = new MarketOrderSagaApplicationService(
+                orderRepository,
+                listingRepository,
+                inventoryRepository
+        );
+
+        service.completeEscrowNoop(failedOrderId);
+
+        ArgumentCaptor<MarketOrderTransition> transitionCaptor = ArgumentCaptor.forClass(MarketOrderTransition.class);
+        verify(orderRepository).apply(transitionCaptor.capture());
+        assertThat(transitionCaptor.getValue().nextStatus()).isEqualTo(MarketOrderStatus.CANCELLED);
+        verify(listingRepository, never()).adjustStock(any(), any(), anyInt(), anyInt(), any());
+        verify(inventoryRepository, never()).releaseReservedByOrderIfNeeded(any());
+    }
+
+    @Test
+    void completeEscrowNoopShouldCompensateEscrowCancelPendingInventoryOnce() {
+        MarketOrderRepository orderRepository = mock(MarketOrderRepository.class);
+        MarketListingRepository listingRepository = mock(MarketListingRepository.class);
+        MarketInventoryRepository inventoryRepository = mock(MarketInventoryRepository.class);
+        UUID cancelledOrderId = uuid(311);
+        UUID cancelledListingId = uuid(312);
+        MarketOrder cancelPendingOrder = order(cancelledOrderId)
+                .listingId(cancelledListingId)
+                .goodsType("VIRTUAL")
+                .deliveryModeSnapshot("PRELOADED")
+                .status("ESCROW_CANCEL_PENDING")
+                .build();
+        MarketListing listing = finiteListing(cancelledListingId, 0);
+        when(orderRepository.lockById(cancelledOrderId)).thenReturn(cancelPendingOrder);
+        when(orderRepository.apply(any())).thenReturn(MarketOrderRepository.ApplyStatus.APPLIED);
+        when(listingRepository.lockById(cancelledListingId)).thenReturn(listing);
+        MarketOrderSagaApplicationService service = new MarketOrderSagaApplicationService(
+                orderRepository,
+                listingRepository,
+                inventoryRepository
+        );
+
+        service.completeEscrowNoop(cancelledOrderId);
+
+        verify(listingRepository, times(1)).adjustStock(
+                cancelledListingId,
+                sellerUserId,
+                0,
+                1,
+                "ACTIVE"
+        );
+        verify(inventoryRepository, times(1)).releaseReservedByOrderIfNeeded(cancelledOrderId);
+    }
+
+    @Test
+    void completeEscrowNoopShouldNotCompensateWhenCancelTransitionIsStale() {
+        MarketOrderRepository orderRepository = mock(MarketOrderRepository.class);
+        MarketListingRepository listingRepository = mock(MarketListingRepository.class);
+        MarketInventoryRepository inventoryRepository = mock(MarketInventoryRepository.class);
+        UUID staleOrderId = uuid(321);
+        MarketOrder cancelPendingOrder = order(staleOrderId)
+                .goodsType("VIRTUAL")
+                .deliveryModeSnapshot("PRELOADED")
+                .status("ESCROW_CANCEL_PENDING")
+                .build();
+        when(orderRepository.lockById(staleOrderId)).thenReturn(cancelPendingOrder);
+        when(orderRepository.apply(any())).thenReturn(MarketOrderRepository.ApplyStatus.STALE);
+        MarketOrderSagaApplicationService service = new MarketOrderSagaApplicationService(
+                orderRepository,
+                listingRepository,
+                inventoryRepository
+        );
+
+        service.completeEscrowNoop(staleOrderId);
+
+        verify(listingRepository, never()).adjustStock(any(), any(), anyInt(), anyInt(), any());
+        verify(inventoryRepository, never()).releaseReservedByOrderIfNeeded(any());
     }
 
     @Test
@@ -187,6 +291,17 @@ class MarketOrderSagaApplicationServiceTest {
 
     private void seedOrder(String status) {
         seedFiniteStockOrder(status, 3);
+    }
+
+    private MarketListing finiteListing(UUID id, int stockAvailable) {
+        MarketListing listing = new MarketListing();
+        listing.setListingId(id);
+        listing.setSellerUserId(sellerUserId);
+        listing.setGoodsType("VIRTUAL");
+        listing.setStockMode("FINITE");
+        listing.setStockAvailable(stockAvailable);
+        listing.setStatus(stockAvailable == 0 ? "SOLD_OUT" : "ACTIVE");
+        return listing;
     }
 
     private void seedFiniteStockOrder(String status, int stockAvailable) {

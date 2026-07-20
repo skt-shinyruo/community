@@ -1,6 +1,12 @@
 package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
+import com.nowcoder.community.market.domain.model.MarketListing;
+import com.nowcoder.community.market.domain.model.MarketOrder;
+import com.nowcoder.community.market.domain.model.MarketOrderTransition;
+import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
+import com.nowcoder.community.market.domain.repository.MarketListingRepository;
+import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import com.nowcoder.community.market.infrastructure.persistence.MyBatisMarketWalletActionRepository;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -14,10 +20,16 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Date;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static com.nowcoder.community.market.support.MarketOrderTestFixture.order;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -74,6 +86,107 @@ class MarketWalletActionProcessorApplicationServiceTest {
 
         verify(walletApi, never()).escrowOrder(any(), any(), anyLong(), any());
         verify(mapper).markCancelled(action.getActionId(), "NOOP");
+    }
+
+    @Test
+    void replayAfterEscrowFailureStatusWriteFaultShouldNotCompensateInventoryTwice() {
+        MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
+        MarketOrderRepository orderRepository = mock(MarketOrderRepository.class);
+        MarketListingRepository listingRepository = mock(MarketListingRepository.class);
+        MarketInventoryRepository inventoryRepository = mock(MarketInventoryRepository.class);
+        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
+        MarketWalletAction action = escrowAction();
+        var walletActionRepository = new MyBatisMarketWalletActionRepository(mapper);
+        UUID listingId = uuid(23);
+        MarketOrder initialOrder = order(action.getOrderId())
+                .listingId(listingId)
+                .goodsType("VIRTUAL")
+                .sellerUserId(action.getCounterpartyUserId())
+                .buyerUserId(action.getActorUserId())
+                .quantity(1)
+                .deliveryModeSnapshot("PRELOADED")
+                .status("ESCROW_PENDING")
+                .build();
+        AtomicReference<MarketOrder> currentOrder = new AtomicReference<>(initialOrder);
+        AtomicInteger stock = new AtomicInteger(0);
+        AtomicInteger maximumObservedStock = new AtomicInteger(0);
+        AtomicInteger reservedReleaseCalls = new AtomicInteger(0);
+        MarketListing listing = new MarketListing();
+        listing.setListingId(listingId);
+        listing.setSellerUserId(action.getCounterpartyUserId());
+        listing.setGoodsType("VIRTUAL");
+        listing.setStockMode("FINITE");
+        listing.setStockAvailable(0);
+        listing.setStatus("SOLD_OUT");
+
+        when(orderRepository.findById(action.getOrderId())).thenAnswer(ignored -> currentOrder.get());
+        when(orderRepository.lockById(action.getOrderId())).thenAnswer(ignored -> currentOrder.get());
+        when(orderRepository.apply(any(MarketOrderTransition.class))).thenAnswer(invocation -> {
+            MarketOrderTransition transition = invocation.getArgument(0);
+            MarketOrder current = currentOrder.get();
+            if (!transition.expectedStatuses().contains(current.status())) {
+                return MarketOrderRepository.ApplyStatus.STALE;
+            }
+            currentOrder.set(order(current).status(transition.nextStatus().code()).build());
+            return MarketOrderRepository.ApplyStatus.APPLIED;
+        });
+        when(listingRepository.lockById(listingId)).thenReturn(listing);
+        when(listingRepository.adjustStock(any(), any(), anyInt(), anyInt(), any())).thenAnswer(invocation -> {
+            int adjusted = stock.addAndGet(invocation.getArgument(3));
+            maximumObservedStock.accumulateAndGet(adjusted, Math::max);
+            return 1;
+        });
+        when(inventoryRepository.releaseReservedByOrderIfNeeded(action.getOrderId())).thenAnswer(ignored -> {
+            int call = reservedReleaseCalls.incrementAndGet();
+            return call == 1 ? 1 : 0;
+        });
+        when(mapper.claimProcessing(eq(action.getActionId()), any())).thenReturn(1, 1);
+        when(mapper.recoverExpiredProcessing(any())).thenReturn(1);
+        when(mapper.markCancelled(action.getActionId(), "NOOP")).thenReturn(1);
+        when(walletApi.escrowOrder(
+                action.getRequestId(),
+                action.getActorUserId(),
+                action.getAmount(),
+                action.getWalletBizId()
+        )).thenThrow(new BusinessException(WalletErrorCode.INVALID_REQUEST, "escrow rejected"));
+        when(mapper.markFailed(eq(action.getActionId()), any(), any()))
+                .thenThrow(new IllegalStateException("wallet action status write failed"));
+        MarketOrderSagaApplicationService sagaService = new MarketOrderSagaApplicationService(
+                orderRepository,
+                listingRepository,
+                inventoryRepository
+        );
+        Clock clock = Clock.fixed(Instant.parse("2026-05-18T00:00:00Z"), ZoneOffset.UTC);
+        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+                walletActionRepository,
+                walletApi,
+                sagaService,
+                actionService,
+                clock
+        );
+        MarketWalletActionRecoveryApplicationService recovery = new MarketWalletActionRecoveryApplicationService(
+                walletActionRepository,
+                orderRepository,
+                sagaService,
+                actionService,
+                clock
+        );
+
+        assertThatThrownBy(() -> processor.processOne(action))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("wallet action status write failed");
+        assertThat(currentOrder.get().getStatus()).isEqualTo("ESCROW_FAILED");
+        assertThat(stock.get()).isEqualTo(1);
+        assertThat(reservedReleaseCalls.get()).isEqualTo(1);
+
+        assertThat(recovery.recoverExpiredProcessing(clock.instant())).isEqualTo(1);
+        assertThat(processor.processOne(action)).isTrue();
+
+        assertThat(currentOrder.get().getStatus()).isEqualTo("CANCELLED");
+        assertThat(stock.get()).isEqualTo(1);
+        assertThat(maximumObservedStock.get()).isLessThanOrEqualTo(1);
+        assertThat(reservedReleaseCalls.get()).isEqualTo(1);
     }
 
     @Test

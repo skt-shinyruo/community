@@ -246,7 +246,7 @@ class WalletLedgerApplicationServiceTest {
                 7L,
                 userAccountId
         );
-        doReturn(0).when(walletAccountMapper).updateBalanceWithVersion(userAccountId, 7L, -100L, "ACTIVE");
+        doReturn(0).when(walletAccountMapper).updateNormalBalanceWithVersion(userAccountId, 7L, -100L, "ACTIVE");
 
         assertThatThrownBy(() -> service.post(
                 "withdraw:101:conflict",

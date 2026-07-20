@@ -41,9 +41,6 @@ public class WalletAccount {
         this.ownerType = requireText(ownerType, "ownerType");
         this.ownerId = Objects.requireNonNull(ownerId, "ownerId must not be null");
         this.accountType = requireText(accountType, "accountType");
-        if (balance < 0L) {
-            throw new IllegalArgumentException("balance must not be negative");
-        }
         this.balance = balance;
         this.status = requireStatus(status);
         if (version < 0L) {
@@ -129,7 +126,12 @@ public class WalletAccount {
     }
 
     public WalletAccountChange post(long delta) {
-        if (delta < 0L && STATUS_FROZEN.equals(status)) {
+        return post(delta, WalletPostingPolicy.NORMAL);
+    }
+
+    public WalletAccountChange post(long delta, WalletPostingPolicy policy) {
+        Objects.requireNonNull(policy, "policy must not be null");
+        if (policy == WalletPostingPolicy.NORMAL && delta < 0L && STATUS_FROZEN.equals(status)) {
             throw new BusinessException(
                     WalletErrorCode.ACCOUNT_FROZEN,
                     "frozen wallet account cannot post outgoing funds: accountId=" + accountId
@@ -146,23 +148,23 @@ public class WalletAccount {
                     exception
             );
         }
-        if (nextBalance < 0L) {
+        if (policy == WalletPostingPolicy.NORMAL && delta < 0L && nextBalance < 0L) {
             throw new BusinessException(
                     WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT,
                     "wallet account balance is insufficient: accountId=" + accountId
             );
         }
-        return change(delta, nextBalance, status);
+        return change(delta, nextBalance, status, policy);
     }
 
     public WalletAccountChange freeze() {
         requireTransitionFrom(STATUS_ACTIVE, STATUS_FROZEN);
-        return change(0L, balance, STATUS_FROZEN);
+        return change(0L, balance, STATUS_FROZEN, WalletPostingPolicy.NORMAL);
     }
 
     public WalletAccountChange unfreeze() {
         requireTransitionFrom(STATUS_FROZEN, STATUS_ACTIVE);
-        return change(0L, balance, STATUS_ACTIVE);
+        return change(0L, balance, STATUS_ACTIVE, WalletPostingPolicy.NORMAL);
     }
 
     public UUID getAccountId() {
@@ -201,7 +203,12 @@ public class WalletAccount {
         return copy(updateTime);
     }
 
-    private WalletAccountChange change(long delta, long nextBalance, String nextStatus) {
+    private WalletAccountChange change(
+            long delta,
+            long nextBalance,
+            String nextStatus,
+            WalletPostingPolicy policy
+    ) {
         long nextVersion;
         try {
             nextVersion = Math.addExact(version, 1L);
@@ -212,7 +219,7 @@ public class WalletAccount {
                     exception
             );
         }
-        return new WalletAccountChange(accountId, version, delta, nextBalance, nextStatus, nextVersion);
+        return new WalletAccountChange(accountId, version, delta, nextBalance, nextStatus, nextVersion, policy);
     }
 
     private void requireTransitionFrom(String requiredStatus, String nextStatus) {

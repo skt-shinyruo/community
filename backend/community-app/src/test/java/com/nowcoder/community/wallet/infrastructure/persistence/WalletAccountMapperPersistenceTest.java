@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WalletAccountMapperPersistenceTest {
 
     private static final UUID ACCOUNT_ID = UUID.fromString("00000000-0000-7000-8000-000000000641");
+    private static final UUID OWNER_ID = UUID.fromString("00000000-0000-7000-8000-000000000642");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -76,5 +77,58 @@ class WalletAccountMapperPersistenceTest {
         Object accountId = getter.invoke(account);
         assertThat(accountId).isInstanceOf(UUID.class);
         assertThat(accountId).isEqualTo(ACCOUNT_ID);
+    }
+
+    @Test
+    void normalBalanceUpdateShouldRetainTheDatabaseNonNegativeGuard() {
+        seed(3L, 7L);
+
+        int updated = walletAccountMapper.updateNormalBalanceWithVersion(ACCOUNT_ID, 7L, -5L, "ACTIVE");
+
+        assertThat(updated).isZero();
+        assertThat(balance()).isEqualTo(3L);
+        assertThat(version()).isEqualTo(7L);
+    }
+
+    @Test
+    void privilegedBalanceUpdateShouldAllowDebtAndRetainTheVersionGuard() {
+        seed(3L, 7L);
+
+        int updated = walletAccountMapper.updatePrivilegedBalanceWithVersion(ACCOUNT_ID, 7L, -5L, "ACTIVE");
+        int staleUpdate = walletAccountMapper.updatePrivilegedBalanceWithVersion(ACCOUNT_ID, 7L, -1L, "ACTIVE");
+
+        assertThat(updated).isEqualTo(1);
+        assertThat(staleUpdate).isZero();
+        assertThat(balance()).isEqualTo(-2L);
+        assertThat(version()).isEqualTo(8L);
+    }
+
+    private void seed(long balance, long version) {
+        jdbcTemplate.update(
+                "insert into wallet_account(account_id, owner_type, owner_id, account_type, balance, status, version) values (?, ?, ?, ?, ?, ?, ?)",
+                BinaryUuidCodec.toBytes(ACCOUNT_ID),
+                "USER",
+                BinaryUuidCodec.toBytes(OWNER_ID),
+                "USER_WALLET",
+                balance,
+                "ACTIVE",
+                version
+        );
+    }
+
+    private long balance() {
+        return jdbcTemplate.queryForObject(
+                "select balance from wallet_account where account_id = ?",
+                Long.class,
+                BinaryUuidCodec.toBytes(ACCOUNT_ID)
+        );
+    }
+
+    private long version() {
+        return jdbcTemplate.queryForObject(
+                "select version from wallet_account where account_id = ?",
+                Long.class,
+                BinaryUuidCodec.toBytes(ACCOUNT_ID)
+        );
     }
 }

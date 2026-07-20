@@ -19,8 +19,13 @@ public interface WalletAccountMapper {
 
     int insert(WalletAccountDataObject account);
 
-    int updateBalanceWithVersion(@Param("accountId") UUID accountId,
-                                 @Param("expectedVersion") long expectedVersion,
-                                 @Param("delta") long delta,
-                                 @Param("nextStatus") String nextStatus);
+    int updateNormalBalanceWithVersion(@Param("accountId") UUID accountId,
+                                       @Param("expectedVersion") long expectedVersion,
+                                       @Param("delta") long delta,
+                                       @Param("nextStatus") String nextStatus);
+
+    int updatePrivilegedBalanceWithVersion(@Param("accountId") UUID accountId,
+                                           @Param("expectedVersion") long expectedVersion,
+                                           @Param("delta") long delta,
+                                           @Param("nextStatus") String nextStatus);
 }

@@ -24,7 +24,7 @@
         values(#{accountId, jdbcType=BINARY}, #{ownerType}, #{ownerId, jdbcType=BINARY}, #{accountType}, #{balance}, #{status}, #{version})
     </insert>
 
-    <update id="updateBalanceWithVersion">
+    <update id="updateNormalBalanceWithVersion">
         update wallet_account
         set balance = balance + #{delta},
             version = version + 1,
@@ -32,7 +32,17 @@
             update_time = current_timestamp
         where account_id = #{accountId, jdbcType=BINARY}
           and version = #{expectedVersion}
-          and balance + #{delta} >= 0
+          and (#{delta} >= 0 or balance + #{delta} >= 0)
+    </update>
+
+    <update id="updatePrivilegedBalanceWithVersion">
+        update wallet_account
+        set balance = balance + #{delta},
+            version = version + 1,
+            status = #{nextStatus},
+            update_time = current_timestamp
+        where account_id = #{accountId, jdbcType=BINARY}
+          and version = #{expectedVersion}
     </update>
 
 </mapper>

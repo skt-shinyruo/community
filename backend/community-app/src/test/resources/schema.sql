@@ -605,14 +605,14 @@ create table if not exists http_idempotency (
   user_id binary(16) not null,
   idem_key varchar(128) not null,
   request_hash varchar(64) not null,
+  -- Runtime states: P=PROCESSING, S=SUCCESS, I=INDETERMINATE.
   status varchar(16) not null,
   response_json mediumtext,
   processing_expires_at timestamp,
   success_expires_at timestamp,
   created_at timestamp default current_timestamp,
   updated_at timestamp default current_timestamp,
-  unique (operation, user_id, idem_key),
-  constraint ck_http_idempotency_status check (status in ('P', 'S', 'I'))
+  unique (operation, user_id, idem_key)
 );
 
 create table if not exists outbox_event (

@@ -123,6 +123,32 @@ class IdempotencySchemaPersistenceTest {
     }
 
     @Test
+    void httpIdempotencyShouldPersistIndeterminateStatus() {
+        jdbcTemplate.update(
+                """
+                        insert into http_idempotency(
+                          id, operation, user_id, idem_key, request_hash, status,
+                          processing_expires_at, created_at, updated_at
+                        ) values (?, ?, ?, ?, ?, 'I', null, current_timestamp, current_timestamp)
+                        """,
+                bytes(uuid(853)),
+                "wallet:recharge",
+                bytes(uuid(1)),
+                "indeterminate-key",
+                "sha256-indeterminate"
+        );
+
+        String status = jdbcTemplate.queryForObject(
+                "select status from http_idempotency where operation = ? and idem_key = ?",
+                String.class,
+                "wallet:recharge",
+                "indeterminate-key"
+        );
+
+        assertThat(status).isEqualTo("I");
+    }
+
+    @Test
     void httpIdempotencyShouldRequireRequestHash() {
         assertThatThrownBy(() -> jdbcTemplate.update(
                 """

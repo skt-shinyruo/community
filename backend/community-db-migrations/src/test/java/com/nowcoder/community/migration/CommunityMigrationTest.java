@@ -65,7 +65,7 @@ class CommunityMigrationTest {
         var result = CommunityMigrationRunner.standard(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .migrate();
 
-        assertThat(result.migrationsExecuted).isEqualTo(10);
+        assertThat(result.migrationsExecuted).isEqualTo(11);
         CommunitySchemaCatalog migratedCatalog = CommunitySchemaCatalog
                 .capture(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .withoutTables(Set.of(
@@ -75,7 +75,8 @@ class CommunityMigrationTest {
                         "auth_refresh_token",
                         "outbox_event",
                         "comment",
-                        "moderation_action"
+                        "moderation_action",
+                        "social_like"
                 ));
         assertThat(migratedCatalog)
                 .isEqualTo(CommunitySchemaCatalog.canonical().withoutTables(Set.of(
@@ -83,9 +84,11 @@ class CommunityMigrationTest {
                         "auth_refresh_token",
                         "outbox_event",
                         "comment",
-                        "moderation_action"
+                        "moderation_action",
+                        "social_like"
                 )));
         assertModerationActionSchema(database);
+        assertSocialLikeLifecycleSchema(database);
         assertThat(tableNames(database)).contains("social_like_target_state");
         assertThat(columnNames(database, "post_media_asset")).contains(
                 "reference_status", "reference_operation_version", "reference_updated_at",
@@ -113,13 +116,13 @@ class CommunityMigrationTest {
         CommunityMigrationRunner runner = CommunityMigrationRunner.standard(
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword());
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(10);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(11);
         assertThat(runner.migrate().migrationsExecuted).isZero();
         runner.validate();
 
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(10L);
+                .isEqualTo(11L);
     }
 
     @Test
@@ -179,6 +182,49 @@ class CommunityMigrationTest {
     }
 
     @Test
+    void h2FixtureShouldDeclareTheSocialLikeLifecycleIdentity() throws Exception {
+        String schema = Files.readString(findRepositoryRoot().resolve(
+                "backend/community-app/src/test/resources/schema.sql"));
+
+        assertThat(schema).contains(
+                "  relation_instance_id binary(16) not null,\n"
+                        + "  user_id binary(16) not null,");
+        assertThat(schema).contains(
+                "create unique index if not exists uk_social_like_relation_instance "
+                        + "on social_like(relation_instance_id);");
+    }
+
+    @Test
+    void v011ShouldGiveEveryExistingLikeADistinctLifecycleIdentity(@TempDir Path tempDir)
+            throws Exception {
+        Database database = freshDatabase("v011_social_like");
+        String historyTable = "community_v011_social_like_history";
+        Path v010Directory = prepareMigrationDirectoryThroughVersionTen(tempDir);
+        CommunityMigrationRunner.forLocations(
+                        database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                        historyTable, "filesystem:" + v010Directory.toAbsolutePath())
+                .migrate();
+        insertSocialLikeFixture(database);
+        List<SocialLikeBusinessRow> before = socialLikeBusinessRows(database);
+
+        CommunityMigrationRunner runner = CommunityMigrationRunner.forLocations(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
+
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(1);
+        runner.validate();
+
+        assertThat(socialLikeBusinessRows(database)).containsExactlyElementsOf(before);
+        assertThat(queryStrings(database,
+                "select hex(relation_instance_id) from social_like "
+                        + "order by user_id, entity_type, entity_id"))
+                .hasSize(3)
+                .doesNotContainNull()
+                .doesNotHaveDuplicates();
+        assertSocialLikeLifecycleSchema(database);
+    }
+
+    @Test
     void v010ShouldReplaceTheReportIndexWithoutTouchingNullActions(@TempDir Path tempDir) throws Exception {
         Database database = freshDatabase("v010_success");
         String historyTable = "community_v010_success_history";
@@ -194,7 +240,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(1);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(2);
         runner.validate();
 
         assertThat(moderationActionRows(database)).containsExactlyElementsOf(before);
@@ -274,7 +320,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 "community_v008_history", CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(2);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(3);
         runner.validate();
 
         assertThat(idempotencyRows(database)).containsExactlyInAnyOrder(
@@ -339,7 +385,7 @@ class CommunityMigrationTest {
                 .hasMessageContaining("non-empty schema");
 
         runner.baselineAtVersionOne(CommunityMigrationRunner.BASELINE_CONFIRMATION);
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(9);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(10);
         runner.validate();
 
         IdempotencyRow residual = idempotencyRows(database).stream()
@@ -355,9 +401,10 @@ class CommunityMigrationTest {
         assertThat(queryString(database,
                 "select payload from outbox_event where event_id = 'migration-event'"))
                 .isEqualTo("{\"preserve\":true}");
+        assertSocialLikeFixtureBackfilled(database);
         assertThat(queryLong(database,
                 "select count(*) from community_upgrade_idempotency_history where success = 1"))
-                .isEqualTo(10L);
+                .isEqualTo(11L);
     }
 
     @Test
@@ -399,6 +446,7 @@ class CommunityMigrationTest {
                 "'migration.topic', 'pending', '{\"phase\":\"pending\"}', 'PENDING', 2), (" +
                 "x'10000000000070008000000000000053', 'migration-lease-processing', " +
                 "'migration.topic', 'processing', '{\"phase\":\"processing\"}', 'PROCESSING', 5)");
+        insertSocialLikeFixture(database);
 
         var result = CommunityMigrationRunner.standard(
                         database.url(), MYSQL.getUsername(), MYSQL.getPassword())
@@ -411,7 +459,7 @@ class CommunityMigrationTest {
                 ") values (x'10000000000070008000000000000051', '" + mediaReleaseEventId + "', " +
                 "'content.media.reference', 'media-reference', '{}', 'NEW')");
 
-        assertThat(result.migrationsExecuted).isEqualTo(9);
+        assertThat(result.migrationsExecuted).isEqualTo(10);
         assertOutboxLeaseFencingSchema(database);
         assertThat(outboxEventStates(database, "migration-lease-%")).containsExactly(
                 new OutboxEventState(
@@ -467,9 +515,10 @@ class CommunityMigrationTest {
                 "select count(*) from auth_refresh_token_family_revocation " +
                         "where family_id like 'legacy-family-%'"))
                 .isEqualTo(2L);
+        assertSocialLikeFixtureBackfilled(database);
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(10L);
+                .isEqualTo(11L);
     }
 
     @Test
@@ -557,6 +606,10 @@ class CommunityMigrationTest {
         return prepareMigrationDirectoryThroughVersion(tempDir, 9);
     }
 
+    private static Path prepareMigrationDirectoryThroughVersionTen(Path tempDir) throws Exception {
+        return prepareMigrationDirectoryThroughVersion(tempDir, 10);
+    }
+
     private static Path prepareMigrationDirectoryThroughVersion(Path tempDir, int latestVersion) throws Exception {
         Path sourceDirectory = findRepositoryRoot().resolve(
                 "backend/community-db-migrations/src/main/resources/db/migration/community");
@@ -598,6 +651,74 @@ class CommunityMigrationTest {
         execute(database, "insert into outbox_event(id, event_id, topic, event_key, payload, status) values "
                 + "(x'10000000000070008000000000000004', 'migration-event', 'migration.topic', "
                 + "'migration-key', '{\\\"preserve\\\":true}', 'NEW')");
+        insertSocialLikeFixture(database);
+    }
+
+    private static void insertSocialLikeFixture(Database database) throws Exception {
+        execute(database, "insert into social_like(" +
+                "user_id, entity_type, entity_id, entity_user_id, created_at" +
+                ") values " +
+                "(x'60000000000070008000000000000001', 1, " +
+                "x'60000000000070008000000000000011', " +
+                "x'60000000000070008000000000000021', '2035-03-01 00:00:01'), " +
+                "(x'60000000000070008000000000000001', 1, " +
+                "x'60000000000070008000000000000012', " +
+                "x'60000000000070008000000000000022', '2035-03-01 00:00:02'), " +
+                "(x'60000000000070008000000000000002', 1, " +
+                "x'60000000000070008000000000000011', " +
+                "x'60000000000070008000000000000021', '2035-03-01 00:00:03')");
+    }
+
+    private static void assertSocialLikeFixtureBackfilled(Database database) throws Exception {
+        assertThat(socialLikeBusinessRows(database)).containsExactly(
+                new SocialLikeBusinessRow(
+                        "60000000000070008000000000000001", 1,
+                        "60000000000070008000000000000011",
+                        "60000000000070008000000000000021",
+                        Timestamp.valueOf("2035-03-01 00:00:01")
+                ),
+                new SocialLikeBusinessRow(
+                        "60000000000070008000000000000001", 1,
+                        "60000000000070008000000000000012",
+                        "60000000000070008000000000000022",
+                        Timestamp.valueOf("2035-03-01 00:00:02")
+                ),
+                new SocialLikeBusinessRow(
+                        "60000000000070008000000000000002", 1,
+                        "60000000000070008000000000000011",
+                        "60000000000070008000000000000021",
+                        Timestamp.valueOf("2035-03-01 00:00:03")
+                )
+        );
+        assertThat(queryStrings(database,
+                "select hex(relation_instance_id) from social_like "
+                        + "order by user_id, entity_type, entity_id"))
+                .hasSize(3)
+                .doesNotContainNull()
+                .doesNotHaveDuplicates();
+        assertSocialLikeLifecycleSchema(database);
+    }
+
+    private static List<SocialLikeBusinessRow> socialLikeBusinessRows(Database database)
+            throws Exception {
+        String sql = "select hex(user_id), entity_type, hex(entity_id), hex(entity_user_id), "
+                + "created_at from social_like order by user_id, entity_type, entity_id";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             Statement statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery(sql)) {
+            List<SocialLikeBusinessRow> likes = new ArrayList<>();
+            while (rows.next()) {
+                likes.add(new SocialLikeBusinessRow(
+                        rows.getString(1),
+                        rows.getInt(2),
+                        rows.getString(3),
+                        rows.getString(4),
+                        rows.getTimestamp(5)
+                ));
+            }
+            return likes;
+        }
     }
 
     private static void insertV008IdempotencyFixture(Database database) throws Exception {
@@ -776,6 +897,19 @@ class CommunityMigrationTest {
                 .isEqualTo(new ColumnDefinition("timestamp", true));
         assertThat(indexColumns(database, "outbox_event", "idx_outbox_processing_lease"))
                 .containsExactly("status", "processing_lease_until", "id");
+    }
+
+    private static void assertSocialLikeLifecycleSchema(Database database) throws Exception {
+        assertThat(columnDefinition(database, "social_like", "relation_instance_id"))
+                .isEqualTo(new ColumnDefinition("binary(16)", false));
+        assertThat(indexDefinition(database, "social_like", "PRIMARY"))
+                .isEqualTo(new IndexDefinition(
+                        true, List.of("user_id", "entity_type", "entity_id")));
+        assertThat(indexDefinition(database, "social_like", "uk_social_like_relation_instance"))
+                .isEqualTo(new IndexDefinition(true, List.of("relation_instance_id")));
+        assertThat(indexNames(database, "social_like")).containsExactlyInAnyOrder(
+                "primary", "idx_like_entity", "idx_like_entity_user",
+                "uk_social_like_relation_instance");
     }
 
     private static ColumnDefinition columnDefinition(
@@ -985,6 +1119,15 @@ class CommunityMigrationTest {
             String reason,
             int durationSeconds,
             Timestamp createTime
+    ) {
+    }
+
+    private record SocialLikeBusinessRow(
+            String userId,
+            int entityType,
+            String entityId,
+            String entityUserId,
+            Timestamp createdAt
     ) {
     }
 

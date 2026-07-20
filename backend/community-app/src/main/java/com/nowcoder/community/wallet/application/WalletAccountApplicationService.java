@@ -6,6 +6,7 @@ import com.nowcoder.community.wallet.application.result.WalletSummaryResult;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletAccountChange;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
+import com.nowcoder.community.wallet.domain.model.WalletPostingPolicy;
 import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository;
 import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository.ApplyResult;
@@ -123,7 +124,11 @@ public class WalletAccountApplicationService {
     }
 
     public long apply(WalletAccount account, long delta) {
-        return apply(account.post(delta));
+        return apply(account, delta, WalletPostingPolicy.NORMAL);
+    }
+
+    long apply(WalletAccount account, long delta, WalletPostingPolicy policy) {
+        return apply(account.post(delta, policy));
     }
 
     private WalletAccount ensureAccount(String ownerType, UUID ownerId, String accountType) {

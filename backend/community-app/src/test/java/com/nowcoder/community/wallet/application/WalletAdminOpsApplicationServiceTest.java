@@ -8,6 +8,7 @@ import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
+import com.nowcoder.community.wallet.domain.model.WalletEntry;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
@@ -23,6 +24,9 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -155,7 +159,7 @@ class WalletAdminOpsApplicationServiceTest {
     }
 
     @Test
-    void reverseShouldRejectWhenRecipientAlreadySpentFunds() {
+    void reverseShouldCreateDebtWhenRecipientAlreadySpentFundsAndReplayWithoutDuplicates() {
         UUID actorUserId = uuid(1);
         UUID originUserId = uuid(101);
         UUID intermediateUserId = uuid(202);
@@ -165,18 +169,23 @@ class WalletAdminOpsApplicationServiceTest {
         transferService.create("transfer:req-spent-downstream", intermediateUserId, downstreamUserId, 300);
         String txnRef = "wallet:transfer:" + originOrder.orderId();
 
-        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(actorUserId, txnRef, "fraud report"))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT))
-                .hasMessageContaining("reversal")
-                .hasMessageContaining(txnRef);
+        adminWalletOpsService.reverseTxn(actorUserId, txnRef, "fraud report");
+        adminWalletOpsService.reverseTxn(actorUserId, txnRef, "fraud report");
 
-        assertThat(accountService.balanceOfUser(originUserId)).isEqualTo(600);
-        assertThat(accountService.balanceOfUser(intermediateUserId)).isEqualTo(0);
+        assertThat(accountService.balanceOfUser(originUserId)).isEqualTo(900);
+        assertThat(accountService.balanceOfUser(intermediateUserId)).isEqualTo(-300);
         assertThat(accountService.balanceOfUser(downstreamUserId)).isEqualTo(300);
-        assertThat(countRows("wallet_txn")).isEqualTo(2);
-        assertThat(countRows("wallet_entry")).isEqualTo(4);
-        assertThat(countRows("wallet_admin_action")).isZero();
+        assertThat(countRows("wallet_txn")).isEqualTo(3);
+        assertThat(countRows("wallet_entry")).isEqualTo(6);
+        assertThat(countRows("wallet_admin_action")).isEqualTo(1);
+
+        WalletTxn original = walletTxnMapper.selectByRequestId(txnRef);
+        WalletTxn reversal = walletTxnMapper.selectByRequestId("reversal:" + txnRef);
+        assertThat(reversal).isNotNull();
+        assertThat(netAmountsByAccount(
+                ledgerService.entriesOfTxn(original.getTxnId()),
+                ledgerService.entriesOfTxn(reversal.getTxnId())
+        ).values()).containsOnly(0L);
     }
 
     @Test
@@ -302,6 +311,18 @@ class WalletAdminOpsApplicationServiceTest {
     private int countRows(String tableName) {
         Integer count = jdbcTemplate.queryForObject("select count(*) from " + tableName, Integer.class);
         return count == null ? 0 : count;
+    }
+
+    @SafeVarargs
+    private final Map<UUID, Long> netAmountsByAccount(List<WalletEntry>... entryGroups) {
+        Map<UUID, Long> netAmounts = new HashMap<>();
+        for (List<WalletEntry> entries : entryGroups) {
+            for (WalletEntry entry : entries) {
+                long signedAmount = "DEBIT".equals(entry.getDirection()) ? -entry.getAmount() : entry.getAmount();
+                netAmounts.merge(entry.getAccountId(), signedAmount, Long::sum);
+            }
+        }
+        return netAmounts;
     }
 
     private UserSummaryView summary(UUID userId) {

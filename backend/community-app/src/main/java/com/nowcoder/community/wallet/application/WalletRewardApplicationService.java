@@ -65,7 +65,11 @@ public class WalletRewardApplicationService {
                 WalletPosting.debit(userWalletId, absoluteAmount),
                 WalletPosting.credit(systemAccountId, absoluteAmount)
         );
-        walletLedgerService.post(requestId, txnType, postings);
+        if (amount > 0L) {
+            walletLedgerService.post(requestId, txnType, postings);
+        } else {
+            walletLedgerService.postPrivilegedCorrection(requestId, txnType, postings);
+        }
     }
 
     private void validateRequest(String requestId, UUID userId, String sourceType) {

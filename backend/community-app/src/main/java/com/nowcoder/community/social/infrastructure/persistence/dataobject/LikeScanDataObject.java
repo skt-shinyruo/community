@@ -7,9 +7,18 @@ import java.util.UUID;
  */
 public class LikeScanDataObject {
 
+    private UUID relationInstanceId;
     private UUID entityId;
     private UUID userId;
     private UUID entityUserId;
+
+    public UUID getRelationInstanceId() {
+        return relationInstanceId;
+    }
+
+    public void setRelationInstanceId(UUID relationInstanceId) {
+        this.relationInstanceId = relationInstanceId;
+    }
 
     public UUID getEntityId() {
         return entityId;

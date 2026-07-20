@@ -1,6 +1,7 @@
 package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
 import com.nowcoder.community.social.application.command.SetLikeCommand;
 import com.nowcoder.community.social.application.result.LikeResult;
@@ -25,6 +26,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.constants.EntityTypes.COMMENT;
@@ -47,6 +49,7 @@ public class LikeApplicationService {
     private final SocialDomainEventPublisher eventPublisher;
     private final LikeTargetStateRepository targetStateRepository;
     private final LikeCleanupMetrics cleanupMetrics;
+    private final UuidV7Generator idGenerator;
 
     @Autowired
     public LikeApplicationService(
@@ -56,7 +59,8 @@ public class LikeApplicationService {
             BlockDomainService blockDomainService,
             SocialDomainEventPublisher eventPublisher,
             LikeTargetStateRepository targetStateRepository,
-            LikeCleanupMetrics cleanupMetrics
+            LikeCleanupMetrics cleanupMetrics,
+            UuidV7Generator idGenerator
     ) {
         this.likeRepository = likeRepository;
         this.blockRepository = blockRepository;
@@ -65,6 +69,7 @@ public class LikeApplicationService {
         this.eventPublisher = eventPublisher;
         this.targetStateRepository = targetStateRepository;
         this.cleanupMetrics = cleanupMetrics;
+        this.idGenerator = idGenerator;
     }
 
     public LikeApplicationService(
@@ -73,7 +78,8 @@ public class LikeApplicationService {
             LikeDomainService likeDomainService,
             BlockDomainService blockDomainService,
             SocialDomainEventPublisher eventPublisher,
-            LikeTargetStateRepository targetStateRepository
+            LikeTargetStateRepository targetStateRepository,
+            UuidV7Generator idGenerator
     ) {
         this(
                 likeRepository,
@@ -82,7 +88,8 @@ public class LikeApplicationService {
                 blockDomainService,
                 eventPublisher,
                 targetStateRepository,
-                LikeCleanupMetrics.noop()
+                LikeCleanupMetrics.noop(),
+                idGenerator
         );
     }
 
@@ -99,7 +106,8 @@ public class LikeApplicationService {
             throw new BusinessException(NOT_FOUND, "like target has been deleted");
         }
 
-        boolean existed = likeRepository.isLiked(actorUserId, entityType, entityId);
+        Optional<LikeRelation> existingRelation = likeRepository.findLike(actorUserId, entityType, entityId);
+        boolean existed = existingRelation.isPresent();
         boolean liked = likeDomainService.resolveTargetState(existed, command.liked());
         if (liked == existed) {
             return buildResult(actorUserId, entityType, entityId);
@@ -111,16 +119,33 @@ public class LikeApplicationService {
             }
         }
 
-        boolean changed = likeRepository.setLike(actorUserId, entityType, entityId, resolved.entityUserId(), liked);
+        LikeRelation changedRelation;
+        boolean changed;
+        if (liked) {
+            LikeRelation candidate = new LikeRelation(
+                    idGenerator.next(),
+                    actorUserId,
+                    entityType,
+                    entityId,
+                    resolved.entityUserId()
+            );
+            changed = likeRepository.addLike(candidate);
+            changedRelation = candidate;
+        } else {
+            LikeRelation expectedRelation = existingRelation.orElseThrow();
+            changed = likeRepository.removeLike(expectedRelation);
+            changedRelation = expectedRelation;
+        }
         if (!changed) {
             return buildResult(actorUserId, entityType, entityId);
+        }
+        if (changedRelation.entityUserId() != null) {
+            likeRepository.incrementUserLikeCount(changedRelation.entityUserId(), liked ? 1L : -1L);
         }
 
         Instant occurredAt = Instant.now();
         LikeChangedDomainEvent event = likeDomainService.likeChangedEvent(
-                actorUserId,
-                entityType,
-                entityId,
+                changedRelation,
                 resolved,
                 liked,
                 occurredAt
@@ -193,21 +218,16 @@ public class LikeApplicationService {
                 return removed;
             }
             for (LikeRelation relation : page) {
-                boolean changed = likeRepository.setLike(
-                        relation.actorUserId(),
-                        entityType,
-                        entityId,
-                        relation.entityUserId(),
-                        false
-                );
+                boolean changed = likeRepository.removeLike(relation);
                 afterActorUserId = relation.actorUserId();
                 if (!changed) {
                     continue;
                 }
+                if (relation.entityUserId() != null) {
+                    likeRepository.incrementUserLikeCount(relation.entityUserId(), -1L);
+                }
                 LikeChangedDomainEvent event = likeDomainService.likeChangedEvent(
-                        relation.actorUserId(),
-                        entityType,
-                        entityId,
+                        relation,
                         new ResolvedSocialEntity(relation.entityUserId(), entityType == POST ? entityId : null),
                         false,
                         Instant.now()

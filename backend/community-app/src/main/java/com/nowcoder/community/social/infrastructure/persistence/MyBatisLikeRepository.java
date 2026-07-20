@@ -30,14 +30,15 @@ public class MyBatisLikeRepository implements LikeRepository {
     }
 
     @Override
-    public boolean addLike(UUID userId, int entityType, UUID entityId) {
-        return addLike(userId, entityType, entityId, null);
-    }
-
-    @Override
-    public boolean addLike(UUID userId, int entityType, UUID entityId, UUID entityUserId) {
+    public boolean addLike(LikeRelation relation) {
         try {
-            return mapper.insertLike(userId, entityType, entityId, entityUserId) > 0;
+            return mapper.insertLike(
+                    relation.relationInstanceId(),
+                    relation.actorUserId(),
+                    relation.entityType(),
+                    relation.entityId(),
+                    relation.entityUserId()
+            ) > 0;
         } catch (DuplicateKeyException ignored) {
             // 唯一约束冲突视为幂等重复
             return false;
@@ -45,8 +46,13 @@ public class MyBatisLikeRepository implements LikeRepository {
     }
 
     @Override
-    public boolean removeLike(UUID userId, int entityType, UUID entityId) {
-        return mapper.deleteLike(userId, entityType, entityId) > 0;
+    public boolean removeLike(LikeRelation expectedRelation) {
+        return mapper.deleteLike(
+                expectedRelation.actorUserId(),
+                expectedRelation.entityType(),
+                expectedRelation.entityId(),
+                expectedRelation.relationInstanceId()
+        ) > 0;
     }
 
     @Override
@@ -55,7 +61,7 @@ public class MyBatisLikeRepository implements LikeRepository {
         if (row == null) {
             return Optional.empty();
         }
-        return Optional.of(new LikeRelation(row.getUserId(), entityType, row.getEntityId(), row.getEntityUserId()));
+        return Optional.of(toRelation(row, entityType));
     }
 
     @Override
@@ -83,7 +89,7 @@ public class MyBatisLikeRepository implements LikeRepository {
             return List.of();
         }
         return rows.stream()
-                .map(row -> new LikeRelation(row.getUserId(), entityType, row.getEntityId(), row.getEntityUserId()))
+                .map(row -> toRelation(row, entityType))
                 .toList();
     }
 
@@ -180,5 +186,15 @@ public class MyBatisLikeRepository implements LikeRepository {
             }
         }
         return out;
+    }
+
+    private LikeRelation toRelation(LikeScanDataObject row, int entityType) {
+        return new LikeRelation(
+                row.getRelationInstanceId(),
+                row.getUserId(),
+                entityType,
+                row.getEntityId(),
+                row.getEntityUserId()
+        );
     }
 }

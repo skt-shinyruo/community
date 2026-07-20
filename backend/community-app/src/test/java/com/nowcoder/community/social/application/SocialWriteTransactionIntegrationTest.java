@@ -6,6 +6,7 @@ import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.social.application.command.BlockCommand;
 import com.nowcoder.community.social.application.command.FollowCommand;
 import com.nowcoder.community.social.application.command.SetLikeCommand;
+import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.infrastructure.event.OutboxSocialDomainEventPublisher;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
@@ -18,7 +19,9 @@ import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,11 +75,15 @@ class SocialWriteTransactionIntegrationTest {
     }
 
     @Test
-    void likeAndOutboxInsertShouldRollbackTogetherWhenPublicationFails() {
+    void likeRelationInstanceAndOutboxShouldRollbackTogetherThenRetryWithMatchingIdentity() {
         allowTargetUserLookup();
+        AtomicReference<UUID> failedInstance = new AtomicReference<>();
         doAnswer(invocation -> {
             invocation.callRealMethod();
+            LikeChangedDomainEvent event = invocation.getArgument(0);
+            failedInstance.set(event.relationInstanceId());
             assertThat(likeRelationCount()).isOne();
+            assertThat(storedRelationInstanceId()).hasValue(event.relationInstanceId());
             assertThat(targetLikeCountRow()).isOne();
             assertThat(outboxCount()).isOne();
             throw publicationFailure();
@@ -89,8 +96,27 @@ class SocialWriteTransactionIntegrationTest {
                 .hasMessage("publish failed");
 
         assertThat(likeRelationCount()).isZero();
+        assertThat(storedRelationInstanceId()).isEmpty();
         assertThat(targetLikeCountRow()).isZero();
         assertThat(outboxCount()).isZero();
+
+        reset(outboxPublisher);
+        AtomicReference<UUID> retryEventInstance = new AtomicReference<>();
+        doAnswer(invocation -> {
+            invocation.callRealMethod();
+            LikeChangedDomainEvent event = invocation.getArgument(0);
+            retryEventInstance.set(event.relationInstanceId());
+            return null;
+        }).when(outboxPublisher).publishLikeChanged(any());
+
+        likeApplicationService.setLike(
+                new SetLikeCommand(ACTOR_USER_ID, USER, TARGET_USER_ID, true, TARGET_USER_ID, null)
+        );
+
+        assertThat(storedRelationInstanceId()).hasValue(retryEventInstance.get());
+        assertThat(retryEventInstance.get()).isNotEqualTo(failedInstance.get());
+        assertThat(targetLikeCountRow()).isOne();
+        assertThat(outboxCount()).isOne();
     }
 
     @Test
@@ -162,6 +188,18 @@ class SocialWriteTransactionIntegrationTest {
                 USER,
                 BinaryUuidCodec.toBytes(TARGET_USER_ID)
         );
+    }
+
+    private Optional<UUID> storedRelationInstanceId() {
+        return jdbcTemplate.query(
+                        "select relation_instance_id from social_like where user_id = ? and entity_type = ? and entity_id = ?",
+                        (resultSet, rowNum) -> BinaryUuidCodec.fromBytes(resultSet.getBytes("relation_instance_id")),
+                        BinaryUuidCodec.toBytes(ACTOR_USER_ID),
+                        USER,
+                        BinaryUuidCodec.toBytes(TARGET_USER_ID)
+                )
+                .stream()
+                .findFirst();
     }
 
     private long targetLikeCountRow() {

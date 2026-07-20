@@ -16,14 +16,25 @@ import java.util.UUID;
 @Mapper
 public interface LikeMapper {
 
-    @Insert("insert into social_like(user_id, entity_type, entity_id, entity_user_id, created_at) values(#{userId, jdbcType=BINARY}, #{entityType}, #{entityId, jdbcType=BINARY}, #{entityUserId, jdbcType=BINARY}, now())")
-    int insertLike(@Param("userId") UUID userId, @Param("entityType") int entityType, @Param("entityId") UUID entityId, @Param("entityUserId") UUID entityUserId);
+    @Insert("insert into social_like(relation_instance_id, user_id, entity_type, entity_id, entity_user_id, created_at) values(#{relationInstanceId, jdbcType=BINARY}, #{userId, jdbcType=BINARY}, #{entityType}, #{entityId, jdbcType=BINARY}, #{entityUserId, jdbcType=BINARY}, now())")
+    int insertLike(
+            @Param("relationInstanceId") UUID relationInstanceId,
+            @Param("userId") UUID userId,
+            @Param("entityType") int entityType,
+            @Param("entityId") UUID entityId,
+            @Param("entityUserId") UUID entityUserId
+    );
 
-    @Select("select user_id as userId, entity_id as entityId, entity_user_id as entityUserId from social_like where user_id = #{userId, jdbcType=BINARY} and entity_type = #{entityType} and entity_id = #{entityId, jdbcType=BINARY}")
+    @Select("select relation_instance_id as relationInstanceId, user_id as userId, entity_id as entityId, entity_user_id as entityUserId from social_like where user_id = #{userId, jdbcType=BINARY} and entity_type = #{entityType} and entity_id = #{entityId, jdbcType=BINARY}")
     LikeScanDataObject selectLike(@Param("userId") UUID userId, @Param("entityType") int entityType, @Param("entityId") UUID entityId);
 
-    @Delete("delete from social_like where user_id = #{userId, jdbcType=BINARY} and entity_type = #{entityType} and entity_id = #{entityId, jdbcType=BINARY}")
-    int deleteLike(@Param("userId") UUID userId, @Param("entityType") int entityType, @Param("entityId") UUID entityId);
+    @Delete("delete from social_like where user_id = #{userId, jdbcType=BINARY} and entity_type = #{entityType} and entity_id = #{entityId, jdbcType=BINARY} and relation_instance_id = #{relationInstanceId, jdbcType=BINARY}")
+    int deleteLike(
+            @Param("userId") UUID userId,
+            @Param("entityType") int entityType,
+            @Param("entityId") UUID entityId,
+            @Param("relationInstanceId") UUID relationInstanceId
+    );
 
     @Delete("delete from social_like where entity_type = #{entityType} and entity_id = #{entityId, jdbcType=BINARY}")
     int deleteLikesByEntity(@Param("entityType") int entityType, @Param("entityId") UUID entityId);
@@ -82,7 +93,10 @@ public interface LikeMapper {
      * <p>返回按 (entity_id asc, user_id asc) 排序的边列表。</p>
      */
     @Select("""
-            select entity_id as entityId, user_id as userId, entity_user_id as entityUserId
+            select relation_instance_id as relationInstanceId,
+                   entity_id as entityId,
+                   user_id as userId,
+                   entity_user_id as entityUserId
             from social_like
             where entity_type = #{entityType}
               and (entity_id > #{afterEntityId} or (entity_id = #{afterEntityId} and user_id > #{afterUserId}))
@@ -97,7 +111,10 @@ public interface LikeMapper {
     );
 
     @Select("""
-            select user_id as userId, entity_id as entityId, entity_user_id as entityUserId
+            select relation_instance_id as relationInstanceId,
+                   user_id as userId,
+                   entity_id as entityId,
+                   entity_user_id as entityUserId
             from social_like
             where entity_type = #{entityType}
               and entity_id = #{entityId, jdbcType=BINARY}

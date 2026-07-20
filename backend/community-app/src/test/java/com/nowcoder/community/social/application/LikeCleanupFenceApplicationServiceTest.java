@@ -1,8 +1,10 @@
 package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
 import com.nowcoder.community.social.application.command.SetLikeCommand;
+import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
 import com.nowcoder.community.social.domain.model.LikeRelation;
 import com.nowcoder.community.social.domain.model.LikeTargetState;
@@ -12,9 +14,12 @@ import com.nowcoder.community.social.domain.repository.LikeTargetStateRepository
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -26,7 +31,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -48,7 +52,7 @@ class LikeCleanupFenceApplicationServiceTest {
         SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
         LikeTargetState active = LikeTargetState.active(POST, TARGET_ID);
         LikeTargetState deleted = active.applyDeletion("content:post-deleted:600", 42L, DELETED_AT);
-        LikeRelation relation = new LikeRelation(uuid(1), POST, TARGET_ID, uuid(2));
+        LikeRelation relation = new LikeRelation(uuid(701), uuid(1), POST, TARGET_ID, uuid(2));
         when(targetStateRepository.findForUpdate(POST, TARGET_ID))
                 .thenReturn(active, deleted, deleted);
         when(targetStateRepository.saveIfNewer(any(LikeTargetState.class))).thenReturn(true);
@@ -56,7 +60,7 @@ class LikeCleanupFenceApplicationServiceTest {
                 .thenReturn(List.of(relation));
         when(likeRepository.scanLikesByEntity(POST, TARGET_ID, relation.actorUserId(), 200))
                 .thenReturn(List.of());
-        when(likeRepository.setLike(relation.actorUserId(), POST, TARGET_ID, relation.entityUserId(), false))
+        when(likeRepository.removeLike(relation))
                 .thenReturn(true);
         LikeApplicationService service = newService(likeRepository, targetStateRepository, publisher);
         CleanupDeletedContentLikesCommand first = deletionCommand(42L, "content:post-deleted:600");
@@ -76,9 +80,10 @@ class LikeCleanupFenceApplicationServiceTest {
         verify(targetStateRepository, times(3)).insertActiveIfAbsent(POST, TARGET_ID);
         verify(targetStateRepository, times(3)).findForUpdate(POST, TARGET_ID);
         verify(targetStateRepository, times(1)).saveIfNewer(any(LikeTargetState.class));
-        verify(likeRepository, times(1))
-                .setLike(relation.actorUserId(), POST, TARGET_ID, relation.entityUserId(), false);
-        verify(publisher, times(1)).publishLikeChanged(any());
+        verify(likeRepository, times(1)).removeLike(relation);
+        verify(publisher, times(1)).publishLikeChanged(org.mockito.ArgumentMatchers.argThat(
+                event -> relation.relationInstanceId().equals(event.relationInstanceId())
+        ));
     }
 
     @Test
@@ -87,7 +92,13 @@ class LikeCleanupFenceApplicationServiceTest {
         LikeTargetStateRepository targetStateRepository = mock(LikeTargetStateRepository.class);
         SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
         List<LikeRelation> relations = IntStream.rangeClosed(1, 401)
-                .mapToObj(index -> new LikeRelation(uuid(1000 + index), POST, TARGET_ID, uuid(2)))
+                .mapToObj(index -> new LikeRelation(
+                        uuid(10_000 + index),
+                        uuid(1000 + index),
+                        POST,
+                        TARGET_ID,
+                        uuid(2)
+                ))
                 .toList();
         List<LikeRelation> firstPage = relations.subList(0, 200);
         List<LikeRelation> secondPage = relations.subList(200, 400);
@@ -102,13 +113,7 @@ class LikeCleanupFenceApplicationServiceTest {
                 .thenReturn(thirdPage);
         when(likeRepository.scanLikesByEntity(POST, TARGET_ID, thirdPage.get(0).actorUserId(), 200))
                 .thenReturn(List.of());
-        when(likeRepository.setLike(
-                any(UUID.class),
-                eq(POST),
-                eq(TARGET_ID),
-                nullable(UUID.class),
-                eq(false)
-        )).thenReturn(true);
+        when(likeRepository.removeLike(any(LikeRelation.class))).thenReturn(true);
         LikeApplicationService service = newService(likeRepository, targetStateRepository, publisher);
 
         long removed = service.cleanupDeletedContentLikes(
@@ -118,9 +123,12 @@ class LikeCleanupFenceApplicationServiceTest {
         assertThat(removed).isEqualTo(401L);
         verify(likeRepository, times(4))
                 .scanLikesByEntity(eq(POST), eq(TARGET_ID), any(UUID.class), eq(200));
-        verify(likeRepository, times(401))
-                .setLike(any(UUID.class), eq(POST), eq(TARGET_ID), nullable(UUID.class), eq(false));
-        verify(publisher, times(401)).publishLikeChanged(any());
+        verify(likeRepository, times(401)).removeLike(any(LikeRelation.class));
+        ArgumentCaptor<LikeChangedDomainEvent> events = ArgumentCaptor.forClass(LikeChangedDomainEvent.class);
+        verify(publisher, times(401)).publishLikeChanged(events.capture());
+        assertThat(events.getAllValues())
+                .extracting(LikeChangedDomainEvent::relationInstanceId)
+                .containsExactlyInAnyOrderElementsOf(relations.stream().map(LikeRelation::relationInstanceId).toList());
     }
 
     @Test
@@ -130,14 +138,14 @@ class LikeCleanupFenceApplicationServiceTest {
         SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
         LikeTargetState deleted = LikeTargetState.active(POST, TARGET_ID)
                 .applyDeletion("content:post-deleted:600", 42L, DELETED_AT);
-        LikeRelation orphan = new LikeRelation(uuid(1), POST, TARGET_ID, uuid(2));
+        LikeRelation orphan = new LikeRelation(uuid(702), uuid(1), POST, TARGET_ID, uuid(2));
         when(targetStateRepository.findForUpdate(POST, TARGET_ID)).thenReturn(deleted);
         when(targetStateRepository.saveIfNewer(any(LikeTargetState.class))).thenReturn(true);
         when(likeRepository.scanLikesByEntity(POST, TARGET_ID, ZERO_UUID, 200))
                 .thenReturn(List.of(orphan));
         when(likeRepository.scanLikesByEntity(POST, TARGET_ID, orphan.actorUserId(), 200))
                 .thenReturn(List.of());
-        when(likeRepository.setLike(orphan.actorUserId(), POST, TARGET_ID, orphan.entityUserId(), false))
+        when(likeRepository.removeLike(orphan))
                 .thenReturn(true);
         LikeApplicationService service = newService(likeRepository, targetStateRepository, publisher);
 
@@ -163,8 +171,8 @@ class LikeCleanupFenceApplicationServiceTest {
         SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
         when(targetStateRepository.findForUpdate(POST, TARGET_ID))
                 .thenReturn(LikeTargetState.active(POST, TARGET_ID));
-        when(likeRepository.isLiked(uuid(1), POST, TARGET_ID)).thenReturn(false, true);
-        when(likeRepository.setLike(uuid(1), POST, TARGET_ID, uuid(2), true)).thenReturn(true);
+        when(likeRepository.isLiked(uuid(1), POST, TARGET_ID)).thenReturn(true);
+        when(likeRepository.addLike(any(LikeRelation.class))).thenReturn(true);
         when(likeRepository.countEntityLikes(POST, TARGET_ID)).thenReturn(1L);
         LikeApplicationService service = newService(likeRepository, targetStateRepository, publisher);
 
@@ -173,8 +181,8 @@ class LikeCleanupFenceApplicationServiceTest {
         InOrder order = inOrder(targetStateRepository, likeRepository);
         order.verify(targetStateRepository).insertActiveIfAbsent(POST, TARGET_ID);
         order.verify(targetStateRepository).findForUpdate(POST, TARGET_ID);
-        order.verify(likeRepository).isLiked(uuid(1), POST, TARGET_ID);
-        order.verify(likeRepository).setLike(uuid(1), POST, TARGET_ID, uuid(2), true);
+        order.verify(likeRepository).findLike(uuid(1), POST, TARGET_ID);
+        order.verify(likeRepository).addLike(any(LikeRelation.class));
     }
 
     @Test
@@ -222,7 +230,8 @@ class LikeCleanupFenceApplicationServiceTest {
                 new LikeDomainService(),
                 new BlockDomainService(),
                 publisher,
-                targetStateRepository
+                targetStateRepository,
+                new UuidV7Generator(Clock.fixed(DELETED_AT, ZoneOffset.UTC))
         );
     }
 }

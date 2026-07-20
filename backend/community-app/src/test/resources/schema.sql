@@ -611,7 +611,8 @@ create table if not exists http_idempotency (
   success_expires_at timestamp,
   created_at timestamp default current_timestamp,
   updated_at timestamp default current_timestamp,
-  unique (operation, user_id, idem_key)
+  unique (operation, user_id, idem_key),
+  constraint ck_http_idempotency_status check (status in ('P', 'S', 'I'))
 );
 
 create table if not exists outbox_event (

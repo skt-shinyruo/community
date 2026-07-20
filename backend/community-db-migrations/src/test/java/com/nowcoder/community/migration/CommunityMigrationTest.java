@@ -62,7 +62,7 @@ class CommunityMigrationTest {
         var result = CommunityMigrationRunner.standard(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .migrate();
 
-        assertThat(result.migrationsExecuted).isEqualTo(8);
+        assertThat(result.migrationsExecuted).isEqualTo(9);
         CommunitySchemaCatalog migratedCatalog = CommunitySchemaCatalog
                 .capture(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .withoutTables(Set.of(
@@ -107,13 +107,13 @@ class CommunityMigrationTest {
         CommunityMigrationRunner runner = CommunityMigrationRunner.standard(
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword());
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(8);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(9);
         assertThat(runner.migrate().migrationsExecuted).isZero();
         runner.validate();
 
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(8L);
+                .isEqualTo(9L);
     }
 
     @Test
@@ -157,6 +157,44 @@ class CommunityMigrationTest {
         assertThat(schema).contains(
                 "create index if not exists idx_outbox_processing_lease "
                         + "on outbox_event(status, processing_lease_until, id);");
+        assertThat(schema).contains(
+                "constraint ck_http_idempotency_status check (status in ('P', 'S', 'I'))");
+    }
+
+    @Test
+    void v008StateShouldQuarantineOnlyProcessingIdempotencyRows(@TempDir Path tempDir) throws Exception {
+        Database database = freshDatabase("v008_idempotency");
+        Path v008Directory = prepareMigrationDirectoryThroughVersionEight(tempDir);
+        CommunityMigrationRunner.forLocations(
+                        database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                        "community_v008_history", "filesystem:" + v008Directory.toAbsolutePath())
+                .migrate();
+        insertV008IdempotencyFixture(database);
+
+        CommunityMigrationRunner runner = CommunityMigrationRunner.forLocations(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                "community_v008_history", CommunityMigrationRunner.MIGRATION_LOCATION);
+
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(1);
+        runner.validate();
+
+        assertThat(idempotencyRows(database)).containsExactlyInAnyOrder(
+                new IdempotencyRow(
+                        "legacy-p", "legacy-p-key", "legacy-p-hash", "I", "legacy-p-response",
+                        null, Timestamp.valueOf("2035-01-01 00:00:01")
+                ),
+                new IdempotencyRow(
+                        "legacy-s", "legacy-s-key", "legacy-s-hash", "S", "legacy-s-response",
+                        Timestamp.valueOf("2035-01-01 00:00:12"), Timestamp.valueOf("2035-01-01 00:00:02")
+                ),
+                new IdempotencyRow(
+                        "legacy-i", "legacy-i-key", "legacy-i-hash", "I", "legacy-i-response",
+                        Timestamp.valueOf("2035-01-01 00:00:13"), Timestamp.valueOf("2035-01-01 00:00:03")
+                )
+        );
+        assertThat(queryString(database,
+                "select payload from outbox_event where event_id = 'v009-business-row'"))
+                .isEqualTo("{\"preserve\":true}");
     }
 
     @Test
@@ -185,6 +223,42 @@ class CommunityMigrationTest {
         assertThat(queryString(database, "select payload from outbox_event where event_id = 'migration-event'"))
                 .isEqualTo("{\"preserve\":true}");
         assertThat(columnNames(database, "user")).contains("migration_probe");
+    }
+
+    @Test
+    void legacyBaselineUpgradeShouldQuarantineResidualProcessingRows(@TempDir Path tempDir) throws Exception {
+        Database database = freshDatabase("upgrade_idempotency");
+        applyLegacyCommunitySchema(database, tempDir);
+        insertUpgradeFixture(database);
+        insertLegacyIdempotencyProcessingRow(database);
+        CommunityMigrationRunner runner = CommunityMigrationRunner.forLocations(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                "community_upgrade_idempotency_history", CommunityMigrationRunner.MIGRATION_LOCATION);
+
+        assertThatThrownBy(runner::migrate)
+                .isInstanceOf(FlywayException.class)
+                .hasMessageContaining("non-empty schema");
+
+        runner.baselineAtVersionOne(CommunityMigrationRunner.BASELINE_CONFIRMATION);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(8);
+        runner.validate();
+
+        IdempotencyRow residual = idempotencyRows(database).stream()
+                .filter(row -> row.idemKey().equals("upgrade-p-key"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(residual.status()).isEqualTo("I");
+        assertThat(residual.processingExpiresAt()).isNull();
+        assertThat(residual.requestHash()).isEqualTo("upgrade-p-hash");
+        assertThat(residual.responseJson()).isEqualTo("upgrade-p-response");
+        assertThat(queryString(database, "select username from user where username = 'migration-user'"))
+                .isEqualTo("migration-user");
+        assertThat(queryString(database,
+                "select payload from outbox_event where event_id = 'migration-event'"))
+                .isEqualTo("{\"preserve\":true}");
+        assertThat(queryLong(database,
+                "select count(*) from community_upgrade_idempotency_history where success = 1"))
+                .isEqualTo(9L);
     }
 
     @Test
@@ -238,7 +312,7 @@ class CommunityMigrationTest {
                 ") values (x'10000000000070008000000000000051', '" + mediaReleaseEventId + "', " +
                 "'content.media.reference', 'media-reference', '{}', 'NEW')");
 
-        assertThat(result.migrationsExecuted).isEqualTo(7);
+        assertThat(result.migrationsExecuted).isEqualTo(8);
         assertOutboxLeaseFencingSchema(database);
         assertThat(outboxEventStates(database, "migration-lease-%")).containsExactly(
                 new OutboxEventState(
@@ -296,7 +370,7 @@ class CommunityMigrationTest {
                 .isEqualTo(2L);
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(8L);
+                .isEqualTo(9L);
     }
 
     @Test
@@ -376,6 +450,21 @@ class CommunityMigrationTest {
         return versionOneDirectory;
     }
 
+    private static Path prepareMigrationDirectoryThroughVersionEight(Path tempDir) throws Exception {
+        Path sourceDirectory = findRepositoryRoot().resolve(
+                "backend/community-db-migrations/src/main/resources/db/migration/community");
+        Path migrationDirectory = Files.createDirectories(tempDir.resolve("community-v008"));
+        for (int version = 1; version <= 8; version++) {
+            String prefix = "V%03d__".formatted(version);
+            Path migration = Files.list(sourceDirectory)
+                    .filter(path -> path.getFileName().toString().startsWith(prefix))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("missing migration " + prefix));
+            Files.copy(migration, migrationDirectory.resolve(migration.getFileName()));
+        }
+        return migrationDirectory;
+    }
+
     private static Path findRepositoryRoot() {
         Path candidate = Path.of("").toAbsolutePath().normalize();
         while (candidate != null) {
@@ -399,6 +488,58 @@ class CommunityMigrationTest {
         execute(database, "insert into outbox_event(id, event_id, topic, event_key, payload, status) values "
                 + "(x'10000000000070008000000000000004', 'migration-event', 'migration.topic', "
                 + "'migration-key', '{\\\"preserve\\\":true}', 'NEW')");
+    }
+
+    private static void insertV008IdempotencyFixture(Database database) throws Exception {
+        execute(database, "insert into http_idempotency(" +
+                "id, operation, user_id, idem_key, request_hash, status, response_json, " +
+                "processing_expires_at, success_expires_at" +
+                ") values " +
+                "(x'20000000000070008000000000000001', 'legacy-p', " +
+                "x'20000000000070008000000000000011', 'legacy-p-key', 'legacy-p-hash', 'P', " +
+                "'legacy-p-response', '2035-01-01 00:00:11', '2035-01-01 00:00:01'), " +
+                "(x'20000000000070008000000000000002', 'legacy-s', " +
+                "x'20000000000070008000000000000012', 'legacy-s-key', 'legacy-s-hash', 'S', " +
+                "'legacy-s-response', '2035-01-01 00:00:12', '2035-01-01 00:00:02'), " +
+                "(x'20000000000070008000000000000003', 'legacy-i', " +
+                "x'20000000000070008000000000000013', 'legacy-i-key', 'legacy-i-hash', 'I', " +
+                "'legacy-i-response', '2035-01-01 00:00:13', '2035-01-01 00:00:03')");
+        execute(database, "insert into outbox_event(" +
+                "id, event_id, topic, event_key, payload, status" +
+                ") values (x'20000000000070008000000000000021', 'v009-business-row', " +
+                "'migration.topic', 'v009-business-key', '{\"preserve\":true}', 'NEW')");
+    }
+
+    private static void insertLegacyIdempotencyProcessingRow(Database database) throws Exception {
+        execute(database, "insert into http_idempotency(" +
+                "id, operation, user_id, idem_key, request_hash, status, response_json, " +
+                "processing_expires_at, success_expires_at" +
+                ") values (x'30000000000070008000000000000001', 'upgrade-p', " +
+                "x'30000000000070008000000000000011', 'upgrade-p-key', 'upgrade-p-hash', 'P', " +
+                "'upgrade-p-response', '2035-02-01 00:00:11', '2035-02-01 00:00:01')");
+    }
+
+    private static List<IdempotencyRow> idempotencyRows(Database database) throws Exception {
+        String sql = "select operation, idem_key, request_hash, status, response_json, " +
+                "processing_expires_at, success_expires_at from http_idempotency order by idem_key";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             Statement statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery(sql)) {
+            List<IdempotencyRow> values = new ArrayList<>();
+            while (rows.next()) {
+                values.add(new IdempotencyRow(
+                        rows.getString(1),
+                        rows.getString(2),
+                        rows.getString(3),
+                        rows.getString(4),
+                        rows.getString(5),
+                        rows.getTimestamp(6),
+                        rows.getTimestamp(7)
+                ));
+            }
+            return values;
+        }
     }
 
     private static Database freshDatabase(String prefix) throws Exception {
@@ -573,6 +714,17 @@ class CommunityMigrationTest {
             int retryCount,
             String leaseToken,
             Timestamp processingLeaseUntil
+    ) {
+    }
+
+    private record IdempotencyRow(
+            String operation,
+            String idemKey,
+            String requestHash,
+            String status,
+            String responseJson,
+            Timestamp processingExpiresAt,
+            Timestamp successExpiresAt
     ) {
     }
 }

@@ -123,6 +123,8 @@ events:
 
 social:
   storage: db
+  events:
+    relation-instance-publishing-enabled: false
 
 growth:
   business-zone-id: Asia/Shanghai

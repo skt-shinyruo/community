@@ -1,5 +1,7 @@
 package com.nowcoder.community.social.contracts.event;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.UUID;
 
 public class LikePayload {
@@ -10,6 +12,7 @@ public class LikePayload {
     private UUID entityUserId;
     private UUID postId;
     private String relationKey;
+    private UUID relationInstanceId;
 
     public UUID getActorUserId() {
         return actorUserId;
@@ -57,6 +60,15 @@ public class LikePayload {
 
     public void setRelationKey(String relationKey) {
         this.relationKey = relationKey;
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public UUID getRelationInstanceId() {
+        return relationInstanceId;
+    }
+
+    public void setRelationInstanceId(UUID relationInstanceId) {
+        this.relationInstanceId = relationInstanceId;
     }
 
 }

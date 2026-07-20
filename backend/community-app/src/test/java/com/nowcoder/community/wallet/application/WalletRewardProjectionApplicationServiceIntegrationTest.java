@@ -90,6 +90,39 @@ class WalletRewardProjectionApplicationServiceIntegrationTest {
         assertThat(countRowsByRequestId("wallet-reward:" + sourceEventId)).isEqualTo(1);
     }
 
+    @Test
+    void replayedOutOfOrderLikeEventsShouldPersistEachLifecycleActionOnce() {
+        UUID actorUserId = uuid(2);
+        String firstLifecycle = uuid(501).toString();
+        String secondLifecycle = uuid(502).toString();
+        RewardProjectionCommand firstRemoved = walletRewardProjectionApplicationService.commandForLikeRemoved(
+                firstLifecycle + ":removed", actorUserId, USER_ID);
+        RewardProjectionCommand firstCreated = walletRewardProjectionApplicationService.commandForLikeCreated(
+                firstLifecycle + ":created", actorUserId, USER_ID);
+        RewardProjectionCommand secondCreated = walletRewardProjectionApplicationService.commandForLikeCreated(
+                secondLifecycle + ":created", actorUserId, USER_ID);
+        RewardProjectionCommand secondRemoved = walletRewardProjectionApplicationService.commandForLikeRemoved(
+                secondLifecycle + ":removed", actorUserId, USER_ID);
+
+        applyTwice(firstRemoved);
+        applyTwice(firstCreated);
+        applyTwice(secondCreated);
+        applyTwice(secondRemoved);
+
+        assertThat(walletAccountService.balanceOfUser(USER_ID)).isZero();
+        assertThat(countRows("wallet_txn")).isEqualTo(4);
+        assertThat(countRows("wallet_entry")).isEqualTo(8);
+        assertThat(countRowsByRequestId("wallet-reward:" + firstLifecycle + ":removed")).isEqualTo(1);
+        assertThat(countRowsByRequestId("wallet-reward:" + firstLifecycle + ":created")).isEqualTo(1);
+        assertThat(countRowsByRequestId("wallet-reward:" + secondLifecycle + ":created")).isEqualTo(1);
+        assertThat(countRowsByRequestId("wallet-reward:" + secondLifecycle + ":removed")).isEqualTo(1);
+    }
+
+    private void applyTwice(RewardProjectionCommand command) {
+        walletRewardProjectionApplicationService.apply(command);
+        walletRewardProjectionApplicationService.apply(command);
+    }
+
     private int countRows(String tableName) {
         Integer count = jdbcTemplate.queryForObject("select count(*) from " + tableName, Integer.class);
         return count == null ? 0 : count;

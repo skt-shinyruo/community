@@ -17,6 +17,7 @@ import com.nowcoder.community.wallet.application.WalletRewardApplicationService;
 import com.nowcoder.community.wallet.application.WalletRewardProjectionApplicationService;
 import com.nowcoder.community.wallet.application.command.WalletRewardCommand;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.annotation.KafkaListener;
 
 import java.time.Instant;
@@ -84,6 +85,50 @@ class WalletRewardKafkaListenerTest {
         verify(walletReward, times(2)).applyDelta(new WalletRewardCommand(
                 "wallet-reward:" + payload.getRelationKey() + ":created", uuid(2), 1, "LikeCreated"
         ));
+    }
+
+    @Test
+    void lifecycleIdentityShouldTakePriorityOverLegacyRelationKey() {
+        WalletRewardApplicationService walletReward = mock(WalletRewardApplicationService.class);
+        WalletRewardKafkaListener listener = listener(walletReward);
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
+        payload.setRelationInstanceId(uuid(501));
+
+        listener.onSocialEvent(event("se:like:created:new", SocialEventTypes.LIKE_CREATED, payload));
+        listener.onSocialEvent(event("se:like:removed:new", SocialEventTypes.LIKE_REMOVED, payload));
+
+        verify(walletReward).applyDelta(new WalletRewardCommand(
+                "wallet-reward:" + uuid(501) + ":created", uuid(2), 1, "LikeCreated"
+        ));
+        verify(walletReward).applyDelta(new WalletRewardCommand(
+                "wallet-reward:" + uuid(501) + ":removed", uuid(2), -1, "LikeRemoved"
+        ));
+    }
+
+    @Test
+    void replayAndOutOfOrderDeliveryShouldRemainScopedToEachLifecycleInstance() {
+        WalletRewardApplicationService walletReward = mock(WalletRewardApplicationService.class);
+        WalletRewardKafkaListener listener = listener(walletReward);
+        LikePayload first = likePayload(uuid(1), uuid(100), uuid(2));
+        first.setRelationInstanceId(uuid(511));
+        LikePayload second = likePayload(uuid(1), uuid(100), uuid(2));
+        second.setRelationInstanceId(uuid(512));
+
+        listener.onSocialEvent(event("remove-first", SocialEventTypes.LIKE_REMOVED, first));
+        listener.onSocialEvent(event("create-first", SocialEventTypes.LIKE_CREATED, first));
+        listener.onSocialEvent(event("create-first-replay", SocialEventTypes.LIKE_CREATED, first));
+        listener.onSocialEvent(event("create-second", SocialEventTypes.LIKE_CREATED, second));
+        listener.onSocialEvent(event("remove-second", SocialEventTypes.LIKE_REMOVED, second));
+
+        ArgumentCaptor<WalletRewardCommand> commandCaptor = ArgumentCaptor.forClass(WalletRewardCommand.class);
+        verify(walletReward, times(5)).applyDelta(commandCaptor.capture());
+        assertThat(commandCaptor.getAllValues()).containsExactly(
+                new WalletRewardCommand("wallet-reward:" + uuid(511) + ":removed", uuid(2), -1, "LikeRemoved"),
+                new WalletRewardCommand("wallet-reward:" + uuid(511) + ":created", uuid(2), 1, "LikeCreated"),
+                new WalletRewardCommand("wallet-reward:" + uuid(511) + ":created", uuid(2), 1, "LikeCreated"),
+                new WalletRewardCommand("wallet-reward:" + uuid(512) + ":created", uuid(2), 1, "LikeCreated"),
+                new WalletRewardCommand("wallet-reward:" + uuid(512) + ":removed", uuid(2), -1, "LikeRemoved")
+        );
     }
 
     @Test

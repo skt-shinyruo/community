@@ -119,6 +119,35 @@ class SocialContractEventCodecTest {
     }
 
     @Test
+    void likePayloadShouldRoundTripLifecycleIdentityAndDecodeLegacyPayloadWithoutIt() {
+        UUID relationInstanceId = uuid(104);
+        LikePayload currentPayload = likePayload();
+        currentPayload.setRelationInstanceId(relationInstanceId);
+
+        SocialTypedEvent current = codec.decode(envelope(
+                SocialEventTypes.LIKE_CREATED,
+                JSON_CODEC.valueToTree(currentPayload)
+        ));
+
+        assertThat(((SocialTypedEvent.LikeCreated) current).payload().getRelationInstanceId())
+                .isEqualTo(relationInstanceId);
+        assertThat(codec.encode(current).payload().path("relationInstanceId").asText())
+                .isEqualTo(relationInstanceId.toString());
+
+        JsonNode legacyPayload = JSON_CODEC.valueToTree(Map.of(
+                "actorUserId", uuid(101),
+                "entityType", EntityTypes.POST,
+                "entityId", uuid(102),
+                "entityUserId", uuid(103),
+                "postId", uuid(102),
+                "relationKey", "post:102:user:101"
+        ));
+        SocialTypedEvent legacy = codec.decode(envelope(SocialEventTypes.LIKE_REMOVED, legacyPayload));
+
+        assertThat(((SocialTypedEvent.LikeRemoved) legacy).payload().getRelationInstanceId()).isNull();
+    }
+
+    @Test
     void typedEventFamilyShouldBeClosedAndBindEachKnownVariantToOnePayloadType() {
         assertThat(SocialTypedEvent.class.isSealed()).isTrue();
         assertThat(SocialTypedEvent.class.getPermittedSubclasses()).containsExactlyInAnyOrder(

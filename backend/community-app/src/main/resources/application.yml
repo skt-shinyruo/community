@@ -270,6 +270,7 @@ social:
   events:
     outbox-topic: ${SOCIAL_EVENTS_OUTBOX_TOPIC:eventbus.social}
     kafka-topic: ${SOCIAL_EVENTS_KAFKA_TOPIC:social.events}
+    relation-instance-publishing-enabled: ${SOCIAL_EVENTS_RELATION_INSTANCE_PUBLISHING_ENABLED:false}
 
 notice:
   projection-enabled: ${NOTICE_PROJECTION_ENABLED:true}

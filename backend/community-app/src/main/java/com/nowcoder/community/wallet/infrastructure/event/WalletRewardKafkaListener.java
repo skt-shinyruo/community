@@ -131,7 +131,10 @@ public class WalletRewardKafkaListener {
     }
 
     private String likeSourceId(String action, LikePayload payload) {
-        return payload.getRelationKey().trim() + ":" + action;
+        String base = payload.getRelationInstanceId() == null
+                ? payload.getRelationKey().trim()
+                : payload.getRelationInstanceId().toString();
+        return base + ":" + action;
     }
 
     private ContentTypedEvent decodeContent(ContentContractEvent event) {

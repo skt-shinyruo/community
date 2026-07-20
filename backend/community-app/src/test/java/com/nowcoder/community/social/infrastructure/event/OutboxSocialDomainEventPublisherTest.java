@@ -150,6 +150,69 @@ class OutboxSocialDomainEventPublisherTest {
     }
 
     @Test
+    void relationInstanceGateShouldPublishLifecycleIdentityForCreatedAndRemoved() {
+        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        SocialContractEventCodec contractEventCodec = new JacksonSocialContractEventCodec(jsonCodec);
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
+                contractEventCodec,
+                store,
+                TOPIC,
+                true
+        );
+        UUID actorUserId = uuid(31);
+        UUID entityId = uuid(32);
+        UUID relationInstanceId = uuid(33);
+        String relationKey = "like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId;
+
+        publisher.publishLikeChanged(new LikeChangedDomainEvent(
+                actorUserId, EntityTypes.POST, entityId, uuid(34), entityId,
+                relationKey, relationInstanceId, true, Instant.EPOCH
+        ));
+        publisher.publishLikeChanged(new LikeChangedDomainEvent(
+                actorUserId, EntityTypes.POST, entityId, uuid(34), entityId,
+                relationKey, relationInstanceId, false, Instant.EPOCH
+        ));
+
+        ArgumentCaptor<String> eventIdCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(store, times(2)).enqueue(
+                eventIdCaptor.capture(), eq(TOPIC), eq(EntityTypes.POST + ":" + entityId), payloadCaptor.capture());
+        SocialTypedEvent.LikeCreated created = (SocialTypedEvent.LikeCreated) contractEventCodec.decode(
+                contractEventCodec.deserialize(payloadCaptor.getAllValues().get(0)));
+        SocialTypedEvent.LikeRemoved removed = (SocialTypedEvent.LikeRemoved) contractEventCodec.decode(
+                contractEventCodec.deserialize(payloadCaptor.getAllValues().get(1)));
+
+        assertThat(created.payload().getRelationInstanceId()).isEqualTo(relationInstanceId);
+        assertThat(removed.payload().getRelationInstanceId()).isEqualTo(relationInstanceId);
+        assertThat(created.payload().getRelationKey()).isEqualTo(relationKey);
+        assertThat(removed.payload().getRelationKey()).isEqualTo(relationKey);
+        assertThat(eventIdCaptor.getAllValues()).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void disabledRelationInstanceGateShouldKeepLegacyPayloadShape() throws Exception {
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
+                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                store,
+                TOPIC,
+                false
+        );
+
+        publisher.publishLikeChanged(new LikeChangedDomainEvent(
+                uuid(35), EntityTypes.POST, uuid(36), uuid(37), uuid(36),
+                "like:" + uuid(35) + ":" + EntityTypes.POST + ":" + uuid(36),
+                uuid(38), true, Instant.EPOCH
+        ));
+
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(store).enqueue(any(), eq(TOPIC), eq(EntityTypes.POST + ":" + uuid(36)), payloadCaptor.capture());
+        JsonNode payload = JsonMappers.standard().readTree(payloadCaptor.getValue()).path("payload");
+        assertThat(payload.has("relationInstanceId")).isFalse();
+    }
+
+    @Test
     void followCreatedShouldUseActorEntityEventIdAndEntityKey() throws Exception {
         ObjectMapper objectMapper = JsonMappers.standard();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);

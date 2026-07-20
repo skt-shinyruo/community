@@ -18,6 +18,7 @@ public enum ContentErrorCode implements ErrorCode {
     BOOKMARK_CONFLICT(12005, "收藏状态冲突", ErrorKind.CONFLICT),
     SUBSCRIPTION_CONFLICT(12006, "订阅状态冲突", ErrorKind.CONFLICT),
     REQUEST_REPLAY_CONFLICT(12009, "请求号与已有内容请求不一致", ErrorKind.CONFLICT),
+    MODERATION_DECISION_CONFLICT(12010, "治理决定与已有处置冲突", ErrorKind.CONFLICT),
 
     CONTENT_RENDER_FAILED(12007, "内容渲染失败", ErrorKind.INTERNAL),
     INTERNAL_ERROR(12008, "内容服务异常", ErrorKind.INTERNAL);

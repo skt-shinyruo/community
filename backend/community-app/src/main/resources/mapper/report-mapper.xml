@@ -53,4 +53,18 @@
         update report set status = #{status} where id = #{id, jdbcType=BINARY}
     </update>
 
+    <update id="claimPending">
+        update report
+        set status = #{processing}
+        where id = #{id, jdbcType=BINARY}
+          and status = #{pending}
+    </update>
+
+    <update id="transitionStatus">
+        update report
+        set status = #{nextStatus}
+        where id = #{id, jdbcType=BINARY}
+          and status = #{expectedStatus}
+    </update>
+
 </mapper>

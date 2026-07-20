@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.domain.model;
 
+import java.util.Objects;
 import java.util.UUID;
 
 public record ModerationDecision(
@@ -28,5 +29,12 @@ public record ModerationDecision(
 
     public Integer auditDurationSeconds() {
         return resolvedDurationSeconds == 0 ? null : resolvedDurationSeconds;
+    }
+
+    public boolean matches(ModerationActionRecord action) {
+        return action != null
+                && Objects.equals(normalizedAction, action.action())
+                && Objects.equals(normalizedReason, action.reason())
+                && resolvedDurationSeconds == action.durationSeconds();
     }
 }

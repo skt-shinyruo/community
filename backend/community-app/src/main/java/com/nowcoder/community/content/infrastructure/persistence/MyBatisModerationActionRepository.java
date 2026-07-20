@@ -8,14 +8,19 @@ import com.nowcoder.community.content.domain.model.ModerationAction;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.ModerationActionMapper;
 import com.nowcoder.community.common.pagination.Pagination;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public class MyBatisModerationActionRepository implements ModerationActionRepository {
+
+    private static final Logger log = LoggerFactory.getLogger(MyBatisModerationActionRepository.class);
 
     private final ModerationActionMapper moderationActionMapper;
     private final UuidV7Generator idGenerator;
@@ -42,6 +47,22 @@ public class MyBatisModerationActionRepository implements ModerationActionReposi
         row.setCreateTime(new Date());
         moderationActionMapper.insertAction(row);
         return toRecord(row);
+    }
+
+    @Override
+    public Optional<ModerationActionRecord> findByReportId(UUID reportId) {
+        List<ModerationAction> actions = moderationActionMapper.selectActionsByReportId(reportId);
+        if (actions.size() > 1) {
+            log.error(
+                    "moderation action data inconsistency reportId={} actionCount={}",
+                    reportId,
+                    actions.size()
+            );
+            throw new IllegalStateException(
+                    "multiple moderation actions for reportId=" + reportId + ", count=" + actions.size()
+            );
+        }
+        return actions.stream().findFirst().map(this::toRecord);
     }
 
     @Override

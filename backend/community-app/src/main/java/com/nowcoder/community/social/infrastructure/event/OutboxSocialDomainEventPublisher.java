@@ -13,6 +13,7 @@ import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEven
 import com.nowcoder.community.social.domain.event.FollowCreatedDomainEvent;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -24,16 +25,29 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
     private final SocialContractEventCodec contractEventCodec;
     private final JdbcOutboxEventStore store;
     private final String topic;
+    private final boolean relationInstancePublishingEnabled;
     private final UuidV7Generator idGenerator = new UuidV7Generator();
 
+    @Autowired
     public OutboxSocialDomainEventPublisher(
             SocialContractEventCodec contractEventCodec,
             JdbcOutboxEventStore store,
-            @Value("${social.events.outbox-topic:eventbus.social}") String topic
+            @Value("${social.events.outbox-topic:eventbus.social}") String topic,
+            @Value("${social.events.relation-instance-publishing-enabled:false}")
+            boolean relationInstancePublishingEnabled
     ) {
         this.contractEventCodec = contractEventCodec;
         this.store = store;
         this.topic = topic;
+        this.relationInstancePublishingEnabled = relationInstancePublishingEnabled;
+    }
+
+    public OutboxSocialDomainEventPublisher(
+            SocialContractEventCodec contractEventCodec,
+            JdbcOutboxEventStore store,
+            String topic
+    ) {
+        this(contractEventCodec, store, topic, false);
     }
 
     @Override
@@ -50,6 +64,9 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         payload.setEntityUserId(event.entityUserId());
         payload.setPostId(event.postId());
         payload.setRelationKey(relationKey);
+        if (relationInstancePublishingEnabled) {
+            payload.setRelationInstanceId(event.relationInstanceId());
+        }
 
         Instant occurredAt = requiredOccurredAt(type, event.occurredAt());
         String eventId = event.liked()

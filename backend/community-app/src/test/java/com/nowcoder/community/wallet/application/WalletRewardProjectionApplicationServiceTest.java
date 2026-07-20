@@ -9,6 +9,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 class WalletRewardProjectionApplicationServiceTest {
@@ -35,6 +36,30 @@ class WalletRewardProjectionApplicationServiceTest {
         UUID userId = uuid(7);
 
         assertThat(service.commandForLikeCreated("like:source", userId, userId)).isNull();
+    }
+
+    @Test
+    void lifecycleActionsShouldProduceDistinctIdempotentWalletRequests() {
+        WalletRewardApplicationService walletRewardApplicationService = mock(WalletRewardApplicationService.class);
+        WalletRewardProjectionApplicationService service =
+                new WalletRewardProjectionApplicationService(walletRewardApplicationService);
+        UUID ownerUserId = uuid(8);
+        String lifecycleSource = uuid(801).toString();
+
+        RewardProjectionCommand removed = service.commandForLikeRemoved(
+                lifecycleSource + ":removed", uuid(7), ownerUserId);
+        RewardProjectionCommand created = service.commandForLikeCreated(
+                lifecycleSource + ":created", uuid(7), ownerUserId);
+        service.apply(removed);
+        service.apply(created);
+        service.apply(created);
+
+        verify(walletRewardApplicationService).applyDelta(new WalletRewardCommand(
+                "wallet-reward:" + lifecycleSource + ":removed", ownerUserId, -1, "LikeRemoved"
+        ));
+        verify(walletRewardApplicationService, times(2)).applyDelta(new WalletRewardCommand(
+                "wallet-reward:" + lifecycleSource + ":created", ownerUserId, 1, "LikeCreated"
+        ));
     }
 
     @Test

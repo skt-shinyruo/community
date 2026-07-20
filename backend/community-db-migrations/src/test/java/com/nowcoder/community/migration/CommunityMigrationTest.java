@@ -158,7 +158,8 @@ class CommunityMigrationTest {
                 "create index if not exists idx_outbox_processing_lease "
                         + "on outbox_event(status, processing_lease_until, id);");
         assertThat(schema).contains(
-                "constraint ck_http_idempotency_status check (status in ('P', 'S', 'I'))");
+                "-- Runtime states: P=PROCESSING, S=SUCCESS, I=INDETERMINATE.\n"
+                        + "  status varchar(16) not null,");
     }
 
     @Test
@@ -456,11 +457,13 @@ class CommunityMigrationTest {
         Path migrationDirectory = Files.createDirectories(tempDir.resolve("community-v008"));
         for (int version = 1; version <= 8; version++) {
             String prefix = "V%03d__".formatted(version);
-            Path migration = Files.list(sourceDirectory)
-                    .filter(path -> path.getFileName().toString().startsWith(prefix))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("missing migration " + prefix));
-            Files.copy(migration, migrationDirectory.resolve(migration.getFileName()));
+            try (var migrations = Files.list(sourceDirectory)) {
+                Path migration = migrations
+                        .filter(path -> path.getFileName().toString().startsWith(prefix))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException("missing migration " + prefix));
+                Files.copy(migration, migrationDirectory.resolve(migration.getFileName()));
+            }
         }
         return migrationDirectory;
     }

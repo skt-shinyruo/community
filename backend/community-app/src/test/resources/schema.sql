@@ -520,6 +520,7 @@ create table if not exists moderation_action (
 create unique index if not exists uk_moderation_action_report on moderation_action(report_id);
 
 create table if not exists social_like (
+  relation_instance_id binary(16) not null,
   user_id binary(16) not null,
   entity_type int not null,
   entity_id binary(16) not null,
@@ -528,6 +529,7 @@ create table if not exists social_like (
   primary key (user_id, entity_type, entity_id)
 );
 
+create unique index if not exists uk_social_like_relation_instance on social_like(relation_instance_id);
 create index if not exists idx_like_entity_user on social_like(entity_type, entity_id, user_id);
 
 create table if not exists social_like_target_state (

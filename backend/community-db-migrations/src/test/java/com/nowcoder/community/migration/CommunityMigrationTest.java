@@ -14,6 +14,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 @Testcontainers
 class CommunityMigrationTest {
@@ -62,7 +64,7 @@ class CommunityMigrationTest {
         var result = CommunityMigrationRunner.standard(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .migrate();
 
-        assertThat(result.migrationsExecuted).isEqualTo(9);
+        assertThat(result.migrationsExecuted).isEqualTo(10);
         CommunitySchemaCatalog migratedCatalog = CommunitySchemaCatalog
                 .capture(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .withoutTables(Set.of(
@@ -71,14 +73,16 @@ class CommunityMigrationTest {
                         "post_media_asset",
                         "auth_refresh_token",
                         "outbox_event",
-                        "comment"
+                        "comment",
+                        "moderation_action"
                 ));
         assertThat(migratedCatalog)
                 .isEqualTo(CommunitySchemaCatalog.canonical().withoutTables(Set.of(
                         "post_media_asset",
                         "auth_refresh_token",
                         "outbox_event",
-                        "comment"
+                        "comment",
+                        "moderation_action"
                 )));
         assertThat(tableNames(database)).contains("social_like_target_state");
         assertThat(columnNames(database, "post_media_asset")).contains(
@@ -107,13 +111,13 @@ class CommunityMigrationTest {
         CommunityMigrationRunner runner = CommunityMigrationRunner.standard(
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword());
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(9);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(10);
         assertThat(runner.migrate().migrationsExecuted).isZero();
         runner.validate();
 
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(9L);
+                .isEqualTo(10L);
     }
 
     @Test
@@ -163,6 +167,85 @@ class CommunityMigrationTest {
     }
 
     @Test
+    void h2FixtureShouldDeclareTheUniqueModerationActionReportIndex() throws Exception {
+        String schema = Files.readString(findRepositoryRoot().resolve(
+                "backend/community-app/src/test/resources/schema.sql"));
+
+        assertThat(schema).contains(
+                "create unique index if not exists uk_moderation_action_report "
+                        + "on moderation_action(report_id);");
+    }
+
+    @Test
+    void v010ShouldReplaceTheReportIndexWithoutTouchingNullActions(@TempDir Path tempDir) throws Exception {
+        Database database = freshDatabase("v010_success");
+        String historyTable = "community_v010_success_history";
+        Path v009Directory = prepareMigrationDirectoryThroughVersionNine(tempDir);
+        CommunityMigrationRunner.forLocations(
+                        database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                        historyTable, "filesystem:" + v009Directory.toAbsolutePath())
+                .migrate();
+        insertDistinctAndNullModerationActions(database);
+        List<ModerationActionRow> before = moderationActionRows(database);
+
+        CommunityMigrationRunner runner = CommunityMigrationRunner.forLocations(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
+
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(1);
+        runner.validate();
+
+        assertThat(moderationActionRows(database)).containsExactlyElementsOf(before);
+        assertThat(indexDefinition(database, "moderation_action", "uk_moderation_action_report"))
+                .isEqualTo(new IndexDefinition(true, List.of("report_id")));
+        assertThat(indexDefinition(database, "moderation_action", "idx_moderation_action_report"))
+                .isNull();
+        assertThat(indexDefinition(database, "moderation_action", "idx_moderation_action_actor"))
+                .isEqualTo(new IndexDefinition(false, List.of("actor_id", "create_time")));
+
+        execute(database, "insert into moderation_action(" +
+                "id, report_id, actor_id, action, reason, duration_seconds, create_time" +
+                ") values (x'40000000000070008000000000000005', null, " +
+                "x'40000000000070008000000000000025', 'NOTE', 'third null', 0, " +
+                "'2035-01-01 00:00:05')");
+        assertThat(queryLong(database,
+                "select count(*) from moderation_action where report_id is null"))
+                .isEqualTo(3L);
+    }
+
+    @Test
+    void v010ShouldFailAtomicallyWhenAReportAlreadyHasMultipleActions(@TempDir Path tempDir)
+            throws Exception {
+        Database database = freshDatabase("v010_duplicate");
+        String historyTable = "community_v010_duplicate_history";
+        Path v009Directory = prepareMigrationDirectoryThroughVersionNine(tempDir);
+        CommunityMigrationRunner.forLocations(
+                        database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                        historyTable, "filesystem:" + v009Directory.toAbsolutePath())
+                .migrate();
+        insertConflictingModerationActions(database);
+        List<ModerationActionRow> before = moderationActionRows(database);
+
+        CommunityMigrationRunner runner = CommunityMigrationRunner.forLocations(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
+
+        Throwable failure = catchThrowable(runner::migrate);
+        assertThat(failure).isInstanceOf(FlywayException.class);
+        assertThat(rootCause(failure))
+                .isInstanceOf(SQLIntegrityConstraintViolationException.class)
+                .hasMessageContaining("Duplicate entry")
+                .hasMessageContaining("uk_moderation_action_report");
+        assertThat(moderationActionRows(database)).containsExactlyElementsOf(before);
+        assertThat(indexDefinition(database, "moderation_action", "idx_moderation_action_report"))
+                .isEqualTo(new IndexDefinition(false, List.of("report_id", "create_time")));
+        assertThat(indexDefinition(database, "moderation_action", "uk_moderation_action_report"))
+                .isNull();
+        assertThat(indexDefinition(database, "moderation_action", "idx_moderation_action_actor"))
+                .isEqualTo(new IndexDefinition(false, List.of("actor_id", "create_time")));
+    }
+
+    @Test
     void v008StateShouldQuarantineOnlyProcessingIdempotencyRows(@TempDir Path tempDir) throws Exception {
         Database database = freshDatabase("v008_idempotency");
         Path v008Directory = prepareMigrationDirectoryThroughVersionEight(tempDir);
@@ -176,7 +259,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 "community_v008_history", CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(1);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(2);
         runner.validate();
 
         assertThat(idempotencyRows(database)).containsExactlyInAnyOrder(
@@ -241,7 +324,7 @@ class CommunityMigrationTest {
                 .hasMessageContaining("non-empty schema");
 
         runner.baselineAtVersionOne(CommunityMigrationRunner.BASELINE_CONFIRMATION);
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(8);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(9);
         runner.validate();
 
         IdempotencyRow residual = idempotencyRows(database).stream()
@@ -259,7 +342,7 @@ class CommunityMigrationTest {
                 .isEqualTo("{\"preserve\":true}");
         assertThat(queryLong(database,
                 "select count(*) from community_upgrade_idempotency_history where success = 1"))
-                .isEqualTo(9L);
+                .isEqualTo(10L);
     }
 
     @Test
@@ -313,7 +396,7 @@ class CommunityMigrationTest {
                 ") values (x'10000000000070008000000000000051', '" + mediaReleaseEventId + "', " +
                 "'content.media.reference', 'media-reference', '{}', 'NEW')");
 
-        assertThat(result.migrationsExecuted).isEqualTo(8);
+        assertThat(result.migrationsExecuted).isEqualTo(9);
         assertOutboxLeaseFencingSchema(database);
         assertThat(outboxEventStates(database, "migration-lease-%")).containsExactly(
                 new OutboxEventState(
@@ -371,7 +454,7 @@ class CommunityMigrationTest {
                 .isEqualTo(2L);
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(9L);
+                .isEqualTo(10L);
     }
 
     @Test
@@ -452,10 +535,19 @@ class CommunityMigrationTest {
     }
 
     private static Path prepareMigrationDirectoryThroughVersionEight(Path tempDir) throws Exception {
+        return prepareMigrationDirectoryThroughVersion(tempDir, 8);
+    }
+
+    private static Path prepareMigrationDirectoryThroughVersionNine(Path tempDir) throws Exception {
+        return prepareMigrationDirectoryThroughVersion(tempDir, 9);
+    }
+
+    private static Path prepareMigrationDirectoryThroughVersion(Path tempDir, int latestVersion) throws Exception {
         Path sourceDirectory = findRepositoryRoot().resolve(
                 "backend/community-db-migrations/src/main/resources/db/migration/community");
-        Path migrationDirectory = Files.createDirectories(tempDir.resolve("community-v008"));
-        for (int version = 1; version <= 8; version++) {
+        Path migrationDirectory = Files.createDirectories(
+                tempDir.resolve("community-v%03d".formatted(latestVersion)));
+        for (int version = 1; version <= latestVersion; version++) {
             String prefix = "V%03d__".formatted(version);
             try (var migrations = Files.list(sourceDirectory)) {
                 Path migration = migrations
@@ -520,6 +612,59 @@ class CommunityMigrationTest {
                 ") values (x'30000000000070008000000000000001', 'upgrade-p', " +
                 "x'30000000000070008000000000000011', 'upgrade-p-key', 'upgrade-p-hash', 'P', " +
                 "'upgrade-p-response', '2035-02-01 00:00:11', '2035-02-01 00:00:01')");
+    }
+
+    private static void insertDistinctAndNullModerationActions(Database database) throws Exception {
+        execute(database, "insert into moderation_action(" +
+                "id, report_id, actor_id, action, reason, duration_seconds, create_time" +
+                ") values " +
+                "(x'40000000000070008000000000000001', x'40000000000070008000000000000011', " +
+                "x'40000000000070008000000000000021', 'WARN', 'first report', 0, " +
+                "'2035-01-01 00:00:01'), " +
+                "(x'40000000000070008000000000000002', x'40000000000070008000000000000012', " +
+                "x'40000000000070008000000000000022', 'MUTE', 'second report', 60, " +
+                "'2035-01-01 00:00:02'), " +
+                "(x'40000000000070008000000000000003', null, " +
+                "x'40000000000070008000000000000023', 'NOTE', 'first null', 0, " +
+                "'2035-01-01 00:00:03'), " +
+                "(x'40000000000070008000000000000004', null, " +
+                "x'40000000000070008000000000000024', 'NOTE', 'second null', 0, " +
+                "'2035-01-01 00:00:04')");
+    }
+
+    private static void insertConflictingModerationActions(Database database) throws Exception {
+        execute(database, "insert into moderation_action(" +
+                "id, report_id, actor_id, action, reason, duration_seconds, create_time" +
+                ") values " +
+                "(x'50000000000070008000000000000001', x'50000000000070008000000000000011', " +
+                "x'50000000000070008000000000000021', 'WARN', 'first conflict', 0, " +
+                "'2035-02-01 00:00:01'), " +
+                "(x'50000000000070008000000000000002', x'50000000000070008000000000000011', " +
+                "x'50000000000070008000000000000022', 'MUTE', 'second conflict', 120, " +
+                "'2035-02-01 00:00:02')");
+    }
+
+    private static List<ModerationActionRow> moderationActionRows(Database database) throws Exception {
+        String sql = "select hex(id), hex(report_id), hex(actor_id), action, reason, " +
+                "duration_seconds, create_time from moderation_action order by id";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             Statement statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery(sql)) {
+            List<ModerationActionRow> actions = new ArrayList<>();
+            while (rows.next()) {
+                actions.add(new ModerationActionRow(
+                        rows.getString(1),
+                        rows.getString(2),
+                        rows.getString(3),
+                        rows.getString(4),
+                        rows.getString(5),
+                        rows.getInt(6),
+                        rows.getTimestamp(7)
+                ));
+            }
+            return actions;
+        }
     }
 
     private static List<IdempotencyRow> idempotencyRows(Database database) throws Exception {
@@ -619,7 +764,16 @@ class CommunityMigrationTest {
             String table,
             String index
     ) throws Exception {
-        String sql = "select column_name from information_schema.statistics "
+        IndexDefinition definition = indexDefinition(database, table, index);
+        return definition == null ? List.of() : definition.columns();
+    }
+
+    private static IndexDefinition indexDefinition(
+            Database database,
+            String table,
+            String index
+    ) throws Exception {
+        String sql = "select non_unique, column_name from information_schema.statistics "
                 + "where table_schema = ? and table_name = ? and index_name = ? order by seq_in_index";
         try (Connection connection = DriverManager.getConnection(
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword());
@@ -629,12 +783,24 @@ class CommunityMigrationTest {
             statement.setString(3, index);
             try (ResultSet rows = statement.executeQuery()) {
                 List<String> columns = new ArrayList<>();
+                boolean unique = false;
                 while (rows.next()) {
+                    if (columns.isEmpty()) {
+                        unique = rows.getInt("non_unique") == 0;
+                    }
                     columns.add(rows.getString("column_name").toLowerCase());
                 }
-                return columns;
+                return columns.isEmpty() ? null : new IndexDefinition(unique, List.copyOf(columns));
             }
         }
+    }
+
+    private static Throwable rootCause(Throwable failure) {
+        Throwable root = failure;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        return root;
     }
 
     private static List<OutboxEventState> outboxEventStates(
@@ -707,6 +873,20 @@ class CommunityMigrationTest {
     }
 
     private record ColumnDefinition(String type, boolean nullable) {
+    }
+
+    private record IndexDefinition(boolean unique, List<String> columns) {
+    }
+
+    private record ModerationActionRow(
+            String rowId,
+            String reportId,
+            String actorId,
+            String action,
+            String reason,
+            int durationSeconds,
+            Timestamp createTime
+    ) {
     }
 
     private record OutboxEventState(

@@ -1,6 +1,7 @@
 package com.nowcoder.community.migration;
 
 import org.flywaydb.core.api.FlywayException;
+import org.flywaydb.core.api.exception.FlywayValidateException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.junit.jupiter.Container;
@@ -14,7 +15,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLIntegrityConstraintViolationException;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -84,6 +85,7 @@ class CommunityMigrationTest {
                         "comment",
                         "moderation_action"
                 )));
+        assertModerationActionSchema(database);
         assertThat(tableNames(database)).contains("social_like_target_state");
         assertThat(columnNames(database, "post_media_asset")).contains(
                 "reference_status", "reference_operation_version", "reference_updated_at",
@@ -232,17 +234,30 @@ class CommunityMigrationTest {
 
         Throwable failure = catchThrowable(runner::migrate);
         assertThat(failure).isInstanceOf(FlywayException.class);
-        assertThat(rootCause(failure))
-                .isInstanceOf(SQLIntegrityConstraintViolationException.class)
-                .hasMessageContaining("Duplicate entry")
-                .hasMessageContaining("uk_moderation_action_report");
-        assertThat(moderationActionRows(database)).containsExactlyElementsOf(before);
-        assertThat(indexDefinition(database, "moderation_action", "idx_moderation_action_report"))
-                .isEqualTo(new IndexDefinition(false, List.of("report_id", "create_time")));
-        assertThat(indexDefinition(database, "moderation_action", "uk_moderation_action_report"))
-                .isNull();
-        assertThat(indexDefinition(database, "moderation_action", "idx_moderation_action_actor"))
-                .isEqualTo(new IndexDefinition(false, List.of("actor_id", "create_time")));
+        assertThat(rootCause(failure)).isInstanceOf(SQLException.class);
+        SQLException duplicateKeyFailure = (SQLException) rootCause(failure);
+        assertThat(duplicateKeyFailure.getSQLState()).isEqualTo("23000");
+        assertThat(duplicateKeyFailure.getErrorCode()).isEqualTo(1062);
+        assertThat(duplicateKeyFailure.getMessage())
+                .contains("Duplicate entry")
+                .contains("uk_moderation_action_report");
+
+        List<MigrationHistoryRow> historyAfterFailure = migrationHistoryRows(database, historyTable);
+        assertThat(historyAfterFailure).hasSize(10);
+        assertThat(historyAfterFailure)
+                .filteredOn(row -> "010".equals(row.version()))
+                .containsExactly(new MigrationHistoryRow(
+                        "010", "enforce unique moderation action report", false));
+        assertThat(historyAfterFailure).filteredOn(MigrationHistoryRow::success).hasSize(9);
+        assertFailedV010PreservedModerationState(database, before);
+
+        Throwable retryFailure = catchThrowable(runner::migrate);
+        assertThat(retryFailure)
+                .isInstanceOf(FlywayValidateException.class)
+                .hasMessageContaining("Detected failed migration to version 010");
+        assertThat(migrationHistoryRows(database, historyTable))
+                .containsExactlyElementsOf(historyAfterFailure);
+        assertFailedV010PreservedModerationState(database, before);
     }
 
     @Test
@@ -725,6 +740,35 @@ class CommunityMigrationTest {
         }
     }
 
+    private static void assertModerationActionSchema(Database database) throws Exception {
+        assertThat(columnNames(database, "moderation_action")).containsExactlyInAnyOrder(
+                "id", "report_id", "actor_id", "action", "reason", "duration_seconds", "create_time");
+        assertThat(columnDefinition(database, "moderation_action", "id"))
+                .isEqualTo(new ColumnDefinition("binary(16)", false));
+        assertThat(columnDefinition(database, "moderation_action", "report_id"))
+                .isEqualTo(new ColumnDefinition("binary(16)", true));
+        assertThat(columnDefinition(database, "moderation_action", "actor_id"))
+                .isEqualTo(new ColumnDefinition("binary(16)", false));
+        assertThat(columnDefinition(database, "moderation_action", "action"))
+                .isEqualTo(new ColumnDefinition("varchar(32)", false));
+        assertThat(columnDefinition(database, "moderation_action", "reason"))
+                .isEqualTo(new ColumnDefinition("varchar(255)", true));
+        assertThat(columnDefinition(database, "moderation_action", "duration_seconds"))
+                .isEqualTo(new ColumnDefinition("int", true));
+        assertThat(columnDefinition(database, "moderation_action", "create_time"))
+                .isEqualTo(new ColumnDefinition("timestamp", true));
+        assertThat(indexNames(database, "moderation_action")).containsExactlyInAnyOrder(
+                "primary", "uk_moderation_action_report", "idx_moderation_action_actor");
+        assertThat(indexDefinition(database, "moderation_action", "PRIMARY"))
+                .isEqualTo(new IndexDefinition(true, List.of("id")));
+        assertThat(indexDefinition(database, "moderation_action", "uk_moderation_action_report"))
+                .isEqualTo(new IndexDefinition(true, List.of("report_id")));
+        assertThat(indexDefinition(database, "moderation_action", "idx_moderation_action_actor"))
+                .isEqualTo(new IndexDefinition(false, List.of("actor_id", "create_time")));
+        assertThat(indexDefinition(database, "moderation_action", "idx_moderation_action_report"))
+                .isNull();
+    }
+
     private static void assertOutboxLeaseFencingSchema(Database database) throws Exception {
         assertThat(columnDefinition(database, "outbox_event", "lease_token"))
                 .isEqualTo(new ColumnDefinition("binary(16)", true));
@@ -768,6 +812,24 @@ class CommunityMigrationTest {
         return definition == null ? List.of() : definition.columns();
     }
 
+    private static Set<String> indexNames(Database database, String table) throws Exception {
+        String sql = "select distinct index_name from information_schema.statistics "
+                + "where table_schema = ? and table_name = ? order by index_name";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database.name());
+            statement.setString(2, table);
+            try (ResultSet rows = statement.executeQuery()) {
+                Set<String> names = new java.util.LinkedHashSet<>();
+                while (rows.next()) {
+                    names.add(rows.getString("index_name").toLowerCase());
+                }
+                return names;
+            }
+        }
+    }
+
     private static IndexDefinition indexDefinition(
             Database database,
             String table,
@@ -801,6 +863,40 @@ class CommunityMigrationTest {
             root = root.getCause();
         }
         return root;
+    }
+
+    private static List<MigrationHistoryRow> migrationHistoryRows(
+            Database database,
+            String historyTable
+    ) throws Exception {
+        String sql = "select version, description, success from " + historyTable + " order by installed_rank";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             Statement statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery(sql)) {
+            List<MigrationHistoryRow> history = new ArrayList<>();
+            while (rows.next()) {
+                history.add(new MigrationHistoryRow(
+                        rows.getString("version"),
+                        rows.getString("description"),
+                        rows.getBoolean("success")
+                ));
+            }
+            return history;
+        }
+    }
+
+    private static void assertFailedV010PreservedModerationState(
+            Database database,
+            List<ModerationActionRow> expectedRows
+    ) throws Exception {
+        assertThat(moderationActionRows(database)).containsExactlyElementsOf(expectedRows);
+        assertThat(indexDefinition(database, "moderation_action", "idx_moderation_action_report"))
+                .isEqualTo(new IndexDefinition(false, List.of("report_id", "create_time")));
+        assertThat(indexDefinition(database, "moderation_action", "uk_moderation_action_report"))
+                .isNull();
+        assertThat(indexDefinition(database, "moderation_action", "idx_moderation_action_actor"))
+                .isEqualTo(new IndexDefinition(false, List.of("actor_id", "create_time")));
     }
 
     private static List<OutboxEventState> outboxEventStates(
@@ -876,6 +972,9 @@ class CommunityMigrationTest {
     }
 
     private record IndexDefinition(boolean unique, List<String> columns) {
+    }
+
+    private record MigrationHistoryRow(String version, String description, boolean success) {
     }
 
     private record ModerationActionRow(

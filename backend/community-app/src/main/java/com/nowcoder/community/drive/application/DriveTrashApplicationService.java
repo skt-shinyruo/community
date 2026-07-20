@@ -112,25 +112,41 @@ public class DriveTrashApplicationService {
     }
 
     public void deletePermanently(UUID actorUserId, UUID entryId) {
+        UUID userId = requireUser(actorUserId);
+        PermanentDeletionWork work = transactionOperations.requiresNew(
+                () -> preparePermanentDeletion(userId, entryId)
+        );
+        deleteObjects(work.cleanupTargets(), userId);
+    }
+
+    private PermanentDeletionWork preparePermanentDeletion(UUID actorUserId, UUID entryId) {
         DriveSpace space = loadOrCreateSpace(actorUserId);
-        lockSpace(space.spaceId());
+        DriveSpace latest = lockSpace(space.spaceId());
         DriveEntry entry = loadEntry(space.spaceId(), entryId);
         if (entry.status() == DriveEntryStatus.ACTIVE) {
             throw new BusinessException(DriveErrorCode.DRIVE_ENTRY_TRASHED, "回收站条目不可执行该操作");
         }
         List<DriveEntry> entries = entryWithDescendants(space.spaceId(), entry);
         if (entry.status() == DriveEntryStatus.TRASHED) {
-            List<DriveEntry> deleteTargets = entries.stream()
-                    .filter(item -> item.status() != DriveEntryStatus.DELETED)
-                    .toList();
-            long releasedBytes = deleteTargets.stream()
+            Instant now = clock.instant();
+            List<DriveEntry> winners = new ArrayList<>();
+            for (DriveEntry item : entries) {
+                if (item.status() != DriveEntryStatus.TRASHED) {
+                    continue;
+                }
+                DriveEntry deleted = item.delete(now);
+                if (entryRepository.markDeletedIfTrashed(deleted)) {
+                    winners.add(deleted);
+                }
+            }
+            long releasedBytes = winners.stream()
                     .filter(DriveEntry::file)
                     .mapToLong(DriveEntry::sizeBytes)
                     .sum();
-            Instant now = clock.instant();
-            persistDeletion(space.spaceId(), deleteTargets, releasedBytes, now);
-            deleteObjects(deleteTargets, actorUserId);
-            return;
+            if (releasedBytes > 0) {
+                spaceRepository.save(latest.release(releasedBytes, now));
+            }
+            return new PermanentDeletionWork(winners);
         }
         Instant retryWatermark = entry.updatedAt();
         List<DriveEntry> retryTargets = entries.stream()
@@ -138,7 +154,7 @@ public class DriveTrashApplicationService {
                 .filter(item -> item.status() == DriveEntryStatus.DELETED)
                 .filter(item -> retryWatermark != null && !item.updatedAt().isBefore(retryWatermark))
                 .toList();
-        deleteObjects(retryTargets, actorUserId);
+        return new PermanentDeletionWork(retryTargets);
     }
 
     public List<DriveEntryResult> listTrash(UUID actorUserId) {
@@ -176,10 +192,12 @@ public class DriveTrashApplicationService {
         throw new BusinessException(INTERNAL_ERROR, "网盘空间创建失败");
     }
 
-    private void lockSpace(UUID spaceId) {
-        if (spaceRepository.lockById(spaceId) == null) {
+    private DriveSpace lockSpace(UUID spaceId) {
+        DriveSpace locked = spaceRepository.lockById(spaceId);
+        if (locked == null) {
             throw new BusinessException(DriveErrorCode.DRIVE_SPACE_NOT_FOUND, "网盘空间不存在");
         }
+        return locked;
     }
 
     private DriveEntry loadEntry(UUID spaceId, UUID entryId) {
@@ -209,18 +227,6 @@ public class DriveTrashApplicationService {
                 });
     }
 
-    private void persistDeletion(UUID spaceId, List<DriveEntry> targets, long releasedBytes, Instant now) {
-        Runnable deleteAction = () -> {
-            targets.forEach(item -> entryRepository.save(item.delete(now)));
-            if (releasedBytes > 0) {
-                DriveSpace latest = spaceRepository.findById(spaceId)
-                        .orElseThrow(() -> new BusinessException(INTERNAL_ERROR, "网盘空间不存在"));
-                spaceRepository.save(latest.release(releasedBytes, now));
-            }
-        };
-        transactionOperations.requiresNew(deleteAction);
-    }
-
     private void deleteObjects(List<DriveEntry> targets, UUID actorUserId) {
         try {
             targets.stream()
@@ -240,5 +246,11 @@ public class DriveTrashApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
         }
         return actorUserId;
+    }
+
+    private record PermanentDeletionWork(List<DriveEntry> cleanupTargets) {
+        private PermanentDeletionWork {
+            cleanupTargets = cleanupTargets == null ? List.of() : List.copyOf(cleanupTargets);
+        }
     }
 }

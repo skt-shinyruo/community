@@ -2,6 +2,7 @@ package com.nowcoder.community.wallet.infrastructure.persistence;
 
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletAccountChange;
+import com.nowcoder.community.wallet.domain.model.WalletPostingPolicy;
 import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository;
 import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAccountDataObject;
@@ -50,12 +51,19 @@ public class MyBatisWalletAccountRepository implements WalletAccountRepository {
 
     @Override
     public ApplyResult apply(WalletAccountChange change) {
-        int updated = mapper.updateBalanceWithVersion(
-                change.accountId(),
-                change.expectedVersion(),
-                change.delta(),
-                change.nextStatus()
-        );
+        int updated = change.policy() == WalletPostingPolicy.PRIVILEGED_CORRECTION
+                ? mapper.updatePrivilegedBalanceWithVersion(
+                        change.accountId(),
+                        change.expectedVersion(),
+                        change.delta(),
+                        change.nextStatus()
+                )
+                : mapper.updateNormalBalanceWithVersion(
+                        change.accountId(),
+                        change.expectedVersion(),
+                        change.delta(),
+                        change.nextStatus()
+                );
         if (updated == 1) {
             return ApplyResult.APPLIED;
         }
@@ -67,7 +75,9 @@ public class MyBatisWalletAccountRepository implements WalletAccountRepository {
         if (current.getVersion() != change.expectedVersion()) {
             return ApplyResult.VERSION_CONFLICT;
         }
-        if (change.delta() < 0L && current.getBalance() + change.delta() < 0L) {
+        if (change.policy() == WalletPostingPolicy.NORMAL
+                && change.delta() < 0L
+                && current.getBalance() + change.delta() < 0L) {
             return ApplyResult.INSUFFICIENT_FUNDS;
         }
         return ApplyResult.VERSION_CONFLICT;

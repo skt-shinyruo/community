@@ -18,6 +18,14 @@ class WalletAccountTest {
     private static final UUID OWNER_ID = UUID.fromString("00000000-0000-7000-8000-000000000702");
 
     @Test
+    void postingPolicyShouldExposeOnlyNormalAndPrivilegedCorrection() {
+        assertThat(WalletPostingPolicy.values()).containsExactly(
+                WalletPostingPolicy.NORMAL,
+                WalletPostingPolicy.PRIVILEGED_CORRECTION
+        );
+    }
+
+    @Test
     void openUserShouldCreateAnActiveZeroBalanceAccount() {
         WalletAccount account = WalletAccount.openUser(ACCOUNT_ID, OWNER_ID);
 
@@ -54,13 +62,14 @@ class WalletAccountTest {
         assertThat(change.nextBalance()).isEqualTo(380L);
         assertThat(change.nextStatus()).isEqualTo("ACTIVE");
         assertThat(change.nextVersion()).isEqualTo(8L);
+        assertThat(change.policy()).isEqualTo(WalletPostingPolicy.NORMAL);
     }
 
     @Test
     void outgoingPostShouldNeverProduceANegativeBalance() {
         WalletAccount account = account(100L, "ACTIVE", 3L);
 
-        assertThatThrownBy(() -> account.post(-101L))
+        assertThatThrownBy(() -> account.post(-101L, WalletPostingPolicy.NORMAL))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT));
@@ -70,7 +79,7 @@ class WalletAccountTest {
     void frozenAccountShouldRejectOutgoingPostButStillAcceptIncomingFunds() {
         WalletAccount account = account(500L, "FROZEN", 9L);
 
-        assertThatThrownBy(() -> account.post(-1L))
+        assertThatThrownBy(() -> account.post(-1L, WalletPostingPolicy.NORMAL))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(WalletErrorCode.ACCOUNT_FROZEN));
@@ -79,6 +88,68 @@ class WalletAccountTest {
         assertThat(incoming.nextBalance()).isEqualTo(580L);
         assertThat(incoming.nextStatus()).isEqualTo("FROZEN");
         assertThat(incoming.nextVersion()).isEqualTo(10L);
+        assertThat(incoming.policy()).isEqualTo(WalletPostingPolicy.NORMAL);
+    }
+
+    @Test
+    void privilegedCorrectionShouldDebitFrozenAccountIntoDebt() {
+        WalletAccount account = account(3L, "FROZEN", 9L);
+
+        WalletAccountChange change = account.post(-5L, WalletPostingPolicy.PRIVILEGED_CORRECTION);
+
+        assertThat(change.expectedVersion()).isEqualTo(9L);
+        assertThat(change.delta()).isEqualTo(-5L);
+        assertThat(change.nextBalance()).isEqualTo(-2L);
+        assertThat(change.nextStatus()).isEqualTo("FROZEN");
+        assertThat(change.nextVersion()).isEqualTo(10L);
+        assertThat(change.policy()).isEqualTo(WalletPostingPolicy.PRIVILEGED_CORRECTION);
+    }
+
+    @Test
+    void privilegedCorrectionShouldStillRejectLongOverflow() {
+        WalletAccount account = account(Long.MAX_VALUE, "FROZEN", 9L);
+
+        assertThatThrownBy(() -> account.post(1L, WalletPostingPolicy.PRIVILEGED_CORRECTION))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(WalletErrorCode.INVALID_REQUEST));
+    }
+
+    @Test
+    void reconstitutedDebtShouldAcceptNormalCreditsWithoutResettingTheBalance() {
+        WalletAccount deeplyInDebt = account(-5L, "ACTIVE", 4L);
+        WalletAccountChange partialRepayment = deeplyInDebt.post(3L);
+
+        assertThat(partialRepayment.nextBalance()).isEqualTo(-2L);
+        assertThat(partialRepayment.policy()).isEqualTo(WalletPostingPolicy.NORMAL);
+
+        WalletAccount stillInDebt = account(partialRepayment.nextBalance(), "ACTIVE", partialRepayment.nextVersion());
+        WalletAccountChange repayment = stillInDebt.post(3L);
+
+        assertThat(repayment.nextBalance()).isEqualTo(1L);
+        assertThat(repayment.policy()).isEqualTo(WalletPostingPolicy.NORMAL);
+    }
+
+    @Test
+    void accountChangeShouldRequirePolicyAndAllowDebtOnlyForNonOutgoingNormalChanges() {
+        assertThatThrownBy(() -> new WalletAccountChange(
+                ACCOUNT_ID, 7L, -5L, -2L, "ACTIVE", 8L, null
+        )).isInstanceOf(NullPointerException.class);
+
+        assertThatThrownBy(() -> new WalletAccountChange(
+                ACCOUNT_ID, 7L, -5L, -2L, "ACTIVE", 8L, WalletPostingPolicy.NORMAL
+        )).isInstanceOf(IllegalArgumentException.class);
+
+        WalletAccountChange privileged = new WalletAccountChange(
+                ACCOUNT_ID,
+                7L,
+                -5L,
+                -2L,
+                "ACTIVE",
+                8L,
+                WalletPostingPolicy.PRIVILEGED_CORRECTION
+        );
+        assertThat(privileged.policy()).isEqualTo(WalletPostingPolicy.PRIVILEGED_CORRECTION);
     }
 
     @Test
@@ -94,11 +165,13 @@ class WalletAccountTest {
         assertThat(freeze.nextBalance()).isEqualTo(500L);
         assertThat(freeze.nextStatus()).isEqualTo("FROZEN");
         assertThat(freeze.nextVersion()).isEqualTo(12L);
+        assertThat(freeze.policy()).isEqualTo(WalletPostingPolicy.NORMAL);
         assertThat(unfreeze.expectedVersion()).isEqualTo(12L);
         assertThat(unfreeze.delta()).isZero();
         assertThat(unfreeze.nextBalance()).isEqualTo(500L);
         assertThat(unfreeze.nextStatus()).isEqualTo("ACTIVE");
         assertThat(unfreeze.nextVersion()).isEqualTo(13L);
+        assertThat(unfreeze.policy()).isEqualTo(WalletPostingPolicy.NORMAL);
     }
 
     @Test

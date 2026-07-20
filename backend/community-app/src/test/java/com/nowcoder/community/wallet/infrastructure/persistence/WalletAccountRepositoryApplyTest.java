@@ -5,6 +5,7 @@ import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletAccountChange;
+import com.nowcoder.community.wallet.domain.model.WalletPostingPolicy;
 import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository;
 import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository.ApplyResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,6 +88,49 @@ class WalletAccountRepositoryApplyTest {
         assertThat(result).isEqualTo(ApplyResult.INSUFFICIENT_FUNDS);
         assertThat(balance()).isEqualTo(100L);
         assertThat(version()).isEqualTo(7L);
+    }
+
+    @Test
+    void privilegedApplyShouldPersistDebtEvenWhenTheDatabaseBalanceIsInsufficient() {
+        seed(3L, "FROZEN", 7L);
+        WalletAccountChange correction = account(3L, "FROZEN", 7L)
+                .post(-5L, WalletPostingPolicy.PRIVILEGED_CORRECTION);
+
+        ApplyResult result = repository.apply(correction);
+
+        assertThat(result).isEqualTo(ApplyResult.APPLIED);
+        assertThat(balance()).isEqualTo(-2L);
+        assertThat(status()).isEqualTo("FROZEN");
+        assertThat(version()).isEqualTo(8L);
+    }
+
+    @Test
+    void privilegedApplyShouldMapZeroRowsToNotFoundOrVersionConflictOnly() {
+        WalletAccountChange missing = account(3L, "ACTIVE", 7L)
+                .post(-5L, WalletPostingPolicy.PRIVILEGED_CORRECTION);
+        assertThat(repository.apply(missing)).isEqualTo(ApplyResult.NOT_FOUND);
+
+        seed(3L, "ACTIVE", 8L);
+        WalletAccountChange stale = account(3L, "ACTIVE", 7L)
+                .post(-5L, WalletPostingPolicy.PRIVILEGED_CORRECTION);
+
+        assertThat(repository.apply(stale)).isEqualTo(ApplyResult.VERSION_CONFLICT);
+        assertThat(balance()).isEqualTo(3L);
+        assertThat(version()).isEqualTo(8L);
+    }
+
+    @Test
+    void repositoryShouldReconstituteDebtAndLetNormalCreditsRepayIt() {
+        seed(-5L, "ACTIVE", 7L);
+        WalletAccount debtAccount = repository.findByAccountId(ACCOUNT_ID);
+        WalletAccountChange credit = debtAccount.post(3L);
+
+        ApplyResult result = repository.apply(credit);
+
+        assertThat(result).isEqualTo(ApplyResult.APPLIED);
+        assertThat(balance()).isEqualTo(-2L);
+        assertThat(version()).isEqualTo(8L);
+        assertThat(credit.policy()).isEqualTo(WalletPostingPolicy.NORMAL);
     }
 
     private WalletAccount account(long balance, String status, long version) {

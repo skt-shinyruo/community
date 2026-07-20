@@ -517,6 +517,8 @@ create table if not exists moderation_action (
   create_time timestamp
 );
 
+create unique index if not exists uk_moderation_action_report on moderation_action(report_id);
+
 create table if not exists social_like (
   user_id binary(16) not null,
   entity_type int not null,

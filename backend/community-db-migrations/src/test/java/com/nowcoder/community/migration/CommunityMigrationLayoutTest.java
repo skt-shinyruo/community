@@ -10,6 +10,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CommunityMigrationLayoutTest {
 
     @Test
+    void v011ShouldAvoidPositionalColumnPlacement() throws Exception {
+        String resource = "db/migration/community/V011__add_social_like_relation_instance.sql";
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {
+            assertThat(input).as(resource).isNotNull();
+            String sql = new String(input.readAllBytes(), StandardCharsets.UTF_8).toLowerCase();
+
+            assertThat(sql).doesNotContainPattern("(?s)\\badd\\s+column\\b[^;]*\\bfirst\\b");
+        }
+    }
+
+    @Test
     void productionBaselineShouldBeDatabaseAgnosticAndExcludeForeignSchemasAndDevelopmentUsers() throws Exception {
         String resource = "db/migration/community/V001__baseline.sql";
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {

@@ -900,16 +900,57 @@ class CommunityMigrationTest {
     }
 
     private static void assertSocialLikeLifecycleSchema(Database database) throws Exception {
-        assertThat(columnDefinition(database, "social_like", "relation_instance_id"))
-                .isEqualTo(new ColumnDefinition("binary(16)", false));
-        assertThat(indexDefinition(database, "social_like", "PRIMARY"))
-                .isEqualTo(new IndexDefinition(
-                        true, List.of("user_id", "entity_type", "entity_id")));
-        assertThat(indexDefinition(database, "social_like", "uk_social_like_relation_instance"))
-                .isEqualTo(new IndexDefinition(true, List.of("relation_instance_id")));
+        assertThat(columnMetadata(database, "social_like")).isEqualTo(Map.of(
+                "user_id", new ColumnMetadata("binary(16)", false, null),
+                "entity_type", new ColumnMetadata("int", false, null),
+                "entity_id", new ColumnMetadata("binary(16)", false, null),
+                "entity_user_id", new ColumnMetadata("binary(16)", true, null),
+                "created_at", new ColumnMetadata("timestamp", false, "current_timestamp"),
+                "relation_instance_id", new ColumnMetadata("binary(16)", false, null)
+        ));
         assertThat(indexNames(database, "social_like")).containsExactlyInAnyOrder(
                 "primary", "idx_like_entity", "idx_like_entity_user",
                 "uk_social_like_relation_instance");
+        assertThat(indexDefinition(database, "social_like", "PRIMARY"))
+                .isEqualTo(new IndexDefinition(
+                        true, List.of("user_id", "entity_type", "entity_id")));
+        assertThat(indexDefinition(database, "social_like", "idx_like_entity"))
+                .isEqualTo(new IndexDefinition(false, List.of("entity_type", "entity_id")));
+        assertThat(indexDefinition(database, "social_like", "idx_like_entity_user"))
+                .isEqualTo(new IndexDefinition(
+                        false, List.of("entity_type", "entity_id", "user_id")));
+        assertThat(indexDefinition(database, "social_like", "uk_social_like_relation_instance"))
+                .isEqualTo(new IndexDefinition(true, List.of("relation_instance_id")));
+    }
+
+    private static Map<String, ColumnMetadata> columnMetadata(
+            Database database,
+            String table
+    ) throws Exception {
+        String sql = "select column_name, column_type, is_nullable, column_default "
+                + "from information_schema.columns "
+                + "where table_schema = ? and table_name = ? order by ordinal_position";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database.name());
+            statement.setString(2, table);
+            try (ResultSet rows = statement.executeQuery()) {
+                Map<String, ColumnMetadata> columns = new LinkedHashMap<>();
+                while (rows.next()) {
+                    String defaultValue = rows.getString("column_default");
+                    columns.put(
+                            rows.getString("column_name").toLowerCase(),
+                            new ColumnMetadata(
+                                    rows.getString("column_type").toLowerCase(),
+                                    "YES".equals(rows.getString("is_nullable")),
+                                    defaultValue == null ? null : defaultValue.toLowerCase()
+                            )
+                    );
+                }
+                return Map.copyOf(columns);
+            }
+        }
     }
 
     private static ColumnDefinition columnDefinition(
@@ -1103,6 +1144,9 @@ class CommunityMigrationTest {
     }
 
     private record ColumnDefinition(String type, boolean nullable) {
+    }
+
+    private record ColumnMetadata(String type, boolean nullable, String defaultValue) {
     }
 
     private record IndexDefinition(boolean unique, List<String> columns) {

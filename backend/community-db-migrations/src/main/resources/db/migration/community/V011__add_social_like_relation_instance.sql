@@ -1,5 +1,5 @@
 alter table social_like
-  add column relation_instance_id binary(16) null first;
+  add column relation_instance_id binary(16) null;
 
 update social_like
 set relation_instance_id = uuid_to_bin(uuid());

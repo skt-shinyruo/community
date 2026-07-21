@@ -121,6 +121,7 @@ class ErrorCodeCompatibilityGoldenTest {
                 golden(ContentErrorCode.CONTENT_RENDER_FAILED, 12007, "内容渲染失败", "INTERNAL", 500),
                 golden(ContentErrorCode.INTERNAL_ERROR, 12008, "内容服务异常", "INTERNAL", 500),
                 golden(ContentErrorCode.REQUEST_REPLAY_CONFLICT, 12009, "请求号与已有内容请求不一致", "CONFLICT", 409),
+                golden(ContentErrorCode.MODERATION_DECISION_CONFLICT, 12010, "治理决定与已有处置冲突", "CONFLICT", 409),
 
                 golden(DriveErrorCode.DRIVE_SPACE_NOT_FOUND, 16001, "网盘空间不存在", "NOT_FOUND", 404),
                 golden(DriveErrorCode.DRIVE_ENTRY_NOT_FOUND, 16002, "网盘条目不存在", "NOT_FOUND", 404),

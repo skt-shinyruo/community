@@ -17,6 +17,7 @@ import java.util.function.LongSupplier;
 public class PassthroughHotFeedProjectionGuard implements HotFeedProjectionGuard {
 
     private static final int LOCK_ATTEMPTS = 20;
+    private static final int MAX_EXPIRY_CLEANUP_PER_BEGIN = 256;
     private static final long LOCK_BACKOFF_MILLIS = 25L;
     private static final long EVENT_TTL_MILLIS = 7L * 24L * 60L * 60L * 1_000L;
 
@@ -157,10 +158,14 @@ public class PassthroughHotFeedProjectionGuard implements HotFeedProjectionGuard
     private void removeExpiredCommittedEvents(long now) {
         synchronized (committedEventExpiryQueue) {
             ExpiringEventIdentity next = committedEventExpiryQueue.peek();
-            while (next != null && next.expiresAt() <= now) {
+            int cleaned = 0;
+            while (next != null
+                    && next.expiresAt() <= now
+                    && cleaned < MAX_EXPIRY_CLEANUP_PER_BEGIN) {
                 ExpiringEventIdentity expired = committedEventExpiryQueue.poll();
                 if (expired != null) {
                     committedEventExpirations.remove(expired.eventIdentity(), expired.expiresAt());
+                    cleaned++;
                 }
                 next = committedEventExpiryQueue.peek();
             }

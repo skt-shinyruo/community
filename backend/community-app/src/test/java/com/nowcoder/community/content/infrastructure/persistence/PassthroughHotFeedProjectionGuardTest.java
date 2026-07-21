@@ -7,6 +7,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -114,6 +115,34 @@ class PassthroughHotFeedProjectionGuardTest {
         guard.abort(secondCleanup);
         assertThat(committedEventExpirations(guard)).isEmpty();
         assertThat(committedEventExpiryQueue(guard)).isEmpty();
+    }
+
+    @Test
+    void staleExpiryRecordShouldNotRemoveRenewedEventIdentity() {
+        AtomicLong now = new AtomicLong(30_000L);
+        PassthroughHotFeedProjectionGuard guard = new PassthroughHotFeedProjectionGuard(now::get);
+
+        for (int i = 0; i < 257; i++) {
+            UUID postId = uuid(1_000 + i);
+            guard.commit(guard.tryBegin(postId, "evt-renewed-" + i, 1L, false));
+            now.incrementAndGet();
+        }
+        now.addAndGet(EVENT_TTL_MILLIS + 1L);
+        HotFeedProjectionGuard.ProjectionAttempt replay =
+                guard.tryBegin(uuid(1_256), "evt-renewed-256", 1L, false);
+        assertThat(replay.accepted()).isTrue();
+        guard.commit(replay);
+
+        assertThat(committedEventExpirations(guard)).hasSize(1);
+        assertThat(committedEventExpiryQueue(guard)).hasSize(2);
+
+        HotFeedProjectionGuard.ProjectionAttempt cleanup =
+                guard.tryBegin(uuid(12), "evt-cleanup", 1L, false);
+        guard.abort(cleanup);
+
+        assertThat(committedEventExpirations(guard)).hasSize(1);
+        assertThat(committedEventExpiryQueue(guard)).hasSize(1);
+        assertThat(guard.tryBegin(uuid(1_256), "evt-renewed-256", 1L, false).accepted()).isFalse();
     }
 
     @Test

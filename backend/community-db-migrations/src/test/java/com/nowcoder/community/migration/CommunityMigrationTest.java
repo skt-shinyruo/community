@@ -65,7 +65,7 @@ class CommunityMigrationTest {
         var result = CommunityMigrationRunner.standard(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .migrate();
 
-        assertThat(result.migrationsExecuted).isEqualTo(11);
+        assertThat(result.migrationsExecuted).isEqualTo(12);
         CommunitySchemaCatalog migratedCatalog = CommunitySchemaCatalog
                 .capture(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .withoutTables(Set.of(
@@ -76,7 +76,8 @@ class CommunityMigrationTest {
                         "outbox_event",
                         "comment",
                         "moderation_action",
-                        "social_like"
+                        "social_like",
+                        "drive_upload"
                 ));
         assertThat(migratedCatalog)
                 .isEqualTo(CommunitySchemaCatalog.canonical().withoutTables(Set.of(
@@ -85,7 +86,8 @@ class CommunityMigrationTest {
                         "outbox_event",
                         "comment",
                         "moderation_action",
-                        "social_like"
+                        "social_like",
+                        "drive_upload"
                 )));
         assertModerationActionSchema(database);
         assertSocialLikeLifecycleSchema(database);
@@ -95,6 +97,8 @@ class CommunityMigrationTest {
                 "upload_status", "upload_operation_version", "upload_updated_at");
         assertThat(columnNames(database, "auth_refresh_token")).contains("security_version");
         assertThat(columnNames(database, "comment")).contains("version");
+        assertThat(columnMetadata(database, "drive_upload").get("checksum_sha256"))
+                .isEqualTo(new ColumnMetadata("varchar(128)", false, ""));
         assertOutboxLeaseFencingSchema(database);
         assertThat(tableNames(database)).doesNotContain(
                 "im_conversation",
@@ -116,13 +120,13 @@ class CommunityMigrationTest {
         CommunityMigrationRunner runner = CommunityMigrationRunner.standard(
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword());
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(11);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(12);
         assertThat(runner.migrate().migrationsExecuted).isZero();
         runner.validate();
 
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(11L);
+                .isEqualTo(12L);
     }
 
     @Test
@@ -211,7 +215,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(1);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(2);
         runner.validate();
 
         assertThat(socialLikeBusinessRows(database)).containsExactlyElementsOf(before);
@@ -240,7 +244,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(2);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(3);
         runner.validate();
 
         assertThat(moderationActionRows(database)).containsExactlyElementsOf(before);
@@ -320,7 +324,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 "community_v008_history", CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(3);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(4);
         runner.validate();
 
         assertThat(idempotencyRows(database)).containsExactlyInAnyOrder(
@@ -385,7 +389,7 @@ class CommunityMigrationTest {
                 .hasMessageContaining("non-empty schema");
 
         runner.baselineAtVersionOne(CommunityMigrationRunner.BASELINE_CONFIRMATION);
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(10);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(11);
         runner.validate();
 
         IdempotencyRow residual = idempotencyRows(database).stream()
@@ -401,10 +405,27 @@ class CommunityMigrationTest {
         assertThat(queryString(database,
                 "select payload from outbox_event where event_id = 'migration-event'"))
                 .isEqualTo("{\"preserve\":true}");
+        assertThat(driveUploadRows(database)).containsExactly(new DriveUploadRow(
+                "10000000000070008000000000000005",
+                "10000000000070008000000000000015",
+                null,
+                "migration-upload.bin",
+                42L,
+                "application/octet-stream",
+                "",
+                "10000000000070008000000000000025",
+                "10000000000070008000000000000035",
+                "10000000000070008000000000000045",
+                "PREPARED",
+                "10000000000070008000000000000001",
+                Timestamp.valueOf("2035-04-01 00:00:01"),
+                Timestamp.valueOf("2035-04-01 00:00:02"),
+                Timestamp.valueOf("2035-04-02 00:00:00")
+        ));
         assertSocialLikeFixtureBackfilled(database);
         assertThat(queryLong(database,
                 "select count(*) from community_upgrade_idempotency_history where success = 1"))
-                .isEqualTo(11L);
+                .isEqualTo(12L);
     }
 
     @Test
@@ -459,7 +480,7 @@ class CommunityMigrationTest {
                 ") values (x'10000000000070008000000000000051', '" + mediaReleaseEventId + "', " +
                 "'content.media.reference', 'media-reference', '{}', 'NEW')");
 
-        assertThat(result.migrationsExecuted).isEqualTo(10);
+        assertThat(result.migrationsExecuted).isEqualTo(11);
         assertOutboxLeaseFencingSchema(database);
         assertThat(outboxEventStates(database, "migration-lease-%")).containsExactly(
                 new OutboxEventState(
@@ -518,7 +539,7 @@ class CommunityMigrationTest {
         assertSocialLikeFixtureBackfilled(database);
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(11L);
+                .isEqualTo(12L);
     }
 
     @Test
@@ -651,7 +672,49 @@ class CommunityMigrationTest {
         execute(database, "insert into outbox_event(id, event_id, topic, event_key, payload, status) values "
                 + "(x'10000000000070008000000000000004', 'migration-event', 'migration.topic', "
                 + "'migration-key', '{\\\"preserve\\\":true}', 'NEW')");
+        execute(database, "insert into drive_upload(" +
+                "upload_id, space_id, parent_id, name, size_bytes, mime_type, object_id, version_id, " +
+                "oss_session_id, status, created_by, created_at, updated_at, expires_at" +
+                ") values (" +
+                "x'10000000000070008000000000000005', " +
+                "x'10000000000070008000000000000015', null, 'migration-upload.bin', 42, " +
+                "'application/octet-stream', x'10000000000070008000000000000025', " +
+                "x'10000000000070008000000000000035', x'10000000000070008000000000000045', " +
+                "'PREPARED', x'10000000000070008000000000000001', " +
+                "'2035-04-01 00:00:01', '2035-04-01 00:00:02', '2035-04-02 00:00:00')");
         insertSocialLikeFixture(database);
+    }
+
+    private static List<DriveUploadRow> driveUploadRows(Database database) throws Exception {
+        String sql = "select hex(upload_id), hex(space_id), hex(parent_id), name, size_bytes, mime_type, "
+                + "checksum_sha256, hex(object_id), hex(version_id), hex(oss_session_id), status, "
+                + "hex(created_by), created_at, updated_at, expires_at from drive_upload order by upload_id";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             Statement statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery(sql)) {
+            List<DriveUploadRow> uploads = new ArrayList<>();
+            while (rows.next()) {
+                uploads.add(new DriveUploadRow(
+                        rows.getString(1),
+                        rows.getString(2),
+                        rows.getString(3),
+                        rows.getString(4),
+                        rows.getLong(5),
+                        rows.getString(6),
+                        rows.getString(7),
+                        rows.getString(8),
+                        rows.getString(9),
+                        rows.getString(10),
+                        rows.getString(11),
+                        rows.getString(12),
+                        rows.getTimestamp(13),
+                        rows.getTimestamp(14),
+                        rows.getTimestamp(15)
+                ));
+            }
+            return uploads;
+        }
     }
 
     private static void insertSocialLikeFixture(Database database) throws Exception {
@@ -1172,6 +1235,25 @@ class CommunityMigrationTest {
             String entityId,
             String entityUserId,
             Timestamp createdAt
+    ) {
+    }
+
+    private record DriveUploadRow(
+            String uploadId,
+            String spaceId,
+            String parentId,
+            String name,
+            long sizeBytes,
+            String mimeType,
+            String checksumSha256,
+            String objectId,
+            String versionId,
+            String ossSessionId,
+            String status,
+            String createdBy,
+            Timestamp createdAt,
+            Timestamp updatedAt,
+            Timestamp expiresAt
     ) {
     }
 

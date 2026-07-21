@@ -137,6 +137,7 @@ public class DriveUploadApplicationService {
                 name,
                 contentLength,
                 contentType,
+                "",
                 prepared.objectId(),
                 prepared.versionId(),
                 prepared.sessionId(),

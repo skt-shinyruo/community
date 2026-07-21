@@ -30,20 +30,28 @@
               <span>购买数量</span>
               <UiInput v-model.number="quantity" type="number" min="1" placeholder="输入购买数量" />
             </label>
-            <label v-if="detail.goodsType === 'PHYSICAL'" class="market-field">
+            <label v-if="detail.goodsType === 'PHYSICAL' && auth.authed" class="market-field">
               <span>收货地址</span>
-              <select v-model="selectedAddressId" class="market-select">
+              <div v-if="addressLoading" class="muted" data-test="market-address-loading">正在加载收货地址…</div>
+              <div v-else-if="addressError" class="error" data-test="market-address-error">{{ addressError }}</div>
+              <select
+                v-else-if="addressOptions.length"
+                v-model="selectedAddressId"
+                class="market-select"
+                data-test="market-address-select"
+              >
                 <option value="">请选择收货地址</option>
                 <option v-for="item in addressOptions" :key="item.addressId" :value="String(item.addressId)">
                   {{ item.receiverName }} · {{ item.city }} · {{ item.detailAddress }}
                 </option>
               </select>
+              <div v-else class="muted" data-test="market-address-empty">暂无收货地址</div>
             </label>
             <div class="market-risk-note">
               <strong>钱包托管</strong>
               <span>确认商品、库存和履约方式后再提交；未完成前请优先在订单详情里处理争议。</span>
             </div>
-            <UiButton :disabled="submitting" @click="submitOrder">
+            <UiButton data-test="market-order-submit" :disabled="submitting" @click="submitOrder">
               {{ submitting ? '下单中…' : '安全下单' }}
             </UiButton>
             <div v-if="orderMessage" class="market-success-note" data-test="market-order-success" role="status">
@@ -94,47 +102,133 @@ import {
   getMarketListingDetail,
   listMarketAddresses
 } from '../api/services/marketService'
+import { useAuthStore } from '../stores/auth'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildMarketState } from './marketState'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const loading = ref(false)
+const addressLoading = ref(false)
 const submitting = ref(false)
 const error = ref('')
+const addressError = ref('')
 const orderMessage = ref('')
 const createdOrderId = ref('')
 const listing = ref({})
 const quantity = ref(1)
 const addresses = ref([])
 const selectedAddressId = ref('')
+let listingSequence = 0
+let addressSequence = 0
 
 const detail = computed(() => buildMarketState({ listings: [listing.value] }).listings[0] || {})
 const addressOptions = computed(() => (Array.isArray(addresses.value) ? addresses.value : []))
 
-async function loadDetail() {
+function resetAddressState() {
+  addressSequence += 1
+  addressLoading.value = false
+  addressError.value = ''
+  addresses.value = []
+  selectedAddressId.value = ''
+}
+
+function isCurrentListingRequest(sequence, listingId) {
+  return sequence === listingSequence && normalizeOpaqueId(route.params.listingId) === listingId
+}
+
+function isCurrentAddressRequest(sequence, listingId, authGeneration) {
+  const currentListingId = normalizeOpaqueId(listing.value?.listingId) || normalizeOpaqueId(route.params.listingId)
+  return sequence === addressSequence &&
+    normalizeOpaqueId(route.params.listingId) === listingId &&
+    currentListingId === listingId &&
+    auth.tokenGeneration === authGeneration
+}
+
+function signalStaleAddressResponse() {
+  console.debug('stale_address_response')
+}
+
+async function loadAddressesFor({ listingId, goodsType, authGeneration }) {
+  const sequence = ++addressSequence
+  addressLoading.value = false
+  addressError.value = ''
+  addresses.value = []
+  selectedAddressId.value = ''
+
+  if (!auth.authed || goodsType !== 'PHYSICAL') {
+    return
+  }
+
+  addressLoading.value = true
+  try {
+    const addressResp = await listMarketAddresses()
+    if (!isCurrentAddressRequest(sequence, listingId, authGeneration)) {
+      signalStaleAddressResponse()
+      return
+    }
+    addresses.value = Array.isArray(addressResp.data) ? addressResp.data : []
+    const defaultAddress = addresses.value.find((item) => item?.defaultAddress) || addresses.value[0] || null
+    selectedAddressId.value = defaultAddress ? String(defaultAddress.addressId) : ''
+  } catch (e) {
+    if (!isCurrentAddressRequest(sequence, listingId, authGeneration)) {
+      signalStaleAddressResponse()
+      return
+    }
+    addressError.value = e?.message || '加载收货地址失败'
+  } finally {
+    if (isCurrentAddressRequest(sequence, listingId, authGeneration)) {
+      addressLoading.value = false
+    }
+  }
+}
+
+async function loadDetail(requestedListingId = normalizeOpaqueId(route.params.listingId)) {
+  const sequence = ++listingSequence
+  const listingId = normalizeOpaqueId(requestedListingId)
+  resetAddressState()
   loading.value = true
   error.value = ''
+  listing.value = {}
+  if (!listingId) {
+    error.value = '商品 ID 无效'
+    loading.value = false
+    return
+  }
   try {
-    const { data } = await getMarketListingDetail(route.params.listingId)
-    listing.value = data || {}
-    if (String(data?.goodsType || '').trim().toUpperCase() === 'PHYSICAL') {
-      const addressResp = await listMarketAddresses()
-      addresses.value = Array.isArray(addressResp.data) ? addressResp.data : []
-      const defaultAddress = addresses.value.find((item) => item?.defaultAddress) || addresses.value[0] || null
-      selectedAddressId.value = defaultAddress ? String(defaultAddress.addressId) : ''
-    } else {
-      addresses.value = []
-      selectedAddressId.value = ''
+    const { data } = await getMarketListingDetail(listingId)
+    if (!isCurrentListingRequest(sequence, listingId)) {
+      return
     }
+    listing.value = data || {}
+    loading.value = false
+    await loadAddressesFor({
+      listingId,
+      goodsType: String(data?.goodsType || '').trim().toUpperCase(),
+      authGeneration: auth.tokenGeneration
+    })
   } catch (e) {
+    if (!isCurrentListingRequest(sequence, listingId)) {
+      return
+    }
     error.value = e?.message || '加载商品失败'
   } finally {
-    loading.value = false
+    if (isCurrentListingRequest(sequence, listingId)) {
+      loading.value = false
+    }
   }
 }
 
 async function submitOrder() {
+  if (!auth.authed) {
+    await router.push({
+      name: 'login',
+      query: { redirect: route.fullPath }
+    })
+    return
+  }
+
   const listingId = normalizeOpaqueId(route.params.listingId)
   const addressId = detail.value.goodsType === 'PHYSICAL' ? normalizeOpaqueId(selectedAddressId.value) : undefined
   if (!listingId) {
@@ -142,11 +236,12 @@ async function submitOrder() {
     return
   }
   if (detail.value.goodsType === 'PHYSICAL' && !addressId) {
-    error.value = '请选择收货地址'
+    addressError.value = '请选择收货地址'
     return
   }
   submitting.value = true
   error.value = ''
+  addressError.value = ''
   orderMessage.value = ''
   createdOrderId.value = ''
   try {
@@ -180,11 +275,21 @@ async function goCreatedOrder() {
 }
 
 watch(
-  () => route.params.listingId,
-  () => {
-    orderMessage.value = ''
-    createdOrderId.value = ''
-    loadDetail()
+  () => [normalizeOpaqueId(route.params.listingId), auth.tokenGeneration],
+  ([listingId, authGeneration], previous = []) => {
+    const [previousListingId] = previous
+    if (listingId !== previousListingId) {
+      orderMessage.value = ''
+      createdOrderId.value = ''
+      quantity.value = 1
+      loadDetail(listingId)
+      return
+    }
+    loadAddressesFor({
+      listingId,
+      goodsType: String(listing.value?.goodsType || '').trim().toUpperCase(),
+      authGeneration
+    })
   },
   { immediate: true }
 )

@@ -6,6 +6,7 @@ import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentDraft;
 import com.nowcoder.community.content.domain.model.CommentEdit;
+import com.nowcoder.community.content.domain.model.CommentReplyContext;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
 import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
@@ -49,7 +50,6 @@ public class MyBatisCommentRepository implements CommentRepository {
         }
         UUID commentId = idGenerator.next();
         UUID rootCommentId = draft.rootCommentId() == null ? commentId : draft.rootCommentId();
-        lockRootForReply(draft, rootCommentId);
 
         CommentDataObject row = new CommentDataObject();
         row.setId(commentId);
@@ -99,10 +99,43 @@ public class MyBatisCommentRepository implements CommentRepository {
     }
 
     @Override
+    public Optional<CommentReplyContext> lockReplyContext(UUID postId, UUID directParentCommentId) {
+        if (postId == null || directParentCommentId == null) {
+            return Optional.empty();
+        }
+        CommentDataObject hint = commentMapper.selectById(directParentCommentId);
+        if (hint == null || hint.getRootCommentId() == null) {
+            return Optional.empty();
+        }
+
+        UUID rootCommentId = hint.getRootCommentId();
+        CommentDataObject lockedRoot = commentMapper.selectByIdForUpdate(rootCommentId);
+        CommentDataObject lockedDirectParent = rootCommentId.equals(directParentCommentId)
+                ? lockedRoot
+                : commentMapper.selectByIdForUpdate(directParentCommentId);
+        if (!validLockedRoot(postId, rootCommentId, lockedRoot)
+                || !validLockedDirectParent(
+                        postId,
+                        rootCommentId,
+                        directParentCommentId,
+                        lockedDirectParent
+                )) {
+            return Optional.empty();
+        }
+
+        CommentSnapshot root = CommentPersistenceConverter.toSnapshot(lockedRoot);
+        CommentSnapshot directParent = rootCommentId.equals(directParentCommentId)
+                ? root
+                : CommentPersistenceConverter.toSnapshot(lockedDirectParent);
+        return Optional.of(new CommentReplyContext(directParent, root));
+    }
+
+    @Override
     public List<CommentSnapshot> getActiveThreadSnapshots(UUID rootCommentId) {
         if (rootCommentId == null) {
             return List.of();
         }
+        lockRootBeforeThread(rootCommentId);
         List<CommentDataObject> rows = orderedRows(
                 rootCommentId,
                 commentMapper.selectThreadForUpdate(rootCommentId)
@@ -158,6 +191,7 @@ public class MyBatisCommentRepository implements CommentRepository {
 
     @Override
     public CommentDeletionResult apply(CommentThreadDeletion deletion) {
+        lockRootBeforeThread(deletion.rootCommentId());
         List<CommentDataObject> rows = orderedRows(
                 deletion.rootCommentId(),
                 commentMapper.selectThreadForUpdate(deletion.rootCommentId())
@@ -217,24 +251,40 @@ public class MyBatisCommentRepository implements CommentRepository {
         return CommentDeletionResult.applied(affected);
     }
 
-    private void lockRootForReply(CommentDraft draft, UUID rootCommentId) {
-        if (draft.parentCommentId() == null) {
-            if (draft.rootCommentId() != null) {
-                throw new BusinessException(INVALID_ARGUMENT, "root comment draft 非法");
-            }
-            return;
+    private void lockRootBeforeThread(UUID rootCommentId) {
+        // Keep thread deletion on the same root-first lock order as nested reply creation.
+        commentMapper.selectByIdForUpdate(rootCommentId);
+    }
+
+    private static boolean validLockedRoot(
+            UUID postId,
+            UUID rootCommentId,
+            CommentDataObject root
+    ) {
+        return root != null
+                && root.getStatus() == 0
+                && rootCommentId.equals(root.getId())
+                && rootCommentId.equals(root.getRootCommentId())
+                && root.getParentCommentId() == null
+                && postId.equals(root.getPostId());
+    }
+
+    private static boolean validLockedDirectParent(
+            UUID postId,
+            UUID rootCommentId,
+            UUID directParentCommentId,
+            CommentDataObject directParent
+    ) {
+        if (directParent == null
+                || directParent.getStatus() != 0
+                || !directParentCommentId.equals(directParent.getId())
+                || !rootCommentId.equals(directParent.getRootCommentId())
+                || !postId.equals(directParent.getPostId())) {
+            return false;
         }
-        if (draft.rootCommentId() == null || !draft.parentCommentId().equals(rootCommentId)) {
-            throw new BusinessException(INVALID_ARGUMENT, "reply comment thread 非法");
-        }
-        CommentDataObject root = commentMapper.selectByIdForUpdate(rootCommentId);
-        if (root == null
-                || root.getStatus() != 0
-                || root.getParentCommentId() != null
-                || !rootCommentId.equals(root.getRootCommentId())
-                || !draft.postId().equals(root.getPostId())) {
-            throw new BusinessException(COMMENT_NOT_FOUND);
-        }
+        return rootCommentId.equals(directParentCommentId)
+                ? directParent.getParentCommentId() == null
+                : directParent.getParentCommentId() != null;
     }
 
     private static CommentTransitionStatus classify(CommentDataObject current, long expectedVersion) {

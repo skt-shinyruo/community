@@ -18,6 +18,7 @@ import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentDraft;
 import com.nowcoder.community.content.domain.model.CommentEdit;
+import com.nowcoder.community.content.domain.model.CommentReplyContext;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
 import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
@@ -36,6 +37,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service
 public class CommentApplicationService {
@@ -167,15 +169,14 @@ public class CommentApplicationService {
 
         moderationGuard.assertCanSpeak(userId);
         DiscussPost post = postContentPort.getById(postId);
-        CommentSnapshot parentComment = command.parentCommentId() != null
-                ? commentRepository.findActiveSnapshot(command.parentCommentId()).orElse(null)
-                : null;
+        CommentReplyContext context = command.parentCommentId() == null
+                ? null
+                : commentRepository.lockReplyContext(postId, command.parentCommentId())
+                        .orElseThrow(() -> new BusinessException(NOT_FOUND, "资源不存在"));
         CommentDomainService.CreateTarget target = domainService.resolveCreateTarget(
                 postId,
-                command.parentCommentId(),
-                null,
                 post.getUserId(),
-                parentComment
+                context
         );
         if (target.targetUserId() != null && blockQueryApi.isEitherBlocked(userId, target.targetUserId())) {
             throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");

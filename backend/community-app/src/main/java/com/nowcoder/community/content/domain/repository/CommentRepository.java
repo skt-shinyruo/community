@@ -4,6 +4,7 @@ import com.nowcoder.community.content.domain.model.CommentDraft;
 import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentEdit;
+import com.nowcoder.community.content.domain.model.CommentReplyContext;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
 import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
@@ -21,6 +22,8 @@ public interface CommentRepository {
     Optional<CommentSnapshot> findSnapshot(UUID commentId);
 
     Optional<CommentSnapshot> findActiveSnapshot(UUID commentId);
+
+    Optional<CommentReplyContext> lockReplyContext(UUID postId, UUID directParentCommentId);
 
     List<CommentSnapshot> getActiveThreadSnapshots(UUID rootCommentId);
 

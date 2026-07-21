@@ -6,7 +6,6 @@ public record CreateCommentCommand(
         UUID userId,
         UUID postId,
         UUID parentCommentId,
-        UUID replyToUserId,
         String content
 ) {
 }

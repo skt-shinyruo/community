@@ -3,6 +3,7 @@
 import http from '../http'
 import { unwrapResultBody } from '../result'
 import { normalizeOpaqueId, normalizeOpaqueIds, requireOpaqueId } from '../../utils/opaqueId'
+import { normalizeCommentPage } from './commentResponse'
 
 export async function listGlobalFeed({ cursor = '', size = 20 } = {}) {
   const params = {}
@@ -86,22 +87,6 @@ export async function listReplies(postId, commentId, { cursor = '', size = 10 } 
   return { data: normalizeCommentPage(data), traceId }
 }
 
-function pickCommentFields(raw) {
-  const r = raw || {}
-  return {
-    id: normalizeOpaqueId(r.id),
-    userId: normalizeOpaqueId(r.userId),
-    postId: normalizeOpaqueId(r.postId),
-    rootCommentId: normalizeOpaqueId(r.rootCommentId),
-    parentCommentId: normalizeOpaqueId(r.parentCommentId),
-    replyToUserId: normalizeOpaqueId(r.replyToUserId),
-    content: r.content == null ? '' : String(r.content),
-    createTime: r.createTime,
-    updateTime: r.updateTime,
-    editCount: Number(r.editCount || 0)
-  }
-}
-
 function normalizeBlocks(blocks) {
   return (Array.isArray(blocks) ? blocks : []).map((b) => {
     const raw = b || {}
@@ -120,16 +105,12 @@ function normalizeBlocks(blocks) {
   })
 }
 
-export async function addComment(postId, { content, parentCommentId, replyToUserId } = {}) {
+export async function addComment(postId, { content, parentCommentId } = {}) {
   const pid = requireOpaqueId(postId, 'postId')
   const payload = { content }
   {
     const normalizedParentCommentId = normalizeOpaqueId(parentCommentId)
     if (normalizedParentCommentId) payload.parentCommentId = normalizedParentCommentId
-  }
-  {
-    const normalizedReplyToUserId = normalizeOpaqueId(replyToUserId)
-    if (normalizedReplyToUserId) payload.replyToUserId = normalizedReplyToUserId
   }
   const resp = await http.post(`/api/posts/${pid}/comments`, payload)
   const { data, traceId } = unwrapResultBody(resp.data, '发表评论')
@@ -169,13 +150,5 @@ function normalizeFeedPage(raw) {
     items: Array.isArray(page.items) ? page.items : [],
     nextCursor: page.nextCursor == null ? '' : String(page.nextCursor),
     rankVersion: page.rankVersion == null ? '' : String(page.rankVersion)
-  }
-}
-
-function normalizeCommentPage(raw) {
-  const page = raw && typeof raw === 'object' ? raw : {}
-  return {
-    items: Array.isArray(page.items) ? page.items.map(pickCommentFields) : [],
-    nextCursor: page.nextCursor == null ? '' : String(page.nextCursor)
   }
 }

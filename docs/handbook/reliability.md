@@ -56,7 +56,7 @@ operation + userId + Idempotency-Key
 | 功能 | HTTP 接口 | operation | 请求指纹 |
 | --- | --- | --- | --- |
 | 发帖 | `POST /api/posts` | `content:create_post` | `title`, `categoryId`, `tags`, `blocks` |
-| 发表评论 | `POST /api/posts/{postId}/comments` | `content:create_comment` | `postId`, `parentCommentId`, `replyToUserId`, `content` |
+| 发表评论 | `POST /api/posts/{postId}/comments` | `content:create_comment` | `postId`, `parentCommentId`, `content` |
 | 钱包充值 | `POST /api/wallet/recharges` | `wallet:recharge` | `amount` |
 | 钱包提现 | `POST /api/wallet/withdrawals` | `wallet:withdraw` | `amount` |
 | 钱包转账 | `POST /api/wallet/transfers` | `wallet:transfer` | `toUserId`, `amount` |
@@ -92,7 +92,7 @@ operation + userId + Idempotency-Key
 
 ```text
 content:create_post|title=<title>|categoryId=<categoryId>|tags=[<tag>,...]|blocks=[type=<type>;text=<text>;assetId=<assetId>;language=<language>;caption=<caption>;displayName=<displayName>;metadata={<key>=<value>,...},...]
-content:create_comment|postId=<postId>|parentCommentId=<parentCommentId>|replyToUserId=<replyToUserId>|content=<content>
+content:create_comment|postId=<postId>|parentCommentId=<parentCommentId>|content=<content>
 wallet:recharge|amount=<amount>
 wallet:withdraw|amount=<amount>
 wallet:transfer|toUserId=<toUserId>|amount=<amount>
@@ -105,6 +105,11 @@ market:create_order|listingId=<listingId>|quantity=<quantity>|addressId=<address
 - 同 key、同指纹、`PROCESSING`：返回 `409`。
 - 同 key、不同指纹：replay conflict，通常为 `409`。
 - 内容类接口使用 owner `ApplicationService` 拼出的业务语义指纹；重复 key 且业务语义变化会被拒绝。
+
+评论输入从客户端接收人迁移为服务端 parent 事实时，canonical string 会删除旧版
+`replyToUserId` 段。旧实例必须先停止写入；兼容窗口内复用旧版 key 的请求可能因历史 hash
+返回 replay conflict。客户端遇到该冲突应先查询评论结果并与用户确认，不能自动换新 key 重写，
+否则旧请求已成功时可能产生重复评论。
 
 ## Idempotency 执行流程
 

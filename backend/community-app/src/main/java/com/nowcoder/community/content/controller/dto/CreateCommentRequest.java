@@ -14,8 +14,6 @@ public class CreateCommentRequest {
 
     private UUID parentCommentId;
 
-    private UUID replyToUserId;
-
     public String getContent() {
         return content;
     }
@@ -30,13 +28,5 @@ public class CreateCommentRequest {
 
     public void setParentCommentId(UUID parentCommentId) {
         this.parentCommentId = parentCommentId;
-    }
-
-    public UUID getReplyToUserId() {
-        return replyToUserId;
-    }
-
-    public void setReplyToUserId(UUID replyToUserId) {
-        this.replyToUserId = replyToUserId;
     }
 }

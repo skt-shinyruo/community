@@ -146,7 +146,6 @@ public class PostController {
                         userId,
                         postId,
                         request.getParentCommentId(),
-                        request.getReplyToUserId(),
                         request.getContent()
                 )
         ).commentId());

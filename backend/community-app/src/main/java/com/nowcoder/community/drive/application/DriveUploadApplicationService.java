@@ -137,7 +137,7 @@ public class DriveUploadApplicationService {
                 name,
                 contentLength,
                 contentType,
-                "",
+                checksumSha256,
                 prepared.objectId(),
                 prepared.versionId(),
                 prepared.sessionId(),
@@ -200,7 +200,7 @@ public class DriveUploadApplicationService {
                     claimed.name(),
                     normalizeContentType(content.contentType()),
                     actualContentLength,
-                    normalize(content.checksumSha256()),
+                    claimed.checksumSha256(),
                     content
             ));
         } catch (RuntimeException e) {

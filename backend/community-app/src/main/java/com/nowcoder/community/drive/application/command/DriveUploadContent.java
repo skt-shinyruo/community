@@ -6,8 +6,7 @@ import java.io.InputStream;
 public record DriveUploadContent(
         UploadStream uploadStream,
         String contentType,
-        long contentLength,
-        String checksumSha256
+        long contentLength
 ) {
     public InputStream openStream() throws IOException {
         InputStream stream = uploadStream.openStream();

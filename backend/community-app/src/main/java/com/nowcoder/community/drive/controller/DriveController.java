@@ -130,7 +130,7 @@ public class DriveController {
             @RequestParam("file") MultipartFile file
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        DriveUploadContent content = new DriveUploadContent(file::getInputStream, file.getContentType(), file.getSize(), "");
+        DriveUploadContent content = new DriveUploadContent(file::getInputStream, file.getContentType(), file.getSize());
         return Result.ok(DriveEntryResponse.from(uploadApplicationService.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 uploadId,

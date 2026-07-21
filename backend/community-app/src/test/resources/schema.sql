@@ -236,6 +236,7 @@ create table if not exists market_wallet_action (
   retry_count int not null default 0,
   next_retry_at timestamp null default null,
   processing_lease_until timestamp null default null,
+  lease_token binary(16) null,
   create_time timestamp null default current_timestamp,
   update_time timestamp null default current_timestamp on update current_timestamp,
   constraint uk_market_wallet_action_request unique (request_id)
@@ -243,6 +244,7 @@ create table if not exists market_wallet_action (
 
 create index if not exists idx_market_wallet_action_status_next on market_wallet_action(status, next_retry_at, action_id);
 create index if not exists idx_market_wallet_action_order_type on market_wallet_action(order_id, action_type);
+create index if not exists idx_market_wallet_action_processing_lease on market_wallet_action(status, processing_lease_until, action_id);
 
 create table if not exists market_dispute (
   dispute_id binary(16) primary key,

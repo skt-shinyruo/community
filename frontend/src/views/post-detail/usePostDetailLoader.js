@@ -87,8 +87,7 @@ function hydrateCommentItem(raw, { users = {}, counts = {}, statuses = {} } = {}
     _replyDraft: '',
     _replyError: '',
     _replySubmitting: false,
-    _replyToUserId: '',
-    _replyToUser: null,
+    _replyParentCommentId: '',
     _replyQuote: null,
     _repliesExpanded: false,
     _replies: [],
@@ -699,11 +698,10 @@ export function usePostDetailLoader(emit) {
 
     // 恢复草稿（按 postId + commentId 隔离）。
     c._replyDraft = safeStorageGet(replyDraftKey(c.id))
+    c._replyParentCommentId = normalizeOpaqueId(reply?.id || c.id)
 
     // 引用内容：回复回复时引用 reply；回复评论时引用 comment。
     if (reply && reply.userId) {
-      c._replyToUserId = normalizeOpaqueId(reply.userId)
-      c._replyToUser = reply.user || null
       c._replyQuote = {
         sourceType: 'reply',
         sourceId: normalizeOpaqueId(reply.id),
@@ -713,8 +711,6 @@ export function usePostDetailLoader(emit) {
         preview: buildQuotePreview(reply.content)
       }
     } else {
-      c._replyToUserId = normalizeOpaqueId(c.userId)
-      c._replyToUser = c.user || null
       c._replyQuote = {
         sourceType: 'comment',
         sourceId: normalizeOpaqueId(c.id),
@@ -731,8 +727,7 @@ export function usePostDetailLoader(emit) {
     c._replying = false
     c._replyError = ''
     c._replySubmitting = false
-    c._replyToUserId = ''
-    c._replyToUser = null
+    c._replyParentCommentId = ''
     c._replyQuote = null
   }
 
@@ -747,15 +742,13 @@ export function usePostDetailLoader(emit) {
     try {
       const resp = await apiAddComment(postId.value, {
         content: composeReplyContent(c._replyDraft, c._replyQuote),
-        parentCommentId: c.id,
-        replyToUserId: c._replyToUserId || undefined
+        parentCommentId: c._replyParentCommentId
       })
       emit('trace', resp?.traceId || '')
       c._replyDraft = ''
       safeStorageSet(replyDraftKey(c.id), '')
       c._replying = false
-      c._replyToUserId = ''
-      c._replyToUser = null
+      c._replyParentCommentId = ''
       c._replyQuote = null
       if (post.value) {
         post.value.commentCount = Number(post.value.commentCount || 0) + 1

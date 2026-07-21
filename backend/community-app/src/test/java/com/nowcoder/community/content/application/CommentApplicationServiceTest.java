@@ -125,7 +125,7 @@ class CommentApplicationServiceTest {
 
         CommentCreateResult result = service.create(
                 "idem-1",
-                new CreateCommentCommand(userId, postId, null, null, " hello & world ")
+                new CreateCommentCommand(userId, postId, null, " hello & world ")
         );
 
         assertThat(result.commentId()).isEqualTo(commentId);
@@ -198,7 +198,7 @@ class CommentApplicationServiceTest {
         when(sensitiveFilter.filter("body")).thenReturn("body");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
-        service.create("idem-cache-evict", new CreateCommentCommand(userId, postId, null, null, "body"));
+        service.create("idem-cache-evict", new CreateCommentCommand(userId, postId, null, "body"));
 
         verify(commentPageCache).evictPost(postId);
     }
@@ -235,41 +235,6 @@ class CommentApplicationServiceTest {
     }
 
     @Test
-    void addCommentShouldDelegateThroughCreatePath() {
-        UUID userId = uuid(1);
-        UUID postId = uuid(100);
-        UUID postAuthorId = uuid(2);
-        UUID commentId = uuid(200);
-
-        when(idempotencyGuard.executeRequired(
-                eq("content:create_comment"),
-                eq(userId),
-                anyString(),
-                anyString(),
-                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
-                eq(UUID.class),
-                any()
-        )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
-        when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
-        when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
-        when(sensitiveFilter.filter("hi")).thenReturn("hi");
-        when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
-
-        UUID returned = service.addComment(userId, "idem-comment-1", postId, EntityTypes.POST, null, null, "hi");
-
-        assertThat(returned).isEqualTo(commentId);
-        verify(idempotencyGuard).executeRequired(
-                eq("content:create_comment"),
-                eq(userId),
-                eq("idem-comment-1"),
-                org.mockito.ArgumentMatchers.argThat(hash -> hash != null && !hash.isBlank()),
-                eq(ContentErrorCode.REQUEST_REPLAY_CONFLICT),
-                eq(UUID.class),
-                any()
-        );
-    }
-
-    @Test
     void createShouldSaveUuidIdempotencySuccessPayloadUsingCreatedCommentId() {
         UUID userId = uuid(1);
         UUID postId = uuid(100);
@@ -302,7 +267,7 @@ class CommentApplicationServiceTest {
 
         CommentCreateResult result = service.create(
                 "idem-transaction",
-                new CreateCommentCommand(userId, postId, null, null, "hi")
+                new CreateCommentCommand(userId, postId, null, "hi")
         );
 
         assertThat(result.commentId()).isEqualTo(commentId);
@@ -329,7 +294,7 @@ class CommentApplicationServiceTest {
         UUID postId = uuid(100);
         UUID postAuthorId = uuid(2);
         UUID commentId = uuid(200);
-        CreateCommentCommand command = new CreateCommentCommand(userId, postId, null, null, "body");
+        CreateCommentCommand command = new CreateCommentCommand(userId, postId, null, "body");
 
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
         when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
@@ -360,11 +325,11 @@ class CommentApplicationServiceTest {
         when(sensitiveFilter.filter("body")).thenReturn("body");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
-        service.create("idem-conflict-comment", new CreateCommentCommand(userId, postId, null, null, "body"));
+        service.create("idem-conflict-comment", new CreateCommentCommand(userId, postId, null, "body"));
 
         assertThatThrownBy(() -> service.create(
                 "idem-conflict-comment",
-                new CreateCommentCommand(userId, postId, null, null, "changed body")
+                new CreateCommentCommand(userId, postId, null, "changed body")
         ))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
@@ -384,12 +349,11 @@ class CommentApplicationServiceTest {
     }
 
     @Test
-    void createReplyShouldPreserveExplicitReplyTargetUserWhenReplyingInsideThread() {
+    void createReplyShouldDeriveReplyTargetUserFromParentSnapshot() {
         UUID userId = uuid(1);
         UUID postId = uuid(100);
         UUID targetCommentId = uuid(200);
         UUID targetCommentAuthorId = uuid(201);
-        UUID rawTargetId = uuid(999);
         UUID commentId = uuid(300);
         CommentSnapshot targetComment = rootComment(targetCommentId, targetCommentAuthorId, postId);
 
@@ -404,13 +368,13 @@ class CommentApplicationServiceTest {
         )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, uuid(2)));
         when(commentRepository.findActiveSnapshot(targetCommentId)).thenReturn(Optional.of(targetComment));
-        when(blockQueryApi.isEitherBlocked(userId, rawTargetId)).thenReturn(false);
+        when(blockQueryApi.isEitherBlocked(userId, targetCommentAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("reply")).thenReturn("reply");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
         service.create(
                 "idem-reply-target",
-                new CreateCommentCommand(userId, postId, targetCommentId, rawTargetId, "reply")
+                new CreateCommentCommand(userId, postId, targetCommentId, "reply")
         );
 
         ArgumentCaptor<CommentDraft> draftCaptor = ArgumentCaptor.forClass(CommentDraft.class);
@@ -418,11 +382,11 @@ class CommentApplicationServiceTest {
         assertThat(draftCaptor.getValue().postId()).isEqualTo(postId);
         assertThat(draftCaptor.getValue().rootCommentId()).isEqualTo(targetCommentId);
         assertThat(draftCaptor.getValue().parentCommentId()).isEqualTo(targetCommentId);
-        assertThat(draftCaptor.getValue().replyToUserId()).isEqualTo(rawTargetId);
-        verify(blockQueryApi).isEitherBlocked(userId, rawTargetId);
+        assertThat(draftCaptor.getValue().replyToUserId()).isEqualTo(targetCommentAuthorId);
+        verify(blockQueryApi).isEitherBlocked(userId, targetCommentAuthorId);
         ArgumentCaptor<CommentCreatedDomainEvent> eventCaptor = ArgumentCaptor.forClass(CommentCreatedDomainEvent.class);
         verify(domainEventPublisher).commentCreated(eventCaptor.capture());
-        assertThat(eventCaptor.getValue().targetUserId()).isEqualTo(rawTargetId);
+        assertThat(eventCaptor.getValue().targetUserId()).isEqualTo(targetCommentAuthorId);
     }
 
     @Test
@@ -449,7 +413,7 @@ class CommentApplicationServiceTest {
         when(sensitiveFilter.filter("reply")).thenReturn("reply");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
-        service.create("idem-parent-reply", new CreateCommentCommand(userId, postId, parentCommentId, replyToUserId, "reply"));
+        service.create("idem-parent-reply", new CreateCommentCommand(userId, postId, parentCommentId, "reply"));
 
         verify(commentRepository).create(org.mockito.ArgumentMatchers.argThat(draft ->
                 postId.equals(draft.postId())
@@ -480,7 +444,7 @@ class CommentApplicationServiceTest {
 
         assertThatThrownBy(() -> service.create(
                 "idem-2",
-                new CreateCommentCommand(userId, postId, targetCommentId, null, "reply")
+                new CreateCommentCommand(userId, postId, targetCommentId, "reply")
         ))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
@@ -510,7 +474,7 @@ class CommentApplicationServiceTest {
 
         assertThatThrownBy(() -> service.create(
                 "idem-3",
-                new CreateCommentCommand(userId, postId, null, null, "blocked")
+                new CreateCommentCommand(userId, postId, null, "blocked")
         ))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));

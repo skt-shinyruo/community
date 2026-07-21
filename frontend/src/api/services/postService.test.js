@@ -45,7 +45,7 @@ describe('api/services/postService', () => {
     expect(resp.data.items).toEqual([])
   })
 
-  it('addComment should send parentCommentId and replyToUserId', async () => {
+  it('addComment should ignore client supplied reply recipient', async () => {
     const postId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
     const parentCommentId = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
     const replyToUserId = 'dddddddd-dddd-7ddd-8ddd-dddddddddddd'
@@ -53,8 +53,7 @@ describe('api/services/postService', () => {
     mock.onPost(`/api/posts/${postId}/comments`).reply((config) => {
       expect(JSON.parse(config.data)).toEqual({
         content: '回复内容',
-        parentCommentId,
-        replyToUserId
+        parentCommentId
       })
       return [200, { code: 0, message: '', data: { id: 'reply-1' }, traceId: 'trace-add-comment' }]
     })
@@ -81,6 +80,25 @@ describe('api/services/postService', () => {
     const resp = await listComments(postId)
 
     expect(resp.data).toEqual({ items: [], nextCursor: '' })
+  })
+
+  it('listComments should preserve the server derived reply recipient for display', async () => {
+    const postId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    const commentId = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
+    const replyToUserId = 'dddddddd-dddd-7ddd-8ddd-dddddddddddd'
+    mock = new MockAdapter(http)
+    mock.onGet(`/api/posts/${postId}/comments`).replyOnce(200, {
+      code: 0,
+      data: {
+        items: [{ id: commentId, postId, replyToUserId, content: 'reply' }],
+        nextCursor: ''
+      },
+      traceId: 'trace-comments'
+    })
+
+    const resp = await listComments(postId)
+
+    expect(resp.data.items[0].replyToUserId).toBe(replyToUserId)
   })
 
   it('createPost and updatePost should normalize block payloads without content shortcuts', async () => {

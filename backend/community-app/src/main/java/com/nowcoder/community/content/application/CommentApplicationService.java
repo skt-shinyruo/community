@@ -81,31 +81,9 @@ public class CommentApplicationService {
     }
 
     @Transactional
-    public CommentCreateResult create(
-            UUID userId,
-            String idempotencyKey,
-            UUID postId,
-            Integer entityType,
-            UUID entityId,
-            UUID targetId,
-            String content
-    ) {
-        UUID parentCommentId = entityType != null && entityType == EntityTypes.COMMENT ? entityId : null;
-        UUID replyToUserId = entityType != null && entityType == EntityTypes.COMMENT ? targetId : null;
-        return createFromCommand(idempotencyKey, new CreateCommentCommand(userId, postId, parentCommentId, replyToUserId, content));
-    }
-
-    @Transactional
     public CommentCreateResult create(String idempotencyKey, CreateCommentCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         return createFromCommand(idempotencyKey, command);
-    }
-
-    @Transactional
-    public UUID addComment(UUID userId, String idempotencyKey, UUID postId, Integer entityType, UUID entityId, UUID targetId, String content) {
-        UUID parentCommentId = entityType != null && entityType == EntityTypes.COMMENT ? entityId : null;
-        UUID replyToUserId = entityType != null && entityType == EntityTypes.COMMENT ? targetId : null;
-        return createFromCommand(idempotencyKey, new CreateCommentCommand(userId, postId, parentCommentId, replyToUserId, content)).commentId();
     }
 
     @Transactional
@@ -195,7 +173,7 @@ public class CommentApplicationService {
         CommentDomainService.CreateTarget target = domainService.resolveCreateTarget(
                 postId,
                 command.parentCommentId(),
-                command.replyToUserId(),
+                null,
                 post.getUserId(),
                 parentComment
         );
@@ -239,7 +217,6 @@ public class CommentApplicationService {
         String canonical = "content:create_comment"
                 + "|postId=" + canonicalValue(command.postId())
                 + "|parentCommentId=" + canonicalValue(command.parentCommentId())
-                + "|replyToUserId=" + canonicalValue(command.replyToUserId())
                 + "|content=" + canonicalValue(command.content());
         return RequestFingerprint.sha256(canonical);
     }

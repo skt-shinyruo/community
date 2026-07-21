@@ -1,8 +1,12 @@
 package com.nowcoder.community.content.controller;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.application.command.RecordPostViewCommand;
+import com.nowcoder.community.content.application.command.CreateCommentCommand;
 import com.nowcoder.community.content.application.result.CommentCreateResult;
 import com.nowcoder.community.content.application.result.CommentPageResult;
 import com.nowcoder.community.content.application.result.CommentResult;
@@ -39,6 +43,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -261,11 +266,9 @@ class PostControllerUnitTest {
         UUID commentId = uuid(21);
         UUID createdCommentId = uuid(22);
         UUID parentCommentId = uuid(31);
-        UUID replyToUserId = uuid(32);
         UUID categoryId = uuid(3);
         CreateCommentRequest createCommentRequest = new CreateCommentRequest();
         createCommentRequest.setParentCommentId(parentCommentId);
-        createCommentRequest.setReplyToUserId(replyToUserId);
         createCommentRequest.setContent("reply");
         UpdatePostRequest updatePostRequest = new UpdatePostRequest();
         updatePostRequest.setTitle("updated");
@@ -278,7 +281,6 @@ class PostControllerUnitTest {
                 userId.equals(command.userId())
                         && postId.equals(command.postId())
                         && parentCommentId.equals(command.parentCommentId())
-                        && replyToUserId.equals(command.replyToUserId())
                         && "reply".equals(command.content())
         ))).thenReturn(new CommentCreateResult(createdCommentId));
 
@@ -301,7 +303,6 @@ class PostControllerUnitTest {
                 userId.equals(command.userId())
                         && postId.equals(command.postId())
                         && parentCommentId.equals(command.parentCommentId())
-                        && replyToUserId.equals(command.replyToUserId())
                         && "reply".equals(command.content())
         ));
         verify(postPublishingApplicationService).updatePost(
@@ -317,6 +318,53 @@ class PostControllerUnitTest {
         verify(postModerationApplicationService).top(userId, postId);
         verify(postModerationApplicationService).wonderful(userId, postId);
         verify(postModerationApplicationService).delete(userId, postId);
+    }
+
+    @Test
+    void commentWriteTransportShouldExposeOnlyServerDerivableInput() {
+        assertThat(Arrays.stream(CreateCommentRequest.class.getDeclaredFields()).map(field -> field.getName()))
+                .containsExactlyInAnyOrder("content", "parentCommentId");
+        assertThat(Arrays.stream(CreateCommentCommand.class.getRecordComponents())
+                .map(component -> component.getName()))
+                .containsExactly("userId", "postId", "parentCommentId", "content");
+    }
+
+    @Test
+    void addCommentShouldIgnoreForgedRecipientJsonAndBuildServerFactCommand() throws Exception {
+        UUID userId = uuid(7);
+        UUID postId = uuid(11);
+        UUID parentCommentId = uuid(31);
+        UUID createdCommentId = uuid(32);
+        ObjectMapper objectMapper = JsonMappers.standard().copy()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        CreateCommentRequest request = objectMapper.readValue("""
+                {
+                  "content": "reply",
+                  "parentCommentId": "%s",
+                  "replyToUserId": "%s",
+                  "targetId": "%s"
+                }
+                """.formatted(parentCommentId, uuid(98), uuid(99)), CreateCommentRequest.class);
+        when(commentApplicationService.create(eq("idem-forged"), argThat(command ->
+                userId.equals(command.userId())
+                        && postId.equals(command.postId())
+                        && parentCommentId.equals(command.parentCommentId())
+                        && "reply".equals(command.content())
+        ))).thenReturn(new CommentCreateResult(createdCommentId));
+
+        Result<UUID> result = controller.addComment(
+                authentication(userId),
+                "idem-forged",
+                postId,
+                request
+        );
+
+        assertThat(result.getData()).isEqualTo(createdCommentId);
+        ArgumentCaptor<CreateCommentCommand> commandCaptor = ArgumentCaptor.forClass(CreateCommentCommand.class);
+        verify(commentApplicationService).create(eq("idem-forged"), commandCaptor.capture());
+        assertThat(commandCaptor.getValue()).isEqualTo(
+                new CreateCommentCommand(userId, postId, parentCommentId, "reply")
+        );
     }
 
     private static PostSummaryResult postSummaryView(UUID postId, UUID userId, UUID categoryId, Date createTime, String title) {

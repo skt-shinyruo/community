@@ -10,6 +10,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CommunityMigrationLayoutTest {
 
     @Test
+    void v013ShouldAddWalletActionLeaseFencingAndRequeueStrandedProcessors() throws Exception {
+        String resource = "db/migration/community/V013__add_market_wallet_action_lease_fencing.sql";
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {
+            assertThat(input).as(resource).isNotNull();
+            String sql = new String(input.readAllBytes(), StandardCharsets.UTF_8).toLowerCase();
+
+            assertThat(sql).contains("alter table market_wallet_action");
+            assertThat(sql).contains("add column lease_token binary(16) null");
+            assertThat(sql).contains("idx_market_wallet_action_processing_lease");
+            assertThat(sql).contains("where status = 'processing'");
+        }
+    }
+
+    @Test
     void v012ShouldAddTheDriveUploadChecksumWithoutChangingTheFrozenBaseline() throws Exception {
         String resource = "db/migration/community/V012__persist_drive_upload_checksum.sql";
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {

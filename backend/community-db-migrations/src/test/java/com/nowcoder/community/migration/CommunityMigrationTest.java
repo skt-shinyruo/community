@@ -65,7 +65,7 @@ class CommunityMigrationTest {
         var result = CommunityMigrationRunner.standard(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .migrate();
 
-        assertThat(result.migrationsExecuted).isEqualTo(12);
+        assertThat(result.migrationsExecuted).isEqualTo(13);
         CommunitySchemaCatalog migratedCatalog = CommunitySchemaCatalog
                 .capture(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .withoutTables(Set.of(
@@ -77,7 +77,8 @@ class CommunityMigrationTest {
                         "comment",
                         "moderation_action",
                         "social_like",
-                        "drive_upload"
+                        "drive_upload",
+                        "market_wallet_action"
                 ));
         assertThat(migratedCatalog)
                 .isEqualTo(CommunitySchemaCatalog.canonical().withoutTables(Set.of(
@@ -87,7 +88,8 @@ class CommunityMigrationTest {
                         "comment",
                         "moderation_action",
                         "social_like",
-                        "drive_upload"
+                        "drive_upload",
+                        "market_wallet_action"
                 )));
         assertModerationActionSchema(database);
         assertSocialLikeLifecycleSchema(database);
@@ -99,6 +101,7 @@ class CommunityMigrationTest {
         assertThat(columnNames(database, "comment")).contains("version");
         assertThat(columnMetadata(database, "drive_upload").get("checksum_sha256"))
                 .isEqualTo(new ColumnMetadata("varchar(128)", false, ""));
+        assertMarketWalletActionLeaseFencingSchema(database);
         assertOutboxLeaseFencingSchema(database);
         assertThat(tableNames(database)).doesNotContain(
                 "im_conversation",
@@ -120,13 +123,13 @@ class CommunityMigrationTest {
         CommunityMigrationRunner runner = CommunityMigrationRunner.standard(
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword());
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(12);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(13);
         assertThat(runner.migrate().migrationsExecuted).isZero();
         runner.validate();
 
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(12L);
+                .isEqualTo(13L);
     }
 
     @Test
@@ -176,6 +179,65 @@ class CommunityMigrationTest {
     }
 
     @Test
+    void h2FixtureShouldDeclareTheMarketWalletActionLeaseFencingShape() throws Exception {
+        String schema = Files.readString(findRepositoryRoot().resolve(
+                "backend/community-app/src/test/resources/schema.sql"));
+
+        assertThat(schema).contains(
+                "  processing_lease_until timestamp null default null,\n"
+                        + "  lease_token binary(16) null,\n"
+                        + "  create_time timestamp null default current_timestamp,");
+        assertThat(schema).contains(
+                "create index if not exists idx_market_wallet_action_processing_lease "
+                        + "on market_wallet_action(status, processing_lease_until, action_id);");
+    }
+
+    @Test
+    void v013ShouldFenceNewClaimsAndRequeueStrandedProcessingRows(@TempDir Path tempDir)
+            throws Exception {
+        Database database = freshDatabase("v013_wallet");
+        String historyTable = "community_v013_wallet_action_history";
+        Path v012Directory = prepareMigrationDirectoryThroughVersion(tempDir, 12);
+        CommunityMigrationRunner.forLocations(
+                        database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                        historyTable, "filesystem:" + v012Directory.toAbsolutePath())
+                .migrate();
+        insertLegacyWalletActionLeaseFixture(database);
+
+        CommunityMigrationRunner runner = CommunityMigrationRunner.forLocations(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
+
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(1);
+        runner.validate();
+
+        assertMarketWalletActionLeaseFencingSchema(database);
+        assertThat(walletActionLeaseStates(database)).containsExactly(
+                new WalletActionLeaseState(
+                        "70000000000070008000000000000001",
+                        "PENDING",
+                        2,
+                        null,
+                        null,
+                        null
+                ),
+                new WalletActionLeaseState(
+                        "70000000000070008000000000000002",
+                        "RETRYING",
+                        6,
+                        null,
+                        null,
+                        null
+                )
+        );
+        assertThat(queryString(database,
+                "select next_retry_at from market_wallet_action "
+                        + "where action_id = x'70000000000070008000000000000002'"))
+                .isNotBlank()
+                .isNotEqualTo("2035-01-01 00:00:05");
+    }
+
+    @Test
     void h2FixtureShouldDeclareTheUniqueModerationActionReportIndex() throws Exception {
         String schema = Files.readString(findRepositoryRoot().resolve(
                 "backend/community-app/src/test/resources/schema.sql"));
@@ -215,7 +277,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(2);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(3);
         runner.validate();
 
         assertThat(socialLikeBusinessRows(database)).containsExactlyElementsOf(before);
@@ -244,7 +306,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(3);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(4);
         runner.validate();
 
         assertThat(moderationActionRows(database)).containsExactlyElementsOf(before);
@@ -324,7 +386,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 "community_v008_history", CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(4);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(5);
         runner.validate();
 
         assertThat(idempotencyRows(database)).containsExactlyInAnyOrder(
@@ -389,7 +451,7 @@ class CommunityMigrationTest {
                 .hasMessageContaining("non-empty schema");
 
         runner.baselineAtVersionOne(CommunityMigrationRunner.BASELINE_CONFIRMATION);
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(11);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(12);
         runner.validate();
 
         IdempotencyRow residual = idempotencyRows(database).stream()
@@ -425,7 +487,7 @@ class CommunityMigrationTest {
         assertSocialLikeFixtureBackfilled(database);
         assertThat(queryLong(database,
                 "select count(*) from community_upgrade_idempotency_history where success = 1"))
-                .isEqualTo(12L);
+                .isEqualTo(13L);
     }
 
     @Test
@@ -480,7 +542,7 @@ class CommunityMigrationTest {
                 ") values (x'10000000000070008000000000000051', '" + mediaReleaseEventId + "', " +
                 "'content.media.reference', 'media-reference', '{}', 'NEW')");
 
-        assertThat(result.migrationsExecuted).isEqualTo(11);
+        assertThat(result.migrationsExecuted).isEqualTo(12);
         assertOutboxLeaseFencingSchema(database);
         assertThat(outboxEventStates(database, "migration-lease-%")).containsExactly(
                 new OutboxEventState(
@@ -539,7 +601,7 @@ class CommunityMigrationTest {
         assertSocialLikeFixtureBackfilled(database);
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(12L);
+                .isEqualTo(13L);
     }
 
     @Test
@@ -685,6 +747,24 @@ class CommunityMigrationTest {
         insertSocialLikeFixture(database);
     }
 
+    private static void insertLegacyWalletActionLeaseFixture(Database database) throws Exception {
+        execute(database, "insert into market_wallet_action(" +
+                "action_id, order_id, action_type, request_id, wallet_biz_id, actor_user_id, " +
+                "amount, status, retry_count, next_retry_at, processing_lease_until, " +
+                "create_time, update_time" +
+                ") values " +
+                "(x'70000000000070008000000000000001', " +
+                "x'70000000000070008000000000000011', 'ESCROW', 'lease-pending', " +
+                "'lease-pending-biz', x'70000000000070008000000000000021', " +
+                "100, 'PENDING', 2, null, null, " +
+                "'2035-01-01 00:00:01', '2035-01-01 00:00:02'), " +
+                "(x'70000000000070008000000000000002', " +
+                "x'70000000000070008000000000000012', 'RELEASE', 'lease-processing', " +
+                "'lease-processing-biz', x'70000000000070008000000000000022', " +
+                "200, 'PROCESSING', 5, '2035-01-01 00:00:05', '2035-01-01 01:00:00', " +
+                "'2035-01-01 00:00:03', '2035-01-01 00:00:04')");
+    }
+
     private static List<DriveUploadRow> driveUploadRows(Database database) throws Exception {
         String sql = "select hex(upload_id), hex(space_id), hex(parent_id), name, size_bytes, mime_type, "
                 + "checksum_sha256, hex(object_id), hex(version_id), hex(oss_session_id), status, "
@@ -714,6 +794,30 @@ class CommunityMigrationTest {
                 ));
             }
             return uploads;
+        }
+    }
+
+    private static List<WalletActionLeaseState> walletActionLeaseStates(Database database)
+            throws Exception {
+        String sql = "select hex(action_id), status, retry_count, hex(wallet_txn_id), "
+                + "processing_lease_until, hex(lease_token) "
+                + "from market_wallet_action order by action_id";
+        try (Connection connection = DriverManager.getConnection(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword());
+             Statement statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery(sql)) {
+            List<WalletActionLeaseState> states = new ArrayList<>();
+            while (rows.next()) {
+                states.add(new WalletActionLeaseState(
+                        rows.getString(1),
+                        rows.getString(2),
+                        rows.getInt(3),
+                        rows.getString(4),
+                        rows.getTimestamp(5),
+                        rows.getString(6)
+                ));
+            }
+            return states;
         }
     }
 
@@ -960,6 +1064,16 @@ class CommunityMigrationTest {
                 .isEqualTo(new ColumnDefinition("timestamp", true));
         assertThat(indexColumns(database, "outbox_event", "idx_outbox_processing_lease"))
                 .containsExactly("status", "processing_lease_until", "id");
+    }
+
+    private static void assertMarketWalletActionLeaseFencingSchema(Database database) throws Exception {
+        assertThat(columnDefinition(database, "market_wallet_action", "lease_token"))
+                .isEqualTo(new ColumnDefinition("binary(16)", true));
+        assertThat(indexColumns(
+                database,
+                "market_wallet_action",
+                "idx_market_wallet_action_processing_lease"
+        )).containsExactly("status", "processing_lease_until", "action_id");
     }
 
     private static void assertSocialLikeLifecycleSchema(Database database) throws Exception {
@@ -1254,6 +1368,16 @@ class CommunityMigrationTest {
             Timestamp createdAt,
             Timestamp updatedAt,
             Timestamp expiresAt
+    ) {
+    }
+
+    private record WalletActionLeaseState(
+            String actionId,
+            String status,
+            int retryCount,
+            String walletTxnId,
+            Timestamp processingLeaseUntil,
+            String leaseToken
     ) {
     }
 

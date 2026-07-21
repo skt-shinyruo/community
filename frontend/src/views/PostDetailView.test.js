@@ -70,7 +70,7 @@ vi.mock('../utils/scrollToAnchor', () => ({
   scrollToAnchor: vi.fn().mockReturnValue(false)
 }))
 
-import { getPostDetail, listComments, listReplies } from '../api/services/postService'
+import { addComment, getPostDetail, listComments, listReplies } from '../api/services/postService'
 import PostDetailView from './PostDetailView.vue'
 
 describe('PostDetailView', () => {
@@ -116,6 +116,8 @@ describe('PostDetailView', () => {
   }
 
   beforeEach(() => {
+    vi.clearAllMocks()
+    window.localStorage.clear()
     routeState.params.postId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     routeState.query = {}
     routeState.hash = ''
@@ -138,6 +140,10 @@ describe('PostDetailView', () => {
     listReplies.mockResolvedValue({
       data: [],
       traceId: 'trace-replies'
+    })
+    addComment.mockResolvedValue({
+      data: { commentId: 'ffffffff-ffff-7fff-8fff-ffffffffffff' },
+      traceId: 'trace-add-comment'
     })
   })
 
@@ -163,4 +169,80 @@ describe('PostDetailView', () => {
       { cursor: '', size: 5 }
     )
   })
+
+  it('submits the selected root or nested reply as the direct parent only', async () => {
+    const wrapper = mountLoader()
+    await flushPromises()
+    await flushPromises()
+    const root = replyableRootComment()
+    const nested = {
+      id: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      userId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      user: { username: 'nested-author' },
+      content: 'nested content'
+    }
+
+    wrapper.vm.startReply(root)
+    root._replyDraft = 'root reply'
+    await wrapper.vm.submitReply(root)
+
+    expect(addComment).toHaveBeenNthCalledWith(1, routeState.params.postId, {
+      content: expect.any(String),
+      parentCommentId: root.id
+    })
+    expect(root._replyParentCommentId).toBe('')
+
+    wrapper.vm.startReply(root, nested)
+    root._replyDraft = 'nested reply'
+    await wrapper.vm.submitReply(root)
+
+    expect(addComment).toHaveBeenNthCalledWith(2, routeState.params.postId, {
+      content: expect.any(String),
+      parentCommentId: nested.id
+    })
+    expect(root._replyParentCommentId).toBe('')
+  })
+
+  it('clears the selected direct parent when reply editing is cancelled', async () => {
+    const wrapper = mountLoader()
+    await flushPromises()
+    const root = replyableRootComment()
+    const nested = {
+      id: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      userId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      user: { username: 'nested-author' },
+      content: 'nested content'
+    }
+
+    wrapper.vm.startReply(root, nested)
+    expect(root._replyParentCommentId).toBe(nested.id)
+
+    wrapper.vm.cancelReply(root)
+
+    expect(root._replyParentCommentId).toBe('')
+    expect(addComment).not.toHaveBeenCalled()
+  })
+
+  function replyableRootComment() {
+    return {
+      id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      userId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+      user: { username: 'root-author' },
+      content: 'root content',
+      _replying: false,
+      _replyDraft: '',
+      _replyError: '',
+      _replySubmitting: false,
+      _replyParentCommentId: '',
+      _replyQuote: null,
+      _repliesExpanded: false,
+      _replies: [],
+      _repliesPage: 0,
+      _repliesSize: 5,
+      _repliesNextCursor: '',
+      _repliesCursorHistory: [''],
+      _repliesLoading: false,
+      _repliesError: ''
+    }
+  }
 })

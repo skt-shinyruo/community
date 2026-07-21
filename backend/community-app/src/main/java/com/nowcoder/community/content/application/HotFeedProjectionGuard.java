@@ -4,7 +4,7 @@ import java.util.UUID;
 
 public interface HotFeedProjectionGuard {
 
-    ProjectionAttempt tryBegin(UUID postId, String sourceEventId, long sourceVersion);
+    ProjectionAttempt tryBegin(UUID postId, String sourceEventId, long sourceVersion, boolean terminalDeletion);
 
     boolean isCurrent(ProjectionAttempt attempt);
 
@@ -16,16 +16,28 @@ public interface HotFeedProjectionGuard {
             UUID postId,
             String sourceEventId,
             long sourceVersion,
+            boolean terminalDeletion,
             String token,
             boolean accepted
     ) {
 
-        public static ProjectionAttempt accepted(UUID postId, String sourceEventId, long sourceVersion, String token) {
-            return new ProjectionAttempt(postId, sourceEventId, sourceVersion, token, true);
+        public static ProjectionAttempt accepted(
+                UUID postId,
+                String sourceEventId,
+                long sourceVersion,
+                boolean terminalDeletion,
+                String token
+        ) {
+            return new ProjectionAttempt(postId, sourceEventId, sourceVersion, terminalDeletion, token, true);
         }
 
-        public static ProjectionAttempt rejected(UUID postId, String sourceEventId, long sourceVersion) {
-            return new ProjectionAttempt(postId, sourceEventId, sourceVersion, "", false);
+        public static ProjectionAttempt rejected(
+                UUID postId,
+                String sourceEventId,
+                long sourceVersion,
+                boolean terminalDeletion
+        ) {
+            return new ProjectionAttempt(postId, sourceEventId, sourceVersion, terminalDeletion, "", false);
         }
     }
 }

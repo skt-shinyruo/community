@@ -105,7 +105,8 @@ public class PostHotFeedProjectionKafkaListener {
                 null,
                 SocialEventTypes.LIKE_CREATED.equals(event.type()) ? LIKE_CREATED_SIGNAL : LIKE_REMOVED_SIGNAL,
                 event.eventId(),
-                event.version()
+                event.version(),
+                false
         ));
     }
 
@@ -132,6 +133,11 @@ public class PostHotFeedProjectionKafkaListener {
         if (payload == null || payload.getPostId() == null) {
             throw malformed(event.type(), event.eventId());
         }
+        boolean terminalDeletion = ContentEventTypes.POST_DELETED.equals(event.type());
+        if (terminalDeletion
+                && (!"post".equals(event.aggregateType()) || !payload.getPostId().equals(event.aggregateId()))) {
+            throw malformed(event.type(), event.eventId());
+        }
         return new ProjectPostHotFeedCommand(
                 payload.getPostId(),
                 payload.getCategoryId(),
@@ -141,7 +147,8 @@ public class PostHotFeedProjectionKafkaListener {
                     default -> POST_DELETED_SIGNAL;
                 },
                 event.eventId(),
-                event.version()
+                event.version(),
+                terminalDeletion
         );
     }
 
@@ -156,7 +163,8 @@ public class PostHotFeedProjectionKafkaListener {
                         ? COMMENT_CREATED_SIGNAL
                         : COMMENT_DELETED_SIGNAL,
                 event.eventId(),
-                event.version()
+                event.version(),
+                false
         );
     }
 

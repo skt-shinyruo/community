@@ -13,4 +13,6 @@ public interface PostSummaryCache {
     void putAll(List<PostSummaryResult> summaries);
 
     void evictAll(List<UUID> postIds);
+
+    void terminalEvict(UUID postId);
 }

@@ -17,26 +17,32 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
     private static final String EVENT_KEY_PREFIX = "post:feed:hot:projection:event:";
     private static final String VERSION_KEY_PREFIX = "post:feed:hot:projection:version:";
     private static final String LOCK_KEY_PREFIX = "post:feed:hot:projection:lock:";
+    private static final String TOMBSTONE_KEY_PREFIX = "post:feed:hot:projection:tombstone:";
     private static final String EVENT_TTL_SECONDS = "604800";
     private static final String LOCK_TTL_MILLIS = "30000";
     private static final int LOCK_ATTEMPTS = 20;
     private static final long LOCK_BACKOFF_MILLIS = 25L;
     private static final DefaultRedisScript<Long> BEGIN_SCRIPT = new DefaultRedisScript<>("""
-            if redis.call('EXISTS', KEYS[2]) == 1 then
-              return -1
-            end
-            local current = redis.call('GET', KEYS[3])
             local next = tonumber(ARGV[1])
             if next == nil or next <= 0 then
               return -1
             end
-            if current ~= false then
-              local currentNumber = tonumber(current)
-              if currentNumber ~= nil and currentNumber > next then
-                return -1
+            if redis.call('EXISTS', KEYS[2]) == 1 then
+              return -1
+            end
+            if redis.call('EXISTS', KEYS[4]) == 1 then
+              return -1
+            end
+            if ARGV[2] ~= '1' then
+              local current = redis.call('GET', KEYS[3])
+              if current ~= false then
+                local currentNumber = tonumber(current)
+                if currentNumber == nil or currentNumber > next then
+                  return -1
+                end
               end
             end
-            local locked = redis.call('SET', KEYS[1], ARGV[2], 'NX', 'PX', ARGV[3])
+            local locked = redis.call('SET', KEYS[1], ARGV[3], 'NX', 'PX', ARGV[4])
             if locked then
               return 1
             end
@@ -44,17 +50,22 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
             """, Long.class);
     private static final DefaultRedisScript<Long> CURRENT_SCRIPT = new DefaultRedisScript<>("""
             if redis.call('GET', KEYS[1]) ~= ARGV[1] then
-              return 0
+              return -2
             end
-            local current = redis.call('GET', KEYS[2])
             local next = tonumber(ARGV[2])
             if next == nil or next <= 0 then
               return 0
             end
-            if current ~= false then
-              local currentNumber = tonumber(current)
-              if currentNumber ~= nil and currentNumber > next then
-                return 0
+            if redis.call('EXISTS', KEYS[3]) == 1 then
+              return 0
+            end
+            if ARGV[3] ~= '1' then
+              local current = redis.call('GET', KEYS[2])
+              if current ~= false then
+                local currentNumber = tonumber(current)
+                if currentNumber == nil or currentNumber > next then
+                  return 0
+                end
               end
             end
             return 1
@@ -63,8 +74,29 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
             if redis.call('GET', KEYS[1]) ~= ARGV[1] then
               return 0
             end
-            redis.call('SET', KEYS[2], '1', 'EX', ARGV[2])
-            redis.call('SET', KEYS[3], ARGV[3])
+            local eventTtl = tonumber(ARGV[2])
+            local next = tonumber(ARGV[3])
+            if eventTtl == nil or eventTtl <= 0 or next == nil or next <= 0 then
+              return 0
+            end
+            if ARGV[4] ~= '0' and ARGV[4] ~= '1' then
+              return 0
+            end
+            local current = redis.call('GET', KEYS[3])
+            local currentNumber = nil
+            if current ~= false then
+              currentNumber = tonumber(current)
+              if currentNumber == nil then
+                return 0
+              end
+            end
+            redis.call('SET', KEYS[2], '1', 'EX', eventTtl)
+            if currentNumber == nil or currentNumber < next then
+              redis.call('SET', KEYS[3], ARGV[3])
+            end
+            if ARGV[4] == '1' then
+              redis.call('SET', KEYS[4], '1')
+            end
             redis.call('DEL', KEYS[1])
             return 1
             """, Long.class);
@@ -82,26 +114,38 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
     }
 
     @Override
-    public ProjectionAttempt tryBegin(UUID postId, String sourceEventId, long sourceVersion) {
+    public ProjectionAttempt tryBegin(
+            UUID postId,
+            String sourceEventId,
+            long sourceVersion,
+            boolean terminalDeletion
+    ) {
         if (postId == null || !StringUtils.hasText(sourceEventId) || sourceVersion <= 0L) {
-            return ProjectionAttempt.rejected(postId, sourceEventId, sourceVersion);
+            return ProjectionAttempt.rejected(postId, sourceEventId, sourceVersion, terminalDeletion);
         }
         String token = UUID.randomUUID().toString();
         String normalizedEventId = sourceEventId.trim();
-        List<String> keys = List.of(lockKey(postId), eventKey(normalizedEventId), versionKey(postId));
+        List<String> keys = allKeys(postId, normalizedEventId);
         for (int attempt = 0; attempt < LOCK_ATTEMPTS; attempt++) {
             Long started = redisTemplate.execute(
                     BEGIN_SCRIPT,
                     keys,
                     String.valueOf(sourceVersion),
+                    deletionFlag(terminalDeletion),
                     token,
                     LOCK_TTL_MILLIS
             );
             if (Long.valueOf(1L).equals(started)) {
-                return ProjectionAttempt.accepted(postId, normalizedEventId, sourceVersion, token);
+                return ProjectionAttempt.accepted(
+                        postId,
+                        normalizedEventId,
+                        sourceVersion,
+                        terminalDeletion,
+                        token
+                );
             }
             if (Long.valueOf(-1L).equals(started)) {
-                return ProjectionAttempt.rejected(postId, normalizedEventId, sourceVersion);
+                return ProjectionAttempt.rejected(postId, normalizedEventId, sourceVersion, terminalDeletion);
             }
             sleepBeforeRetry();
         }
@@ -115,10 +159,20 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
         }
         Long current = redisTemplate.execute(
                 CURRENT_SCRIPT,
-                List.of(lockKey(attempt.postId()), versionKey(attempt.postId())),
+                List.of(
+                        lockKey(attempt.postId()),
+                        versionKey(attempt.postId()),
+                        tombstoneKey(attempt.postId())
+                ),
                 attempt.token(),
-                String.valueOf(attempt.sourceVersion())
+                String.valueOf(attempt.sourceVersion()),
+                deletionFlag(attempt.terminalDeletion())
         );
+        if (current == null || Long.valueOf(-2L).equals(current)) {
+            throw new IllegalStateException(
+                    "hot feed projection current check lost lease: postId=" + attempt.postId()
+                            + ", sourceEventId=" + attempt.sourceEventId());
+        }
         return Long.valueOf(1L).equals(current);
     }
 
@@ -127,13 +181,19 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
         if (!accepted(attempt)) {
             return;
         }
-        redisTemplate.execute(
+        Long committed = redisTemplate.execute(
                 COMMIT_SCRIPT,
-                List.of(lockKey(attempt.postId()), eventKey(attempt.sourceEventId()), versionKey(attempt.postId())),
+                allKeys(attempt.postId(), attempt.sourceEventId()),
                 attempt.token(),
                 EVENT_TTL_SECONDS,
-                String.valueOf(attempt.sourceVersion())
+                String.valueOf(attempt.sourceVersion()),
+                deletionFlag(attempt.terminalDeletion())
         );
+        if (!Long.valueOf(1L).equals(committed)) {
+            throw new IllegalStateException(
+                    "hot feed projection commit lost lease: postId=" + attempt.postId()
+                            + ", sourceEventId=" + attempt.sourceEventId());
+        }
     }
 
     @Override
@@ -156,16 +216,37 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
                 && StringUtils.hasText(attempt.token());
     }
 
-    private String eventKey(String sourceEventId) {
-        return EVENT_KEY_PREFIX + sourceEventId.trim();
+    private List<String> allKeys(UUID postId, String sourceEventId) {
+        return List.of(
+                lockKey(postId),
+                eventKey(postId, sourceEventId),
+                versionKey(postId),
+                tombstoneKey(postId)
+        );
+    }
+
+    private String eventKey(UUID postId, String sourceEventId) {
+        return EVENT_KEY_PREFIX + hashTag(postId) + ":" + sourceEventId.trim();
     }
 
     private String versionKey(UUID postId) {
-        return VERSION_KEY_PREFIX + postId;
+        return VERSION_KEY_PREFIX + hashTag(postId);
     }
 
     private String lockKey(UUID postId) {
-        return LOCK_KEY_PREFIX + postId;
+        return LOCK_KEY_PREFIX + hashTag(postId);
+    }
+
+    private String tombstoneKey(UUID postId) {
+        return TOMBSTONE_KEY_PREFIX + hashTag(postId);
+    }
+
+    private String hashTag(UUID postId) {
+        return "{" + postId + "}";
+    }
+
+    private String deletionFlag(boolean terminalDeletion) {
+        return terminalDeletion ? "1" : "0";
     }
 
     private void sleepBeforeRetry() {

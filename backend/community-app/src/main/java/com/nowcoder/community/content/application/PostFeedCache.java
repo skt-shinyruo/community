@@ -37,4 +37,9 @@ public interface PostFeedCache {
      * from all board hot feeds as well.
      */
     void remove(UUID postId, UUID boardId);
+
+    /**
+     * Permanently fences the deleted post from global, payload-board, and all current board feeds.
+     */
+    void terminalRemove(UUID postId, UUID boardId);
 }

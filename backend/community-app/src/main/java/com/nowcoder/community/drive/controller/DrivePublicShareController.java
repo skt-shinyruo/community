@@ -20,6 +20,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -82,9 +87,17 @@ public class DrivePublicShareController {
         if (request == null) {
             return "";
         }
-        String ip = Objects.toString(request.getRemoteAddr(), "");
-        String userAgent = Objects.toString(request.getHeader("User-Agent"), "");
-        return ip + "|" + userAgent;
+        byte[] ip = Objects.toString(request.getRemoteAddr(), "").getBytes(StandardCharsets.UTF_8);
+        byte[] userAgent = Objects.toString(request.getHeader("User-Agent"), "").getBytes(StandardCharsets.UTF_8);
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(ByteBuffer.allocate(Integer.BYTES).putInt(ip.length).array());
+            digest.update(ip);
+            digest.update(ByteBuffer.allocate(Integer.BYTES).putInt(userAgent.length).array());
+            return HexFormat.of().formatHex(digest.digest(userAgent));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
     }
 
     private static UUID parseUuidOrNull(String rawValue, String fieldName) {

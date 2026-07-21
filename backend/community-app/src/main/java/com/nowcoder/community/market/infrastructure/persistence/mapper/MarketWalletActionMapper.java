@@ -1,5 +1,6 @@
 package com.nowcoder.community.market.infrastructure.persistence.mapper;
 
+import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -25,30 +26,73 @@ public interface MarketWalletActionMapper {
 
     List<MarketWalletActionDataObject> selectUnfinishedWithWalletTxn(@Param("limit") int limit);
 
-    int claimProcessing(@Param("actionId") UUID actionId, @Param("leaseUntil") Date leaseUntil);
+    default int claimProcessing(UUID actionId, Date leaseUntil) {
+        throw new UnsupportedOperationException("processor lease is required");
+    }
 
-    int markSucceeded(@Param("actionId") UUID actionId,
+    int claimProcessing(@Param("lease") MarketWalletActionLease lease, @Param("leaseUntil") Date leaseUntil);
+
+    default int markSucceeded(UUID actionId, UUID walletTxnId, String resultType) {
+        throw new UnsupportedOperationException("processor lease is required");
+    }
+
+    int markSucceeded(@Param("lease") MarketWalletActionLease lease,
                       @Param("walletTxnId") UUID walletTxnId,
                       @Param("resultType") String resultType);
 
-    int markCancelled(@Param("actionId") UUID actionId, @Param("resultType") String resultType);
+    default int markCancelled(UUID actionId, String resultType) {
+        throw new UnsupportedOperationException("processor lease is required");
+    }
+
+    int markCancelled(@Param("lease") MarketWalletActionLease lease, @Param("resultType") String resultType);
 
     int cancelPendingEscrow(@Param("requestId") String requestId, @Param("resultType") String resultType);
 
-    int markRetrying(@Param("actionId") UUID actionId,
+    default int markRetrying(UUID actionId, Date nextRetryAt, String lastError) {
+        throw new UnsupportedOperationException("processor lease is required");
+    }
+
+    int markRetrying(@Param("lease") MarketWalletActionLease lease,
                      @Param("nextRetryAt") Date nextRetryAt,
                      @Param("lastError") String lastError);
 
-    int markFailed(@Param("actionId") UUID actionId,
+    default int markFailed(UUID actionId, String failureCode, String lastError) {
+        throw new UnsupportedOperationException("processor lease is required");
+    }
+
+    int markFailed(@Param("lease") MarketWalletActionLease lease,
                    @Param("failureCode") String failureCode,
                    @Param("lastError") String lastError);
 
-    int markRecoveryPending(@Param("actionId") UUID actionId,
+    default int markRecoveryPending(
+            UUID actionId,
+            UUID walletTxnId,
+            String failureCode,
+            String lastError
+    ) {
+        throw new UnsupportedOperationException("processor lease is required");
+    }
+
+    int markRecoveryPending(@Param("lease") MarketWalletActionLease lease,
                             @Param("walletTxnId") UUID walletTxnId,
                             @Param("failureCode") String failureCode,
                             @Param("lastError") String lastError);
 
-    int markDead(@Param("actionId") UUID actionId, @Param("lastError") String lastError);
+    default int markDead(UUID actionId, String lastError) {
+        throw new UnsupportedOperationException("processor lease is required");
+    }
+
+    int markDead(@Param("lease") MarketWalletActionLease lease, @Param("lastError") String lastError);
+
+    int markRecoveredSucceeded(@Param("actionId") UUID actionId,
+                               @Param("expectedStatus") String expectedStatus,
+                               @Param("walletTxnId") UUID walletTxnId,
+                               @Param("resultType") String resultType);
+
+    int rescheduleFailed(@Param("actionId") UUID actionId,
+                         @Param("expectedFailureCode") String expectedFailureCode,
+                         @Param("nextRetryAt") Date nextRetryAt,
+                         @Param("lastError") String lastError);
 
     int recoverExpiredProcessing(@Param("asOf") Date asOf);
 }

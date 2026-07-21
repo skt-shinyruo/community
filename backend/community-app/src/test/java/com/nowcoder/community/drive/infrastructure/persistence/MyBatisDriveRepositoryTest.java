@@ -149,6 +149,7 @@ class MyBatisDriveRepositoryTest {
                 "upload.bin",
                 99L,
                 "application/octet-stream",
+                "sha256:repository-round-trip",
                 uuid(30),
                 uuid(31),
                 uuid(32),
@@ -167,9 +168,18 @@ class MyBatisDriveRepositoryTest {
                 DriveUpload::spaceId,
                 DriveUpload::parentId,
                 DriveUpload::name,
+                DriveUpload::checksumSha256,
                 DriveUpload::status,
                 DriveUpload::completedEntryId
-        ).containsExactly(UPLOAD_ID, SPACE_ID, ROOT_ID, "upload.bin", DriveUploadStatus.COMPLETED, FILE_ID);
+        ).containsExactly(
+                UPLOAD_ID,
+                SPACE_ID,
+                ROOT_ID,
+                "upload.bin",
+                "sha256:repository-round-trip",
+                DriveUploadStatus.COMPLETED,
+                FILE_ID
+        );
         assertThat(persisted.updatedAt()).isEqualTo(NOW.plusSeconds(20));
         assertThat(persisted.completedAt()).isEqualTo(NOW.plusSeconds(20));
     }
@@ -183,6 +193,7 @@ class MyBatisDriveRepositoryTest {
                 "upload.bin",
                 99L,
                 "application/octet-stream",
+                "",
                 uuid(30),
                 uuid(31),
                 uuid(32),

@@ -708,6 +708,7 @@ class DriveUploadApplicationServiceTest {
                     upload.name(),
                     upload.sizeBytes(),
                     upload.mimeType(),
+                    upload.checksumSha256(),
                     upload.objectId(),
                     upload.versionId(),
                     upload.ossSessionId(),

@@ -14,6 +14,7 @@ public class DriveUploadDataObject {
     private String name;
     private long sizeBytes;
     private String mimeType;
+    private String checksumSha256;
     private UUID objectId;
     private UUID versionId;
     private UUID ossSessionId;
@@ -33,6 +34,7 @@ public class DriveUploadDataObject {
         dataObject.setName(upload.name());
         dataObject.setSizeBytes(upload.sizeBytes());
         dataObject.setMimeType(upload.mimeType());
+        dataObject.setChecksumSha256(upload.checksumSha256());
         dataObject.setObjectId(upload.objectId());
         dataObject.setVersionId(upload.versionId());
         dataObject.setOssSessionId(upload.ossSessionId());
@@ -54,6 +56,7 @@ public class DriveUploadDataObject {
                 name,
                 sizeBytes,
                 mimeType,
+                checksumSha256,
                 objectId,
                 versionId,
                 ossSessionId,
@@ -113,6 +116,14 @@ public class DriveUploadDataObject {
 
     public void setMimeType(String mimeType) {
         this.mimeType = mimeType;
+    }
+
+    public String getChecksumSha256() {
+        return checksumSha256;
+    }
+
+    public void setChecksumSha256(String checksumSha256) {
+        this.checksumSha256 = checksumSha256;
     }
 
     public UUID getObjectId() {

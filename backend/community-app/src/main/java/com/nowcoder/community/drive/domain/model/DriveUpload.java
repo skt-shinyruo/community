@@ -12,6 +12,7 @@ public record DriveUpload(
         String name,
         long sizeBytes,
         String mimeType,
+        String checksumSha256,
         UUID objectId,
         UUID versionId,
         UUID ossSessionId,
@@ -25,7 +26,10 @@ public record DriveUpload(
 ) {
     private static final DriveEntryDomainService DOMAIN_SERVICE = new DriveEntryDomainService();
 
-    public static DriveUpload prepared(UUID uploadId, UUID spaceId, UUID parentId, String name, long sizeBytes, String mimeType, UUID objectId, UUID versionId, UUID ossSessionId, UUID createdBy, Instant now, Instant expiresAt) {
+    public static DriveUpload prepared(UUID uploadId, UUID spaceId, UUID parentId, String name,
+                                       long sizeBytes, String mimeType, String checksumSha256,
+                                       UUID objectId, UUID versionId, UUID ossSessionId,
+                                       UUID createdBy, Instant now, Instant expiresAt) {
         requireId(uploadId, "uploadId");
         requireId(spaceId, "spaceId");
         requireId(objectId, "objectId");
@@ -44,6 +48,7 @@ public record DriveUpload(
                 normalize(name),
                 sizeBytes,
                 mimeType,
+                normalizeChecksum(checksumSha256),
                 objectId,
                 versionId,
                 ossSessionId,
@@ -136,6 +141,7 @@ public record DriveUpload(
                 name,
                 sizeBytes,
                 mimeType,
+                checksumSha256,
                 objectId,
                 versionId,
                 ossSessionId,
@@ -151,6 +157,10 @@ public record DriveUpload(
 
     private static String normalize(String name) {
         return DOMAIN_SERVICE.normalizeName(name);
+    }
+
+    private static String normalizeChecksum(String checksumSha256) {
+        return checksumSha256 == null ? "" : checksumSha256.trim();
     }
 
     private static void requireId(UUID id, String name) {

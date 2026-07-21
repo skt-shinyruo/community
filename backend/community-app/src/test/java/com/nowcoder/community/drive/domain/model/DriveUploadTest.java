@@ -54,7 +54,25 @@ class DriveUploadTest {
         assertThat(retried.updatedAt()).isEqualTo(NOW.plusSeconds(3));
     }
 
+    @Test
+    void checksumShouldRemainStableAcrossCompletionStateTransitions() {
+        UUID entryId = uuid(90);
+        DriveUpload prepared = preparedUpload("sha256:abc");
+        DriveUpload completing = prepared.startCompleting(entryId, NOW.plusSeconds(1));
+        DriveUpload objectCompleted = completing.markObjectCompleted(NOW.plusSeconds(2));
+        DriveUpload completed = objectCompleted.completeFinalization(NOW.plusSeconds(3));
+
+        assertThat(prepared.checksumSha256()).isEqualTo("sha256:abc");
+        assertThat(completing.checksumSha256()).isEqualTo("sha256:abc");
+        assertThat(objectCompleted.checksumSha256()).isEqualTo("sha256:abc");
+        assertThat(completed.checksumSha256()).isEqualTo("sha256:abc");
+    }
+
     private static DriveUpload preparedUpload() {
+        return preparedUpload("");
+    }
+
+    private static DriveUpload preparedUpload(String checksumSha256) {
         return DriveUpload.prepared(
                 uuid(1),
                 uuid(2),
@@ -62,6 +80,7 @@ class DriveUploadTest {
                 "report.pdf",
                 1_024L,
                 "application/pdf",
+                checksumSha256,
                 uuid(3),
                 uuid(4),
                 uuid(5),

@@ -6,7 +6,7 @@
 <mapper namespace="com.nowcoder.community.drive.infrastructure.persistence.mapper.DriveUploadMapper">
 
     <sql id="fields">
-        upload_id, space_id, parent_id, name, size_bytes, mime_type, object_id, version_id,
+        upload_id, space_id, parent_id, name, size_bytes, mime_type, checksum_sha256, object_id, version_id,
         oss_session_id, status, created_by, created_at, updated_at, expires_at, completed_at, completed_entry_id
     </sql>
 
@@ -27,7 +27,7 @@
 
     <insert id="insert" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveUploadDataObject">
         insert into drive_upload(
-            upload_id, space_id, parent_id, name, size_bytes, mime_type, object_id, version_id,
+            upload_id, space_id, parent_id, name, size_bytes, mime_type, checksum_sha256, object_id, version_id,
             oss_session_id, status, created_by, created_at, updated_at, expires_at, completed_at, completed_entry_id
         )
         values(
@@ -37,6 +37,7 @@
             #{name},
             #{sizeBytes},
             #{mimeType},
+            #{checksumSha256},
             #{objectId, jdbcType=BINARY},
             #{versionId, jdbcType=BINARY},
             #{ossSessionId, jdbcType=BINARY},

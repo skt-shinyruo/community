@@ -436,11 +436,22 @@ public class ObjectUploadApplicationService {
                 || "USER".equalsIgnoreCase(object.ownerType())) {
             throw objectNotFound();
         }
+        ObjectUploadContent incoming = command.content();
+        String incomingChecksum = normalize(incoming.checksumSha256());
+        String effectiveChecksum = incomingChecksum.isBlank()
+                ? session.expectedChecksumSha256()
+                : incomingChecksum;
+        ObjectUploadContent effectiveContent = new ObjectUploadContent(
+                incoming.contentSupplier(),
+                incoming.contentType(),
+                incoming.contentLength(),
+                effectiveChecksum
+        );
         return completeUpload(new CompleteObjectUploadCommand(
                 command.sessionId(),
                 command.objectId(),
                 command.versionId(),
-                command.content(),
+                effectiveContent,
                 session.createdBy()
         ), session);
     }

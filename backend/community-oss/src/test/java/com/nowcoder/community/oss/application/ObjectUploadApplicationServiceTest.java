@@ -515,6 +515,81 @@ class ObjectUploadApplicationServiceTest {
     }
 
     @Test
+    void completeInternalUploadShouldRecoverBlankChecksumFromAuthorizedSession() {
+        InternalUploadFixture fixture = internalUploadFixture(816);
+        AtomicInteger streamOpenCount = new AtomicInteger();
+        CompleteObjectUploadCommand incoming = new CompleteObjectUploadCommand(
+                fixture.prepared.sessionId(),
+                fixture.prepared.objectId(),
+                fixture.prepared.versionId(),
+                uploadContent(streamOpenCount, ""),
+                "internal-upload-placeholder"
+        );
+
+        ObjectMetadataResult completed = fixture.service.completeInternalUpload(
+                "community-app",
+                incoming);
+
+        assertAll(
+                () -> assertThat(completed.status()).isEqualTo(OssObjectStatus.ACTIVE.name()),
+                () -> assertThat(completed.checksumSha256()).isEqualTo("sha256-note"),
+                () -> assertThat(streamOpenCount).hasValue(1),
+                () -> assertThat(fixture.sessionRepository.findById(fixture.prepared.sessionId()).orElseThrow().status())
+                        .isEqualTo(OssUploadSessionStatus.COMPLETED)
+        );
+    }
+
+    @Test
+    void completeInternalUploadShouldRejectExplicitChecksumMismatch() {
+        InternalUploadFixture fixture = internalUploadFixture(817);
+        AtomicInteger streamOpenCount = new AtomicInteger();
+        CompleteObjectUploadCommand incoming = new CompleteObjectUploadCommand(
+                fixture.prepared.sessionId(),
+                fixture.prepared.objectId(),
+                fixture.prepared.versionId(),
+                uploadContent(streamOpenCount, "sha256-wrong"),
+                "internal-upload-placeholder"
+        );
+
+        Throwable failure = catchThrowable(() -> fixture.service.completeInternalUpload(
+                "community-app",
+                incoming));
+
+        assertAll(
+                () -> assertThat(failure)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage("upload checksum does not match session"),
+                () -> assertThat(streamOpenCount).hasValue(0),
+                () -> assertThat(fixture.sessionRepository.findById(fixture.prepared.sessionId()).orElseThrow().status())
+                        .isEqualTo(OssUploadSessionStatus.READY),
+                () -> assertThat(fixture.objectStore.operationCount).isZero()
+        );
+    }
+
+    @Test
+    void completeUploadShouldKeepRejectingBlankChecksum() {
+        InternalUploadFixture fixture = internalUploadFixture(818);
+        AtomicInteger streamOpenCount = new AtomicInteger();
+        CompleteObjectUploadCommand incoming = new CompleteObjectUploadCommand(
+                fixture.prepared.sessionId(),
+                fixture.prepared.objectId(),
+                fixture.prepared.versionId(),
+                uploadContent(streamOpenCount, ""),
+                "user-7"
+        );
+
+        assertThatThrownBy(() -> fixture.service.completeUpload(incoming))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("upload checksum does not match session");
+        assertAll(
+                () -> assertThat(streamOpenCount).hasValue(0),
+                () -> assertThat(fixture.sessionRepository.findById(fixture.prepared.sessionId()).orElseThrow().status())
+                        .isEqualTo(OssUploadSessionStatus.READY),
+                () -> assertThat(fixture.objectStore.operationCount).isZero()
+        );
+    }
+
+    @Test
     void prepareAndCompleteProxyUploadShouldActivateVersionAndReturnCanonicalPublicUrl() {
         FakeObjectRepository objectRepository = new FakeObjectRepository();
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
@@ -1153,6 +1228,13 @@ class ObjectUploadApplicationServiceTest {
     }
 
     private static ObjectUploadContent uploadContent(AtomicInteger streamOpenCount) {
+        return uploadContent(streamOpenCount, "sha256-note");
+    }
+
+    private static ObjectUploadContent uploadContent(
+            AtomicInteger streamOpenCount,
+            String checksumSha256
+    ) {
         return new ObjectUploadContent(
                 () -> {
                     streamOpenCount.incrementAndGet();
@@ -1160,7 +1242,7 @@ class ObjectUploadApplicationServiceTest {
                 },
                 "text/plain",
                 2,
-                "sha256-note"
+                checksumSha256
         );
     }
 

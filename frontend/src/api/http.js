@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { recoverUnauthorized } from '../auth/refreshCoordinator'
 import { useAuthStore } from '../stores/auth'
 import { resolveApiBaseUrl } from '../config/endpointResolution'
 import { showToast } from '../ui/toastService'
@@ -8,8 +9,6 @@ const http = axios.create({
   withCredentials: true,
   timeout: 15000
 })
-
-let refreshingPromise = null
 
 const IDEMPOTENCY_HEADER = 'Idempotency-Key'
 
@@ -47,11 +46,20 @@ function isAuthEndpointUrl(url) {
   return path === '/api/auth' || path.startsWith('/api/auth/')
 }
 
+function setAuthorization(config, accessToken) {
+  config.headers = config.headers || {}
+  if (typeof config.headers.set === 'function') {
+    config.headers.set('Authorization', `Bearer ${accessToken}`)
+  } else {
+    config.headers.Authorization = `Bearer ${accessToken}`
+  }
+}
+
 http.interceptors.request.use((config) => {
   const auth = useAuthStore()
   if (auth.accessToken) {
-    config.headers = config.headers || {}
-    config.headers.Authorization = `Bearer ${auth.accessToken}`
+    setAuthorization(config, auth.accessToken)
+    config._authTokenGeneration = auth.tokenGeneration
   }
 
   if (shouldAttachIdempotencyKey(config)) {
@@ -89,28 +97,22 @@ http.interceptors.response.use(
 
     if (status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true
+      const auth = useAuthStore()
       try {
-        if (!refreshingPromise) {
-          refreshingPromise = http
-            .post('/api/auth/refresh', null, { skipGlobalErrorToast: true })
-            .finally(() => {
-              refreshingPromise = null
-            })
-        }
-        const refreshResp = await refreshingPromise
-        const newToken = refreshResp?.data?.data?.accessToken
-        if (newToken) {
-          useAuthStore().setAccessToken(newToken)
-          return http(original)
-        }
+        const accessToken = await recoverUnauthorized({
+          auth,
+          requestGeneration: original._authTokenGeneration
+        })
+        setAuthorization(original, accessToken)
+        return http(original)
       } catch (e) {
-        useAuthStore().clear()
-        // 避免与 router 的循环依赖；这里使用硬跳转回登录页即可。
-        try {
-          if (typeof globalThis !== 'undefined' && globalThis.location) {
-            globalThis.location.href = '/#/auth/login'
-          }
-        } catch { }
+        if (e?.sessionRefreshState === 'terminal' && !auth.accessToken) {
+          try {
+            if (typeof globalThis !== 'undefined' && globalThis.location) {
+              globalThis.location.href = '/#/auth/login'
+            }
+          } catch { }
+        }
         return Promise.reject(e)
       }
     }

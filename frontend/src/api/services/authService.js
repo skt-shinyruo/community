@@ -20,13 +20,6 @@ export async function me() {
   return { data, traceId }
 }
 
-export async function refresh({ silent = false } = {}) {
-  const config = silent ? { skipGlobalErrorToast: true } : undefined
-  const resp = await http.post('/api/auth/refresh', null, config)
-  const { data, traceId } = unwrapResultBody(resp.data, '刷新登录状态')
-  return { data, traceId }
-}
-
 export async function logout() {
   const resp = await http.post('/api/auth/logout')
   const { traceId } = unwrapResultBody(resp.data, '登出')

@@ -3,6 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
+import * as authService from './authService'
 import { register, resendRegisterCode, verifyRegisterCode } from './authService'
 
 describe('api/services/authService', () => {
@@ -11,6 +12,10 @@ describe('api/services/authService', () => {
   afterEach(() => {
     mock?.restore()
     mock = null
+  })
+
+  it('does not expose a refresh entry point outside the shared coordinator', () => {
+    expect(authService).not.toHaveProperty('refresh')
   })
 
   it('register should preserve the new email-code response shape', async () => {

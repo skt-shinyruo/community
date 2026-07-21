@@ -1,6 +1,6 @@
 import axios from 'axios'
+import { recoverUnauthorized } from '../auth/refreshCoordinator'
 import { useAuthStore } from '../stores/auth'
-import http from './http'
 import { resolveImHttpBaseUrl } from '../config/endpointResolution'
 import { showToast } from '../ui/toastService'
 
@@ -10,11 +10,20 @@ const imCoreHttp = axios.create({
   timeout: 15000
 })
 
+function setAuthorization(config, accessToken) {
+  config.headers = config.headers || {}
+  if (typeof config.headers.set === 'function') {
+    config.headers.set('Authorization', `Bearer ${accessToken}`)
+  } else {
+    config.headers.Authorization = `Bearer ${accessToken}`
+  }
+}
+
 imCoreHttp.interceptors.request.use((config) => {
   const auth = useAuthStore()
   if (auth.accessToken) {
-    config.headers = config.headers || {}
-    config.headers.Authorization = `Bearer ${auth.accessToken}`
+    setAuthorization(config, auth.accessToken)
+    config._authTokenGeneration = auth.tokenGeneration
   }
   return config
 })
@@ -28,20 +37,17 @@ imCoreHttp.interceptors.response.use(
     const msg = typeof result?.message === 'string' ? result.message : (error?.message || '请求失败')
     const traceId = typeof result?.traceId === 'string' ? result.traceId : ''
 
-    // Best-effort refresh on 401 (reuse community-app refresh cookie via `http`).
     if (status === 401 && !original._retry) {
       original._retry = true
+      const auth = useAuthStore()
       try {
-        const refreshResp = await http.post('/api/auth/refresh')
-        const newToken = refreshResp?.data?.data?.accessToken
-        if (newToken) {
-          useAuthStore().setAccessToken(newToken)
-          original.headers = original.headers || {}
-          original.headers.Authorization = `Bearer ${newToken}`
-          return imCoreHttp(original)
-        }
+        const accessToken = await recoverUnauthorized({
+          auth,
+          requestGeneration: original._authTokenGeneration
+        })
+        setAuthorization(original, accessToken)
+        return imCoreHttp(original)
       } catch (e) {
-        useAuthStore().clear()
         return Promise.reject(e)
       }
     }

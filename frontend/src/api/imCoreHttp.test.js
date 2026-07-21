@@ -1,4 +1,15 @@
+import { createPinia, setActivePinia } from 'pinia'
+import MockAdapter from 'axios-mock-adapter'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+
+const coordinator = vi.hoisted(() => ({
+  recoverUnauthorized: vi.fn()
+}))
+
+vi.mock('../auth/refreshCoordinator', () => coordinator)
+
+import behaviorImCoreHttp from './imCoreHttp'
+import { useAuthStore } from '../stores/auth'
 
 describe('imCoreHttp base URL resolution', () => {
   beforeEach(() => {
@@ -50,5 +61,72 @@ describe('imCoreHttp base URL resolution', () => {
     const { default: imCoreHttp } = await import('./imCoreHttp')
 
     expect(imCoreHttp.defaults.baseURL).toBe('')
+  })
+})
+
+describe('imCoreHttp authentication recovery', () => {
+  let mock
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    coordinator.recoverUnauthorized.mockReset()
+    mock = new MockAdapter(behaviorImCoreHttp)
+  })
+
+  afterEach(() => {
+    mock.restore()
+  })
+
+  it('records the token generation on the Axios config without leaking a header', async () => {
+    const auth = useAuthStore()
+    auth.setAccessToken('token-1')
+    mock.onGet('/api/im/ping').reply((config) => [200, {
+      auth: config.headers?.Authorization || '',
+      generation: config._authTokenGeneration,
+      leakedGeneration: config.headers?._authTokenGeneration
+    }])
+
+    const response = await behaviorImCoreHttp.get('/api/im/ping')
+
+    expect(response.data.auth).toBe('Bearer token-1')
+    expect(response.data.generation).toBe(auth.tokenGeneration)
+    expect(response.data.leakedGeneration).toBeUndefined()
+  })
+
+  it('uses the shared coordinator token for one retry', async () => {
+    const auth = useAuthStore()
+    auth.setAccessToken('old-token')
+    const generation = auth.tokenGeneration
+    coordinator.recoverUnauthorized.mockImplementationOnce(async ({ auth: currentAuth }) => {
+      currentAuth.setAccessToken('new-token')
+      return 'new-token'
+    })
+    mock.onGet('/api/im/protected')
+      .replyOnce(401)
+      .onGet('/api/im/protected')
+      .replyOnce((config) => [200, { auth: config.headers?.Authorization || '' }])
+
+    const response = await behaviorImCoreHttp.get('/api/im/protected')
+
+    expect(response.data.auth).toBe('Bearer new-token')
+    expect(coordinator.recoverUnauthorized).toHaveBeenCalledWith({
+      auth,
+      requestGeneration: generation
+    })
+  })
+
+  it('does not recover twice when the retried IM request also returns 401', async () => {
+    const auth = useAuthStore()
+    auth.setAccessToken('old-token')
+    coordinator.recoverUnauthorized.mockImplementationOnce(async ({ auth: currentAuth }) => {
+      currentAuth.setAccessToken('new-token')
+      return 'new-token'
+    })
+    mock.onGet('/api/im/still-unauthorized').reply(401)
+
+    await expect(behaviorImCoreHttp.get('/api/im/still-unauthorized')).rejects.toBeTruthy()
+
+    expect(coordinator.recoverUnauthorized).toHaveBeenCalledTimes(1)
+    expect(mock.history.get.filter((request) => request.url === '/api/im/still-unauthorized')).toHaveLength(2)
   })
 })

@@ -108,7 +108,7 @@ class OssDriveObjectStorageAdapterTest {
                 "application/pdf",
                 4,
                 "",
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes(StandardCharsets.UTF_8)), "application/pdf", 4, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes(StandardCharsets.UTF_8)), "application/pdf", 4)
         ));
         DriveObjectStoragePort.ObjectMetadata metadata = adapter.getMetadata(objectId);
 

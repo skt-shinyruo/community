@@ -99,7 +99,7 @@ final class TestDriveFixture {
     }
 
     DriveUploadContent content(String body, long contentLength) {
-        return new DriveUploadContent(() -> new ByteArrayInputStream(body.getBytes()), "text/plain", contentLength, "");
+        return new DriveUploadContent(() -> new ByteArrayInputStream(body.getBytes()), "text/plain", contentLength);
     }
 
     DriveSpace space(UUID userId) {

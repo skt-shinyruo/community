@@ -9,6 +9,7 @@ import com.nowcoder.community.drive.application.DriveSpaceApplicationService;
 import com.nowcoder.community.drive.application.DriveTrashApplicationService;
 import com.nowcoder.community.drive.application.DriveUploadApplicationService;
 import com.nowcoder.community.drive.application.command.CompleteDriveUploadCommand;
+import com.nowcoder.community.drive.application.command.DriveUploadContent;
 import com.nowcoder.community.drive.application.command.PrepareDriveUploadCommand;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.application.result.DriveShareResult;
@@ -159,6 +160,9 @@ class DriveControllerUnitTest {
         assertThat(commandCaptor.getValue().actorUserId()).isEqualTo(userId);
         assertThat(commandCaptor.getValue().uploadId()).isEqualTo(uploadId);
         assertThat(commandCaptor.getValue().content().contentLength()).isEqualTo(3L);
+        assertThat(DriveUploadContent.class.getRecordComponents())
+                .extracting(component -> component.getName())
+                .containsExactly("uploadStream", "contentType", "contentLength");
     }
 
     @Test

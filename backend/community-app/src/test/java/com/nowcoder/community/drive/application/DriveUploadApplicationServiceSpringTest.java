@@ -81,7 +81,7 @@ class DriveUploadApplicationServiceSpringTest {
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
-                new DriveUploadContent(() -> new ByteArrayInputStream("x".getBytes()), "text/plain", 1L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("x".getBytes()), "text/plain", 1L)
         ))).isInstanceOf(RuntimeException.class)
                 .hasMessage("上传会话不可用");
 
@@ -111,13 +111,13 @@ class DriveUploadApplicationServiceSpringTest {
         service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 UUID.fromString(firstSession.uploadId()),
-                new DriveUploadContent(() -> new ByteArrayInputStream("first".getBytes()), "application/octet-stream", uploadSize, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("first".getBytes()), "application/octet-stream", uploadSize)
         ));
 
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 UUID.fromString(secondSession.uploadId()),
-                new DriveUploadContent(() -> new ByteArrayInputStream("second".getBytes()), "application/octet-stream", uploadSize, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("second".getBytes()), "application/octet-stream", uploadSize)
         ))).isInstanceOf(RuntimeException.class)
                 .hasMessage("网盘容量不足");
 

@@ -139,12 +139,12 @@ class DriveUploadApplicationServiceTest {
         DriveEntryResult first = service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
         ));
         DriveEntryResult second = service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
         ));
 
         assertThat(first.entryId()).isEqualTo(second.entryId());
@@ -152,6 +152,41 @@ class DriveUploadApplicationServiceTest {
         assertThat(first.type()).isEqualTo("FILE");
         assertThat(spaces.findByUserId(userId).orElseThrow().usedBytes()).isEqualTo(1_024L);
         assertThat(storage.completed).hasSize(1);
+    }
+
+    @Test
+    void completeUploadShouldUseTheChecksumPersistedAtPrepare() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(
+                userId,
+                null,
+                "report.pdf",
+                "application/pdf",
+                1_024L,
+                "sha256:expected"
+        ));
+
+        service.completeUpload(new CompleteDriveUploadCommand(
+                userId,
+                UUID.fromString(session.uploadId()),
+                new DriveUploadContent(
+                        () -> new ByteArrayInputStream("file".getBytes()),
+                        "application/pdf",
+                        1_024L
+                )
+        ));
+
+        assertThat(storage.completed)
+                .singleElement()
+                .extracting(DriveObjectStoragePort.CompleteObject::checksumSha256)
+                .isEqualTo("sha256:expected");
+        assertThat(uploads.findById(UUID.fromString(session.uploadId())).orElseThrow().checksumSha256())
+                .isEqualTo("sha256:expected");
     }
 
     @Test
@@ -170,7 +205,7 @@ class DriveUploadApplicationServiceTest {
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 uploadId,
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("网盘条目创建失败");
 
@@ -185,7 +220,7 @@ class DriveUploadApplicationServiceTest {
         DriveEntryResult recovered = service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 uploadId,
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
         ));
 
         assertThat(recovered.entryId()).isEqualTo(recoverable.completedEntryId());
@@ -209,7 +244,7 @@ class DriveUploadApplicationServiceTest {
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 objectCompletedUploadId,
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 1_024L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 1_024L)
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("网盘条目创建失败");
 
@@ -247,7 +282,7 @@ class DriveUploadApplicationServiceTest {
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 uploadId,
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 512L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 512L)
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("网盘存储服务不可用");
 
@@ -281,7 +316,7 @@ class DriveUploadApplicationServiceTest {
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 uploadId,
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("同名文件或文件夹已存在");
 
@@ -310,7 +345,7 @@ class DriveUploadApplicationServiceTest {
         service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 uploadId,
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
         ));
         entries.rows.remove(uploads.findById(uploadId).orElseThrow().completedEntryId());
         uploads.forceStatus(uploadId, DriveUploadStatus.OBJECT_COMPLETED, NOW.plusSeconds(2));
@@ -344,14 +379,14 @@ class DriveUploadApplicationServiceTest {
         DriveEntryResult first = service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 UUID.fromString(firstSession.uploadId()),
-                new DriveUploadContent(() -> new ByteArrayInputStream("first".getBytes()), "application/octet-stream", uploadSize, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("first".getBytes()), "application/octet-stream", uploadSize)
         ));
         assertThat(spaces.findByUserId(userId).orElseThrow().usedBytes()).isEqualTo(uploadSize);
 
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 UUID.fromString(secondSession.uploadId()),
-                new DriveUploadContent(() -> new ByteArrayInputStream("second".getBytes()), "application/octet-stream", uploadSize, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("second".getBytes()), "application/octet-stream", uploadSize)
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("网盘容量不足");
         assertThat(first.name()).isEqualTo("first.bin");
@@ -418,7 +453,7 @@ class DriveUploadApplicationServiceTest {
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 512L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 512L)
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("上传文件大小不匹配");
         assertThat(storage.completed).isEmpty();
@@ -438,7 +473,7 @@ class DriveUploadApplicationServiceTest {
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("上传会话不可用");
         assertThat(uploads.findById(UUID.fromString(session.uploadId())).orElseThrow().status().name()).isEqualTo("EXPIRED");
@@ -459,7 +494,7 @@ class DriveUploadApplicationServiceTest {
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("同名文件或文件夹已存在");
         assertThat(storage.completed).isEmpty();
@@ -483,7 +518,7 @@ class DriveUploadApplicationServiceTest {
         assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
-                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("目标文件夹不存在");
         assertThat(storage.completed).isEmpty();

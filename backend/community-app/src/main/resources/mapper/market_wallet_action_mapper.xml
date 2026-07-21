@@ -8,21 +8,21 @@
     <sql id="BaseColumns">
         action_id, order_id, dispute_id, action_type, request_id, wallet_biz_id, actor_user_id,
         counterparty_user_id, amount, status, result_type, wallet_txn_id, failure_code, last_error,
-        retry_count, next_retry_at, processing_lease_until, create_time, update_time
+        retry_count, next_retry_at, processing_lease_until, lease_token, create_time, update_time
     </sql>
 
     <insert id="insert" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject">
         insert into market_wallet_action(
             action_id, order_id, dispute_id, action_type, request_id, wallet_biz_id, actor_user_id,
             counterparty_user_id, amount, status, result_type, wallet_txn_id, failure_code, last_error,
-            retry_count, next_retry_at, processing_lease_until
+            retry_count, next_retry_at, processing_lease_until, lease_token
         )
         values(
             #{actionId, jdbcType=BINARY}, #{orderId, jdbcType=BINARY}, #{disputeId, jdbcType=BINARY},
             #{actionType}, #{requestId}, #{walletBizId}, #{actorUserId, jdbcType=BINARY},
             #{counterpartyUserId, jdbcType=BINARY}, #{amount}, #{status}, #{resultType},
             #{walletTxnId, jdbcType=BINARY}, #{failureCode}, #{lastError}, #{retryCount},
-            #{nextRetryAt}, #{processingLeaseUntil}
+            #{nextRetryAt}, #{processingLeaseUntil}, #{leaseToken, jdbcType=BINARY}
         )
     </insert>
 
@@ -69,8 +69,9 @@
         update market_wallet_action
         set status = 'PROCESSING',
             processing_lease_until = #{leaseUntil},
+            lease_token = #{lease.token, jdbcType=BINARY},
             update_time = current_timestamp
-        where action_id = #{actionId, jdbcType=BINARY}
+        where action_id = #{lease.actionId, jdbcType=BINARY}
           and status in ('PENDING', 'RETRYING')
     </update>
 
@@ -82,8 +83,11 @@
             failure_code = null,
             last_error = null,
             processing_lease_until = null,
+            lease_token = null,
             update_time = current_timestamp
-        where action_id = #{actionId, jdbcType=BINARY}
+        where action_id = #{lease.actionId, jdbcType=BINARY}
+          and status = 'PROCESSING'
+          and lease_token = #{lease.token, jdbcType=BINARY}
     </update>
 
     <update id="markCancelled">
@@ -91,8 +95,11 @@
         set status = 'CANCELLED',
             result_type = #{resultType},
             processing_lease_until = null,
+            lease_token = null,
             update_time = current_timestamp
-        where action_id = #{actionId, jdbcType=BINARY}
+        where action_id = #{lease.actionId, jdbcType=BINARY}
+          and status = 'PROCESSING'
+          and lease_token = #{lease.token, jdbcType=BINARY}
     </update>
 
     <update id="cancelPendingEscrow">
@@ -100,6 +107,7 @@
         set status = 'CANCELLED',
             result_type = #{resultType},
             processing_lease_until = null,
+            lease_token = null,
             update_time = current_timestamp
         where request_id = #{requestId}
           and action_type = 'ESCROW'
@@ -113,8 +121,11 @@
             next_retry_at = #{nextRetryAt},
             last_error = #{lastError},
             processing_lease_until = null,
+            lease_token = null,
             update_time = current_timestamp
-        where action_id = #{actionId, jdbcType=BINARY}
+        where action_id = #{lease.actionId, jdbcType=BINARY}
+          and status = 'PROCESSING'
+          and lease_token = #{lease.token, jdbcType=BINARY}
     </update>
 
     <update id="markFailed">
@@ -123,8 +134,11 @@
             failure_code = #{failureCode},
             last_error = #{lastError},
             processing_lease_until = null,
+            lease_token = null,
             update_time = current_timestamp
-        where action_id = #{actionId, jdbcType=BINARY}
+        where action_id = #{lease.actionId, jdbcType=BINARY}
+          and status = 'PROCESSING'
+          and lease_token = #{lease.token, jdbcType=BINARY}
     </update>
 
     <update id="markRecoveryPending">
@@ -134,8 +148,11 @@
             failure_code = #{failureCode},
             last_error = #{lastError},
             processing_lease_until = null,
+            lease_token = null,
             update_time = current_timestamp
-        where action_id = #{actionId, jdbcType=BINARY}
+        where action_id = #{lease.actionId, jdbcType=BINARY}
+          and status = 'PROCESSING'
+          and lease_token = #{lease.token, jdbcType=BINARY}
     </update>
 
     <update id="markDead">
@@ -143,8 +160,40 @@
         set status = 'DEAD',
             last_error = #{lastError},
             processing_lease_until = null,
+            lease_token = null,
+            update_time = current_timestamp
+        where action_id = #{lease.actionId, jdbcType=BINARY}
+          and status = 'PROCESSING'
+          and lease_token = #{lease.token, jdbcType=BINARY}
+    </update>
+
+    <update id="markRecoveredSucceeded">
+        update market_wallet_action
+        set status = 'SUCCEEDED',
+            result_type = #{resultType},
+            failure_code = null,
+            last_error = null,
+            processing_lease_until = null,
+            lease_token = null,
             update_time = current_timestamp
         where action_id = #{actionId, jdbcType=BINARY}
+          and status = #{expectedStatus}
+          and wallet_txn_id = #{walletTxnId, jdbcType=BINARY}
+    </update>
+
+    <update id="rescheduleFailed">
+        update market_wallet_action
+        set status = 'RETRYING',
+            retry_count = retry_count + 1,
+            next_retry_at = #{nextRetryAt},
+            last_error = #{lastError},
+            processing_lease_until = null,
+            lease_token = null,
+            update_time = current_timestamp
+        where action_id = #{actionId, jdbcType=BINARY}
+          and status = 'FAILED'
+          and failure_code = #{expectedFailureCode}
+          and wallet_txn_id is null
     </update>
 
     <update id="recoverExpiredProcessing">
@@ -153,6 +202,7 @@
             retry_count = retry_count + 1,
             next_retry_at = current_timestamp,
             processing_lease_until = null,
+            lease_token = null,
             update_time = current_timestamp
         where status = 'PROCESSING'
           and processing_lease_until is not null

@@ -259,8 +259,8 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 eq("escrow insufficient")
         );
         verify(sagaService, never()).markReleaseSucceeded(any(), any());
-        verify(mapper, never()).markFailed(any(), any(), any());
-        verify(mapper, never()).markSucceeded(any(), any(), any());
+        verify(mapper, never()).markFailed(any(UUID.class), any(), any());
+        verify(mapper, never()).markSucceeded(any(UUID.class), any(), any());
     }
 
     @Test
@@ -291,8 +291,8 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 eq("escrow insufficient")
         );
         verify(sagaService, never()).markRefundSucceeded(any(), any());
-        verify(mapper, never()).markFailed(any(), any(), any());
-        verify(mapper, never()).markSucceeded(any(), any(), any());
+        verify(mapper, never()).markFailed(any(UUID.class), any(), any());
+        verify(mapper, never()).markSucceeded(any(UUID.class), any(), any());
     }
 
     @Test
@@ -321,8 +321,8 @@ class MarketWalletActionProcessorApplicationServiceTest {
 
         assertThat(processed).isTrue();
         verify(mapper).markDead(action.getActionId(), "escrow insufficient");
-        verify(mapper, never()).markRetrying(any(), any(), any());
-        verify(mapper, never()).markFailed(any(), any(), any());
+        verify(mapper, never()).markRetrying(any(UUID.class), any(), any());
+        verify(mapper, never()).markFailed(any(UUID.class), any(), any());
     }
 
     @Test
@@ -352,7 +352,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 eq(String.valueOf(WalletErrorCode.INVALID_REQUEST.getCode())),
                 eq("invalid market wallet request")
         );
-        verify(mapper, never()).markRetrying(any(), any(), any());
+        verify(mapper, never()).markRetrying(any(UUID.class), any(), any());
         verify(sagaService, never()).markReleaseSucceeded(any(), any());
     }
 
@@ -387,7 +387,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
 
         assertThat(processed).isTrue();
         verify(sagaService).markReleaseSucceeded(action.getOrderId(), walletTxn.txnId());
-        verify(mapper, never()).markSucceeded(any(), any(), any());
+        verify(mapper, never()).markSucceeded(any(UUID.class), any(), any());
         verify(mapper).markRecoveryPending(
                 eq(action.getActionId()),
                 eq(walletTxn.txnId()),
@@ -430,7 +430,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         assertThat(processed).isTrue();
         verify(sagaService).markEscrowSucceeded(action.getOrderId(), walletTxn.txnId());
         verify(sagaService).markEscrowCancelRefundPending(action.getOrderId(), walletTxn.txnId());
-        verify(mapper, never()).markSucceeded(any(), any(), any());
+        verify(mapper, never()).markSucceeded(any(UUID.class), any(), any());
         verify(mapper).markRecoveryPending(
                 eq(action.getActionId()),
                 eq(walletTxn.txnId()),

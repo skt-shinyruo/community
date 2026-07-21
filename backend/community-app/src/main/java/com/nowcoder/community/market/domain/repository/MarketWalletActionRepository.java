@@ -1,6 +1,7 @@
 package com.nowcoder.community.market.domain.repository;
 
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
+import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
 
 import java.util.Date;
 import java.util.List;
@@ -31,19 +32,42 @@ public interface MarketWalletActionRepository {
 
     int claimProcessing(UUID actionId, Date leaseUntil);
 
+    int claimProcessing(MarketWalletActionLease lease, Date leaseUntil);
+
     int markSucceeded(UUID actionId, UUID walletTxnId, String resultType);
 
+    int markSucceeded(MarketWalletActionLease lease, UUID walletTxnId, String resultType);
+
     int markCancelled(UUID actionId, String resultType);
+
+    int markCancelled(MarketWalletActionLease lease, String resultType);
 
     int cancelPendingEscrow(String requestId, String resultType);
 
     int markRetrying(UUID actionId, Date nextRetryAt, String lastError);
 
+    int markRetrying(MarketWalletActionLease lease, Date nextRetryAt, String lastError);
+
     int markFailed(UUID actionId, String failureCode, String lastError);
+
+    int markFailed(MarketWalletActionLease lease, String failureCode, String lastError);
 
     int markRecoveryPending(UUID actionId, UUID walletTxnId, String failureCode, String lastError);
 
+    int markRecoveryPending(
+            MarketWalletActionLease lease,
+            UUID walletTxnId,
+            String failureCode,
+            String lastError
+    );
+
     int markDead(UUID actionId, String lastError);
+
+    int markDead(MarketWalletActionLease lease, String lastError);
+
+    int markRecoveredSucceeded(UUID actionId, String expectedStatus, UUID walletTxnId, String resultType);
+
+    int rescheduleFailed(UUID actionId, String expectedFailureCode, Date nextRetryAt, String lastError);
 
     int recoverExpiredProcessing(Date asOf);
 }

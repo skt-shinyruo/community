@@ -22,6 +22,7 @@ public class MarketWalletAction {
     private int retryCount;
     private Date nextRetryAt;
     private Date processingLeaseUntil;
+    private UUID leaseToken;
     private Date createTime;
     private Date updateTime;
 
@@ -159,6 +160,14 @@ public class MarketWalletAction {
 
     public void setProcessingLeaseUntil(Date processingLeaseUntil) {
         this.processingLeaseUntil = processingLeaseUntil;
+    }
+
+    public UUID getLeaseToken() {
+        return leaseToken;
+    }
+
+    public void setLeaseToken(UUID leaseToken) {
+        this.leaseToken = leaseToken;
     }
 
     public Date getCreateTime() {

@@ -1,6 +1,7 @@
 package com.nowcoder.community.market.infrastructure.persistence;
 
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
+import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
 import com.nowcoder.community.market.domain.repository.MarketWalletActionRepository;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper;
@@ -65,13 +66,28 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     }
 
     @Override
+    public int claimProcessing(MarketWalletActionLease lease, Date leaseUntil) {
+        return mapper.claimProcessing(lease, leaseUntil);
+    }
+
+    @Override
     public int markSucceeded(UUID actionId, UUID walletTxnId, String resultType) {
         return mapper.markSucceeded(actionId, walletTxnId, resultType);
     }
 
     @Override
+    public int markSucceeded(MarketWalletActionLease lease, UUID walletTxnId, String resultType) {
+        return mapper.markSucceeded(lease, walletTxnId, resultType);
+    }
+
+    @Override
     public int markCancelled(UUID actionId, String resultType) {
         return mapper.markCancelled(actionId, resultType);
+    }
+
+    @Override
+    public int markCancelled(MarketWalletActionLease lease, String resultType) {
+        return mapper.markCancelled(lease, resultType);
     }
 
     @Override
@@ -85,8 +101,18 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     }
 
     @Override
+    public int markRetrying(MarketWalletActionLease lease, Date nextRetryAt, String lastError) {
+        return mapper.markRetrying(lease, nextRetryAt, lastError);
+    }
+
+    @Override
     public int markFailed(UUID actionId, String failureCode, String lastError) {
         return mapper.markFailed(actionId, failureCode, lastError);
+    }
+
+    @Override
+    public int markFailed(MarketWalletActionLease lease, String failureCode, String lastError) {
+        return mapper.markFailed(lease, failureCode, lastError);
     }
 
     @Override
@@ -95,8 +121,33 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     }
 
     @Override
+    public int markRecoveryPending(
+            MarketWalletActionLease lease,
+            UUID walletTxnId,
+            String failureCode,
+            String lastError
+    ) {
+        return mapper.markRecoveryPending(lease, walletTxnId, failureCode, lastError);
+    }
+
+    @Override
     public int markDead(UUID actionId, String lastError) {
         return mapper.markDead(actionId, lastError);
+    }
+
+    @Override
+    public int markDead(MarketWalletActionLease lease, String lastError) {
+        return mapper.markDead(lease, lastError);
+    }
+
+    @Override
+    public int markRecoveredSucceeded(UUID actionId, String expectedStatus, UUID walletTxnId, String resultType) {
+        return mapper.markRecoveredSucceeded(actionId, expectedStatus, walletTxnId, resultType);
+    }
+
+    @Override
+    public int rescheduleFailed(UUID actionId, String expectedFailureCode, Date nextRetryAt, String lastError) {
+        return mapper.rescheduleFailed(actionId, expectedFailureCode, nextRetryAt, lastError);
     }
 
     @Override

@@ -23,6 +23,7 @@ public class MarketWalletActionDataObject extends MarketWalletAction {
         dataObject.setRetryCount(action.getRetryCount());
         dataObject.setNextRetryAt(action.getNextRetryAt());
         dataObject.setProcessingLeaseUntil(action.getProcessingLeaseUntil());
+        dataObject.setLeaseToken(action.getLeaseToken());
         dataObject.setCreateTime(action.getCreateTime());
         dataObject.setUpdateTime(action.getUpdateTime());
         return dataObject;

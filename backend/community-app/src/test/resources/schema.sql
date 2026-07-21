@@ -705,6 +705,7 @@ create table if not exists drive_upload (
   name varchar(255) not null,
   size_bytes bigint not null,
   mime_type varchar(128) not null,
+  checksum_sha256 varchar(128) not null default '',
   object_id binary(16) not null,
   version_id binary(16) not null,
   oss_session_id binary(16) not null,

@@ -7,11 +7,13 @@ import com.nowcoder.community.content.domain.model.Category;
 import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -23,10 +25,24 @@ public class RedisPostFeedCache implements PostFeedCache {
     private static final String GLOBAL_HOT_KEY = "post:feed:global:hot";
     private static final String GLOBAL_HOT_RANK_VERSION_KEY = GLOBAL_HOT_KEY + ":rank-version";
     private static final String BOARD_HOT_KEY_PREFIX = "post:feed:board:hot:";
+    private static final String TERMINAL_MEMBER_KEY_PREFIX = "post:feed:terminal-members:";
     private static final String HOT_DEGRADATION_DEGRADED_KEY = "post:feed:hot:degradation:degraded";
     private static final String HOT_DEGRADATION_REASON_KEY = "post:feed:hot:degradation:reason";
     private static final String HOT_DEGRADATION_UPDATED_AT_KEY = "post:feed:hot:degradation:updated-at";
     private static final String LAST_PREWARM_KEY_PREFIX = "post:feed:hot:prewarm:last:";
+    private static final DefaultRedisScript<Long> UPSERT_SCRIPT = new DefaultRedisScript<>("""
+            if redis.call('SISMEMBER', KEYS[2], ARGV[1]) == 1 then
+              redis.call('ZREM', KEYS[1], ARGV[1])
+              return 0
+            end
+            redis.call('ZADD', KEYS[1], ARGV[2], ARGV[1])
+            return 1
+            """, Long.class);
+    private static final DefaultRedisScript<Long> TERMINAL_REMOVE_SCRIPT = new DefaultRedisScript<>("""
+            redis.call('SADD', KEYS[2], ARGV[1])
+            redis.call('ZREM', KEYS[1], ARGV[1])
+            return 1
+            """, Long.class);
 
     private final StringRedisTemplate redisTemplate;
     private final FeedCursorCodec feedCursorCodec;
@@ -60,7 +76,7 @@ public class RedisPostFeedCache implements PostFeedCache {
         if (postId == null) {
             return;
         }
-        redisTemplate.opsForZSet().add(GLOBAL_HOT_KEY, postId.toString(), score);
+        upsert(GLOBAL_HOT_KEY, postId, score);
     }
 
     @Override
@@ -68,7 +84,7 @@ public class RedisPostFeedCache implements PostFeedCache {
         if (boardId == null || postId == null) {
             return;
         }
-        redisTemplate.opsForZSet().add(boardKey(boardId), postId.toString(), score);
+        upsert(boardKey(boardId), postId, score);
     }
 
     @Override
@@ -160,6 +176,51 @@ public class RedisPostFeedCache implements PostFeedCache {
         }
     }
 
+    @Override
+    public void terminalRemove(UUID postId, UUID boardId) {
+        if (postId == null) {
+            return;
+        }
+        terminalRemoveFromScope(GLOBAL_HOT_KEY, postId);
+        Set<UUID> boardIds = new LinkedHashSet<>();
+        if (boardId != null) {
+            boardIds.add(boardId);
+        }
+        List<Category> categories = categoryContentRepository.listCategories();
+        if (categories != null) {
+            for (Category category : categories) {
+                if (category != null && category.getId() != null) {
+                    boardIds.add(category.getId());
+                }
+            }
+        }
+        for (UUID currentBoardId : boardIds) {
+            terminalRemoveFromScope(boardKey(currentBoardId), postId);
+        }
+    }
+
+    private void upsert(String feedKey, UUID postId, double score) {
+        redisTemplate.execute(
+                UPSERT_SCRIPT,
+                List.of(feedKey, terminalMemberKey(feedKey)),
+                postId.toString(),
+                Double.toString(score)
+        );
+    }
+
+    private void terminalRemoveFromScope(String feedKey, UUID postId) {
+        Long removed = redisTemplate.execute(
+                TERMINAL_REMOVE_SCRIPT,
+                List.of(feedKey, terminalMemberKey(feedKey)),
+                postId.toString()
+        );
+        if (!Long.valueOf(1L).equals(removed)) {
+            throw new IllegalStateException(
+                    "post feed terminal fence was not persisted: postId=" + postId + ", feedKey=" + feedKey
+            );
+        }
+    }
+
     private List<UUID> readIds(String key, String cursor, int size) {
         int limit = limit(cursor, size);
         FeedCursorCodec.CursorState state = feedCursorCodec.decode(cursor);
@@ -206,6 +267,10 @@ public class RedisPostFeedCache implements PostFeedCache {
 
     private String boardKey(UUID boardId) {
         return BOARD_HOT_KEY_PREFIX + boardId;
+    }
+
+    private String terminalMemberKey(String feedKey) {
+        return TERMINAL_MEMBER_KEY_PREFIX + "{" + feedKey + "}";
     }
 
     private String lastPrewarmKey(String scope, UUID boardId) {

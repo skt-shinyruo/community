@@ -6,6 +6,7 @@ import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService;
 import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
+import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
@@ -57,6 +58,7 @@ class PostHotFeedProjectionKafkaListenerTest {
         assertThat(captor.getValue().sourceVersion()).isEqualTo(42L);
         assertThat(captor.getValue().postId()).isEqualTo(uuid(200));
         assertThat(captor.getValue().boardId()).isEqualTo(uuid(10));
+        assertThat(captor.getValue().terminalDeletion()).isFalse();
     }
 
     @Test
@@ -79,6 +81,92 @@ class PostHotFeedProjectionKafkaListenerTest {
         assertThat(captor.getValue().postId()).isEqualTo(uuid(201));
         assertThat(captor.getValue().boardId()).isEqualTo(uuid(11));
         assertThat(captor.getValue().sourceVersion()).isEqualTo(43L);
+        assertThat(captor.getValue().terminalDeletion()).isFalse();
+    }
+
+    @Test
+    void postDeletedShouldMarkProjectionAsTerminalDeletion() {
+        PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
+
+        listener.onContentEvent(new ContentContractEvent(
+                "evt-post-deleted",
+                uuid(201),
+                "post",
+                ContentEventTypes.POST_DELETED,
+                Instant.parse("2026-07-06T08:01:30Z"),
+                5L,
+                jsonCodec.valueToTree(postPayload(uuid(201), uuid(11)))
+        ));
+
+        ArgumentCaptor<ProjectPostHotFeedCommand> captor = ArgumentCaptor.forClass(ProjectPostHotFeedCommand.class);
+        verify(applicationService).project(captor.capture());
+        assertThat(captor.getValue().postId()).isEqualTo(uuid(201));
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(5L);
+        assertThat(captor.getValue().terminalDeletion()).isTrue();
+    }
+
+    @Test
+    void postDeletedWithMismatchedAggregateIdShouldFailDelivery() {
+        PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
+
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                "evt-post-deleted-wrong-id",
+                uuid(202),
+                "post",
+                ContentEventTypes.POST_DELETED,
+                Instant.parse("2026-07-06T08:01:31Z"),
+                5L,
+                jsonCodec.valueToTree(postPayload(uuid(201), uuid(11)))
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.POST_DELETED)
+                .hasMessageContaining("evt-post-deleted-wrong-id");
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void postDeletedWithMismatchedAggregateTypeShouldFailDelivery() {
+        PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
+
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                "evt-post-deleted-wrong-type",
+                uuid(201),
+                "comment",
+                ContentEventTypes.POST_DELETED,
+                Instant.parse("2026-07-06T08:01:32Z"),
+                5L,
+                jsonCodec.valueToTree(postPayload(uuid(201), uuid(11)))
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.POST_DELETED)
+                .hasMessageContaining("evt-post-deleted-wrong-type");
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void commentDeletedShouldNotMarkProjectionAsTerminalDeletion() {
+        PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
+
+        listener.onContentEvent(new ContentContractEvent(
+                "evt-comment-deleted",
+                uuid(211),
+                "comment",
+                ContentEventTypes.COMMENT_DELETED,
+                Instant.parse("2026-07-06T08:01:45Z"),
+                6L,
+                jsonCodec.valueToTree(commentPayload(uuid(201)))
+        ));
+
+        ArgumentCaptor<ProjectPostHotFeedCommand> captor = ArgumentCaptor.forClass(ProjectPostHotFeedCommand.class);
+        verify(applicationService).project(captor.capture());
+        assertThat(captor.getValue().postId()).isEqualTo(uuid(201));
+        assertThat(captor.getValue().terminalDeletion()).isFalse();
     }
 
     @Test
@@ -103,6 +191,7 @@ class PostHotFeedProjectionKafkaListenerTest {
         assertThat(captor.getValue().postId()).isEqualTo(uuid(202));
         assertThat(captor.getValue().boardId()).isNull();
         assertThat(captor.getValue().signalWeight()).isEqualTo(1.0);
+        assertThat(captor.getValue().terminalDeletion()).isFalse();
     }
 
     @Test
@@ -206,6 +295,14 @@ class PostHotFeedProjectionKafkaListenerTest {
         payload.setEntityId(postId);
         payload.setPostId(postId);
         payload.setRelationKey("like:" + uuid(1) + ":" + entityType + ":" + postId);
+        return payload;
+    }
+
+    private static CommentPayload commentPayload(java.util.UUID postId) {
+        CommentPayload payload = new CommentPayload();
+        payload.setCommentId(uuid(211));
+        payload.setPostId(postId);
+        payload.setUserId(uuid(1));
         return payload;
     }
 }

@@ -8,6 +8,7 @@ import com.nowcoder.community.content.application.result.PostSummaryResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
 import java.time.Duration;
 import java.util.Date;
@@ -17,10 +18,12 @@ import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,7 +49,56 @@ class RedisPostSummaryCacheTest {
 
         cache.putAll(List.of(summary));
 
-        verify(valueOps).set(key, "{\"id\":\"" + postId + "\"}", Duration.ofSeconds(321));
+        verify(redisTemplate).execute(
+                any(RedisScript.class),
+                eq(List.of(key, "post:summary:terminal:{" + key + "}")),
+                eq("{\"id\":\"" + postId + "\"}"),
+                eq("321000")
+        );
+    }
+
+    @Test
+    void terminalEvictShouldPermanentlyFenceAndDeleteOnePostAtomically() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        JsonCodec jsonCodec = mock(JsonCodec.class);
+        UUID postId = uuid(11);
+        String key = "post:summary:" + postId;
+        when(redisTemplate.execute(any(RedisScript.class), any(List.class), any(Object[].class))).thenReturn(1L);
+        RedisPostSummaryCache cache = new RedisPostSummaryCache(redisTemplate, jsonCodec);
+
+        cache.terminalEvict(postId);
+
+        verify(redisTemplate).execute(
+                any(RedisScript.class),
+                eq(List.of(key, "post:summary:terminal:{" + key + "}"))
+        );
+    }
+
+    @Test
+    void terminalEvictShouldFailWhenLuaDoesNotConfirmFencePersistence() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        JsonCodec jsonCodec = mock(JsonCodec.class);
+        UUID postId = uuid(13);
+        when(redisTemplate.execute(any(RedisScript.class), any(List.class), any(Object[].class))).thenReturn(0L);
+        RedisPostSummaryCache cache = new RedisPostSummaryCache(redisTemplate, jsonCodec);
+
+        assertThatThrownBy(() -> cache.terminalEvict(postId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("post summary terminal fence was not persisted")
+                .hasMessageContaining(postId.toString());
+    }
+
+    @Test
+    void ordinaryEvictShouldNotWriteTerminalFence() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        JsonCodec jsonCodec = mock(JsonCodec.class);
+        UUID postId = uuid(12);
+        RedisPostSummaryCache cache = new RedisPostSummaryCache(redisTemplate, jsonCodec);
+
+        cache.evictAll(List.of(postId));
+
+        verify(redisTemplate).delete(eq(java.util.Set.of("post:summary:" + postId)));
+        verify(redisTemplate, never()).execute(any(RedisScript.class), any(List.class), any(Object[].class));
     }
 
     @Test

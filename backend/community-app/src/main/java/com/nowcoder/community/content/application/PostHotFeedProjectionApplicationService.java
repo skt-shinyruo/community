@@ -134,7 +134,8 @@ public class PostHotFeedProjectionApplicationService {
         HotFeedProjectionGuard.ProjectionAttempt attempt = projectionGuard.tryBegin(
                 postId,
                 command.sourceEventId().trim(),
-                command.sourceVersion()
+                command.sourceVersion(),
+                command.terminalDeletion()
         );
         if (!attempt.accepted()) {
             return;
@@ -142,8 +143,19 @@ public class PostHotFeedProjectionApplicationService {
 
         boolean committed = false;
         try {
-            DiscussPost post = postContentRepository.getByIdAllowDeleted(postId);
             String rankVersion = policyProperties.getHotRankVersion();
+            if (command.terminalDeletion()) {
+                if (!projectionGuard.isCurrent(attempt)) {
+                    return;
+                }
+                postFeedCache.writeRankVersion(rankVersion);
+                terminallyEvictReadModels(postId, command.boardId());
+                commitAfterTransaction(attempt);
+                committed = true;
+                return;
+            }
+
+            DiscussPost post = postContentRepository.getByIdAllowDeleted(postId);
             if (!projectionGuard.isCurrent(attempt)) {
                 return;
             }
@@ -186,6 +198,12 @@ public class PostHotFeedProjectionApplicationService {
         postDetailCache.evict(postId);
     }
 
+    private void terminallyEvictReadModels(UUID postId, UUID boardId) {
+        postFeedCache.terminalRemove(postId, boardId);
+        postSummaryCache.terminalEvict(postId);
+        postDetailCache.terminalEvict(postId);
+    }
+
     private void commitAfterTransaction(HotFeedProjectionGuard.ProjectionAttempt attempt) {
         projectionCompletion.afterTransaction(
                 () -> projectionGuard.commit(attempt),
@@ -206,8 +224,13 @@ public class PostHotFeedProjectionApplicationService {
         INSTANCE;
 
         @Override
-        public ProjectionAttempt tryBegin(UUID postId, String sourceEventId, long sourceVersion) {
-            return ProjectionAttempt.accepted(postId, sourceEventId, sourceVersion, "allow-all");
+        public ProjectionAttempt tryBegin(
+                UUID postId,
+                String sourceEventId,
+                long sourceVersion,
+                boolean terminalDeletion
+        ) {
+            return ProjectionAttempt.accepted(postId, sourceEventId, sourceVersion, terminalDeletion, "allow-all");
         }
 
         @Override

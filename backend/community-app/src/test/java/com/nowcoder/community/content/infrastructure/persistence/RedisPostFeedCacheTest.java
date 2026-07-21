@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -14,7 +15,11 @@ import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -88,6 +93,108 @@ class RedisPostFeedCacheTest {
         verify(zSetOperations).remove("post:feed:global:hot", postId.toString());
         verify(zSetOperations).remove("post:feed:board:hot:" + first.getId(), postId.toString());
         verify(zSetOperations).remove("post:feed:board:hot:" + second.getId(), postId.toString());
+        verify(redisTemplate, never()).execute(any(RedisScript.class), any(List.class), any(Object[].class));
+    }
+
+    @Test
+    void upsertShouldAtomicallyCheckScopeTerminalMembersBeforeWriting() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        CategoryContentRepository categoryContentRepository = mock(CategoryContentRepository.class);
+        UUID postId = uuid(8);
+        UUID boardId = uuid(18);
+        RedisPostFeedCache cache = new RedisPostFeedCache(
+                redisTemplate,
+                new FeedCursorCodec(),
+                categoryContentRepository
+        );
+
+        cache.upsertGlobalHot(postId, 42.5, "hot-v2");
+        cache.upsertBoardHot(boardId, postId, 41.5, "hot-v2");
+
+        verify(redisTemplate).execute(
+                any(RedisScript.class),
+                eq(List.of(
+                        "post:feed:global:hot",
+                        "post:feed:terminal-members:{post:feed:global:hot}"
+                )),
+                eq(postId.toString()),
+                eq("42.5")
+        );
+        String boardKey = "post:feed:board:hot:" + boardId;
+        verify(redisTemplate).execute(
+                any(RedisScript.class),
+                eq(List.of(boardKey, "post:feed:terminal-members:{" + boardKey + "}")),
+                eq(postId.toString()),
+                eq("41.5")
+        );
+    }
+
+    @Test
+    void terminalRemoveShouldFenceGlobalPayloadBoardAndEveryCurrentCategoryOnce() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        CategoryContentRepository categoryContentRepository = mock(CategoryContentRepository.class);
+        UUID postId = uuid(9);
+        UUID payloadBoardId = uuid(19);
+        UUID otherBoardId = uuid(29);
+        when(categoryContentRepository.listCategories()).thenReturn(List.of(
+                category(payloadBoardId),
+                category(otherBoardId),
+                category(payloadBoardId)
+        ));
+        when(redisTemplate.execute(any(RedisScript.class), any(List.class), any(Object[].class))).thenReturn(1L);
+        RedisPostFeedCache cache = new RedisPostFeedCache(
+                redisTemplate,
+                new FeedCursorCodec(),
+                categoryContentRepository
+        );
+
+        cache.terminalRemove(postId, payloadBoardId);
+
+        verify(redisTemplate).execute(
+                any(RedisScript.class),
+                eq(List.of(
+                        "post:feed:global:hot",
+                        "post:feed:terminal-members:{post:feed:global:hot}"
+                )),
+                eq(postId.toString())
+        );
+        verifyTerminalBoardRemoval(redisTemplate, postId, payloadBoardId);
+        verifyTerminalBoardRemoval(redisTemplate, postId, otherBoardId);
+    }
+
+    @Test
+    void terminalRemoveShouldFailWhenLuaDoesNotConfirmFencePersistence() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        CategoryContentRepository categoryContentRepository = mock(CategoryContentRepository.class);
+        UUID postId = uuid(10);
+        RedisPostFeedCache cache = new RedisPostFeedCache(
+                redisTemplate,
+                new FeedCursorCodec(),
+                categoryContentRepository
+        );
+
+        assertThatThrownBy(() -> cache.terminalRemove(postId, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("post feed terminal fence was not persisted")
+                .hasMessageContaining(postId.toString());
+    }
+
+    @Test
+    void terminalRemoveShouldPropagateCategoryListingFailure() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        CategoryContentRepository categoryContentRepository = mock(CategoryContentRepository.class);
+        UUID postId = uuid(11);
+        when(redisTemplate.execute(any(RedisScript.class), any(List.class), any(Object[].class))).thenReturn(1L);
+        when(categoryContentRepository.listCategories()).thenThrow(new IllegalStateException("category store unavailable"));
+        RedisPostFeedCache cache = new RedisPostFeedCache(
+                redisTemplate,
+                new FeedCursorCodec(),
+                categoryContentRepository
+        );
+
+        assertThatThrownBy(() -> cache.terminalRemove(postId, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("category store unavailable");
     }
 
     @Test
@@ -119,5 +226,18 @@ class RedisPostFeedCacheTest {
         Category category = new Category();
         category.setId(id);
         return category;
+    }
+
+    private static void verifyTerminalBoardRemoval(
+            StringRedisTemplate redisTemplate,
+            UUID postId,
+            UUID boardId
+    ) {
+        String boardKey = "post:feed:board:hot:" + boardId;
+        verify(redisTemplate).execute(
+                any(RedisScript.class),
+                eq(List.of(boardKey, "post:feed:terminal-members:{" + boardKey + "}")),
+                eq(postId.toString())
+        );
     }
 }

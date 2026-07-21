@@ -7,6 +7,7 @@ public record ProjectPostHotFeedCommand(
         UUID boardId,
         double signalWeight,
         String sourceEventId,
-        long sourceVersion
+        long sourceVersion,
+        boolean terminalDeletion
 ) {
 }

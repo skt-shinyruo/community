@@ -11,4 +11,6 @@ public interface PostDetailCache {
     void put(UUID postId, PostDetailResult detail);
 
     void evict(UUID postId);
+
+    void terminalEvict(UUID postId);
 }

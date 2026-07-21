@@ -4,7 +4,8 @@ import { clearSessionHint, setSessionHint } from '../auth/sessionHint'
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     accessToken: '',
-    me: null
+    me: null,
+    tokenGeneration: 0
   }),
   getters: {
     authed: (s) => !!s.accessToken,
@@ -19,21 +20,42 @@ export const useAuthStore = defineStore('auth', {
   },
   actions: {
     setAccessToken(token) {
-      this.accessToken = token || ''
-      // 登录态变化后，me 需要重新拉取；这里先清空，交由调用方刷新。
-      this.me = null
-      if (this.accessToken) {
-        setSessionHint()
-      } else {
-        clearSessionHint()
+      const nextToken = token || ''
+      if (!nextToken) {
+        this.clear()
+        return
       }
+      if (this.accessToken !== nextToken) {
+        this.accessToken = nextToken
+        this.tokenGeneration += 1
+      }
+      setSessionHint()
+    },
+    installSession({ accessToken, me } = {}) {
+      const nextToken = accessToken || ''
+      if (!nextToken) {
+        this.clear()
+        return
+      }
+      if (this.accessToken !== nextToken) {
+        this.accessToken = nextToken
+        this.tokenGeneration += 1
+      }
+      if (me !== undefined) {
+        this.me = me || null
+      }
+      setSessionHint()
     },
     setMe(me) {
       this.me = me || null
     },
     clear() {
+      const hadSession = !!this.accessToken || this.me !== null
       this.accessToken = ''
       this.me = null
+      if (hadSession) {
+        this.tokenGeneration += 1
+      }
       clearSessionHint()
     }
   }

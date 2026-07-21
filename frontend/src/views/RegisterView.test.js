@@ -34,7 +34,9 @@ vi.mock('../api/services/authService', () => ({
 }))
 
 import RegisterView from './RegisterView.vue'
-import { issueCaptcha, register } from '../api/services/authService'
+import { ensureSessionReady } from '../auth/session'
+import { issueCaptcha, register, verifyRegisterCode } from '../api/services/authService'
+import { useAuthStore } from '../stores/auth'
 
 function captchaResponse(captchaId, imageBase64, traceId) {
   return {
@@ -81,6 +83,8 @@ describe('RegisterView', () => {
     window.localStorage.clear()
     issueCaptcha.mockReset()
     register.mockReset()
+    verifyRegisterCode.mockReset()
+    ensureSessionReady.mockReset()
   })
 
   it('refreshes the captcha after backend rejects registration with an expired captcha', async () => {
@@ -184,5 +188,40 @@ describe('RegisterView', () => {
     expect(wrapper.text()).toContain('如果没收到邮件，先完成下面的图形验证码，再点击重新发送。')
     expect(wrapper.text()).toContain('图形验证码（重发用）')
     expect(wrapper.text()).not.toContain('重发图形验证码')
+  })
+
+  it('atomically clears the previous account profile before loading the verified session', async () => {
+    window.localStorage.setItem('community.register.pending', JSON.stringify({
+      registrationToken: 'reg-token',
+      emailCodeIssued: true,
+      maskedEmail: 'b***b@example.com'
+    }))
+    issueCaptcha.mockResolvedValueOnce(captchaResponse('captcha-id', 'image', 'trace-captcha'))
+    verifyRegisterCode.mockResolvedValueOnce({
+      data: { accessToken: 'new-token' },
+      traceId: 'trace-verify'
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    const auth = useAuthStore()
+    auth.setAccessToken('old-token')
+    auth.setMe({ userId: 7, username: 'alice' })
+    const installSession = vi.spyOn(auth, 'installSession')
+    let profileSeenByBootstrap = 'not-called'
+    ensureSessionReady.mockImplementationOnce(async ({ auth: currentAuth }) => {
+      profileSeenByBootstrap = currentAuth.me
+      return { state: 'ready' }
+    })
+
+    await wrapper.get('input[placeholder="请输入邮箱验证码"]').setValue('123456')
+    await wrapper.get('.verify-main .auth-submit-btn').trigger('click')
+    await flushPromises()
+
+    expect(verifyRegisterCode).toHaveBeenCalledWith('reg-token', '123456')
+    expect(installSession).toHaveBeenCalledWith({ accessToken: 'new-token', me: null })
+    expect(profileSeenByBootstrap).toBeNull()
+    expect(auth.accessToken).toBe('new-token')
+    expect(auth.me).toBeNull()
   })
 })

@@ -34,6 +34,7 @@ vi.mock('../api/services/authService', () => ({
 import LoginView from './LoginView.vue'
 import { ensureSessionReady } from '../auth/session'
 import { issueCaptcha, login } from '../api/services/authService'
+import { useAuthStore } from '../stores/auth'
 
 function captchaResponse(captchaId, imageBase64, traceId) {
   return {
@@ -96,6 +97,32 @@ describe('LoginView', () => {
 
     expect(login).toHaveBeenCalledWith('alice', ' secret12 ', {})
     expect(routerState.replace).toHaveBeenCalledWith({ name: 'posts' })
+  })
+
+  it('atomically clears the previous account profile before loading the new session', async () => {
+    login.mockResolvedValueOnce({ data: { accessToken: 'new-token' }, traceId: 'trace-login' })
+
+    const wrapper = mountView()
+    const auth = useAuthStore()
+    auth.setAccessToken('old-token')
+    auth.setMe({ userId: 7, username: 'alice' })
+    const installSession = vi.spyOn(auth, 'installSession')
+    let profileSeenByBootstrap = 'not-called'
+    ensureSessionReady.mockImplementationOnce(async ({ auth: currentAuth }) => {
+      profileSeenByBootstrap = currentAuth.me
+      return { state: 'ready' }
+    })
+
+    const inputs = wrapper.findAll('input')
+    await inputs[0].setValue('bob')
+    await inputs[1].setValue('secret12')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(installSession).toHaveBeenCalledWith({ accessToken: 'new-token', me: null })
+    expect(profileSeenByBootstrap).toBeNull()
+    expect(auth.accessToken).toBe('new-token')
+    expect(auth.me).toBeNull()
   })
 
   it('refreshes captcha when backend response body says captcha is required', async () => {

@@ -106,7 +106,7 @@ async function onLogin() {
     const token = data?.accessToken
     if (!token) throw new Error('No access token returned')
 
-    auth.setAccessToken(token)
+    auth.installSession({ accessToken: token, me: null })
     const session = await ensureSessionReady({ auth })
     if (session.state === 'anonymous') {
       auth.clear()

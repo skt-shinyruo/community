@@ -97,6 +97,37 @@ class OutboxContentEventPublisherTest {
     }
 
     @Test
+    void postDeletedShouldUseDeletionUpdateTimeForStableIdentityAndVersion() {
+        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxContentEventPublisher publisher = new OutboxContentEventPublisher(
+                new JacksonContentContractEventCodec(jsonCodec),
+                store,
+                TOPIC
+        );
+        UUID postId = uuid(613);
+        Instant deletedAt = Instant.parse("2026-07-20T12:34:56Z");
+        PostPayload payload = new PostPayload();
+        payload.setPostId(postId);
+        payload.setCreateTime(Instant.parse("2026-07-18T08:00:00Z"));
+        payload.setUpdateTime(deletedAt);
+
+        publisher.publishPostDeleted(payload);
+
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(store).enqueue(
+                eq("content:PostDeleted:" + postId),
+                eq(TOPIC),
+                eq(postId.toString()),
+                payloadCaptor.capture()
+        );
+        ContentContractEvent event = jsonCodec.fromJson(payloadCaptor.getValue(), ContentContractEvent.class);
+        assertThat(event.eventId()).isEqualTo("content:PostDeleted:" + postId);
+        assertThat(event.occurredAt()).isEqualTo(deletedAt);
+        assertThat(event.version()).isEqualTo(deletedAt.toEpochMilli());
+    }
+
+    @Test
     void contentEventbusPayloadShouldCarryOwnerFactFieldsForP2Projections() throws Exception {
         ObjectMapper objectMapper = JsonMappers.standard();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);

@@ -51,14 +51,7 @@ class DiscussPostMapperPersistenceTest {
 
     @Test
     void insertDiscussPostShouldPersistApplicationAssignedUuidPrimaryKeyAndCategoryReference() {
-        jdbcTemplate.update(
-                "insert into category(id, name, description, position, create_time) values (?, ?, ?, ?, ?)",
-                BinaryUuidCodec.toBytes(CATEGORY_ID),
-                "后端",
-                "后端开发",
-                1,
-                Timestamp.from(Instant.parse("2026-04-21T00:00:00Z"))
-        );
+        insertCategory();
 
         DiscussPost post = new DiscussPost();
         post.setId(POST_ID);
@@ -94,5 +87,62 @@ class DiscussPostMapperPersistenceTest {
         assertThat(persisted).isNotNull();
         assertThat(persisted.getId()).isEqualTo(POST_ID);
         assertThat(persisted.getCategoryId()).isEqualTo(CATEGORY_ID);
+    }
+
+    @Test
+    void terminalDeletionShouldAdvanceUpdateTimeOnceAndPreserveFirstDeletionFacts() {
+        insertCategory();
+        insertPost();
+        Instant deletedAt = Instant.parse("2026-07-20T12:34:56Z");
+        Instant repeatedAt = Instant.parse("2026-07-20T12:35:56Z");
+        UUID repeatedActorId = UUID.fromString("00000000-0000-7000-8000-000000000504");
+
+        int firstAffected = discussPostMapper.updateModerationDeleteMeta(
+                POST_ID,
+                2,
+                USER_ID,
+                "admin_delete",
+                Date.from(deletedAt)
+        );
+        int repeatedAffected = discussPostMapper.updateModerationDeleteMeta(
+                POST_ID,
+                2,
+                repeatedActorId,
+                "repeated_delete",
+                Date.from(repeatedAt)
+        );
+
+        assertThat(firstAffected).isEqualTo(1);
+        assertThat(repeatedAffected).isZero();
+        DiscussPost persisted = discussPostMapper.selectDiscussPostById(POST_ID);
+        assertThat(persisted.getUpdateTime()).isEqualTo(Date.from(deletedAt));
+        assertThat(persisted.getDeletedTime()).isEqualTo(Date.from(deletedAt));
+        assertThat(persisted.getDeletedBy()).isEqualTo(USER_ID);
+        assertThat(persisted.getDeletedReason()).isEqualTo("admin_delete");
+    }
+
+    private void insertCategory() {
+        jdbcTemplate.update(
+                "insert into category(id, name, description, position, create_time) values (?, ?, ?, ?, ?)",
+                BinaryUuidCodec.toBytes(CATEGORY_ID),
+                "后端",
+                "后端开发",
+                1,
+                Timestamp.from(Instant.parse("2026-04-21T00:00:00Z"))
+        );
+    }
+
+    private void insertPost() {
+        DiscussPost post = new DiscussPost();
+        post.setId(POST_ID);
+        post.setUserId(USER_ID);
+        post.setCategoryId(CATEGORY_ID);
+        post.setTitle("terminal deletion");
+        post.setType(0);
+        post.setStatus(0);
+        post.setCreateTime(Date.from(Instant.parse("2026-07-20T12:00:00Z")));
+        post.setCommentCount(0);
+        post.setScore(0.0);
+        discussPostMapper.insertDiscussPost(post);
     }
 }

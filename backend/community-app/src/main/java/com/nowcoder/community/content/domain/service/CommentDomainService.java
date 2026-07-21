@@ -2,6 +2,7 @@ package com.nowcoder.community.content.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.domain.model.CommentDraft;
+import com.nowcoder.community.content.domain.model.CommentReplyContext;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
 
 import java.util.Date;
@@ -14,27 +15,37 @@ public class CommentDomainService {
 
     public CreateTarget resolveCreateTarget(
             UUID postId,
-            UUID rawParentCommentId,
-            UUID rawReplyToUserId,
             UUID postAuthorUserId,
-            CommentSnapshot parentComment
+            CommentReplyContext context
     ) {
         if (postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "postId 非法");
         }
-        if (rawParentCommentId == null) {
+        if (context == null) {
             return new CreateTarget(postId, null, null, null, postAuthorUserId);
         }
-        if (parentComment == null || !parentComment.active()) {
+
+        CommentSnapshot directParent = context.directParent();
+        CommentSnapshot root = context.root();
+        boolean sameComment = directParent.id().equals(root.id());
+        boolean validRoot = root.active()
+                && postId.equals(root.postId())
+                && root.id().equals(root.rootCommentId())
+                && root.rootComment();
+        boolean validDirectParent = directParent.active()
+                && postId.equals(directParent.postId())
+                && root.id().equals(directParent.rootCommentId())
+                && (sameComment ? directParent.rootComment() && directParent.equals(root) : !directParent.rootComment());
+        if (!validRoot || !validDirectParent) {
             throw new BusinessException(NOT_FOUND, "资源不存在");
         }
-        if (!rawParentCommentId.equals(parentComment.id())
-                || !postId.equals(parentComment.postId())
-                || !parentComment.rootComment()) {
-            throw new BusinessException(NOT_FOUND, "资源不存在");
-        }
-        UUID targetUserId = rawReplyToUserId == null ? parentComment.userId() : rawReplyToUserId;
-        return new CreateTarget(postId, parentComment.id(), parentComment.id(), targetUserId, targetUserId);
+        return new CreateTarget(
+                postId,
+                root.id(),
+                directParent.id(),
+                directParent.userId(),
+                directParent.userId()
+        );
     }
 
     public CommentDraft createDraft(

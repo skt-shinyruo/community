@@ -24,6 +24,7 @@ import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDraft;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentEdit;
+import com.nowcoder.community.content.domain.model.CommentReplyContext;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
 import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
@@ -349,13 +350,13 @@ class CommentApplicationServiceTest {
     }
 
     @Test
-    void createReplyShouldDeriveReplyTargetUserFromParentSnapshot() {
+    void createRootReplyShouldDeriveStoredAndNotificationTargetsFromLockedRoot() {
         UUID userId = uuid(1);
         UUID postId = uuid(100);
-        UUID targetCommentId = uuid(200);
-        UUID targetCommentAuthorId = uuid(201);
+        UUID rootCommentId = uuid(200);
+        UUID rootAuthorId = uuid(201);
         UUID commentId = uuid(300);
-        CommentSnapshot targetComment = rootComment(targetCommentId, targetCommentAuthorId, postId);
+        CommentSnapshot root = rootComment(rootCommentId, rootAuthorId, postId);
 
         when(idempotencyGuard.executeRequired(
                 eq("content:create_comment"),
@@ -367,35 +368,51 @@ class CommentApplicationServiceTest {
                 any()
         )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, uuid(2)));
-        when(commentRepository.findActiveSnapshot(targetCommentId)).thenReturn(Optional.of(targetComment));
-        when(blockQueryApi.isEitherBlocked(userId, targetCommentAuthorId)).thenReturn(false);
+        when(commentRepository.lockReplyContext(postId, rootCommentId))
+                .thenReturn(Optional.of(new CommentReplyContext(root, root)));
+        when(blockQueryApi.isEitherBlocked(userId, rootAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("reply")).thenReturn("reply");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
         service.create(
                 "idem-reply-target",
-                new CreateCommentCommand(userId, postId, targetCommentId, "reply")
+                new CreateCommentCommand(userId, postId, rootCommentId, "reply")
         );
 
+        var order = inOrder(commentRepository, blockQueryApi, sensitiveFilter);
+        order.verify(commentRepository).lockReplyContext(postId, rootCommentId);
+        order.verify(blockQueryApi).isEitherBlocked(userId, rootAuthorId);
+        order.verify(sensitiveFilter).filter("reply");
         ArgumentCaptor<CommentDraft> draftCaptor = ArgumentCaptor.forClass(CommentDraft.class);
         verify(commentRepository).create(draftCaptor.capture());
         assertThat(draftCaptor.getValue().postId()).isEqualTo(postId);
-        assertThat(draftCaptor.getValue().rootCommentId()).isEqualTo(targetCommentId);
-        assertThat(draftCaptor.getValue().parentCommentId()).isEqualTo(targetCommentId);
-        assertThat(draftCaptor.getValue().replyToUserId()).isEqualTo(targetCommentAuthorId);
-        verify(blockQueryApi).isEitherBlocked(userId, targetCommentAuthorId);
+        assertThat(draftCaptor.getValue().rootCommentId()).isEqualTo(rootCommentId);
+        assertThat(draftCaptor.getValue().parentCommentId()).isEqualTo(rootCommentId);
+        assertThat(draftCaptor.getValue().replyToUserId()).isEqualTo(rootAuthorId);
         ArgumentCaptor<CommentCreatedDomainEvent> eventCaptor = ArgumentCaptor.forClass(CommentCreatedDomainEvent.class);
         verify(domainEventPublisher).commentCreated(eventCaptor.capture());
-        assertThat(eventCaptor.getValue().targetUserId()).isEqualTo(targetCommentAuthorId);
+        assertThat(eventCaptor.getValue().entityType()).isEqualTo(EntityTypes.COMMENT);
+        assertThat(eventCaptor.getValue().entityId()).isEqualTo(rootCommentId);
+        assertThat(eventCaptor.getValue().targetUserId()).isEqualTo(rootAuthorId);
     }
 
     @Test
-    void createReplyShouldPersistParentAndReplyTargetInsteadOfGenericEntityFields() {
+    void createNestedReplyShouldUseDirectParentForStorageBlockCheckAndEvent() {
         UUID userId = uuid(7);
         UUID postId = uuid(100);
-        UUID parentCommentId = uuid(200);
-        UUID replyToUserId = uuid(9);
+        UUID rootCommentId = uuid(200);
+        UUID rootAuthorId = uuid(8);
+        UUID directParentId = uuid(201);
+        UUID directParentAuthorId = uuid(9);
         UUID commentId = uuid(300);
+        CommentSnapshot root = rootComment(rootCommentId, rootAuthorId, postId);
+        CommentSnapshot directParent = replyComment(
+                directParentId,
+                directParentAuthorId,
+                postId,
+                rootCommentId,
+                rootAuthorId
+        );
 
         when(idempotencyGuard.executeRequired(
                 eq("content:create_comment"),
@@ -407,28 +424,33 @@ class CommentApplicationServiceTest {
                 any()
         )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, uuid(2)));
-        when(commentRepository.findActiveSnapshot(parentCommentId))
-                .thenReturn(Optional.of(rootComment(parentCommentId, replyToUserId, postId)));
-        when(blockQueryApi.isEitherBlocked(userId, replyToUserId)).thenReturn(false);
+        when(commentRepository.lockReplyContext(postId, directParentId))
+                .thenReturn(Optional.of(new CommentReplyContext(directParent, root)));
+        when(blockQueryApi.isEitherBlocked(userId, directParentAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("reply")).thenReturn("reply");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
-        service.create("idem-parent-reply", new CreateCommentCommand(userId, postId, parentCommentId, "reply"));
+        service.create("idem-parent-reply", new CreateCommentCommand(userId, postId, directParentId, "reply"));
 
+        verify(blockQueryApi).isEitherBlocked(userId, directParentAuthorId);
         verify(commentRepository).create(org.mockito.ArgumentMatchers.argThat(draft ->
                 postId.equals(draft.postId())
-                        && parentCommentId.equals(draft.parentCommentId())
-                        && replyToUserId.equals(draft.replyToUserId())));
+                        && rootCommentId.equals(draft.rootCommentId())
+                        && directParentId.equals(draft.parentCommentId())
+                        && directParentAuthorId.equals(draft.replyToUserId())));
+        ArgumentCaptor<CommentCreatedDomainEvent> event = ArgumentCaptor.forClass(CommentCreatedDomainEvent.class);
+        verify(domainEventPublisher).commentCreated(event.capture());
+        assertThat(event.getValue().entityType()).isEqualTo(EntityTypes.COMMENT);
+        assertThat(event.getValue().entityId()).isEqualTo(directParentId);
+        assertThat(event.getValue().targetUserId()).isEqualTo(directParentAuthorId);
     }
 
     @Test
-    void createReplyShouldRejectCrossPostTargetBeforePersistence() {
+    void createReplyShouldNotTreatMissingLockedParentAsTopLevelComment() {
         UUID userId = uuid(1);
         UUID postId = uuid(100);
-        UUID otherPostId = uuid(101);
         UUID postAuthorId = uuid(2);
-        UUID targetCommentId = uuid(200);
-        CommentSnapshot targetComment = rootComment(targetCommentId, postAuthorId, otherPostId);
+        UUID directParentId = uuid(200);
 
         when(idempotencyGuard.executeRequired(
                 eq("content:create_comment"),
@@ -440,15 +462,17 @@ class CommentApplicationServiceTest {
                 any()
         )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
-        when(commentRepository.findActiveSnapshot(targetCommentId)).thenReturn(Optional.of(targetComment));
+        when(commentRepository.lockReplyContext(postId, directParentId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(
                 "idem-2",
-                new CreateCommentCommand(userId, postId, targetCommentId, "reply")
+                new CreateCommentCommand(userId, postId, directParentId, "reply")
         ))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
 
+        verify(blockQueryApi, never()).isEitherBlocked(any(), any());
+        verify(sensitiveFilter, never()).filter(anyString());
         verify(commentRepository, never()).create(any(CommentDraft.class));
         verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
         verify(domainEventPublisher, never()).commentCreated(any(CommentCreatedDomainEvent.class));

@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static com.nowcoder.community.content.support.CommentTestBuilder.aComment;
+import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_NOT_FOUND;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -112,12 +113,14 @@ class CommentThreadLockingPersistenceIntegrationTest {
         assertThat(rootLocked.await(5, TimeUnit.SECONDS)).isTrue();
         Future<UUID> reply = executor.submit(() -> transaction.execute(status -> {
             replyAttempted.countDown();
+            var context = repository.lockReplyContext(POST_ID, ROOT_ID)
+                    .orElseThrow(() -> new BusinessException(COMMENT_NOT_FOUND));
             return repository.create(new CommentDraft(
                     AUTHOR_ID,
                     POST_ID,
-                    ROOT_ID,
-                    ROOT_ID,
-                    AUTHOR_ID,
+                    context.root().id(),
+                    context.directParent().id(),
+                    context.directParent().userId(),
                     "late reply",
                     new Date(1_500_000L)
             ));

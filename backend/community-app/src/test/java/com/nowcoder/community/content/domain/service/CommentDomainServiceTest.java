@@ -2,6 +2,7 @@ package com.nowcoder.community.content.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.content.domain.model.CommentReplyContext;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
 import org.junit.jupiter.api.Test;
 
@@ -17,14 +18,12 @@ class CommentDomainServiceTest {
     private final CommentDomainService service = new CommentDomainService();
 
     @Test
-    void resolveCreateTargetShouldCreateRootCommentWhenParentMissing() {
+    void resolveCreateTargetShouldCreateTopLevelCommentWithoutReplyContext() {
         UUID postId = uuid(100);
         UUID postAuthorUserId = uuid(200);
 
         CommentDomainService.CreateTarget target = service.resolveCreateTarget(
                 postId,
-                null,
-                null,
                 postAuthorUserId,
                 null
         );
@@ -37,101 +36,158 @@ class CommentDomainServiceTest {
     }
 
     @Test
-    void resolveCreateTargetShouldRejectReplyTargetThatIsNotRootCommentUnderPost() {
+    void resolveCreateTargetShouldDeriveDirectRootReplyFromLockedRootAuthor() {
         UUID postId = uuid(100);
-        UUID targetCommentId = uuid(300);
-        CommentSnapshot nestedReply = snapshot(
-                targetCommentId,
-                uuid(301),
+        UUID rootId = uuid(300);
+        UUID rootAuthorId = uuid(301);
+        CommentSnapshot root = root(rootId, rootAuthorId, postId, 0);
+
+        CommentDomainService.CreateTarget target = service.resolveCreateTarget(
                 postId,
-                uuid(302),
-                uuid(303),
-                uuid(304),
-                0,
-                new Date()
+                uuid(200),
+                new CommentReplyContext(root, root)
         );
 
-        assertThatThrownBy(() -> service.resolveCreateTarget(
+        assertThat(target.rootCommentId()).isEqualTo(rootId);
+        assertThat(target.parentCommentId()).isEqualTo(rootId);
+        assertThat(target.replyToUserId()).isEqualTo(rootAuthorId);
+        assertThat(target.targetUserId()).isEqualTo(rootAuthorId);
+    }
+
+    @Test
+    void resolveCreateTargetShouldDeriveNestedReplyFromLockedDirectParentAuthor() {
+        UUID postId = uuid(100);
+        UUID rootId = uuid(300);
+        UUID rootAuthorId = uuid(301);
+        UUID directParentId = uuid(302);
+        UUID directParentAuthorId = uuid(303);
+        CommentSnapshot root = root(rootId, rootAuthorId, postId, 0);
+        CommentSnapshot directParent = reply(
+                directParentId,
+                directParentAuthorId,
                 postId,
-                targetCommentId,
-                null,
+                rootId,
+                rootId,
+                0
+        );
+
+        CommentDomainService.CreateTarget target = service.resolveCreateTarget(
+                postId,
                 uuid(200),
-                nestedReply
-        ))
-                .isInstanceOf(BusinessException.class)
-                .extracting(ex -> ((BusinessException) ex).getErrorCode())
-                .isEqualTo(CommonErrorCode.NOT_FOUND);
+                new CommentReplyContext(directParent, root)
+        );
+
+        assertThat(target.rootCommentId()).isEqualTo(rootId);
+        assertThat(target.parentCommentId()).isEqualTo(directParentId);
+        assertThat(target.replyToUserId()).isEqualTo(directParentAuthorId);
+        assertThat(target.targetUserId()).isEqualTo(directParentAuthorId);
     }
 
     @Test
     void resolveCreateTargetShouldRejectNullPostId() {
-        assertThatThrownBy(() -> service.resolveCreateTarget(
-                null,
-                null,
-                null,
-                uuid(200),
-                null
-        ))
+        assertThatThrownBy(() -> service.resolveCreateTarget(null, uuid(200), null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.INVALID_ARGUMENT);
     }
 
     @Test
-    void resolveCreateTargetShouldRejectMismatchedTargetSnapshot() {
+    void resolveCreateTargetShouldHideInactiveDirectParent() {
         UUID postId = uuid(100);
-        UUID targetCommentId = uuid(300);
-        CommentSnapshot targetComment = snapshot(
-                uuid(301),
-                uuid(302),
+        UUID rootId = uuid(300);
+        CommentSnapshot root = root(rootId, uuid(301), postId, 0);
+        CommentSnapshot inactiveParent = reply(uuid(302), uuid(303), postId, rootId, rootId, 1);
+
+        assertHiddenNotFound(() -> service.resolveCreateTarget(
                 postId,
-                uuid(301),
-                null,
-                null,
-                0,
-                new Date()
+                uuid(200),
+                new CommentReplyContext(inactiveParent, root)
+        ));
+    }
+
+    @Test
+    void resolveCreateTargetShouldHideInactiveRoot() {
+        UUID postId = uuid(100);
+        UUID rootId = uuid(300);
+        CommentSnapshot inactiveRoot = root(rootId, uuid(301), postId, 1);
+        CommentSnapshot directParent = reply(uuid(302), uuid(303), postId, rootId, rootId, 0);
+
+        assertHiddenNotFound(() -> service.resolveCreateTarget(
+                postId,
+                uuid(200),
+                new CommentReplyContext(directParent, inactiveRoot)
+        ));
+    }
+
+    @Test
+    void resolveCreateTargetShouldHidePostMismatchInEitherLockedFact() {
+        UUID postId = uuid(100);
+        UUID otherPostId = uuid(101);
+        UUID rootId = uuid(300);
+        CommentSnapshot root = root(rootId, uuid(301), postId, 0);
+        CommentSnapshot wrongDirectPost = reply(uuid(302), uuid(303), otherPostId, rootId, rootId, 0);
+        CommentSnapshot wrongRootPost = root(rootId, uuid(301), otherPostId, 0);
+        CommentSnapshot directParent = reply(uuid(302), uuid(303), postId, rootId, rootId, 0);
+
+        assertHiddenNotFound(() -> service.resolveCreateTarget(
+                postId,
+                uuid(200),
+                new CommentReplyContext(wrongDirectPost, root)
+        ));
+        assertHiddenNotFound(() -> service.resolveCreateTarget(
+                postId,
+                uuid(200),
+                new CommentReplyContext(directParent, wrongRootPost)
+        ));
+    }
+
+    @Test
+    void resolveCreateTargetShouldHideMalformedRootAndThreadMismatch() {
+        UUID postId = uuid(100);
+        UUID rootId = uuid(300);
+        CommentSnapshot malformedRoot = reply(rootId, uuid(301), postId, rootId, uuid(399), 0);
+        CommentSnapshot root = root(rootId, uuid(301), postId, 0);
+        CommentSnapshot wrongThreadParent = reply(
+                uuid(302),
+                uuid(303),
+                postId,
+                uuid(398),
+                rootId,
+                0
         );
 
-        assertThatThrownBy(() -> service.resolveCreateTarget(
+        assertHiddenNotFound(() -> service.resolveCreateTarget(
                 postId,
-                targetCommentId,
-                null,
                 uuid(200),
-                targetComment
-        ))
+                new CommentReplyContext(root, malformedRoot)
+        ));
+        assertHiddenNotFound(() -> service.resolveCreateTarget(
+                postId,
+                uuid(200),
+                new CommentReplyContext(wrongThreadParent, root)
+        ));
+    }
+
+    private static void assertHiddenNotFound(Runnable action) {
+        assertThatThrownBy(action::run)
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);
     }
 
-    @Test
-    void resolveCreateTargetShouldUseExplicitReplyTargetUserForReply() {
-        UUID postId = uuid(100);
-        UUID targetCommentId = uuid(300);
-        UUID targetUserId = uuid(302);
-        CommentSnapshot targetComment = snapshot(
-                targetCommentId,
-                uuid(401),
-                postId,
-                targetCommentId,
-                null,
-                null,
-                0,
-                new Date()
-        );
+    private static CommentSnapshot root(UUID id, UUID userId, UUID postId, int status) {
+        return snapshot(id, userId, postId, id, null, status);
+    }
 
-        CommentDomainService.CreateTarget target = service.resolveCreateTarget(
-                postId,
-                targetCommentId,
-                targetUserId,
-                uuid(200),
-                targetComment
-        );
-
-        assertThat(target.rootCommentId()).isEqualTo(targetCommentId);
-        assertThat(target.parentCommentId()).isEqualTo(targetCommentId);
-        assertThat(target.replyToUserId()).isEqualTo(targetUserId);
-        assertThat(target.targetUserId()).isEqualTo(targetUserId);
+    private static CommentSnapshot reply(
+            UUID id,
+            UUID userId,
+            UUID postId,
+            UUID rootCommentId,
+            UUID parentCommentId,
+            int status
+    ) {
+        return snapshot(id, userId, postId, rootCommentId, parentCommentId, status);
     }
 
     private static CommentSnapshot snapshot(
@@ -140,17 +196,16 @@ class CommentDomainServiceTest {
             UUID postId,
             UUID rootCommentId,
             UUID parentCommentId,
-            UUID replyToUserId,
-            int status,
-            Date createTime
+            int status
     ) {
+        Date createTime = new Date();
         return new CommentSnapshot(
                 id,
                 userId,
                 postId,
                 rootCommentId,
                 parentCommentId,
-                replyToUserId,
+                null,
                 "content",
                 status,
                 createTime,

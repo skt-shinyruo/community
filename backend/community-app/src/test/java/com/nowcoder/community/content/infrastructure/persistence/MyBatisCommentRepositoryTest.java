@@ -6,6 +6,7 @@ import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentDraft;
 import com.nowcoder.community.content.domain.model.CommentEdit;
+import com.nowcoder.community.content.domain.model.CommentReplyContext;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
 import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
@@ -80,20 +81,153 @@ class MyBatisCommentRepositoryTest {
     }
 
     @Test
-    void createReplyShouldLockTheRootBeforeInsert() {
+    void createNestedReplyShouldInsertAlreadyValidatedDraftWithoutTakingAnotherLock() {
         CommentMapper mapper = mock(CommentMapper.class);
-        CommentDataObject root = row(ROOT_ID, null, 0, 5L, new Date(1_000L));
-        when(mapper.selectByIdForUpdate(ROOT_ID)).thenReturn(root);
         when(mapper.insert(any(CommentDataObject.class))).thenReturn(1);
         MyBatisCommentRepository repository = repository(mapper);
 
         repository.create(new CommentDraft(
-                AUTHOR_ID, POST_ID, ROOT_ID, ROOT_ID, AUTHOR_ID, "reply", new Date(2_000L)
+                AUTHOR_ID, POST_ID, ROOT_ID, REPLY_ID, uuid(405), "reply", new Date(2_000L)
         ));
 
+        ArgumentCaptor<CommentDataObject> inserted = ArgumentCaptor.forClass(CommentDataObject.class);
+        verify(mapper).insert(inserted.capture());
+        assertThat(inserted.getValue().getRootCommentId()).isEqualTo(ROOT_ID);
+        assertThat(inserted.getValue().getParentCommentId()).isEqualTo(REPLY_ID);
+        assertThat(inserted.getValue().getReplyToUserId()).isEqualTo(uuid(405));
+        verify(mapper, never()).selectById(any());
+        verify(mapper, never()).selectByIdForUpdate(any());
+    }
+
+    @Test
+    void lockReplyContextShouldReadHintThenLockRootAndNestedDirectParent() {
+        CommentMapper mapper = mock(CommentMapper.class);
+        UUID directAuthorId = uuid(405);
+        CommentDataObject hint = row(REPLY_ID, ROOT_ID, 0, 1L, new Date(2_000L));
+        CommentDataObject lockedRoot = row(ROOT_ID, null, 0, 2L, new Date(1_000L));
+        CommentDataObject lockedDirect = row(
+                REPLY_ID,
+                directAuthorId,
+                POST_ID,
+                ROOT_ID,
+                ROOT_ID,
+                0,
+                3L,
+                new Date(2_000L)
+        );
+        when(mapper.selectById(REPLY_ID)).thenReturn(hint);
+        when(mapper.selectByIdForUpdate(ROOT_ID)).thenReturn(lockedRoot);
+        when(mapper.selectByIdForUpdate(REPLY_ID)).thenReturn(lockedDirect);
+
+        Optional<CommentReplyContext> context = repository(mapper).lockReplyContext(POST_ID, REPLY_ID);
+
+        assertThat(context).isPresent();
+        assertThat(context.orElseThrow().root().id()).isEqualTo(ROOT_ID);
+        assertThat(context.orElseThrow().directParent().id()).isEqualTo(REPLY_ID);
+        assertThat(context.orElseThrow().directParent().userId()).isEqualTo(directAuthorId);
         InOrder order = inOrder(mapper);
+        order.verify(mapper).selectById(REPLY_ID);
         order.verify(mapper).selectByIdForUpdate(ROOT_ID);
-        order.verify(mapper).insert(any(CommentDataObject.class));
+        order.verify(mapper).selectByIdForUpdate(REPLY_ID);
+    }
+
+    @Test
+    void lockReplyContextShouldLockDirectRootOnlyOnceAfterHintRead() {
+        CommentMapper mapper = mock(CommentMapper.class);
+        CommentDataObject hint = row(ROOT_ID, null, 0, 1L, new Date(1_000L));
+        CommentDataObject lockedRoot = row(ROOT_ID, null, 0, 2L, new Date(1_000L));
+        when(mapper.selectById(ROOT_ID)).thenReturn(hint);
+        when(mapper.selectByIdForUpdate(ROOT_ID)).thenReturn(lockedRoot);
+
+        Optional<CommentReplyContext> context = repository(mapper).lockReplyContext(POST_ID, ROOT_ID);
+
+        assertThat(context).isPresent();
+        assertThat(context.orElseThrow().directParent()).isEqualTo(context.orElseThrow().root());
+        InOrder order = inOrder(mapper);
+        order.verify(mapper).selectById(ROOT_ID);
+        order.verify(mapper).selectByIdForUpdate(ROOT_ID);
+        verify(mapper).selectByIdForUpdate(ROOT_ID);
+    }
+
+    @Test
+    void lockReplyContextShouldHideMissingHintAndMissingLockedRoot() {
+        CommentMapper missingHintMapper = mock(CommentMapper.class);
+
+        assertThat(repository(missingHintMapper).lockReplyContext(POST_ID, REPLY_ID)).isEmpty();
+        verify(missingHintMapper).selectById(REPLY_ID);
+        verify(missingHintMapper, never()).selectByIdForUpdate(any());
+
+        CommentMapper missingRootMapper = mock(CommentMapper.class);
+        when(missingRootMapper.selectById(REPLY_ID))
+                .thenReturn(row(REPLY_ID, ROOT_ID, 0, 1L, new Date(2_000L)));
+        when(missingRootMapper.selectByIdForUpdate(REPLY_ID))
+                .thenReturn(row(REPLY_ID, ROOT_ID, 0, 1L, new Date(2_000L)));
+
+        assertThat(repository(missingRootMapper).lockReplyContext(POST_ID, REPLY_ID)).isEmpty();
+        InOrder order = inOrder(missingRootMapper);
+        order.verify(missingRootMapper).selectById(REPLY_ID);
+        order.verify(missingRootMapper).selectByIdForUpdate(ROOT_ID);
+        order.verify(missingRootMapper).selectByIdForUpdate(REPLY_ID);
+    }
+
+    @Test
+    void lockReplyContextShouldHideInactiveOrMismatchedLockedFacts() {
+        CommentDataObject hint = row(REPLY_ID, ROOT_ID, 0, 1L, new Date(2_000L));
+        CommentDataObject activeRoot = row(ROOT_ID, null, 0, 2L, new Date(1_000L));
+
+        CommentMapper inactiveDirectMapper = mock(CommentMapper.class);
+        when(inactiveDirectMapper.selectById(REPLY_ID)).thenReturn(hint);
+        when(inactiveDirectMapper.selectByIdForUpdate(ROOT_ID)).thenReturn(activeRoot);
+        when(inactiveDirectMapper.selectByIdForUpdate(REPLY_ID))
+                .thenReturn(row(REPLY_ID, ROOT_ID, 1, 3L, new Date(2_000L)));
+        assertThat(repository(inactiveDirectMapper).lockReplyContext(POST_ID, REPLY_ID)).isEmpty();
+
+        CommentMapper wrongThreadMapper = mock(CommentMapper.class);
+        when(wrongThreadMapper.selectById(REPLY_ID)).thenReturn(hint);
+        when(wrongThreadMapper.selectByIdForUpdate(ROOT_ID)).thenReturn(activeRoot);
+        when(wrongThreadMapper.selectByIdForUpdate(REPLY_ID)).thenReturn(row(
+                REPLY_ID,
+                AUTHOR_ID,
+                POST_ID,
+                uuid(499),
+                ROOT_ID,
+                0,
+                3L,
+                new Date(2_000L)
+        ));
+        assertThat(repository(wrongThreadMapper).lockReplyContext(POST_ID, REPLY_ID)).isEmpty();
+
+        CommentMapper malformedRootMapper = mock(CommentMapper.class);
+        when(malformedRootMapper.selectById(REPLY_ID)).thenReturn(hint);
+        when(malformedRootMapper.selectByIdForUpdate(ROOT_ID)).thenReturn(row(
+                ROOT_ID,
+                AUTHOR_ID,
+                POST_ID,
+                ROOT_ID,
+                uuid(498),
+                0,
+                2L,
+                new Date(1_000L)
+        ));
+        when(malformedRootMapper.selectByIdForUpdate(REPLY_ID))
+                .thenReturn(row(REPLY_ID, ROOT_ID, 0, 3L, new Date(2_000L)));
+        assertThat(repository(malformedRootMapper).lockReplyContext(POST_ID, REPLY_ID)).isEmpty();
+
+        CommentMapper wrongPostMapper = mock(CommentMapper.class);
+        when(wrongPostMapper.selectById(REPLY_ID)).thenReturn(hint);
+        when(wrongPostMapper.selectByIdForUpdate(ROOT_ID)).thenReturn(row(
+                ROOT_ID,
+                AUTHOR_ID,
+                uuid(497),
+                ROOT_ID,
+                null,
+                0,
+                2L,
+                new Date(1_000L)
+        ));
+        when(wrongPostMapper.selectByIdForUpdate(REPLY_ID))
+                .thenReturn(row(REPLY_ID, ROOT_ID, 0, 3L, new Date(2_000L)));
+        assertThat(repository(wrongPostMapper).lockReplyContext(POST_ID, REPLY_ID)).isEmpty();
     }
 
     @Test
@@ -237,6 +371,29 @@ class MyBatisCommentRepositoryTest {
                 .rootCommentId(parentId == null ? id : ROOT_ID)
                 .parentCommentId(parentId)
                 .replyToUserId(parentId == null ? null : AUTHOR_ID)
+                .status(status)
+                .version(version)
+                .createTime(createdAt)
+                .buildDataObject();
+    }
+
+    private static CommentDataObject row(
+            UUID id,
+            UUID userId,
+            UUID postId,
+            UUID rootCommentId,
+            UUID parentCommentId,
+            int status,
+            long version,
+            Date createdAt
+    ) {
+        return aComment()
+                .id(id)
+                .userId(userId)
+                .postId(postId)
+                .rootCommentId(rootCommentId)
+                .parentCommentId(parentCommentId)
+                .replyToUserId(parentCommentId == null ? null : AUTHOR_ID)
                 .status(status)
                 .version(version)
                 .createTime(createdAt)

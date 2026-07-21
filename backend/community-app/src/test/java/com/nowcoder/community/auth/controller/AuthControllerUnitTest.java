@@ -159,12 +159,9 @@ class AuthControllerUnitTest {
     }
 
     @Test
-    void refreshShouldClearRefreshCookieWhenTokenIsInvalid() {
-        RefreshCookieSpec clearCookie = clearedCookie();
-
+    void refreshShouldPreserveRefreshCookieWhenTokenIsInvalid() {
         when(loginApplicationService.refresh(any(RefreshCommand.class)))
                 .thenThrow(new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID));
-        when(loginApplicationService.clearRefreshCookie()).thenReturn(clearCookie);
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();
@@ -172,17 +169,14 @@ class AuthControllerUnitTest {
         Throwable thrown = catchThrowable(() -> controller.refresh(httpRequest, httpResponse));
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
-        verify(loginApplicationService).clearRefreshCookie();
-        assertClearedRefreshCookie(httpResponse.getHeader(HttpHeaders.SET_COOKIE));
+        verify(loginApplicationService, never()).clearRefreshCookie();
+        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).isNull();
     }
 
     @Test
-    void refreshShouldClearRefreshCookieWhenUserIsDisabled() {
-        RefreshCookieSpec clearCookie = clearedCookie();
-
+    void refreshShouldPreserveRefreshCookieWhenUserIsDisabled() {
         when(loginApplicationService.refresh(any(RefreshCommand.class)))
                 .thenThrow(new BusinessException(AuthErrorCode.USER_DISABLED));
-        when(loginApplicationService.clearRefreshCookie()).thenReturn(clearCookie);
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();
@@ -190,14 +184,14 @@ class AuthControllerUnitTest {
         Throwable thrown = catchThrowable(() -> controller.refresh(httpRequest, httpResponse));
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
-        verify(loginApplicationService).clearRefreshCookie();
-        assertClearedRefreshCookie(httpResponse.getHeader(HttpHeaders.SET_COOKIE));
+        verify(loginApplicationService, never()).clearRefreshCookie();
+        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).isNull();
     }
 
     @Test
-    void refreshShouldNotClearCookieWhenRefreshFailureSaysRetryIsSafe() {
+    void refreshShouldPreserveRefreshCookieWhenFailureRequestsClearing() {
         when(loginApplicationService.refresh(any(RefreshCommand.class)))
-                .thenThrow(new RefreshFailure(CommonErrorCode.SERVICE_UNAVAILABLE, false));
+                .thenThrow(new RefreshFailure(CommonErrorCode.SERVICE_UNAVAILABLE, true));
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();

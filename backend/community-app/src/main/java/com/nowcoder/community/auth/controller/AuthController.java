@@ -18,7 +18,6 @@ import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
 import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.PasswordResetRequestResult;
-import com.nowcoder.community.auth.application.result.RefreshFailure;
 import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
 import com.nowcoder.community.auth.application.result.RegisterResult;
@@ -100,21 +99,9 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public Result<LoginResponse> refresh(HttpServletRequest request, HttpServletResponse response) {
-        try {
-            RefreshResult result = loginApplicationService.refresh(new RefreshCommand(readRefreshToken(request)));
-            addRefreshCookie(response, result.refreshCookie());
-            return Result.ok(new LoginResponse(result.accessToken()));
-        } catch (RefreshFailure ex) {
-            if (ex.clearRefreshCookie()) {
-                addRefreshCookie(response, loginApplicationService.clearRefreshCookie());
-            }
-            throw ex;
-        } catch (BusinessException ex) {
-            if (shouldClearRefreshCookie(ex)) {
-                addRefreshCookie(response, loginApplicationService.clearRefreshCookie());
-            }
-            throw ex;
-        }
+        RefreshResult result = loginApplicationService.refresh(new RefreshCommand(readRefreshToken(request)));
+        addRefreshCookie(response, result.refreshCookie());
+        return Result.ok(new LoginResponse(result.accessToken()));
     }
 
     @PostMapping("/logout")
@@ -235,15 +222,6 @@ public class AuthController {
             }
         }
         return null;
-    }
-
-    private boolean shouldClearRefreshCookie(BusinessException ex) {
-        if (ex == null || ex.getErrorCode() == null) {
-            return false;
-        }
-        int code = ex.getErrorCode().getCode();
-        return code == AuthErrorCode.USER_DISABLED.getCode()
-                || code == AuthErrorCode.REFRESH_TOKEN_INVALID.getCode();
     }
 
     private RegisterResponse toResponse(RegisterResult result) {

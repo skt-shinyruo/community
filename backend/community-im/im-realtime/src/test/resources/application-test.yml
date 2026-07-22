@@ -16,5 +16,7 @@ security:
     issuer: community-auth
 
 im:
+  session-ticket:
+    hmac-secret: im-realtime-test-session-ticket-secret-distinct-20260722
   room-fanout:
     worker-inbox-slot: 0

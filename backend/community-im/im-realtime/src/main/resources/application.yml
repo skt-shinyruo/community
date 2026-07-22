@@ -111,6 +111,10 @@ security:
     issuer: ${JWT_ISSUER:community-auth}
 
 im:
+  session-ticket:
+    hmac-secret: ${IM_SESSION_TICKET_HMAC_SECRET:}
+    issuer: ${IM_SESSION_TICKET_ISSUER:community-im-gateway}
+    audience: ${IM_SESSION_TICKET_AUDIENCE:im-realtime}
   clients:
     community-service-id: ${IM_COMMUNITY_SERVICE_ID:community-app}
     im-core-service-id: ${IM_CORE_SERVICE_ID:im-core}

@@ -28,10 +28,6 @@ public interface MarketWalletActionMapper {
 
     int claimProcessing(@Param("lease") MarketWalletActionLease lease, @Param("leaseUntil") Date leaseUntil);
 
-    default int markSucceeded(UUID actionId, UUID walletTxnId, String resultType) {
-        throw new UnsupportedOperationException("processor lease is required");
-    }
-
     int markSucceeded(@Param("lease") MarketWalletActionLease lease,
                       @Param("walletTxnId") UUID walletTxnId,
                       @Param("resultType") String resultType);
@@ -39,10 +35,6 @@ public interface MarketWalletActionMapper {
     int markCancelled(@Param("lease") MarketWalletActionLease lease, @Param("resultType") String resultType);
 
     int cancelPendingEscrow(@Param("requestId") String requestId, @Param("resultType") String resultType);
-
-    default int markRetrying(UUID actionId, Date nextRetryAt, String lastError) {
-        throw new UnsupportedOperationException("processor lease is required");
-    }
 
     int markRetrying(@Param("lease") MarketWalletActionLease lease,
                      @Param("nextRetryAt") Date nextRetryAt,

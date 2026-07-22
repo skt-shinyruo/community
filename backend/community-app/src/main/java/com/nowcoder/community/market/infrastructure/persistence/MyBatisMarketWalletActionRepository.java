@@ -66,11 +66,6 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     }
 
     @Override
-    public int markSucceeded(UUID actionId, UUID walletTxnId, String resultType) {
-        return mapper.markSucceeded(actionId, walletTxnId, resultType);
-    }
-
-    @Override
     public int markSucceeded(MarketWalletActionLease lease, UUID walletTxnId, String resultType) {
         return mapper.markSucceeded(lease, walletTxnId, resultType);
     }
@@ -83,11 +78,6 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     @Override
     public int cancelPendingEscrow(String requestId, String resultType) {
         return mapper.cancelPendingEscrow(requestId, resultType);
-    }
-
-    @Override
-    public int markRetrying(UUID actionId, Date nextRetryAt, String lastError) {
-        return mapper.markRetrying(actionId, nextRetryAt, lastError);
     }
 
     @Override

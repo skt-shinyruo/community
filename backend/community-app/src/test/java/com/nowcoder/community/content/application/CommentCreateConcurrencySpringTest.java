@@ -52,6 +52,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(
@@ -221,6 +222,24 @@ class CommentCreateConcurrencySpringTest {
         assertThat(result.deletedCommentIds()).containsExactly(ROOT_ID, DIRECT_PARENT_ID);
         assertHiddenNotFound(creation.get(5, TimeUnit.SECONDS));
         assertRejectedCreateHasNoSideEffects(0);
+    }
+
+    @Test
+    void createShouldUpdateRedisCachesOnlyAfterOuterTransactionCommits() {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+
+        transaction.executeWithoutResult(status -> {
+            applicationService.create(
+                    "after-commit-cache-effects",
+                    new CreateCommentCommand(CREATOR_ID, POST_ID, null, "after commit")
+            );
+
+            verify(postContentRepository).incrementCommentCount(POST_ID, 1);
+            verifyNoInteractions(postCounterCache, commentPageCache);
+        });
+
+        verify(postCounterCache).incrementCommentCount(POST_ID, 1L);
+        verify(commentPageCache).evictPost(POST_ID);
     }
 
     private Future<Throwable> submitNestedCreate(String idempotencyKey, CountDownLatch creationStarted) {

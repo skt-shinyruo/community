@@ -3,7 +3,6 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.application.command.CreateCommentCommand;
 import com.nowcoder.community.content.application.command.UpdateCommentCommand;
 import com.nowcoder.community.content.application.ContentSanitizer;
@@ -51,8 +50,7 @@ public class CommentApplicationService {
     private final CommentDomainService domainService;
     private final CommentRepository commentRepository;
     private final PostContentRepository postContentPort;
-    private final PostCounterCache postCounterCache;
-    private final CommentPageCache commentPageCache;
+    private final CommentCacheAfterCommit commentCacheAfterCommit;
     private final SocialBlockQueryApi blockQueryApi;
     private final CommentDomainEventPublisher domainEventPublisher;
 
@@ -64,8 +62,7 @@ public class CommentApplicationService {
             CommentDomainService domainService,
             CommentRepository commentRepository,
             PostContentRepository postContentPort,
-            PostCounterCache postCounterCache,
-            CommentPageCache commentPageCache,
+            CommentCacheAfterCommit commentCacheAfterCommit,
             SocialBlockQueryApi blockQueryApi,
             CommentDomainEventPublisher domainEventPublisher
     ) {
@@ -76,8 +73,7 @@ public class CommentApplicationService {
         this.domainService = domainService;
         this.commentRepository = commentRepository;
         this.postContentPort = postContentPort;
-        this.postCounterCache = postCounterCache;
-        this.commentPageCache = commentPageCache;
+        this.commentCacheAfterCommit = commentCacheAfterCommit;
         this.blockQueryApi = blockQueryApi;
         this.domainEventPublisher = domainEventPublisher;
     }
@@ -113,9 +109,13 @@ public class CommentApplicationService {
                 requestHash,
                 ContentErrorCode.REQUEST_REPLAY_CONFLICT,
                 UUID.class,
-                () -> createInsideTransaction(command)
+                () -> {
+                    UUID createdCommentId = createInsideTransaction(command);
+                    commentCacheAfterCommit.incrementCommentCount(postId, 1L);
+                    commentCacheAfterCommit.evictCommentPages(postId);
+                    return createdCommentId;
+                }
         );
-        evictCommentPageCacheAfterCommit(postId);
         return new CommentCreateResult(commentId);
     }
 
@@ -135,7 +135,7 @@ public class CommentApplicationService {
                 .editByAuthor(userId, postId, sanitize(command.content()), now);
         CommentTransitionStatus status = commentRepository.apply(edit);
         switch (status) {
-            case APPLIED -> evictCommentPageCacheAfterCommit(postId);
+            case APPLIED -> commentCacheAfterCommit.evictCommentPages(postId);
             case NO_OP, NOT_FOUND -> throw new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND);
             case STALE -> throw staleTransition();
         }
@@ -195,7 +195,6 @@ public class CommentApplicationService {
         );
         UUID commentId = commentRepository.create(draft);
         postContentPort.incrementCommentCount(postId, 1);
-        postCounterCache.incrementCommentCount(postId, 1L);
 
         String decodedContent = textCodec.decodeOnRead(safeContent);
         var createdAt = createTime.toInstant();
@@ -249,8 +248,6 @@ public class CommentApplicationService {
         }
 
         postContentPort.incrementCommentCount(postId, -result.deletedCount());
-        postCounterCache.incrementCommentCount(postId, -result.deletedCount());
-        evictCommentPageCacheAfterCommit(postId);
         for (CommentSnapshot deletedComment : result.deletedComments()) {
             domainEventPublisher.commentDeleted(new CommentDeletedDomainEvent(
                     deletedComment.id(),
@@ -261,6 +258,8 @@ public class CommentApplicationService {
                     transition.deletedTime().toInstant()
             ));
         }
+        commentCacheAfterCommit.incrementCommentCount(postId, -result.deletedCount());
+        commentCacheAfterCommit.evictCommentPages(postId);
     }
 
     private static IllegalStateException staleTransition() {
@@ -279,7 +278,4 @@ public class CommentApplicationService {
         return sensitiveFilter.filter(safe);
     }
 
-    private void evictCommentPageCacheAfterCommit(UUID postId) {
-        AfterCommitExecutor.runAfterCommit(() -> commentPageCache.evictPost(postId));
-    }
 }

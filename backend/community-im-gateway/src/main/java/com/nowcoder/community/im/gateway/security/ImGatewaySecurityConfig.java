@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.gateway.security;
 
 import com.nowcoder.community.im.gateway.session.ImGatewaySessionProperties;
+import com.nowcoder.community.im.gateway.session.ImSessionTicketProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,7 +14,7 @@ import org.springframework.security.web.server.authorization.ServerAccessDeniedH
 
 @Configuration(proxyBeanMethods = false)
 @EnableWebFluxSecurity
-@EnableConfigurationProperties(ImGatewaySessionProperties.class)
+@EnableConfigurationProperties({ImGatewaySessionProperties.class, ImSessionTicketProperties.class})
 public class ImGatewaySecurityConfig {
 
     @Bean

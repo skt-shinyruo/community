@@ -19,6 +19,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ImSessionApiIntegrationTest {
 
     private static final String SECRET = "im-gateway-session-test-secret-please-change-123456";
+    private static final String TICKET_SECRET = "im-gateway-dedicated-ticket-test-secret-1234567890";
 
     @Autowired
     WebTestClient webTestClient;
@@ -43,6 +45,7 @@ class ImSessionApiIntegrationTest {
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("security.jwt.hmac-secret", () -> SECRET);
         registry.add("security.jwt.issuer", () -> "community-auth");
+        registry.add("im.session-ticket.hmac-secret", () -> TICKET_SECRET);
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("spring.cloud.nacos.config.enabled", () -> "false");
         registry.add("im.gateway.ws.path", () -> "/custom/ws/im");
@@ -85,6 +88,26 @@ class ImSessionApiIntegrationTest {
 
         assertThat(counterValue("community.im.gateway.session.failed", "reason", "invalid_token"))
                 .isEqualTo(failedBefore + 1.0);
+    }
+
+    @Test
+    void shouldRejectNewlyIssuedSessionTicketAsAccessBearer() {
+        AtomicReference<String> issuedTicket = new AtomicReference<>();
+        webTestClient.post()
+                .uri("/api/im/sessions")
+                .header("Authorization", "Bearer " + accessToken())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.ticket")
+                .value(value -> issuedTicket.set((String) value));
+
+        assertThat(issuedTicket.get()).isNotBlank();
+        webTestClient.post()
+                .uri("/api/im/sessions")
+                .header("Authorization", "Bearer " + issuedTicket.get())
+                .exchange()
+                .expectStatus().isUnauthorized();
     }
 
     @Test

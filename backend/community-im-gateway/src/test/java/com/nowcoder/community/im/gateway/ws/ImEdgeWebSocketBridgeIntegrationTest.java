@@ -1,8 +1,8 @@
 package com.nowcoder.community.im.gateway.ws;
 
-import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.gateway.CommunityImGatewayApplication;
+import com.nowcoder.community.im.gateway.session.ImSessionTicketProperties;
 import com.nowcoder.community.im.gateway.session.SessionTicketCodec;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -47,6 +47,7 @@ import static org.mockito.Mockito.when;
 class ImEdgeWebSocketBridgeIntegrationTest {
 
     private static final String SECRET = "im-gateway-ws-test-secret-please-change-123456";
+    private static final String TICKET_SECRET = "im-gateway-ws-ticket-test-secret-distinct-1234567890";
     private static volatile DisposableServer workerServer;
     private static volatile DisposableServer binaryWorkerServer;
     private static volatile Integer refusedWorkerPort;
@@ -68,6 +69,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("security.jwt.hmac-secret", () -> SECRET);
         registry.add("security.jwt.issuer", () -> "community-auth");
+        registry.add("im.session-ticket.hmac-secret", () -> TICKET_SECRET);
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("spring.cloud.nacos.config.enabled", () -> "false");
         registry.add("im.gateway.ws.first-frame-timeout-ms", () -> "100");
@@ -478,7 +480,9 @@ class ImEdgeWebSocketBridgeIntegrationTest {
 
     private static String ticket(String workerId) {
         JwtProperties properties = jwtProperties();
-        SessionTicketCodec codec = new SessionTicketCodec(properties, JwtCodecs.jwtDecoder(properties));
+        ImSessionTicketProperties ticketProperties = new ImSessionTicketProperties();
+        ticketProperties.setHmacSecret(TICKET_SECRET);
+        SessionTicketCodec codec = new SessionTicketCodec(properties, ticketProperties);
         return codec.encode(
                 "sess-1",
                 UUID.fromString("00000000-0000-7000-8000-000000000123"),

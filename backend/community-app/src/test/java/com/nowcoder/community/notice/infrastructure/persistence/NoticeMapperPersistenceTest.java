@@ -2,6 +2,9 @@ package com.nowcoder.community.notice.infrastructure.persistence;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
 import com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeRecordDataObject;
@@ -16,6 +19,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -78,6 +82,37 @@ class NoticeMapperPersistenceTest {
             assertThat(persisted.getId()).isEqualTo(NOTICE_ID);
             assertThat(persisted.getRecipientUserId()).isEqualTo(RECIPIENT_USER_ID);
         });
+    }
+
+    @Test
+    void insertNoticeShouldPersistEscapedCommentProjectionJson() {
+        String sourceContent = "\"".repeat(2_000);
+        String contentJson = jsonCodec().toJson(Map.of(
+                "eventId", "evt-comment-escaped",
+                "type", "CommentCreated",
+                "payload", Map.of("content", sourceContent)
+        ));
+        NoticeRecordDataObject notice = new NoticeRecordDataObject();
+        notice.setId(NOTICE_ID);
+        notice.setSenderUserId(NoticeRecord.SYSTEM_NOTICE_SENDER_ID);
+        notice.setRecipientUserId(RECIPIENT_USER_ID);
+        notice.setTopic("comment");
+        notice.setContent(contentJson);
+        notice.setSourceEventType("CommentCreated");
+        notice.setStatus(0);
+        notice.setCreateTime(new Date());
+
+        assertThat(contentJson.length()).isGreaterThan(4_000);
+        assertThat(noticeMapper.insertNotice(notice)).isEqualTo(1);
+        String persistedJson = jdbcTemplate.queryForObject(
+                "select content from notice_record where id = ?",
+                String.class,
+                BinaryUuidCodec.toBytes(NOTICE_ID)
+        );
+
+        assertThat(persistedJson).isEqualTo(contentJson);
+        assertThat(jsonCodec().readTree(persistedJson).path("payload").path("content").asText())
+                .isEqualTo(sourceContent);
     }
 
     @Test
@@ -146,5 +181,9 @@ class NoticeMapperPersistenceTest {
                 Integer.class,
                 BinaryUuidCodec.toBytes(noticeId)
         );
+    }
+
+    private static JsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JsonMappers.standard());
     }
 }

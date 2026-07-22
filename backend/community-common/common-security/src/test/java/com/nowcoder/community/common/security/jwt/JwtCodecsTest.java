@@ -25,6 +25,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JwtCodecsTest {
 
+    private static final String ACCESS_SECRET = "plan-test-jwt-secret-please-change-123456";
+
     @Test
     void jwtDecoder_shouldRejectTooShortSecret() {
         JwtProperties properties = properties("too-short-secret", "community-auth");
@@ -81,6 +83,23 @@ class JwtCodecsTest {
         Jwt decoded = decoder.decode(token);
         assertThat(decoded.getSubject()).isEqualTo("123");
         assertThat(decoded.getClaimAsString("iss")).isEqualTo("community-auth");
+    }
+
+    @Test
+    void jwtDecoder_shouldRejectImSessionTicketTypeEvenWhenSignatureAndIssuerMatch() {
+        JwtProperties properties = properties(ACCESS_SECRET, "community-auth");
+        String ticket = encode(properties, "im-session-ticket");
+
+        assertThatThrownBy(() -> JwtCodecs.jwtDecoder(properties).decode(ticket))
+                .isInstanceOf(JwtValidationException.class);
+    }
+
+    @Test
+    void jwtDecoder_shouldContinueAcceptingLegacyAccessTokenWithoutType() {
+        JwtProperties properties = properties(ACCESS_SECRET, "community-auth");
+        Jwt jwt = JwtCodecs.jwtDecoder(properties).decode(encode(properties, null));
+
+        assertThat(jwt.getSubject()).isEqualTo("123");
     }
 
     @Test
@@ -151,5 +170,20 @@ class JwtCodecsTest {
         } catch (JOSEException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static String encode(JwtProperties properties, String type) {
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
+                .subject("123")
+                .issuer(JwtCodecs.resolvedIssuer(properties))
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(300));
+        if (type != null) {
+            claims.claim("typ", type);
+        }
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
+        return JwtCodecs.jwtEncoder(properties)
+                .encode(JwtEncoderParameters.from(header, claims.build()))
+                .getTokenValue();
     }
 }

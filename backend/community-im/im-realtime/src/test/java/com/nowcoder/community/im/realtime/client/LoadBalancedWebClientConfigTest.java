@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.realtime.client;
 
+import com.nowcoder.community.common.security.jwt.JwtProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
@@ -18,7 +19,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LoadBalancedWebClientConfigTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withUserConfiguration(TestConfiguration.class);
+            .withUserConfiguration(TestConfiguration.class)
+            .withPropertyValues(
+                    "im.session-ticket.hmac-secret="
+                            + "load-balanced-client-ticket-secret-distinct-at-least-32-bytes"
+            );
 
     @Test
     void loadBalancedBuilderAppliesWebClientCustomizers() {
@@ -51,6 +56,14 @@ class LoadBalancedWebClientConfigTest {
         @Bean
         AtomicReference<String> observedHeader() {
             return new AtomicReference<>();
+        }
+
+        @Bean
+        JwtProperties jwtProperties() {
+            JwtProperties properties = new JwtProperties();
+            properties.setHmacSecret("load-balanced-client-access-secret-at-least-32-bytes");
+            properties.setIssuer("community-auth");
+            return properties;
         }
 
         @Bean

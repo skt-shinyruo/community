@@ -1,7 +1,10 @@
 package com.nowcoder.community.im.realtime.session;
 
-import com.nowcoder.community.common.security.jwt.JwtCodecs;
-import com.nowcoder.community.common.security.jwt.JwtProperties;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -10,14 +13,17 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
-import org.springframework.stereotype.Component;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.util.StringUtils;
 
+import javax.crypto.SecretKey;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-@Component
 public class SessionTicketCodec {
 
     private static final String CLAIM_SESSION_ID = "sid";
@@ -28,11 +34,23 @@ public class SessionTicketCodec {
     private final JwtEncoder jwtEncoder;
     private final JwtDecoder jwtDecoder;
     private final String issuer;
+    private final String audience;
 
-    public SessionTicketCodec(JwtProperties jwtProperties, JwtDecoder jwtDecoder) {
-        this.jwtEncoder = JwtCodecs.jwtEncoder(jwtProperties);
-        this.jwtDecoder = jwtDecoder;
-        this.issuer = JwtCodecs.resolvedIssuer(jwtProperties);
+    public SessionTicketCodec(ImSessionTicketProperties ticketProperties, SecretKey secretKey) {
+        Objects.requireNonNull(ticketProperties, "ticketProperties");
+        Objects.requireNonNull(secretKey, "secretKey");
+        this.issuer = ticketProperties.requiredIssuer();
+        this.audience = ticketProperties.requiredAudience();
+        this.jwtEncoder = new NimbusJwtEncoder(new ImmutableSecret<>(secretKey));
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(secretKey)
+                .macAlgorithm(MacAlgorithm.HS256)
+                .build();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(issuer),
+                audienceValidator(audience),
+                ticketTypeValidator()
+        ));
+        this.jwtDecoder = decoder;
     }
 
     public String encode(String sessionId, UUID userId, String workerId, Instant expiresAt) {
@@ -47,6 +65,7 @@ public class SessionTicketCodec {
         Instant issuedAt = Instant.now();
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(issuer)
+                .audience(List.of(audience))
                 .subject(userId.toString())
                 .issuedAt(issuedAt)
                 .expiresAt(expiresAt)
@@ -74,6 +93,26 @@ public class SessionTicketCodec {
         if (!TOKEN_TYPE.equals(tokenType)) {
             throw new BadJwtException("invalid IM session ticket type");
         }
+    }
+
+    private static OAuth2TokenValidator<Jwt> audienceValidator(String expectedAudience) {
+        return jwt -> jwt.getAudience() != null && jwt.getAudience().contains(expectedAudience)
+                ? OAuth2TokenValidatorResult.success()
+                : OAuth2TokenValidatorResult.failure(new OAuth2Error(
+                        "invalid_token",
+                        "invalid IM session ticket audience",
+                        null
+                ));
+    }
+
+    private static OAuth2TokenValidator<Jwt> ticketTypeValidator() {
+        return jwt -> TOKEN_TYPE.equals(jwt.getClaimAsString(CLAIM_TOKEN_TYPE))
+                ? OAuth2TokenValidatorResult.success()
+                : OAuth2TokenValidatorResult.failure(new OAuth2Error(
+                        "invalid_token",
+                        "invalid IM session ticket type",
+                        null
+                ));
     }
 
     private static UUID parseUserId(String subject) {

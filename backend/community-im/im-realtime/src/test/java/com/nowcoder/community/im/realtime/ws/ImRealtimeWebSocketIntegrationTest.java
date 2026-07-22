@@ -2,6 +2,8 @@ package com.nowcoder.community.im.realtime.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.security.jwt.JwtCodecs;
+import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.common.ImContractVersions;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
@@ -33,6 +35,10 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -81,6 +87,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.cloud.nacos.config.enabled=false",
         "im.projection.bootstrap-on-startup=false",
         "im.session.worker-id=worker-a",
+        "im.session-ticket.hmac-secret=im-realtime-dedicated-ticket-test-secret-1234567890",
         "im.ws.path=/internal/ws/im",
         "im.ws.kafka-send-timeout-ms=1000"
 })
@@ -122,6 +129,9 @@ class ImRealtimeWebSocketIntegrationTest {
 
     @Autowired
     private SessionTicketCodec sessionTicketCodec;
+
+    @Autowired
+    private JwtProperties jwtProperties;
 
     private Consumer<String, String> commandConsumer;
 
@@ -230,6 +240,46 @@ class ImRealtimeWebSocketIntegrationTest {
             assertThat(rejectFrame.path("clientMsgId").asText("")).isEqualTo("c-deny");
             assertThat(rejectFrame.path("reasonCode").asText("")).isEqualTo("policy_denied");
             assertThat(rejectFrame.path("requestId").asText("")).isNotBlank();
+        } finally {
+            done.tryEmitEmpty();
+            outbound.tryEmitComplete();
+            if (websocket != null) {
+                websocket.dispose();
+            }
+        }
+    }
+
+    @Test
+    void websocket_shouldRejectNormalAccessTokenAsFirstTicketFrame() throws Exception {
+        UUID userId = uuid(299);
+        MEMBERSHIP_ENTRIES.set(List.of());
+        POLICY_ENTRIES.set(List.of(policy(userId, true)));
+        BLOCK_ENTRIES.set(List.of());
+
+        projectionSyncCoordinator.refreshNow().block(Duration.ofSeconds(5));
+
+        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
+        Sinks.Empty<Void> done = Sinks.empty();
+        CountDownLatch connected = new CountDownLatch(1);
+
+        Disposable websocket = openWebSocket(
+                "ws://127.0.0.1:" + APP_PORT + WS_PATH,
+                received,
+                outbound,
+                done,
+                connected
+        );
+        try {
+            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+
+            outbound.tryEmitNext(json(new ConnectFrame("connect", accessToken(userId))));
+
+            JsonNode rejectFrame = awaitType(received, "reject", Duration.ofSeconds(5));
+            assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("connect");
+            assertThat(rejectFrame.path("code").asInt()).isEqualTo(401);
+            assertThat(rejectFrame.path("reasonCode").asText("")).isEqualTo("invalid_ticket");
+            assertThat(connectionRegistry.listByUserId(userId)).isEmpty();
         } finally {
             done.tryEmitEmpty();
             outbound.tryEmitComplete();
@@ -558,6 +608,19 @@ class ImRealtimeWebSocketIntegrationTest {
         String sessionId = UUID.randomUUID().toString();
         String ticket = sessionTicketCodec.encode(sessionId, userId, workerId, Instant.now().plusSeconds(120));
         return new OpenSessionData(sessionId, "ws://127.0.0.1:" + APP_PORT + WS_PATH, ticket);
+    }
+
+    private String accessToken(UUID userId) {
+        Instant now = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(JwtCodecs.resolvedIssuer(jwtProperties))
+                .subject(userId.toString())
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(120))
+                .build();
+        return JwtCodecs.jwtEncoder(jwtProperties)
+                .encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
+                .getTokenValue();
     }
 
     private static UUID uuid(long suffix) {

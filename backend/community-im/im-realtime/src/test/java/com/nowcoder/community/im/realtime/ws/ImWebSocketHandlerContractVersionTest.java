@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
-import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import com.nowcoder.community.im.common.ws.ConnectFrame;
@@ -19,6 +18,7 @@ import com.nowcoder.community.im.realtime.projection.PolicySnapshotClient;
 import com.nowcoder.community.im.realtime.projection.ProjectionSyncCoordinator;
 import com.nowcoder.community.im.realtime.service.MessageCommandIngressService;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
+import com.nowcoder.community.im.realtime.session.ImSessionTicketProperties;
 import com.nowcoder.community.im.realtime.session.SessionTicketCodec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -74,7 +74,7 @@ class ImWebSocketHandlerContractVersionTest {
 
         ImWebSocketHandler handler = new ImWebSocketHandler(
                 new ImFrameCodec(new JacksonJsonCodec(JsonMappers.standard())),
-                new SessionTicketCodec(jwtProperties, JwtCodecs.jwtDecoder(jwtProperties)),
+                sessionTicketCodec(jwtProperties),
                 sessionProperties,
                 projectionSyncCoordinator,
                 new MembershipProjectionService(mock(MembershipSnapshotClient.class)),
@@ -109,7 +109,7 @@ class ImWebSocketHandlerContractVersionTest {
         WebSocketSession session = session(inbound, sentMessages);
         JwtProperties jwtProperties = jwtProperties();
         ImSessionProperties sessionProperties = sessionProperties();
-        SessionTicketCodec ticketCodec = new SessionTicketCodec(jwtProperties, JwtCodecs.jwtDecoder(jwtProperties));
+        SessionTicketCodec ticketCodec = sessionTicketCodec(jwtProperties);
         MembershipProjectionService membershipProjectionService = new MembershipProjectionService(
                 mock(MembershipSnapshotClient.class)
         );
@@ -235,6 +235,15 @@ class ImWebSocketHandlerContractVersionTest {
         properties.setIssuer("community-test");
         properties.setHmacSecret("ws-contract-version-secret-at-least-32b");
         return properties;
+    }
+
+    private static SessionTicketCodec sessionTicketCodec(JwtProperties accessProperties) {
+        ImSessionTicketProperties ticketProperties = new ImSessionTicketProperties();
+        ticketProperties.setHmacSecret("ws-contract-version-ticket-secret-distinct-at-least-32b");
+        return new SessionTicketCodec(
+                ticketProperties,
+                ticketProperties.secretKeyOrThrow(accessProperties)
+        );
     }
 
     private static UUID uuid(long suffix) {

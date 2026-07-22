@@ -1,6 +1,9 @@
 package com.nowcoder.community.im.realtime.client;
 
+import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
+import com.nowcoder.community.im.realtime.session.ImSessionTicketProperties;
+import com.nowcoder.community.im.realtime.session.SessionTicketCodec;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
@@ -10,8 +13,23 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties({ImServiceClientProperties.class, ImSessionProperties.class})
+@EnableConfigurationProperties({
+        ImServiceClientProperties.class,
+        ImSessionProperties.class,
+        ImSessionTicketProperties.class
+})
 public class LoadBalancedWebClientConfig {
+
+    @Bean
+    SessionTicketCodec sessionTicketCodec(
+            JwtProperties accessProperties,
+            ImSessionTicketProperties ticketProperties
+    ) {
+        return new SessionTicketCodec(
+                ticketProperties,
+                ticketProperties.secretKeyOrThrow(accessProperties)
+        );
+    }
 
     @Bean
     @LoadBalanced

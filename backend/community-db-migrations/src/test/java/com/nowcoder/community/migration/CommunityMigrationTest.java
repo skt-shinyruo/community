@@ -65,7 +65,7 @@ class CommunityMigrationTest {
         var result = CommunityMigrationRunner.standard(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .migrate();
 
-        assertThat(result.migrationsExecuted).isEqualTo(13);
+        assertThat(result.migrationsExecuted).isEqualTo(14);
         CommunitySchemaCatalog migratedCatalog = CommunitySchemaCatalog
                 .capture(database.url(), MYSQL.getUsername(), MYSQL.getPassword())
                 .withoutTables(Set.of(
@@ -78,7 +78,8 @@ class CommunityMigrationTest {
                         "moderation_action",
                         "social_like",
                         "drive_upload",
-                        "market_wallet_action"
+                        "market_wallet_action",
+                        "notice_record"
                 ));
         assertThat(migratedCatalog)
                 .isEqualTo(CommunitySchemaCatalog.canonical().withoutTables(Set.of(
@@ -89,7 +90,8 @@ class CommunityMigrationTest {
                         "moderation_action",
                         "social_like",
                         "drive_upload",
-                        "market_wallet_action"
+                        "market_wallet_action",
+                        "notice_record"
                 )));
         assertModerationActionSchema(database);
         assertSocialLikeLifecycleSchema(database);
@@ -101,6 +103,8 @@ class CommunityMigrationTest {
         assertThat(columnNames(database, "comment")).contains("version");
         assertThat(columnMetadata(database, "drive_upload").get("checksum_sha256"))
                 .isEqualTo(new ColumnMetadata("varchar(128)", false, ""));
+        assertThat(columnDefinition(database, "notice_record", "content"))
+                .isEqualTo(new ColumnDefinition("mediumtext", true));
         assertMarketWalletActionLeaseFencingSchema(database);
         assertOutboxLeaseFencingSchema(database);
         assertThat(tableNames(database)).doesNotContain(
@@ -123,13 +127,13 @@ class CommunityMigrationTest {
         CommunityMigrationRunner runner = CommunityMigrationRunner.standard(
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword());
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(13);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(14);
         assertThat(runner.migrate().migrationsExecuted).isZero();
         runner.validate();
 
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(13L);
+                .isEqualTo(14L);
     }
 
     @Test
@@ -193,6 +197,57 @@ class CommunityMigrationTest {
     }
 
     @Test
+    void h2FixtureShouldDeclareNoticeContentWithoutAVarcharCap() throws Exception {
+        String schema = Files.readString(findRepositoryRoot().resolve(
+                "backend/community-app/src/test/resources/schema.sql"));
+
+        assertThat(schema).contains(
+                "create table if not exists notice_record (\n"
+                        + "  id binary(16) primary key,\n"
+                        + "  sender_user_id binary(16),\n"
+                        + "  recipient_user_id binary(16) not null,\n"
+                        + "  topic varchar(64) not null,\n"
+                        + "  content clob,");
+    }
+
+    @Test
+    void v014ShouldWidenNoticeContentAndPreserveExistingValues(@TempDir Path tempDir)
+            throws Exception {
+        Database database = freshDatabase("v014_notice_content");
+        String historyTable = "community_v014_notice_content_history";
+        Path v013Directory = prepareMigrationDirectoryThroughVersion(tempDir, 13);
+        CommunityMigrationRunner.forLocations(
+                        database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                        historyTable, "filesystem:" + v013Directory.toAbsolutePath())
+                .migrate();
+        execute(database, "insert into notice_record(" +
+                "id, recipient_user_id, topic, content, status, create_time" +
+                ") values " +
+                "(x'71000000000070008000000000000001', " +
+                "x'71000000000070008000000000000011', 'capacity-null', null, 0, current_timestamp), " +
+                "(x'71000000000070008000000000000002', " +
+                "x'71000000000070008000000000000011', 'capacity-full', repeat('x', 4000), 0, current_timestamp)");
+        assertThat(columnDefinition(database, "notice_record", "content"))
+                .isEqualTo(new ColumnDefinition("varchar(4000)", true));
+
+        CommunityMigrationRunner runner = CommunityMigrationRunner.forLocations(
+                database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
+                historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
+
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(1);
+        runner.validate();
+
+        assertThat(columnDefinition(database, "notice_record", "content"))
+                .isEqualTo(new ColumnDefinition("mediumtext", true));
+        assertThat(queryLong(database,
+                "select count(*) from notice_record where topic = 'capacity-null' and content is null"))
+                .isEqualTo(1L);
+        assertThat(queryString(database,
+                "select content from notice_record where topic = 'capacity-full'"))
+                .isEqualTo("x".repeat(4_000));
+    }
+
+    @Test
     void v013ShouldFenceNewClaimsAndRequeueStrandedProcessingRows(@TempDir Path tempDir)
             throws Exception {
         Database database = freshDatabase("v013_wallet");
@@ -208,7 +263,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(1);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(2);
         runner.validate();
 
         assertMarketWalletActionLeaseFencingSchema(database);
@@ -277,7 +332,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(3);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(4);
         runner.validate();
 
         assertThat(socialLikeBusinessRows(database)).containsExactlyElementsOf(before);
@@ -306,7 +361,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 historyTable, CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(4);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(5);
         runner.validate();
 
         assertThat(moderationActionRows(database)).containsExactlyElementsOf(before);
@@ -386,7 +441,7 @@ class CommunityMigrationTest {
                 database.url(), MYSQL.getUsername(), MYSQL.getPassword(),
                 "community_v008_history", CommunityMigrationRunner.MIGRATION_LOCATION);
 
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(5);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(6);
         runner.validate();
 
         assertThat(idempotencyRows(database)).containsExactlyInAnyOrder(
@@ -451,7 +506,7 @@ class CommunityMigrationTest {
                 .hasMessageContaining("non-empty schema");
 
         runner.baselineAtVersionOne(CommunityMigrationRunner.BASELINE_CONFIRMATION);
-        assertThat(runner.migrate().migrationsExecuted).isEqualTo(12);
+        assertThat(runner.migrate().migrationsExecuted).isEqualTo(13);
         runner.validate();
 
         IdempotencyRow residual = idempotencyRows(database).stream()
@@ -487,7 +542,7 @@ class CommunityMigrationTest {
         assertSocialLikeFixtureBackfilled(database);
         assertThat(queryLong(database,
                 "select count(*) from community_upgrade_idempotency_history where success = 1"))
-                .isEqualTo(13L);
+                .isEqualTo(14L);
     }
 
     @Test
@@ -542,7 +597,7 @@ class CommunityMigrationTest {
                 ") values (x'10000000000070008000000000000051', '" + mediaReleaseEventId + "', " +
                 "'content.media.reference', 'media-reference', '{}', 'NEW')");
 
-        assertThat(result.migrationsExecuted).isEqualTo(12);
+        assertThat(result.migrationsExecuted).isEqualTo(13);
         assertOutboxLeaseFencingSchema(database);
         assertThat(outboxEventStates(database, "migration-lease-%")).containsExactly(
                 new OutboxEventState(
@@ -601,7 +656,7 @@ class CommunityMigrationTest {
         assertSocialLikeFixtureBackfilled(database);
         assertThat(queryLong(database,
                 "select count(*) from " + CommunityMigrationRunner.HISTORY_TABLE + " where success = 1"))
-                .isEqualTo(13L);
+                .isEqualTo(14L);
     }
 
     @Test

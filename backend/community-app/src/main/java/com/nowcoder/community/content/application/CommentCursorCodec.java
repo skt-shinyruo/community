@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Date;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -22,6 +23,8 @@ public class CommentCursorCodec {
 
     private static final int VERSION = 1;
     private static final String INVALID_CURSOR_MESSAGE = "评论游标非法";
+    private static final Instant MYSQL_TIMESTAMP_MIN = Instant.parse("1970-01-01T00:00:01Z");
+    private static final Instant MYSQL_TIMESTAMP_MAX = Instant.parse("2038-01-19T03:14:07Z");
     private static final Set<String> PAYLOAD_FIELDS = Set.of(
             "version",
             "kind",
@@ -81,7 +84,7 @@ public class CommentCursorCodec {
             Kind kind = Kind.valueOf(requiredText(node, "kind"));
             UUID postId = parseUuid(requiredText(node, "postId"));
             UUID rootCommentId = parseRootCommentId(node.get("rootCommentId"), kind);
-            Instant createTime = Instant.parse(requiredText(node, "createTime"));
+            Instant createTime = parseCreateTime(requiredText(node, "createTime"));
             UUID commentId = parseUuid(requiredText(node, "commentId"));
 
             if (kind != expectedKind
@@ -162,6 +165,15 @@ public class CommentCursorCodec {
             throw invalidCursor();
         }
         return parsed;
+    }
+
+    private Instant parseCreateTime(String value) {
+        Instant createTime = Instant.parse(value);
+        Date.from(createTime);
+        if (createTime.isBefore(MYSQL_TIMESTAMP_MIN) || createTime.isAfter(MYSQL_TIMESTAMP_MAX)) {
+            throw invalidCursor();
+        }
+        return createTime;
     }
 
     private BusinessException invalidCursor() {

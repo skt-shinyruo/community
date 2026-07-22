@@ -38,7 +38,7 @@ public class ImSessionTicketProperties {
         this.audience = audience;
     }
 
-    SecretKey secretKeyOrThrow(JwtProperties accessProperties) {
+    public SecretKey secretKeyOrThrow(JwtProperties accessProperties) {
         String secret = requireText("hmac-secret", hmacSecret);
         byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < 32) {

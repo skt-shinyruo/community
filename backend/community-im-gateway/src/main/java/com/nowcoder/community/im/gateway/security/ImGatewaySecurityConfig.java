@@ -1,7 +1,9 @@
 package com.nowcoder.community.im.gateway.security;
 
+import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.gateway.session.ImGatewaySessionProperties;
 import com.nowcoder.community.im.gateway.session.ImSessionTicketProperties;
+import com.nowcoder.community.im.gateway.session.SessionTicketCodec;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +18,17 @@ import org.springframework.security.web.server.authorization.ServerAccessDeniedH
 @EnableWebFluxSecurity
 @EnableConfigurationProperties({ImGatewaySessionProperties.class, ImSessionTicketProperties.class})
 public class ImGatewaySecurityConfig {
+
+    @Bean
+    SessionTicketCodec sessionTicketCodec(
+            JwtProperties accessProperties,
+            ImSessionTicketProperties ticketProperties
+    ) {
+        return new SessionTicketCodec(
+                ticketProperties,
+                ticketProperties.secretKeyOrThrow(accessProperties)
+        );
+    }
 
     @Bean
     SecurityWebFilterChain imGatewaySecurityWebFilterChain(

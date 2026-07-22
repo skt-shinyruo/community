@@ -180,31 +180,42 @@ class SessionTicketCodecTest {
     }
 
     @Test
-    void constructor_shouldRejectMissingTicketSecret() {
-        assertThatThrownBy(() -> codec(ticketProperties("  ")))
+    void properties_shouldRejectMissingTicketSecret() {
+        assertThatThrownBy(() -> ticketProperties(null).secretKeyOrThrow(accessProperties()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("im.session-ticket.hmac-secret");
     }
 
     @Test
-    void constructor_shouldRejectShortTicketSecret() {
-        assertThatThrownBy(() -> codec(ticketProperties("too-short")))
+    void properties_shouldRejectBlankTicketSecret() {
+        assertThatThrownBy(() -> ticketProperties("  ").secretKeyOrThrow(accessProperties()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("im.session-ticket.hmac-secret");
+    }
+
+    @Test
+    void properties_shouldRejectShortTicketSecret() {
+        assertThatThrownBy(() -> ticketProperties("too-short").secretKeyOrThrow(accessProperties()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(">= 32 bytes");
     }
 
     @Test
-    void constructor_shouldRejectTicketSecretEqualToNormalizedAccessSecret() {
-        assertThatThrownBy(() -> codec(ticketProperties("  " + ACCESS_SECRET + "  ")))
+    void properties_shouldRejectNormalizedTicketSecretEqualToTrimmedAccessSecret() {
+        JwtProperties accessProperties = accessProperties();
+        accessProperties.setHmacSecret("  " + ACCESS_SECRET + "  ");
+
+        assertThatThrownBy(() -> ticketProperties("\t" + ACCESS_SECRET + "\n")
+                .secretKeyOrThrow(accessProperties))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("must differ from security.jwt.hmac-secret");
     }
 
     @Test
-    void constructor_shouldCountTicketSecretLengthInUtf8Bytes() {
+    void properties_shouldCountTicketSecretLengthInUtf8Bytes() {
         ImSessionTicketProperties properties = ticketProperties("\u754c".repeat(11));
 
-        assertThatCode(() -> codec(properties)).doesNotThrowAnyException();
+        assertThatCode(() -> properties.secretKeyOrThrow(accessProperties())).doesNotThrowAnyException();
     }
 
     @Test
@@ -228,7 +239,10 @@ class SessionTicketCodecTest {
     }
 
     private static SessionTicketCodec codec(ImSessionTicketProperties ticketProperties) {
-        return new SessionTicketCodec(accessProperties(), ticketProperties);
+        return new SessionTicketCodec(
+                ticketProperties,
+                ticketProperties.secretKeyOrThrow(accessProperties())
+        );
     }
 
     private static JwtProperties accessProperties() {

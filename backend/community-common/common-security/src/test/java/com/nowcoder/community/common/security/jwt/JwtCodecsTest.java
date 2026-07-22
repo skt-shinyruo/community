@@ -103,6 +103,22 @@ class JwtCodecsTest {
     }
 
     @Test
+    void jwtDecoder_shouldContinueAcceptingCaseVariantOfReservedType() {
+        JwtProperties properties = properties(ACCESS_SECRET, "community-auth");
+        Jwt jwt = JwtCodecs.jwtDecoder(properties).decode(encode(properties, "IM-SESSION-TICKET"));
+
+        assertThat(jwt.getClaimAsString("typ")).isEqualTo("IM-SESSION-TICKET");
+    }
+
+    @Test
+    void jwtDecoder_shouldContinueAcceptingNonReservedType() {
+        JwtProperties properties = properties(ACCESS_SECRET, "community-auth");
+        Jwt jwt = JwtCodecs.jwtDecoder(properties).decode(encode(properties, "access-token"));
+
+        assertThat(jwt.getClaimAsString("typ")).isEqualTo("access-token");
+    }
+
+    @Test
     void resolvedIssuer_shouldRejectBlankValue() {
         JwtProperties properties = properties("plan-test-jwt-secret-please-change-123456", "   ");
 

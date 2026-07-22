@@ -21,30 +21,33 @@ public class CommentCacheAfterCommit {
     }
 
     public void incrementCommentCount(UUID postId, long delta) {
-        AfterCommitExecutor.runAfterCommit(() -> {
-            try {
-                postCounterCache.incrementCommentCount(postId, delta);
-            } catch (RuntimeException ignored) {
-                log.warn(
-                        "[comment-cache] operation={} postId={} delta={} failed",
-                        "incrementCommentCount",
-                        postId,
-                        delta
-                );
-            }
-        });
+        runBestEffortAfterCommit(
+                "incrementCommentCount",
+                postId,
+                delta,
+                () -> postCounterCache.incrementCommentCount(postId, delta)
+        );
     }
 
     public void evictCommentPages(UUID postId) {
+        runBestEffortAfterCommit(
+                "evictCommentPages",
+                postId,
+                0L,
+                () -> commentPageCache.evictPost(postId)
+        );
+    }
+
+    private void runBestEffortAfterCommit(String operation, UUID postId, long delta, Runnable action) {
         AfterCommitExecutor.runAfterCommit(() -> {
             try {
-                commentPageCache.evictPost(postId);
+                action.run();
             } catch (RuntimeException ignored) {
                 log.warn(
                         "[comment-cache] operation={} postId={} delta={} failed",
-                        "evictCommentPages",
+                        operation,
                         postId,
-                        0L
+                        delta
                 );
             }
         });

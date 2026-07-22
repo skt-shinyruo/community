@@ -96,16 +96,18 @@ public class MarketWalletActionRecoveryApplicationService {
     }
 
     private boolean reconcileWalletTxnAction(MarketWalletAction action) {
-        if (action == null || action.getWalletTxnId() == null) {
+        if (action == null
+                || action.getWalletTxnId() == null
+                || MarketWalletActionStatus.PROCESSING.equals(action.getStatus())) {
             return false;
         }
         if (applyWalletTxnToSaga(action) || sagaAlreadyHasTxn(action)) {
-            walletActionRepository.markSucceeded(
+            return walletActionRepository.markRecoveredSucceeded(
                     action.getActionId(),
+                    action.getStatus(),
                     action.getWalletTxnId(),
                     MarketWalletActionResultType.APPLIED
-            );
-            return true;
+            ) == 1;
         }
         return false;
     }
@@ -124,12 +126,12 @@ public class MarketWalletActionRecoveryApplicationService {
             return reconcileWalletTxnAction(action);
         }
         if (isFailedActionRepairable(action, actionType)) {
-            walletActionRepository.markRetrying(
+            return walletActionRepository.rescheduleFailed(
                     action.getActionId(),
+                    action.getFailureCode(),
                     Date.from(clock.instant()),
                     action.getLastError()
-            );
-            return true;
+            ) == 1;
         }
         if (order.isEscrowCancelPending()
                 && MarketWalletActionType.ESCROW.equals(action.getActionType())

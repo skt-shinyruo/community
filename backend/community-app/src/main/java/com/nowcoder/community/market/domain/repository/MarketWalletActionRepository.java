@@ -32,15 +32,11 @@ public interface MarketWalletActionRepository {
 
     int claimProcessing(MarketWalletActionLease lease, Date leaseUntil);
 
-    int markSucceeded(UUID actionId, UUID walletTxnId, String resultType);
-
     int markSucceeded(MarketWalletActionLease lease, UUID walletTxnId, String resultType);
 
     int markCancelled(MarketWalletActionLease lease, String resultType);
 
     int cancelPendingEscrow(String requestId, String resultType);
-
-    int markRetrying(UUID actionId, Date nextRetryAt, String lastError);
 
     int markRetrying(MarketWalletActionLease lease, Date nextRetryAt, String lastError);
 

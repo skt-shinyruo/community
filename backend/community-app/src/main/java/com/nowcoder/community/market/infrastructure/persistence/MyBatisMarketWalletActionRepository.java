@@ -61,11 +61,6 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     }
 
     @Override
-    public int claimProcessing(UUID actionId, Date leaseUntil) {
-        return mapper.claimProcessing(actionId, leaseUntil);
-    }
-
-    @Override
     public int claimProcessing(MarketWalletActionLease lease, Date leaseUntil) {
         return mapper.claimProcessing(lease, leaseUntil);
     }
@@ -78,11 +73,6 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     @Override
     public int markSucceeded(MarketWalletActionLease lease, UUID walletTxnId, String resultType) {
         return mapper.markSucceeded(lease, walletTxnId, resultType);
-    }
-
-    @Override
-    public int markCancelled(UUID actionId, String resultType) {
-        return mapper.markCancelled(actionId, resultType);
     }
 
     @Override
@@ -106,18 +96,8 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     }
 
     @Override
-    public int markFailed(UUID actionId, String failureCode, String lastError) {
-        return mapper.markFailed(actionId, failureCode, lastError);
-    }
-
-    @Override
     public int markFailed(MarketWalletActionLease lease, String failureCode, String lastError) {
         return mapper.markFailed(lease, failureCode, lastError);
-    }
-
-    @Override
-    public int markRecoveryPending(UUID actionId, UUID walletTxnId, String failureCode, String lastError) {
-        return mapper.markRecoveryPending(actionId, walletTxnId, failureCode, lastError);
     }
 
     @Override
@@ -128,11 +108,6 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
             String lastError
     ) {
         return mapper.markRecoveryPending(lease, walletTxnId, failureCode, lastError);
-    }
-
-    @Override
-    public int markDead(UUID actionId, String lastError) {
-        return mapper.markDead(actionId, lastError);
     }
 
     @Override

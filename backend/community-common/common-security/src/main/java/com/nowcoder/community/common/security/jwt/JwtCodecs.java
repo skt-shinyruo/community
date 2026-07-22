@@ -1,7 +1,12 @@
 package com.nowcoder.community.common.security.jwt;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
@@ -16,7 +21,12 @@ public final class JwtCodecs {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(JwtSecretKeys.hmacSha256OrThrow(properties))
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(resolvedIssuer(properties)));
+        OAuth2TokenValidator<Jwt> issuer = JwtValidators.createDefaultWithIssuer(resolvedIssuer(properties));
+        OAuth2TokenValidator<Jwt> accessType = jwt -> "im-session-ticket".equals(jwt.getClaimAsString("typ"))
+                ? OAuth2TokenValidatorResult.failure(new OAuth2Error(
+                        "invalid_token", "IM session ticket is not an access token", null))
+                : OAuth2TokenValidatorResult.success();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(issuer, accessType));
         return decoder;
     }
 

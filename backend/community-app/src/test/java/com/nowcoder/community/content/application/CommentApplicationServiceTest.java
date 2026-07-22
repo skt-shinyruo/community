@@ -32,9 +32,12 @@ import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -56,6 +59,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
@@ -95,11 +99,18 @@ class CommentApplicationServiceTest {
                 new CommentDomainService(),
                 commentRepository,
                 postContentPort,
-                postCounterCache,
-                commentPageCache,
+                new CommentCacheAfterCommit(postCounterCache, commentPageCache),
                 blockQueryApi,
                 domainEventPublisher
         );
+    }
+
+    @AfterEach
+    void clearTransactionSynchronization() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+        TransactionSynchronizationManager.setActualTransactionActive(false);
     }
 
     @Test
@@ -154,9 +165,9 @@ class CommentApplicationServiceTest {
         ArgumentCaptor<CommentDraft> draftCaptor = ArgumentCaptor.forClass(CommentDraft.class);
         inOrder.verify(commentRepository).create(draftCaptor.capture());
         inOrder.verify(postContentPort).incrementCommentCount(postId, 1);
-        inOrder.verify(postCounterCache).incrementCommentCount(postId, 1L);
         ArgumentCaptor<CommentCreatedDomainEvent> eventCaptor = ArgumentCaptor.forClass(CommentCreatedDomainEvent.class);
         inOrder.verify(domainEventPublisher).commentCreated(eventCaptor.capture());
+        inOrder.verify(postCounterCache).incrementCommentCount(postId, 1L);
 
         CommentDraft draft = draftCaptor.getValue();
         assertThat(draft.userId()).isEqualTo(userId);
@@ -260,8 +271,7 @@ class CommentApplicationServiceTest {
                 new CommentDomainService(),
                 commentRepository,
                 postContentPort,
-                postCounterCache,
-                commentPageCache,
+                new CommentCacheAfterCommit(postCounterCache, commentPageCache),
                 blockQueryApi,
                 domainEventPublisher
         );
@@ -310,6 +320,7 @@ class CommentApplicationServiceTest {
         verify(commentRepository, times(1)).create(any(CommentDraft.class));
         verify(postContentPort, times(1)).incrementCommentCount(postId, 1);
         verify(postCounterCache, times(1)).incrementCommentCount(postId, 1L);
+        verify(commentPageCache, times(1)).evictPost(postId);
         verify(domainEventPublisher, times(1)).commentCreated(any(CommentCreatedDomainEvent.class));
     }
 
@@ -520,6 +531,7 @@ class CommentApplicationServiceTest {
         when(sensitiveFilter.filter("hello &amp; world")).thenReturn("clean");
         when(commentRepository.apply(any(CommentEdit.class))).thenReturn(CommentTransitionStatus.APPLIED);
 
+        beginTransactionSynchronization();
         service.update(new UpdateCommentCommand(userId, postId, commentId, " hello & world "));
 
         var inOrder = inOrder(moderationGuard, postContentPort, commentRepository);
@@ -531,6 +543,12 @@ class CommentApplicationServiceTest {
         assertThat(edit.getValue().commentId()).isEqualTo(commentId);
         assertThat(edit.getValue().expectedVersion()).isEqualTo(existing.version());
         assertThat(edit.getValue().content()).isEqualTo("clean");
+        verifyNoInteractions(postCounterCache, commentPageCache);
+
+        commitTransactionSynchronization();
+
+        verify(commentPageCache).evictPost(postId);
+        verifyNoInteractions(postCounterCache);
     }
 
     @Test
@@ -551,14 +569,20 @@ class CommentApplicationServiceTest {
         when(commentRepository.apply(any(CommentThreadDeletion.class)))
                 .thenReturn(CommentDeletionResult.applied(affected));
 
+        beginTransactionSynchronization();
         service.deleteByAuthor(userId, postId, commentId);
 
-        var inOrder = inOrder(commentRepository, postContentPort, postCounterCache);
+        var inOrder = inOrder(commentRepository, postContentPort);
         inOrder.verify(commentRepository).getRequiredSnapshot(commentId);
         inOrder.verify(commentRepository).getActiveThreadSnapshots(commentId);
         inOrder.verify(commentRepository).apply(any(CommentThreadDeletion.class));
         inOrder.verify(postContentPort).incrementCommentCount(postId, -3);
-        inOrder.verify(postCounterCache).incrementCommentCount(postId, -3L);
+        verifyNoInteractions(postCounterCache, commentPageCache);
+
+        commitTransactionSynchronization();
+
+        verify(postCounterCache).incrementCommentCount(postId, -3L);
+        verify(commentPageCache).evictPost(postId);
     }
 
     @Test
@@ -725,11 +749,22 @@ class CommentApplicationServiceTest {
                 new CommentDomainService(),
                 commentRepository,
                 postContentPort,
-                postCounterCache,
-                commentPageCache,
+                new CommentCacheAfterCommit(postCounterCache, commentPageCache),
                 blockQueryApi,
                 domainEventPublisher
         );
+    }
+
+    private void beginTransactionSynchronization() {
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+    }
+
+    private void commitTransactionSynchronization() {
+        List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+        TransactionSynchronizationManager.clearSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(false);
+        synchronizations.forEach(TransactionSynchronization::afterCommit);
     }
 
     private static final class InMemoryIdempotencyStore implements TransactionalIdempotencyStore {

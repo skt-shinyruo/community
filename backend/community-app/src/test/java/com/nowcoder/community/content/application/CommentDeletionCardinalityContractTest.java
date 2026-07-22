@@ -69,8 +69,7 @@ class CommentDeletionCardinalityContractTest {
                 new CommentDomainService(),
                 repository,
                 postRepository,
-                counterCache,
-                pageCache,
+                new CommentCacheAfterCommit(counterCache, pageCache),
                 mock(SocialBlockQueryApi.class),
                 eventPublisher
         );

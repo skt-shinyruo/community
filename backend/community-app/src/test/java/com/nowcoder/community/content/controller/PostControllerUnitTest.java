@@ -157,6 +157,8 @@ class PostControllerUnitTest {
         UUID postId = uuid(11);
         UUID commentId = uuid(21);
         UUID rootCommentId = uuid(22);
+        String rootCursor = "opaque-root-cursor";
+        String replyCursor = "opaque-reply-cursor";
         UUID categoryId = uuid(3);
         Authentication authentication = authentication(actorUserId);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/" + postId);
@@ -175,14 +177,14 @@ class PostControllerUnitTest {
                 0
         );
         when(postReadApplicationService.getPostDetail(actorUserId, postId)).thenReturn(detailView);
-        when(commentReadApplicationService.listRootComments(postId, "", 10))
+        when(commentReadApplicationService.listRootComments(postId, rootCursor, 10))
                 .thenReturn(new CommentPageResult(List.of(commentView), "cursor-roots-1"));
-        when(commentReadApplicationService.listReplies(postId, commentId, "", 10))
+        when(commentReadApplicationService.listReplies(postId, commentId, replyCursor, 10))
                 .thenReturn(new CommentPageResult(List.of(commentView), "cursor-replies-1"));
 
         Result<PostDetailResponse> detailResult = controller.detail(authentication, request, postId);
-        Result<CommentPageResponse> commentsResult = controller.comments(postId, "", 10);
-        Result<CommentPageResponse> repliesResult = controller.replies(postId, commentId, "", 10);
+        Result<CommentPageResponse> commentsResult = controller.comments(postId, rootCursor, 10);
+        Result<CommentPageResponse> repliesResult = controller.replies(postId, commentId, replyCursor, 10);
 
         assertThat(detailResult.getData().getId()).isEqualTo(postId);
         assertThat(detailResult.getData().getTitle()).isEqualTo("detail");
@@ -208,8 +210,8 @@ class PostControllerUnitTest {
                 .isEqualTo("auth:" + actorUserId)
                 .doesNotContain("198.51.100.1");
         verify(clientIpResolver, never()).resolve(request);
-        verify(commentReadApplicationService).listRootComments(postId, "", 10);
-        verify(commentReadApplicationService).listReplies(postId, commentId, "", 10);
+        verify(commentReadApplicationService).listRootComments(postId, rootCursor, 10);
+        verify(commentReadApplicationService).listReplies(postId, commentId, replyCursor, 10);
     }
 
     @Test

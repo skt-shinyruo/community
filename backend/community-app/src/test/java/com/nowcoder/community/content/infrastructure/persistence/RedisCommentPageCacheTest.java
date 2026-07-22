@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -79,6 +80,25 @@ class RedisCommentPageCacheTest {
             assertThat(item.content()).isEqualTo("cached");
         });
         assertThat(result.nextCursor()).isEqualTo("next");
+    }
+
+    @Test
+    void getRootPageShouldIgnoreLegacyV2Payload() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        UUID postId = uuid(100);
+        CommentPageResult legacy = new CommentPageResult(List.of(commentResult(postId)), "legacy-page-cursor");
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(legacyPageKey(postId, 10))).thenReturn(jsonCodec.toJson(legacy));
+
+        RedisCommentPageCache cache = new RedisCommentPageCache(redisTemplate, jsonCodec, 15);
+
+        assertThat(cache.getRootPage(postId, "", 10)).isNull();
+        verify(valueOps).get(pageKey(postId, 10));
+        verify(valueOps, never()).get(legacyPageKey(postId, 10));
     }
 
     @Test
@@ -162,10 +182,14 @@ class RedisCommentPageCacheTest {
     }
 
     private static String pageKey(UUID postId, int size) {
-        return "comment:root-page:v2:" + postId + ":cursor:initial:size:" + size;
+        return "comment:root-page:v3:" + postId + ":cursor:initial:size:" + size;
     }
 
     private static String indexKey(UUID postId) {
-        return "comment:root-page:v2:" + postId + ":keys";
+        return "comment:root-page:v3:" + postId + ":keys";
+    }
+
+    private static String legacyPageKey(UUID postId, int size) {
+        return "comment:root-page:v2:" + postId + ":cursor:initial:size:" + size;
     }
 }

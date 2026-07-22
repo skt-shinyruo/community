@@ -11,9 +11,13 @@ import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.infrastructure.text.SpringHtmlContentTextCodec;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -175,6 +179,21 @@ class CommentReadApplicationServiceTest {
     }
 
     @Test
+    void dateUnrepresentableRootCursorShouldFailBeforeRepositoryCalls() {
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentPageCache commentPageCache = mock(CommentPageCache.class);
+        CommentReadApplicationService service = service(
+                commentContentRepository, postContentRepository, commentPageCache, cursorCodec());
+        UUID postId = uuid(100);
+        String cursor = forgeCursor("ROOT", postId, null, Instant.MAX, uuid(201));
+
+        assertInvalidCursor(() -> service.listRootComments(postId, cursor, 10));
+
+        verifyNoInteractions(commentContentRepository, postContentRepository, commentPageCache);
+    }
+
+    @Test
     void listRepliesShouldUseInitialKeysetAndProbeBoundaryForNextCursor() {
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
         CommentCursorCodec cursorCodec = cursorCodec();
@@ -249,6 +268,28 @@ class CommentReadApplicationServiceTest {
     }
 
     @Test
+    void mysqlOutOfRangeReplyCursorShouldFailBeforeRepositoryCalls() {
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentPageCache commentPageCache = mock(CommentPageCache.class);
+        CommentReadApplicationService service = service(
+                commentContentRepository, postContentRepository, commentPageCache, cursorCodec());
+        UUID postId = uuid(100);
+        UUID rootCommentId = uuid(200);
+        String cursor = forgeCursor(
+                "REPLY",
+                postId,
+                rootCommentId,
+                Instant.parse("2038-01-19T03:14:08Z"),
+                uuid(201)
+        );
+
+        assertInvalidCursor(() -> service.listReplies(postId, rootCommentId, cursor, 10));
+
+        verifyNoInteractions(commentContentRepository, postContentRepository, commentPageCache);
+    }
+
+    @Test
     void legacyPageMethodsShouldContinueUsingOffsetRepositoryQueriesDirectly() {
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
@@ -295,6 +336,25 @@ class CommentReadApplicationServiceTest {
 
     private static CommentCursorCodec cursorCodec() {
         return new CommentCursorCodec(new JacksonJsonCodec(JsonMappers.standard()));
+    }
+
+    private static String forgeCursor(
+            String kind,
+            UUID postId,
+            UUID rootCommentId,
+            Instant createTime,
+            UUID commentId
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("version", 1);
+        payload.put("kind", kind);
+        payload.put("postId", postId.toString());
+        payload.put("rootCommentId", rootCommentId == null ? null : rootCommentId.toString());
+        payload.put("createTime", createTime.toString());
+        payload.put("commentId", commentId.toString());
+        String json = new JacksonJsonCodec(JsonMappers.standard()).toJson(payload);
+        return Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(json.getBytes(StandardCharsets.UTF_8));
     }
 
     private static void assertInvalidCursor(Runnable invocation) {

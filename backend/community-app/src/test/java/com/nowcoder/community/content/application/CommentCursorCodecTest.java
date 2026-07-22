@@ -63,6 +63,48 @@ class CommentCursorCodecTest {
     }
 
     @Test
+    void parseableButDateUnrepresentableCursorTimesShouldReturnStableInvalidArgument() {
+        UUID postId = uuid(23);
+        UUID commentId = uuid(24);
+
+        for (Instant createTime : List.of(Instant.MIN, Instant.MAX)) {
+            String cursor = encodePayload(payload(
+                    1,
+                    "ROOT",
+                    postId.toString(),
+                    null,
+                    createTime.toString(),
+                    commentId.toString()
+            ));
+
+            assertInvalid(cursor, () -> codec.decodeRoot(cursor, postId));
+        }
+    }
+
+    @Test
+    void dateRepresentableButMysqlTimestampOutOfRangeCursorTimesShouldReturnStableInvalidArgument() {
+        UUID postId = uuid(25);
+        UUID commentId = uuid(26);
+        List<Instant> createTimes = List.of(
+                Instant.parse("1970-01-01T00:00:00Z"),
+                Instant.parse("2038-01-19T03:14:08Z")
+        );
+
+        for (Instant createTime : createTimes) {
+            String cursor = encodePayload(payload(
+                    1,
+                    "ROOT",
+                    postId.toString(),
+                    null,
+                    createTime.toString(),
+                    commentId.toString()
+            ));
+
+            assertInvalid(cursor, () -> codec.decodeRoot(cursor, postId));
+        }
+    }
+
+    @Test
     void malformedCursorShouldReturnStableInvalidArgument() {
         UUID postId = uuid(30);
         List<String> cursors = List.of(

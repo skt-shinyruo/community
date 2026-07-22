@@ -482,7 +482,10 @@ class ImEdgeWebSocketBridgeIntegrationTest {
         JwtProperties properties = jwtProperties();
         ImSessionTicketProperties ticketProperties = new ImSessionTicketProperties();
         ticketProperties.setHmacSecret(TICKET_SECRET);
-        SessionTicketCodec codec = new SessionTicketCodec(properties, ticketProperties);
+        SessionTicketCodec codec = new SessionTicketCodec(
+                ticketProperties,
+                ticketProperties.secretKeyOrThrow(properties)
+        );
         return codec.encode(
                 "sess-1",
                 UUID.fromString("00000000-0000-7000-8000-000000000123"),

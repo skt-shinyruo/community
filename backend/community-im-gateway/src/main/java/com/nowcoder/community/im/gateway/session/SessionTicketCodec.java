@@ -1,7 +1,6 @@
 package com.nowcoder.community.im.gateway.session;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
-import com.nowcoder.community.common.security.jwt.JwtProperties;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
@@ -17,7 +16,6 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
@@ -26,7 +24,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-@Component
 public class SessionTicketCodec {
 
     private static final String CLAIM_SESSION_ID = "sid";
@@ -39,9 +36,9 @@ public class SessionTicketCodec {
     private final String issuer;
     private final String audience;
 
-    public SessionTicketCodec(JwtProperties accessProperties, ImSessionTicketProperties ticketProperties) {
+    public SessionTicketCodec(ImSessionTicketProperties ticketProperties, SecretKey secretKey) {
         Objects.requireNonNull(ticketProperties, "ticketProperties");
-        SecretKey secretKey = ticketProperties.secretKeyOrThrow(accessProperties);
+        Objects.requireNonNull(secretKey, "secretKey");
         this.issuer = ticketProperties.requiredIssuer();
         this.audience = ticketProperties.requiredAudience();
         this.jwtEncoder = new NimbusJwtEncoder(new ImmutableSecret<>(secretKey));

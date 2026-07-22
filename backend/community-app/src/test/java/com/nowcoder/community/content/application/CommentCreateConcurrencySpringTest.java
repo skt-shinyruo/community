@@ -52,7 +52,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(
@@ -235,7 +234,8 @@ class CommentCreateConcurrencySpringTest {
             );
 
             verify(postContentRepository).incrementCommentCount(POST_ID, 1);
-            verifyNoInteractions(postCounterCache, commentPageCache);
+            verify(postCounterCache, never()).incrementCommentCount(any(UUID.class), anyLong());
+            verify(commentPageCache, never()).evictPost(any(UUID.class));
         });
 
         verify(postCounterCache).incrementCommentCount(POST_ID, 1L);

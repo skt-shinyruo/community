@@ -78,7 +78,7 @@ class CommentCacheAfterCommitTest {
         doThrow(new IllegalStateException(COMMENT_BODY))
                 .when(postCounterCache)
                 .incrementCommentCount(POST_ID, 1L);
-        ListAppender<ILoggingEvent> logs = startLogCapture();
+        LogCapture logs = startLogCapture();
         try {
             beginTransactionSynchronization();
             cacheAfterCommit.incrementCommentCount(POST_ID, 1L);
@@ -97,7 +97,7 @@ class CommentCacheAfterCommitTest {
     @Test
     void pageEvictionFailureDoesNotBlockCounterUpdateOrLogCommentBody() {
         doThrow(new IllegalStateException(COMMENT_BODY)).when(commentPageCache).evictPost(POST_ID);
-        ListAppender<ILoggingEvent> logs = startLogCapture();
+        LogCapture logs = startLogCapture();
         try {
             beginTransactionSynchronization();
             cacheAfterCommit.evictCommentPages(POST_ID);
@@ -110,6 +110,31 @@ class CommentCacheAfterCommitTest {
             assertWarning(logs, "evictCommentPages", 0L);
         } finally {
             stopLogCapture(logs);
+        }
+    }
+
+    @Test
+    void expectedCacheFailureWarningDoesNotPropagateBeyondLocalCapture() {
+        doThrow(new IllegalStateException(COMMENT_BODY))
+                .when(postCounterCache)
+                .incrementCommentCount(POST_ID, 1L);
+        Logger rootLogger = (Logger) org.slf4j.LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        ListAppender<ILoggingEvent> rootEvents = new ListAppender<>();
+        rootEvents.start();
+        rootLogger.addAppender(rootEvents);
+        LogCapture logs = startLogCapture();
+        try {
+            beginTransactionSynchronization();
+            cacheAfterCommit.incrementCommentCount(POST_ID, 1L);
+
+            assertThatCode(this::commitTransactionSynchronization).doesNotThrowAnyException();
+
+            assertWarning(logs, "incrementCommentCount", 1L);
+            assertThat(rootEvents.list).isEmpty();
+        } finally {
+            stopLogCapture(logs);
+            rootLogger.detachAppender(rootEvents);
+            rootEvents.stop();
         }
     }
 
@@ -130,23 +155,31 @@ class CommentCacheAfterCommitTest {
         TransactionSynchronizationManager.setActualTransactionActive(false);
     }
 
-    private ListAppender<ILoggingEvent> startLogCapture() {
+    private LogCapture startLogCapture() {
         Logger logger = (Logger) org.slf4j.LoggerFactory.getLogger(CommentCacheAfterCommit.class);
+        boolean wasAdditive = logger.isAdditive();
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
+        logger.setAdditive(false);
         logger.addAppender(appender);
-        return appender;
+        return new LogCapture(logger, appender, wasAdditive);
     }
 
-    private void stopLogCapture(ListAppender<ILoggingEvent> appender) {
-        Logger logger = (Logger) org.slf4j.LoggerFactory.getLogger(CommentCacheAfterCommit.class);
-        logger.detachAppender(appender);
-        appender.stop();
+    private void stopLogCapture(LogCapture logs) {
+        try {
+            logs.logger().detachAppender(logs.appender());
+        } finally {
+            try {
+                logs.logger().setAdditive(logs.wasAdditive());
+            } finally {
+                logs.appender().stop();
+            }
+        }
     }
 
-    private void assertWarning(ListAppender<ILoggingEvent> logs, String operation, long delta) {
-        assertThat(logs.list).hasSize(1);
-        ILoggingEvent warning = logs.list.get(0);
+    private void assertWarning(LogCapture logs, String operation, long delta) {
+        assertThat(logs.appender().list).hasSize(1);
+        ILoggingEvent warning = logs.appender().list.get(0);
         assertThat(warning.getLevel()).isEqualTo(Level.WARN);
         assertThat(warning.getFormattedMessage())
                 .contains("operation=" + operation)
@@ -156,4 +189,8 @@ class CommentCacheAfterCommitTest {
         assertThat(warning.getArgumentArray()).containsExactly(operation, POST_ID, delta);
         assertThat(warning.getThrowableProxy()).isNull();
     }
+
+    private record LogCapture(Logger logger, ListAppender<ILoggingEvent> appender, boolean wasAdditive) {
+    }
+
 }

@@ -74,6 +74,10 @@ management:
         include: health,info,prometheus
 
 im:
+  session-ticket:
+    hmac-secret: ${IM_SESSION_TICKET_HMAC_SECRET:}
+    issuer: ${IM_SESSION_TICKET_ISSUER:community-im-gateway}
+    audience: ${IM_SESSION_TICKET_AUDIENCE:im-realtime}
   gateway:
     cors:
       allowed-origins: ${IM_GATEWAY_CORS_ALLOWED_ORIGINS:}

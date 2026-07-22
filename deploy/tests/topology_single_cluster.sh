@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "${REPO_ROOT}"
+unset IM_SESSION_TICKET_HMAC_SECRET IM_SESSION_TICKET_ISSUER IM_SESSION_TICKET_AUDIENCE
 
 help_output="$(./deploy/deployment.sh --help 2>&1)"
 printf '%s\n' "${help_output}" | grep -F -- '--topology <single|cluster>'
@@ -16,6 +17,12 @@ single_infra="$(mktemp)"
 single_full="$(mktemp)"
 cluster_infra="$(mktemp)"
 cluster_full="$(mktemp)"
+single_ticket_override_full="$(mktemp)"
+cluster_ticket_override_full="$(mktemp)"
+single_missing_ticket_env="$(mktemp)"
+cluster_missing_ticket_env="$(mktemp)"
+single_missing_ticket_err="$(mktemp)"
+cluster_missing_ticket_err="$(mktemp)"
 single_legacy_env="$(mktemp)"
 cluster_legacy_env="$(mktemp)"
 single_legacy_full="$(mktemp)"
@@ -32,7 +39,7 @@ rm -f "${compose_invocation}" "${sentinel}"
 fake_bin="$(mktemp -d)"
 dev_err="$(mktemp)"
 ha_err="$(mktemp)"
-trap 'rm -rf "${fake_bin}"; rm -f "${single_infra}" "${single_full}" "${cluster_infra}" "${cluster_full}" "${single_legacy_env}" "${cluster_legacy_env}" "${single_legacy_full}" "${cluster_legacy_full}" "${custom_single_env}" "${custom_single_full}" "${custom_cluster_env}" "${custom_cluster_full}" "${environment_override_full}" "${custom_project_err}" "${compose_invocation}" "${sentinel}" "${dev_err}" "${ha_err}"' EXIT
+trap 'rm -rf "${fake_bin}"; rm -f "${single_infra}" "${single_full}" "${cluster_infra}" "${cluster_full}" "${single_ticket_override_full}" "${cluster_ticket_override_full}" "${single_missing_ticket_env}" "${cluster_missing_ticket_env}" "${single_missing_ticket_err}" "${cluster_missing_ticket_err}" "${single_legacy_env}" "${cluster_legacy_env}" "${single_legacy_full}" "${cluster_legacy_full}" "${custom_single_env}" "${custom_single_full}" "${custom_cluster_env}" "${custom_cluster_full}" "${environment_override_full}" "${custom_project_err}" "${compose_invocation}" "${sentinel}" "${dev_err}" "${ha_err}"' EXIT
 
 service_environment_value() {
   local rendered_config="$1"
@@ -52,6 +59,103 @@ service_environment_value() {
       exit
     }
   ' "${rendered_config}"
+}
+
+environment_file_value() {
+  local env_file="$1"
+  local variable="$2"
+  awk -v variable="${variable}" '
+    index($0, variable "=") == 1 {
+      print substr($0, length(variable) + 2)
+      exit
+    }
+  ' "${env_file}"
+}
+
+assert_environment_value_for_services() {
+  local rendered_config="$1"
+  local variable="$2"
+  local expected="$3"
+  local expected_source="$4"
+  shift 4
+
+  local service
+  local actual
+  for service in "$@"; do
+    actual="$(service_environment_value "${rendered_config}" "${service}" "${variable}")"
+    if [[ -z "${actual}" ]]; then
+      echo "${service} must receive ${variable}" >&2
+      return 1
+    fi
+  done
+  if [[ -z "${expected}" ]]; then
+    echo "${expected_source} must define ${variable}" >&2
+    return 1
+  fi
+  for service in "$@"; do
+    actual="$(service_environment_value "${rendered_config}" "${service}" "${variable}")"
+    if [[ "${actual}" != "${expected}" ]]; then
+      echo "${service} must receive ${variable} from ${expected_source}" >&2
+      return 1
+    fi
+  done
+}
+
+assert_ticket_runtime_environment() {
+  local rendered_config="$1"
+  local env_file="$2"
+  shift 2
+
+  local variable
+  local expected
+  for variable in IM_SESSION_TICKET_HMAC_SECRET IM_SESSION_TICKET_ISSUER IM_SESSION_TICKET_AUDIENCE; do
+    expected="$(environment_file_value "${env_file}" "${variable}")"
+    assert_environment_value_for_services \
+      "${rendered_config}" "${variable}" "${expected}" "${env_file}" "$@"
+  done
+}
+
+assert_ticket_runtime_values() {
+  local rendered_config="$1"
+  local ticket_secret="$2"
+  local ticket_issuer="$3"
+  local ticket_audience="$4"
+  shift 4
+
+  assert_environment_value_for_services "${rendered_config}" \
+    IM_SESSION_TICKET_HMAC_SECRET "${ticket_secret}" "ticket sentinel override" "$@"
+  assert_environment_value_for_services "${rendered_config}" \
+    IM_SESSION_TICKET_ISSUER "${ticket_issuer}" "ticket sentinel override" "$@"
+  assert_environment_value_for_services "${rendered_config}" \
+    IM_SESSION_TICKET_AUDIENCE "${ticket_audience}" "ticket sentinel override" "$@"
+}
+
+assert_distinct_ticket_secret() {
+  local env_file="$1"
+  local access_secret
+  local ticket_secret
+  local ticket_secret_bytes
+  local LC_ALL=C
+
+  access_secret="$(environment_file_value "${env_file}" JWT_HMAC_SECRET)"
+  ticket_secret="$(environment_file_value "${env_file}" IM_SESSION_TICKET_HMAC_SECRET)"
+  if [[ -z "${access_secret}" || -z "${ticket_secret}" ]]; then
+    echo "${env_file} must define access and IM session ticket secrets" >&2
+    return 1
+  fi
+  if [[ "${access_secret}" == "${ticket_secret}" ]]; then
+    echo "${env_file} must use distinct access and IM session ticket secrets" >&2
+    return 1
+  fi
+  ticket_secret_bytes="${#ticket_secret}"
+  if (( ticket_secret_bytes < 32 )); then
+    echo "${env_file} IM session ticket secret must be at least 32 UTF-8 bytes" >&2
+    return 1
+  fi
+}
+
+without_ticket_secret() {
+  awk '!/^IM_SESSION_TICKET_HMAC_SECRET=/' "$1"
 }
 
 without_topology_values() {
@@ -109,6 +213,56 @@ rendered_service_ipv4_address() {
 ./deploy/deployment.sh config --topology single --scope full --env-file deploy/.env.single.example >"${single_full}"
 ./deploy/deployment.sh config --topology cluster --scope infra --env-file deploy/.env.cluster.example >"${cluster_infra}"
 ./deploy/deployment.sh config --topology cluster --scope full --env-file deploy/.env.cluster.example >"${cluster_full}"
+
+assert_ticket_runtime_environment "${single_full}" deploy/.env.single.example \
+  community-im-gateway im-realtime
+assert_ticket_runtime_environment "${cluster_full}" deploy/.env.cluster.example \
+  community-im-gateway-1 community-im-gateway-2 community-im-gateway-3 \
+  im-realtime-1 im-realtime-2 im-realtime-3
+assert_distinct_ticket_secret deploy/.env.single.example
+assert_distinct_ticket_secret deploy/.env.cluster.example
+
+ticket_sentinel_secret="topology-test-im-session-ticket-secret-override-20260722"
+ticket_sentinel_issuer="topology-test-im-session-ticket-issuer"
+ticket_sentinel_audience="topology-test-im-session-ticket-audience"
+IM_SESSION_TICKET_HMAC_SECRET="${ticket_sentinel_secret}" \
+IM_SESSION_TICKET_ISSUER="${ticket_sentinel_issuer}" \
+IM_SESSION_TICKET_AUDIENCE="${ticket_sentinel_audience}" \
+  ./deploy/deployment.sh config --topology single --scope full \
+    --env-file deploy/.env.single.example >"${single_ticket_override_full}"
+IM_SESSION_TICKET_HMAC_SECRET="${ticket_sentinel_secret}" \
+IM_SESSION_TICKET_ISSUER="${ticket_sentinel_issuer}" \
+IM_SESSION_TICKET_AUDIENCE="${ticket_sentinel_audience}" \
+  ./deploy/deployment.sh config --topology cluster --scope full \
+    --env-file deploy/.env.cluster.example >"${cluster_ticket_override_full}"
+assert_ticket_runtime_values "${single_ticket_override_full}" \
+  "${ticket_sentinel_secret}" "${ticket_sentinel_issuer}" "${ticket_sentinel_audience}" \
+  community-im-gateway im-realtime
+assert_ticket_runtime_values "${cluster_ticket_override_full}" \
+  "${ticket_sentinel_secret}" "${ticket_sentinel_issuer}" "${ticket_sentinel_audience}" \
+  community-im-gateway-1 community-im-gateway-2 community-im-gateway-3 \
+  im-realtime-1 im-realtime-2 im-realtime-3
+
+without_ticket_secret deploy/.env.single.example >"${single_missing_ticket_env}"
+without_ticket_secret deploy/.env.cluster.example >"${cluster_missing_ticket_env}"
+if env -u IM_SESSION_TICKET_HMAC_SECRET \
+  -u IM_SESSION_TICKET_ISSUER \
+  -u IM_SESSION_TICKET_AUDIENCE \
+  ./deploy/deployment.sh config --topology single --scope full \
+    --env-file "${single_missing_ticket_env}" >/dev/null 2>"${single_missing_ticket_err}"; then
+  echo "expected single topology without an IM session ticket secret to fail" >&2
+  exit 1
+fi
+grep -F 'IM_SESSION_TICKET_HMAC_SECRET is required' "${single_missing_ticket_err}" >/dev/null
+if env -u IM_SESSION_TICKET_HMAC_SECRET \
+  -u IM_SESSION_TICKET_ISSUER \
+  -u IM_SESSION_TICKET_AUDIENCE \
+  ./deploy/deployment.sh config --topology cluster --scope full \
+    --env-file "${cluster_missing_ticket_env}" >/dev/null 2>"${cluster_missing_ticket_err}"; then
+  echo "expected cluster topology without an IM session ticket secret to fail" >&2
+  exit 1
+fi
+grep -F 'IM_SESSION_TICKET_HMAC_SECRET is required' "${cluster_missing_ticket_err}" >/dev/null
 
 without_topology_values deploy/.env.single.example >"${single_legacy_env}"
 without_topology_values deploy/.env.cluster.example >"${cluster_legacy_env}"

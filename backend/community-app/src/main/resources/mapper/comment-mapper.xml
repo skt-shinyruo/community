@@ -22,6 +22,20 @@
         limit #{offset}, #{limit}
     </select>
 
+    <select id="selectRootCommentsAfter" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
+        select <include refid="selectFields"></include>
+        from comment
+        where status = 0
+          and post_id = #{postId, jdbcType=BINARY}
+          and parent_comment_id is null
+        <if test="boundaryTime != null">
+          and (create_time &lt; #{boundaryTime}
+            or (create_time = #{boundaryTime} and id &lt; #{boundaryId, jdbcType=BINARY}))
+        </if>
+        order by create_time desc, id desc
+        limit #{limit}
+    </select>
+
     <select id="selectRepliesByRootComment" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
         select <include refid="selectFields"></include>
         from comment
@@ -30,6 +44,20 @@
           and parent_comment_id is not null
         order by create_time asc, id asc
         limit #{offset}, #{limit}
+    </select>
+
+    <select id="selectRepliesAfter" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
+        select <include refid="selectFields"></include>
+        from comment
+        where status = 0
+          and root_comment_id = #{rootCommentId, jdbcType=BINARY}
+          and parent_comment_id is not null
+        <if test="boundaryTime != null">
+          and (create_time &gt; #{boundaryTime}
+            or (create_time = #{boundaryTime} and id &gt; #{boundaryId, jdbcType=BINARY}))
+        </if>
+        order by create_time asc, id asc
+        limit #{limit}
     </select>
 
     <select id="selectRecentCommentsByUser" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">

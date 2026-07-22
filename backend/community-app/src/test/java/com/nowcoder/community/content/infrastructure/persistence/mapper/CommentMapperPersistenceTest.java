@@ -154,60 +154,59 @@ class CommentMapperPersistenceTest {
     }
 
     @Test
-    void listRootCommentsShouldReadNewestRootsByRootCursor() {
-        UUID olderRootId = UUID.fromString("00000000-0000-7000-8000-000000000407");
-        UUID newerRootId = UUID.fromString("00000000-0000-7000-8000-000000000408");
-        Instant olderTime = Instant.parse("2026-04-29T01:02:07Z");
-        Instant newerTime = Instant.parse("2026-04-29T01:02:08Z");
-        insertRootComment(olderRootId, USER_ID, POST_ID, 0, "older-root", olderTime);
-        insertRootComment(newerRootId, USER_ID, POST_ID, 0, "newer-root", newerTime);
+    void rootKeysetShouldUseDescendingIdTieBreakWithoutMutationGaps() {
+        UUID oldestRootId = UUID.fromString("00000000-0000-7000-8000-000000000407");
+        UUID olderRootId = UUID.fromString("00000000-0000-7000-8000-000000000408");
+        UUID boundaryRootId = UUID.fromString("00000000-0000-7000-8000-000000000409");
+        UUID newestRootId = UUID.fromString("00000000-0000-7000-8000-00000000040a");
+        UUID insertedBeforeBoundaryId = UUID.fromString("00000000-0000-7000-8000-00000000040b");
+        Instant sharedTime = Instant.parse("2026-04-29T01:02:07.123Z");
+        insertRootComment(oldestRootId, USER_ID, POST_ID, 0, "oldest-root", sharedTime);
+        insertRootComment(olderRootId, USER_ID, POST_ID, 0, "older-root", sharedTime);
+        insertRootComment(boundaryRootId, USER_ID, POST_ID, 0, "boundary-root", sharedTime);
+        insertRootComment(newestRootId, USER_ID, POST_ID, 0, "newest-root", sharedTime);
 
-        List<UUID> ids = queryIds(
-                """
-                        select id
-                        from comment
-                        where post_id = ? and parent_comment_id is null
-                          and (create_time < ? or (create_time = ? and id < ?))
-                        order by create_time desc, id desc
-                        limit 20
-                        """,
-                BinaryUuidCodec.toBytes(POST_ID),
-                Date.from(newerTime),
-                Date.from(newerTime),
-                BinaryUuidCodec.toBytes(newerRootId)
-        );
+        List<CommentDataObject> firstPage = commentMapper.selectRootCommentsAfter(
+                POST_ID, null, null, 2);
+        jdbcTemplate.update("delete from comment where id = ?", BinaryUuidCodec.toBytes(newestRootId));
+        insertRootComment(insertedBeforeBoundaryId, USER_ID, POST_ID, 0, "inserted-root", sharedTime);
+        List<CommentDataObject> secondPage = commentMapper.selectRootCommentsAfter(
+                POST_ID, Date.from(sharedTime), boundaryRootId, 10);
 
-        assertThat(ids).containsExactly(olderRootId);
+        assertThat(firstPage).extracting(CommentDataObject::getId)
+                .containsExactly(newestRootId, boundaryRootId);
+        assertThat(secondPage).extracting(CommentDataObject::getId)
+                .containsExactly(olderRootId, oldestRootId);
     }
 
     @Test
-    void listRepliesShouldReadOlderRepliesByReplyCursor() {
-        UUID rootCommentId = UUID.fromString("00000000-0000-7000-8000-000000000409");
-        UUID olderReplyId = UUID.fromString("00000000-0000-7000-8000-00000000040a");
-        UUID newerReplyId = UUID.fromString("00000000-0000-7000-8000-00000000040b");
+    void replyKeysetShouldUseAscendingIdTieBreakWithoutMutationGaps() {
+        UUID rootCommentId = UUID.fromString("00000000-0000-7000-8000-000000000420");
+        UUID oldestReplyId = UUID.fromString("00000000-0000-7000-8000-000000000411");
+        UUID boundaryReplyId = UUID.fromString("00000000-0000-7000-8000-000000000412");
+        UUID newerReplyId = UUID.fromString("00000000-0000-7000-8000-000000000413");
+        UUID newestReplyId = UUID.fromString("00000000-0000-7000-8000-000000000414");
+        UUID insertedBeforeBoundaryId = UUID.fromString("00000000-0000-7000-8000-000000000410");
         Instant rootTime = Instant.parse("2026-04-29T01:02:06Z");
-        Instant olderTime = Instant.parse("2026-04-29T01:02:07Z");
-        Instant newerTime = Instant.parse("2026-04-29T01:02:08Z");
+        Instant sharedTime = Instant.parse("2026-04-29T01:02:07.123Z");
         insertRootComment(rootCommentId, USER_ID, POST_ID, 0, "root", rootTime);
-        insertReply(olderReplyId, USER_ID, POST_ID, rootCommentId, USER_ID, 0, "older-reply", olderTime);
-        insertReply(newerReplyId, USER_ID, POST_ID, rootCommentId, USER_ID, 0, "newer-reply", newerTime);
+        insertReply(oldestReplyId, USER_ID, POST_ID, rootCommentId, USER_ID, 0, "oldest-reply", sharedTime);
+        insertReply(boundaryReplyId, USER_ID, POST_ID, rootCommentId, USER_ID, 0, "boundary-reply", sharedTime);
+        insertReply(newerReplyId, USER_ID, POST_ID, rootCommentId, USER_ID, 0, "newer-reply", sharedTime);
+        insertReply(newestReplyId, USER_ID, POST_ID, rootCommentId, USER_ID, 0, "newest-reply", sharedTime);
 
-        List<UUID> ids = queryIds(
-                """
-                        select id
-                        from comment
-                        where root_comment_id = ? and parent_comment_id is not null
-                          and (create_time > ? or (create_time = ? and id > ?))
-                        order by create_time asc, id asc
-                        limit 20
-                        """,
-                BinaryUuidCodec.toBytes(rootCommentId),
-                Date.from(olderTime),
-                Date.from(olderTime),
-                BinaryUuidCodec.toBytes(olderReplyId)
-        );
+        List<CommentDataObject> firstPage = commentMapper.selectRepliesAfter(
+                rootCommentId, null, null, 2);
+        jdbcTemplate.update("delete from comment where id = ?", BinaryUuidCodec.toBytes(oldestReplyId));
+        insertReply(insertedBeforeBoundaryId, USER_ID, POST_ID, rootCommentId, USER_ID, 0,
+                "inserted-reply", sharedTime);
+        List<CommentDataObject> secondPage = commentMapper.selectRepliesAfter(
+                rootCommentId, Date.from(sharedTime), boundaryReplyId, 10);
 
-        assertThat(ids).containsExactly(newerReplyId);
+        assertThat(firstPage).extracting(CommentDataObject::getId)
+                .containsExactly(oldestReplyId, boundaryReplyId);
+        assertThat(secondPage).extracting(CommentDataObject::getId)
+                .containsExactly(newerReplyId, newestReplyId);
     }
 
     private void insertRootComment(UUID id, UUID userId, UUID postId, int status, String content, Instant createTime) {
@@ -245,9 +244,5 @@ class CommentMapperPersistenceTest {
         comment.setStatus(status);
         comment.setCreateTime(Date.from(createTime));
         commentMapper.insert(comment);
-    }
-
-    private List<UUID> queryIds(String sql, Object... args) {
-        return jdbcTemplate.query(sql, (rs, rowNum) -> BinaryUuidCodec.fromBytes(rs.getBytes(1)), args);
     }
 }

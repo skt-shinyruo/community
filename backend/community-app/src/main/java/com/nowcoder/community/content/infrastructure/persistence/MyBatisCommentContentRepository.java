@@ -9,6 +9,7 @@ import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentM
 import com.nowcoder.community.common.pagination.Pagination;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,21 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
     }
 
     @Override
+    public List<Comment> listRootCommentsAfter(UUID postId, Date boundaryTime, UUID boundaryId, int limit) {
+        if (postId == null) {
+            return List.of();
+        }
+        validateBoundaryPair(boundaryTime, boundaryId);
+        postContentPort.getById(postId);
+        return toAggregates(commentMapper.selectRootCommentsAfter(
+                postId,
+                boundaryTime,
+                boundaryId,
+                normalizeKeysetFetchLimit(limit)
+        ));
+    }
+
+    @Override
     public List<Comment> listReplies(UUID rootCommentId, int page, int size) {
         return listReplies(rootCommentId, page, size, normalizePageSize(size));
     }
@@ -62,6 +78,20 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
         int s = normalizePageSize(size);
         int fetchLimit = normalizeFetchLimit(limit, s);
         return toAggregates(commentMapper.selectRepliesByRootComment(rootCommentId, Pagination.safeOffset(p, s), fetchLimit));
+    }
+
+    @Override
+    public List<Comment> listRepliesAfter(UUID rootCommentId, Date boundaryTime, UUID boundaryId, int limit) {
+        if (rootCommentId == null) {
+            return List.of();
+        }
+        validateBoundaryPair(boundaryTime, boundaryId);
+        return toAggregates(commentMapper.selectRepliesAfter(
+                rootCommentId,
+                boundaryTime,
+                boundaryId,
+                normalizeKeysetFetchLimit(limit)
+        ));
     }
 
     @Override
@@ -141,5 +171,15 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
 
     private static int normalizeFetchLimit(int limit, int pageSize) {
         return Math.min(pageSize + 1, Math.max(1, limit));
+    }
+
+    private static int normalizeKeysetFetchLimit(int limit) {
+        return Math.min(MAX_PAGE_SIZE + 1, Math.max(1, limit));
+    }
+
+    private static void validateBoundaryPair(Date boundaryTime, UUID boundaryId) {
+        if ((boundaryTime == null) != (boundaryId == null)) {
+            throw new BusinessException(INVALID_ARGUMENT, "评论游标边界非法");
+        }
     }
 }

@@ -593,7 +593,7 @@ create table if not exists notice_record (
   sender_user_id binary(16),
   recipient_user_id binary(16) not null,
   topic varchar(64) not null,
-  content varchar(4000),
+  content clob,
   source_event_type varchar(64),
   source_relation_key varchar(255),
   status int not null default 0,

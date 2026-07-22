@@ -21,6 +21,8 @@ import java.util.UUID;
 @Service
 public class NoticeProjectionApplicationService {
 
+    private static final int COMMENT_PREVIEW_CODE_POINT_LIMIT = 240;
+
     private final JsonCodec jsonCodec;
     private final NoticeApplicationService noticeApplicationService;
     private final NoticeProjectionDomainService noticeProjectionDomainService;
@@ -106,7 +108,7 @@ public class NoticeProjectionApplicationService {
                             comment.entityType(),
                             comment.entityId(),
                             comment.targetUserId(),
-                            comment.content(),
+                            commentPreview(comment.content()),
                             comment.createTime()
                     )
             );
@@ -234,5 +236,13 @@ public class NoticeProjectionApplicationService {
         if (!StringUtils.hasText(eventId)) {
             throw new IllegalStateException("notice projection source event id is blank");
         }
+    }
+
+    private static String commentPreview(String content) {
+        String value = content == null ? "" : content;
+        if (value.codePointCount(0, value.length()) <= COMMENT_PREVIEW_CODE_POINT_LIMIT) {
+            return value;
+        }
+        return value.substring(0, value.offsetByCodePoints(0, COMMENT_PREVIEW_CODE_POINT_LIMIT));
     }
 }

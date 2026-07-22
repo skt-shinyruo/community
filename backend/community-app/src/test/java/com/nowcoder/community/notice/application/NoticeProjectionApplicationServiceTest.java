@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
+import java.util.List;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -107,6 +108,50 @@ class NoticeProjectionApplicationServiceTest {
         assertThat(content.path("payload").path("postId").asText()).isEqualTo(uuid(100).toString());
         assertThat(content.path("payload").path("targetUserId").asText()).isEqualTo(uuid(9).toString());
         assertThat(content.path("payload").path("content").asText()).isEqualTo("hello");
+    }
+
+    @Test
+    void commentProjectionShouldBoundEscapedPreviewsWithoutChangingSourceContent() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionApplicationService service = projectionService(noticeService, null);
+        String quotedContent = "\"".repeat(2_000);
+        String backslashContent = "\\".repeat(2_000);
+        ProjectNoticeCommand.CommentCreated quoted = commentCommand(
+                "evt-comment-quotes", uuid(100), uuid(9), quotedContent);
+        ProjectNoticeCommand.CommentCreated backslashes = commentCommand(
+                "evt-comment-backslashes", uuid(101), uuid(9), backslashContent);
+
+        service.projectReliably(quoted);
+        service.projectReliably(backslashes);
+
+        List<String> previews = capturedNotices(noticeService, 2).stream()
+                .map(notice -> jsonCodec().readTree(notice.contentJson())
+                        .path("payload").path("content").asText())
+                .toList();
+        assertThat(previews).containsExactly("\"".repeat(240), "\\".repeat(240));
+        assertThat(previews).allSatisfy(preview ->
+                assertThat(preview.codePointCount(0, preview.length())).isLessThanOrEqualTo(240));
+        assertThat(quoted.content()).isEqualTo(quotedContent);
+        assertThat(backslashes.content()).isEqualTo(backslashContent);
+    }
+
+    @Test
+    void commentProjectionShouldEndEmojiPreviewOnAWholeCodePoint() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionApplicationService service = projectionService(noticeService, null);
+        String emoji = "\uD83D\uDE00";
+        String sourceContent = emoji.repeat(241);
+        ProjectNoticeCommand.CommentCreated command = commentCommand(
+                "evt-comment-emoji", uuid(100), uuid(9), sourceContent);
+
+        service.projectReliably(command);
+
+        String preview = jsonCodec().readTree(capturedNotice(noticeService).contentJson())
+                .path("payload").path("content").asText();
+        assertThat(preview.codePointCount(0, preview.length())).isEqualTo(240);
+        assertThat(preview).isEqualTo(emoji.repeat(240));
+        assertThat(preview.codePointBefore(preview.length())).isEqualTo(emoji.codePointAt(0));
+        assertThat(command.content()).isEqualTo(sourceContent);
     }
 
     @Test
@@ -215,9 +260,18 @@ class NoticeProjectionApplicationServiceTest {
     }
 
     private static ProjectNoticeCommand commentCommand(String eventId, java.util.UUID postId, java.util.UUID targetUserId) {
+        return commentCommand(eventId, postId, targetUserId, "hello");
+    }
+
+    private static ProjectNoticeCommand.CommentCreated commentCommand(
+            String eventId,
+            java.util.UUID postId,
+            java.util.UUID targetUserId,
+            String content
+    ) {
         return new ProjectNoticeCommand.CommentCreated(
                 eventId, 42L, "CommentCreated", uuid(10), postId, uuid(1), EntityTypes.POST,
-                postId, targetUserId, "hello", Instant.parse("2026-07-06T00:00:00Z"));
+                postId, targetUserId, content, Instant.parse("2026-07-06T00:00:00Z"));
     }
 
     private static ProjectNoticeCommand likeRemovedCommand(String eventId) {
@@ -230,6 +284,12 @@ class NoticeProjectionApplicationServiceTest {
         ArgumentCaptor<CreateNoticeCommand> captor = ArgumentCaptor.forClass(CreateNoticeCommand.class);
         verify(noticeService).createNotice(captor.capture());
         return captor.getValue();
+    }
+
+    private static List<CreateNoticeCommand> capturedNotices(NoticeApplicationService noticeService, int count) {
+        ArgumentCaptor<CreateNoticeCommand> captor = ArgumentCaptor.forClass(CreateNoticeCommand.class);
+        verify(noticeService, times(count)).createNotice(captor.capture());
+        return captor.getAllValues();
     }
 
     private static JsonCodec jsonCodec() {

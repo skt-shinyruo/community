@@ -18,9 +18,23 @@ public interface CommentMapper {
             @Param("limit") int limit
     );
 
+    List<CommentDataObject> selectRootCommentsAfter(
+            @Param("postId") UUID postId,
+            @Param("boundaryTime") Date boundaryTime,
+            @Param("boundaryId") UUID boundaryId,
+            @Param("limit") int limit
+    );
+
     List<CommentDataObject> selectRepliesByRootComment(
             @Param("rootCommentId") UUID rootCommentId,
             @Param("offset") int offset,
+            @Param("limit") int limit
+    );
+
+    List<CommentDataObject> selectRepliesAfter(
+            @Param("rootCommentId") UUID rootCommentId,
+            @Param("boundaryTime") Date boundaryTime,
+            @Param("boundaryId") UUID boundaryId,
             @Param("limit") int limit
     );
 

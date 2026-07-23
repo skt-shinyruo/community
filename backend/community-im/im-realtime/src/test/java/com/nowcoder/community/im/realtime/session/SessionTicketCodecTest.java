@@ -1,8 +1,17 @@
 package com.nowcoder.community.im.realtime.session;
 
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSObject;
+import com.nimbusds.jose.Payload;
+import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -11,6 +20,7 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.security.oauth2.jwt.MappedJwtClaimSetConverter;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
@@ -19,8 +29,13 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -59,6 +74,64 @@ class SessionTicketCodecTest {
         assertThat(claims.workerId()).isEqualTo("worker-a");
         assertThat(claims.issuedAt()).isNotNull();
         assertThat(claims.expiresAt()).isEqualTo(expiresAt);
+    }
+
+    @Test
+    void encode_shouldProduceCanonicalRawClaimTypesAtDecoderConversionBoundary() {
+        SessionTicketCodec codec = codec(ticketProperties(TICKET_SECRET));
+        String ticket = codec.encode(
+                "sess-1",
+                USER_ID,
+                "worker-a",
+                Instant.now().plusSeconds(90)
+        );
+        AtomicReference<Map<String, Object>> observedClaims = new AtomicReference<>();
+        MappedJwtClaimSetConverter defaults = MappedJwtClaimSetConverter.withDefaults(Map.of());
+        NimbusJwtDecoder decoder = rawDecoder(TICKET_SECRET);
+        decoder.setClaimSetConverter(claims -> {
+            observedClaims.set(Map.copyOf(claims));
+            return defaults.convert(claims);
+        });
+
+        decoder.decode(ticket);
+
+        assertThat(observedClaims.get()).containsOnlyKeys("iss", "aud", "typ", "sub", "sid", "wid", "iat", "exp");
+        assertThat(observedClaims.get())
+                .hasEntrySatisfying("iss", value -> assertThat(value).isInstanceOf(String.class))
+                .hasEntrySatisfying("typ", value -> assertThat(value).isInstanceOf(String.class))
+                .hasEntrySatisfying("sub", value -> assertThat(value).isInstanceOf(String.class))
+                .hasEntrySatisfying("sid", value -> assertThat(value).isInstanceOf(String.class))
+                .hasEntrySatisfying("wid", value -> assertThat(value).isInstanceOf(String.class))
+                .hasEntrySatisfying("iat", value -> assertThat(value).isInstanceOf(Date.class))
+                .hasEntrySatisfying("exp", value -> assertThat(value).isInstanceOf(Date.class));
+        Object rawAudience = observedClaims.get().get("aud");
+        assertThat(rawAudience).isInstanceOf(List.class);
+        assertThat((List<?>) rawAudience).hasSize(1);
+        assertThat(((List<?>) rawAudience).get(0)).isEqualTo(TICKET_AUDIENCE);
+    }
+
+    @ParameterizedTest(name = "missing raw claim {0}")
+    @MethodSource("requiredClaimNames")
+    void decode_shouldRejectMissingRequiredRawClaim(String claimName) throws JOSEException {
+        Map<String, Object> claims = canonicalRawClaims();
+        claims.remove(claimName);
+
+        String ticket = signedRawTicket(TICKET_SECRET, claims);
+
+        assertThatThrownBy(() -> codec(ticketProperties(TICKET_SECRET)).decode(ticket))
+                .isInstanceOf(JwtException.class);
+    }
+
+    @ParameterizedTest(name = "wrong raw type for {0}")
+    @MethodSource("wrongTypeClaims")
+    void decode_shouldRejectWrongTypeRequiredRawClaim(String claimName, Object wrongValue) throws JOSEException {
+        Map<String, Object> claims = canonicalRawClaims();
+        claims.put(claimName, wrongValue);
+
+        String ticket = signedRawTicket(TICKET_SECRET, claims);
+
+        assertThatThrownBy(() -> codec(ticketProperties(TICKET_SECRET)).decode(ticket))
+                .isInstanceOf(JwtException.class);
     }
 
     @Test
@@ -251,6 +324,46 @@ class SessionTicketCodecTest {
         return NimbusJwtDecoder.withSecretKey(secretKey(secret))
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
+    }
+
+    private static Stream<String> requiredClaimNames() {
+        return Stream.of("iss", "aud", "typ", "sub", "sid", "wid", "iat", "exp");
+    }
+
+    private static Stream<Arguments> wrongTypeClaims() {
+        return Stream.of(
+                Arguments.of("iss", 42L),
+                Arguments.of("aud", List.of(42L)),
+                Arguments.of("typ", true),
+                Arguments.of("sub", true),
+                Arguments.of("sid", 42L),
+                Arguments.of("wid", true),
+                Arguments.of("iat", "not-a-numeric-date"),
+                Arguments.of("exp", "not-a-numeric-date")
+        );
+    }
+
+    private static Map<String, Object> canonicalRawClaims() {
+        Instant issuedAt = Instant.now().minusSeconds(1);
+        Map<String, Object> claims = new LinkedHashMap<>();
+        claims.put("iss", TICKET_ISSUER);
+        claims.put("aud", List.of(TICKET_AUDIENCE));
+        claims.put("typ", TICKET_TYPE);
+        claims.put("sub", USER_ID.toString());
+        claims.put("sid", "sess-1");
+        claims.put("wid", "worker-a");
+        claims.put("iat", issuedAt.getEpochSecond());
+        claims.put("exp", issuedAt.plusSeconds(60).getEpochSecond());
+        return claims;
+    }
+
+    private static String signedRawTicket(String secret, Map<String, Object> claims) throws JOSEException {
+        JWSObject jws = new JWSObject(
+                new JWSHeader(JWSAlgorithm.HS256),
+                new Payload(claims)
+        );
+        jws.sign(new MACSigner(secretKey(secret)));
+        return jws.serialize();
     }
 
     private static String rawTicket(

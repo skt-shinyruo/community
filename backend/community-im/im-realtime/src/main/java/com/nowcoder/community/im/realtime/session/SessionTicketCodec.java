@@ -14,13 +14,16 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.MappedJwtClaimSetConverter;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
 import java.time.Instant;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -29,7 +32,14 @@ public class SessionTicketCodec {
     private static final String CLAIM_SESSION_ID = "sid";
     private static final String CLAIM_WORKER_ID = "wid";
     private static final String CLAIM_TOKEN_TYPE = "typ";
+    private static final String CLAIM_ISSUER = "iss";
+    private static final String CLAIM_AUDIENCE = "aud";
+    private static final String CLAIM_SUBJECT = "sub";
+    private static final String CLAIM_ISSUED_AT = "iat";
+    private static final String CLAIM_EXPIRES_AT = "exp";
     private static final String TOKEN_TYPE = "im-session-ticket";
+    private static final MappedJwtClaimSetConverter DEFAULT_CLAIM_SET_CONVERTER =
+            MappedJwtClaimSetConverter.withDefaults(Map.of());
 
     private final JwtEncoder jwtEncoder;
     private final JwtDecoder jwtDecoder;
@@ -45,6 +55,7 @@ public class SessionTicketCodec {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(secretKey)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
+        decoder.setClaimSetConverter(SessionTicketCodec::convertClaimSet);
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(issuer),
                 audienceValidator(audience),
@@ -84,9 +95,45 @@ public class SessionTicketCodec {
                 parseUserId(jwt.getSubject()),
                 requiredText(jwt.getClaimAsString(CLAIM_SESSION_ID), CLAIM_SESSION_ID),
                 requiredText(jwt.getClaimAsString(CLAIM_WORKER_ID), CLAIM_WORKER_ID),
-                requiredInstant(jwt.getIssuedAt(), "iat"),
-                requiredInstant(jwt.getExpiresAt(), "exp")
+                requiredInstant(jwt.getIssuedAt(), CLAIM_ISSUED_AT),
+                requiredInstant(jwt.getExpiresAt(), CLAIM_EXPIRES_AT)
         );
+    }
+
+    private static Map<String, Object> convertClaimSet(Map<String, Object> claims) {
+        requireRawTextClaim(claims, CLAIM_ISSUER);
+        requireRawAudienceClaim(claims);
+        requireRawTextClaim(claims, CLAIM_TOKEN_TYPE);
+        requireRawTextClaim(claims, CLAIM_SUBJECT);
+        requireRawTextClaim(claims, CLAIM_SESSION_ID);
+        requireRawTextClaim(claims, CLAIM_WORKER_ID);
+        requireRawDateClaim(claims, CLAIM_ISSUED_AT);
+        requireRawDateClaim(claims, CLAIM_EXPIRES_AT);
+        return DEFAULT_CLAIM_SET_CONVERTER.convert(claims);
+    }
+
+    private static void requireRawTextClaim(Map<String, Object> claims, String claimName) {
+        if (!(claims.get(claimName) instanceof String)) {
+            throw invalidRawClaim(claimName);
+        }
+    }
+
+    private static void requireRawAudienceClaim(Map<String, Object> claims) {
+        Object value = claims.get(CLAIM_AUDIENCE);
+        if (!(value instanceof List<?> values)
+                || values.stream().anyMatch(element -> !(element instanceof String))) {
+            throw invalidRawClaim(CLAIM_AUDIENCE);
+        }
+    }
+
+    private static void requireRawDateClaim(Map<String, Object> claims, String claimName) {
+        if (!(claims.get(claimName) instanceof Date)) {
+            throw invalidRawClaim(claimName);
+        }
+    }
+
+    private static BadJwtException invalidRawClaim(String claimName) {
+        return new BadJwtException("invalid IM session ticket claim: " + claimName);
     }
 
     private static void requireTokenType(String tokenType) {

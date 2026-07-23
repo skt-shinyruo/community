@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -96,20 +98,47 @@ public class ConversationApplicationService {
 
         List<ConversationResults.MessageItem> items = privateMessageRepository.listAfterSeq(canonicalConversationId, after, l)
                 .stream()
-                .map(r -> new ConversationResults.MessageItem(
-                        r.conversationId(),
-                        r.seq(),
-                        r.messageId(),
-                        r.fromUserId(),
-                        r.toUserId(),
-                        r.content(),
-                        r.clientMsgId(),
-                        r.createdAt().toEpochMilli()
-                ))
+                .map(ConversationApplicationService::toMessageItem)
                 .toList();
         long nextAfterSeq = items.isEmpty() ? after : items.get(items.size() - 1).seq();
         long lastReadSeq = readStateRepository.getLastReadSeq(canonicalConversationId, viewerId);
         return new ConversationResults.Messages(canonicalConversationId, items, nextAfterSeq, lastReadSeq);
+    }
+
+    @Transactional(readOnly = true)
+    public ConversationResults.History listMessageHistory(
+            UUID viewerId,
+            String conversationId,
+            Long beforeSeq,
+            int limit
+    ) {
+        ParsedConversationId parsed = parseConversationId(conversationId);
+        if (parsed == null) {
+            throw new IllegalArgumentException("invalid conversationId");
+        }
+        assertConversationMember(viewerId, parsed);
+        if (beforeSeq != null && beforeSeq <= 0L) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
+        }
+
+        int historyLimit = Math.min(Math.max(1, limit), 200);
+        String canonicalConversationId = parsed.canonicalConversationId;
+        if (!conversationRepository.exists(canonicalConversationId)) {
+            return new ConversationResults.History(canonicalConversationId, List.of(), null, false, 0L);
+        }
+
+        List<com.nowcoder.community.im.core.domain.model.PrivateMessageRecord> rows = privateMessageRepository
+                .listBeforeSeq(canonicalConversationId, beforeSeq, historyLimit + 1);
+        boolean hasMore = rows.size() > historyLimit;
+        List<ConversationResults.MessageItem> items = new ArrayList<>(rows
+                .stream()
+                .limit(historyLimit)
+                .map(ConversationApplicationService::toMessageItem)
+                .toList());
+        Collections.reverse(items);
+        Long nextBeforeSeq = hasMore ? items.get(0).seq() : null;
+        long lastReadSeq = readStateRepository.getLastReadSeq(canonicalConversationId, viewerId);
+        return new ConversationResults.History(canonicalConversationId, items, nextBeforeSeq, hasMore, lastReadSeq);
     }
 
     @Transactional
@@ -152,6 +181,19 @@ public class ConversationApplicationService {
                         item.lastMessage().content(),
                         item.lastMessage().createdAt() == null ? 0L : item.lastMessage().createdAt().toEpochMilli()
                 )
+        );
+    }
+
+    private static ConversationResults.MessageItem toMessageItem(com.nowcoder.community.im.core.domain.model.PrivateMessageRecord record) {
+        return new ConversationResults.MessageItem(
+                record.conversationId(),
+                record.seq(),
+                record.messageId(),
+                record.fromUserId(),
+                record.toUserId(),
+                record.content(),
+                record.clientMsgId(),
+                record.createdAt().toEpochMilli()
         );
     }
 

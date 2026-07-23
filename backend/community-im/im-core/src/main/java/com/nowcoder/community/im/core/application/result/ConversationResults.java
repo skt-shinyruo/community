@@ -16,6 +16,15 @@ public final class ConversationResults {
     ) {
     }
 
+    public record History(
+            String conversationId,
+            List<MessageItem> items,
+            Long nextBeforeSeq,
+            boolean hasMore,
+            long lastReadSeq
+    ) {
+    }
+
     public record ListItem(
             String conversationId,
             UUID otherUserId,

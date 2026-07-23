@@ -25,4 +25,10 @@ public interface PrivateMessageMapper {
             @Param("afterSeqExclusive") long afterSeqExclusive,
             @Param("limit") int limit
     );
+
+    List<PrivateMessageDataObject> selectBeforeSeq(
+            @Param("conversationId") String conversationId,
+            @Param("beforeSeqExclusive") Long beforeSeqExclusive,
+            @Param("limit") int limit
+    );
 }

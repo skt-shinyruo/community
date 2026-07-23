@@ -13,4 +13,6 @@ public interface PrivateMessageRepository {
     void insert(PrivateMessageRecord message);
 
     List<PrivateMessageRecord> listAfterSeq(String conversationId, long afterSeqExclusive, int limit);
+
+    List<PrivateMessageRecord> listBeforeSeq(String conversationId, Long beforeSeqExclusive, int limit);
 }

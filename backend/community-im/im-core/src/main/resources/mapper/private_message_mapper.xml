@@ -54,4 +54,15 @@
         limit #{limit}
     </select>
 
+    <select id="selectBeforeSeq" resultMap="privateMessageResultMap">
+        select <include refid="fields"/>
+        from im_private_message
+        where conversation_id = #{conversationId}
+        <if test="beforeSeqExclusive != null">
+            and seq &lt; #{beforeSeqExclusive}
+        </if>
+        order by seq desc
+        limit #{limit}
+    </select>
+
 </mapper>

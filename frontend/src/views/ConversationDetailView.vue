@@ -32,6 +32,16 @@
       <div class="chat-area" ref="chatArea">
         <div class="chat-timeline-label">消息时间线</div>
 
+        <UiButton
+          v-if="hasMoreHistory"
+          data-testid="load-earlier-messages"
+          variant="secondary"
+          :disabled="loadingHistory || loading"
+          @click="loadEarlier"
+        >
+          {{ loadingHistory ? '加载中…' : '加载更早消息' }}
+        </UiButton>
+
         <UiState v-if="error && items.length === 0" variant="error" class="chat-state">{{ error }}</UiState>
         <div v-else-if="loading && items.length === 0" class="muted chat-state">正在同步会话…</div>
         <UiState v-else-if="items.length === 0" class="chat-state">
@@ -69,7 +79,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { listImConversationMessages, markImConversationRead } from '../api/services/imCoreChatService'
+import { listImConversationHistory, markImConversationRead } from '../api/services/imCoreChatService'
 import { imRealtimeClient } from '../im/imRealtimeClient'
 import { showToast } from '../ui/toastService'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
@@ -93,7 +103,10 @@ const auth = useAuthStore()
 const meId = computed(() => normalizeOpaqueId(auth.userId))
 
 const loading = ref(false)
+const loadingHistory = ref(false)
 const items = ref([])
+const nextBeforeSeq = ref(null)
+const hasMoreHistory = ref(false)
 const error = ref('')
 const content = ref('')
 const sending = ref(false)
@@ -101,6 +114,7 @@ const chatArea = ref(null)
 const realtimeState = ref({ ...imRealtimeClient.state })
 const pendingClientMsgIds = new Set()
 const loadRequestTracker = createLatestRequestTracker()
+let latestLoadBuffer = null
 
 const conversationId = computed(() => String(props.conversationId || '').trim())
 const targetId = computed(() => parseTargetId())
@@ -120,17 +134,24 @@ function parseTargetId() {
 
 async function load() {
   const token = loadRequestTracker.begin()
+  const bufferedMessages = []
+  latestLoadBuffer = { token, messages: bufferedMessages }
   error.value = ''
+  loadingHistory.value = false
   loading.value = true
   try {
-    const resp = await listImConversationMessages(conversationId.value, { afterSeq: 0, limit: 50 })
+    const resp = await listImConversationHistory(conversationId.value, { limit: 50 })
     if (!loadRequestTracker.isCurrent(token)) return
     const rows = Array.isArray(resp?.items) ? resp.items : []
-    items.value = mergeConversationMessages([], rows.map((m) => mapConversationMessage(m)))
+    const historyMessages = rows.map((m) => mapConversationMessage(m))
+    items.value = mergeConversationMessages([], [...historyMessages, ...bufferedMessages])
+    if (latestLoadBuffer?.token === token) latestLoadBuffer = null
+    nextBeforeSeq.value = resp?.nextBeforeSeq ?? null
+    hasMoreHistory.value = Boolean(resp?.hasMore && nextBeforeSeq.value != null)
 
     const maxSeq = findLatestConversationSeq(items.value)
     if (maxSeq > 0) {
-      await markImConversationRead(conversationId.value, maxSeq)
+      try { await markImConversationRead(conversationId.value, maxSeq) } catch {}
     }
     if (!loadRequestTracker.isCurrent(token)) return
     scrollToBottom()
@@ -138,8 +159,43 @@ async function load() {
     if (!loadRequestTracker.isCurrent(token)) return
     error.value = e?.message || '加载失败'
   } finally {
+    if (latestLoadBuffer?.token === token) latestLoadBuffer = null
     if (loadRequestTracker.isCurrent(token)) {
       loading.value = false
+    }
+  }
+}
+
+async function loadEarlier() {
+  if (loading.value || loadingHistory.value || !hasMoreHistory.value || nextBeforeSeq.value == null) return
+
+  const token = loadRequestTracker.begin()
+  const previousHeight = chatArea.value?.scrollHeight || 0
+  const previousTop = chatArea.value?.scrollTop || 0
+  loadingHistory.value = true
+  error.value = ''
+  try {
+    const resp = await listImConversationHistory(conversationId.value, {
+      beforeSeq: nextBeforeSeq.value,
+      limit: 50
+    })
+    if (!loadRequestTracker.isCurrent(token)) return
+
+    const rows = Array.isArray(resp?.items) ? resp.items : []
+    items.value = mergeConversationMessages(items.value, rows.map((m) => mapConversationMessage(m)))
+    nextBeforeSeq.value = resp?.nextBeforeSeq ?? null
+    hasMoreHistory.value = Boolean(resp?.hasMore && nextBeforeSeq.value != null)
+
+    await nextTick()
+    if (loadRequestTracker.isCurrent(token) && chatArea.value) {
+      chatArea.value.scrollTop = previousTop + (chatArea.value.scrollHeight - previousHeight)
+    }
+  } catch (e) {
+    if (!loadRequestTracker.isCurrent(token)) return
+    error.value = e?.message || '加载更早消息失败'
+  } finally {
+    if (loadRequestTracker.isCurrent(token)) {
+      loadingHistory.value = false
     }
   }
 }
@@ -181,6 +237,8 @@ watch(conversationId, (nextConversationId, previousConversationId) => {
   if (!nextConversationId || nextConversationId === previousConversationId) return
   loadRequestTracker.invalidate()
   items.value = []
+  nextBeforeSeq.value = null
+  hasMoreHistory.value = false
   error.value = ''
   pendingClientMsgIds.clear()
   load()
@@ -196,15 +254,23 @@ onMounted(() => {
     if (!msg || msg.conversationId !== conversationId.value) return
     const seq = Number(msg?.seq || 0)
     const message = mapConversationMessage(msg)
+    if (latestLoadBuffer && loadRequestTracker.isCurrent(latestLoadBuffer.token)) {
+      latestLoadBuffer.messages.push(message)
+    }
+    const previousMaxSeq = findLatestConversationSeq(items.value)
+    const previousLength = items.value.length
 
-    items.value = mergeConversationMessages(items.value, [{
+    const mergedItems = mergeConversationMessages(items.value, [{
       ...message,
       seq
     }])
-    scrollToBottom()
+    items.value = mergedItems
+    const nextMaxSeq = findLatestConversationSeq(mergedItems)
+    const isNewTail = mergedItems.length > previousLength && nextMaxSeq > previousMaxSeq
+    if (isNewTail) scrollToBottom()
 
     // When this conversation is open, best-effort mark read to the latest seq.
-    if (seq > 0 && sameOpaqueId(message.toId, meId.value)) {
+    if (isNewTail && seq === nextMaxSeq && sameOpaqueId(message.toId, meId.value)) {
       try { await markImConversationRead(conversationId.value, seq) } catch {}
     }
   })

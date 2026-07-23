@@ -58,16 +58,16 @@ public class ConnectTicketRouter {
     private ConnectFrame readConnectFrame(JsonNode node) {
         try {
             return frameCodec.read(node, ConnectFrame.class);
-        } catch (RuntimeException ex) {
-            throw invalidTicket(ex);
+        } catch (RuntimeException ignored) {
+            throw invalidTicket();
         }
     }
 
     private SessionTicketCodec.TicketClaims decodeTicket(String ticket) {
         try {
             return sessionTicketCodec.decode(ticket);
-        } catch (RuntimeException ex) {
-            throw invalidTicket(ex);
+        } catch (RuntimeException ignored) {
+            throw invalidTicket();
         }
     }
 
@@ -82,8 +82,8 @@ public class ConnectTicketRouter {
         }
     }
 
-    private static RoutingException invalidTicket(RuntimeException cause) {
-        return new RoutingException(401, REASON_INVALID_TICKET, "invalid ticket", cause);
+    private static RoutingException invalidTicket() {
+        return new RoutingException(401, REASON_INVALID_TICKET, "invalid ticket");
     }
 
     public record RoutingDecision(String sessionId, String workerId, URI workerUri) {

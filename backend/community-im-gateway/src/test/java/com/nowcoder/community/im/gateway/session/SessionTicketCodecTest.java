@@ -50,6 +50,7 @@ class SessionTicketCodecTest {
     private static final String TICKET_AUDIENCE = "im-realtime";
     private static final String TICKET_TYPE = "im-session-ticket";
     private static final UUID USER_ID = UUID.fromString("00000000-0000-7000-8000-000000000123");
+    private static final Instant EXPIRED_TICKET_EXPIRATION = Instant.parse("2024-01-02T03:04:05Z");
 
     @Test
     void encodeAndDecode_shouldRoundTripDedicatedTicketClaims() {
@@ -214,8 +215,9 @@ class SessionTicketCodecTest {
         );
 
         assertThatThrownBy(() -> codec.decode(ticket))
-                .isInstanceOf(JwtException.class)
-                .hasMessageContaining("type");
+                .isExactlyInstanceOf(BadJwtException.class)
+                .hasMessage("invalid IM session ticket")
+                .hasNoCause();
     }
 
     @Test
@@ -235,6 +237,42 @@ class SessionTicketCodecTest {
     }
 
     @Test
+    void decode_shouldAllowTicketExpiredWithinDefaultClockSkew() {
+        SessionTicketCodec codec = codec(ticketProperties(TICKET_SECRET));
+        Instant expiresAt = Instant.now().minusSeconds(30);
+        String ticket = rawTicket(
+                TICKET_SECRET,
+                TICKET_ISSUER,
+                List.of(TICKET_AUDIENCE),
+                TICKET_TYPE,
+                expiresAt.minusSeconds(60),
+                expiresAt,
+                true
+        );
+
+        assertThatCode(() -> codec.decode(ticket)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void decode_shouldRedactLongExpiredTicketValidationFailure() {
+        SessionTicketCodec codec = codec(ticketProperties(TICKET_SECRET));
+        String ticket = rawTicket(
+                TICKET_SECRET,
+                TICKET_ISSUER,
+                List.of(TICKET_AUDIENCE),
+                TICKET_TYPE,
+                EXPIRED_TICKET_EXPIRATION.minusSeconds(60),
+                EXPIRED_TICKET_EXPIRATION,
+                true
+        );
+
+        assertThatThrownBy(() -> codec.decode(ticket))
+                .isExactlyInstanceOf(BadJwtException.class)
+                .hasMessage("invalid IM session ticket")
+                .hasNoCause();
+    }
+
+    @Test
     void decode_shouldRejectTicketMissingSessionId() {
         SessionTicketCodec codec = codec(ticketProperties(TICKET_SECRET));
         String ticket = rawTicket(
@@ -248,8 +286,9 @@ class SessionTicketCodecTest {
         );
 
         assertThatThrownBy(() -> codec.decode(ticket))
-                .isInstanceOf(BadJwtException.class)
-                .hasMessageContaining("sid");
+                .isExactlyInstanceOf(BadJwtException.class)
+                .hasMessage("invalid IM session ticket")
+                .hasNoCause();
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.nowcoder.community.im.core.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.im.core.application.result.ConversationResults;
+import com.nowcoder.community.im.core.domain.model.ConversationListItem;
 import com.nowcoder.community.im.core.domain.repository.ConversationReadStateRepository;
 import com.nowcoder.community.im.core.domain.repository.ConversationRepository;
 import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository;
@@ -12,7 +13,9 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -22,17 +25,20 @@ public class ConversationApplicationService {
     private final ConversationReadStateRepository readStateRepository;
     private final ConversationRepository conversationRepository;
     private final UserInboxRepository userInboxRepository;
+    private final ConversationCursorCodec conversationCursorCodec;
 
     public ConversationApplicationService(
             PrivateMessageRepository privateMessageRepository,
             ConversationReadStateRepository readStateRepository,
             ConversationRepository conversationRepository,
-            UserInboxRepository userInboxRepository
+            UserInboxRepository userInboxRepository,
+            ConversationCursorCodec conversationCursorCodec
     ) {
         this.privateMessageRepository = privateMessageRepository;
         this.readStateRepository = readStateRepository;
         this.conversationRepository = conversationRepository;
         this.userInboxRepository = userInboxRepository;
+        this.conversationCursorCodec = conversationCursorCodec;
     }
 
     @Transactional(readOnly = true)
@@ -41,21 +47,31 @@ public class ConversationApplicationService {
         int p = Math.max(0, page);
         long offset = Math.multiplyExact((long) p, (long) s);
         return userInboxRepository.listConversations(viewerId, s, offset).stream()
-                .map(item -> new ConversationResults.ListItem(
-                        item.conversationId(),
-                        item.otherUserId(),
-                        item.lastSeq(),
-                        item.lastReadSeq(),
-                        item.unreadCount(),
-                        item.lastMessage() == null ? null : new ConversationResults.LastMessage(
-                                item.lastMessage().messageId(),
-                                item.lastMessage().fromUserId(),
-                                item.lastMessage().toUserId(),
-                                item.lastMessage().content(),
-                                item.lastMessage().createdAt() == null ? 0L : item.lastMessage().createdAt().toEpochMilli()
-                        )
-                ))
+                .map(ConversationApplicationService::toListItem)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ConversationResults.Page listConversationPage(UUID viewerId, String cursor, int size) {
+        int pageSize = Math.min(Math.max(1, size), 200);
+        Optional<ConversationCursorCodec.Cursor> boundary = conversationCursorCodec.decode(cursor);
+        Instant beforeSortAt = boundary.map(ConversationCursorCodec.Cursor::sortAt).orElse(null);
+        String afterConversationId = boundary.map(ConversationCursorCodec.Cursor::conversationId).orElse(null);
+        List<ConversationListItem> rows = userInboxRepository.listConversationsBefore(
+                viewerId,
+                beforeSortAt,
+                afterConversationId,
+                pageSize + 1
+        );
+        boolean hasMore = rows.size() > pageSize;
+        List<ConversationResults.ListItem> items = rows.stream()
+                .limit(pageSize)
+                .map(ConversationApplicationService::toListItem)
+                .toList();
+        String nextCursor = hasMore
+                ? conversationCursorCodec.encode(rows.get(pageSize - 1).sortAt(), rows.get(pageSize - 1).conversationId())
+                : null;
+        return new ConversationResults.Page(items, nextCursor, hasMore);
     }
 
     @Transactional(readOnly = true)
@@ -120,6 +136,23 @@ public class ConversationApplicationService {
         if (!viewerId.equals(parsed.user1) && !viewerId.equals(parsed.user2)) {
             throw new AccessDeniedException("not a conversation member");
         }
+    }
+
+    private static ConversationResults.ListItem toListItem(ConversationListItem item) {
+        return new ConversationResults.ListItem(
+                item.conversationId(),
+                item.otherUserId(),
+                item.lastSeq(),
+                item.lastReadSeq(),
+                item.unreadCount(),
+                item.lastMessage() == null ? null : new ConversationResults.LastMessage(
+                        item.lastMessage().messageId(),
+                        item.lastMessage().fromUserId(),
+                        item.lastMessage().toUserId(),
+                        item.lastMessage().content(),
+                        item.lastMessage().createdAt() == null ? 0L : item.lastMessage().createdAt().toEpochMilli()
+                )
+        );
     }
 
     private static ParsedConversationId parseConversationId(String conversationId) {

@@ -34,7 +34,8 @@ class ConversationApplicationServicePaginationOverflowTest {
                 mock(PrivateMessageRepository.class),
                 mock(ConversationReadStateRepository.class),
                 mock(ConversationRepository.class),
-                userInboxRepository
+                userInboxRepository,
+                mock(ConversationCursorCodec.class)
         );
 
         applicationService.listConversations(

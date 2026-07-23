@@ -26,6 +26,13 @@ public final class ConversationResults {
     ) {
     }
 
+    public record Page(
+            List<ListItem> items,
+            String nextCursor,
+            boolean hasMore
+    ) {
+    }
+
     public record LastMessage(
             UUID messageId,
             UUID fromUserId,

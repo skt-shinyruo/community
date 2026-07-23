@@ -80,6 +80,13 @@ public interface UserInboxMapper {
             @Param("offset") long offset
     );
 
+    List<ConversationInboxDataObject> selectConversationsBefore(
+            @Param("userId") UUID userId,
+            @Param("beforeSortAt") Instant beforeSortAt,
+            @Param("afterConversationId") String afterConversationId,
+            @Param("limit") int limit
+    );
+
     List<RoomUnreadDataObject> selectRoomUnread(@Param("userId") UUID userId, @Param("limit") int limit);
 
     List<ConversationUnreadDataObject> selectConversationUnread(@Param("userId") UUID userId, @Param("limit") int limit);

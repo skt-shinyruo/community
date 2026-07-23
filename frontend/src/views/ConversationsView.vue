@@ -8,7 +8,7 @@
           <template #title>私信</template>
           <template #subtitle>查看私信、未读消息和需要跟进的成员对话。</template>
           <template #actions>
-            <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
+        <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
           </template>
         </UiPageHeader>
         <div class="conversations-head-meta muted">
@@ -56,13 +56,25 @@
           </div>
         </RouterLink>
       </div>
+
+      <div v-if="hasMore" class="conversations-load-more">
+        <UiButton
+          data-testid="load-more-conversations"
+          variant="secondary"
+          :disabled="loadingMore || loading"
+          @click="loadMore"
+        >
+          {{ loadingMore ? '加载中…' : '加载更多' }}
+        </UiButton>
+      </div>
     </UiCard>
   </div>
 </template>
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { listImConversations } from '../api/services/imCoreChatService'
+import { listImConversationPage } from '../api/services/imCoreChatService'
+import { mergeConversations } from './conversationDetailState'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -71,8 +83,12 @@ import UiAvatar from '../components/ui/UiAvatar.vue'
 
 const emit = defineEmits(['trace'])
 const loading = ref(false)
+const loadingMore = ref(false)
 const error = ref('')
 const items = ref([])
+const nextCursor = ref('')
+const hasMore = ref(false)
+let requestGeneration = 0
 
 function formatTimeShort(ts) {
   if (!ts) return ''
@@ -94,15 +110,50 @@ function shortParticipant(value) {
 }
 
 async function load() {
+  const generation = ++requestGeneration
   error.value = ''
+  items.value = []
+  nextCursor.value = ''
+  hasMore.value = false
+  loadingMore.value = false
   loading.value = true
   try {
-    items.value = await listImConversations({ page: 0, size: 20 })
+    const page = await listImConversationPage({ cursor: '', size: 20 })
+    if (generation !== requestGeneration) return
+    items.value = mergeConversations([], Array.isArray(page?.items) ? page.items : [])
+    nextCursor.value = String(page?.nextCursor || '')
+    hasMore.value = Boolean(page?.hasMore && nextCursor.value)
     emit('trace', '')
   } catch (e) {
+    if (generation !== requestGeneration) return
     error.value = e?.message || '加载会话失败'
   } finally {
-    loading.value = false
+    if (generation === requestGeneration) {
+      loading.value = false
+    }
+  }
+}
+
+async function loadMore() {
+  if (loading.value || loadingMore.value || !hasMore.value || !nextCursor.value) return
+
+  const generation = ++requestGeneration
+  const cursor = nextCursor.value
+  loadingMore.value = true
+  error.value = ''
+  try {
+    const page = await listImConversationPage({ cursor, size: 20 })
+    if (generation !== requestGeneration) return
+    items.value = mergeConversations(items.value, Array.isArray(page?.items) ? page.items : [])
+    nextCursor.value = String(page?.nextCursor || '')
+    hasMore.value = Boolean(page?.hasMore && nextCursor.value)
+  } catch (e) {
+    if (generation !== requestGeneration) return
+    error.value = e?.message || '加载会话失败'
+  } finally {
+    if (generation === requestGeneration) {
+      loadingMore.value = false
+    }
   }
 }
 

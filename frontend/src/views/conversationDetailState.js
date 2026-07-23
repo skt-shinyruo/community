@@ -2,6 +2,7 @@ import { normalizeOpaqueId, requireApiOpaqueId, sameOpaqueId } from '../utils/op
 
 const SIGNED_64_MINIMUM = 1n << 63n
 const UNSIGNED_64_MODULUS = 1n << 64n
+const MESSAGE_IDENTITY_ALIASES = Symbol('messageIdentityAliases')
 
 function toSigned64(value) {
   return value >= SIGNED_64_MINIMUM ? value - UNSIGNED_64_MODULUS : value
@@ -88,27 +89,27 @@ function compareConversationMessages(a, b) {
 }
 
 function conversationMessageKeys(message) {
-  const keys = []
+  const keys = new Set(message?.[MESSAGE_IDENTITY_ALIASES] || [])
 
   const seq = Number(message?.seq)
   if (Number.isSafeInteger(seq) && seq > 0) {
-    keys.push(`seq:${seq}`)
+    keys.add(`seq:${seq}`)
   }
 
   const id = normalizeOpaqueId(message?.id)
   if (id) {
-    keys.push(`id:${id}`)
+    keys.add(`id:${id}`)
   }
 
   const clientMsgId = String(message?.clientMsgId ?? '').trim()
   if (clientMsgId) {
-    keys.push(`client:${clientMsgId}`)
+    keys.add(`client:${clientMsgId}`)
   }
 
-  if (keys.length === 0) {
+  if (keys.size === 0) {
     throw new Error('message identity 缺失')
   }
-  return keys
+  return Array.from(keys)
 }
 
 export function mergeConversationMessages(currentItems, incomingItems) {
@@ -149,6 +150,10 @@ export function mergeConversationMessages(currentItems, incomingItems) {
       identityIndexes.set(key, index)
       identitiesByIndex[index].add(key)
     }
+    Object.defineProperty(merged[index], MESSAGE_IDENTITY_ALIASES, {
+      configurable: true,
+      value: new Set(identitiesByIndex[index])
+    })
   }
 
   for (const message of Array.isArray(currentItems) ? currentItems : []) add(message)

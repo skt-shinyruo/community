@@ -139,6 +139,16 @@ describe('conversationDetailState', () => {
     expect(mergeConversationMessages([first, second], [bridge, followUp])).toEqual([followUp])
   })
 
+  it('retains replaced identities across separate merge calls', () => {
+    const current = { id: 'message-a', seq: 8, clientMsgId: 'client-a', createTime: 100, content: 'current' }
+    const replacementById = { id: ' message-a ', seq: 7, clientMsgId: 'client-b', createTime: 200, content: 'by id' }
+    const replacementByOldClient = { id: 'message-c', seq: 6, clientMsgId: 'client-a', createTime: 300, content: 'by old client' }
+
+    const firstMerge = mergeConversationMessages([current], [replacementById])
+
+    expect(mergeConversationMessages(firstMerge, [replacementByOldClient])).toEqual([replacementByOldClient])
+  })
+
   it('does not treat whitespace-only client message ids as an identity', () => {
     const first = { id: 'first-id', seq: 1, clientMsgId: '   ', createTime: 100, content: 'first' }
     const second = { id: 'second-id', seq: 2, clientMsgId: '\t', createTime: 200, content: 'second' }

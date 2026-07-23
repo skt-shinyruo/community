@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import imCoreHttp from '../imCoreHttp'
 import { BusinessError } from '../result'
 import {
+  listImConversationHistory,
   listImConversationMessages,
+  listImConversationPage,
   listImConversations,
   markImConversationRead
 } from './imCoreChatService'
@@ -53,6 +55,61 @@ describe('api/services/imCoreChatService', () => {
     })
 
     await expect(listImConversationMessages('c1')).resolves.toEqual({ items: [{ seq: 1 }] })
+  })
+
+  it('listImConversationPage should unwrap Result body and send cursor pagination params', async () => {
+    imCoreHttp.get.mockResolvedValue({
+      data: {
+        code: 0,
+        message: '',
+        data: { items: [{ conversationId: 'c1' }], nextCursor: 'next-1', hasMore: true },
+        traceId: 'trace-page'
+      }
+    })
+
+    await expect(listImConversationPage({ cursor: 'cursor-1', size: 3 })).resolves.toEqual({
+      items: [{ conversationId: 'c1' }],
+      nextCursor: 'next-1',
+      hasMore: true
+    })
+    expect(imCoreHttp.get).toHaveBeenCalledWith('/api/im/conversations/page', {
+      params: { cursor: 'cursor-1', size: 3 }
+    })
+  })
+
+  it('listImConversationHistory should encode the conversation id and unwrap Result body', async () => {
+    imCoreHttp.get.mockResolvedValue({
+      data: {
+        code: 0,
+        message: '',
+        data: {
+          conversationId: 'c/1 ?x',
+          items: [{ seq: 4 }],
+          nextBeforeSeq: 4,
+          hasMore: true,
+          lastReadSeq: 2
+        },
+        traceId: 'trace-history'
+      }
+    })
+
+    await expect(listImConversationHistory('c/1 ?x', { beforeSeq: 9, limit: 4 })).resolves.toEqual({
+      conversationId: 'c/1 ?x',
+      items: [{ seq: 4 }],
+      nextBeforeSeq: 4,
+      hasMore: true,
+      lastReadSeq: 2
+    })
+    expect(imCoreHttp.get).toHaveBeenCalledWith('/api/im/conversations/c%2F1%20%3Fx/messages/history', {
+      params: { beforeSeq: 9, limit: 4 }
+    })
+  })
+
+  it('new IM pagination clients should reject responses without a Result envelope', async () => {
+    imCoreHttp.get.mockResolvedValue({ data: { items: [] } })
+
+    await expect(listImConversationPage()).rejects.toBeInstanceOf(BusinessError)
+    await expect(listImConversationHistory('c1', { beforeSeq: 2 })).rejects.toBeInstanceOf(BusinessError)
   })
 
   it('markImConversationRead should reject raw object responses', async () => {

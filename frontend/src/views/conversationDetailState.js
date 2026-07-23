@@ -66,6 +66,7 @@ export function mapConversationMessage(raw) {
     fromId: requireApiOpaqueId(raw?.fromUserId, 'fromUserId'),
     toId: requireApiOpaqueId(raw?.toUserId, 'toUserId'),
     content: String(raw?.content || ''),
+    clientMsgId: String(raw?.clientMsgId ?? ''),
     createTime
   }
 }
@@ -86,28 +87,95 @@ function compareConversationMessages(a, b) {
   return String(a?.id || '').localeCompare(String(b?.id || ''))
 }
 
-function conversationMessageKey(message) {
-  const seq = Number(message?.seq || 0)
-  if (seq > 0) return `seq:${seq}`
+function conversationMessageKeys(message) {
+  const keys = []
+
+  const seq = Number(message?.seq)
+  if (Number.isSafeInteger(seq) && seq > 0) {
+    keys.push(`seq:${seq}`)
+  }
 
   const id = normalizeOpaqueId(message?.id)
-  if (id) return `id:${id}`
+  if (id) {
+    keys.push(`id:${id}`)
+  }
 
-  throw new Error('message identity 缺失')
+  const clientMsgId = String(message?.clientMsgId ?? '').trim()
+  if (clientMsgId) {
+    keys.push(`client:${clientMsgId}`)
+  }
+
+  if (keys.length === 0) {
+    throw new Error('message identity 缺失')
+  }
+  return keys
 }
 
 export function mergeConversationMessages(currentItems, incomingItems) {
-  const merged = new Map()
+  const merged = []
+  const active = []
+  const identityIndexes = new Map()
+  const identitiesByIndex = []
 
-  for (const message of Array.isArray(currentItems) ? currentItems : []) {
-    merged.set(conversationMessageKey(message), message)
+  const add = (message) => {
+    const keys = conversationMessageKeys(message)
+    const matches = new Set()
+    for (const key of keys) {
+      const index = identityIndexes.get(key)
+      if (index !== undefined && active[index]) {
+        matches.add(index)
+      }
+    }
+
+    const index = matches.size > 0 ? Math.min(...matches) : merged.length
+    if (index === merged.length) {
+      merged.push(message)
+      active.push(true)
+      identitiesByIndex.push(new Set())
+    } else {
+      merged[index] = message
+    }
+
+    for (const matchedIndex of matches) {
+      if (matchedIndex === index) continue
+      active[matchedIndex] = false
+      for (const key of identitiesByIndex[matchedIndex]) {
+        identityIndexes.set(key, index)
+        identitiesByIndex[index].add(key)
+      }
+    }
+
+    for (const key of keys) {
+      identityIndexes.set(key, index)
+      identitiesByIndex[index].add(key)
+    }
   }
 
-  for (const message of Array.isArray(incomingItems) ? incomingItems : []) {
-    merged.set(conversationMessageKey(message), message)
+  for (const message of Array.isArray(currentItems) ? currentItems : []) add(message)
+  for (const message of Array.isArray(incomingItems) ? incomingItems : []) add(message)
+
+  return merged.filter((_, index) => active[index]).sort(compareConversationMessages)
+}
+
+export function mergeConversations(currentItems, incomingItems) {
+  const merged = []
+  const indexes = new Map()
+
+  const add = (conversation) => {
+    const conversationId = normalizeOpaqueId(conversation?.conversationId)
+    const index = indexes.get(conversationId)
+    if (index === undefined) {
+      indexes.set(conversationId, merged.length)
+      merged.push(conversation)
+    } else {
+      merged[index] = conversation
+    }
   }
 
-  return Array.from(merged.values()).sort(compareConversationMessages)
+  for (const conversation of Array.isArray(currentItems) ? currentItems : []) add(conversation)
+  for (const conversation of Array.isArray(incomingItems) ? incomingItems : []) add(conversation)
+
+  return merged
 }
 
 export function findLatestConversationSeq(items) {

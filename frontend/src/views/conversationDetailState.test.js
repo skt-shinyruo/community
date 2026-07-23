@@ -4,6 +4,7 @@ import {
   buildCanonicalConversationId,
   findLatestConversationSeq,
   mapConversationMessage,
+  mergeConversations,
   mergeConversationMessages,
   parseConversationTargetId
 } from './conversationDetailState'
@@ -44,6 +45,7 @@ describe('conversationDetailState', () => {
       fromUserId: '11111111-1111-7111-8111-111111111111',
       toUserId: '22222222-2222-7222-8222-222222222222',
       content: 'hello',
+      clientMsgId: 'client-12',
       createdAtEpochMs: 123456789
     })).toEqual({
       id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
@@ -51,6 +53,7 @@ describe('conversationDetailState', () => {
       fromId: '11111111-1111-7111-8111-111111111111',
       toId: '22222222-2222-7222-8222-222222222222',
       content: 'hello',
+      clientMsgId: 'client-12',
       createTime: 123456789
     })
   })
@@ -108,6 +111,39 @@ describe('conversationDetailState', () => {
       older,
       duplicateNewer
     ])
+  })
+
+  it('merges messages when any positive seq, normalized id, or client message id matches', () => {
+    const base = {
+      id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+      seq: 8,
+      clientMsgId: 'client-a',
+      createTime: 80,
+      content: 'base'
+    }
+    const bySeq = { ...base, id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb', clientMsgId: 'client-b', content: 'seq replacement' }
+    const byId = { ...base, seq: 9, id: ' aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa ', clientMsgId: 'client-c', content: 'id replacement' }
+    const byClientMsgId = { ...base, seq: 10, id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc', clientMsgId: ' client-a ', content: 'client replacement' }
+
+    expect(mergeConversationMessages([base], [bySeq])).toEqual([bySeq])
+    expect(mergeConversationMessages([base], [byId])).toEqual([byId])
+    expect(mergeConversationMessages([base], [byClientMsgId])).toEqual([byClientMsgId])
+  })
+
+  it('keeps merged messages in chronological order after identity replacement', () => {
+    const first = { id: 'a', seq: 1, clientMsgId: 'one', createTime: 100, content: 'first' }
+    const second = { id: 'b', seq: 2, clientMsgId: 'two', createTime: 200, content: 'second' }
+    const replacement = { id: ' b ', seq: 2, clientMsgId: 'two-updated', createTime: 200, content: 'second updated' }
+
+    expect(mergeConversationMessages([second], [first, replacement])).toEqual([first, replacement])
+  })
+
+  it('replaces duplicate conversations by normalized id while preserving stable order', () => {
+    const first = { conversationId: ' c1 ', unreadCount: 1 }
+    const second = { conversationId: 'c2', unreadCount: 2 }
+    const replacement = { conversationId: 'c1', unreadCount: 9 }
+
+    expect(mergeConversations([first, second], [replacement])).toEqual([replacement, second])
   })
 
   it('finds the latest seq from mapped conversation messages', () => {

@@ -112,9 +112,6 @@ function shortParticipant(value) {
 async function load() {
   const generation = ++requestGeneration
   error.value = ''
-  items.value = []
-  nextCursor.value = ''
-  hasMore.value = false
   loadingMore.value = false
   loading.value = true
   try {

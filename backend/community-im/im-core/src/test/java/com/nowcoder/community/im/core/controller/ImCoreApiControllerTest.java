@@ -7,9 +7,11 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.nowcoder.community.im.core.application.ConversationApplicationService;
 import com.nowcoder.community.im.core.application.PrivateMessageApplicationService;
 import com.nowcoder.community.im.core.application.RoomApplicationService;
 import com.nowcoder.community.im.core.application.RoomMessageApplicationService;
+import com.nowcoder.community.im.core.application.result.ConversationResults;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
@@ -21,6 +23,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,10 +32,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -59,6 +65,9 @@ class ImCoreApiControllerTest {
     @Autowired
     private PrivateMessageApplicationService privateMessageApplicationService;
 
+    @SpyBean
+    private ConversationApplicationService conversationApplicationService;
+
     @Value("${security.jwt.hmac-secret}")
     private String jwtSecret;
 
@@ -78,6 +87,108 @@ class ImCoreApiControllerTest {
     void api_should_require_authentication() throws Exception {
         mockMvc.perform(get("/api/im/unread/summary"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void conversation_page_shouldDelegateCursorAndExposePageFields() throws Exception {
+        UUID viewer = uuid(101);
+        UUID peer = uuid(102);
+        String conversationId = conversationId(viewer, peer);
+        ConversationResults.Page page = new ConversationResults.Page(
+                List.of(new ConversationResults.ListItem(
+                        conversationId,
+                        peer,
+                        17L,
+                        11L,
+                        6L,
+                        new ConversationResults.LastMessage(
+                                uuid(103),
+                                peer,
+                                viewer,
+                                "latest",
+                                1_700_000_000_000L
+                        )
+                )),
+                "next-cursor",
+                true
+        );
+        doReturn(page).when(conversationApplicationService).listConversationPage(viewer, "cursor-value", 2);
+        doReturn(page).when(conversationApplicationService).listConversationPage(viewer, "", 2);
+
+        String response = mockMvc.perform(get("/api/im/conversations/page")
+                        .param("cursor", "cursor-value")
+                        .param("size", "2")
+                        .header("Authorization", bearer(viewer)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode data = objectMapper.readTree(response).path("data");
+        assertThat(data.path("items")).hasSize(1);
+        assertThat(data.path("items").get(0).path("conversationId").asText()).isEqualTo(conversationId);
+        assertThat(data.path("items").get(0).path("lastMessage").path("content").asText()).isEqualTo("latest");
+        assertThat(data.path("nextCursor").asText()).isEqualTo("next-cursor");
+        assertThat(data.path("hasMore").asBoolean()).isTrue();
+        verify(conversationApplicationService).listConversationPage(viewer, "cursor-value", 2);
+
+        mockMvc.perform(get("/api/im/conversations/page")
+                        .param("size", "2")
+                        .header("Authorization", bearer(viewer)))
+                .andExpect(status().isOk());
+
+        verify(conversationApplicationService).listConversationPage(viewer, "", 2);
+    }
+
+    @Test
+    void message_history_shouldDelegateBeforeSeqAndExposeHistoryFields() throws Exception {
+        UUID viewer = uuid(111);
+        UUID peer = uuid(112);
+        String conversationId = conversationId(viewer, peer);
+        ConversationResults.History history = new ConversationResults.History(
+                conversationId,
+                List.of(new ConversationResults.MessageItem(
+                        conversationId,
+                        17L,
+                        uuid(113),
+                        peer,
+                        viewer,
+                        "earlier",
+                        "client-113",
+                        1_700_000_001_000L
+                )),
+                17L,
+                true,
+                12L
+        );
+        doReturn(history).when(conversationApplicationService).listMessageHistory(viewer, conversationId, 18L, 2);
+        doReturn(history).when(conversationApplicationService).listMessageHistory(viewer, conversationId, null, 2);
+
+        String response = mockMvc.perform(get("/api/im/conversations/{conversationId}/messages/history", conversationId)
+                        .param("beforeSeq", "18")
+                        .param("limit", "2")
+                        .header("Authorization", bearer(viewer)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode data = objectMapper.readTree(response).path("data");
+        assertThat(data.path("conversationId").asText()).isEqualTo(conversationId);
+        assertThat(data.path("items")).hasSize(1);
+        assertThat(data.path("items").get(0).path("seq").asLong()).isEqualTo(17L);
+        assertThat(data.path("items").get(0).path("content").asText()).isEqualTo("earlier");
+        assertThat(data.path("nextBeforeSeq").asLong()).isEqualTo(17L);
+        assertThat(data.path("hasMore").asBoolean()).isTrue();
+        assertThat(data.path("lastReadSeq").asLong()).isEqualTo(12L);
+        verify(conversationApplicationService).listMessageHistory(viewer, conversationId, 18L, 2);
+
+        mockMvc.perform(get("/api/im/conversations/{conversationId}/messages/history", conversationId)
+                        .param("limit", "2")
+                        .header("Authorization", bearer(viewer)))
+                .andExpect(status().isOk());
+
+        verify(conversationApplicationService).listMessageHistory(viewer, conversationId, null, 2);
     }
 
     @Test

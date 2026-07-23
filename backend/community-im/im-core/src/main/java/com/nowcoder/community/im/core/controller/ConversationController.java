@@ -33,6 +33,29 @@ public class ConversationController {
                 .toList());
     }
 
+    @GetMapping("/page")
+    public Result<ConversationPageResponse> listConversationPage(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(name = "cursor", required = false, defaultValue = "") String cursor,
+            @RequestParam(name = "size", required = false, defaultValue = "20") int size
+    ) {
+        UUID me = CurrentUser.userIdOrThrow(jwt);
+        return Result.ok(toConversationPageResponse(conversationApplicationService.listConversationPage(me, cursor, size)));
+    }
+
+    @GetMapping("/{conversationId}/messages/history")
+    public Result<ConversationHistoryResponse> listMessageHistory(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String conversationId,
+            @RequestParam(name = "beforeSeq", required = false) Long beforeSeq,
+            @RequestParam(name = "limit", required = false, defaultValue = "50") int limit
+    ) {
+        UUID me = CurrentUser.userIdOrThrow(jwt);
+        return Result.ok(toConversationHistoryResponse(
+                conversationApplicationService.listMessageHistory(me, conversationId, beforeSeq, limit)
+        ));
+    }
+
     @GetMapping("/{conversationId}/messages")
     public Result<ConversationMessagesResponse> listMessages(
             @AuthenticationPrincipal Jwt jwt,
@@ -80,6 +103,16 @@ public class ConversationController {
         );
     }
 
+    private static ConversationPageResponse toConversationPageResponse(ConversationResults.Page page) {
+        return new ConversationPageResponse(
+                page.items().stream()
+                        .map(ConversationController::toListItem)
+                        .toList(),
+                page.nextCursor(),
+                page.hasMore()
+        );
+    }
+
     private static ConversationMessagesResponse toMessagesResponse(ConversationResults.Messages messages) {
         return new ConversationMessagesResponse(
                 messages.conversationId(),
@@ -88,6 +121,18 @@ public class ConversationController {
                         .toList(),
                 messages.nextAfterSeq(),
                 messages.lastReadSeq()
+        );
+    }
+
+    private static ConversationHistoryResponse toConversationHistoryResponse(ConversationResults.History history) {
+        return new ConversationHistoryResponse(
+                history.conversationId(),
+                history.items().stream()
+                        .map(ConversationController::toMessageItem)
+                        .toList(),
+                history.nextBeforeSeq(),
+                history.hasMore(),
+                history.lastReadSeq()
         );
     }
 
@@ -111,6 +156,22 @@ public class ConversationController {
             String conversationId,
             List<ConversationMessageItem> items,
             long nextAfterSeq,
+            long lastReadSeq
+    ) {
+    }
+
+    public record ConversationPageResponse(
+            List<ConversationListItem> items,
+            String nextCursor,
+            boolean hasMore
+    ) {
+    }
+
+    public record ConversationHistoryResponse(
+            String conversationId,
+            List<ConversationMessageItem> items,
+            Long nextBeforeSeq,
+            boolean hasMore,
             long lastReadSeq
     ) {
     }

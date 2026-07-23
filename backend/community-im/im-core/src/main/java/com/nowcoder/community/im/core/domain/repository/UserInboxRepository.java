@@ -6,6 +6,7 @@ import com.nowcoder.community.im.core.domain.model.PrivateMessageRecord;
 import com.nowcoder.community.im.core.domain.model.RoomMessageRecord;
 import com.nowcoder.community.im.core.domain.model.RoomUnreadItem;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,6 +25,13 @@ public interface UserInboxRepository {
     void markRoomRead(UUID roomId, UUID userId, long lastReadSeq);
 
     List<ConversationListItem> listConversations(UUID userId, int limit, long offset);
+
+    List<ConversationListItem> listConversationsBefore(
+            UUID userId,
+            Instant beforeSortAt,
+            String afterConversationId,
+            int limit
+    );
 
     List<RoomUnreadItem> listRoomUnread(UUID userId, int limit);
 

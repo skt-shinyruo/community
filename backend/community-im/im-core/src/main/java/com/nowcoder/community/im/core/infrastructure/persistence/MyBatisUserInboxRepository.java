@@ -99,6 +99,27 @@ public class MyBatisUserInboxRepository implements UserInboxRepository {
     }
 
     @Override
+    public List<ConversationListItem> listConversationsBefore(
+            UUID userId,
+            Instant beforeSortAt,
+            String afterConversationId,
+            int limit
+    ) {
+        List<ConversationInboxDataObject> rows = mapper.selectConversationsBefore(
+                userId,
+                beforeSortAt,
+                afterConversationId,
+                limit
+        );
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        return rows.stream()
+                .map(ConversationInboxDataObject::toListItem)
+                .toList();
+    }
+
+    @Override
     public List<RoomUnreadItem> listRoomUnread(UUID userId, int limit) {
         return mapper.selectRoomUnread(userId, limit).stream()
                 .map(RoomUnreadDataObject::toDomain)

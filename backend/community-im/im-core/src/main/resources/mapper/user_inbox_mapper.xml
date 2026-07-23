@@ -17,6 +17,7 @@
         <result property="lastToUserId" column="last_to_user_id" jdbcType="BINARY"/>
         <result property="lastContent" column="last_content"/>
         <result property="lastMessageCreatedAt" column="last_message_created_at"/>
+        <result property="sortAt" column="sort_at"/>
     </resultMap>
 
     <resultMap id="roomLastMessageResultMap"
@@ -161,11 +162,24 @@
 
     <select id="selectConversations" resultMap="conversationInboxResultMap">
         select conversation_id, peer_user_id, last_seq, last_read_seq, unread_count,
-               last_message_id, last_from_user_id, last_to_user_id, last_content, last_message_created_at
+               last_message_id, last_from_user_id, last_to_user_id, last_content, last_message_created_at, sort_at
         from im_user_conversation_inbox
         where user_id = #{userId, jdbcType=BINARY}
         order by sort_at desc, conversation_id asc
         limit #{limit} offset #{offset}
+    </select>
+
+    <select id="selectConversationsBefore" resultMap="conversationInboxResultMap">
+        select conversation_id, peer_user_id, last_seq, last_read_seq, unread_count,
+               last_message_id, last_from_user_id, last_to_user_id, last_content, last_message_created_at, sort_at
+        from im_user_conversation_inbox
+        where user_id = #{userId, jdbcType=BINARY}
+        <if test="beforeSortAt != null">
+            and (sort_at &lt; #{beforeSortAt}
+              or (sort_at = #{beforeSortAt} and conversation_id &gt; #{afterConversationId}))
+        </if>
+        order by sort_at desc, conversation_id asc
+        limit #{limit}
     </select>
 
     <select id="selectRoomUnread" resultMap="roomUnreadResultMap">

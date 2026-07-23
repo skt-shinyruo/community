@@ -37,6 +37,7 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -310,6 +311,61 @@ class ImCoreMySqlMigrationRepositoryContractTest {
                 });
         assertThat(outboxCount("im.event.private-persisted")).isEqualTo(2);
         assertThat(outboxCount("im.event.private-committed")).isEqualTo(2);
+    }
+
+    @Test
+    void migratedSchemaShouldKeepConversationKeysetPagesStableWhenNewerRowsArrive() {
+        UUID viewerId = uuid(301);
+        Instant newestSortAt = Instant.parse("2026-07-21T03:00:00Z");
+        Instant tiedSortAt = Instant.parse("2026-07-21T02:00:00Z");
+        Instant oldestSortAt = Instant.parse("2026-07-21T01:00:00Z");
+        insertConversationInbox(viewerId, "conversation-newest", uuid(302), newestSortAt);
+        insertConversationInbox(viewerId, "conversation-a", uuid(303), tiedSortAt);
+        insertConversationInbox(viewerId, "conversation-b", uuid(304), tiedSortAt);
+        insertConversationInbox(viewerId, "conversation-oldest", uuid(305), oldestSortAt);
+
+        var firstPage = conversationApplicationService.listConversationPage(viewerId, null, 2);
+
+        insertConversationInbox(viewerId, "conversation-arrived-later", uuid(306), newestSortAt.plusSeconds(1));
+        var secondPage = conversationApplicationService.listConversationPage(viewerId, firstPage.nextCursor(), 2);
+
+        assertThat(firstPage.items()).extracting(item -> item.conversationId())
+                .containsExactly("conversation-newest", "conversation-a");
+        assertThat(firstPage.hasMore()).isTrue();
+        assertThat(firstPage.nextCursor()).isNotBlank();
+        assertThat(secondPage.items()).extracting(item -> item.conversationId())
+                .containsExactly("conversation-b", "conversation-oldest");
+        assertThat(secondPage.hasMore()).isFalse();
+        assertThat(secondPage.nextCursor()).isNull();
+        assertThat(List.of(
+                firstPage.items().get(0).conversationId(),
+                firstPage.items().get(1).conversationId(),
+                secondPage.items().get(0).conversationId(),
+                secondPage.items().get(1).conversationId()
+        )).containsExactly(
+                "conversation-newest",
+                "conversation-a",
+                "conversation-b",
+                "conversation-oldest"
+        );
+    }
+
+    private void insertConversationInbox(UUID userId, String conversationId, UUID peerUserId, Instant sortAt) {
+        jdbcTemplate.update(
+                """
+                        insert into im_user_conversation_inbox(
+                          user_id, conversation_id, peer_user_id, last_seq,
+                          last_read_seq, unread_count, sort_at
+                        ) values (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                uuidBytes(userId),
+                conversationId,
+                uuidBytes(peerUserId),
+                1L,
+                0L,
+                1L,
+                Timestamp.from(sortAt)
+        );
     }
 
     private int outboxCount(String topic) {

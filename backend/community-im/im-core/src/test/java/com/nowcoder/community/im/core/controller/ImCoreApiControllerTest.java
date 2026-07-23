@@ -126,8 +126,18 @@ class ImCoreApiControllerTest {
 
         JsonNode data = objectMapper.readTree(response).path("data");
         assertThat(data.path("items")).hasSize(1);
-        assertThat(data.path("items").get(0).path("conversationId").asText()).isEqualTo(conversationId);
-        assertThat(data.path("items").get(0).path("lastMessage").path("content").asText()).isEqualTo("latest");
+        JsonNode item = data.path("items").get(0);
+        assertThat(item.path("conversationId").asText()).isEqualTo(conversationId);
+        assertThat(item.path("otherUserId").asText()).isEqualTo(peer.toString());
+        assertThat(item.path("lastSeq").asLong()).isEqualTo(17L);
+        assertThat(item.path("lastReadSeq").asLong()).isEqualTo(11L);
+        assertThat(item.path("unreadCount").asLong()).isEqualTo(6L);
+        JsonNode lastMessage = item.path("lastMessage");
+        assertThat(lastMessage.path("messageId").asText()).isEqualTo(uuid(103).toString());
+        assertThat(lastMessage.path("fromUserId").asText()).isEqualTo(peer.toString());
+        assertThat(lastMessage.path("toUserId").asText()).isEqualTo(viewer.toString());
+        assertThat(lastMessage.path("content").asText()).isEqualTo("latest");
+        assertThat(lastMessage.path("createdAtEpochMs").asLong()).isEqualTo(1_700_000_000_000L);
         assertThat(data.path("nextCursor").asText()).isEqualTo("next-cursor");
         assertThat(data.path("hasMore").asBoolean()).isTrue();
         verify(conversationApplicationService).listConversationPage(viewer, "cursor-value", 2);
@@ -176,8 +186,15 @@ class ImCoreApiControllerTest {
         JsonNode data = objectMapper.readTree(response).path("data");
         assertThat(data.path("conversationId").asText()).isEqualTo(conversationId);
         assertThat(data.path("items")).hasSize(1);
-        assertThat(data.path("items").get(0).path("seq").asLong()).isEqualTo(17L);
-        assertThat(data.path("items").get(0).path("content").asText()).isEqualTo("earlier");
+        JsonNode item = data.path("items").get(0);
+        assertThat(item.path("conversationId").asText()).isEqualTo(conversationId);
+        assertThat(item.path("seq").asLong()).isEqualTo(17L);
+        assertThat(item.path("messageId").asText()).isEqualTo(uuid(113).toString());
+        assertThat(item.path("fromUserId").asText()).isEqualTo(peer.toString());
+        assertThat(item.path("toUserId").asText()).isEqualTo(viewer.toString());
+        assertThat(item.path("content").asText()).isEqualTo("earlier");
+        assertThat(item.path("clientMsgId").asText()).isEqualTo("client-113");
+        assertThat(item.path("createdAtEpochMs").asLong()).isEqualTo(1_700_000_001_000L);
         assertThat(data.path("nextBeforeSeq").asLong()).isEqualTo(17L);
         assertThat(data.path("hasMore").asBoolean()).isTrue();
         assertThat(data.path("lastReadSeq").asLong()).isEqualTo(12L);

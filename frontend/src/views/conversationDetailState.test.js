@@ -130,6 +130,22 @@ describe('conversationDetailState', () => {
     expect(mergeConversationMessages([base], [byClientMsgId])).toEqual([byClientMsgId])
   })
 
+  it('transfers all aliases when one incoming message bridges two active records', () => {
+    const first = { id: 'first-id', seq: 1, clientMsgId: 'first-client', createTime: 100, content: 'first' }
+    const second = { id: 'second-id', seq: 2, clientMsgId: 'second-client', createTime: 200, content: 'second' }
+    const bridge = { id: ' second-id ', seq: 1, clientMsgId: 'bridge-client', createTime: 150, content: 'bridge' }
+    const followUp = { id: 'follow-up-id', seq: 3, clientMsgId: 'second-client', createTime: 300, content: 'follow-up' }
+
+    expect(mergeConversationMessages([first, second], [bridge, followUp])).toEqual([followUp])
+  })
+
+  it('does not treat whitespace-only client message ids as an identity', () => {
+    const first = { id: 'first-id', seq: 1, clientMsgId: '   ', createTime: 100, content: 'first' }
+    const second = { id: 'second-id', seq: 2, clientMsgId: '\t', createTime: 200, content: 'second' }
+
+    expect(mergeConversationMessages([first], [second])).toEqual([first, second])
+  })
+
   it('keeps merged messages in chronological order after identity replacement', () => {
     const first = { id: 'a', seq: 1, clientMsgId: 'one', createTime: 100, content: 'first' }
     const second = { id: 'b', seq: 2, clientMsgId: 'two', createTime: 200, content: 'second' }

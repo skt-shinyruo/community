@@ -17,6 +17,7 @@ public class ConversationInboxDataObject {
     private UUID lastToUserId;
     private String lastContent;
     private Instant lastMessageCreatedAt;
+    private Instant sortAt;
 
     public ConversationListItem toListItem() {
         ConversationListItem.LastMessage lastMessage = lastMessageId == null ? null : new ConversationListItem.LastMessage(
@@ -26,7 +27,15 @@ public class ConversationInboxDataObject {
                 lastContent,
                 lastMessageCreatedAt
         );
-        return new ConversationListItem(conversationId, peerUserId, lastSeq, lastReadSeq, unreadCount, lastMessage);
+        return new ConversationListItem(
+                conversationId,
+                peerUserId,
+                lastSeq,
+                lastReadSeq,
+                unreadCount,
+                lastMessage,
+                sortAt
+        );
     }
 
     public String getConversationId() {
@@ -107,5 +116,13 @@ public class ConversationInboxDataObject {
 
     public void setLastMessageCreatedAt(Instant lastMessageCreatedAt) {
         this.lastMessageCreatedAt = lastMessageCreatedAt;
+    }
+
+    public Instant getSortAt() {
+        return sortAt;
+    }
+
+    public void setSortAt(Instant sortAt) {
+        this.sortAt = sortAt;
     }
 }

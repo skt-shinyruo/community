@@ -9,7 +9,8 @@ public record ConversationListItem(
         long lastSeq,
         long lastReadSeq,
         long unreadCount,
-        LastMessage lastMessage
+        LastMessage lastMessage,
+        Instant sortAt
 ) {
 
     public record LastMessage(

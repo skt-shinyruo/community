@@ -253,6 +253,20 @@ class SessionTicketCodecTest {
     }
 
     @Test
+    void decode_shouldRejectNonUuidSubjectWithoutExposingSubjectValue() throws JOSEException {
+        String invalidSubject = "non-uuid-subject-sentinel";
+        Map<String, Object> claims = canonicalRawClaims();
+        claims.put("sub", invalidSubject);
+
+        String ticket = signedRawTicket(TICKET_SECRET, claims);
+
+        assertThatThrownBy(() -> codec(ticketProperties(TICKET_SECRET)).decode(ticket))
+                .isInstanceOf(BadJwtException.class)
+                .hasMessage("invalid IM session ticket subject")
+                .hasNoCause();
+    }
+
+    @Test
     void properties_shouldRejectMissingTicketSecret() {
         assertThatThrownBy(() -> ticketProperties(null).secretKeyOrThrow(accessProperties()))
                 .isInstanceOf(IllegalArgumentException.class)

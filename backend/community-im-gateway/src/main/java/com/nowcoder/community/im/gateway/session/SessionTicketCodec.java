@@ -167,7 +167,7 @@ public class SessionTicketCodec {
         try {
             return UUID.fromString(value);
         } catch (IllegalArgumentException ex) {
-            throw new BadJwtException("invalid IM session ticket subject", ex);
+            throw new BadJwtException("invalid IM session ticket subject");
         }
     }
 

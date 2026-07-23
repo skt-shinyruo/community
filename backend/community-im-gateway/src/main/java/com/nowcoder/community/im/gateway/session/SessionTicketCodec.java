@@ -13,13 +13,15 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
-import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
 import org.springframework.security.oauth2.jwt.MappedJwtClaimSetConverter;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
@@ -38,6 +40,9 @@ public class SessionTicketCodec {
     private static final String CLAIM_ISSUED_AT = "iat";
     private static final String CLAIM_EXPIRES_AT = "exp";
     private static final String TOKEN_TYPE = "im-session-ticket";
+    private static final String INVALID_TICKET_MESSAGE = "invalid IM session ticket";
+    private static final Duration DEFAULT_CLOCK_SKEW = Duration.ofSeconds(60);
+    private static final Clock VALIDATION_CLOCK = Clock.systemUTC();
     private static final MappedJwtClaimSetConverter DEFAULT_CLAIM_SET_CONVERTER =
             MappedJwtClaimSetConverter.withDefaults(Map.of());
 
@@ -57,7 +62,8 @@ public class SessionTicketCodec {
                 .build();
         decoder.setClaimSetConverter(SessionTicketCodec::convertClaimSet);
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(issuer),
+                ticketTimestampValidator(),
+                new JwtIssuerValidator(issuer),
                 audienceValidator(audience),
                 ticketTypeValidator()
         ));
@@ -89,7 +95,12 @@ public class SessionTicketCodec {
     }
 
     public TicketClaims decode(String ticket) {
-        Jwt jwt = jwtDecoder.decode(ticket);
+        Jwt jwt;
+        try {
+            jwt = jwtDecoder.decode(ticket);
+        } catch (RuntimeException ignored) {
+            throw invalidTicketValidationFailure();
+        }
         requireTokenType(jwt.getClaimAsString(CLAIM_TOKEN_TYPE));
         return new TicketClaims(
                 parseUserId(jwt.getSubject()),
@@ -134,6 +145,32 @@ public class SessionTicketCodec {
 
     private static BadJwtException invalidRawClaim(String claimName) {
         return new BadJwtException("invalid IM session ticket claim: " + claimName);
+    }
+
+    private static OAuth2TokenValidator<Jwt> ticketTimestampValidator() {
+        return jwt -> {
+            Instant expiresAt = jwt.getExpiresAt();
+            if (expiresAt != null && Instant.now(VALIDATION_CLOCK).minus(DEFAULT_CLOCK_SKEW).isAfter(expiresAt)) {
+                return invalidTicketValidationResult();
+            }
+            Instant notBefore = jwt.getNotBefore();
+            if (notBefore != null && Instant.now(VALIDATION_CLOCK).plus(DEFAULT_CLOCK_SKEW).isBefore(notBefore)) {
+                return invalidTicketValidationResult();
+            }
+            return OAuth2TokenValidatorResult.success();
+        };
+    }
+
+    private static OAuth2TokenValidatorResult invalidTicketValidationResult() {
+        return OAuth2TokenValidatorResult.failure(new OAuth2Error(
+                "invalid_token",
+                INVALID_TICKET_MESSAGE,
+                null
+        ));
+    }
+
+    private static BadJwtException invalidTicketValidationFailure() {
+        return new BadJwtException(INVALID_TICKET_MESSAGE);
     }
 
     private static void requireTokenType(String tokenType) {

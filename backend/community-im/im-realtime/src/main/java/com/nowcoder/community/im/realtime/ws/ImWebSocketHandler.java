@@ -216,8 +216,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
                     conn.traceId(),
                     "community.reason_code", "invalid_ticket",
                     "community.connection_id", conn.connectionId(),
-                    "community.error_class", errorClass(e),
-                    "community.error_message", errorMessage(e)
+                    "community.error_class", errorClass(e)
             );
             rejectAndClose(conn, "connect", "", "", 401, "invalid_ticket", "invalid ticket");
         }
@@ -475,7 +474,4 @@ public class ImWebSocketHandler implements WebSocketHandler {
         return throwable == null ? null : throwable.getClass().getName();
     }
 
-    private String errorMessage(Throwable throwable) {
-        return throwable == null ? null : throwable.getMessage();
-    }
 }

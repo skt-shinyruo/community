@@ -1,7 +1,11 @@
 package com.nowcoder.community.im.realtime.ws;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
@@ -23,8 +27,15 @@ import com.nowcoder.community.im.realtime.session.SessionTicketCodec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.web.reactive.socket.HandshakeInfo;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
@@ -33,11 +44,14 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
 import java.security.Principal;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -51,6 +65,11 @@ import static org.mockito.Mockito.when;
 class ImWebSocketHandlerContractVersionTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final String TICKET_SECRET = "ws-contract-version-ticket-secret-distinct-at-least-32b";
+    private static final String TICKET_ISSUER = "community-im-gateway";
+    private static final String TICKET_AUDIENCE = "im-realtime";
+    private static final String TICKET_TYPE = "im-session-ticket";
+    private static final Instant EXPIRED_TICKET_EXPIRATION = Instant.parse("2024-01-02T03:04:05Z");
 
     @ParameterizedTest
     @ValueSource(strings = {
@@ -157,6 +176,53 @@ class ImWebSocketHandlerContractVersionTest {
         assertThat(reject.path("message").asText()).contains("unsupported IM schemaVersion 2");
     }
 
+    @Test
+    void shouldNotLogExpiredTicketValidationDetails() throws Exception {
+        Sinks.Many<String> inbound = Sinks.many().unicast().onBackpressureBuffer();
+        LinkedBlockingQueue<String> sentMessages = new LinkedBlockingQueue<>();
+        WebSocketSession session = session(inbound, sentMessages);
+        JwtProperties jwtProperties = jwtProperties();
+        ImSessionProperties sessionProperties = sessionProperties();
+        ImFrameCodec frameCodec = new ImFrameCodec(new JacksonJsonCodec(JsonMappers.standard()));
+        SessionTicketCodec ticketCodec = sessionTicketCodec(jwtProperties);
+        ProjectionSyncCoordinator projectionSyncCoordinator = mock(ProjectionSyncCoordinator.class);
+        doNothing().when(projectionSyncCoordinator).requireReady();
+        ImWebSocketHandler handler = new ImWebSocketHandler(
+                frameCodec,
+                ticketCodec,
+                sessionProperties,
+                projectionSyncCoordinator,
+                new MembershipProjectionService(mock(MembershipSnapshotClient.class)),
+                new PolicyProjectionService(mock(PolicySnapshotClient.class)),
+                mock(MessageCommandIngressService.class),
+                new ConnectionRegistry(),
+                new RoomLocalPresenceService(
+                        new RoomLocalIndex(),
+                        mock(RoomPresenceDirectory.class),
+                        sessionProperties.getWorkerId()
+                ),
+                10_000,
+                256
+        );
+        String ticket = expiredTicket(sessionProperties);
+
+        try (HandlerLogCapture logs = HandlerLogCapture.start()) {
+            handler.handle(session).subscribe();
+            inbound.tryEmitNext(frameCodec.write(new ConnectFrame("connect", ticket)));
+            inbound.tryEmitComplete();
+
+            JsonNode reject = awaitNextFrame(sentMessages);
+            assertThat(reject.path("reasonCode").asText()).isEqualTo("invalid_ticket");
+
+            String invalidTicketEvent = logs.messages().stream()
+                    .filter(message -> message.contains("community.reason_code=invalid_ticket"))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(invalidTicketEvent).doesNotContain(EXPIRED_TICKET_EXPIRATION.toString());
+            assertThat(invalidTicketEvent).doesNotContain("community.error_message");
+        }
+    }
+
     private static WebSocketSession session(Sinks.Many<String> inbound, LinkedBlockingQueue<String> sentMessages) {
         WebSocketSession session = mock(WebSocketSession.class);
         when(session.getId()).thenReturn("ws-contract-version");
@@ -239,11 +305,63 @@ class ImWebSocketHandlerContractVersionTest {
 
     private static SessionTicketCodec sessionTicketCodec(JwtProperties accessProperties) {
         ImSessionTicketProperties ticketProperties = new ImSessionTicketProperties();
-        ticketProperties.setHmacSecret("ws-contract-version-ticket-secret-distinct-at-least-32b");
+        ticketProperties.setHmacSecret(TICKET_SECRET);
+        ticketProperties.setIssuer(TICKET_ISSUER);
+        ticketProperties.setAudience(TICKET_AUDIENCE);
         return new SessionTicketCodec(
                 ticketProperties,
                 ticketProperties.secretKeyOrThrow(accessProperties)
         );
+    }
+
+    private static String expiredTicket(ImSessionProperties sessionProperties) {
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(TICKET_ISSUER)
+                .audience(List.of(TICKET_AUDIENCE))
+                .subject(uuid(1).toString())
+                .issuedAt(EXPIRED_TICKET_EXPIRATION.minusSeconds(60))
+                .expiresAt(EXPIRED_TICKET_EXPIRATION)
+                .claim("sid", "sess-1")
+                .claim("wid", sessionProperties.getWorkerId())
+                .claim("typ", TICKET_TYPE)
+                .build();
+        JwtEncoder encoder = new NimbusJwtEncoder(new ImmutableSecret<>(ticketSecretKey()));
+        return encoder.encode(JwtEncoderParameters.from(
+                JwsHeader.with(MacAlgorithm.HS256).build(),
+                claims
+        )).getTokenValue();
+    }
+
+    private static SecretKey ticketSecretKey() {
+        return new SecretKeySpec(TICKET_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+    }
+
+    private static final class HandlerLogCapture implements AutoCloseable {
+
+        private final Logger logger;
+        private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+
+        private HandlerLogCapture() {
+            this.logger = (Logger) LoggerFactory.getLogger(ImWebSocketHandler.class);
+            appender.start();
+            logger.addAppender(appender);
+        }
+
+        static HandlerLogCapture start() {
+            return new HandlerLogCapture();
+        }
+
+        java.util.List<String> messages() {
+            return appender.list.stream()
+                    .map(ILoggingEvent::getFormattedMessage)
+                    .toList();
+        }
+
+        @Override
+        public void close() {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     private static UUID uuid(long suffix) {

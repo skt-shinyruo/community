@@ -96,6 +96,7 @@ describe('ConversationsView', () => {
     expect(wrapper.text()).not.toContain('成员 #11111111-1111-7111-8111-111111111111')
     expect(wrapper.findAll('a')[0].attributes('href')).toBe('/messages/conv-a')
     expect(wrapper.findAll('a')[1].attributes('href')).toBe('/messages/conv-b')
+    expect(wrapper.emitted('trace')).toEqual([['']])
 
     const loadMore = wrapper.find('[data-testid="load-more-conversations"]')
     expect(loadMore.exists()).toBe(true)
@@ -146,5 +147,54 @@ describe('ConversationsView', () => {
 
     expect(wrapper.findAll('a')).toHaveLength(1)
     expect(wrapper.find('a').attributes('href')).toBe('/messages/conv-new')
+  })
+
+  it('keeps the last successful rows and cursor when refresh fails', async () => {
+    listImConversationPage
+      .mockResolvedValueOnce({
+        items: [{ conversationId: 'conv-a', otherUserId: '11111111-1111-7111-8111-111111111111', unreadCount: 0, lastMessage: null }],
+        nextCursor: 'cursor-2',
+        hasMore: true
+      })
+      .mockRejectedValueOnce(new Error('刷新失败'))
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('a')).toHaveLength(1)
+    expect(wrapper.find('a').attributes('href')).toBe('/messages/conv-a')
+    expect(wrapper.text()).toContain('刷新失败')
+    expect(wrapper.find('[data-testid="load-more-conversations"]').exists()).toBe(true)
+  })
+
+  it('ignores a stale load-more rejection after a successful refresh', async () => {
+    let rejectStale
+    listImConversationPage
+      .mockResolvedValueOnce({
+        items: [{ conversationId: 'conv-a', otherUserId: '11111111-1111-7111-8111-111111111111', unreadCount: 0, lastMessage: null }],
+        nextCursor: 'cursor-2',
+        hasMore: true
+      })
+      .mockImplementationOnce(() => new Promise((_, reject) => { rejectStale = reject }))
+      .mockResolvedValueOnce({
+        items: [{ conversationId: 'conv-new', otherUserId: '44444444-4444-7444-8444-444444444444', unreadCount: 0, lastMessage: null }],
+        nextCursor: null,
+        hasMore: false
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('[data-testid="load-more-conversations"]').trigger('click')
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+    rejectStale(new Error('旧请求失败'))
+    await flushPromises()
+
+    expect(wrapper.findAll('a')).toHaveLength(1)
+    expect(wrapper.find('a').attributes('href')).toBe('/messages/conv-new')
+    expect(wrapper.text()).not.toContain('旧请求失败')
+    expect(wrapper.find('[data-testid="load-more-conversations"]').exists()).toBe(false)
   })
 })

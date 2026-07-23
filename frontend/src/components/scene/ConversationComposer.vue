@@ -90,7 +90,7 @@ function emitSubmit() {
   height: 48px;
   border-radius: 50%;
   background: var(--accent);
-  color: white;
+  color: var(--accent-contrast);
   border: none;
   transition: transform 0.12s ease, opacity 0.12s ease;
 }

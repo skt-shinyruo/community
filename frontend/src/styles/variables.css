@@ -73,6 +73,7 @@
   --accent: #111111;
   --accent-hover: #000000;
   --accent-weak: #f1f1f1;
+  --accent-contrast: #ffffff;
   
   --danger: #ef4444; /* Red-500 */
   --danger-hover: #dc2626; /* Red-600 */
@@ -148,6 +149,7 @@ html[data-theme='dark'] {
   --accent: #ffffff;
   --accent-hover: #ececec;
   --accent-weak: rgba(255, 255, 255, 0.12);
+  --accent-contrast: #000000;
   
   --danger: #ef4444;
   --danger-hover: #f87171;

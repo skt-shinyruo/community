@@ -37,7 +37,7 @@ onUnmounted(() => {
   height: 48px;
   border-radius: 50%;
   background: var(--accent);
-  color: white;
+  color: var(--accent-contrast);
   border: none;
   box-shadow: var(--shadow-lg);
   display: flex;

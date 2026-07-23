@@ -57,4 +57,24 @@ describe('product redesign CSS guardrails', () => {
     expect(register).toContain('variant="development"')
     expect(passwordReset).toContain('variant="development"')
   })
+
+  it('keeps the conversation timeline bounded for in-panel history scrolling', () => {
+    const conversation = read('src/views/ConversationDetailView.vue')
+    const chatArea = conversation.match(/\.chat-area\s*\{([^}]*)\}/s)?.[1] || ''
+    expect(chatArea).toContain('min-height: 0')
+    expect(chatArea).toContain('max-height:')
+  })
+
+  it('fits the mobile conversation card between the top bar and fixed navigation', () => {
+    const conversation = read('src/views/ConversationDetailView.vue')
+    const mobileStyles = conversation.slice(conversation.indexOf('@media (max-width: 768px)'))
+    const mobileChatCard = mobileStyles.match(/\.chat-card\s*\{([^}]*)\}/s)?.[1] || ''
+    const mobileChatArea = mobileStyles.match(/\.chat-area\s*\{([^}]*)\}/s)?.[1] || ''
+
+    expect(mobileChatCard).toContain('min-height: 0')
+    expect(mobileChatCard).toContain(
+      'height: calc(100dvh - var(--topbar-height) - var(--space-4) - 96px - env(safe-area-inset-bottom, 0px))'
+    )
+    expect(mobileChatArea).toContain('max-height: none')
+  })
 })

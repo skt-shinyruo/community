@@ -7,9 +7,22 @@ export async function listImConversations({ page = 0, size = 20 } = {}) {
   return Array.isArray(data) ? data : []
 }
 
+export async function listImConversationPage({ cursor = '', size = 20 } = {}) {
+  const resp = await imCoreHttp.get('/api/im/conversations/page', { params: { cursor, size } })
+  const { data } = unwrapResultBody(resp?.data, '加载会话列表')
+  return data || { items: [] }
+}
+
 export async function listImConversationMessages(conversationId, { afterSeq = 0, limit = 50 } = {}) {
   const cid = encodeURIComponent(String(conversationId || ''))
   const resp = await imCoreHttp.get(`/api/im/conversations/${cid}/messages`, { params: { afterSeq, limit } })
+  const { data } = unwrapResultBody(resp?.data, '加载会话消息')
+  return data || { items: [] }
+}
+
+export async function listImConversationHistory(conversationId, { beforeSeq, limit = 50 } = {}) {
+  const cid = encodeURIComponent(String(conversationId || ''))
+  const resp = await imCoreHttp.get(`/api/im/conversations/${cid}/messages/history`, { params: { beforeSeq, limit } })
   const { data } = unwrapResultBody(resp?.data, '加载会话消息')
   return data || { items: [] }
 }

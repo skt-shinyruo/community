@@ -404,6 +404,8 @@ onMounted(() => {
 
 .chat-area {
   flex: 1;
+  min-height: 0;
+  max-height: min(60vh, 720px);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--bg) 85%, var(--surface) 15%), var(--bg));
   overflow-y: auto;
@@ -477,7 +479,7 @@ onMounted(() => {
 
 .message-row.mine .message-bubble {
   background: color-mix(in srgb, var(--accent) 88%, white 12%);
-  color: white;
+  color: var(--accent-contrast);
   border-top-left-radius: 18px;
   border-top-right-radius: 6px;
 }
@@ -515,6 +517,11 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .chat-card {
+    min-height: 0;
+    height: calc(100dvh - var(--topbar-height) - var(--space-4) - 96px - env(safe-area-inset-bottom, 0px));
+  }
+
   .chat-header {
     padding: 16px;
     flex-direction: column;
@@ -522,6 +529,7 @@ onMounted(() => {
 
   .chat-area {
     padding: 16px;
+    max-height: none;
   }
 
   .chat-composer {

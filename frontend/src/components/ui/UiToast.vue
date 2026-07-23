@@ -97,4 +97,16 @@ defineExpose({ show })
   opacity: 0;
   transform: translateX(30px) scale(0.9);
 }
+
+@media (max-width: 768px) {
+  .toast-container {
+    left: 14px;
+    right: 14px;
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .toast {
+    width: 100%;
+  }
+}
 </style>

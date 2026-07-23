@@ -132,7 +132,10 @@ describe('ConversationDetailView', () => {
     expect(wrapper.text()).toContain('实时已就绪')
 
     await wrapper.get('textarea').setValue('继续聊')
-    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    const sendButton = wrapper.get('button[aria-label="发送消息"]')
+    expect(sendButton.attributes('disabled')).toBeUndefined()
+    await sendButton.trigger('click')
     await flushPromises()
 
     expect(sendPrivateText).toHaveBeenCalledWith({

@@ -52,4 +52,31 @@ describe('product design token guardrails', () => {
     expect(components).toContain('.badge-pending')
     expect(components).toContain('.badge-unread')
   })
+
+  it('keeps accent controls readable in both color schemes', () => {
+    const variables = read('src/styles/variables.css')
+    const components = read('src/styles/components.css')
+    const composer = read('src/components/scene/ConversationComposer.vue')
+    const conversation = read('src/views/ConversationDetailView.vue')
+    const scrollTop = read('src/components/ui/UiScrollTop.vue')
+
+    expect(variables).toContain('--accent-contrast: #ffffff;')
+    expect(variables).toContain("--accent-contrast: #000000;")
+    expect(cssBlock(components, '.btn')).toContain('color: var(--accent-contrast)')
+    expect(composer).toContain('color: var(--accent-contrast)')
+    expect(conversation).toContain('color: var(--accent-contrast)')
+    expect(scrollTop).toContain('color: var(--accent-contrast)')
+  })
+
+  it('keeps mobile toasts above the fixed navigation', () => {
+    const toast = read('src/components/ui/UiToast.vue')
+    const mobileStyles = toast.slice(toast.indexOf('@media (max-width: 768px)'))
+    const container = cssBlock(mobileStyles, '.toast-container')
+    const item = cssBlock(mobileStyles, '.toast')
+
+    expect(container).toContain('bottom: calc(96px + env(safe-area-inset-bottom, 0px))')
+    expect(container).toContain('left: 14px')
+    expect(container).toContain('right: 14px')
+    expect(item).toContain('width: 100%')
+  })
 })

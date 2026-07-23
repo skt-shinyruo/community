@@ -36,4 +36,15 @@ public class MyBatisPrivateMessageRepository implements PrivateMessageRepository
                 .map(PrivateMessageDataObject::toDomain)
                 .toList();
     }
+
+    @Override
+    public List<PrivateMessageRecord> listBeforeSeq(String conversationId, Long beforeSeqExclusive, int limit) {
+        List<PrivateMessageDataObject> rows = mapper.selectBeforeSeq(conversationId, beforeSeqExclusive, limit);
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        return rows.stream()
+                .map(PrivateMessageDataObject::toDomain)
+                .toList();
+    }
 }

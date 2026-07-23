@@ -105,6 +105,22 @@ describe('api/services/imCoreChatService', () => {
     })
   })
 
+  it('listImConversationHistory should omit the initial boundary while keeping the default limit', async () => {
+    imCoreHttp.get.mockResolvedValue({
+      data: {
+        code: 0,
+        message: '',
+        data: { conversationId: 'c1', items: [], nextBeforeSeq: null, hasMore: false, lastReadSeq: 0 },
+        traceId: 'trace-history-initial'
+      }
+    })
+
+    await expect(listImConversationHistory('c1')).resolves.toMatchObject({ conversationId: 'c1', items: [] })
+    expect(imCoreHttp.get).toHaveBeenCalledWith('/api/im/conversations/c1/messages/history', {
+      params: { beforeSeq: undefined, limit: 50 }
+    })
+  })
+
   it('new IM pagination clients should reject responses without a Result envelope', async () => {
     imCoreHttp.get.mockResolvedValue({ data: { items: [] } })
 

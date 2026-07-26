@@ -74,6 +74,8 @@ describe('UserManagementView', () => {
     await wrapper.findAll('button').find((button) => button.text() === '搜索').trigger('click')
     await flushPromises()
 
+    expect(wrapper.text()).toContain('搜索用户')
+    expect(wrapper.text()).toContain('用户信息')
     expect(adminSearchUser).toHaveBeenCalledWith({
       userId: '11111111-1111-7111-8111-111111111111',
       username: '',

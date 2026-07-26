@@ -1,17 +1,17 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/test'
 import { accounts } from '../fixtures/accounts'
 import { loginViaUi } from '../fixtures/auth'
 import { gotoHash } from '../fixtures/helpers'
 
-test.describe.serial('admin and role guard flow', () => {
-  test('ordinary user is forbidden from admin user management', async ({ page }) => {
+test.describe.serial('admin and role guard flow @regression', () => {
+  test('ordinary user is forbidden from admin user management @regression', async ({ page }) => {
     await loginViaUi(page, accounts.aaa)
     await gotoHash(page, '/admin/users')
     await expect(page).toHaveURL(/#\/403/)
     await expect(page.getByText('无权限').first()).toBeVisible()
   })
 
-  test('admin menu and readable operation pages load', async ({ page }) => {
+  test('admin menu and readable operation pages load @regression', async ({ page }) => {
     await loginViaUi(page, accounts.admin)
     await expect(page.getByText('治理后台')).toBeVisible()
     await expect(page.getByText('统计')).toBeVisible()

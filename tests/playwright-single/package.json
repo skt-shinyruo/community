@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "health": "node scripts/health-check.mjs",
-    "test": "playwright test",
-    "test:smoke": "playwright test tests/00-smoke.spec.ts",
-    "test:known": "PW_INCLUDE_KNOWN_ISSUES=1 playwright test tests/99-known-issues.spec.ts",
-    "test:headed": "playwright test --headed",
+    "test": "npm run test:regression",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:regression": "playwright test --grep @regression",
+    "test:headed": "playwright test --headed --grep @regression",
     "report": "node scripts/markdown-report.mjs",
     "show-report": "playwright show-report playwright-report"
   },

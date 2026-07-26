@@ -26,6 +26,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,13 +42,16 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
+@TestPropertySource(properties = "im.cors.allowed-origins[0]=http://localhost:12881")
 class ImCoreApiControllerTest {
 
     @Autowired
@@ -87,6 +91,16 @@ class ImCoreApiControllerTest {
     void api_should_require_authentication() throws Exception {
         mockMvc.perform(get("/api/im/unread/summary"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void conversation_page_preflight_should_allow_configured_frontend_origin() throws Exception {
+        mockMvc.perform(options("/api/im/conversations/page")
+                        .header("Origin", "http://localhost:12881")
+                        .header("Access-Control-Request-Method", "GET")
+                        .header("Access-Control-Request-Headers", "authorization,content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:12881"));
     }
 
     @Test

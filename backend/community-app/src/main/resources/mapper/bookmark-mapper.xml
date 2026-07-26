@@ -28,7 +28,6 @@
             p.user_id as user_id,
             p.category_id as category_id,
             p.title as title,
-            p.content as content,
             p.type as type,
             p.status as status,
             p.create_time as create_time,

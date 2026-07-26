@@ -136,6 +136,28 @@ class GatewayImEdgeRouteIntegrationTest {
     }
 
     @Test
+    void shouldPreserveCursorConversationPagePathAndAuthorizationOnImCore() throws Exception {
+        IM_EDGE_CAPTURES.clear();
+        IM_CORE_CAPTURES.clear();
+
+        webTestClient.get()
+                .uri("/api/im/conversations/page?cursor=&size=20")
+                .header("Authorization", "Bearer page-token")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.upstream").isEqualTo("im-core");
+
+        RequestCapture capture = IM_CORE_CAPTURES.poll(5, TimeUnit.SECONDS);
+        assertThat(capture).isNotNull();
+        assertThat(capture.method()).isEqualTo("GET");
+        assertThat(capture.path()).isEqualTo("/api/im/conversations/page");
+        assertThat(capture.query()).isEqualTo("cursor=&size=20");
+        assertThat(capture.authorization()).isEqualTo("Bearer page-token");
+        assertThat(IM_EDGE_CAPTURES).isEmpty();
+    }
+
+    @Test
     void shouldRoutePublicImWebSocketToImEdge() throws Exception {
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
         Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();

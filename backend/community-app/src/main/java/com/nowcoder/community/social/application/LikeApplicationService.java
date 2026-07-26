@@ -102,13 +102,23 @@ public class LikeApplicationService {
         likeDomainService.validateLike(actorUserId, entityType, entityId);
         ResolvedSocialEntity resolved = requireResolvedTarget(command);
         LikeTargetState targetState = lockContentTarget(entityType, entityId);
-        if (command.liked() && targetState != null && targetState.isDeleted()) {
+        Optional<LikeRelation> existingRelation = Optional.empty();
+        boolean existed = false;
+        boolean liked;
+        if (command.liked() == null) {
+            existingRelation = likeRepository.findLike(actorUserId, entityType, entityId);
+            existed = existingRelation.isPresent();
+            liked = likeDomainService.resolveTargetState(existed, null);
+        } else {
+            liked = Boolean.TRUE.equals(command.liked());
+        }
+        if (liked && targetState != null && targetState.isDeleted()) {
             throw new BusinessException(NOT_FOUND, "like target has been deleted");
         }
-
-        Optional<LikeRelation> existingRelation = likeRepository.findLike(actorUserId, entityType, entityId);
-        boolean existed = existingRelation.isPresent();
-        boolean liked = likeDomainService.resolveTargetState(existed, command.liked());
+        if (command.liked() != null) {
+            existingRelation = likeRepository.findLike(actorUserId, entityType, entityId);
+            existed = existingRelation.isPresent();
+        }
         if (liked == existed) {
             return buildResult(actorUserId, entityType, entityId);
         }

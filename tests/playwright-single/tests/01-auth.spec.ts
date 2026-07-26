@@ -1,10 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/test'
 import { accounts } from '../fixtures/accounts'
 import { loginViaUi } from '../fixtures/auth'
 import { gotoHash } from '../fixtures/helpers'
 
-test.describe.serial('auth pages and dev account login', () => {
-  test('dev accounts can login through the UI', async ({ page }) => {
+test.describe.serial('auth pages and dev account login @regression', () => {
+  test('dev accounts can login through the UI @regression', async ({ page }) => {
     for (const account of [accounts.aaa, accounts.bbb, accounts.admin]) {
       await loginViaUi(page, account)
       await page.getByRole('button', { name: '登出' }).click()
@@ -12,7 +12,7 @@ test.describe.serial('auth pages and dev account login', () => {
     }
   })
 
-  test('register page renders and validates empty submit', async ({ page }) => {
+  test('register page renders and validates empty submit @regression', async ({ page }) => {
     await gotoHash(page, '/auth/register')
     await expect(page.getByText('注册').first()).toBeVisible()
     await expect(page.getByRole('textbox', { name: '请输入用户名' })).toBeVisible()
@@ -21,7 +21,7 @@ test.describe.serial('auth pages and dev account login', () => {
     await expect(page.getByText('请填写完整信息')).toBeVisible()
   })
 
-  test('password reset page renders and validates empty submit', async ({ page }) => {
+  test('password reset page renders and validates empty submit @regression', async ({ page }) => {
     await gotoHash(page, '/auth/password/reset')
     await expect(page.getByText('找回密码').first()).toBeVisible()
     await expect(page.getByRole('textbox', { name: 'name@example.com' })).toBeVisible()

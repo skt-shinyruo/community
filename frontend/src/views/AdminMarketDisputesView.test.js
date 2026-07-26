@@ -66,4 +66,14 @@ describe('AdminMarketDisputesView', () => {
 
     expect(adminResolveMarketDispute).toHaveBeenCalledWith('11111111-1111-7111-8111-111111111111', 'refund', { note: 'refund' })
   })
+
+  it('renders an explicit empty state after a successful empty response', async () => {
+    listAdminMarketDisputes.mockResolvedValueOnce({ data: [], traceId: '' })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('暂无待处理争议')
+    expect(wrapper.findAll('.market-admin-row')).toHaveLength(0)
+  })
 })

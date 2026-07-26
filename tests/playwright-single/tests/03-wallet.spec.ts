@@ -1,14 +1,14 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/test'
 import { accounts } from '../fixtures/accounts'
 import { loginViaUi } from '../fixtures/auth'
 import { gotoHash } from '../fixtures/helpers'
 
-test.describe.serial('wallet product flow', () => {
+test.describe.serial('wallet product flow @regression', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUi(page, accounts.aaa)
   })
 
-  test('wallet page loads, recharge succeeds, and transfer succeeds', async ({ page }) => {
+  test('wallet page loads, recharge succeeds, and transfer succeeds @regression', async ({ page }) => {
     await gotoHash(page, '/wallet')
     await expect(page.getByText('积分钱包').first()).toBeVisible()
     const rechargeCard = page.locator('.wallet-action-card').filter({ has: page.getByRole('heading', { name: '充值' }) })

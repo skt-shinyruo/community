@@ -181,16 +181,13 @@ tests/playwright-single
 npm --prefix tests/playwright-single install
 npm --prefix tests/playwright-single run health
 npm --prefix tests/playwright-single run test:smoke
-npm --prefix tests/playwright-single run test
+npm --prefix tests/playwright-single run test:regression
 npm --prefix tests/playwright-single run report
 ```
 
-默认 `test` 入口会排除 `99-known-issues.spec.ts`，用于稳定产品回归；
-需要跟踪当前已知失败时，单独执行：
-
-```bash
-npm --prefix tests/playwright-single run test:known
-```
+`test` 是 `test:regression` 的别名。所有产品用例都使用成功语义；统一 fixture
+会审计 API 4xx/5xx、浏览器页面错误和应用控制台错误，除明确的匿名认证探针和
+后台授权断言外，发现任一错误都会使测试失败。
 
 状态会变化的用例会创建带时间戳的本地测试数据。当前套件不自动清空
 single 数据库、Redis、对象存储或 Elasticsearch。

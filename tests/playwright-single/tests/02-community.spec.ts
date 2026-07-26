@@ -1,17 +1,17 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/test'
 import { accounts } from '../fixtures/accounts'
 import { loginViaUi } from '../fixtures/auth'
 import { gotoHash } from '../fixtures/helpers'
 import { data } from '../fixtures/test-data'
 
-test.describe.serial('community product flow', () => {
+test.describe.serial('community product flow @regression', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUi(page, accounts.aaa)
   })
 
-  test('post creation, detail, like, bookmark, and comment work', async ({ page }) => {
+  test('post creation, detail, like, bookmark, and comment work @regression', async ({ page }) => {
     await gotoHash(page, '/posts')
-    await page.getByText('开始一个讨论').click()
+    await page.locator('.posts-feed-compose-strip').click()
     const composer = page.locator('.posts-composer')
     await composer.getByRole('textbox', { name: '标题' }).fill(data.postTitle)
     await composer.getByPlaceholder('正文内容...').fill(data.postBody)
@@ -28,9 +28,23 @@ test.describe.serial('community product flow', () => {
     await page.getByPlaceholder('写下你的观点…（支持 Markdown）').fill(data.postComment)
     await page.getByRole('button', { name: '提交' }).click()
     await expect(page.getByText(data.postComment)).toBeVisible()
+    const bookmarksResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return response.request().method() === 'GET'
+        && url.pathname === '/api/bookmarks'
+        && url.searchParams.get('page') === '0'
+        && url.searchParams.get('size') === '10'
+    })
+    await gotoHash(page, '/bookmarks')
+    const bookmarksResponse = await bookmarksResponsePromise
+    expect(bookmarksResponse.status()).toBe(200)
+    const bookmarksBody = await bookmarksResponse.json()
+    expect(Array.isArray(bookmarksBody.data)).toBe(true)
+    expect(bookmarksBody.data.some((post) => post.title === data.postTitle)).toBe(true)
+    await expect(page.getByText(data.postTitle).first()).toBeVisible()
   })
 
-  test('profile, social lists, notices, and settings pages load', async ({ page }) => {
+  test('profile, social lists, notices, and settings pages load @regression', async ({ page }) => {
     await gotoHash(page, `/users/${accounts.aaa.userId}`)
     await expect(page.getByText('公开身份').first()).toBeVisible()
     await gotoHash(page, `/users/${accounts.aaa.userId}/followees`)

@@ -10,6 +10,11 @@
     <UiState v-if="error" variant="error">{{ error }}</UiState>
     <div v-else-if="loading" class="muted">正在加载争议…</div>
 
+    <UiState v-else-if="state.disputes.length === 0">
+      暂无待处理争议
+      <template #description>当前没有等待管理员裁定的市场争议。</template>
+    </UiState>
+
     <div v-else class="market-admin-list">
       <article v-for="item in state.disputes" :key="item.disputeId" class="market-admin-row">
         <div>

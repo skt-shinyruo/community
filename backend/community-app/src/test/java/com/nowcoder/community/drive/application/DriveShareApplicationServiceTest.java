@@ -171,6 +171,27 @@ class DriveShareApplicationServiceTest {
     }
 
     @Test
+    void folderShareShouldReturnEmptyListForAnEmptyFolderAfterVerification() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveShareApplicationService service = fixture.shareService();
+        DriveEntryApplicationService entryService = fixture.entryService();
+        UUID userId = uuid(7);
+        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Empty"));
+        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+                userId,
+                folder.entryId(),
+                "1234",
+                Instant.parse("2026-05-10T00:00:00Z")
+        ));
+
+        DriveShareResult verified = service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "1234", "ip:1"));
+        List<DriveEntryResult> entries = service.listShareEntries(share.shareToken(), verified.ticket(), null);
+
+        assertThat(entries).isEmpty();
+        assertThat(fixture.storage().downloadObjectIds).isEmpty();
+    }
+
+    @Test
     void folderShareListingShouldRejectInvalidTicketAndParentOutsideShareScope() {
         TestDriveFixture fixture = TestDriveFixture.create();
         DriveShareApplicationService service = fixture.shareService();

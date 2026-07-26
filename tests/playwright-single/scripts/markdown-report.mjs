@@ -20,11 +20,22 @@ function collectSpecs(suite, prefix = []) {
   return [...ownSpecs, ...childSpecs]
 }
 
-const raw = await fs.readFile(reportPath, 'utf8')
-const json = JSON.parse(raw)
+let raw
+try {
+  raw = await fs.readFile(reportPath, 'utf8')
+} catch (error) {
+  throw new Error(`Playwright JSON report is missing at ${reportPath}; run a Playwright suite first (${error.message})`)
+}
+
+let json
+try {
+  json = JSON.parse(raw)
+} catch (error) {
+  throw new Error(`Playwright JSON report is not valid JSON at ${reportPath}: ${error.message}`)
+}
 const specs = collectSpecs(json)
 const passed = specs.filter((item) => item.status === 'passed').length
-const failed = specs.filter((item) => item.status === 'failed' || item.status === 'timedOut').length
+const failed = specs.filter((item) => ['failed', 'timedOut', 'interrupted', 'unknown'].includes(item.status)).length
 const skipped = specs.filter((item) => item.status === 'skipped').length
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
 

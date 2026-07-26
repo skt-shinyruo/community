@@ -1,6 +1,9 @@
 package com.nowcoder.community.im.core.config;
 
+import com.nowcoder.community.im.core.security.ImCoreCorsProperties;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.StandardEnvironment;
@@ -22,6 +25,19 @@ class NacosImCoreBindingTest {
         assertThat(environment.containsProperty("im.kafka.consumer.group-id")).isFalse();
         assertThat(environment.containsProperty("im.kafka.consumer.auto-offset-reset")).isFalse();
         assertThat(environment.getProperty("im.cors.allowed-origins[2]")).isEqualTo("http://localhost:12881");
+
+        ImCoreCorsProperties properties = Binder.get(environment)
+                .bind("im.cors", Bindable.of(ImCoreCorsProperties.class))
+                .orElseThrow(() -> new AssertionError("im.cors properties did not bind"));
+        assertThat(properties.getAllowedOrigins())
+                .containsExactly(
+                        "http://localhost:5173",
+                        "http://127.0.0.1:5173",
+                        "http://localhost:12881",
+                        "http://127.0.0.1:12881",
+                        "http://localhost:12888",
+                        "http://127.0.0.1:12888"
+                );
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

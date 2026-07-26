@@ -1,15 +1,15 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/test'
 import { accounts } from '../fixtures/accounts'
 import { loginViaUi } from '../fixtures/auth'
 import { gotoHash, webBaseUrl } from '../fixtures/helpers'
 import { data } from '../fixtures/test-data'
 
-test.describe.serial('drive product flow', () => {
+test.describe.serial('drive product flow @regression', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUi(page, accounts.bbb)
   })
 
-  test('folder create, rename, delete, and retained share link creation work', async ({ page }) => {
+  test('folder create, rename, delete, and retained share verification work @regression', async ({ page }) => {
     await gotoHash(page, '/drive')
     await page.getByRole('button', { name: '新建文件夹' }).click()
     await page.getByRole('textbox', { name: '文件夹名称' }).fill(data.driveFolder)
@@ -37,5 +37,33 @@ test.describe.serial('drive product flow', () => {
       return match?.[0] || ''
     }, webBaseUrl.replace(/\/$/, ''))
     expect(shareUrl).toContain('/#/drive/s/')
+
+    const shareToken = shareUrl.match(/#\/drive\/s\/([A-Za-z0-9_-]+)/)?.[1] || ''
+    expect(shareToken).not.toBe('')
+    const verifyResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return response.request().method() === 'POST'
+        && url.pathname === `/api/drive/shares/${encodeURIComponent(shareToken)}/verify`
+    })
+    const entriesResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return response.request().method() === 'GET'
+        && url.pathname === `/api/drive/shares/${encodeURIComponent(shareToken)}/entries`
+    })
+    await page.goto(shareUrl)
+    await expect(page.locator('.drive-share-page')).toBeVisible()
+    await page.getByRole('textbox', { name: '提取码' }).fill(data.shareCode)
+    await page.getByRole('button', { name: '访问分享' }).click()
+    const verifyResponse = await verifyResponsePromise
+    expect(verifyResponse.status()).toBe(200)
+    const verifyBody = await verifyResponse.json()
+    expect(typeof verifyBody.data?.ticket).toBe('string')
+    expect(verifyBody.data.ticket).not.toBe('')
+    const entriesResponse = await entriesResponsePromise
+    expect(entriesResponse.status()).toBe(200)
+    const entriesBody = await entriesResponse.json()
+    expect(Array.isArray(entriesBody.data)).toBe(true)
+    await expect(page.getByText('验证成功')).toBeVisible()
+    await expect(page.getByText('此文件夹为空')).toBeVisible()
   })
 })

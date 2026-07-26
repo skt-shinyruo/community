@@ -16,7 +16,6 @@ export const data = {
   driveFolder: uniqueName('Playwright 文件夹'),
   driveFolderRenamed: uniqueName('Playwright 文件夹 renamed'),
   retainedShareFolder: uniqueName('Playwright 分享保留'),
-  knownIssueShareFolder: uniqueName('Playwright 已知问题分享'),
   shareCode: '1234',
   addressReceiver: '测试收件人',
   addressPhone: '13800000000'

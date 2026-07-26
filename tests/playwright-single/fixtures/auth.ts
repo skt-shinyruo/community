@@ -9,7 +9,12 @@ async function ensureAuthDir(): Promise<void> {
 }
 
 export async function loginViaUi(page: Page, account: TestAccount): Promise<void> {
+  const logoutButton = page.getByRole('button', { name: '登出' })
+  if (await logoutButton.count()) {
+    await logoutButton.click()
+  }
   await page.goto(appUrl('/auth/login'))
+  await expect(page.getByRole('textbox', { name: '请输入用户名' })).toBeVisible()
   await page.getByRole('textbox', { name: '请输入用户名' }).fill(account.username)
   await page.getByRole('textbox', { name: '请输入密码' }).fill(account.password)
   await page.getByRole('button', { name: '登录' }).click()

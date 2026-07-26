@@ -81,6 +81,51 @@ class LikeApplicationServiceTest {
     }
 
     @Test
+    void nullLikedShouldToggleLikeState() {
+        StatefulLikeRepository repo = new StatefulLikeRepository();
+        RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
+        LikeApplicationService service = newService(repo, new StatefulBlockRepository(), publisher);
+        SetLikeCommand toggle = new SetLikeCommand(uuid(1), POST, uuid(100), null, uuid(2), uuid(100));
+
+        LikeResult liked = service.setLike(toggle);
+        LikeResult unliked = service.setLike(toggle);
+
+        assertThat(liked.liked()).isTrue();
+        assertThat(liked.likeCount()).isOne();
+        assertThat(unliked.liked()).isFalse();
+        assertThat(unliked.likeCount()).isZero();
+        assertThat(publisher.snapshot()).hasSize(2);
+    }
+
+    @Test
+    void nullLikedShouldRejectToggleToLikeForDeletedContent() {
+        StatefulLikeRepository repo = new StatefulLikeRepository();
+        StatefulLikeTargetStateRepository targetStateRepository = new StatefulLikeTargetStateRepository();
+        CleanupDeletedContentLikesCommand deletion = deletionCommand(POST, uuid(100));
+        targetStateRepository.insertActiveIfAbsent(POST, uuid(100));
+        targetStateRepository.saveIfNewer(LikeTargetState.active(POST, uuid(100)).applyDeletion(
+                deletion.sourceEventId(),
+                deletion.sourceVersion(),
+                deletion.deletedAt()
+        ));
+        LikeApplicationService service = newService(
+                repo,
+                new StatefulBlockRepository(),
+                new RecordingSocialDomainEventPublisher(),
+                targetStateRepository
+        );
+
+        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(
+                uuid(1), POST, uuid(100), null, uuid(2), uuid(100)
+        )))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(CommonErrorCode.NOT_FOUND));
+
+        assertThat(repo.isLiked(uuid(1), POST, uuid(100))).isFalse();
+    }
+
+    @Test
     void likeShouldBeForbiddenWhenEitherBlockedOnCreate() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
         RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();

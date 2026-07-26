@@ -1,0 +1,153 @@
+name: Playwright Single E2E
+
+on:
+  pull_request:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  playwright-single:
+    name: single ${{ github.event_name == 'pull_request' && 'smoke' || 'regression' }}
+    runs-on: ubuntu-latest
+    env:
+      PW_SUITE: ${{ github.event_name == 'pull_request' && 'smoke' || 'regression' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: tests/playwright-single/package-lock.json
+
+      - name: Prepare isolated single topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_suffix="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          net_octet=$((30 + (GITHUB_RUN_ID % 180)))
+          port_offset=$((GITHUB_RUN_ID % 500))
+          nginx_api_port=$((12880 + port_offset))
+          frontend_host_port=$((12881 + port_offset))
+          nginx_xxl_job_port=$((12887 + port_offset))
+          env_file="${RUNNER_TEMP}/community-single-${run_suffix}.env"
+
+          cp deploy/.env.single.example "${env_file}"
+          {
+            echo "PW_PROJECT=community-single-pw-${run_suffix}"
+            echo "PW_ENV_FILE=${env_file}"
+            echo "SINGLE_TEST_RUN_ID=pw-${run_suffix}"
+            echo "COMMUNITY_VOLUME_NAMESPACE=community_single_pw_${run_suffix}"
+            echo "COMMUNITY_NETWORK_SUBNET=172.29.${net_octet}.0/24"
+            echo "COMMUNITY_NETWORK_DYNAMIC_RANGE=172.29.${net_octet}.128/25"
+            echo "NGINX_STATIC_IP=172.29.${net_octet}.10"
+            echo "COMMUNITY_GATEWAY_STATIC_IP=172.29.${net_octet}.20"
+            echo "GATEWAY_TRUSTED_PROXY_CIDRS=172.29.${net_octet}.10/32"
+            echo "COMMUNITY_APP_TRUSTED_PROXY_CIDRS=172.29.${net_octet}.20/32"
+            echo "NGINX_API_PORT=${nginx_api_port}"
+            echo "FRONTEND_HOST_PORT=${frontend_host_port}"
+            echo "NGINX_XXL_JOB_PORT=${nginx_xxl_job_port}"
+            echo "SINGLE_API_BASE_URL=http://localhost:${nginx_api_port}"
+            echo "SINGLE_WEB_BASE_URL=http://localhost:${frontend_host_port}"
+            echo "FRONTEND_PUBLIC_ORIGIN=http://localhost:${frontend_host_port}"
+            echo "GATEWAY_PUBLIC_BASE_URL=http://localhost:${nginx_api_port}"
+            echo "OSS_PUBLIC_BASE_URL=http://localhost:${nginx_api_port}"
+            echo "IM_GATEWAY_PUBLIC_WS_URL=ws://localhost:${nginx_api_port}/ws/im"
+            echo "BROWSER_ALLOWED_ORIGINS=http://localhost:${frontend_host_port},http://127.0.0.1:${frontend_host_port},http://localhost:12881,http://127.0.0.1:12881"
+            echo "IM_CORS_ALLOWED_ORIGINS=http://localhost:${frontend_host_port},http://127.0.0.1:${frontend_host_port},http://localhost:12881,http://127.0.0.1:12881"
+          } >> "${env_file}"
+
+          {
+            echo "PW_PROJECT=community-single-pw-${run_suffix}"
+            echo "PW_ENV_FILE=${env_file}"
+            echo "SINGLE_TEST_RUN_ID=pw-${run_suffix}"
+            echo "COMMUNITY_VOLUME_NAMESPACE=community_single_pw_${run_suffix}"
+            echo "COMMUNITY_NETWORK_SUBNET=172.29.${net_octet}.0/24"
+            echo "COMMUNITY_NETWORK_DYNAMIC_RANGE=172.29.${net_octet}.128/25"
+            echo "NGINX_STATIC_IP=172.29.${net_octet}.10"
+            echo "COMMUNITY_GATEWAY_STATIC_IP=172.29.${net_octet}.20"
+            echo "GATEWAY_TRUSTED_PROXY_CIDRS=172.29.${net_octet}.10/32"
+            echo "COMMUNITY_APP_TRUSTED_PROXY_CIDRS=172.29.${net_octet}.20/32"
+            echo "NGINX_API_PORT=${nginx_api_port}"
+            echo "FRONTEND_HOST_PORT=${frontend_host_port}"
+            echo "NGINX_XXL_JOB_PORT=${nginx_xxl_job_port}"
+            echo "SINGLE_API_BASE_URL=http://localhost:${nginx_api_port}"
+            echo "SINGLE_WEB_BASE_URL=http://localhost:${frontend_host_port}"
+            echo "FRONTEND_PUBLIC_ORIGIN=http://localhost:${frontend_host_port}"
+            echo "GATEWAY_PUBLIC_BASE_URL=http://localhost:${nginx_api_port}"
+            echo "OSS_PUBLIC_BASE_URL=http://localhost:${nginx_api_port}"
+            echo "IM_GATEWAY_PUBLIC_WS_URL=ws://localhost:${nginx_api_port}/ws/im"
+            echo "BROWSER_ALLOWED_ORIGINS=http://localhost:${frontend_host_port},http://127.0.0.1:${frontend_host_port},http://localhost:12881,http://127.0.0.1:12881"
+            echo "IM_CORS_ALLOWED_ORIGINS=http://localhost:${frontend_host_port},http://127.0.0.1:${frontend_host_port},http://localhost:12881,http://127.0.0.1:12881"
+          } >> "${GITHUB_ENV}"
+
+      - name: Install Playwright dependencies
+        working-directory: tests/playwright-single
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: tests/playwright-single
+        run: npx playwright install --with-deps chromium
+
+      - name: Start isolated single topology
+        run: ./deploy/deployment.sh up --topology single --no-observability --project-name "$PW_PROJECT" --env-file "$PW_ENV_FILE"
+
+      - name: Check single health
+        run: npm --prefix tests/playwright-single run health
+
+      - name: Run Playwright suite
+        run: npm --prefix tests/playwright-single run "test:${PW_SUITE}"
+
+      - name: Generate Markdown report
+        if: always()
+        run: npm --prefix tests/playwright-single run report
+
+      - name: Collect Compose diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p "${RUNNER_TEMP}/community-single-compose"
+          ./deploy/deployment.sh ps --topology single --no-observability --project-name "$PW_PROJECT" --env-file "$PW_ENV_FILE" \
+            > "${RUNNER_TEMP}/community-single-compose/ps.txt" 2>&1
+          compose_files=(
+            -f deploy/compose.yml
+            -f deploy/compose.infra.mysql.single.yml
+            -f deploy/compose.infra.redis.single.yml
+            -f deploy/compose.infra.kafka.single.yml
+            -f deploy/compose.infra.elasticsearch.single.yml
+            -f deploy/compose.infra.garage.single.yml
+            -f deploy/compose.infra.nacos.single.yml
+            -f deploy/compose.infra.xxl-job.single.yml
+            -f deploy/compose.infra.mailhog.yml
+            -f deploy/compose.infra.mock-data-studio-bootstrap.single.yml
+            -f deploy/compose.runtime.services.single.yml
+            -f deploy/compose.runtime.frontend-nginx.single.yml
+            -f deploy/compose.runtime.mock-data-studio.single.yml
+          )
+          docker compose --env-file "$PW_ENV_FILE" -p "$PW_PROJECT" "${compose_files[@]}" \
+            logs --no-color --tail=500 \
+            > "${RUNNER_TEMP}/community-single-compose/logs.txt" 2>&1
+
+      - name: Upload Playwright and Compose artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-single-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          path: |
+            tests/playwright-single/playwright-report/
+            tests/playwright-single/test-results/
+            tests/playwright-single/reports/
+            ${{ runner.temp }}/community-single-compose/
+
+      - name: Stop isolated single topology
+        if: always()
+        run: ./deploy/deployment.sh down --topology single --no-observability --project-name "$PW_PROJECT" --env-file "$PW_ENV_FILE"

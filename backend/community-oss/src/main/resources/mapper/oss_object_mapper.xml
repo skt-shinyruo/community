@@ -37,4 +37,12 @@
         from oss_object
         where object_id = #{objectId,jdbcType=BINARY}
     </select>
+    <select id="selectDeletePendingIds" resultType="java.util.UUID">
+        select object_id
+        from oss_object
+        where status = 'DELETE_PENDING'
+          and updated_at &lt;= #{updatedBefore}
+        order by updated_at, object_id
+        limit #{limit}
+    </select>
 </mapper>

@@ -42,6 +42,22 @@ class DddLayeringArchTest {
                     );
 
     @ArchTest
+    static final ArchRule lifecycle_application_must_use_application_owned_delete_port =
+            noClasses()
+                    .that().resideInAPackage("..application..")
+                    .and().haveSimpleName("ObjectLifecycleApplicationService")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "..infrastructure.storage..",
+                            "..infrastructure.persistence.."
+                    );
+
+    @ArchTest
+    static final ArchRule application_ports_must_not_depend_on_infrastructure =
+            noClasses()
+                    .that().resideInAPackage("..application.port..")
+                    .should().dependOnClassesThat().resideInAPackage("..infrastructure..");
+
+    @ArchTest
     static final ArchRule controllers_must_not_depend_on_domain_or_infrastructure =
             noClasses()
                     .that().resideInAnyPackage("..controller..")

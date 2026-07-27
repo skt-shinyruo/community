@@ -1,6 +1,7 @@
 package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.drive.application.command.CompleteDriveUploadCommand;
 import com.nowcoder.community.drive.application.command.DriveUploadContent;
 import com.nowcoder.community.drive.application.command.PrepareDriveUploadCommand;
@@ -46,6 +47,7 @@ public class DriveUploadApplicationService {
     private static final String UPLOAD_METHOD = "POST";
     private static final String FILE_FIELD = "file";
     private static final String OSS_STATUS_ACTIVE = "ACTIVE";
+    private static final long PREPARATION_TTL_SECONDS = 900L;
 
     private final DriveSpaceRepository spaceRepository;
     private final DriveEntryRepository entryRepository;
@@ -53,6 +55,7 @@ public class DriveUploadApplicationService {
     private final DriveObjectStoragePort objectStoragePort;
     private final Clock clock;
     private final DriveTransactionOperations transactionOperations;
+    private final UuidV7Generator idGenerator;
     private final DriveEntryDomainService entryDomainService = new DriveEntryDomainService();
 
     @Autowired
@@ -62,7 +65,8 @@ public class DriveUploadApplicationService {
             DriveUploadRepository uploadRepository,
             DriveObjectStoragePort objectStoragePort,
             Clock clock,
-            DriveTransactionOperations transactionOperations
+            DriveTransactionOperations transactionOperations,
+            UuidV7Generator idGenerator
     ) {
         this.spaceRepository = spaceRepository;
         this.entryRepository = entryRepository;
@@ -73,6 +77,7 @@ public class DriveUploadApplicationService {
                 transactionOperations,
                 "transactionOperations must not be null"
         );
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     DriveUploadApplicationService(
@@ -88,14 +93,27 @@ public class DriveUploadApplicationService {
                 uploadRepository,
                 objectStoragePort,
                 clock,
-                DirectDriveTransactionOperations.INSTANCE
+                DirectDriveTransactionOperations.INSTANCE,
+                new UuidV7Generator(clock == null ? Clock.systemUTC() : clock)
         );
     }
 
-    @Transactional
     public DriveUploadSessionResult prepareUpload(PrepareDriveUploadCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         requirePrepareCommand(command);
+        DriveUpload preparing = transactionOperations.requiresNew(() -> createPreparingUpload(command));
+        DriveObjectStoragePort.PreparedObject prepared;
+        try {
+            prepared = prepareObject(preparing);
+        } catch (RuntimeException e) {
+            throw new BusinessException(DriveErrorCode.DRIVE_STORAGE_UNAVAILABLE, "网盘存储服务不可用", e);
+        }
+        DriveUpload upload = persistPreparedUpload(preparing.uploadId(), prepared);
+        DriveSpace space = loadSpace(upload.spaceId());
+        return toUploadSession(upload, space);
+    }
+
+    private DriveUpload createPreparingUpload(PrepareDriveUploadCommand command) {
         UUID actorUserId = command.actorUserId();
         Instant now = clock.instant();
         DriveSpace space = loadOrCreateSpace(actorUserId, now);
@@ -106,47 +124,68 @@ public class DriveUploadApplicationService {
         if (contentLength > space.remainingBytes()) {
             throw new BusinessException(DriveErrorCode.DRIVE_QUOTA_EXCEEDED, "网盘容量不足");
         }
-
-        UUID uploadId = UUID.randomUUID();
-        String contentType = normalizeContentType(command.contentType());
-        String checksumSha256 = normalize(command.checksumSha256());
-        DriveObjectStoragePort.PreparedObject prepared;
-        try {
-            prepared = objectStoragePort.prepareUpload(new DriveObjectStoragePort.PrepareObject(
-                    USAGE,
-                    OWNER_SERVICE,
-                    OWNER_DOMAIN,
-                    OWNER_TYPE_UPLOAD,
-                    uploadId.toString(),
-                    VISIBILITY_PRIVATE,
-                    name,
-                    contentType,
-                    contentLength,
-                    checksumSha256,
-                    actorUserId.toString()
-            ));
-        } catch (RuntimeException e) {
-            throw new BusinessException(DriveErrorCode.DRIVE_STORAGE_UNAVAILABLE, "网盘存储服务不可用", e);
-        }
-        validatePreparedObject(prepared);
-
-        DriveUpload upload = DriveUpload.prepared(
-                uploadId,
+        DriveUpload upload = DriveUpload.preparing(
+                idGenerator.next(),
                 space.spaceId(),
                 command.parentId(),
                 name,
                 contentLength,
-                contentType,
-                checksumSha256,
+                normalizeContentType(command.contentType()),
+                normalize(command.checksumSha256()),
+                actorUserId,
+                now,
+                now.plusSeconds(PREPARATION_TTL_SECONDS)
+        );
+        uploadRepository.save(upload);
+        return upload;
+    }
+
+    private DriveObjectStoragePort.PreparedObject prepareObject(DriveUpload upload) {
+        DriveObjectStoragePort.PreparedObject prepared = objectStoragePort.prepareUpload(new DriveObjectStoragePort.PrepareObject(
+                upload.uploadId(),
+                USAGE,
+                OWNER_SERVICE,
+                OWNER_DOMAIN,
+                OWNER_TYPE_UPLOAD,
+                upload.uploadId().toString(),
+                VISIBILITY_PRIVATE,
+                upload.name(),
+                upload.mimeType(),
+                upload.sizeBytes(),
+                upload.checksumSha256(),
+                upload.createdBy().toString()
+        ));
+        validatePreparedObject(prepared);
+        return prepared;
+    }
+
+    private DriveUpload persistPreparedUpload(UUID uploadId, DriveObjectStoragePort.PreparedObject prepared) {
+        return transactionOperations.requiresNew(() -> persistPreparedUploadInCurrentTransaction(uploadId, prepared));
+    }
+
+    private DriveUpload persistPreparedUploadInCurrentTransaction(
+            UUID uploadId,
+            DriveObjectStoragePort.PreparedObject prepared
+    ) {
+        DriveUpload current = loadUpload(uploadId);
+        if (current.matchesPrepared(prepared.objectId(), prepared.versionId(), prepared.sessionId(), prepared.expiresAt())) {
+            return current;
+        }
+        DriveUpload next = current.markPrepared(
                 prepared.objectId(),
                 prepared.versionId(),
                 prepared.sessionId(),
-                actorUserId,
-                now,
-                prepared.expiresAt()
+                prepared.expiresAt(),
+                clock.instant()
         );
-        uploadRepository.save(upload);
-        return toUploadSession(upload, space);
+        if (uploadRepository.transitionStatus(next, DriveUploadStatus.PREPARING)) {
+            return next;
+        }
+        DriveUpload latest = loadUpload(uploadId);
+        if (latest.matchesPrepared(prepared.objectId(), prepared.versionId(), prepared.sessionId(), prepared.expiresAt())) {
+            return latest;
+        }
+        throw new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用");
     }
 
     private DriveSpace loadOrCreateSpace(UUID actorUserId, Instant now) {
@@ -156,7 +195,7 @@ public class DriveUploadApplicationService {
     }
 
     private DriveSpace createDefaultSpace(UUID userId, Instant now) {
-        DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, now);
+        DriveSpace space = DriveSpace.createDefault(idGenerator.next(), userId, now);
         DriveSpaceRepository.CreateResult result = spaceRepository.create(space);
         if (result != null
                 && (result.status() == DriveSpaceRepository.CreateStatus.CREATED
@@ -221,11 +260,27 @@ public class DriveUploadApplicationService {
         if (updatedBefore == null || limit <= 0) {
             return new DriveUploadRecoveryResult(0, 0, 0, 0);
         }
+        int prepared = 0;
         int finalized = 0;
         int markedObjectCompleted = 0;
         int failed = 0;
         int skipped = 0;
         for (DriveUpload upload : uploadRepository.listRecoverableBefore(updatedBefore, limit)) {
+            if (upload.status() == DriveUploadStatus.PREPARING) {
+                if (upload.expiredAt(clock.instant())) {
+                    expirePreparingUpload(upload.uploadId());
+                    failed++;
+                    continue;
+                }
+                try {
+                    DriveObjectStoragePort.PreparedObject remote = prepareObject(upload);
+                    persistPreparedUpload(upload.uploadId(), remote);
+                    prepared++;
+                } catch (RuntimeException ignored) {
+                    skipped++;
+                }
+                continue;
+            }
             if (upload.status() == DriveUploadStatus.OBJECT_COMPLETED) {
                 try {
                     finalizeObjectCompletedUpload(upload.uploadId(), upload.createdBy());
@@ -268,7 +323,17 @@ public class DriveUploadApplicationService {
             }
             skipped++;
         }
-        return new DriveUploadRecoveryResult(finalized, markedObjectCompleted, failed, skipped);
+        return new DriveUploadRecoveryResult(prepared, finalized, markedObjectCompleted, failed, skipped);
+    }
+
+    private void expirePreparingUpload(UUID uploadId) {
+        transactionOperations.requiresNew(() -> {
+            DriveUpload current = loadUpload(uploadId);
+            if (current.status() != DriveUploadStatus.PREPARING) {
+                return;
+            }
+            uploadRepository.transitionStatus(current.expirePreparation(clock.instant()), DriveUploadStatus.PREPARING);
+        });
     }
 
     private CompletionClaim claimUploadForCompletion(UUID uploadId, UUID actorUserId, DriveUploadContent content) {

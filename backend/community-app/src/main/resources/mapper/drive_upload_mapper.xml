@@ -19,7 +19,7 @@
     <select id="selectRecoverableBefore" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveUploadDataObject">
         select <include refid="fields"/>
         from drive_upload
-        where status in ('COMPLETING', 'OBJECT_COMPLETED')
+        where status in ('PREPARING', 'COMPLETING', 'OBJECT_COMPLETED')
           and updated_at &lt; #{updatedBefore}
         order by updated_at asc, upload_id asc
         limit #{limit}
@@ -53,8 +53,12 @@
 
     <update id="update" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveUploadDataObject">
         update drive_upload
-        set status = #{status},
+        set object_id = #{objectId, jdbcType=BINARY},
+            version_id = #{versionId, jdbcType=BINARY},
+            oss_session_id = #{ossSessionId, jdbcType=BINARY},
+            status = #{status},
             updated_at = #{updatedAt},
+            expires_at = #{expiresAt},
             completed_at = #{completedAt},
             completed_entry_id = #{completedEntryId, jdbcType=BINARY}
         where upload_id = #{uploadId, jdbcType=BINARY}
@@ -63,8 +67,12 @@
 
     <update id="updateStatusIfCurrent">
         update drive_upload
-        set status = #{upload.status},
+        set object_id = #{upload.objectId, jdbcType=BINARY},
+            version_id = #{upload.versionId, jdbcType=BINARY},
+            oss_session_id = #{upload.ossSessionId, jdbcType=BINARY},
+            status = #{upload.status},
             updated_at = #{upload.updatedAt},
+            expires_at = #{upload.expiresAt},
             completed_at = #{upload.completedAt},
             completed_entry_id = #{upload.completedEntryId, jdbcType=BINARY}
         where upload_id = #{upload.uploadId, jdbcType=BINARY}

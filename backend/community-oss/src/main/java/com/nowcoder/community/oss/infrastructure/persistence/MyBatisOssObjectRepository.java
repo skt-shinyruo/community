@@ -7,6 +7,8 @@ import com.nowcoder.community.oss.infrastructure.persistence.mapper.OssObjectMap
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -36,5 +38,10 @@ public class MyBatisOssObjectRepository implements OssObjectRepository {
     @Override
     public Optional<OssObject> findById(UUID objectId) {
         return Optional.ofNullable(mapper.selectById(objectId)).map(OssObjectDataObject::toDomain);
+    }
+
+    @Override
+    public List<UUID> listDeletePendingIds(Instant updatedBefore, int limit) {
+        return mapper.selectDeletePendingIds(updatedBefore, limit);
     }
 }

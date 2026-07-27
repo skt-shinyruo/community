@@ -13,15 +13,25 @@ import java.util.function.Supplier;
 public class SpringDriveTransactionOperations implements DriveTransactionOperations {
 
     private final TransactionTemplate transactionTemplate;
+    private final TransactionTemplate readOnlyTransactionTemplate;
 
     public SpringDriveTransactionOperations(PlatformTransactionManager transactionManager) {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.readOnlyTransactionTemplate = new TransactionTemplate(transactionManager);
+        this.readOnlyTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.readOnlyTransactionTemplate.setReadOnly(true);
     }
 
     @Override
     public <T> T requiresNew(Supplier<T> action) {
         Objects.requireNonNull(action, "action must not be null");
         return transactionTemplate.execute(status -> action.get());
+    }
+
+    @Override
+    public <T> T readOnly(Supplier<T> action) {
+        Objects.requireNonNull(action, "action must not be null");
+        return readOnlyTransactionTemplate.execute(status -> action.get());
     }
 }

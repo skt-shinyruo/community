@@ -1,15 +1,11 @@
 package com.nowcoder.community.im.core.application;
 
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
-import com.nowcoder.community.im.common.event.ImEventIds;
-import com.nowcoder.community.im.common.event.PrivateMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
-import com.nowcoder.community.im.core.domain.model.PrivateMessageRecord;
-import com.nowcoder.community.im.core.domain.repository.UserInboxRepository;
 import com.nowcoder.community.im.core.domain.service.PrivateMessageDomainService;
-import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
 import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -17,22 +13,19 @@ public class PrivateMessageApplicationService {
 
     private final PrivateMessageDomainService privateMessageDomainService;
     private final PrivateMessagePolicyVerifier policyVerifier;
-    private final ImMessageOutboxEnqueuer outboxEnqueuer;
-    private final UserInboxRepository userInboxRepository;
+    private final PrivateMessageTransactionOperations transactionOperations;
 
     public PrivateMessageApplicationService(
             PrivateMessageDomainService privateMessageDomainService,
             PrivateMessagePolicyVerifier policyVerifier,
-            ImMessageOutboxEnqueuer outboxEnqueuer,
-            UserInboxRepository userInboxRepository
+            PrivateMessageTransactionOperations transactionOperations
     ) {
         this.privateMessageDomainService = privateMessageDomainService;
         this.policyVerifier = policyVerifier;
-        this.outboxEnqueuer = outboxEnqueuer;
-        this.userInboxRepository = userInboxRepository;
+        this.transactionOperations = transactionOperations;
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public PrivateMessagePersistedEvent persist(SendPrivateTextCommand command) {
         if (command == null) {
             throw new IllegalArgumentException("command required");
@@ -44,50 +37,12 @@ public class PrivateMessageApplicationService {
                 command.content(),
                 command.clientMsgId()
         );
-        var existing = privateMessageDomainService.findExisting(draft);
+        var existing = transactionOperations.findExisting(draft);
         if (existing.isPresent()) {
-            userInboxRepository.applyPrivateMessage(existing.get());
-            PrivateMessagePersistedEvent event = toPersistedEvent(existing.get(), command);
-            outboxEnqueuer.enqueuePrivateCommitted(toCommittedEvent(existing.get(), command));
-            return event;
+            return transactionOperations.persist(draft, command);
         }
+
         PrivateMessagePolicyVerifier.requireAllowed(policyVerifier.verify(draft.fromUserId(), draft.toUserId()));
-
-        var result = privateMessageDomainService.persist(draft);
-        var message = result.message();
-        PrivateMessagePersistedEvent event = toPersistedEvent(message, command);
-        userInboxRepository.applyPrivateMessage(message);
-        if (result.created()) {
-            outboxEnqueuer.enqueuePrivatePersisted(event);
-        }
-        outboxEnqueuer.enqueuePrivateCommitted(toCommittedEvent(message, command));
-        return event;
-    }
-
-    private PrivateMessagePersistedEvent toPersistedEvent(PrivateMessageRecord message, SendPrivateTextCommand command) {
-        return new PrivateMessagePersistedEvent(
-                ImEventIds.privateMessageFact(message.messageId()),
-                message.conversationId(),
-                message.seq(),
-                message.messageId(),
-                message.fromUserId(),
-                message.toUserId(),
-                message.content(),
-                message.createdAt().toEpochMilli()
-        );
-    }
-
-    private PrivateMessageCommittedEvent toCommittedEvent(PrivateMessageRecord message, SendPrivateTextCommand command) {
-        return new PrivateMessageCommittedEvent(
-                ImEventIds.privateSendResult(command.requestId(), command.clientMsgId(), command.fromUserId()),
-                command.requestId(),
-                command.clientMsgId(),
-                message.fromUserId(),
-                message.toUserId(),
-                message.conversationId(),
-                message.messageId(),
-                message.seq(),
-                message.createdAt().toEpochMilli()
-        );
+        return transactionOperations.persist(draft, command);
     }
 }

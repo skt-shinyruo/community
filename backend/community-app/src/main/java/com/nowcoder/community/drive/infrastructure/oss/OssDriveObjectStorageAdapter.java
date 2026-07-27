@@ -24,6 +24,7 @@ public class OssDriveObjectStorageAdapter implements DriveObjectStoragePort {
     @Override
     public PreparedObject prepareUpload(PrepareObject command) {
         OssUploadSessionResponse response = ossClient.prepareUpload(new OssUploadSessionRequest(
+                command.requestId(),
                 command.usage(),
                 command.ownerService(),
                 command.ownerDomain(),

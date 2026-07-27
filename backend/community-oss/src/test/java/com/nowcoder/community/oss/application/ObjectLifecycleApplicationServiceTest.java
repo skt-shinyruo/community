@@ -3,6 +3,7 @@ package com.nowcoder.community.oss.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.oss.application.command.DeleteObjectCommand;
+import com.nowcoder.community.oss.application.port.ObjectDeletePort;
 import com.nowcoder.community.oss.application.result.ObjectLifecycleResult;
 import com.nowcoder.community.oss.domain.model.OssAccessGrant;
 import com.nowcoder.community.oss.domain.model.OssObject;
@@ -14,15 +15,9 @@ import com.nowcoder.community.oss.domain.repository.OssAccessGrantRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectReferenceRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
-import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
-import com.nowcoder.community.oss.infrastructure.storage.ObjectStoreObject;
-import com.nowcoder.community.oss.infrastructure.storage.PresignedObjectUrl;
-import com.nowcoder.community.oss.infrastructure.storage.StoredObject;
 import org.junit.jupiter.api.Test;
 
-import java.io.InputStream;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -124,7 +119,7 @@ class ObjectLifecycleApplicationServiceTest {
                 () -> assertThat(failure).isNull(),
                 () -> assertThat(result[0]).isNotNull(),
                 () -> assertThat(result[0].purged()).isTrue(),
-                () -> assertThat(objectRepository.saveCount).isEqualTo(1),
+                () -> assertThat(objectRepository.saveCount).isEqualTo(2),
                 () -> assertThat(versionRepository.saveCount).isEqualTo(1),
                 () -> assertThat(referenceRepository.saveCount).isZero(),
                 () -> assertThat(grantRepository.saveCount).isZero(),
@@ -270,6 +265,73 @@ class ObjectLifecycleApplicationServiceTest {
                 .isEqualTo(com.nowcoder.community.oss.domain.model.OssObjectVersionStatus.PURGED);
         assertThat(objectStore.deletedBucket).isEqualTo("community-oss");
         assertThat(objectStore.deletedKey).isEqualTo("objects/1/2/avatar.png");
+    }
+
+    @Test
+    void deleteFailureShouldLeaveDurableDeletePendingForRecovery() {
+        UUID objectId = uuid(50);
+        UUID versionId = uuid(51);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeVersionRepository versionRepository = new FakeVersionRepository();
+        FakeReferenceRepository referenceRepository = new FakeReferenceRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        objectStore.deleteFailure = new IllegalStateException("storage unavailable");
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        OssObject object = OssObject.stage(
+                objectId, "USER_AVATAR", "community-app", "user", "USER", "owner-7",
+                OssVisibility.SIGNED, "owner-7", CLOCK.instant()).activate(version, CLOCK.instant());
+        objectRepository.rows.put(objectId, object);
+        versionRepository.rows.put(versionId, version);
+        ObjectLifecycleApplicationService service = new ObjectLifecycleApplicationService(
+                objectRepository, versionRepository, referenceRepository,
+                grantRepository, objectStore, CLOCK);
+
+        Throwable failure = catchThrowable(() -> service.deleteObject(
+                new DeleteObjectCommand(objectId, "owner-7")));
+
+        assertAll(
+                () -> assertThat(failure).isSameAs(objectStore.deleteFailure),
+                () -> assertThat(objectRepository.findById(objectId)).get()
+                        .extracting(OssObject::status).isEqualTo(OssObjectStatus.DELETE_PENDING),
+                () -> assertThat(versionRepository.findById(versionId)).contains(version),
+                () -> assertThat(objectStore.deleteCount).isEqualTo(1)
+        );
+    }
+
+    @Test
+    void recoveryShouldRetryIdempotentDeleteAndPurgePendingMetadata() {
+        UUID objectId = uuid(60);
+        UUID versionId = uuid(61);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeVersionRepository versionRepository = new FakeVersionRepository();
+        FakeReferenceRepository referenceRepository = new FakeReferenceRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        OssObject pending = OssObject.stage(
+                objectId, "USER_AVATAR", "community-app", "user", "USER", "owner-7",
+                OssVisibility.SIGNED, "owner-7", CLOCK.instant())
+                .activate(version, CLOCK.instant())
+                .deletePending(CLOCK.instant().minusSeconds(600));
+        objectRepository.rows.put(objectId, pending);
+        objectRepository.recoverableIds = List.of(objectId);
+        versionRepository.rows.put(versionId, version);
+        ObjectLifecycleTransactionOperations operations = new ObjectLifecycleTransactionOperations(
+                objectRepository, versionRepository, referenceRepository, grantRepository);
+        ObjectDeletionRecoveryApplicationService recovery = new ObjectDeletionRecoveryApplicationService(
+                operations, objectStore, CLOCK);
+
+        recovery.recoverPendingDeletions(CLOCK.instant().minusSeconds(300), 10);
+
+        assertAll(
+                () -> assertThat(objectStore.deleteCount).isEqualTo(1),
+                () -> assertThat(objectRepository.findById(objectId)).get()
+                        .extracting(OssObject::status).isEqualTo(OssObjectStatus.PURGED),
+                () -> assertThat(versionRepository.findById(versionId)).get()
+                        .extracting(OssObjectVersion::status)
+                        .isEqualTo(com.nowcoder.community.oss.domain.model.OssObjectVersionStatus.PURGED)
+        );
     }
 
     @Test
@@ -462,6 +524,7 @@ class ObjectLifecycleApplicationServiceTest {
 
     private static final class FakeObjectRepository implements OssObjectRepository {
         private final Map<UUID, OssObject> rows = new HashMap<>();
+        private List<UUID> recoverableIds = List.of();
         private int saveCount;
 
         @Override
@@ -473,6 +536,11 @@ class ObjectLifecycleApplicationServiceTest {
         @Override
         public Optional<OssObject> findById(UUID objectId) {
             return Optional.ofNullable(rows.get(objectId));
+        }
+
+        @Override
+        public List<UUID> listDeletePendingIds(Instant updatedBefore, int limit) {
+            return recoverableIds.stream().limit(limit).toList();
         }
     }
 
@@ -539,38 +607,20 @@ class ObjectLifecycleApplicationServiceTest {
         }
     }
 
-    private static final class CapturingObjectStore implements ObjectStore {
+    private static final class CapturingObjectStore implements ObjectDeletePort {
         private String deletedBucket;
         private String deletedKey;
+        private RuntimeException deleteFailure;
+        private int deleteCount;
 
         @Override
-        public void put(String bucket, String key, InputStream content, long contentLength, String contentType) {
-        }
-
-        @Override
-        public Optional<ObjectStoreObject> head(String bucket, String key) {
-            return Optional.empty();
-        }
-
-        @Override
-        public StoredObject get(String bucket, String key) {
-            throw new UnsupportedOperationException("not needed");
-        }
-
-        @Override
-        public void delete(String bucket, String key) {
+        public void deleteIfExists(String bucket, String key) {
+            deleteCount++;
             deletedBucket = bucket;
             deletedKey = key;
-        }
-
-        @Override
-        public PresignedObjectUrl presignUpload(String bucket, String key, Duration ttl, String contentType) {
-            throw new UnsupportedOperationException("not needed");
-        }
-
-        @Override
-        public PresignedObjectUrl presignDownload(String bucket, String key, Duration ttl) {
-            throw new UnsupportedOperationException("not needed");
+            if (deleteFailure != null) {
+                throw deleteFailure;
+            }
         }
     }
 }

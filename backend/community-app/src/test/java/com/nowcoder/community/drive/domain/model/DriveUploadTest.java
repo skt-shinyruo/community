@@ -13,6 +13,25 @@ class DriveUploadTest {
     private static final Instant NOW = Instant.parse("2026-05-09T00:00:00Z");
 
     @Test
+    void preparingShouldPersistIntentWithoutOssIdentifiersAndTransitionAtomically() {
+        DriveUpload preparing = DriveUpload.preparing(
+                uuid(1), uuid(2), null, "report.pdf", 1_024L, "application/pdf", "sha256:abc",
+                uuid(6), NOW, NOW.plusSeconds(900)
+        );
+
+        assertThat(preparing.status()).isEqualTo(DriveUploadStatus.PREPARING);
+        assertThat(preparing.objectId()).isNull();
+        assertThat(preparing.versionId()).isNull();
+        assertThat(preparing.ossSessionId()).isNull();
+
+        DriveUpload prepared = preparing.markPrepared(
+                uuid(3), uuid(4), uuid(5), NOW.plusSeconds(900), NOW.plusSeconds(1));
+
+        assertThat(prepared.status()).isEqualTo(DriveUploadStatus.PREPARED);
+        assertThat(prepared.matchesPrepared(uuid(3), uuid(4), uuid(5), NOW.plusSeconds(900))).isTrue();
+    }
+
+    @Test
     void startCompletingShouldPersistStableEntryIdBeforeObjectStorageCompletion() {
         DriveUpload upload = preparedUpload();
         UUID entryId = uuid(90);

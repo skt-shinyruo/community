@@ -221,6 +221,16 @@ class OssPersistenceMappingTest {
         public OssObjectDataObject selectById(UUID objectId) {
             return rows.get(objectId);
         }
+
+        @Override
+        public List<UUID> selectDeletePendingIds(Instant updatedBefore, int limit) {
+            return rows.values().stream()
+                    .filter(row -> "DELETE_PENDING".equals(row.getStatus()))
+                    .filter(row -> !row.getUpdatedAt().isAfter(updatedBefore))
+                    .limit(limit)
+                    .map(OssObjectDataObject::getObjectId)
+                    .toList();
+        }
     }
 
     private static final class FakeVersionMapper implements OssObjectVersionMapper {

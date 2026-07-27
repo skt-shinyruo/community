@@ -17,6 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.io.ByteArrayInputStream;
 import java.time.Instant;
@@ -62,6 +63,22 @@ class DriveUploadApplicationServiceSpringTest {
         jdbcTemplate.update("delete from drive_upload");
         jdbcTemplate.update("delete from drive_entry");
         jdbcTemplate.update("delete from drive_space");
+    }
+
+    @Test
+    void prepareUploadShouldCallObjectStorageOutsideDatabaseTransaction() {
+        UUID userId = uuid(6);
+        Instant expiresAt = Instant.now().plusSeconds(900);
+        when(objectStoragePort.prepareUpload(any())).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return new DriveObjectStoragePort.PreparedObject(uuid(91), uuid(92), uuid(93), expiresAt);
+        });
+
+        var session = service.prepareUpload(new PrepareDriveUploadCommand(
+                userId, null, "outside-transaction.txt", "text/plain", 1L, ""));
+
+        DriveUpload persisted = uploadRepository.findById(UUID.fromString(session.uploadId())).orElseThrow();
+        assertThat(persisted.status()).isEqualTo(DriveUploadStatus.PREPARED);
     }
 
     @Test

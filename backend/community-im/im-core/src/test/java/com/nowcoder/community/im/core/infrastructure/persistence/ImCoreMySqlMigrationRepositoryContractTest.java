@@ -20,6 +20,7 @@ import com.nowcoder.community.im.core.domain.repository.RoomReadStateRepository;
 import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
 import com.nowcoder.community.im.core.support.ConversationIdSupport;
 import com.nowcoder.community.im.migration.ImMigrationRunner;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +31,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
@@ -40,6 +40,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static com.nowcoder.community.im.core.support.ImCoreTestDatabaseCleaner.cleanAll;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -50,7 +51,6 @@ import static org.mockito.Mockito.when;
 })
 @ActiveProfiles("test")
 @Testcontainers
-@Transactional
 class ImCoreMySqlMigrationRepositoryContractTest {
 
     @Container
@@ -122,8 +122,14 @@ class ImCoreMySqlMigrationRepositoryContractTest {
 
     @BeforeEach
     void allowPrivateMessages() {
+        cleanAll(jdbcTemplate);
         when(privateMessagePolicyVerifier.verify(any(UUID.class), any(UUID.class)))
                 .thenReturn(PrivateMessagePolicyDecision.allow());
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanAll(jdbcTemplate);
     }
 
     @Test

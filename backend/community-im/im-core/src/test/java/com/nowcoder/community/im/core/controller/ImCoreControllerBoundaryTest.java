@@ -2,6 +2,7 @@ package com.nowcoder.community.im.core.controller;
 
 import com.nowcoder.community.im.core.application.ConversationApplicationService;
 import com.nowcoder.community.im.core.application.PrivateMessageApplicationService;
+import com.nowcoder.community.im.core.application.PrivateMessageTransactionOperations;
 import com.nowcoder.community.im.core.application.RoomApplicationService;
 import com.nowcoder.community.im.core.application.RoomMessageApplicationService;
 import com.nowcoder.community.im.core.application.UnreadApplicationService;
@@ -30,6 +31,7 @@ class ImCoreControllerBoundaryTest {
     private static final List<Class<?>> APPLICATION_SERVICES = List.of(
             ConversationApplicationService.class,
             PrivateMessageApplicationService.class,
+            PrivateMessageTransactionOperations.class,
             RoomApplicationService.class,
             RoomMessageApplicationService.class,
             UnreadApplicationService.class

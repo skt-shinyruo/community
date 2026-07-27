@@ -14,6 +14,7 @@ import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.domain.service.DriveEntryDomainService;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,18 +37,31 @@ public class DriveEntryApplicationService {
     private final DriveEntryRepository entryRepository;
     private final DriveObjectStoragePort objectStoragePort;
     private final Clock clock;
+    private final DriveTransactionOperations transactionOperations;
     private final DriveEntryDomainService entryDomainService = new DriveEntryDomainService();
 
+    @Autowired
     public DriveEntryApplicationService(
             DriveSpaceRepository spaceRepository,
             DriveEntryRepository entryRepository,
             DriveObjectStoragePort objectStoragePort,
-            Clock clock
+            Clock clock,
+            DriveTransactionOperations transactionOperations
     ) {
         this.spaceRepository = spaceRepository;
         this.entryRepository = entryRepository;
         this.objectStoragePort = objectStoragePort;
         this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.transactionOperations = Objects.requireNonNull(transactionOperations, "transactionOperations must not be null");
+    }
+
+    DriveEntryApplicationService(
+            DriveSpaceRepository spaceRepository,
+            DriveEntryRepository entryRepository,
+            DriveObjectStoragePort objectStoragePort,
+            Clock clock
+    ) {
+        this(spaceRepository, entryRepository, objectStoragePort, clock, DirectDriveTransactionOperations.INSTANCE);
     }
 
     @Transactional
@@ -118,13 +132,15 @@ public class DriveEntryApplicationService {
         return toEntryResult(moved);
     }
 
-    @Transactional
     public DriveDownloadUrlResult createDownloadUrl(UUID actorUserId, UUID entryId) {
-        DriveSpace space = loadSpace(actorUserId);
-        DriveEntry entry = loadActiveEntry(space.spaceId(), entryId);
-        if (!entry.file()) {
-            throw new BusinessException(DriveErrorCode.DRIVE_ENTRY_NOT_FOUND, "网盘条目不存在");
-        }
+        DriveEntry entry = transactionOperations.readOnly(() -> {
+            DriveSpace space = loadSpace(actorUserId);
+            DriveEntry target = loadActiveEntry(space.spaceId(), entryId);
+            if (!target.file()) {
+                throw new BusinessException(DriveErrorCode.DRIVE_ENTRY_NOT_FOUND, "网盘条目不存在");
+            }
+            return target;
+        });
         DriveObjectStoragePort.SignedDownloadUrl signedUrl = objectStoragePort.createDownloadUrl(entry.objectId(), DOWNLOAD_TTL_SECONDS);
         if (signedUrl == null || signedUrl.url() == null || signedUrl.url().isBlank() || signedUrl.expiresAt() == null) {
             throw new BusinessException(DriveErrorCode.DRIVE_STORAGE_UNAVAILABLE, "网盘存储服务不可用");

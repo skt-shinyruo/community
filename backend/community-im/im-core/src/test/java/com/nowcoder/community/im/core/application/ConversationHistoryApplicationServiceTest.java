@@ -13,20 +13,22 @@ import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository
 import com.nowcoder.community.im.core.domain.repository.UserInboxRepository;
 import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
 import com.nowcoder.community.im.core.support.ConversationIdSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.LongStream;
 
+import static com.nowcoder.community.im.core.support.ImCoreTestDatabaseCleaner.cleanPrivateMessages;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -37,7 +39,6 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@Transactional
 class ConversationHistoryApplicationServiceTest {
 
     @Autowired
@@ -46,13 +47,22 @@ class ConversationHistoryApplicationServiceTest {
     @Autowired
     private PrivateMessageApplicationService privateMessageApplicationService;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockBean
     private PrivateMessagePolicyVerifier privateMessagePolicyVerifier;
 
     @BeforeEach
     void allowPrivateMessages() {
+        cleanPrivateMessages(jdbcTemplate);
         when(privateMessagePolicyVerifier.verify(any(UUID.class), any(UUID.class)))
                 .thenReturn(PrivateMessagePolicyDecision.allow());
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanPrivateMessages(jdbcTemplate);
     }
 
     @Test

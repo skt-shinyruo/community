@@ -88,6 +88,7 @@ class OssDriveObjectStorageAdapterTest {
 
         OssDriveObjectStorageAdapter adapter = new OssDriveObjectStorageAdapter(client);
         DriveObjectStoragePort.PreparedObject prepared = adapter.prepareUpload(new DriveObjectStoragePort.PrepareObject(
+                uuid(6),
                 "DRIVE_FILE",
                 "community-app",
                 "drive",

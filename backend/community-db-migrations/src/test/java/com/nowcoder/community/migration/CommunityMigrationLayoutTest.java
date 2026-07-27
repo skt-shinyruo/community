@@ -10,6 +10,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CommunityMigrationLayoutTest {
 
     @Test
+    void v015ShouldAllowPersistingDrivePreparationBeforeOssIdentifiersExist() throws Exception {
+        String resource = "db/migration/community/V015__drive_upload_preparing_state.sql";
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {
+            assertThat(input).as(resource).isNotNull();
+            String sql = new String(input.readAllBytes(), StandardCharsets.UTF_8).toLowerCase();
+
+            assertThat(sql).contains("alter table drive_upload");
+            assertThat(sql).contains("modify column object_id binary(16) null");
+            assertThat(sql).contains("modify column version_id binary(16) null");
+            assertThat(sql).contains("modify column oss_session_id binary(16) null");
+        }
+    }
+
+    @Test
     void v014ShouldWidenNullableNoticeContentWithoutRewritingTheBaseline() throws Exception {
         String resource = "db/migration/community/V014__widen_notice_content.sql";
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {

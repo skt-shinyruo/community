@@ -42,7 +42,7 @@ vi.mock('../api/services/postService', () => ({
 }))
 
 vi.mock('../api/services/userService', () => ({
-  getUserProfile: vi.fn().mockResolvedValue({ data: { userId: 'user-me', username: 'me' }, traceId: 'trace-user' })
+  getUserProfile: vi.fn().mockResolvedValue({ userId: 'user-me', username: 'me' })
 }))
 
 vi.mock('../api/services/socialService', () => ({

@@ -17,7 +17,6 @@ import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.domain.repository.DriveUploadRepository;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
 import java.time.Clock;
@@ -55,6 +54,50 @@ class DriveUploadApplicationServiceTest {
         assertThatThrownBy(() -> service.prepareUpload(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
+    }
+
+    @Test
+    void prepareUploadShouldLeavePreparingIntentWhenStorageOutcomeIsUnknown() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        DriveObjectStoragePort storage = mock(DriveObjectStoragePort.class);
+        when(storage.prepareUpload(any())).thenThrow(new RuntimeException("response lost"));
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+
+        assertThatThrownBy(() -> service.prepareUpload(new PrepareDriveUploadCommand(
+                uuid(7), null, "unknown.bin", "application/octet-stream", 8L, "")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("网盘存储服务不可用");
+
+        assertThat(uploads.rows.values()).singleElement()
+                .extracting(DriveUpload::status)
+                .isEqualTo(DriveUploadStatus.PREPARING);
+    }
+
+    @Test
+    void recoverStaleUploadsShouldReplayPreparingWithStableRequestId() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveSpace space = DriveSpace.createDefault(uuid(8), userId, NOW);
+        spaces.save(space);
+        DriveUpload preparing = DriveUpload.preparing(
+                uuid(9), space.spaceId(), null, "retry.bin", 8L, "application/octet-stream", "",
+                userId, NOW.minusSeconds(10), NOW.plusSeconds(900));
+        uploads.save(preparing);
+
+        DriveUploadRecoveryResult result = service.recoverStaleUploads(NOW, 10);
+
+        assertThat(result.prepared()).isOne();
+        assertThat(storage.prepared).singleElement()
+                .extracting(DriveObjectStoragePort.PrepareObject::requestId)
+                .isEqualTo(preparing.uploadId());
+        assertThat(uploads.findById(preparing.uploadId()).orElseThrow().status())
+                .isEqualTo(DriveUploadStatus.PREPARED);
     }
 
     @Test
@@ -102,13 +145,14 @@ class DriveUploadApplicationServiceTest {
     void prepareUploadShouldRecoverFromDuplicateKeyDuringBootstrap() {
         DriveSpaceRepository spaces = mock(DriveSpaceRepository.class);
         DriveEntryRepository entries = mock(DriveEntryRepository.class);
-        DriveUploadRepository uploads = mock(DriveUploadRepository.class);
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
         DriveObjectStoragePort storage = mock(DriveObjectStoragePort.class);
         UUID userId = uuid(7);
         UUID existingSpaceId = uuid(90);
         DriveSpace existingSpace = DriveSpace.createDefault(existingSpaceId, userId, NOW);
 
         when(spaces.findByUserId(userId)).thenReturn(Optional.empty());
+        when(spaces.findById(existingSpaceId)).thenReturn(Optional.of(existingSpace));
         when(spaces.create(any(DriveSpace.class))).thenReturn(new DriveSpaceRepository.CreateResult(
                 DriveSpaceRepository.CreateStatus.ALREADY_EXISTS,
                 existingSpace
@@ -121,9 +165,9 @@ class DriveUploadApplicationServiceTest {
         DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
 
         assertThat(session.uploadId()).isNotBlank();
-        ArgumentCaptor<DriveUpload> uploadCaptor = ArgumentCaptor.forClass(DriveUpload.class);
-        verify(uploads).save(uploadCaptor.capture());
-        assertThat(uploadCaptor.getValue().spaceId()).isEqualTo(existingSpaceId);
+        DriveUpload persisted = uploads.findById(UUID.fromString(session.uploadId())).orElseThrow();
+        assertThat(persisted.spaceId()).isEqualTo(existingSpaceId);
+        assertThat(persisted.status()).isEqualTo(DriveUploadStatus.PREPARED);
     }
 
     @Test
@@ -716,7 +760,8 @@ class DriveUploadApplicationServiceTest {
                 return List.of();
             }
             return rows.values().stream()
-                    .filter(upload -> upload.status() == DriveUploadStatus.COMPLETING
+                    .filter(upload -> upload.status() == DriveUploadStatus.PREPARING
+                            || upload.status() == DriveUploadStatus.COMPLETING
                             || upload.status() == DriveUploadStatus.OBJECT_COMPLETED)
                     .filter(upload -> upload.updatedAt().isBefore(updatedBefore))
                     .sorted(Comparator.comparing(DriveUpload::updatedAt).thenComparing(DriveUpload::uploadId))

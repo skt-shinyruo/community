@@ -90,7 +90,7 @@ describe('api/services/postService', () => {
     mock.onGet(`/api/posts/${postId}/comments`).replyOnce(200, {
       code: 0,
       data: {
-        items: [{ id: commentId, postId, replyToUserId, content: 'reply' }],
+        items: [{ id: commentId, postId, replyToUserId, content: 'reply', replyCount: 2, status: 1 }],
         nextCursor: ''
       },
       traceId: 'trace-comments'
@@ -98,7 +98,11 @@ describe('api/services/postService', () => {
 
     const resp = await listComments(postId)
 
-    expect(resp.data.items[0].replyToUserId).toBe(replyToUserId)
+    expect(resp.data.items[0]).toMatchObject({
+      replyToUserId,
+      replyCount: 2,
+      status: 1
+    })
   })
 
   it('createPost and updatePost should normalize block payloads without content shortcuts', async () => {

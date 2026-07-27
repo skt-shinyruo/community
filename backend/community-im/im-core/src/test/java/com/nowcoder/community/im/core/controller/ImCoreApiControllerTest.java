@@ -16,6 +16,7 @@ import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
 import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,10 +26,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -36,6 +37,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
+import static com.nowcoder.community.im.core.support.ImCoreTestDatabaseCleaner.cleanAll;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -50,7 +52,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Transactional
 @TestPropertySource(properties = "im.cors.allowed-origins[0]=http://localhost:12881")
 class ImCoreApiControllerTest {
 
@@ -59,6 +60,9 @@ class ImCoreApiControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private RoomApplicationService roomApplicationService;
@@ -83,8 +87,14 @@ class ImCoreApiControllerTest {
 
     @BeforeEach
     void setUp() {
+        cleanAll(jdbcTemplate);
         when(privateMessagePolicyVerifier.verify(any(UUID.class), any(UUID.class)))
                 .thenReturn(PrivateMessagePolicyDecision.allow());
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanAll(jdbcTemplate);
     }
 
     @Test

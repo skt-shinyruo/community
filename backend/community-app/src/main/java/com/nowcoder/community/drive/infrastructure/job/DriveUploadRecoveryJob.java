@@ -48,9 +48,11 @@ public class DriveUploadRecoveryJob {
             try {
                 Instant updatedBefore = clock.instant().minus(staleAge);
                 DriveUploadRecoveryResult result = uploadApplicationService.recoverStaleUploads(updatedBefore, batchSize);
-                if (result.finalized() > 0 || result.markedObjectCompleted() > 0 || result.failed() > 0 || result.skipped() > 0) {
+                if (result.prepared() > 0 || result.finalized() > 0 || result.markedObjectCompleted() > 0
+                        || result.failed() > 0 || result.skipped() > 0) {
                     log.info(
-                            "[drive-upload] recovery finalized={} markedObjectCompleted={} failed={} skipped={}",
+                            "[drive-upload] recovery prepared={} finalized={} markedObjectCompleted={} failed={} skipped={}",
+                            result.prepared(),
                             result.finalized(),
                             result.markedObjectCompleted(),
                             result.failed(),

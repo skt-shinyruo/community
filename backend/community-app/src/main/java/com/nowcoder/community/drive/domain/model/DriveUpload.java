@@ -3,6 +3,7 @@ package com.nowcoder.community.drive.domain.model;
 import com.nowcoder.community.drive.domain.service.DriveEntryDomainService;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 public record DriveUpload(
@@ -26,21 +27,38 @@ public record DriveUpload(
 ) {
     private static final DriveEntryDomainService DOMAIN_SERVICE = new DriveEntryDomainService();
 
-    public static DriveUpload prepared(UUID uploadId, UUID spaceId, UUID parentId, String name,
-                                       long sizeBytes, String mimeType, String checksumSha256,
-                                       UUID objectId, UUID versionId, UUID ossSessionId,
-                                       UUID createdBy, Instant now, Instant expiresAt) {
+    public DriveUpload {
         requireId(uploadId, "uploadId");
         requireId(spaceId, "spaceId");
-        requireId(objectId, "objectId");
-        requireId(versionId, "versionId");
-        requireId(ossSessionId, "ossSessionId");
         requireId(createdBy, "createdBy");
-        requireNow(now);
+        Objects.requireNonNull(status, "status must not be null");
+        requireNow(createdAt);
+        requireNow(updatedAt);
         requireNow(expiresAt);
         if (sizeBytes < 0) {
             throw new IllegalArgumentException("sizeBytes must not be negative");
         }
+        boolean hasAnyOssIdentity = objectId != null || versionId != null || ossSessionId != null;
+        boolean hasCompleteOssIdentity = objectId != null && versionId != null && ossSessionId != null && expiresAt != null;
+        if (status == DriveUploadStatus.PREPARING) {
+            if (objectId != null || versionId != null || ossSessionId != null) {
+                throw new IllegalArgumentException("preparing upload must not have OSS identifiers");
+            }
+        } else if (status == DriveUploadStatus.PREPARED
+                || status == DriveUploadStatus.COMPLETING
+                || status == DriveUploadStatus.OBJECT_COMPLETED
+                || status == DriveUploadStatus.COMPLETED) {
+            if (!hasCompleteOssIdentity) {
+                throw new IllegalArgumentException("prepared upload must have complete OSS identifiers");
+            }
+        } else if (hasAnyOssIdentity && !hasCompleteOssIdentity) {
+            throw new IllegalArgumentException("terminal upload has incomplete OSS identifiers");
+        }
+    }
+
+    public static DriveUpload preparing(UUID uploadId, UUID spaceId, UUID parentId, String name,
+                                        long sizeBytes, String mimeType, String checksumSha256,
+                                        UUID createdBy, Instant now, Instant expiresAt) {
         return new DriveUpload(
                 uploadId,
                 spaceId,
@@ -49,11 +67,11 @@ public record DriveUpload(
                 sizeBytes,
                 mimeType,
                 normalizeChecksum(checksumSha256),
-                objectId,
-                versionId,
-                ossSessionId,
+                null,
+                null,
+                null,
                 createdBy,
-                DriveUploadStatus.PREPARED,
+                DriveUploadStatus.PREPARING,
                 null,
                 now,
                 now,
@@ -62,9 +80,84 @@ public record DriveUpload(
         );
     }
 
+    public static DriveUpload prepared(UUID uploadId, UUID spaceId, UUID parentId, String name,
+                                       long sizeBytes, String mimeType, String checksumSha256,
+                                       UUID objectId, UUID versionId, UUID ossSessionId,
+                                       UUID createdBy, Instant now, Instant expiresAt) {
+        return preparing(uploadId, spaceId, parentId, name, sizeBytes, mimeType, checksumSha256,
+                createdBy, now, expiresAt)
+                .markPrepared(objectId, versionId, ossSessionId, expiresAt, now);
+    }
+
+    public DriveUpload markPrepared(UUID objectId, UUID versionId, UUID ossSessionId,
+                                    Instant expiresAt, Instant now) {
+        requireNow(now);
+        if (status == DriveUploadStatus.PREPARED) {
+            if (Objects.equals(this.objectId, objectId)
+                    && Objects.equals(this.versionId, versionId)
+                    && Objects.equals(this.ossSessionId, ossSessionId)
+                    && Objects.equals(this.expiresAt, expiresAt)) {
+                return this;
+            }
+            throw new IllegalStateException("upload was prepared with different OSS identifiers");
+        }
+        if (status != DriveUploadStatus.PREPARING) {
+            throw new IllegalStateException("upload preparation cannot be completed from: " + status);
+        }
+        return new DriveUpload(
+                uploadId,
+                spaceId,
+                parentId,
+                name,
+                sizeBytes,
+                mimeType,
+                checksumSha256,
+                objectId,
+                versionId,
+                ossSessionId,
+                createdBy,
+                DriveUploadStatus.PREPARED,
+                null,
+                createdAt,
+                now,
+                expiresAt,
+                null
+        );
+    }
+
+    public DriveUpload failPreparation(Instant now) {
+        requireNow(now);
+        if (status == DriveUploadStatus.FAILED) {
+            return this;
+        }
+        if (status != DriveUploadStatus.PREPARING) {
+            throw new IllegalStateException("upload preparation cannot fail from: " + status);
+        }
+        return preparingTerminalState(DriveUploadStatus.FAILED, now);
+    }
+
+    public DriveUpload expirePreparation(Instant now) {
+        requireNow(now);
+        if (status == DriveUploadStatus.EXPIRED) {
+            return this;
+        }
+        if (status != DriveUploadStatus.PREPARING) {
+            throw new IllegalStateException("upload preparation cannot expire from: " + status);
+        }
+        return preparingTerminalState(DriveUploadStatus.EXPIRED, now);
+    }
+
+    public boolean matchesPrepared(UUID objectId, UUID versionId, UUID ossSessionId, Instant expiresAt) {
+        return status == DriveUploadStatus.PREPARED
+                && Objects.equals(this.objectId, objectId)
+                && Objects.equals(this.versionId, versionId)
+                && Objects.equals(this.ossSessionId, ossSessionId)
+                && Objects.equals(this.expiresAt, expiresAt);
+    }
+
     public boolean expiredAt(Instant now) {
         requireNow(now);
-        return status == DriveUploadStatus.EXPIRED || !now.isBefore(expiresAt);
+        return status == DriveUploadStatus.EXPIRED || (expiresAt != null && !now.isBefore(expiresAt));
     }
 
     public boolean completed() {
@@ -78,6 +171,9 @@ public record DriveUpload(
                 || status == DriveUploadStatus.COMPLETING
                 || status == DriveUploadStatus.OBJECT_COMPLETED) {
             return this;
+        }
+        if (status == DriveUploadStatus.PREPARING) {
+            throw new IllegalStateException("upload is still preparing");
         }
         if (expiredAt(now)) {
             return expire(now);
@@ -123,6 +219,9 @@ public record DriveUpload(
     public DriveUpload complete(UUID entryId, Instant now) {
         requireId(entryId, "entryId");
         requireNow(now);
+        if (status == DriveUploadStatus.PREPARING) {
+            throw new IllegalStateException("upload is still preparing");
+        }
         if (expiredAt(now)) {
             return expire(now);
         }
@@ -133,7 +232,30 @@ public record DriveUpload(
         return withState(DriveUploadStatus.EXPIRED, completedEntryId, now, completedAt);
     }
 
-    private DriveUpload withState(DriveUploadStatus nextStatus, UUID nextCompletedEntryId, Instant nextUpdatedAt, Instant nextCompletedAt) {
+    private DriveUpload preparingTerminalState(DriveUploadStatus nextStatus, Instant now) {
+        return new DriveUpload(
+                uploadId,
+                spaceId,
+                parentId,
+                name,
+                sizeBytes,
+                mimeType,
+                checksumSha256,
+                null,
+                null,
+                null,
+                createdBy,
+                nextStatus,
+                null,
+                createdAt,
+                now,
+                expiresAt,
+                completedAt
+        );
+    }
+
+    private DriveUpload withState(DriveUploadStatus nextStatus, UUID nextCompletedEntryId,
+                                  Instant nextUpdatedAt, Instant nextCompletedAt) {
         return new DriveUpload(
                 uploadId,
                 spaceId,

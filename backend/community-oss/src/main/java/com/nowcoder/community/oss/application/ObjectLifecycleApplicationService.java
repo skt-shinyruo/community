@@ -3,122 +3,79 @@ package com.nowcoder.community.oss.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.oss.application.command.DeleteObjectCommand;
+import com.nowcoder.community.oss.application.port.ObjectDeletePort;
 import com.nowcoder.community.oss.application.result.ObjectLifecycleResult;
-import com.nowcoder.community.oss.domain.model.OssAccessGrant;
 import com.nowcoder.community.oss.domain.model.OssObject;
-import com.nowcoder.community.oss.domain.model.OssObjectReference;
 import com.nowcoder.community.oss.domain.model.OssObjectStatus;
-import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.repository.OssAccessGrantRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectReferenceRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.domain.service.OssObjectAccessPolicy;
-import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
+import java.util.Objects;
 
 @Service
 public class ObjectLifecycleApplicationService {
 
     private final OssObjectRepository objectRepository;
-    private final OssObjectVersionRepository versionRepository;
-    private final OssObjectReferenceRepository referenceRepository;
-    private final OssAccessGrantRepository grantRepository;
-    private final ObjectStore objectStore;
+    private final ObjectDeletePort deletePort;
     private final Clock clock;
     private final OssObjectAccessPolicy accessPolicy;
-
-    public ObjectLifecycleApplicationService(
-            OssObjectRepository objectRepository,
-            OssObjectVersionRepository versionRepository,
-            OssObjectReferenceRepository referenceRepository,
-            OssAccessGrantRepository grantRepository,
-            ObjectStore objectStore,
-            Clock clock
-    ) {
-        this(
-                objectRepository,
-                versionRepository,
-                referenceRepository,
-                grantRepository,
-                objectStore,
-                clock,
-                new OssObjectAccessPolicy()
-        );
-    }
+    private final ObjectLifecycleTransactionOperations transactionOperations;
 
     @Autowired
     public ObjectLifecycleApplicationService(
             OssObjectRepository objectRepository,
+            ObjectDeletePort deletePort,
+            Clock clock,
+            OssObjectAccessPolicy accessPolicy,
+            ObjectLifecycleTransactionOperations transactionOperations
+    ) {
+        this.objectRepository = Objects.requireNonNull(objectRepository, "objectRepository must not be null");
+        this.deletePort = Objects.requireNonNull(deletePort, "deletePort must not be null");
+        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.accessPolicy = accessPolicy == null ? new OssObjectAccessPolicy() : accessPolicy;
+        this.transactionOperations = Objects.requireNonNull(
+                transactionOperations, "transactionOperations must not be null");
+    }
+
+    public ObjectLifecycleApplicationService(
+            OssObjectRepository objectRepository,
             OssObjectVersionRepository versionRepository,
             OssObjectReferenceRepository referenceRepository,
             OssAccessGrantRepository grantRepository,
-            ObjectStore objectStore,
-            Clock clock,
-            OssObjectAccessPolicy accessPolicy
+            ObjectDeletePort deletePort,
+            Clock clock
     ) {
-        this.objectRepository = objectRepository;
-        this.versionRepository = versionRepository;
-        this.referenceRepository = referenceRepository;
-        this.grantRepository = grantRepository;
-        this.objectStore = objectStore;
-        this.clock = clock == null ? Clock.systemUTC() : clock;
-        this.accessPolicy = accessPolicy == null ? new OssObjectAccessPolicy() : accessPolicy;
+        this(
+                objectRepository,
+                deletePort,
+                clock,
+                new OssObjectAccessPolicy(),
+                new ObjectLifecycleTransactionOperations(
+                        objectRepository, versionRepository, referenceRepository, grantRepository)
+        );
     }
 
-    @Transactional
     public ObjectLifecycleResult deleteObject(DeleteObjectCommand command) {
-        if (command == null || command.objectId() == null) {
-            throw new IllegalArgumentException("objectId must not be null");
-        }
+        requireCommand(command);
         OssObject object = objectRepository.findById(command.objectId())
                 .orElseThrow(this::objectNotFound);
         if (!accessPolicy.canManage(object, command.actorId())) {
             throw objectNotFound();
         }
-        return deleteObject(object);
+        return deleteAuthorizedObject(object);
     }
 
-    private ObjectLifecycleResult deleteObject(OssObject object) {
-        OssObjectVersion currentVersion = findCurrentVersion(object);
-        Instant now = clock.instant();
-        if (object.status() == OssObjectStatus.PURGED) {
-            return toResult(object, "object already purged");
-        }
-
-        List<OssObjectReference> activeReferences = referenceRepository.findByObjectId(object.objectId()).stream()
-                .filter(reference -> reference.activeAt(now))
-                .toList();
-        List<OssAccessGrant> activeGrants = grantRepository.findByObjectId(object.objectId()).stream()
-                .filter(grant -> grant.activeAt(now))
-                .toList();
-        if (!activeReferences.isEmpty() || !activeGrants.isEmpty()) {
-            OssObject deletePending = object.deletePending(now);
-            objectRepository.save(deletePending);
-            return toResult(deletePending, "object delete pending");
-        }
-
-        if (currentVersion != null) {
-            objectStore.delete(currentVersion.storageBucket(), currentVersion.storageKey());
-            versionRepository.save(currentVersion.purge(now));
-        }
-        OssObject purged = object.purge(now);
-        objectRepository.save(purged);
-        return toResult(purged, "object purged");
-    }
-
-    @Transactional
     public ObjectLifecycleResult deleteInternalObject(
             DeleteObjectCommand command,
             String serviceSubject
     ) {
+        requireCommand(command);
         OssObject object = objectRepository.findById(command.objectId())
                 .orElseThrow(this::objectNotFound);
         if (serviceSubject == null || serviceSubject.isBlank()
@@ -126,20 +83,40 @@ public class ObjectLifecycleApplicationService {
                 || "USER".equalsIgnoreCase(object.ownerType())) {
             throw objectNotFound();
         }
-        return deleteObject(object);
+        return deleteAuthorizedObject(object);
     }
 
-    private OssObjectVersion findCurrentVersion(OssObject object) {
-        UUID currentVersionId = object.currentVersionId();
-        if (currentVersionId == null) {
-            return null;
+    private ObjectLifecycleResult deleteAuthorizedObject(OssObject authorizedObject) {
+        if (authorizedObject.status() == OssObjectStatus.PURGED) {
+            return toResult(authorizedObject, "object already purged");
         }
-        OssObjectVersion version = versionRepository.findById(currentVersionId)
-                .orElseThrow(this::objectNotFound);
-        if (!object.objectId().equals(version.objectId())) {
+        ObjectDeletionClaimResult claimResult;
+        try {
+            claimResult = transactionOperations.claimDeletion(
+                    authorizedObject.objectId(), clock.instant());
+        } catch (ObjectDeletionTargetNotFoundException notFound) {
             throw objectNotFound();
         }
-        return version;
+        if (claimResult.claimedDeletion().isEmpty()) {
+            OssObject object = claimResult.object();
+            return toResult(
+                    object,
+                    object.status() == OssObjectStatus.PURGED
+                            ? "object purged"
+                            : "object delete pending"
+            );
+        }
+
+        ObjectDeletionClaim claim = claimResult.claimedDeletion().orElseThrow();
+        deletePort.deleteIfExists(claim.storageBucket(), claim.storageKey());
+        OssObject purged = transactionOperations.finalizeDeletion(claim, clock.instant());
+        return toResult(purged, "object purged");
+    }
+
+    private void requireCommand(DeleteObjectCommand command) {
+        if (command == null || command.objectId() == null) {
+            throw new IllegalArgumentException("objectId must not be null");
+        }
     }
 
     private ObjectLifecycleResult toResult(OssObject object, String message) {

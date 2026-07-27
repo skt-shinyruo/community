@@ -18,6 +18,7 @@ public interface DriveObjectStoragePort {
     void deleteObject(UUID objectId, String actorId);
 
     record PrepareObject(
+            UUID requestId,
             String usage,
             String ownerService,
             String ownerDomain,

@@ -9,6 +9,7 @@ import com.nowcoder.community.im.core.domain.repository.ConversationReadStateRep
 import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository;
 import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
 import com.nowcoder.community.im.core.support.ConversationIdSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -25,6 +26,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
+import static com.nowcoder.community.im.core.support.ImCoreTestDatabaseCleaner.cleanPrivateMessages;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
@@ -34,7 +36,6 @@ import static org.mockito.Mockito.times;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@Transactional
 class PrivateMessageApplicationServiceTest {
 
     @Autowired
@@ -57,8 +58,14 @@ class PrivateMessageApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
+        cleanPrivateMessages(jdbcTemplate);
         when(privateMessagePolicyVerifier.verify(any(UUID.class), any(UUID.class)))
                 .thenReturn(PrivateMessagePolicyDecision.allow());
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanPrivateMessages(jdbcTemplate);
     }
 
     @Test
@@ -88,6 +95,31 @@ class PrivateMessageApplicationServiceTest {
     }
 
     @Test
+    void persist_policyVerifierRunsOutsideDatabaseTransaction() {
+        UUID fromUserId = uuid(3);
+        UUID toUserId = uuid(4);
+        String conversationId = ConversationIdSupport.conversationId(fromUserId, toUserId);
+        SendPrivateTextCommand cmd = command(
+                "req-transaction-boundary",
+                "c-transaction-boundary",
+                fromUserId,
+                toUserId,
+                conversationId
+        );
+        when(privateMessagePolicyVerifier.verify(fromUserId, toUserId)).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive())
+                    .as("owner policy verification must run between short IM database transactions")
+                    .isFalse();
+            return PrivateMessagePolicyDecision.allow();
+        });
+
+        privateMessageApplicationService.persist(cmd);
+
+        assertThat(privateMessageRepository.listAfterSeq(conversationId, 0, 100)).hasSize(1);
+        assertThat(outboxCount(privateSendResultEventId(cmd.requestId(), cmd.clientMsgId(), fromUserId))).isEqualTo(1);
+    }
+
+    @Test
     void persist_shouldReturnExistingMessageBeforePolicyCheckForIdempotentReplay() {
         UUID fromUserId = uuid(1);
         UUID toUserId = uuid(2);
@@ -105,6 +137,49 @@ class PrivateMessageApplicationServiceTest {
         verify(privateMessagePolicyVerifier, times(1)).verify(fromUserId, toUserId);
         List<PrivateMessageRecord> rows = privateMessageRepository.listAfterSeq(conversationId, 0, 100);
         assertThat(rows).hasSize(1);
+    }
+
+    @Test
+    void persist_rechecksReplayInsideFinalTransactionAfterConcurrentWinner() {
+        UUID fromUserId = uuid(5);
+        UUID toUserId = uuid(6);
+        String conversationId = ConversationIdSupport.conversationId(fromUserId, toUserId);
+        SendPrivateTextCommand winnerCommand = command(
+                "req-concurrent-winner",
+                "c-concurrent",
+                fromUserId,
+                toUserId,
+                conversationId
+        );
+        SendPrivateTextCommand currentCommand = command(
+                "req-concurrent-current",
+                "c-concurrent",
+                fromUserId,
+                toUserId,
+                conversationId
+        );
+        when(privateMessagePolicyVerifier.verify(fromUserId, toUserId))
+                .thenAnswer(invocation -> {
+                    privateMessageApplicationService.persist(winnerCommand);
+                    return PrivateMessagePolicyDecision.allow();
+                })
+                .thenReturn(PrivateMessagePolicyDecision.allow());
+
+        var result = privateMessageApplicationService.persist(currentCommand);
+
+        List<PrivateMessageRecord> rows = privateMessageRepository.listAfterSeq(conversationId, 0, 100);
+        assertThat(rows).singleElement().satisfies(message -> {
+            assertThat(result.messageId()).isEqualTo(message.messageId());
+            assertThat(result.seq()).isEqualTo(message.seq());
+        });
+        verify(privateMessagePolicyVerifier, times(2)).verify(fromUserId, toUserId);
+        assertThat(outboxCount("im:pf:" + result.messageId())).isEqualTo(1);
+        assertThat(outboxCount(privateSendResultEventId(
+                winnerCommand.requestId(), winnerCommand.clientMsgId(), fromUserId))).isEqualTo(1);
+        assertThat(outboxCount(privateSendResultEventId(
+                currentCommand.requestId(), currentCommand.clientMsgId(), fromUserId))).isEqualTo(1);
+        assertConversationInbox(fromUserId, conversationId, toUserId, result.seq(), result.messageId(), 1L, 0L);
+        assertConversationInbox(toUserId, conversationId, fromUserId, result.seq(), result.messageId(), 0L, 1L);
     }
 
     @Test

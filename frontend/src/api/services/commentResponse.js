@@ -12,7 +12,9 @@ function normalizeComment(raw) {
     content: comment.content == null ? '' : String(comment.content),
     createTime: comment.createTime,
     updateTime: comment.updateTime,
-    editCount: Number(comment.editCount || 0)
+    editCount: Number(comment.editCount || 0),
+    replyCount: Number(comment.replyCount || 0),
+    status: comment.status
   }
 }
 

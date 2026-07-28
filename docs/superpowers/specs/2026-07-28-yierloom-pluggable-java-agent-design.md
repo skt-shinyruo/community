@@ -14,10 +14,11 @@ YierLoom 将这个模块重构为一个可扩展的 Java Agent 平台。内置�
 2. 外部插件从配置目录加载，每个插件具有独立依赖空间。
 3. 插件可以提供定时或运行时任务、Byte Buddy 字节码增强，或同时提供两者。
 4. 插件可以通过统一事件出口产生诊断事件，不在业务线程执行阻塞输出。
-5. 核心统一管理配置、生命周期、调度器、事件队列、Transformer 和故障隔离。
-6. 当前 `method`、`exception`、`http`、`jdbc`、`redis`、`kafka`、`thread` 和 `jvm` 探针全部迁移为内置插件。
-7. Agent 或单个插件失败时，默认不阻止宿主应用启动和运行。
-8. 提供测试工具，使插件作者可以在部署前验证打包、SPI、Advice 和 Helper 契约。
+5. Advice 可以通过受管 Observation 通道把观测数据交给同一插件的 Runtime capability，用于采样、聚合和汇总。
+6. 核心统一管理配置、生命周期、调度器、事件队列、Transformer 和故障隔离。
+7. 当前 `method`、`exception`、`http`、`jdbc`、`redis`、`kafka`、`thread` 和 `jvm` 探针全部迁移为内置插件。
+8. Agent 或单个插件失败时，默认不阻止宿主应用启动和运行。
+9. 提供测试工具，使插件作者可以在部署前验证打包、SPI、Advice 和 Helper 契约。
 
 ## 非目标
 
@@ -65,7 +66,7 @@ backend/yierloom/
 
 | 模块 | 职责 | 依赖约束 |
 | --- | --- | --- |
-| `yierloom-plugin-api` | 插件根接口、描述符、运行时能力、配置、调度、事件和 bootstrap bridge | 只依赖 JDK |
+| `yierloom-plugin-api` | 插件根接口、描述符、运行时能力、配置、调度、Observation、事件和 bootstrap bridge | 只依赖 JDK |
 | `yierloom-bytebuddy-sdk` | instrumentation capability、matcher/Advice/Transformer 贡献契约和 Helper 声明 | 依赖 Plugin API 和共享 Byte Buddy |
 | `yierloom-agent-core` | 配置加载、插件发现、ClassLoader、生命周期、事件管线、Transformer 管理和内置插件 | 依赖 API、SDK 和 Byte Buddy |
 | `yierloom-plugin-testkit` | 插件契约验证、隔离加载测试和 forked-JVM 测试支持 | 测试范围依赖 API、SDK 和 Byte Buddy |
@@ -202,6 +203,8 @@ public interface PluginRuntimeContext {
 
     ManagedScheduler scheduler();
 
+    ObservationChannel observations();
+
     EventSink events();
 
     System.Logger logger();
@@ -213,6 +216,10 @@ public interface PluginRuntimeContext {
 每个 Context 绑定一个插件 ID。插件不能通过 Context 获得 Core、ClassLoader、其他插件、应用 Spring Context 或原始 `Instrumentation`。
 
 `ManagedScheduler` 给每个插件提供独立的任务所有权和取消句柄。任务成功一次会清零连续失败计数；同一任务连续失败三次时自动取消，并产生一次限频后的 Agent 状态事件。插件停止或启动回滚时，Core 会取消该插件的全部遗留任务。
+
+`ObservationChannel.register(ObservationHandler)` 允许 Runtime capability 在 `start()` 中注册一个同插件 Handler。第二次注册被拒绝，插件停止、启动回滚或 Handler 连续失败三次时由 Core 自动解除。Handler 只接收相同插件 ID 的 `PluginObservation`，不能订阅其他插件。
+
+`PluginObservation` 是 Advice 到 Runtime 的内部消息，包含 observation type、不可变 String attributes，以及 boolean、long、double 三类不可变数值字段。Advice 使用 `YierLoomBridge.observe(pluginId, observation)` 非阻塞入队；Core consumer 线程随后调用对应 Handler。Handler 不运行在业务线程，不得执行阻塞 I/O；它用于采样、计数和聚合，最终可通过 `EventSink` 产生诊断事件。
 
 `EventSink.emit(DiagnosticEvent)` 是非阻塞调用，并用 boolean 返回事件是否进入队列。`DiagnosticEvent` 包含 action、可选时间戳、不可变 String attributes，以及 boolean、long、double 三类不可变数值字段。EventSink 自动补充插件 ID、`event.category=yierloom` 和缺失的时间戳，不允许把插件私有对象传入 Core。
 
@@ -265,7 +272,7 @@ JVM premain
   -> 提取并向 Bootstrap ClassLoader 注册 Plugin API
   -> 创建 YierLoomEngineClassLoader
   -> 加载完整配置
-  -> 初始化有界事件管线并一次性绑定 YierLoomBridge
+  -> 初始化承载 Observation 与最终事件的有界管线并一次性绑定 YierLoomBridge
   -> 发现内置 Provider 和每个外部 JAR 的 Provider
   -> 校验 JAR、Descriptor、API 版本、ID 和配置
   -> 收集并校验 instrumentation declarations
@@ -295,28 +302,38 @@ DISCOVERED -> VALIDATED -> STARTING -> ACTIVE -> STOPPING -> STOPPED
 Core 只注册一个 shutdown hook：
 
 1. 引擎切换到 `STOPPING`，调度器拒绝新任务，EventSink 暂时继续接受插件的最终事件。
-2. 按启动顺序的逆序调用插件 `stop()`。
-3. 强制取消各插件遗留的托管任务。
-4. 移除 Core 持有的 Transformer。
-5. 清空 `YierLoomBridge` 的 Core endpoint，使已增强但仍在执行的业务代码转为 no-op。
-6. 在固定的 2 秒上限内排空事件队列，然后停止 exporter；超时后丢弃剩余事件并记录 dropped counter。
-7. 关闭外部插件和 Engine ClassLoader，清理临时文件。
+2. 停止接受新 Observation，并解除所有插件的 Observation Handler。
+3. 按启动顺序的逆序调用插件 `stop()`。
+4. 强制取消各插件遗留的托管任务。
+5. 移除 Core 持有的 Transformer。
+6. 清空 `YierLoomBridge` 的 Core endpoint，使已增强但仍在执行的业务代码转为 no-op。
+7. 在固定的 2 秒上限内排空最终事件，然后停止 exporter；超时后丢弃剩余事件并记录 dropped counter。
+8. 关闭外部插件和 Engine ClassLoader，清理临时文件。
 
 关闭是 best-effort；一个插件的 `stop()` 异常不会阻止其他插件清理。由于不支持运行时卸载，关闭时不尝试重新转换已经增强的业务类，JVM 退出会回收这些类。
 
 ## Advice、Helper 与 Bridge
 
-Engine ClassLoader 是 System ClassLoader 的子加载器，宿主类不能直接引用 Core 或插件类。增强代码按以下路径传递事件：
+Engine ClassLoader 是 System ClassLoader 的子加载器，宿主类不能直接引用 Core 或插件类。增强代码按两条受管路径传递数据：
 
 ```text
 instrumented application method
   -> inlined Advice / injected Helper
-  -> bootstrap-visible YierLoomBridge
-  -> bounded Core EventSink
+  -> bootstrap-visible YierLoomBridge.observe
+  -> bounded Core pipeline
+  -> same-plugin ObservationHandler
+  -> plugin aggregation
+  -> EventSink
+  -> bounded Core pipeline
+  -> JSON Lines exporter
+
+instrumented application method
+  -> YierLoomBridge.emit
+  -> bounded Core pipeline
   -> JSON Lines exporter
 ```
 
-`YierLoomBridge` 位于 Plugin API。Core 在实例化外部 Provider 前一次性绑定 endpoint；重复绑定被拒绝，关闭时只有当前 endpoint 可以通过 compare-and-clear 解除自身绑定。Bridge 本身只依赖 JDK 和 Plugin API，在边界内抑制普通插件异常。Advice 使用已注册的插件 ID 调用 Bridge，未知或未启用的插件 ID 被直接丢弃。关闭时清除 endpoint，避免静态引用阻止 Core ClassLoader 回收。
+`YierLoomBridge` 位于 Plugin API。Core 在实例化外部 Provider 前一次性绑定 endpoint；重复绑定被拒绝，关闭时只有当前 endpoint 可以通过 compare-and-clear 解除自身绑定。Bridge 本身只依赖 JDK 和 Plugin API，在边界内抑制普通插件异常。Advice 使用已注册的插件 ID 调用 `observe()` 或 `emit()`：未知或未启用的插件 ID 始终被丢弃，`observe()` 在没有对应 Handler 时也被丢弃，`emit()` 不要求插件注册 Handler。关闭时清除 endpoint，避免静态引用阻止 Core ClassLoader 回收。
 
 Byte Buddy Advice 类是构建转换的模板；标注的 enter/exit 方法内联到目标方法。Advice 中任何不能被内联、且会留在转换后字节码中的类引用，都必须作为 Helper 声明。Core 在转换目标类之前，把声明的 Helper 依赖闭包注入目标 ClassLoader；bootstrap 目标使用 Instrumentation 支持的 bootstrap 注入路径，自定义应用 ClassLoader 使用对应的 ClassInjector。
 
@@ -331,9 +348,9 @@ Advice 的 `@Advice.OnMethodEnter` 和 `@Advice.OnMethodExit` 必须设置 `supp
 
 ## 事件管线
 
-运行时插件通过 Context 中的 scoped `EventSink` 发出事件；Advice 通过 Bridge 发出事件。两条路径进入同一个有界、非阻塞队列。
+运行时插件通过 Context 中的 scoped `EventSink` 发出最终事件；Advice 通过 Bridge 发出内部 Observation 或最终事件。三条路径进入同一个有界、非阻塞队列。队列中的内部消息携带 Core 分配的插件身份，不能由一个插件路由到另一个插件。
 
-队列容量由 `yierloom.events.queue-capacity` 配置，默认 8192。业务线程只尝试入队；队列满时立即丢弃并累加按插件划分的 dropped counter，不等待、不回退为同步输出。Core 的单一 daemon consumer 负责 JSON Lines 序列化并写入 `stdout`。
+队列容量由 `yierloom.events.queue-capacity` 配置，默认 8192。业务线程和插件线程只尝试入队；队列满时立即丢弃并累加按插件及消息类型划分的 dropped counter，不等待、不回退为同步处理。Core 的单一 daemon consumer 把 Observation 交给同插件 Handler，把最终事件序列化为 JSON Lines 并写入 `stdout`。Handler 发出的最终事件重新进入队列，不在 consumer 调用栈中递归导出。
 
 事件中的 `service.name` 依次读取 `yierloom.service.name`、`otel.service.name`、`OTEL_SERVICE_NAME` 和 `SERVICE_NAME`，均未设置时使用 `unknown`。这一顺序只替换旧 Agent 自有前缀，保留现有 OpenTelemetry 与通用环境变量回退语义。
 
@@ -358,6 +375,7 @@ Advice 的 `@Advice.OnMethodEnter` 和 `@Advice.OnMethodExit` 必须设置 `supp
 ### Runtime
 
 - EventSink 永不阻塞调用线程，过载时只丢弃诊断事件。
+- Observation 入队和分发异常不传播到 Advice；Handler 成功处理一次会重置连续失败计数，连续三次失败后自动解除，其余插件继续处理。
 - ManagedScheduler 捕获任务异常；连续三次失败后取消该任务，成功一次重置计数。
 - `start()`、`stop()` 和自定义插件代码仍是可信代码边界，Core 不尝试使用已废弃的强制线程终止手段。
 - Core 不刻意吞掉 `VirtualMachineError` 或 `ThreadDeath`；其余插件错误遵循 fail-open。
@@ -404,9 +422,10 @@ Advice 的 `@Advice.OnMethodEnter` 和 `@Advice.OnMethodExit` 必须设置 `supp
 3. Provider 至少声明一种有效能力，module ID 在插件内唯一。
 4. JAR 未包含 Plugin API、SDK、Byte Buddy、Core、Bootstrap 或内置插件包中的类。
 5. 插件可在隔离 ClassLoader 中实例化并完成生命周期。
-6. Advice enter/exit 设置 Throwable suppression。
-7. Helper 声明覆盖转换后字节码需要的依赖闭包。
-8. Helper 不引用 Core、SDK、Byte Buddy 或插件实例类型。
+6. Observation Handler 只能接收本插件消息，并在停止后解除。
+7. Advice enter/exit 设置 Throwable suppression。
+8. Helper 声明覆盖转换后字节码需要的依赖闭包。
+9. Helper 不引用 Core、SDK、Byte Buddy 或插件实例类型。
 
 Testkit 不执行安全审计，也不能证明任意自定义 Transformer 一定正确；它验证可自动化的结构和二进制兼容契约。
 
@@ -415,11 +434,11 @@ Testkit 不执行安全审计，也不能证明任意自定义 Transformer 一�
 | 层级 | 核心验证 |
 | --- | --- |
 | API/SDK 单元测试 | Descriptor、API 版本、类型化配置和贡献契约 |
-| Core 单元测试 | 发现、排序、重复 ID、配置隔离、生命周期回滚、任务取消和事件丢弃计数 |
+| Core 单元测试 | 发现、排序、重复 ID、配置隔离、生命周期回滚、Observation 路由、任务取消和消息丢弃计数 |
 | ClassLoader 测试 | API/SDK/Byte Buddy 共享，Core 隐藏，插件依赖 child-first 隔离 |
 | Testkit 自测 | Provider 数量、禁止打包、Advice suppression 和 Helper 闭包 |
 | Forked JVM 内置插件测试 | 单一 Agent JAR 启动，八个内置插件保持事件、异常和隐私语义 |
-| Forked JVM 外部插件测试 | 从目录加载测试插件，同时验证 Runtime task 和 Advice |
+| Forked JVM 外部插件测试 | 从目录加载测试插件，验证 Advice Observation、Runtime aggregation 和最终事件输出 |
 | 冲突依赖测试 | 两个插件携带同一库的不同版本并同时工作 |
 | 故障测试 | 损坏 JAR、重复 ID、错误配置、start/stop 异常和 transformation 异常不影响宿主 |
 | 可见性测试 | Advice 和 Helper 在 System 及自定义应用 ClassLoader 中运行 |
@@ -438,7 +457,7 @@ mvn -f yierloom/pom.xml verify
 1. 建立 Maven 聚合模块、Plugin API、Byte Buddy SDK 和 Testkit 的最小契约。
 2. 建立 Bootstrap、嵌套 JAR 提取、Engine ClassLoader、外部 Plugin ClassLoader 和配置模型。
 3. 用一个同时具有 Runtime 与 Instrumentation 能力的测试插件打通端到端加载。
-4. 建立事件管线、Bridge、Helper 注入、Transformer 管理和生命周期回滚。
+4. 建立 Observation/事件管线、Bridge、Helper 注入、Transformer 管理和生命周期回滚。
 5. 逐个迁移八个现有 Probe 为内置插件，并迁移现有单元和 forked-JVM 测试。
 6. 切换 artifact、包名、配置、日志和文档，删除旧模块实现。
 7. 运行完整 reactor 验证及外部插件隔离、冲突和故障场景。
@@ -450,10 +469,11 @@ mvn -f yierloom/pom.xml verify
 1. `yierloom-agent.jar` 可以作为唯一 `-javaagent` 产物在 Java 17 JVM 启动。
 2. 向配置目录新增一个合规插件 fat JAR 并重启 JVM 后，插件生效，Agent JAR 的内容和校验和不变。
 3. Runtime-only、Instrumentation-only 和组合插件都能通过同一根 SPI 工作。
-4. 两个插件携带冲突版本的私有依赖时都能正确运行。
-5. SPI 不暴露原始 `Instrumentation`；外部插件通过正常链接不能依赖 Core 或 Bootstrap 私有包，Testkit 能检出这类静态依赖。
-6. Advice 和 Helper 可以跨 System 及自定义应用 ClassLoader 运行，不出现类型身份冲突。
-7. 损坏或失败的插件不阻止宿主应用启动，其他插件继续运行。
-8. Agent disabled 时不安装 Transformer、不启动事件 consumer 或插件任务。
-9. 八个内置插件保留现有诊断 action、采样、限流、汇总、异常传播和隐私处理行为。
-10. `mvn -f yierloom/pom.xml verify` 通过全部单元、契约、打包和 forked-JVM 测试。
+4. 组合插件的 Advice Observation 只能到达同插件 Handler，并能驱动聚合和最终事件输出。
+5. 两个插件携带冲突版本的私有依赖时都能正确运行。
+6. SPI 不暴露原始 `Instrumentation`；外部插件通过正常链接不能依赖 Core 或 Bootstrap 私有包，Testkit 能检出这类静态依赖。
+7. Advice 和 Helper 可以跨 System 及自定义应用 ClassLoader 运行，不出现类型身份冲突。
+8. 损坏或失败的插件不阻止宿主应用启动，其他插件继续运行。
+9. Agent disabled 时不安装 Transformer、不启动事件 consumer 或插件任务。
+10. 八个内置插件保留现有诊断 action、采样、限流、汇总、异常传播和隐私处理行为。
+11. `mvn -f yierloom/pom.xml verify` 通过全部单元、契约、打包和 forked-JVM 测试。

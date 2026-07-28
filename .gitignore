@@ -54,6 +54,7 @@ tools/**/node_modules/
 .superpowers/
 .playwright-mcp/
 .vite/
+docs/superpowers/plans/
 
 ### Load testing ###
 temp/k6-results/

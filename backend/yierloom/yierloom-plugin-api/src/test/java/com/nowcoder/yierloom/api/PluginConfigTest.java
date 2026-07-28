@@ -44,4 +44,14 @@ class PluginConfigTest {
                 .isInstanceOf(PluginConfigurationException.class)
                 .hasMessageContaining("token");
     }
+
+    @Test
+    void parsesSignedIsoDurations() {
+        PluginConfig config = PluginConfig.of(Map.of(
+                "negative", "-PT1S",
+                "positive", "+PT1S"));
+
+        assertThat(config.requireDuration("negative")).isEqualTo(Duration.ofSeconds(-1));
+        assertThat(config.requireDuration("positive")).isEqualTo(Duration.ofSeconds(1));
+    }
 }

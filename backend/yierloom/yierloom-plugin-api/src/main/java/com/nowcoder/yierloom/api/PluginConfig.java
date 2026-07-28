@@ -195,7 +195,7 @@ public final class PluginConfig {
             if (value.endsWith("h")) {
                 return Duration.ofHours(Long.parseLong(value.substring(0, value.length() - 1)));
             }
-            if (value.startsWith("P")) {
+            if (value.startsWith("P") || value.startsWith("+P") || value.startsWith("-P")) {
                 return Duration.parse(value);
             }
             return Duration.ofSeconds(Long.parseLong(value));

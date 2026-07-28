@@ -11,15 +11,12 @@ import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.command.CreateCommentCommand;
-import com.nowcoder.community.content.application.command.UpdateCommentCommand;
 import com.nowcoder.community.content.infrastructure.text.SpringHtmlContentTextCodec;
 import com.nowcoder.community.content.application.ContentSanitizer;
+import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.exception.ContentErrorCode;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
-import com.nowcoder.community.content.application.result.CommentCreateResult;
-import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
-import com.nowcoder.community.content.domain.event.CommentDeletedDomainEvent;
-import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
+import com.nowcoder.community.content.application.CommentApplicationService.CommentCreateResult;
 import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDraft;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
@@ -73,7 +70,7 @@ class CommentApplicationServiceTest {
     private PostCounterCache postCounterCache;
     private CommentPageCache commentPageCache;
     private SocialBlockQueryApi blockQueryApi;
-    private CommentDomainEventPublisher domainEventPublisher;
+    private ContentEventPublisher eventPublisher;
     private CommentApplicationService service;
 
     private static JsonCodec jsonCodec() {
@@ -90,7 +87,7 @@ class CommentApplicationServiceTest {
         postCounterCache = mock(PostCounterCache.class);
         commentPageCache = mock(CommentPageCache.class);
         blockQueryApi = mock(SocialBlockQueryApi.class);
-        domainEventPublisher = mock(CommentDomainEventPublisher.class);
+        eventPublisher = mock(ContentEventPublisher.class);
         service = new CommentApplicationService(
                 sensitiveFilter,
                 idempotencyGuard,
@@ -101,7 +98,7 @@ class CommentApplicationServiceTest {
                 postContentPort,
                 new CommentCacheAfterCommit(postCounterCache, commentPageCache),
                 blockQueryApi,
-                domainEventPublisher
+                eventPublisher
         );
     }
 
@@ -157,7 +154,7 @@ class CommentApplicationServiceTest {
                 blockQueryApi,
                 commentRepository,
                 postCounterCache,
-                domainEventPublisher
+                eventPublisher
         );
         inOrder.verify(moderationGuard).assertCanSpeak(userId);
         inOrder.verify(postContentPort).getById(postId);
@@ -165,8 +162,8 @@ class CommentApplicationServiceTest {
         ArgumentCaptor<CommentDraft> draftCaptor = ArgumentCaptor.forClass(CommentDraft.class);
         inOrder.verify(commentRepository).create(draftCaptor.capture());
         inOrder.verify(postContentPort).incrementCommentCount(postId, 1);
-        ArgumentCaptor<CommentCreatedDomainEvent> eventCaptor = ArgumentCaptor.forClass(CommentCreatedDomainEvent.class);
-        inOrder.verify(domainEventPublisher).commentCreated(eventCaptor.capture());
+        ArgumentCaptor<CommentPayload> eventCaptor = ArgumentCaptor.forClass(CommentPayload.class);
+        inOrder.verify(eventPublisher).publishCommentCreated(eventCaptor.capture());
         inOrder.verify(postCounterCache).incrementCommentCount(postId, 1L);
 
         CommentDraft draft = draftCaptor.getValue();
@@ -178,15 +175,15 @@ class CommentApplicationServiceTest {
         assertThat(draft.content()).isEqualTo("clean &amp; body");
         assertThat(draft.createTime()).isNotNull();
 
-        CommentCreatedDomainEvent event = eventCaptor.getValue();
-        assertThat(event.commentId()).isEqualTo(commentId);
-        assertThat(event.postId()).isEqualTo(postId);
-        assertThat(event.userId()).isEqualTo(userId);
-        assertThat(event.entityType()).isEqualTo(EntityTypes.POST);
-        assertThat(event.entityId()).isEqualTo(postId);
-        assertThat(event.targetUserId()).isEqualTo(postAuthorId);
-        assertThat(event.content()).isEqualTo("clean & body");
-        assertThat(event.createTime()).isEqualTo(draft.createTime().toInstant());
+        CommentPayload event = eventCaptor.getValue();
+        assertThat(event.getCommentId()).isEqualTo(commentId);
+        assertThat(event.getPostId()).isEqualTo(postId);
+        assertThat(event.getUserId()).isEqualTo(userId);
+        assertThat(event.getEntityType()).isEqualTo(EntityTypes.POST);
+        assertThat(event.getEntityId()).isEqualTo(postId);
+        assertThat(event.getTargetUserId()).isEqualTo(postAuthorId);
+        assertThat(event.getContent()).isEqualTo("clean & body");
+        assertThat(event.getCreateTime()).isEqualTo(draft.createTime().toInstant());
     }
 
     @Test
@@ -218,13 +215,6 @@ class CommentApplicationServiceTest {
     @Test
     void createShouldRejectNullCommand() {
         assertThatThrownBy(() -> service.create("idem-null", null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("command must not be null");
-    }
-
-    @Test
-    void updateShouldRejectNullCommand() {
-        assertThatThrownBy(() -> service.update(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
     }
@@ -273,7 +263,7 @@ class CommentApplicationServiceTest {
                 postContentPort,
                 new CommentCacheAfterCommit(postCounterCache, commentPageCache),
                 blockQueryApi,
-                domainEventPublisher
+                eventPublisher
         );
 
         CommentCreateResult result = service.create(
@@ -321,7 +311,7 @@ class CommentApplicationServiceTest {
         verify(postContentPort, times(1)).incrementCommentCount(postId, 1);
         verify(postCounterCache, times(1)).incrementCommentCount(postId, 1L);
         verify(commentPageCache, times(1)).evictPost(postId);
-        verify(domainEventPublisher, times(1)).commentCreated(any(CommentCreatedDomainEvent.class));
+        verify(eventPublisher, times(1)).publishCommentCreated(any(CommentPayload.class));
     }
 
     @Test
@@ -347,7 +337,7 @@ class CommentApplicationServiceTest {
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(ContentErrorCode.REQUEST_REPLAY_CONFLICT));
         verify(commentRepository, times(1)).create(any(CommentDraft.class));
-        verify(domainEventPublisher, times(1)).commentCreated(any(CommentCreatedDomainEvent.class));
+        verify(eventPublisher, times(1)).publishCommentCreated(any(CommentPayload.class));
     }
 
     @Test
@@ -400,11 +390,11 @@ class CommentApplicationServiceTest {
         assertThat(draftCaptor.getValue().rootCommentId()).isEqualTo(rootCommentId);
         assertThat(draftCaptor.getValue().parentCommentId()).isEqualTo(rootCommentId);
         assertThat(draftCaptor.getValue().replyToUserId()).isEqualTo(rootAuthorId);
-        ArgumentCaptor<CommentCreatedDomainEvent> eventCaptor = ArgumentCaptor.forClass(CommentCreatedDomainEvent.class);
-        verify(domainEventPublisher).commentCreated(eventCaptor.capture());
-        assertThat(eventCaptor.getValue().entityType()).isEqualTo(EntityTypes.COMMENT);
-        assertThat(eventCaptor.getValue().entityId()).isEqualTo(rootCommentId);
-        assertThat(eventCaptor.getValue().targetUserId()).isEqualTo(rootAuthorId);
+        ArgumentCaptor<CommentPayload> eventCaptor = ArgumentCaptor.forClass(CommentPayload.class);
+        verify(eventPublisher).publishCommentCreated(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getEntityType()).isEqualTo(EntityTypes.COMMENT);
+        assertThat(eventCaptor.getValue().getEntityId()).isEqualTo(rootCommentId);
+        assertThat(eventCaptor.getValue().getTargetUserId()).isEqualTo(rootAuthorId);
     }
 
     @Test
@@ -449,11 +439,11 @@ class CommentApplicationServiceTest {
                         && rootCommentId.equals(draft.rootCommentId())
                         && directParentId.equals(draft.parentCommentId())
                         && directParentAuthorId.equals(draft.replyToUserId())));
-        ArgumentCaptor<CommentCreatedDomainEvent> event = ArgumentCaptor.forClass(CommentCreatedDomainEvent.class);
-        verify(domainEventPublisher).commentCreated(event.capture());
-        assertThat(event.getValue().entityType()).isEqualTo(EntityTypes.COMMENT);
-        assertThat(event.getValue().entityId()).isEqualTo(directParentId);
-        assertThat(event.getValue().targetUserId()).isEqualTo(directParentAuthorId);
+        ArgumentCaptor<CommentPayload> event = ArgumentCaptor.forClass(CommentPayload.class);
+        verify(eventPublisher).publishCommentCreated(event.capture());
+        assertThat(event.getValue().getEntityType()).isEqualTo(EntityTypes.COMMENT);
+        assertThat(event.getValue().getEntityId()).isEqualTo(directParentId);
+        assertThat(event.getValue().getTargetUserId()).isEqualTo(directParentAuthorId);
     }
 
     @Test
@@ -486,7 +476,7 @@ class CommentApplicationServiceTest {
         verify(sensitiveFilter, never()).filter(anyString());
         verify(commentRepository, never()).create(any(CommentDraft.class));
         verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
-        verify(domainEventPublisher, never()).commentCreated(any(CommentCreatedDomainEvent.class));
+        verify(eventPublisher, never()).publishCommentCreated(any(CommentPayload.class));
     }
 
     @Test
@@ -516,7 +506,7 @@ class CommentApplicationServiceTest {
 
         verify(commentRepository, never()).create(any(CommentDraft.class));
         verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
-        verify(domainEventPublisher, never()).commentCreated(any(CommentCreatedDomainEvent.class));
+        verify(eventPublisher, never()).publishCommentCreated(any(CommentPayload.class));
     }
 
     @Test
@@ -532,7 +522,7 @@ class CommentApplicationServiceTest {
         when(commentRepository.apply(any(CommentEdit.class))).thenReturn(CommentTransitionStatus.APPLIED);
 
         beginTransactionSynchronization();
-        service.update(new UpdateCommentCommand(userId, postId, commentId, " hello & world "));
+        service.updateComment(userId, postId, commentId, " hello & world ");
 
         var inOrder = inOrder(moderationGuard, postContentPort, commentRepository);
         inOrder.verify(moderationGuard).assertCanSpeak(userId);
@@ -607,20 +597,20 @@ class CommentApplicationServiceTest {
 
         service.deleteByAuthor(userId, postId, commentId);
 
-        ArgumentCaptor<CommentDeletedDomainEvent> eventCaptor = ArgumentCaptor.forClass(CommentDeletedDomainEvent.class);
-        verify(domainEventPublisher, times(3)).commentDeleted(eventCaptor.capture());
+        ArgumentCaptor<CommentPayload> eventCaptor = ArgumentCaptor.forClass(CommentPayload.class);
+        verify(eventPublisher, times(3)).publishCommentDeleted(eventCaptor.capture());
         assertThat(eventCaptor.getAllValues())
-                .extracting(CommentDeletedDomainEvent::commentId)
+                .extracting(CommentPayload::getCommentId)
                 .containsExactly(commentId, replyId, nestedReplyId);
-        assertThat(eventCaptor.getAllValues()).extracting(CommentDeletedDomainEvent::postId)
+        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::getPostId)
                 .containsExactly(postId, postId, postId);
-        assertThat(eventCaptor.getAllValues()).extracting(CommentDeletedDomainEvent::userId)
+        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::getUserId)
                 .containsExactly(userId, replyAuthorId, nestedReplyAuthorId);
-        assertThat(eventCaptor.getAllValues()).extracting(CommentDeletedDomainEvent::entityType)
+        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::getEntityType)
                 .containsExactly(EntityTypes.POST, EntityTypes.COMMENT, EntityTypes.COMMENT);
-        assertThat(eventCaptor.getAllValues()).extracting(CommentDeletedDomainEvent::entityId)
+        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::getEntityId)
                 .containsExactly(postId, commentId, commentId);
-        assertThat(eventCaptor.getAllValues()).allSatisfy(event -> assertThat(event.createTime()).isNotNull());
+        assertThat(eventCaptor.getAllValues()).allSatisfy(event -> assertThat(event.getCreateTime()).isNotNull());
     }
 
     @Test
@@ -662,10 +652,10 @@ class CommentApplicationServiceTest {
         service.deleteByAuthor(userId, postId, commentId);
 
         verify(postContentPort).incrementCommentCount(postId, -2);
-        ArgumentCaptor<CommentDeletedDomainEvent> events = ArgumentCaptor.forClass(CommentDeletedDomainEvent.class);
-        verify(domainEventPublisher, times(2)).commentDeleted(events.capture());
+        ArgumentCaptor<CommentPayload> events = ArgumentCaptor.forClass(CommentPayload.class);
+        verify(eventPublisher, times(2)).publishCommentDeleted(events.capture());
         assertThat(events.getAllValues())
-                .extracting(CommentDeletedDomainEvent::commentId)
+                .extracting(CommentPayload::getCommentId)
                 .containsExactly(commentId, nestedReplyId)
                 .doesNotContain(replyId);
     }
@@ -683,7 +673,7 @@ class CommentApplicationServiceTest {
         service.deleteByAuthor(userId, postId, commentId);
 
         verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
-        verify(domainEventPublisher, never()).commentDeleted(any());
+        verify(eventPublisher, never()).publishCommentDeleted(any());
     }
 
     private static DiscussPost post(UUID postId, UUID authorId) {
@@ -751,7 +741,7 @@ class CommentApplicationServiceTest {
                 postContentPort,
                 new CommentCacheAfterCommit(postCounterCache, commentPageCache),
                 blockQueryApi,
-                domainEventPublisher
+                eventPublisher
         );
     }
 

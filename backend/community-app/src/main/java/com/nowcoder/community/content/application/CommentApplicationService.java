@@ -3,15 +3,12 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.content.api.action.CommentActionApi;
 import com.nowcoder.community.content.application.command.CreateCommentCommand;
-import com.nowcoder.community.content.application.command.UpdateCommentCommand;
 import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
-import com.nowcoder.community.content.application.result.CommentCreateResult;
+import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.exception.ContentErrorCode;
-import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
-import com.nowcoder.community.content.domain.event.CommentDeletedDomainEvent;
-import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
@@ -39,7 +36,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service
-public class CommentApplicationService {
+public class CommentApplicationService implements CommentActionApi {
 
     private static final String CREATE_COMMENT_IDEMPOTENCY_SCOPE = "content:create_comment";
 
@@ -52,7 +49,7 @@ public class CommentApplicationService {
     private final PostContentRepository postContentPort;
     private final CommentCacheAfterCommit commentCacheAfterCommit;
     private final SocialBlockQueryApi blockQueryApi;
-    private final CommentDomainEventPublisher domainEventPublisher;
+    private final ContentEventPublisher eventPublisher;
 
     public CommentApplicationService(
             ContentSanitizer sensitiveFilter,
@@ -64,7 +61,7 @@ public class CommentApplicationService {
             PostContentRepository postContentPort,
             CommentCacheAfterCommit commentCacheAfterCommit,
             SocialBlockQueryApi blockQueryApi,
-            CommentDomainEventPublisher domainEventPublisher
+            ContentEventPublisher eventPublisher
     ) {
         this.sensitiveFilter = sensitiveFilter;
         this.idempotencyGuard = idempotencyGuard;
@@ -75,7 +72,7 @@ public class CommentApplicationService {
         this.postContentPort = postContentPort;
         this.commentCacheAfterCommit = commentCacheAfterCommit;
         this.blockQueryApi = blockQueryApi;
-        this.domainEventPublisher = domainEventPublisher;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -84,15 +81,25 @@ public class CommentApplicationService {
         return createFromCommand(idempotencyKey, command);
     }
 
+    @Override
     @Transactional
-    public void updateComment(UUID userId, UUID postId, UUID commentId, String content) {
-        updateFromCommand(new UpdateCommentCommand(userId, postId, commentId, content));
+    public UUID addComment(
+            UUID userId,
+            String idempotencyKey,
+            UUID postId,
+            UUID parentCommentId,
+            String content
+    ) {
+        return createFromCommand(
+                idempotencyKey,
+                new CreateCommentCommand(userId, postId, parentCommentId, content)
+        ).commentId();
     }
 
+    @Override
     @Transactional
-    public void update(UpdateCommentCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        updateFromCommand(command);
+    public void updateComment(UUID userId, UUID postId, UUID commentId, String content) {
+        updateCommentInternal(userId, postId, commentId, content);
     }
 
     private CommentCreateResult createFromCommand(String idempotencyKey, CreateCommentCommand command) {
@@ -119,10 +126,7 @@ public class CommentApplicationService {
         return new CommentCreateResult(commentId);
     }
 
-    private void updateFromCommand(UpdateCommentCommand command) {
-        UUID userId = command.userId();
-        UUID postId = command.postId();
-        UUID commentId = command.commentId();
+    private void updateCommentInternal(UUID userId, UUID postId, UUID commentId, String content) {
         if (userId == null || postId == null || commentId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId/commentId 非法");
         }
@@ -132,7 +136,7 @@ public class CommentApplicationService {
         CommentSnapshot existing = commentRepository.getRequiredSnapshot(commentId);
         Date now = new Date();
         CommentEdit edit = Comment.reconstitute(existing)
-                .editByAuthor(userId, postId, sanitize(command.content()), now);
+                .editByAuthor(userId, postId, sanitize(content), now);
         CommentTransitionStatus status = commentRepository.apply(edit);
         switch (status) {
             case APPLIED -> commentCacheAfterCommit.evictCommentPages(postId);
@@ -198,18 +202,16 @@ public class CommentApplicationService {
 
         String decodedContent = textCodec.decodeOnRead(safeContent);
         var createdAt = createTime.toInstant();
-        CommentCreatedDomainEvent event = new CommentCreatedDomainEvent(
-                commentId,
-                postId,
-                userId,
-                target.parentCommentId() == null ? EntityTypes.POST : EntityTypes.COMMENT,
-                target.parentCommentId() == null ? postId : target.parentCommentId(),
-                target.targetUserId(),
-                decodedContent,
-                createdAt
-        );
-
-        domainEventPublisher.commentCreated(event);
+        CommentPayload payload = new CommentPayload();
+        payload.setCommentId(commentId);
+        payload.setPostId(postId);
+        payload.setUserId(userId);
+        payload.setEntityType(target.parentCommentId() == null ? EntityTypes.POST : EntityTypes.COMMENT);
+        payload.setEntityId(target.parentCommentId() == null ? postId : target.parentCommentId());
+        payload.setTargetUserId(target.targetUserId());
+        payload.setContent(decodedContent);
+        payload.setCreateTime(createdAt);
+        eventPublisher.publishCommentCreated(payload);
         return commentId;
     }
 
@@ -249,14 +251,14 @@ public class CommentApplicationService {
 
         postContentPort.incrementCommentCount(postId, -result.deletedCount());
         for (CommentSnapshot deletedComment : result.deletedComments()) {
-            domainEventPublisher.commentDeleted(new CommentDeletedDomainEvent(
-                    deletedComment.id(),
-                    postId,
-                    deletedComment.userId(),
-                    deletedComment.rootComment() ? EntityTypes.POST : EntityTypes.COMMENT,
-                    deletedComment.rootComment() ? postId : deletedComment.parentCommentId(),
-                    transition.deletedTime().toInstant()
-            ));
+            CommentPayload payload = new CommentPayload();
+            payload.setCommentId(deletedComment.id());
+            payload.setPostId(postId);
+            payload.setUserId(deletedComment.userId());
+            payload.setEntityType(deletedComment.rootComment() ? EntityTypes.POST : EntityTypes.COMMENT);
+            payload.setEntityId(deletedComment.rootComment() ? postId : deletedComment.parentCommentId());
+            payload.setCreateTime(transition.deletedTime().toInstant());
+            eventPublisher.publishCommentDeleted(payload);
         }
         commentCacheAfterCommit.incrementCommentCount(postId, -result.deletedCount());
         commentCacheAfterCommit.evictCommentPages(postId);
@@ -278,4 +280,6 @@ public class CommentApplicationService {
         return sensitiveFilter.filter(safe);
     }
 
+    public record CommentCreateResult(UUID commentId) {
+    }
 }

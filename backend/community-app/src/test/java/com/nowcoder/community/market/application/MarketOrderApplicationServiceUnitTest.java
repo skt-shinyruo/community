@@ -61,7 +61,7 @@ class MarketOrderApplicationServiceUnitTest {
     private MarketShipmentMapper marketShipmentMapper;
 
     @Mock
-    private MarketWalletActionApplicationService marketWalletActionService;
+    private MarketWalletActionCoordinator marketWalletActionCoordinator;
 
     @Mock
     private MarketOrderSagaApplicationService marketOrderSagaService;
@@ -75,7 +75,7 @@ class MarketOrderApplicationServiceUnitTest {
                 new MyBatisMarketAddressRepository(marketAddressMapper),
                 new MyBatisMarketDeliveryRepository(marketDeliveryMapper),
                 new MyBatisMarketShipmentRepository(marketShipmentMapper),
-                marketWalletActionService,
+                marketWalletActionCoordinator,
                 marketOrderSagaService,
                 new UuidV7Generator()
         );
@@ -131,7 +131,7 @@ class MarketOrderApplicationServiceUnitTest {
                 new MyBatisMarketAddressRepository(marketAddressMapper),
                 new MyBatisMarketDeliveryRepository(marketDeliveryMapper),
                 new MyBatisMarketShipmentRepository(marketShipmentMapper),
-                marketWalletActionService,
+                marketWalletActionCoordinator,
                 marketOrderSagaService,
                 new UuidV7Generator()
         );
@@ -148,7 +148,7 @@ class MarketOrderApplicationServiceUnitTest {
 
         assertThat(response.requestId()).isEqualTo(requestId);
         assertThat(response.listingId()).isEqualTo(listingId);
-        verify(marketWalletActionService, never()).enqueueEscrow(any(), any(), any(), anyLong());
+        verify(marketWalletActionCoordinator, never()).enqueueEscrow(any(), any(), any(), anyLong());
     }
 
     @Test
@@ -160,7 +160,7 @@ class MarketOrderApplicationServiceUnitTest {
                 new MyBatisMarketAddressRepository(marketAddressMapper),
                 new MyBatisMarketDeliveryRepository(marketDeliveryMapper),
                 new MyBatisMarketShipmentRepository(marketShipmentMapper),
-                marketWalletActionService,
+                marketWalletActionCoordinator,
                 marketOrderSagaService,
                 new UuidV7Generator()
         );
@@ -180,7 +180,7 @@ class MarketOrderApplicationServiceUnitTest {
 
         assertThat(response.orderId()).isEqualTo(duplicated.getOrderId());
         assertThat(response.requestId()).isEqualTo(requestId);
-        verify(marketWalletActionService, never()).enqueueEscrow(any(), any(), any(), anyLong());
+        verify(marketWalletActionCoordinator, never()).enqueueEscrow(any(), any(), any(), anyLong());
     }
 
     @Test
@@ -202,7 +202,7 @@ class MarketOrderApplicationServiceUnitTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(MarketErrorCode.REQUEST_REPLAY_CONFLICT));
-        verify(marketWalletActionService, never()).enqueueEscrow(any(), any(), any(), anyLong());
+        verify(marketWalletActionCoordinator, never()).enqueueEscrow(any(), any(), any(), anyLong());
     }
 
     @Test
@@ -220,7 +220,7 @@ class MarketOrderApplicationServiceUnitTest {
 
         assertThatThrownBy(() -> service.createOrder(requestId, buyerUserId, listingId, 1, null))
                 .isSameAs(unknown);
-        verify(marketWalletActionService, never()).enqueueEscrow(any(), any(), any(), anyLong());
+        verify(marketWalletActionCoordinator, never()).enqueueEscrow(any(), any(), any(), anyLong());
     }
 
     private MarketOrderApplicationService service() {
@@ -231,7 +231,7 @@ class MarketOrderApplicationServiceUnitTest {
                 new MyBatisMarketAddressRepository(marketAddressMapper),
                 new MyBatisMarketDeliveryRepository(marketDeliveryMapper),
                 new MyBatisMarketShipmentRepository(marketShipmentMapper),
-                marketWalletActionService,
+                marketWalletActionCoordinator,
                 marketOrderSagaService,
                 new UuidV7Generator()
         );

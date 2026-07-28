@@ -2,9 +2,10 @@ package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.user.application.command.CreateVerifiedRegistrationUserCommand;
-import com.nowcoder.community.user.application.result.PreparedRegistrationUserResult;
-import com.nowcoder.community.user.application.result.UserCredentialResult;
+import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
+import com.nowcoder.community.user.api.model.PreparedRegistrationUserView;
+import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
@@ -27,7 +28,7 @@ import static com.nowcoder.community.user.exception.UserErrorCode.INTERNAL_ERROR
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_ALREADY_EXISTS;
 
 @Service
-public class UserRegistrationApplicationService {
+public class UserRegistrationApplicationService implements UserRegistrationActionApi {
 
     private final UserRepository userRepository;
     private final UserRegistrationDomainService userRegistrationDomainService;
@@ -56,7 +57,8 @@ public class UserRegistrationApplicationService {
         this.userPolicyEventPublisher = userPolicyEventPublisher;
     }
 
-    public PreparedRegistrationUserResult prepareRegistrationUser(String username, String password, String email) {
+    @Override
+    public PreparedRegistrationUserView prepareRegistrationUser(String username, String password, String email) {
         RegistrationInput input = userRegistrationDomainService.requireValidRegistration(username, password, email);
         if (existsByUsername(input.username())) {
             throw new BusinessException(USER_ALREADY_EXISTS);
@@ -70,7 +72,7 @@ public class UserRegistrationApplicationService {
                 passwordEncoder.encode(input.password()),
                 randomHeaderUrl()
         );
-        return new PreparedRegistrationUserResult(
+        return new PreparedRegistrationUserView(
                 prepared.id(),
                 prepared.username(),
                 prepared.email(),
@@ -90,7 +92,8 @@ public class UserRegistrationApplicationService {
     }
 
     @Transactional
-    public UserCredentialResult createVerifiedRegistrationUser(CreateVerifiedRegistrationUserCommand command) {
+    @Override
+    public UserCredentialView createVerifiedRegistrationUser(VerifiedRegistrationUserCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         if (command.userId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
@@ -119,7 +122,7 @@ public class UserRegistrationApplicationService {
         return toCredentialResult(user, 1);
     }
 
-    private UserCredentialResult resolveExistingRegistration(UserAccount attempted) {
+    private UserCredentialView resolveExistingRegistration(UserAccount attempted) {
         UserAccount canonical = userRepository.findById(attempted.id()).orElse(null);
         if (canonical != null) {
             requireSameRegistrationFacts(attempted, canonical);
@@ -149,9 +152,9 @@ public class UserRegistrationApplicationService {
         }
     }
 
-    private UserCredentialResult toCredentialResult(UserAccount user, int status) {
+    private UserCredentialView toCredentialResult(UserAccount user, int status) {
         boolean allowed = status != 0;
-        return new UserCredentialResult(
+        return new UserCredentialView(
                 user.id(),
                 user.username(),
                 status,

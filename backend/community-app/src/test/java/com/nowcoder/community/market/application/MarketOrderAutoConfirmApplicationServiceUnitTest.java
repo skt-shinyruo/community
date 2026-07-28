@@ -1,6 +1,6 @@
 package com.nowcoder.community.market.application;
 
-import com.nowcoder.community.market.application.result.MarketOrderAutoConfirmResult;
+import com.nowcoder.community.market.api.model.MarketOrderAutoConfirmResult;
 import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import org.junit.jupiter.api.Test;
@@ -28,7 +28,7 @@ class MarketOrderAutoConfirmApplicationServiceUnitTest {
     private MarketOrderRepository marketOrderRepository;
 
     @Mock
-    private MarketOrderAutoConfirmSingleOrderApplicationService singleOrderApplicationService;
+    private MarketOrderAutoConfirmer autoConfirmer;
 
     @Test
     void autoConfirmDueOrdersShouldDelegateEachDueOrderToSingleOrderService() {
@@ -36,19 +36,19 @@ class MarketOrderAutoConfirmApplicationServiceUnitTest {
         UUID skippedOrderId = uuid(2);
         when(marketOrderRepository.findDueForAutoConfirm(any(Date.class)))
                 .thenReturn(List.of(marketOrder(completedOrderId), marketOrder(skippedOrderId)));
-        when(singleOrderApplicationService.confirmOneDueOrder(eq(completedOrderId), any(Date.class))).thenReturn(true);
-        when(singleOrderApplicationService.confirmOneDueOrder(eq(skippedOrderId), any(Date.class))).thenReturn(false);
+        when(autoConfirmer.confirmOneDueOrder(eq(completedOrderId), any(Date.class))).thenReturn(true);
+        when(autoConfirmer.confirmOneDueOrder(eq(skippedOrderId), any(Date.class))).thenReturn(false);
 
         MarketOrderAutoConfirmResult result = new MarketOrderAutoConfirmApplicationService(
                 marketOrderRepository,
-                singleOrderApplicationService
+                autoConfirmer
         ).autoConfirmDueOrders();
 
         assertThat(result.completedCount()).isEqualTo(1);
         assertThat(result.skippedCount()).isEqualTo(1);
         ArgumentCaptor<Date> now = ArgumentCaptor.forClass(Date.class);
-        verify(singleOrderApplicationService).confirmOneDueOrder(eq(completedOrderId), now.capture());
-        verify(singleOrderApplicationService).confirmOneDueOrder(eq(skippedOrderId), eq(now.getValue()));
+        verify(autoConfirmer).confirmOneDueOrder(eq(completedOrderId), now.capture());
+        verify(autoConfirmer).confirmOneDueOrder(eq(skippedOrderId), eq(now.getValue()));
     }
 
     private MarketOrder marketOrder(UUID orderId) {

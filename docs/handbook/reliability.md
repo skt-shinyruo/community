@@ -583,7 +583,6 @@ Outbox 和 scheduler：
 Hot-cache governance：
 
 - `HotFeedCacheGovernanceApplicationServiceTest`
-- `HotFeedCacheGovernanceApiAdapterTest`
 - `HotCacheGovernanceApplicationServiceTest`
 - `HotCacheOpsControllerTest`
 
@@ -593,5 +592,5 @@ Market wallet action saga：
 - `MarketWalletActionRecoveryApplicationServiceTest`
 - `MarketOrderApplicationServiceTest`
 - `MarketDisputeApplicationServiceTest`
-- `MarketOrderAutoConfirmSingleOrderApplicationServiceUnitTest`
+- `MarketOrderAutoConfirmerUnitTest`
 - `MarketWalletActionMapperPersistenceTest`

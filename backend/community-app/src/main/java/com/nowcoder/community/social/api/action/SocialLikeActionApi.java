@@ -1,17 +1,21 @@
 package com.nowcoder.community.social.api.action;
 
-import com.nowcoder.community.social.api.model.ResolvedLikeTargetView;
-import com.nowcoder.community.social.api.model.SocialLikeResultView;
-
 import java.util.UUID;
 
 public interface SocialLikeActionApi {
 
-    SocialLikeResultView setLike(
+    LikeResult setLike(SetLikeCommand command);
+
+    record SetLikeCommand(
             UUID actorUserId,
             int entityType,
             UUID entityId,
             Boolean liked,
-            ResolvedLikeTargetView resolvedTarget
-    );
+            UUID entityUserId,
+            UUID postId
+    ) {
+    }
+
+    record LikeResult(boolean liked, long likeCount) {
+    }
 }

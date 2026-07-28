@@ -3,11 +3,9 @@ package com.nowcoder.community.content.infrastructure.event;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.content.application.CommentContractEventApplicationService;
-import com.nowcoder.community.content.application.PostContractEventApplicationService;
-import com.nowcoder.community.content.domain.event.CommentDeletedDomainEvent;
-import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
-import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
+import com.nowcoder.community.content.application.ContentEventPublisher;
+import com.nowcoder.community.content.application.PostIntegrationEventPublisher;
+import com.nowcoder.community.content.contracts.event.CommentPayload;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,16 +47,10 @@ class ContentDeletionOutboxIntegrationTest {
     private TransactionTemplate transactionTemplate;
 
     @Autowired
-    private PostDomainEventPublisher postDomainEventPublisher;
+    private ContentEventPublisher contentEventPublisher;
 
     @Autowired
-    private CommentDomainEventPublisher commentDomainEventPublisher;
-
-    @Autowired
-    private PostContractEventApplicationService postContractEventApplicationService;
-
-    @Autowired
-    private CommentContractEventApplicationService commentContractEventApplicationService;
+    private PostIntegrationEventPublisher postIntegrationEventPublisher;
 
     @MockBean
     private ClientIpResolver clientIpResolver;
@@ -101,8 +93,8 @@ class ContentDeletionOutboxIntegrationTest {
     void committedDeletionShouldCommitOwnerRowsAndStableOutboxEventsTogether() {
         transactionTemplate.executeWithoutResult(status -> {
             markContentDeleted();
-            postDomainEventPublisher.postDeleted(POST_ID);
-            commentDomainEventPublisher.commentDeleted(commentDeletedEvent());
+            postIntegrationEventPublisher.postDeleted(POST_ID);
+            contentEventPublisher.publishCommentDeleted(commentDeletedPayload());
         });
 
         assertThat(postStatus()).isEqualTo(2);
@@ -110,8 +102,8 @@ class ContentDeletionOutboxIntegrationTest {
         assertThat(deletionEventIds()).containsExactlyInAnyOrder(POST_EVENT_ID, COMMENT_EVENT_ID);
 
         transactionTemplate.executeWithoutResult(status -> {
-            postDomainEventPublisher.postDeleted(POST_ID);
-            commentDomainEventPublisher.commentDeleted(commentDeletedEvent());
+            postIntegrationEventPublisher.postDeleted(POST_ID);
+            contentEventPublisher.publishCommentDeleted(commentDeletedPayload());
         });
 
         assertThat(deletionEventIds()).containsExactlyInAnyOrder(POST_EVENT_ID, COMMENT_EVENT_ID);
@@ -121,8 +113,8 @@ class ContentDeletionOutboxIntegrationTest {
     void rolledBackDeletionShouldRollbackOwnerRowsAndAlreadyInsertedOutboxEventsTogether() {
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
             markContentDeleted();
-            postContractEventApplicationService.publishPostDeleted(POST_ID);
-            commentContractEventApplicationService.publishCommentDeleted(commentDeletedEvent());
+            postIntegrationEventPublisher.postDeleted(POST_ID);
+            contentEventPublisher.publishCommentDeleted(commentDeletedPayload());
 
             assertThat(postStatus()).isEqualTo(2);
             assertThat(commentStatus()).isEqualTo(2);
@@ -150,15 +142,15 @@ class ContentDeletionOutboxIntegrationTest {
         );
     }
 
-    private CommentDeletedDomainEvent commentDeletedEvent() {
-        return new CommentDeletedDomainEvent(
-                COMMENT_ID,
-                POST_ID,
-                AUTHOR_ID,
-                POST,
-                POST_ID,
-                DELETED_AT
-        );
+    private CommentPayload commentDeletedPayload() {
+        CommentPayload payload = new CommentPayload();
+        payload.setCommentId(COMMENT_ID);
+        payload.setPostId(POST_ID);
+        payload.setUserId(AUTHOR_ID);
+        payload.setEntityType(POST);
+        payload.setEntityId(POST_ID);
+        payload.setCreateTime(DELETED_AT);
+        return payload;
     }
 
     private int postStatus() {

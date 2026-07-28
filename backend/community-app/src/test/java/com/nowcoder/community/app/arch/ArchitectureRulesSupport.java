@@ -7,7 +7,6 @@ import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 
 import java.util.Collection;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -72,13 +71,6 @@ final class ArchitectureRulesSupport {
             "api",
             "contracts"
     );
-
-    static final Map<String, Set<String>> TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN = Map.of();
-
-    static final Set<String> MIGRATION_BASELINE_FOREIGN_IMPLEMENTATION_CALLERS = Set.of();
-    static final Set<String> MIGRATION_BASELINE_CONTROLLER_MAPPER_CALLERS = Set.of();
-    static final Set<String> MIGRATION_BASELINE_CONTROLLER_FOREIGN_ENTITY_CALLERS = Set.of();
-    static final Set<String> MIGRATION_BASELINE_CONTROLLER_ENTITY_CALLERS = Set.of();
 
     private static final String ROOT_PACKAGE = "com.nowcoder.community.";
 
@@ -153,20 +145,6 @@ final class ArchitectureRulesSupport {
         return false;
     }
 
-    static boolean isWhitelisted(JavaClass javaClass, Set<String> whitelist) {
-        return whitelist.contains(javaClass.getFullName());
-    }
-
-    static boolean isAllowedTargetDependency(
-            JavaClass origin,
-            JavaClass target,
-            Map<String, Set<String>> allowedTargetTypesByOrigin
-    ) {
-        return allowedTargetTypesByOrigin
-                .getOrDefault(origin.getFullName(), Set.of())
-                .contains(target.getFullName());
-    }
-
     static boolean sharesTopLevelOwner(JavaClass left, JavaClass right) {
         return topLevelName(left).equals(topLevelName(right));
     }
@@ -182,22 +160,12 @@ final class ArchitectureRulesSupport {
 
     static ArchCondition<JavaClass> notDependOnForeignCoreLayers(
             String description,
-            Set<String> layers,
-            Set<String> legacyOriginWhitelist
-    ) {
-        return notDependOnForeignCoreLayers(description, layers, legacyOriginWhitelist, Map.of());
-    }
-
-    static ArchCondition<JavaClass> notDependOnForeignCoreLayers(
-            String description,
-            Set<String> layers,
-            Set<String> legacyOriginWhitelist,
-            Map<String, Set<String>> allowedTargetTypesByOrigin
+            Set<String> layers
     ) {
         return new ArchCondition<>(description) {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
-                if (!isCoreDomain(item) || isWhitelisted(item, legacyOriginWhitelist)) {
+                if (!isCoreDomain(item)) {
                     return;
                 }
                 String originDomain = domainOf(item);
@@ -210,9 +178,6 @@ final class ArchitectureRulesSupport {
                     if (!residesInLayer(target, layers)) {
                         continue;
                     }
-                    if (isAllowedTargetDependency(item, target, allowedTargetTypesByOrigin)) {
-                        continue;
-                    }
                     events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
                 }
             }
@@ -221,13 +186,12 @@ final class ArchitectureRulesSupport {
 
     static ArchCondition<JavaClass> notDependOnDomainsFromCoreOrigins(
             String description,
-            Set<String> disallowedDomains,
-            Set<String> legacyOriginWhitelist
+            Set<String> disallowedDomains
     ) {
         return new ArchCondition<>(description) {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
-                if (!isCoreDomain(item) || isWhitelisted(item, legacyOriginWhitelist)) {
+                if (!isCoreDomain(item)) {
                     return;
                 }
                 for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
@@ -243,15 +207,11 @@ final class ArchitectureRulesSupport {
 
     static ArchCondition<JavaClass> notDependOnDomains(
             String description,
-            Set<String> disallowedDomains,
-            Set<String> legacyOriginWhitelist
+            Set<String> disallowedDomains
     ) {
         return new ArchCondition<>(description) {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
-                if (isWhitelisted(item, legacyOriginWhitelist)) {
-                    return;
-                }
                 for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
                     JavaClass target = dependency.getTargetClass();
                     if (!disallowedDomains.contains(domainOf(target))) {
@@ -266,25 +226,11 @@ final class ArchitectureRulesSupport {
     static ArchCondition<JavaClass> notDependOnLayers(
             String description,
             Set<String> layers,
-            boolean foreignCoreDomainOnly,
-            Set<String> legacyOriginWhitelist
-    ) {
-        return notDependOnLayers(description, layers, foreignCoreDomainOnly, legacyOriginWhitelist, Map.of());
-    }
-
-    static ArchCondition<JavaClass> notDependOnLayers(
-            String description,
-            Set<String> layers,
-            boolean foreignCoreDomainOnly,
-            Set<String> legacyOriginWhitelist,
-            Map<String, Set<String>> allowedTargetTypesByOrigin
+            boolean foreignCoreDomainOnly
     ) {
         return new ArchCondition<>(description) {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
-                if (isWhitelisted(item, legacyOriginWhitelist)) {
-                    return;
-                }
                 String originDomain = domainOf(item);
                 for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
                     JavaClass target = dependency.getTargetClass();
@@ -300,9 +246,6 @@ final class ArchitectureRulesSupport {
                             continue;
                         }
                     }
-                    if (isAllowedTargetDependency(item, target, allowedTargetTypesByOrigin)) {
-                        continue;
-                    }
                     events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
                 }
             }
@@ -311,22 +254,12 @@ final class ArchitectureRulesSupport {
 
     static ArchCondition<JavaClass> onlyDependOnForeignPackagePrefixes(
             String description,
-            Set<String> allowedPackagePrefixes,
-            Set<String> legacyOriginWhitelist
-    ) {
-        return onlyDependOnForeignPackagePrefixes(description, allowedPackagePrefixes, legacyOriginWhitelist, Map.of());
-    }
-
-    static ArchCondition<JavaClass> onlyDependOnForeignPackagePrefixes(
-            String description,
-            Set<String> allowedPackagePrefixes,
-            Set<String> legacyOriginWhitelist,
-            Map<String, Set<String>> allowedTargetTypesByOrigin
+            Set<String> allowedPackagePrefixes
     ) {
         return new ArchCondition<>(description) {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
-                if (!isCoreDomain(item) || isWhitelisted(item, legacyOriginWhitelist)) {
+                if (!isCoreDomain(item)) {
                     return;
                 }
                 String originDomain = domainOf(item);
@@ -339,22 +272,16 @@ final class ArchitectureRulesSupport {
                     if (residesInPackagePrefixes(target, allowedPackagePrefixes)) {
                         continue;
                     }
-                    if (isAllowedTargetDependency(item, target, allowedTargetTypesByOrigin)) {
-                        continue;
-                    }
                     events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
                 }
             }
         };
     }
 
-    static ArchCondition<JavaClass> notDependOnForeignOwnerApiPackages(Set<String> legacyOriginWhitelist) {
+    static ArchCondition<JavaClass> notDependOnForeignOwnerApiPackages() {
         return new ArchCondition<>("not depend on foreign owner api packages before application boundary") {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
-                if (isWhitelisted(item, legacyOriginWhitelist)) {
-                    return;
-                }
                 String originDomain = domainOf(item);
                 if (originDomain.isEmpty()) {
                     return;
@@ -374,13 +301,10 @@ final class ArchitectureRulesSupport {
         };
     }
 
-    static ArchCondition<JavaClass> notDependOnForeignApplicationPackages(Set<String> legacyOriginWhitelist) {
+    static ArchCondition<JavaClass> notDependOnForeignApplicationPackages() {
         return new ArchCondition<>("not depend on foreign application packages before owner application boundary") {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
-                if (isWhitelisted(item, legacyOriginWhitelist)) {
-                    return;
-                }
                 String originDomain = domainOf(item);
                 if (originDomain.isEmpty()) {
                     return;
@@ -399,13 +323,10 @@ final class ArchitectureRulesSupport {
         };
     }
 
-    static ArchCondition<JavaClass> notDependOnSameDomainOwnerApiPackages(Set<String> legacyOriginWhitelist) {
-        return new ArchCondition<>("not depend on same-domain owner api packages") {
+    static ArchCondition<JavaClass> notDependOnSameDomainOwnerApiEntries() {
+        return new ArchCondition<>("not depend on same-domain owner api query/action entries") {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
-                if (isWhitelisted(item, legacyOriginWhitelist)) {
-                    return;
-                }
                 String originDomain = domainOf(item);
                 if (originDomain.isEmpty()) {
                     return;
@@ -415,7 +336,7 @@ final class ArchitectureRulesSupport {
                     if (!originDomain.equals(domainOf(target))) {
                         continue;
                     }
-                    if (!residesInPackagePrefixes(target, Set.of("api.query", "api.action", "api.model"))) {
+                    if (!residesInPackagePrefixes(target, Set.of("api.query", "api.action"))) {
                         continue;
                     }
                     events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
@@ -424,13 +345,10 @@ final class ArchitectureRulesSupport {
         };
     }
 
-    static ArchCondition<JavaClass> notDependOnSameDomainServicesExceptApplicationServices(Set<String> legacyOriginWhitelist) {
+    static ArchCondition<JavaClass> notDependOnSameDomainServicesExceptApplicationServices() {
         return new ArchCondition<>("not depend on same-domain non-ApplicationService services or app packages") {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
-                if (isWhitelisted(item, legacyOriginWhitelist)) {
-                    return;
-                }
                 String originDomain = domainOf(item);
                 if (originDomain.isEmpty()) {
                     return;
@@ -451,49 +369,10 @@ final class ArchitectureRulesSupport {
         };
     }
 
-    static ArchCondition<JavaClass> notDependOnSameDomainApplicationHelpersBeforeApplicationService(
-            Set<String> legacyOriginWhitelist
-    ) {
-        return new ArchCondition<>("not depend on same-domain application helpers before ApplicationService boundary") {
-            @Override
-            public void check(JavaClass item, ConditionEvents events) {
-                if (isWhitelisted(item, legacyOriginWhitelist)) {
-                    return;
-                }
-                String originDomain = domainOf(item);
-                if (originDomain.isEmpty()) {
-                    return;
-                }
-                for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
-                    JavaClass target = dependency.getTargetClass();
-                    if (!originDomain.equals(domainOf(target))) {
-                        continue;
-                    }
-                    if (!residesInLayer(target, Set.of("application"))) {
-                        continue;
-                    }
-                    boolean applicationService = target.getSimpleName().endsWith("ApplicationService");
-                    boolean applicationBoundaryDto = residesInPackagePrefixes(target, Set.of(
-                            "application.command",
-                            "application.result"
-                    ));
-                    if (!applicationService && !applicationBoundaryDto) {
-                        events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
-                    }
-                }
-            }
-        };
-    }
-
-    static ArchCondition<JavaClass> notDependOnSameDomainInfrastructureBeforeApplicationService(
-            Set<String> legacyOriginWhitelist
-    ) {
+    static ArchCondition<JavaClass> notDependOnSameDomainInfrastructureBeforeApplicationService() {
         return new ArchCondition<>("not depend on same-domain infrastructure before ApplicationService boundary") {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
-                if (isWhitelisted(item, legacyOriginWhitelist)) {
-                    return;
-                }
                 String originDomain = domainOf(item);
                 for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
                     JavaClass target = dependency.getTargetClass();
@@ -507,15 +386,10 @@ final class ArchitectureRulesSupport {
         };
     }
 
-    static ArchCondition<JavaClass> notDependOnSameDomainDomainOrPersistenceBeforeApplicationService(
-            Set<String> legacyOriginWhitelist
-    ) {
+    static ArchCondition<JavaClass> notDependOnSameDomainDomainOrPersistenceBeforeApplicationService() {
         return new ArchCondition<>("not depend on same-domain domain implementation or persistence before ApplicationService boundary") {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
-                if (isWhitelisted(item, legacyOriginWhitelist)) {
-                    return;
-                }
                 String originDomain = domainOf(item);
                 if (originDomain.isEmpty()) {
                     return;

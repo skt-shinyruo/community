@@ -5,7 +5,7 @@ import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.growth.application.command.UpdateUserLevelConfigCommand;
 import com.nowcoder.community.growth.application.result.UserLevelConfigResult;
-import com.nowcoder.community.growth.application.result.UserLevelSummaryResult;
+import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +43,7 @@ class UserLevelApplicationServiceTest {
         LocalDate bizDate = LocalDate.of(2026, 4, 2);
         insertCheckIns(uuid(7), bizDate, 12);
 
-        UserLevelSummaryResult summary = service.evaluateLevelSummary(uuid(7), bizDate);
+        UserLevelSummaryView summary = service.evaluateLevelSummary(uuid(7), bizDate);
 
         assertThat(summary.enabled()).isTrue();
         assertThat(summary.windowDays()).isEqualTo(100);
@@ -59,7 +59,7 @@ class UserLevelApplicationServiceTest {
         insertCheckIns(uuid(8), bizDate.minusDays(120), 20);
         insertCheckIns(uuid(8), bizDate, 88);
 
-        UserLevelSummaryResult summary = service.evaluateLevelSummary(uuid(8), bizDate);
+        UserLevelSummaryView summary = service.evaluateLevelSummary(uuid(8), bizDate);
 
         assertThat(summary.enabled()).isTrue();
         assertThat(summary.signInDaysInWindow()).isEqualTo(88);
@@ -73,7 +73,7 @@ class UserLevelApplicationServiceTest {
         insertCheckIns(userId, bizDate, 11);
         insertCheckIn(userId, bizDate.minusDays(20), 0, 1, "IN_PROGRESS");
 
-        UserLevelSummaryResult summary = service.evaluateLevelSummary(userId, bizDate);
+        UserLevelSummaryView summary = service.evaluateLevelSummary(userId, bizDate);
 
         assertThat(summary.signInDaysInWindow()).isEqualTo(11);
         assertThat(summary.userLevel()).isEqualTo(1);
@@ -89,7 +89,7 @@ class UserLevelApplicationServiceTest {
         );
         insertCheckIns(uuid(9), bizDate, 30);
 
-        UserLevelSummaryResult summary = service.evaluateLevelSummary(uuid(9), bizDate);
+        UserLevelSummaryView summary = service.evaluateLevelSummary(uuid(9), bizDate);
 
         assertThat(summary.enabled()).isFalse();
         assertThat(summary.windowDays()).isEqualTo(30);
@@ -122,7 +122,7 @@ class UserLevelApplicationServiceTest {
         );
         insertCheckIns(uuid(11), bizDate, 12);
 
-        UserLevelSummaryResult summary = service.evaluateLevelSummary(uuid(11), bizDate);
+        UserLevelSummaryView summary = service.evaluateLevelSummary(uuid(11), bizDate);
 
         assertThat(summary.enabled()).isTrue();
         assertThat(summary.windowDays()).isEqualTo(100);

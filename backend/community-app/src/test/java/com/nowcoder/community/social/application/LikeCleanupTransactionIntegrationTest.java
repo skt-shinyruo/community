@@ -5,7 +5,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
-import com.nowcoder.community.social.application.command.SetLikeCommand;
+import com.nowcoder.community.social.api.action.SocialLikeActionApi.SetLikeCommand;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.infrastructure.event.OutboxSocialDomainEventPublisher;
 import org.junit.jupiter.api.BeforeEach;

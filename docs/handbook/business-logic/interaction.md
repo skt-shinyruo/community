@@ -30,9 +30,9 @@
 2. `USER` 目标通过 `UserLookupQueryApi.getSummaryById(...)` 验证存在，服务端把目标用户 ID 作为可信 `entityUserId`。
 3. `POST` / `COMMENT` 目标通过 `ContentEntityQueryApi.resolve(...)` 读取内容 owner 的 `entityUserId` 和根 `postId`。
 4. content 返回的解析结果缺少 owner 或根帖子时按依赖不可用失败，不把不完整数据交给 social。
-5. 调用 `SocialLikeActionApi.setLike(...)`，传入 actor、目标状态和服务端解析出的 `ResolvedLikeTargetView`。
+5. 调用 `SocialLikeActionApi.setLike(...)`，通过接口内嵌的 `SetLikeCommand` 传入 actor、目标状态和服务端解析出的 owner / post。
 6. social owner 校验目标形状、拉黑关系和删除状态，写入或删除点赞关系，并发布 social contract event。
-7. interaction 只把 social 返回的 `liked` 与 `likeCount` 转为 `LikeInteractionResult`。
+7. interaction 只把 social 返回的 `liked` 与 `likeCount` 转为本用例内嵌的 `LikeResult`。
 
 ## 失败与一致性
 
@@ -45,7 +45,7 @@
 
 - `interaction.controller.LikeInteractionController`
 - `interaction.application.LikeInteractionApplicationService`
-- `interaction.application.command.SetLikeInteractionCommand`
+- `interaction.application.LikeInteractionApplicationService.SetLikeCommand`
 - `social.api.action.SocialLikeActionApi`
 - `social.application.LikeApplicationService`
 - `content.api.query.ContentEntityQueryApi`

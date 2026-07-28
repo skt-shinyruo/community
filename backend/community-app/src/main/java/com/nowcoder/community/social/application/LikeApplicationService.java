@@ -2,9 +2,9 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.social.api.action.SocialLikeActionApi;
+import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
-import com.nowcoder.community.social.application.command.SetLikeCommand;
-import com.nowcoder.community.social.application.result.LikeResult;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
 import com.nowcoder.community.social.domain.model.LikeRelation;
@@ -37,7 +37,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service("socialLikeApplicationService")
-public class LikeApplicationService {
+public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQueryApi {
 
     private static final int MAX_BATCH_ENTITY_IDS = 200;
     private static final int CLEANUP_SCAN_LIMIT = 200;
@@ -94,6 +94,7 @@ public class LikeApplicationService {
     }
 
     @Transactional
+    @Override
     public LikeResult setLike(SetLikeCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         UUID actorUserId = command.actorUserId();
@@ -164,6 +165,7 @@ public class LikeApplicationService {
         return buildResult(actorUserId, entityType, entityId);
     }
 
+    @Override
     public boolean isLiked(UUID actorUserId, int entityType, UUID entityId) {
         if (actorUserId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
@@ -172,6 +174,7 @@ public class LikeApplicationService {
         return likeRepository.isLiked(actorUserId, entityType, entityId);
     }
 
+    @Override
     public long count(int entityType, UUID entityId) {
         validateLikeEntity(entityType, entityId);
         return likeRepository.countEntityLikes(entityType, entityId);
@@ -287,6 +290,7 @@ public class LikeApplicationService {
         return likeRepository.likedStatusesBatch(actorUserId, entityType, ids);
     }
 
+    @Override
     public long userLikeCount(UUID userId) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");

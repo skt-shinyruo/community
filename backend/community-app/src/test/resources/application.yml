@@ -86,6 +86,7 @@ content:
 events:
   outbox:
     enabled: true
+    worker-enabled: false
 
 social:
   storage: db

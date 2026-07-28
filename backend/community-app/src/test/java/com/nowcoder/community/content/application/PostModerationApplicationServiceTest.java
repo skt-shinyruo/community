@@ -1,6 +1,5 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.repository.PostRepository;
 import com.nowcoder.community.content.domain.service.PostModerationDomainService;
@@ -31,18 +30,21 @@ class PostModerationApplicationServiceTest {
 
     private PostModerationDomainService domainService;
     private PostRepository postRepository;
-    private PostDomainEventPublisher domainEventPublisher;
+    private PostIntegrationEventPublisher integrationEventPublisher;
+    private PostMediaReferenceScheduler mediaReferenceScheduler;
     private PostModerationApplicationService service;
 
     @BeforeEach
     void setUp() {
         domainService = mock(PostModerationDomainService.class);
         postRepository = mock(PostRepository.class);
-        domainEventPublisher = mock(PostDomainEventPublisher.class);
+        integrationEventPublisher = mock(PostIntegrationEventPublisher.class);
+        mediaReferenceScheduler = mock(PostMediaReferenceScheduler.class);
         service = new PostModerationApplicationService(
                 domainService,
                 postRepository,
-                domainEventPublisher,
+                integrationEventPublisher,
+                mediaReferenceScheduler,
                 new PostBusinessEventLogger()
         );
     }
@@ -60,19 +62,25 @@ class PostModerationApplicationServiceTest {
         service.wonderful(actorUserId, postId);
         service.delete(actorUserId, postId);
 
-        InOrder inOrder = inOrder(domainService, postRepository, domainEventPublisher);
+        InOrder inOrder = inOrder(
+                domainService,
+                postRepository,
+                integrationEventPublisher,
+                mediaReferenceScheduler
+        );
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).assertCanModeratePost(actorUserId, post);
         inOrder.verify(postRepository).markTop(postId);
-        inOrder.verify(domainEventPublisher).postUpdated(postId);
+        inOrder.verify(integrationEventPublisher).postUpdated(postId);
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).assertCanModeratePost(actorUserId, post);
         inOrder.verify(postRepository).markWonderful(postId);
-        inOrder.verify(domainEventPublisher).postUpdated(postId);
+        inOrder.verify(integrationEventPublisher).postUpdated(postId);
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).shouldAdminDelete(actorUserId, post);
         inOrder.verify(postRepository).markDeletedByAdmin(eq(postId), eq(actorUserId), any(Date.class));
-        inOrder.verify(domainEventPublisher).postDeleted(postId);
+        inOrder.verify(mediaReferenceScheduler).scheduleReleaseForDeletedPost(postId);
+        inOrder.verify(integrationEventPublisher).postDeleted(postId);
 
         assertThat(output.getAll())
                 .contains("community.reason_code=admin_delete")
@@ -94,7 +102,7 @@ class PostModerationApplicationServiceTest {
         InOrder inOrder = inOrder(domainService, postRepository);
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).shouldAdminDelete(actorUserId, post);
-        verifyNoMoreInteractions(domainEventPublisher);
+        verifyNoMoreInteractions(integrationEventPublisher, mediaReferenceScheduler);
         assertThat(output.getAll()).doesNotContain("community.reason_code=admin_delete");
     }
 
@@ -109,7 +117,8 @@ class PostModerationApplicationServiceTest {
 
         service.delete(actorUserId, postId);
 
-        verify(domainEventPublisher, never()).postDeleted(any(UUID.class));
+        verify(integrationEventPublisher, never()).postDeleted(any(UUID.class));
+        verify(mediaReferenceScheduler, never()).scheduleReleaseForDeletedPost(any(UUID.class));
         assertThat(output.getAll()).doesNotContain("community.reason_code=admin_delete");
     }
 
@@ -121,7 +130,8 @@ class PostModerationApplicationServiceTest {
 
         service.deleteByModeration(actorUserId, postId);
 
-        verify(domainEventPublisher, never()).postDeleted(any(UUID.class));
+        verify(integrationEventPublisher, never()).postDeleted(any(UUID.class));
+        verify(mediaReferenceScheduler, never()).scheduleReleaseForDeletedPost(any(UUID.class));
         assertThat(output.getAll()).doesNotContain("community.reason_code=admin_delete");
     }
 
@@ -135,7 +145,8 @@ class PostModerationApplicationServiceTest {
         service.deleteByModeration(actorUserId, postId);
         service.deleteByModeration(actorUserId, postId);
 
-        verify(domainEventPublisher, times(1)).postDeleted(postId);
+        verify(integrationEventPublisher, times(1)).postDeleted(postId);
+        verify(mediaReferenceScheduler, times(1)).scheduleReleaseForDeletedPost(postId);
     }
 
     @Test

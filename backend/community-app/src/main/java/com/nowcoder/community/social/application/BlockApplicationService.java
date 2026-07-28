@@ -2,7 +2,8 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.social.application.command.BlockCommand;
 import com.nowcoder.community.social.application.command.UnblockCommand;
-import com.nowcoder.community.social.application.result.BlockRelationResult;
+import com.nowcoder.community.social.api.model.SocialBlockRelationView;
+import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
 import com.nowcoder.community.social.domain.model.BlockRelation;
@@ -21,7 +22,7 @@ import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service("socialBlockApplicationService")
-public class BlockApplicationService {
+public class BlockApplicationService implements SocialBlockQueryApi {
 
     private final BlockRepository blockRepository;
     private final FollowRepository followRepository;
@@ -72,6 +73,7 @@ public class BlockApplicationService {
         );
     }
 
+    @Override
     public boolean hasBlocked(UUID userId, UUID targetUserId) {
         if (userId == null || targetUserId == null) {
             return false;
@@ -79,6 +81,7 @@ public class BlockApplicationService {
         return blockRepository.hasBlocked(userId, targetUserId);
     }
 
+    @Override
     public boolean isEitherBlocked(UUID userIdA, UUID userIdB) {
         return blockDomainService.isEitherBlocked(userIdA, userIdB, blockRepository);
     }
@@ -90,7 +93,8 @@ public class BlockApplicationService {
         return blockRepository.listBlockedUserIds(userId);
     }
 
-    public List<BlockRelationResult> scanBlockRelationsAfter(UUID afterBlockerUserId, UUID afterBlockedUserId, int limit) {
+    @Override
+    public List<SocialBlockRelationView> scanBlockRelationsAfter(UUID afterBlockerUserId, UUID afterBlockedUserId, int limit) {
         if ((afterBlockerUserId == null) != (afterBlockedUserId == null)) {
             throw new IllegalArgumentException("afterBlockerUserId and afterBlockedUserId must be provided together");
         }
@@ -100,12 +104,13 @@ public class BlockApplicationService {
                 .toList();
     }
 
+    @Override
     public long currentBlockProjectionVersion() {
         return blockRepository.currentBlockProjectionVersion();
     }
 
-    private BlockRelationResult toResult(BlockRelation relation) {
-        return new BlockRelationResult(relation.blockerUserId(), relation.blockedUserId(), relation.version());
+    private SocialBlockRelationView toResult(BlockRelation relation) {
+        return new SocialBlockRelationView(relation.blockerUserId(), relation.blockedUserId(), relation.version());
     }
 
 }

@@ -291,10 +291,9 @@ Main path: create post：
 4. application 做文本清洗、分类存在性校验、用户发言资格校验。
 5. domain / repository 完成 `DiscussPost` 落库。
 6. tag 绑定；新 tag 通过 `ensureTagId(...)` 幂等创建。
-7. 发布 content domain event。
-8. domain event bridge 映射为 content contract event，并写入 outbox。
-9. content contract event 进入 Kafka 后，search、notice、wallet reward 和 growth task 等下游异步追平。
-10. `PostHotFeedProjectionKafkaListener` 消费 owner event，由 application 回源当前事实重算 score 和 hot feed。
+7. `PostIntegrationEventPublisher` 从 owner 当前事实组装 content contract event，并与帖子同事务写入 outbox。
+8. content contract event 进入 Kafka 后，search、notice、wallet reward 和 growth task 等下游异步追平。
+9. `PostHotFeedProjectionKafkaListener` 消费 owner event，由 application 回源当前事实重算 score 和 hot feed。
 
 Main path: create comment：
 
@@ -833,7 +832,7 @@ Order path：
 
 Market wallet action saga：
 
-1. `MarketWalletActionApplicationService` 为 escrow / release / refund 写 durable command。
+1. `MarketWalletActionCoordinator` 为 escrow / release / refund 写 durable command。
 2. `request_id` 固定为 `market-order:<orderId>:<action>`，重复 enqueue 必须语义一致，否则 replay conflict。
 3. `MarketWalletActionProcessorHandler` 触发 `MarketWalletActionProcessorApplicationService.processDue(...)`。
 4. processor claim due action，设置 `PROCESSING` 和短 lease。
@@ -897,7 +896,7 @@ Key code：
 - `market.application.MarketInventoryApplicationService`
 - `market.application.MarketQueryApplicationService`
 - `market.application.MarketDisputeApplicationService`
-- `market.application.MarketWalletActionApplicationService`
+- `market.application.MarketWalletActionCoordinator`
 - `market.application.MarketWalletActionProcessorApplicationService`
 - `market.application.MarketWalletActionRecoveryApplicationService`
 - `market.application.MarketOrderSagaApplicationService`

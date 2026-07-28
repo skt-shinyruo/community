@@ -62,8 +62,8 @@ Market wallet action API 语义：
 跨域异步协作统一通过 owner-domain `contracts.event`：
 
 ```text
-owner domain event
-  -> owner ApplicationService / bridge
+owner ApplicationService
+  -> owner contract event outbox port
   -> eventbus.<owner>
   -> owner outbox handler
   -> <owner>.events

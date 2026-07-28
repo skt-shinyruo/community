@@ -4,7 +4,6 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.notice.application.NoticeApplicationService;
 import com.nowcoder.community.notice.application.command.ListNoticeItemsCommand;
-import com.nowcoder.community.notice.application.command.MarkNoticeReadCommand;
 import com.nowcoder.community.notice.application.result.NoticeItemResult;
 import com.nowcoder.community.notice.application.result.NoticeTopicSummaryResult;
 import com.nowcoder.community.notice.controller.dto.MarkNoticeReadRequest;
@@ -61,7 +60,7 @@ public class NoticeController {
     @PutMapping("/read")
     public Result<Void> markRead(Authentication authentication, @Valid @RequestBody MarkNoticeReadRequest request) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        noticeApplicationService.markRead(new MarkNoticeReadCommand(userId, request.getIds()));
+        noticeApplicationService.markRead(userId, request.getIds());
         return Result.ok();
     }
 

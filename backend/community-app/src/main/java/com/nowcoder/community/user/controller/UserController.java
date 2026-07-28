@@ -7,7 +7,7 @@ import com.nowcoder.community.user.application.UserAvatarApplicationService;
 import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.user.application.command.CreateAvatarUploadSessionCommand;
 import com.nowcoder.community.user.application.result.AvatarUploadSessionResult;
-import com.nowcoder.community.user.application.result.UserSummaryResult;
+import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.controller.dto.AvatarUploadSessionRequest;
 import com.nowcoder.community.user.controller.dto.AvatarUploadSessionResponse;
 import com.nowcoder.community.user.controller.dto.BatchUserSummaryRequest;
@@ -45,7 +45,7 @@ public class UserController {
     @PostMapping("/batch-summary")
     public Result<List<UserSummaryResponse>> batchSummary(@Valid @RequestBody BatchUserSummaryRequest request) {
         List<UUID> raw = request == null ? null : request.getUserIds();
-        return Result.ok(userReadApplicationService.listSummaryResultsByIds(raw).stream()
+        return Result.ok(userReadApplicationService.listSummariesByIds(raw).stream()
                 .map(UserController::toUserSummaryResponse)
                 .toList());
     }
@@ -124,7 +124,7 @@ public class UserController {
         return response;
     }
 
-    private static UserSummaryResponse toUserSummaryResponse(UserSummaryResult user) {
+    private static UserSummaryResponse toUserSummaryResponse(UserSummaryView user) {
         UserSummaryResponse response = new UserSummaryResponse();
         response.setId(user.id());
         response.setUsername(user.username());

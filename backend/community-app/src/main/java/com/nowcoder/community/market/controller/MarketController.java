@@ -11,12 +11,8 @@ import com.nowcoder.community.market.application.MarketOrderApplicationService;
 import com.nowcoder.community.market.application.MarketQueryApplicationService;
 import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
 import com.nowcoder.community.market.application.command.CreateMarketAddressCommand;
-import com.nowcoder.community.market.application.command.CreateMarketDisputeCommand;
 import com.nowcoder.community.market.application.command.CreateMarketListingCommand;
 import com.nowcoder.community.market.application.command.CreateMarketOrderCommand;
-import com.nowcoder.community.market.application.command.DeliverMarketOrderCommand;
-import com.nowcoder.community.market.application.command.SellerDisputeDecisionCommand;
-import com.nowcoder.community.market.application.command.ShipMarketOrderCommand;
 import com.nowcoder.community.market.application.command.UpdateMarketAddressCommand;
 import com.nowcoder.community.market.application.command.UpdateMarketListingCommand;
 import com.nowcoder.community.market.application.result.MarketAddressResult;
@@ -295,15 +291,10 @@ public class MarketController {
                                                     @PathVariable UUID orderId,
                                                     @RequestBody @Valid DeliverMarketOrderRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        DeliverMarketOrderCommand command = new DeliverMarketOrderCommand(
+        return Result.ok(MarketOrderResponse.from(marketOrderService.deliverVirtualOrder(
                 orderId,
                 sellerUserId,
                 request.getDeliveryContent()
-        );
-        return Result.ok(MarketOrderResponse.from(marketOrderService.deliverVirtualOrder(
-                command.orderId(),
-                command.sellerUserId(),
-                command.deliveryContent()
         )));
     }
 
@@ -312,19 +303,12 @@ public class MarketController {
                                                  @PathVariable UUID orderId,
                                                  @RequestBody @Valid ShipMarketOrderRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        ShipMarketOrderCommand command = new ShipMarketOrderCommand(
+        return Result.ok(MarketOrderResponse.from(marketOrderService.shipPhysicalOrder(
                 orderId,
                 sellerUserId,
                 request.getCarrierName(),
                 request.getTrackingNo(),
                 request.getShippingRemark()
-        );
-        return Result.ok(MarketOrderResponse.from(marketOrderService.shipPhysicalOrder(
-                command.orderId(),
-                command.sellerUserId(),
-                command.carrierName(),
-                command.trackingNo(),
-                command.shippingRemark()
         )));
     }
 
@@ -345,17 +329,11 @@ public class MarketController {
                                                      @PathVariable UUID orderId,
                                                      @RequestBody @Valid CreateMarketDisputeRequest request) {
         UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
-        CreateMarketDisputeCommand command = new CreateMarketDisputeCommand(
+        MarketDisputeResult dispute = marketDisputeService.openDispute(
                 orderId,
                 buyerUserId,
                 request.getReason(),
                 request.getBuyerNote()
-        );
-        MarketDisputeResult dispute = marketDisputeService.openDispute(
-                command.orderId(),
-                command.buyerUserId(),
-                command.reason(),
-                command.buyerNote()
         );
         return Result.ok(MarketDisputeResponse.from(dispute));
     }
@@ -365,15 +343,10 @@ public class MarketController {
                                                       @PathVariable UUID disputeId,
                                                       @RequestBody @Valid SellerDisputeDecisionRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        SellerDisputeDecisionCommand command = new SellerDisputeDecisionCommand(
+        return Result.ok(MarketDisputeResponse.from(marketDisputeService.sellerAcceptRefund(
                 disputeId,
                 sellerUserId,
                 request.getNote()
-        );
-        return Result.ok(MarketDisputeResponse.from(marketDisputeService.sellerAcceptRefund(
-                command.disputeId(),
-                command.sellerUserId(),
-                command.note()
         )));
     }
 
@@ -382,15 +355,10 @@ public class MarketController {
                                                       @PathVariable UUID disputeId,
                                                       @RequestBody @Valid SellerDisputeDecisionRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        SellerDisputeDecisionCommand command = new SellerDisputeDecisionCommand(
+        return Result.ok(MarketDisputeResponse.from(marketDisputeService.sellerRejectRefund(
                 disputeId,
                 sellerUserId,
                 request.getNote()
-        );
-        return Result.ok(MarketDisputeResponse.from(marketDisputeService.sellerRejectRefund(
-                command.disputeId(),
-                command.sellerUserId(),
-                command.note()
         )));
     }
 }

@@ -6,8 +6,7 @@ import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.application.command.CreateCommentCommand;
-import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
-import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
+import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
@@ -18,7 +17,7 @@ import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.MyBatisCommentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
-import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
+import com.nowcoder.community.social.application.BlockApplicationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -103,10 +102,10 @@ class CommentCreateConcurrencySpringTest {
     private CommentPageCache commentPageCache;
 
     @MockBean
-    private SocialBlockQueryApi blockQueryApi;
+    private BlockApplicationService blockApplicationService;
 
     @MockBean
-    private CommentDomainEventPublisher domainEventPublisher;
+    private ContentEventPublisher eventPublisher;
 
     @MockBean
     private ClientIpResolver clientIpResolver;
@@ -122,8 +121,8 @@ class CommentCreateConcurrencySpringTest {
                 postContentRepository,
                 postCounterCache,
                 commentPageCache,
-                blockQueryApi,
-                domainEventPublisher
+                blockApplicationService,
+                eventPublisher
         );
         jdbcTemplate.update("delete from comment");
         assertThat(commentMapper.insert(rootRow())).isEqualTo(1);
@@ -140,7 +139,7 @@ class CommentCreateConcurrencySpringTest {
         )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentRepository.getById(POST_ID)).thenReturn(post());
         when(contentSanitizer.filter(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(blockQueryApi.isEitherBlocked(any(UUID.class), any(UUID.class))).thenReturn(false);
+        when(blockApplicationService.isEitherBlocked(any(UUID.class), any(UUID.class))).thenReturn(false);
         executor = Executors.newFixedThreadPool(2);
     }
 
@@ -276,11 +275,11 @@ class CommentCreateConcurrencySpringTest {
                 Integer.class
         )).isEqualTo(activeCommentCount);
         verify(contentSanitizer, never()).filter(anyString());
-        verify(blockQueryApi, never()).isEitherBlocked(any(UUID.class), any(UUID.class));
+        verify(blockApplicationService, never()).isEitherBlocked(any(UUID.class), any(UUID.class));
         verify(postContentRepository, never()).incrementCommentCount(any(UUID.class), anyInt());
         verify(postCounterCache, never()).incrementCommentCount(any(UUID.class), anyLong());
         verify(commentPageCache, never()).evictPost(any(UUID.class));
-        verify(domainEventPublisher, never()).commentCreated(any(CommentCreatedDomainEvent.class));
+        verify(eventPublisher, never()).publishCommentCreated(any(CommentPayload.class));
     }
 
     private static DiscussPost post() {

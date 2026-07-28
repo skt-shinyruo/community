@@ -1,8 +1,8 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.application.result.UserProfileResult;
-import com.nowcoder.community.user.application.result.UserSummaryResult;
+import com.nowcoder.community.user.api.model.UserProfileView;
+import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.model.UserProfile;
 import com.nowcoder.community.user.domain.model.UserSummary;
@@ -42,23 +42,23 @@ class UserReadApplicationServiceTest {
         Date createTime = new Date();
         when(userRepository.findProfileById(userId))
                 .thenReturn(Optional.of(new UserProfile(userId, "alice", "h7", 2, 1, createTime)));
-        UserProfileResult profile = service.getProfile(userId);
+        UserProfileView profile = service.getProfile(userId);
 
         assertThat(profile).extracting(
-                UserProfileResult::userId,
-                UserProfileResult::username,
-                UserProfileResult::headerUrl,
-                UserProfileResult::type,
-                UserProfileResult::status,
-                UserProfileResult::createTime
+                UserProfileView::userId,
+                UserProfileView::username,
+                UserProfileView::headerUrl,
+                UserProfileView::type,
+                UserProfileView::status,
+                UserProfileView::createTime
         ).containsExactly(userId, "alice", "h7", 2, 1, createTime);
-        assertThat(Arrays.stream(UserProfileResult.class.getRecordComponents())
+        assertThat(Arrays.stream(UserProfileView.class.getRecordComponents())
                 .map(component -> component.getName()))
                 .doesNotContain("walletBalance", "walletStatus");
     }
 
     @Test
-    void listSummaryResultsByIdsShouldDeduplicateCapAndPreserveOrder() {
+    void listSummariesByIdsShouldDeduplicateCapAndPreserveOrder() {
         UserReadApplicationService service = new UserReadApplicationService(
                 userRepository,
                 new UserReadDomainService()
@@ -74,10 +74,10 @@ class UserReadApplicationServiceTest {
                         new UserSummary(tailId, "tail", "h11", 3)
                 ));
 
-        List<UserSummaryResult> result = service.listSummaryResultsByIds(raw);
+        List<UserSummaryView> result = service.listSummariesByIds(raw);
 
-        assertThat(result).extracting(UserSummaryResult::id).containsExactly(aliceId, bobId, tailId);
-        assertThat(result).extracting(UserSummaryResult::username).containsExactly("alice", "bob", "tail");
+        assertThat(result).extracting(UserSummaryView::id).containsExactly(aliceId, bobId, tailId);
+        assertThat(result).extracting(UserSummaryView::username).containsExactly("alice", "bob", "tail");
         verify(userRepository).listSummariesByIds(List.of(aliceId, bobId, tailId));
     }
 

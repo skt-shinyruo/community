@@ -4,7 +4,7 @@
 
 ## 基本规则
 
-同领域内的请求从 inbound adapter 进入本领域 `*ApplicationService`。跨领域同步协作只能由 application 调 owner domain 的 `api.query` / `api.action` / `api.model`。
+同领域内的 controller 进入本领域 `*ApplicationService`；其他 inbound adapter 进入一个公开的同域 application entry。跨领域同步协作只能由 application 调 owner domain 的 `api.query` / `api.action` / `api.model`。
 
 ```text
 Controller / Listener / Job
@@ -16,15 +16,14 @@ Controller / Listener / Job
 跨领域异步协作必须通过 owner 的 `contracts.event` 和可靠 outbox/Kafka 骨干表达。
 
 ```text
-Owner domain event
-  -> same-domain event bridge -> owner ApplicationService
-  -> owner contracts.event -> eventbus.<owner>
+Owner ApplicationService
+  -> owner contracts.event -> eventbus.<owner> outbox
   -> owner outbox handler -> <owner>.events
   -> consumer Kafka listener
   -> consumer ApplicationService
 ```
 
-不要让 controller、listener、handler、bridge、enqueuer、job 直接调用 foreign `api.*`、foreign application、same-domain application helper/port、domain model/service/repository、mapper、dataobject 或 persistence。所有这些入口先进入同域 `*ApplicationService`，再由 application 发起必要的跨域协作。
+不要让 controller、listener、handler、bridge、enqueuer、job 直接调用 foreign `api.*`、foreign application、domain model/service/repository、mapper、dataobject 或 persistence。入口先进入同域 application boundary，再由 application 发起必要的跨域协作。Domain event bridge 只在存在独立本地订阅者时使用，不是 contract event 的固定前置层。
 
 ## 同步协作什么时候用
 

@@ -8,9 +8,14 @@ import java.time.Duration;
 public class OutboxProperties {
 
     /**
-     * Enables the outbox worker and BEFORE_COMMIT enqueuers.
+     * Enables the outbox backbone and BEFORE_COMMIT enqueuers.
      */
     private boolean enabled = false;
+
+    /**
+     * Enables scheduled outbox dispatch while keeping outbox persistence available.
+     */
+    private boolean workerEnabled = true;
 
     /**
      * Max number of events processed per poll.
@@ -53,6 +58,14 @@ public class OutboxProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public boolean isWorkerEnabled() {
+        return workerEnabled;
+    }
+
+    public void setWorkerEnabled(boolean workerEnabled) {
+        this.workerEnabled = workerEnabled;
     }
 
     public int getBatchSize() {

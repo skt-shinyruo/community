@@ -1,8 +1,10 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.application.result.UserProfileResult;
-import com.nowcoder.community.user.application.result.UserSummaryResult;
+import com.nowcoder.community.user.api.model.UserProfileView;
+import com.nowcoder.community.user.api.model.UserSummaryView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.model.UserProfile;
 import com.nowcoder.community.user.domain.model.UserSummary;
@@ -18,7 +20,7 @@ import java.util.UUID;
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @Service
-public class UserReadApplicationService {
+public class UserReadApplicationService implements UserLookupQueryApi, UserProfileQueryApi {
 
     private final UserRepository userRepository;
     private final UserReadDomainService userReadDomainService;
@@ -30,48 +32,43 @@ public class UserReadApplicationService {
         this.userReadDomainService = userReadDomainService;
     }
 
-    public UserSummaryResult getSummaryById(UUID userId) {
+    @Override
+    public UserSummaryView getSummaryById(UUID userId) {
         userReadDomainService.assertValidUserId(userId);
         return userRepository.findById(userId)
-                .map(this::toSummaryResult)
+                .map(this::toSummaryView)
                 .orElse(null);
     }
 
-    public UserSummaryResult getSummaryByUsername(String username) {
+    @Override
+    public UserSummaryView getSummaryByUsername(String username) {
         String value = userReadDomainService.normalizeUsername(username);
         return userRepository.findByUsername(value)
-                .map(this::toSummaryResult)
+                .map(this::toSummaryView)
                 .orElse(null);
     }
 
-    public UserSummaryResult findSummaryByEmailOrNull(String email) {
+    @Override
+    public UserSummaryView findSummaryByEmailOrNull(String email) {
         String value = userReadDomainService.normalizeEmail(email);
         return userRepository.findByEmail(value)
-                .map(this::toSummaryResult)
+                .map(this::toSummaryView)
                 .orElse(null);
     }
 
-    public List<UserSummaryResult> listSummariesByIds(List<UUID> userIds) {
+    @Override
+    public List<UserSummaryView> listSummariesByIds(List<UUID> userIds) {
         return userRepository.listSummariesByIds(normalizeUserIds(userIds)).stream()
-                .map(this::toSummaryResult)
+                .map(this::toSummaryView)
                 .toList();
     }
 
-    public List<UserSummaryResult> listSummaryResultsByIds(List<UUID> rawUserIds) {
-        List<UUID> ids = normalizeUserIds(rawUserIds);
-        if (ids.isEmpty()) {
-            return List.of();
-        }
-        return userRepository.listSummariesByIds(ids).stream()
-                .map(this::toSummaryResult)
-                .toList();
-    }
-
-    public UserProfileResult getProfile(UUID userId) {
+    @Override
+    public UserProfileView getProfile(UUID userId) {
         userReadDomainService.assertValidUserId(userId);
         UserProfile profile = userRepository.findProfileById(userId)
                 .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
-        return new UserProfileResult(
+        return new UserProfileView(
                 profile.id(),
                 profile.username(),
                 profile.headerUrl(),
@@ -105,17 +102,17 @@ public class UserReadApplicationService {
         return new ArrayList<>(dedup);
     }
 
-    private UserSummaryResult toSummaryResult(UserAccount user) {
+    private UserSummaryView toSummaryView(UserAccount user) {
         if (user == null || user.id() == null) {
             return null;
         }
-        return new UserSummaryResult(user.id(), user.username(), user.headerUrl(), user.type());
+        return new UserSummaryView(user.id(), user.username(), user.headerUrl(), user.type());
     }
 
-    private UserSummaryResult toSummaryResult(UserSummary user) {
+    private UserSummaryView toSummaryView(UserSummary user) {
         if (user == null || user.id() == null) {
             return null;
         }
-        return new UserSummaryResult(user.id(), user.username(), user.headerUrl(), user.type());
+        return new UserSummaryView(user.id(), user.username(), user.headerUrl(), user.type());
     }
 }

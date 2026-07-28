@@ -1,6 +1,8 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.api.model.PostScanView;
+import com.nowcoder.community.content.api.query.PostScanQueryApi;
 import com.nowcoder.community.content.domain.repository.BookmarkRepository;
 import com.nowcoder.community.content.domain.repository.CommentContentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
@@ -10,7 +12,6 @@ import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
 import com.nowcoder.community.content.application.result.PostDetailResult;
-import com.nowcoder.community.content.application.result.PostScanResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.application.result.RecentUserCommentResult;
 import com.nowcoder.community.content.domain.model.Comment;
@@ -26,7 +27,7 @@ import java.util.UUID;
 import static com.nowcoder.community.common.exception.CommonErrorCode.UNAUTHORIZED;
 
 @Service
-public class PostReadApplicationService {
+public class PostReadApplicationService implements PostScanQueryApi {
 
     private final PostContentRepository postContentPort;
     private final CommentContentRepository commentContentPort;
@@ -260,15 +261,17 @@ public class PostReadApplicationService {
                 .toList();
     }
 
-    public PostScanResult scanPosts(UUID afterId, int limit) {
+    @Override
+    public PostScanView scanPosts(UUID afterId, int limit) {
         int safeLimit = limit <= 0 ? 500 : Math.min(1000, Math.max(1, limit));
         List<DiscussPost> posts = postContentPort.scanAfterId(afterId, safeLimit);
-        List<PostScanResult.PostProjectionResult> items = toPostProjectionResults(posts);
+        List<PostScanView.PostProjectionView> items = toPostProjectionResults(posts);
         UUID nextAfterId = posts.isEmpty() ? afterId : posts.get(posts.size() - 1).getId();
-        return new PostScanResult(items, nextAfterId, posts.size() == safeLimit);
+        return new PostScanView(items, nextAfterId, posts.size() == safeLimit);
     }
 
-    public PostScanResult.PostProjectionResult getPostProjectionAllowDeleted(UUID postId) {
+    @Override
+    public PostScanView.PostProjectionView getPostProjectionAllowDeleted(UUID postId) {
         if (postId == null) {
             return null;
         }
@@ -294,7 +297,7 @@ public class PostReadApplicationService {
                 .toList();
     }
 
-    private List<PostScanResult.PostProjectionResult> toPostProjectionResults(List<DiscussPost> posts) {
+    private List<PostScanView.PostProjectionView> toPostProjectionResults(List<DiscussPost> posts) {
         if (posts == null || posts.isEmpty()) {
             return List.of();
         }
@@ -312,18 +315,18 @@ public class PostReadApplicationService {
                 .toList();
     }
 
-    private PostScanResult.PostProjectionResult toPostProjectionResult(DiscussPost post) {
+    private PostScanView.PostProjectionView toPostProjectionResult(DiscussPost post) {
         List<String> tags = tagContentPort.getTagsByPostIds(List.of(post.getId())).getOrDefault(post.getId(), List.of());
         List<PostContentBlock> blocks = postContentBlockRepository.listByPostId(post.getId());
         return toPostProjectionResult(post, tags, blocks);
     }
 
-    private PostScanResult.PostProjectionResult toPostProjectionResult(
+    private PostScanView.PostProjectionView toPostProjectionResult(
             DiscussPost post,
             List<String> tags,
             List<PostContentBlock> blocks
     ) {
-        return new PostScanResult.PostProjectionResult(
+        return new PostScanView.PostProjectionView(
                 post.getId(),
                 post.getUserId(),
                 post.getCategoryId(),

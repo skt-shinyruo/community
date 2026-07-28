@@ -42,7 +42,7 @@ public class MarketWalletActionProcessorApplicationService {
     private final MarketWalletActionRepository walletActionRepository;
     private final WalletMarketActionApi walletApi;
     private final MarketOrderSagaApplicationService sagaService;
-    private final MarketWalletActionApplicationService actionService;
+    private final MarketWalletActionCoordinator actionCoordinator;
     private final Clock clock;
     private final Duration processingLease;
     private final int maxRetryAttempts;
@@ -51,14 +51,14 @@ public class MarketWalletActionProcessorApplicationService {
     public MarketWalletActionProcessorApplicationService(MarketWalletActionRepository walletActionRepository,
                                        WalletMarketActionApi walletApi,
                                        MarketOrderSagaApplicationService sagaService,
-                                       MarketWalletActionApplicationService actionService,
+                                       MarketWalletActionCoordinator actionCoordinator,
                                        @Value("${market.wallet-action.processing-lease:60s}") Duration processingLease,
                                        @Value("${market.wallet-action.max-retry-attempts:8}") int maxRetryAttempts) {
         this(
                 walletActionRepository,
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC(),
                 processingLease,
                 maxRetryAttempts
@@ -68,13 +68,13 @@ public class MarketWalletActionProcessorApplicationService {
     MarketWalletActionProcessorApplicationService(MarketWalletActionRepository walletActionRepository,
                                 WalletMarketActionApi walletApi,
                                 MarketOrderSagaApplicationService sagaService,
-                                MarketWalletActionApplicationService actionService,
+                                MarketWalletActionCoordinator actionCoordinator,
                                 Clock clock) {
         this(
                 walletActionRepository,
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 clock,
                 DEFAULT_PROCESSING_LEASE,
                 DEFAULT_MAX_RETRY_ATTEMPTS
@@ -84,14 +84,14 @@ public class MarketWalletActionProcessorApplicationService {
     MarketWalletActionProcessorApplicationService(MarketWalletActionRepository walletActionRepository,
                                 WalletMarketActionApi walletApi,
                                 MarketOrderSagaApplicationService sagaService,
-                                MarketWalletActionApplicationService actionService,
+                                MarketWalletActionCoordinator actionCoordinator,
                                 Clock clock,
                                 Duration processingLease) {
         this(
                 walletActionRepository,
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 clock,
                 processingLease,
                 DEFAULT_MAX_RETRY_ATTEMPTS
@@ -101,14 +101,14 @@ public class MarketWalletActionProcessorApplicationService {
     MarketWalletActionProcessorApplicationService(MarketWalletActionRepository walletActionRepository,
                                 WalletMarketActionApi walletApi,
                                 MarketOrderSagaApplicationService sagaService,
-                                MarketWalletActionApplicationService actionService,
+                                MarketWalletActionCoordinator actionCoordinator,
                                 Clock clock,
                                 Duration processingLease,
                                 int maxRetryAttempts) {
         this.walletActionRepository = walletActionRepository;
         this.walletApi = walletApi;
         this.sagaService = sagaService;
-        this.actionService = actionService;
+        this.actionCoordinator = actionCoordinator;
         this.clock = clock;
         this.processingLease = normalizeProcessingLease(processingLease);
         this.maxRetryAttempts = normalizeMaxRetryAttempts(maxRetryAttempts);
@@ -247,7 +247,7 @@ public class MarketWalletActionProcessorApplicationService {
             );
         }
         if (sagaService.markEscrowCancelRefundPending(action.getOrderId(), result.txnId())) {
-            actionService.enqueueRefund(
+            actionCoordinator.enqueueRefund(
                     action.getOrderId(),
                     action.getActorUserId(),
                     action.getCounterpartyUserId(),

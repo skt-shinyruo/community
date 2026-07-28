@@ -97,4 +97,4 @@
 - **Failure**：业务失败、权限失败、下游失败时如何表现。
 - **Key code**：读源码时优先打开的类。
 
-这些文档不重新定义 DDD 分层规则。后端代码仍以 [../architecture.md](../architecture.md) 和仓库根目录 `AGENTS.md` 的严格 DDD Tactical Layering 为准。
+这些文档不重新定义分层规则。后端代码仍以 [../architecture.md](../architecture.md) 和仓库根目录 `AGENTS.md` 的轻量领域分层为准。

@@ -46,7 +46,7 @@ HTTP：
 
 事件/内部：
 
-- content domain event bridge 进入 `PostContractEventApplicationService` / `CommentContractEventApplicationService`，将 contract event 与 owner 主事实同事务写入 `eventbus.content`。
+- 帖子写用例通过 `PostIntegrationEventPublisher` 发布事件；评论写用例由 `CommentApplicationService` 直接调用 `ContentEventPublisher`。两条路径都把 contract event 与 owner 主事实同事务写入 `eventbus.content`。
 - `ContentEventKafkaOutboxHandler` 发布 `content.events`，Search、Notice、Growth、Wallet reward、Hot feed 和 Social deletion cleanup 的 Kafka listener 分别进入各自同域 ApplicationService。
 - 内容删除只提交 content 主事实和 owner event；social 通过 `content.events` 异步清理失效点赞关系。
 
@@ -55,7 +55,7 @@ HTTP：
 内容域是社区主写路径的事件源，核心数据流如下：
 
 1. 读帖：全局/版块/关注 feed 分别从 `FeedController` 进入 `FeedReadApplicationService` / `FollowFeedReadApplicationService`；详情和批量摘要从 `PostController` 进入 `PostReadApplicationService`。content 以帖子主事实为准，不从 search 或 notice 反查。
-2. 发帖：`PostPublishingApplicationService.create(...)` 用 `IdempotencyGuard` 包住写操作，先回源 user 判断能否发言，再写帖子元信息、正文 blocks、媒体引用 desired state 和 tag 关系。写入后发布 domain event，并由 owner outbox / Kafka 驱动 Search、Notice、Growth、Wallet reward 和 Hot feed 下游投影。
+2. 发帖：`PostPublishingApplicationService.create(...)` 用 `IdempotencyGuard` 包住写操作，先回源 user 判断能否发言，再写帖子元信息、正文 blocks、媒体引用 desired state 和 tag 关系。写入后通过 `PostIntegrationEventPublisher` 把 contract event 写入 owner outbox，由 Kafka 驱动 Search、Notice、Growth、Wallet reward 和 Hot feed 下游投影。
 3. 媒体：帖子媒体先在 content 保存 draft asset，再通过 OSS upload session 完成 blob 上传。发帖或改帖时只允许使用当前用户已上传且类型匹配的 asset；主事务把引用写成 pending 并同事务 enqueue command，OSS bind/release 在 outbox handler 中执行。
 4. 评论：`CommentApplicationService` 校验帖子、目标评论、作者发言资格和拉黑关系后写 `comment`，同步更新帖子评论数并发布评论事件；奖励、成长任务和通知由 `content.events` consumer 异步追平。
 5. 删除和治理：作者删除、治理删除和帖子下线都改变 content 主事实，再发布事件让 search 删除或更新 ES 文档、notice 生成治理通知、social listener 清理失效实体上的点赞关系。
@@ -128,11 +128,10 @@ terminal deletion 不等待帖子删除状态对当前数据库读取可见，�
 8. 校验媒体资源归属、类型和上传状态，并把被 blocks 引用的媒体资源绑定到帖子。
 9. `PostContentBlockRepository.replaceBlocks(...)` 写入有序正文 blocks。
 10. `PostTagRepository.bindTagsToPost(...)` 绑定标签。
-11. 发布 `PostPublishedDomainEvent`。
-12. domain event bridge 将帖子事实映射为 content contract event，并写入 outbox。
-13. content contract event 进入 Kafka 后，驱动 Search、Notice、Wallet reward、Growth 和 Hot feed 投影异步追平。
-14. `PostHotFeedProjectionApplicationService` 收到该 owner event 后回源帖子/点赞当前状态，重算 score 并更新缓存与 hot feed。
-15. 写业务事件日志。
+11. `PostIntegrationEventPublisher` 从 owner 当前事实组装 `PostPublished` contract event，并在同一事务写入 outbox。
+12. content contract event 进入 Kafka 后，驱动 Search、Notice、Wallet reward、Growth 和 Hot feed 投影异步追平。
+13. `PostHotFeedProjectionApplicationService` 收到该 owner event 后回源帖子/点赞当前状态，重算 score 并更新缓存与 hot feed。
+14. 写业务事件日志。
 
 幂等语义按 operation + userId + key 去重；发帖指纹包含 title、categoryId、tags 和 blocks。同 key 且指纹相同时返回首次结果，指纹不同时返回 replay conflict。
 
@@ -195,7 +194,7 @@ Complete upload：
 8. 替换正文 blocks。
 9. 释放已从正文移除的媒体资源引用。
 10. 替换标签。
-11. 发布 `PostUpdatedDomainEvent`。
+11. `PostIntegrationEventPublisher` 在当前事务写 `PostUpdated` contract event outbox。
 12. `PostUpdated` 事件经 `content.events` 触发 hot-feed 投影重算。
 
 作者删除：
@@ -203,9 +202,10 @@ Complete upload：
 1. 读取帖子快照。
 2. 校验作者和可删除状态。
 3. 软删除帖子。
-4. 发布 `PostDeletedDomainEvent`。
-5. `PostDeleted` owner event 经 `content.events` 触发 social deletion cleanup。
-6. `PostDeleted` 事件经 `content.events` 从 hot feed 和读缓存移除该帖子，并提交永久 projection tombstone；该路径不依赖删除行先对异步 consumer 可见。
+4. `PostMediaReferenceScheduler` 在当前事务把未完成媒体引用推进到 `RELEASE_PENDING` 并写 durable command。
+5. `PostIntegrationEventPublisher` 在当前事务写 `PostDeleted` contract event outbox。
+6. `PostDeleted` owner event 经 `content.events` 触发 social deletion cleanup。
+7. `PostDeleted` 事件经 `content.events` 从 hot feed 和读缓存移除该帖子，并提交永久 projection tombstone；该路径不依赖删除行先对异步 consumer 可见。
 
 治理删除由 `PostModerationApplicationService.deleteByModeration(...)` 处理，面向管理员/版主，并走同样的内容下线和事件扩散语义。
 
@@ -225,10 +225,9 @@ Complete upload：
 8. 文本清洗和敏感词处理。
 9. 写入评论。
 10. 增加帖子评论数。
-11. 发布 `CommentCreatedDomainEvent`。
-12. domain event bridge 进入 content application，将 comment contract event 与评论主事实同事务写入 `eventbus.content`。
-13. owner outbox handler 发布 `content.events`，Notice、Growth 和 Wallet reward listener 进入各自 ApplicationService；失败走 Kafka retry / `.dlq`。
-14. 评论事件经 `content.events` 触发 hot-feed 投影重算。
+11. `ContentEventPublisher` 将 `CommentCreated` contract event 与评论主事实同事务写入 `eventbus.content`。
+12. owner outbox handler 发布 `content.events`，Notice、Growth 和 Wallet reward listener 进入各自 ApplicationService；失败走 Kafka retry / `.dlq`。
+13. 评论事件经 `content.events` 触发 hot-feed 投影重算。
 
 评论编辑：
 
@@ -300,18 +299,14 @@ Complete upload：
 
 ## 内容事件和投影
 
-domain events：
+本地 domain events：
 
-- `PostPublishedDomainEvent`
-- `PostUpdatedDomainEvent`
-- `PostDeletedDomainEvent`
-- `CommentCreatedDomainEvent`
-- `CommentDeletedDomainEvent`
+- content 当前没有本地 Spring event bridge。帖子和评论都在 owner ApplicationService 的主事务内直接写 contract event outbox。
 
 contract events：
 
-- `PostContractEventApplicationService` 将帖子 domain event 映射到 `content.contracts.event`。
-- `CommentContractEventApplicationService` 将评论 domain event 映射到 `content.contracts.event`。
+- `PostIntegrationEventPublisher` 从帖子 owner 当前事实组装 `content.contracts.event` 并直接写 outbox port。
+- `CommentApplicationService` 从评论 owner 当前事实组装 `content.contracts.event` 并直接写 outbox port。
 
 下游：
 
@@ -358,10 +353,11 @@ contract events：
 - `content.controller.ReportController`
 - `content.controller.ModerationController`
 - `content.application.PostPublishingApplicationService`
+- `content.application.PostIntegrationEventPublisher`
 - `content.application.PostMediaApplicationService`
 - `content.application.PostMediaUploadRecoveryApplicationService`
 - `content.application.PostMediaReferenceApplicationService`
-- `content.application.PostMediaReferenceSchedulingApplicationService`
+- `content.application.PostMediaReferenceScheduler`
 - `content.application.PostMediaReferenceReconciliationApplicationService`
 - `content.application.PostReadApplicationService`
 - `content.application.CommentApplicationService`

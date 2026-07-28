@@ -130,5 +130,5 @@
 - `growth.domain.service.RewardGrantDomainService`
 - `growth.domain.service.UserLevelDomainService`
 - `growth.infrastructure.event.TaskProgressEventBackboneKafkaListener`
-- `growth.infrastructure.api.UserLevelQueryApiAdapter`
+- `growth.application.UserLevelApplicationService` 直接实现 `UserLevelQueryApi`
 - `wallet.api.action.WalletRewardActionApi`

@@ -3,7 +3,8 @@ package com.nowcoder.community.content.infrastructure.event;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
+import com.nowcoder.community.content.application.PostIntegrationEventPublisher;
+import com.nowcoder.community.content.application.PostMediaReferenceScheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +49,10 @@ class PostDeletionMediaReferenceTransactionIntegrationTest {
     private TransactionTemplate transactionTemplate;
 
     @Autowired
-    private PostDomainEventPublisher postDomainEventPublisher;
+    private PostIntegrationEventPublisher postIntegrationEventPublisher;
+
+    @Autowired
+    private PostMediaReferenceScheduler mediaReferenceScheduler;
 
     @MockBean
     private ClientIpResolver clientIpResolver;
@@ -67,7 +71,8 @@ class PostDeletionMediaReferenceTransactionIntegrationTest {
     void committedPostDeletionShouldCommitReleaseIntentAndBothDurableEventsTogether() {
         transactionTemplate.executeWithoutResult(status -> {
             markPostDeleted();
-            postDomainEventPublisher.postDeleted(POST_ID);
+            mediaReferenceScheduler.scheduleReleaseForDeletedPost(POST_ID);
+            postIntegrationEventPublisher.postDeleted(POST_ID);
         });
 
         assertThat(postStatus()).isEqualTo(2);
@@ -82,7 +87,8 @@ class PostDeletionMediaReferenceTransactionIntegrationTest {
 
         transactionTemplate.executeWithoutResult(status -> {
             markPostDeleted();
-            postDomainEventPublisher.postDeleted(POST_ID);
+            mediaReferenceScheduler.scheduleReleaseForDeletedPost(POST_ID);
+            postIntegrationEventPublisher.postDeleted(POST_ID);
         });
 
         assertThat(referenceStatus()).isEqualTo("RELEASE_PENDING");
@@ -94,7 +100,8 @@ class PostDeletionMediaReferenceTransactionIntegrationTest {
     void rolledBackPostDeletionShouldLeaveBoundReferenceAndNoDurableEvents() {
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
             markPostDeleted();
-            postDomainEventPublisher.postDeleted(POST_ID);
+            mediaReferenceScheduler.scheduleReleaseForDeletedPost(POST_ID);
+            postIntegrationEventPublisher.postDeleted(POST_ID);
             throw new IllegalStateException("force post deletion rollback");
         }))
                 .isInstanceOf(IllegalStateException.class)

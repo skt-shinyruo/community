@@ -26,11 +26,10 @@
 6. domain / repository 写帖子主事实。
 7. 新 tag 通过 `ensureTagId(...)` 幂等创建，帖子和 tag 关系在 content 内绑定。
 8. 如果有媒体，content 只绑定当前用户已上传且类型匹配的 asset；对象和版本事实仍在 OSS。
-9. content 发布帖子事实对应的 domain event。
-10. domain event bridge 映射为 content contract event。
-11. content contract event 与帖子主事实同事务写入 `eventbus.content`，owner handler 发布 `content.events`。
-12. Search、Notice、Wallet reward、Growth 和 Hot feed Kafka listener 分别进入同域 ApplicationService 异步追平。
-13. Hot-feed consumer 回源当前帖子/点赞事实，按 source event 版本去重后重算 score 和 feed 缓存。
+9. `PostIntegrationEventPublisher` 从帖子 owner 当前事实组装 contract event。
+10. content contract event 与帖子主事实同事务写入 `eventbus.content`，owner handler 发布 `content.events`。
+11. Search、Notice、Wallet reward、Growth 和 Hot feed Kafka listener 分别进入同域 ApplicationService 异步追平。
+12. Hot-feed consumer 回源当前帖子/点赞事实，按 source event 版本去重后重算 score 和 feed 缓存。
 
 ## 媒体上传和绑定
 

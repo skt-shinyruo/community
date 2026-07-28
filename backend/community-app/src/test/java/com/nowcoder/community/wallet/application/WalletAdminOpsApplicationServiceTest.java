@@ -6,7 +6,7 @@ import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserSummaryView;
-import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.domain.model.WalletEntry;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
@@ -70,7 +70,7 @@ class WalletAdminOpsApplicationServiceTest {
     private ClientIpResolver clientIpResolver;
 
     @MockBean
-    private UserLookupQueryApi userLookupQueryApi;
+    private UserReadApplicationService userReadApplicationService;
 
     @BeforeEach
     void setUp() {
@@ -81,7 +81,7 @@ class WalletAdminOpsApplicationServiceTest {
         jdbcTemplate.update("delete from withdraw_order");
         jdbcTemplate.update("delete from transfer_order");
         jdbcTemplate.update("delete from wallet_account");
-        when(userLookupQueryApi.getSummaryById(any(UUID.class)))
+        when(userReadApplicationService.getSummaryById(any(UUID.class)))
                 .thenAnswer(invocation -> summary(invocation.getArgument(0)));
     }
 
@@ -262,7 +262,7 @@ class WalletAdminOpsApplicationServiceTest {
     void freezeShouldRejectUnknownTargetUser() {
         UUID actorUserId = uuid(1);
         UUID missingUserId = uuid(404);
-        when(userLookupQueryApi.getSummaryById(missingUserId)).thenReturn(null);
+        when(userReadApplicationService.getSummaryById(missingUserId)).thenReturn(null);
 
         assertThatThrownBy(() -> adminWalletOpsService.freezeWallet(actorUserId, missingUserId, "risk review"))
                 .isInstanceOf(BusinessException.class)

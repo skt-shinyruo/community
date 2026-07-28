@@ -68,7 +68,7 @@ backend/community-app/src/test/java/com/nowcoder/community/app/arch
 核心职责：
 
 - `ControllerBoundaryArchTest`：controller 只能作为 HTTP inbound adapter。
-- `DddLayeringArchTest`：业务域必须遵守 DDD Tactical Layering。
+- `DddLayeringArchTest`：业务域必须遵守轻量领域分层的依赖边界。
 - `DomainBoundaryArchTest`：domain 不依赖 controller、application、infrastructure、MyBatis、HTTP DTO 或 owner API。
 - `InfraBoundaryArchTest`：infrastructure 不泄漏到 domain。
 - `ListenerBoundaryArchTest`：listener / handler / enqueuer 回到同域 application boundary。

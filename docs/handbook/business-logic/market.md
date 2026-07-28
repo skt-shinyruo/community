@@ -250,7 +250,7 @@ saga 状态推进：
 `MarketOrderAutoConfirmApplicationService.autoConfirmDueOrders()`：
 
 1. 查找达到自动确认时间的订单。
-2. 每个订单由 `MarketOrderAutoConfirmSingleOrderApplicationService.confirmOneDueOrder(...)` 单独锁定。
+2. 每个订单由 `MarketOrderAutoConfirmer.confirmOneDueOrder(...)` 单独锁定。
 3. 状态仍符合条件时，标记 `RELEASE_PENDING`。
 4. 写 release wallet action。
 5. 批任务重跑应幂等。
@@ -302,7 +302,7 @@ saga 状态推进：
 - `market.application.MarketAddressApplicationService`
 - `market.application.MarketOrderApplicationService`
 - `market.application.MarketDisputeApplicationService`
-- `market.application.MarketWalletActionApplicationService`
+- `market.application.MarketWalletActionCoordinator`
 - `market.application.MarketWalletActionProcessorApplicationService`
 - `market.application.MarketWalletActionRecoveryApplicationService`
 - `market.application.MarketOrderSagaApplicationService`

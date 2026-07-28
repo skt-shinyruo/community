@@ -1,6 +1,5 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.result.HotPathPrewarmResult;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.Category;
@@ -152,5 +151,12 @@ public class HotPathPrewarmApplicationService {
     }
 
     private record WarmCounts(int summaries, int details) {
+    }
+
+    public record HotPathPrewarmResult(
+            int feedPages,
+            int summaries,
+            int details
+    ) {
     }
 }

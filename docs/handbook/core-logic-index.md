@@ -114,13 +114,13 @@
 | `content.controller.ReportController` | report HTTP binding | [Content 内容业务逻辑](business-logic/content.md) | IndexOnly |
 | `content.controller.ModerationController` | moderation HTTP binding | [Content 内容业务逻辑](business-logic/content.md) | IndexOnly |
 | `content.application.PostPublishingApplicationService` | 发帖、改帖、删帖写路径 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
-| `content.application.PostReadApplicationService` | 帖子详情、批量摘要和 owner query 查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
+| `content.application.PostReadApplicationService` | 帖子详情、批量摘要和 post scan owner API | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.FeedReadApplicationService` | global/board hot feed、fallback、single-flight 与 degraded-safe 读取 | [Content 内容业务逻辑](business-logic/content.md#feed缓存与降级) | Covered |
 | `content.application.FollowFeedReadApplicationService` | followee owner query、关注流游标和页面缓存 | [Content 内容业务逻辑](business-logic/content.md#feed缓存与降级) | Covered |
 | `content.application.PostMediaApplicationService` | 帖子媒体上传会话、complete 和 OSS asset draft 状态 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.PostMediaUploadRecoveryApplicationService` | stale `COMPLETING/OBJECT_COMPLETED` 上传恢复 | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) | Covered |
 | `content.application.PostMediaReferenceApplicationService` | version-fenced OSS bind/release 执行与状态完成 | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) | Covered |
-| `content.application.PostMediaReferenceSchedulingApplicationService` | desired state 与确定性 reference command 同事务调度 | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) | Covered |
+| `content.application.PostMediaReferenceScheduler` | desired state 与确定性 reference command 同事务调度 | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) | Covered |
 | `content.application.PostMediaReferenceReconciliationApplicationService` | pending command 重发与本地/远端引用漂移修复 | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) | Covered |
 | `content.application.CommentApplicationService` | 评论创建、编辑、删除和事件 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.CommentReadApplicationService` | 评论列表和用户最近评论查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
@@ -131,8 +131,7 @@
 | `content.application.ReportApplicationService` | 举报创建和查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.ModerationApplicationService` | 内容治理动作和处罚协作 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.PostModerationApplicationService` | 帖子治理下线 / 状态变更 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
-| `content.application.PostContractEventApplicationService` | post contract event 映射 / 发布 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
-| `content.application.CommentContractEventApplicationService` | comment contract event 映射 / 发布 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
+| `content.application.PostIntegrationEventPublisher` | post owner 当前事实到 contract event outbox | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.ContentEntityResolutionApplicationService` | POST / COMMENT owner entity resolution | [Content 内容业务逻辑](business-logic/content.md#owner-entity-resolution) | Covered |
 | `content.application.ContentEventDispatchApplicationService` | content owner contract event outbox 到 Kafka dispatch | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `content.application.PostHotFeedProjectionApplicationService` | owner event 到帖子 score/cache/hot-feed 投影 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
@@ -149,16 +148,11 @@
 | `content.domain.service.ModerationDecisionDomainService` | 内容治理决策规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.domain.service.PostModerationDomainService` | 帖子治理状态规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.domain.service.PostHotnessDomainService` | epoch、加精、评论、点赞与 signal weight 热度公式 | [Content 内容业务逻辑](business-logic/content.md#热度预热与-counter) | Covered |
-| `content.domain.event.PostDomainEventPublisher` | post domain event 发布端口 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
-| `content.domain.event.CommentDomainEventPublisher` | comment domain event 发布端口 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
-| `content.infrastructure.api.ContentEntityQueryApiAdapter` | content owner entity resolve API 实现 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
-| `content.infrastructure.api.PostScanQueryApiAdapter` | search 投影扫描 API 实现 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
+| `content.infrastructure.api.PostPublishingActionApiAdapter` | published block payload 到内部发布 command 的规范化 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
+| `content.infrastructure.api.PostReadQueryApiAdapter` | 大型帖子 read projection 到 published view 的转换 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
+| `content.infrastructure.api.CommentReadQueryApiAdapter` | 评论层级到 published entity target 的转换 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
 | `content.infrastructure.text.SensitiveFilter` | sensitive word trie sanitizer and fail-fast dictionary loading | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
 | `content.infrastructure.event.OutboxContentEventPublisher` | content contract event 写 `eventbus.content` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `content.infrastructure.event.SpringPostDomainEventPublisher` | post domain event Spring 发布实现 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
-| `content.infrastructure.event.SpringCommentDomainEventPublisher` | comment domain event Spring 发布实现 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
-| `content.infrastructure.event.PostDomainEventBridge` | post domain event 到 contract event bridge | [Content 内容业务逻辑](business-logic/content.md) | Covered |
-| `content.infrastructure.event.CommentDomainEventBridge` | comment domain event 到 contract event bridge | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.infrastructure.event.ContentEventKafkaOutboxHandler` | `eventbus.content` outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `content.infrastructure.event.ContentEventKafkaSenderAdapter` | content owner event 发布到 `content.events` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `content.infrastructure.event.PostHotFeedProjectionKafkaListener` | content/social Kafka event 到 hot-feed application | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
@@ -270,12 +264,12 @@
 | `market.application.MarketAddressApplicationService` | 收货地址簿 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketOrderApplicationService` | 下单、取消、交付、发货、确认 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketDisputeApplicationService` | 买家争议、卖家处理、管理员裁决 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
-| `market.application.MarketWalletActionApplicationService` | escrow / release / refund durable command 写入 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
+| `market.application.MarketWalletActionCoordinator` | escrow / release / refund durable command 写入 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketWalletActionProcessorApplicationService` | due action claim、调用 wallet、推进 saga | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketWalletActionRecoveryApplicationService` | lease 恢复、缺失 command 补写、已有 wallet 结果应用 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketOrderSagaApplicationService` | wallet action 后的订单 / 争议条件状态推进 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketOrderAutoConfirmApplicationService` | 自动确认批任务入口 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
-| `market.application.MarketOrderAutoConfirmSingleOrderApplicationService` | 单订单锁定和自动确认 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
+| `market.application.MarketOrderAutoConfirmer` | 单订单锁定和自动确认 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.domain.service.MarketListingDomainService` | listing 发布和库存规则 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.domain.service.MarketOrderDomainService` | 订单状态、购买数量和金额规则 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.domain.service.MarketDisputeDomainService` | 争议发起和裁决规则 | [Market 市场业务逻辑](business-logic/market.md) | Covered |

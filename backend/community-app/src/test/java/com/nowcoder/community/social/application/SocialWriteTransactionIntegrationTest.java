@@ -5,11 +5,11 @@ import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.social.application.command.BlockCommand;
 import com.nowcoder.community.social.application.command.FollowCommand;
-import com.nowcoder.community.social.application.command.SetLikeCommand;
+import com.nowcoder.community.social.api.action.SocialLikeActionApi.SetLikeCommand;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.infrastructure.event.OutboxSocialDomainEventPublisher;
 import com.nowcoder.community.user.api.model.UserSummaryView;
-import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.application.UserReadApplicationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,14 +57,14 @@ class SocialWriteTransactionIntegrationTest {
     private OutboxSocialDomainEventPublisher outboxPublisher;
 
     @MockBean
-    private UserLookupQueryApi userLookupQueryApi;
+    private UserReadApplicationService userReadApplicationService;
 
     @MockBean
     private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {
-        reset(outboxPublisher, userLookupQueryApi);
+        reset(outboxPublisher, userReadApplicationService);
         jdbcTemplate.update("delete from outbox_event");
         jdbcTemplate.update("delete from social_like");
         jdbcTemplate.update("delete from social_user_like_count");
@@ -168,7 +168,7 @@ class SocialWriteTransactionIntegrationTest {
     }
 
     private void allowTargetUserLookup() {
-        when(userLookupQueryApi.getSummaryById(TARGET_USER_ID))
+        when(userReadApplicationService.getSummaryById(TARGET_USER_ID))
                 .thenReturn(new UserSummaryView(TARGET_USER_ID, "target-user", null, 0));
     }
 

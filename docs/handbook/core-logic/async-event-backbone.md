@@ -31,7 +31,7 @@ owner transaction
 
 ## Owner 发布链路
 
-- content：`PostDomainEventBridge` / `CommentDomainEventBridge` 进入 content application，`OutboxContentEventPublisher` 写 `eventbus.content`，随后由 `ContentEventKafkaOutboxHandler`、`ContentEventDispatchApplicationService` 和 `ContentEventKafkaSenderAdapter` 发布 `content.events`。
+- content：帖子 ApplicationService 调用 `PostIntegrationEventPublisher`，评论由 `CommentApplicationService` 直接调用 `ContentEventPublisher`；`OutboxContentEventPublisher` 写 `eventbus.content`，随后由 `ContentEventKafkaOutboxHandler`、`ContentEventDispatchApplicationService` 和 `ContentEventKafkaSenderAdapter` 发布 `content.events`。
 - social：`OutboxSocialDomainEventPublisher` 写 `eventbus.social`，随后由 `SocialEventKafkaOutboxHandler`、`SocialEventDispatchApplicationService` 和 `SocialEventKafkaSenderAdapter` 发布 `social.events`。
 - user：`OutboxUserPolicyEventPublisher` 写 `eventbus.user`，随后由 `UserEventKafkaOutboxHandler`、`UserEventDispatchApplicationService` 和 `UserEventKafkaSenderAdapter` 发布 `user.events`。
 
@@ -73,8 +73,14 @@ adapter 以 source domain、source event ID 和 kind 生成确定性 ASCII event
 发帖、改帖和删帖事务只推进 content 引用 desired state，并写入内部 command：
 
 ```text
-PostPublishingApplicationService / PostDeletedMediaReferenceBridge
+PostPublishingApplicationService (create / update)
   -> BIND_PENDING / RELEASE_PENDING + referenceOperationVersion
+
+PostPublishingApplicationService / PostModerationApplicationService (delete)
+  -> PostMediaReferenceScheduler
+  -> RELEASE_PENDING + referenceOperationVersion
+
+Both paths
   -> OutboxPostMediaReferenceCommandPublisher
   -> command.content.post-media-reference
   -> PostMediaReferenceOutboxHandler

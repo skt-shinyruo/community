@@ -7,7 +7,6 @@ import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
 import com.nowcoder.community.content.application.result.PostCreateResult;
-import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.PostDraft;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
@@ -63,7 +62,8 @@ public class PostPublishingApplicationService {
     private final PostMediaReferenceCommandPublisher mediaReferenceCommandPublisher;
     private final CategoryRepository categoryRepository;
     private final PostTagRepository postTagRepository;
-    private final PostDomainEventPublisher domainEventPublisher;
+    private final PostIntegrationEventPublisher integrationEventPublisher;
+    private final PostMediaReferenceScheduler mediaReferenceScheduler;
     private final Clock clock;
     private final UuidV7Generator idGenerator;
 
@@ -81,7 +81,8 @@ public class PostPublishingApplicationService {
             PostMediaReferenceCommandPublisher mediaReferenceCommandPublisher,
             CategoryRepository categoryRepository,
             PostTagRepository postTagRepository,
-            PostDomainEventPublisher domainEventPublisher,
+            PostIntegrationEventPublisher integrationEventPublisher,
+            PostMediaReferenceScheduler mediaReferenceScheduler,
             Clock clock
     ) {
         this.sensitiveFilter = sensitiveFilter;
@@ -97,7 +98,8 @@ public class PostPublishingApplicationService {
         this.mediaReferenceCommandPublisher = mediaReferenceCommandPublisher;
         this.categoryRepository = categoryRepository;
         this.postTagRepository = postTagRepository;
-        this.domainEventPublisher = domainEventPublisher;
+        this.integrationEventPublisher = integrationEventPublisher;
+        this.mediaReferenceScheduler = mediaReferenceScheduler;
         this.clock = clock == null ? Clock.systemUTC() : clock;
         this.idGenerator = new UuidV7Generator(this.clock);
     }
@@ -123,7 +125,7 @@ public class PostPublishingApplicationService {
             bindMediaAssets(userId, postId, blocks, now());
             postContentBlockRepository.replaceBlocks(postId, toDomainBlocks(postId, blocks));
             postTagRepository.bindTagsToPost(postId, command.tags());
-            domainEventPublisher.postPublished(postId);
+            integrationEventPublisher.postPublished(postId);
             postBusinessEventLogger.postCreate(userId, command.categoryId(), postId);
             return new PostCreateResult(postId);
         });
@@ -143,7 +145,7 @@ public class PostPublishingApplicationService {
         postContentBlockRepository.replaceBlocks(postId, toDomainBlocks(postId, normalizedBlocks));
         releaseRemovedMediaAssets(userId, postId, keepAssetIds, now);
         postTagRepository.replaceTagsForPost(postId, tags);
-        domainEventPublisher.postUpdated(postId);
+        integrationEventPublisher.postUpdated(postId);
         postBusinessEventLogger.postUpdate(userId, categoryId, postId);
     }
 
@@ -155,7 +157,8 @@ public class PostPublishingApplicationService {
         if (!changed) {
             return;
         }
-        domainEventPublisher.postDeleted(postId);
+        mediaReferenceScheduler.scheduleReleaseForDeletedPost(postId);
+        integrationEventPublisher.postDeleted(postId);
         postBusinessEventLogger.postDeleteByAuthor(userId, postId);
     }
 

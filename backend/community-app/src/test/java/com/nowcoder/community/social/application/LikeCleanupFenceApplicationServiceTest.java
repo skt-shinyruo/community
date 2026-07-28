@@ -3,7 +3,7 @@ package com.nowcoder.community.social.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
-import com.nowcoder.community.social.application.command.SetLikeCommand;
+import com.nowcoder.community.social.api.action.SocialLikeActionApi.SetLikeCommand;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
 import com.nowcoder.community.social.domain.model.LikeRelation;

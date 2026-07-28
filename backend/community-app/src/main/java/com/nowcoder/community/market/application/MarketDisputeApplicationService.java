@@ -35,24 +35,24 @@ public class MarketDisputeApplicationService {
 
     private final MarketDisputeRepository marketDisputeRepository;
     private final MarketOrderRepository marketOrderRepository;
-    private final MarketWalletActionApplicationService marketWalletActionService;
+    private final MarketWalletActionCoordinator marketWalletActionCoordinator;
     private final UuidV7Generator idGenerator;
     private final MarketDisputeDomainService disputeDomainService = new MarketDisputeDomainService();
 
     @Autowired
     public MarketDisputeApplicationService(MarketDisputeRepository marketDisputeRepository,
                                 MarketOrderRepository marketOrderRepository,
-                                MarketWalletActionApplicationService marketWalletActionService) {
-        this(marketDisputeRepository, marketOrderRepository, marketWalletActionService, new UuidV7Generator());
+                                MarketWalletActionCoordinator marketWalletActionCoordinator) {
+        this(marketDisputeRepository, marketOrderRepository, marketWalletActionCoordinator, new UuidV7Generator());
     }
 
     MarketDisputeApplicationService(MarketDisputeRepository marketDisputeRepository,
                          MarketOrderRepository marketOrderRepository,
-                         MarketWalletActionApplicationService marketWalletActionService,
+                         MarketWalletActionCoordinator marketWalletActionCoordinator,
                          UuidV7Generator idGenerator) {
         this.marketDisputeRepository = marketDisputeRepository;
         this.marketOrderRepository = marketOrderRepository;
-        this.marketWalletActionService = marketWalletActionService;
+        this.marketWalletActionCoordinator = marketWalletActionCoordinator;
         this.idGenerator = idGenerator;
     }
 
@@ -94,7 +94,7 @@ public class MarketDisputeApplicationService {
         dispute.setResolvedAt(new Date());
         marketDisputeRepository.saveChanges(dispute);
         applyForeground(order.requestDisputeRefund());
-        marketWalletActionService.enqueueDisputeRefund(
+        marketWalletActionCoordinator.enqueueDisputeRefund(
                 order.getOrderId(),
                 disputeId,
                 order.getBuyerUserId(),
@@ -128,7 +128,7 @@ public class MarketDisputeApplicationService {
         dispute.setResolvedAt(new Date());
         marketDisputeRepository.saveChanges(dispute);
         applyForeground(order.requestDisputeRefund());
-        marketWalletActionService.enqueueDisputeRefund(
+        marketWalletActionCoordinator.enqueueDisputeRefund(
                 order.getOrderId(),
                 disputeId,
                 order.getBuyerUserId(),
@@ -152,7 +152,7 @@ public class MarketDisputeApplicationService {
         dispute.setResolvedAt(new Date());
         marketDisputeRepository.saveChanges(dispute);
         applyForeground(order.requestDisputeRelease());
-        marketWalletActionService.enqueueDisputeRelease(
+        marketWalletActionCoordinator.enqueueDisputeRelease(
                 order.getOrderId(),
                 disputeId,
                 order.getSellerUserId(),

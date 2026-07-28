@@ -11,7 +11,6 @@ import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.result.PostCreateResult;
-import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.PostDraft;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.repository.CategoryRepository;
@@ -68,7 +67,8 @@ class PostPublishingApplicationServiceTest {
     private PostMediaReferenceCommandPublisher mediaReferenceCommandPublisher;
     private CategoryRepository categoryRepository;
     private PostTagRepository postTagRepository;
-    private PostDomainEventPublisher domainEventPublisher;
+    private PostIntegrationEventPublisher integrationEventPublisher;
+    private PostMediaReferenceScheduler mediaReferenceScheduler;
     private PostPublishingApplicationService service;
 
     private static JsonCodec jsonCodec() {
@@ -88,7 +88,8 @@ class PostPublishingApplicationServiceTest {
         mediaReferenceCommandPublisher = mock(PostMediaReferenceCommandPublisher.class);
         categoryRepository = mock(CategoryRepository.class);
         postTagRepository = mock(PostTagRepository.class);
-        domainEventPublisher = mock(PostDomainEventPublisher.class);
+        integrationEventPublisher = mock(PostIntegrationEventPublisher.class);
+        mediaReferenceScheduler = mock(PostMediaReferenceScheduler.class);
         service = new PostPublishingApplicationService(
                 sensitiveFilter,
                 idempotencyGuard,
@@ -103,7 +104,8 @@ class PostPublishingApplicationServiceTest {
                 mediaReferenceCommandPublisher,
                 categoryRepository,
                 postTagRepository,
-                domainEventPublisher,
+                integrationEventPublisher,
+                mediaReferenceScheduler,
                 Clock.systemUTC()
         );
     }
@@ -155,7 +157,7 @@ class PostPublishingApplicationServiceTest {
                 postRepository,
                 postContentBlockRepository,
                 postTagRepository,
-                domainEventPublisher
+                integrationEventPublisher
         );
         inOrder.verify(moderationGuard).assertCanSpeak(userId);
         inOrder.verify(categoryRepository).assertExists(categoryId);
@@ -163,7 +165,7 @@ class PostPublishingApplicationServiceTest {
         inOrder.verify(postRepository).create(draft);
         inOrder.verify(postContentBlockRepository).replaceBlocks(eq(postId), any());
         inOrder.verify(postTagRepository).bindTagsToPost(postId, List.of("java"));
-        inOrder.verify(domainEventPublisher).postPublished(postId);
+        inOrder.verify(integrationEventPublisher).postPublished(postId);
         assertThat(output.getAll())
                 .contains("community.post_category_id=" + categoryId)
                 .contains("community.target_id=" + postId);
@@ -202,7 +204,7 @@ class PostPublishingApplicationServiceTest {
         verify(postRepository, times(1)).create(draft);
         verify(postContentBlockRepository, times(1)).replaceBlocks(eq(postId), any());
         verify(postTagRepository, times(1)).bindTagsToPost(postId, List.of("java"));
-        verify(domainEventPublisher, times(1)).postPublished(postId);
+        verify(integrationEventPublisher, times(1)).postPublished(postId);
     }
 
     @Test
@@ -232,7 +234,7 @@ class PostPublishingApplicationServiceTest {
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(ContentErrorCode.REQUEST_REPLAY_CONFLICT));
         verify(postRepository, times(1)).create(draft);
-        verify(domainEventPublisher, times(1)).postPublished(postId);
+        verify(integrationEventPublisher, times(1)).postPublished(postId);
     }
 
     @Test
@@ -259,10 +261,11 @@ class PostPublishingApplicationServiceTest {
         verify(postRepository).updatePostMeta(eq(postId), eq("title"), eq(categoryId), any(Date.class));
         verify(postContentBlockRepository).replaceBlocks(eq(postId), any());
         verify(postTagRepository).replaceTagsForPost(postId, List.of("spring"));
-        verify(domainEventPublisher).postUpdated(postId);
+        verify(integrationEventPublisher).postUpdated(postId);
         verify(domainService).assertDeletableByAuthor(post, userId);
         verify(postRepository).markDeletedByAuthor(eq(postId), eq(userId), any(Date.class));
-        verify(domainEventPublisher).postDeleted(postId);
+        verify(mediaReferenceScheduler).scheduleReleaseForDeletedPost(postId);
+        verify(integrationEventPublisher).postDeleted(postId);
         assertThat(output.getAll())
                 .contains("community.post_category_id=" + categoryId)
                 .contains("community.reason_code=author_delete")
@@ -280,7 +283,8 @@ class PostPublishingApplicationServiceTest {
         service.deleteByAuthor(userId, postId);
 
         verify(domainService).assertDeletableByAuthor(post, userId);
-        verify(domainEventPublisher, never()).postDeleted(postId);
+        verify(mediaReferenceScheduler, never()).scheduleReleaseForDeletedPost(postId);
+        verify(integrationEventPublisher, never()).postDeleted(postId);
         assertThat(output.getAll()).doesNotContain("community.reason_code=admin_delete");
     }
 
@@ -307,7 +311,8 @@ class PostPublishingApplicationServiceTest {
                 mediaReferenceCommandPublisher,
                 categoryRepository,
                 postTagRepository,
-                domainEventPublisher,
+                integrationEventPublisher,
+                mediaReferenceScheduler,
                 Clock.systemUTC()
         );
     }

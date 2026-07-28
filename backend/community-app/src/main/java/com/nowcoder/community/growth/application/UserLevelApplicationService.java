@@ -4,7 +4,8 @@ import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.growth.application.command.UpdateUserLevelConfigCommand;
 import com.nowcoder.community.growth.application.result.UserLevelConfigResult;
-import com.nowcoder.community.growth.application.result.UserLevelSummaryResult;
+import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
+import com.nowcoder.community.growth.api.query.UserLevelQueryApi;
 import com.nowcoder.community.growth.domain.model.UserLevelRuleConfig;
 import com.nowcoder.community.growth.domain.repository.UserLevelRuleConfigRepository;
 import com.nowcoder.community.growth.domain.repository.UserTaskProgressRepository;
@@ -21,7 +22,7 @@ import java.util.UUID;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 
 @Service
-public class UserLevelApplicationService {
+public class UserLevelApplicationService implements UserLevelQueryApi {
 
     private static final String DAILY_CHECK_IN_TASK_CODE = "DAILY_CHECK_IN";
     public static final int DEFAULT_WINDOW_DAYS = 100;
@@ -57,18 +58,19 @@ public class UserLevelApplicationService {
         this.idGenerator = idGenerator;
     }
 
-    public UserLevelSummaryResult evaluateLevel(UUID userId) {
+    @Override
+    public UserLevelSummaryView evaluateLevel(UUID userId) {
         return evaluateLevelSummary(userId, growthBusinessTimeService.today());
     }
 
-    public UserLevelSummaryResult evaluateLevel(UUID userId, LocalDate bizDate) {
+    public UserLevelSummaryView evaluateLevel(UUID userId, LocalDate bizDate) {
         return evaluateLevelSummary(userId, bizDate);
     }
 
-    public UserLevelSummaryResult evaluateLevelSummary(UUID userId, LocalDate bizDate) {
+    public UserLevelSummaryView evaluateLevelSummary(UUID userId, LocalDate bizDate) {
         UserLevelRuleConfig config = activeConfigOrDefault();
         if (!config.isEnabled()) {
-            return new UserLevelSummaryResult(
+            return new UserLevelSummaryView(
                     1,
                     0,
                     config.getWindowDays(),
@@ -91,7 +93,7 @@ public class UserLevelApplicationService {
                 config.getLv3SignInDays()
         );
 
-        return new UserLevelSummaryResult(
+        return new UserLevelSummaryView(
                 userLevel,
                 signInDaysInWindow,
                 config.getWindowDays(),

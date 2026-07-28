@@ -31,26 +31,26 @@ public class MarketWalletActionRecoveryApplicationService {
     private final MarketWalletActionRepository walletActionRepository;
     private final MarketOrderRepository orderRepository;
     private final MarketOrderSagaApplicationService sagaService;
-    private final MarketWalletActionApplicationService actionService;
+    private final MarketWalletActionCoordinator actionCoordinator;
     private final Clock clock;
 
     @Autowired
     public MarketWalletActionRecoveryApplicationService(MarketWalletActionRepository walletActionRepository,
                                              MarketOrderRepository orderRepository,
                                              MarketOrderSagaApplicationService sagaService,
-                                             MarketWalletActionApplicationService actionService) {
-        this(walletActionRepository, orderRepository, sagaService, actionService, Clock.systemUTC());
+                                             MarketWalletActionCoordinator actionCoordinator) {
+        this(walletActionRepository, orderRepository, sagaService, actionCoordinator, Clock.systemUTC());
     }
 
     MarketWalletActionRecoveryApplicationService(MarketWalletActionRepository walletActionRepository,
                                       MarketOrderRepository orderRepository,
                                       MarketOrderSagaApplicationService sagaService,
-                                      MarketWalletActionApplicationService actionService,
+                                      MarketWalletActionCoordinator actionCoordinator,
                                       Clock clock) {
         this.walletActionRepository = walletActionRepository;
         this.orderRepository = orderRepository;
         this.sagaService = sagaService;
-        this.actionService = actionService;
+        this.actionCoordinator = actionCoordinator;
         this.clock = clock;
     }
 
@@ -159,7 +159,7 @@ public class MarketWalletActionRecoveryApplicationService {
                 return true;
             }
             if (sagaService.markEscrowCancelRefundPending(action.getOrderId(), action.getWalletTxnId())) {
-                actionService.enqueueRefund(
+                actionCoordinator.enqueueRefund(
                         action.getOrderId(),
                         action.getActorUserId(),
                         action.getCounterpartyUserId(),
@@ -202,7 +202,7 @@ public class MarketWalletActionRecoveryApplicationService {
                 sagaService.completeEscrowNoop(order.getOrderId());
                 return true;
             }
-            actionService.enqueueEscrow(
+            actionCoordinator.enqueueEscrow(
                     order.getOrderId(),
                     order.getBuyerUserId(),
                     order.getSellerUserId(),
@@ -211,7 +211,7 @@ public class MarketWalletActionRecoveryApplicationService {
             return true;
         }
         if (MarketWalletActionType.RELEASE.equals(actionType)) {
-            actionService.enqueueRelease(
+            actionCoordinator.enqueueRelease(
                     order.getOrderId(),
                     order.getSellerUserId(),
                     order.getBuyerUserId(),
@@ -220,7 +220,7 @@ public class MarketWalletActionRecoveryApplicationService {
             return true;
         }
         if (MarketWalletActionType.REFUND.equals(actionType)) {
-            actionService.enqueueRefund(
+            actionCoordinator.enqueueRefund(
                     order.getOrderId(),
                     order.getBuyerUserId(),
                     order.getSellerUserId(),

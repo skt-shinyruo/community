@@ -19,7 +19,7 @@
 | `content.application.PostMediaApplicationService` | 帖子媒体 upload session、complete 和 asset draft 状态。 | 看 draft asset 如何在发帖时被绑定。 |
 | `content.application.PostMediaUploadRecoveryApplicationService` | 恢复 stale `COMPLETING/OBJECT_COMPLETED` 上传。 | 看 `uploadOperationVersion` 如何隔离迟到完成和恢复。 |
 | `content.application.PostMediaReferenceApplicationService` | 在事务外执行 OSS bind/release，并在新事务内完成状态。 | 看 `referenceOperationVersion` 如何丢弃旧 command。 |
-| `content.application.PostMediaReferenceSchedulingApplicationService` | 删帖事务内把媒体引用推进到 release pending 并 enqueue。 | 看 desired state 与 outbox 如何同事务提交。 |
+| `content.application.PostMediaReferenceScheduler` | 删帖事务内把媒体引用推进到 release pending 并 enqueue。 | 看 desired state 与 outbox 如何同事务提交。 |
 | `content.application.PostMediaReferenceReconciliationApplicationService` | 重发 pending command 并修复本地/远端引用漂移。 | 看 `deleted_post`、`remote_missing`、`remote_active` 三类修复。 |
 | `content.application.CommentApplicationService` | 评论创建、编辑、删除和事件。 | 看 target 解析、用户发言资格和点赞/通知联动。 |
 | `content.application.PostModerationApplicationService` | 帖子治理下线和状态变更。 | 看治理动作如何改主事实并驱动事件扩散。 |
@@ -30,8 +30,9 @@
 
 | 类 | 核心职责 |
 | --- | --- |
-| `content.application.PostReadApplicationService` | 帖子详情、批量摘要和 owner query 查询。 |
+| `content.application.PostReadApplicationService` | 帖子详情、批量摘要和 owner query；直接实现 post scan API。 |
 | `content.application.CommentReadApplicationService` | 评论列表和用户最近评论查询。 |
+| `content.application.ContentEntityResolutionApplicationService` | POST / COMMENT owner entity resolution；直接实现同步 owner API。 |
 | `content.application.CategoryApplicationService` | 分类列表。 |
 | `content.application.TagApplicationService` | 热门标签和标签建议。 |
 | `content.application.BookmarkApplicationService` | 收藏关系。 |
@@ -44,8 +45,7 @@
 
 | 类 | 核心职责 |
 | --- | --- |
-| `content.application.PostContractEventApplicationService` | post domain event 到 contract event 映射。 |
-| `content.application.CommentContractEventApplicationService` | comment domain event 到 contract event 映射。 |
+| `content.application.PostIntegrationEventPublisher` | post owner 当前事实到 contract event outbox。 |
 | `content.application.PostHotFeedProjectionApplicationService` | 从 owner event 重算帖子 score、缓存和 hot feed。 |
 | `content.application.FeedReadApplicationService` | 全局/版块 hot feed、fallback、opaque cursor 和 degraded-safe 读取。 |
 | `content.application.HotPathPrewarmApplicationService` | 从 owner 当前事实预热 hot feed 与 summary cache。 |
@@ -71,15 +71,15 @@
 
 | 类 | 核心职责 |
 | --- | --- |
-| `content.infrastructure.api.ContentEntityQueryApiAdapter` | owner entity resolve API。 |
-| `content.infrastructure.api.PostScanQueryApiAdapter` | search 投影扫描 API。 |
+| `content.infrastructure.api.PostPublishingActionApiAdapter` | published block payload 到内部发布 command 的规范化。 |
+| `content.infrastructure.api.PostReadQueryApiAdapter` | 大型帖子 read projection 到 published view 的转换。 |
+| `content.infrastructure.api.CommentReadQueryApiAdapter` | 根据评论层级推导 published entity type / id。 |
+| `content.infrastructure.api.SocialLikeQueryAdapter` | social owner query 到 content like query port，并提供空值策略。 |
 | `content.infrastructure.text.SensitiveFilter` | 敏感词 trie sanitizer 和 fail-fast 字典加载。 |
 | `content.infrastructure.oss.OssPostMediaStorageAdapter` | content 到 OSS 的媒体适配。 |
 | `content.infrastructure.event.OutboxContentEventPublisher` | content contract event 写 `eventbus.content`。 |
 | `content.infrastructure.event.ContentEventKafkaOutboxHandler` | owner outbox 进入 dispatch application。 |
 | `content.infrastructure.event.ContentEventKafkaSenderAdapter` | 发布 `content.events`。 |
-| `content.infrastructure.event.SpringPostDomainEventPublisher` / `SpringCommentDomainEventPublisher` | Spring 领域事件发布。 |
-| `content.infrastructure.event.PostDomainEventBridge` / `CommentDomainEventBridge` | domain event 到 contract event 的桥接。 |
 | `content.infrastructure.event.PostHotFeedProjectionKafkaListener` | 从 `content.events` / `social.events` 进入 hot-feed application。 |
 | `content.infrastructure.event.OutboxPostMediaReferenceCommandPublisher` | 以确定性 event ID 写 `command.content.post-media-reference`。 |
 | `content.infrastructure.event.PostMediaReferenceOutboxHandler` | outbox command 进入同域 reference application。 |

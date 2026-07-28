@@ -1,8 +1,8 @@
 package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.wallet.application.command.WalletMarketTxnCommand;
-import com.nowcoder.community.wallet.application.result.WalletMarketTxnResult;
+import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
+import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
 import com.nowcoder.community.wallet.application.result.WalletTxnResult;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
@@ -13,11 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
 @Service
-public class WalletMarketApplicationService {
+public class WalletMarketApplicationService implements WalletMarketActionApi {
 
     private static final String ESCROW_ACCOUNT_TYPE = "ORDER_ESCROW";
 
@@ -30,56 +29,56 @@ public class WalletMarketApplicationService {
         this.walletLedgerService = walletLedgerService;
     }
 
+    @Override
     @Transactional
-    public WalletMarketTxnResult escrowOrder(WalletMarketTxnCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        validateRequest(command.requestId(), command.userId(), command.amount(), command.bizId());
-        walletAccountService.requireUserWalletActive(command.userId());
+    public WalletMarketTxnView escrowOrder(String requestId, UUID buyerUserId, long amount, String bizId) {
+        validateRequest(requestId, buyerUserId, amount, bizId);
+        walletAccountService.requireUserWalletActive(buyerUserId);
         WalletTxnResult result = walletLedgerService.post(new WalletLedgerCommand(
-                command.requestId(),
+                requestId,
                 WalletTxnType.ORDER_ESCROW,
                 WalletTxnType.ORDER_ESCROW.name(),
-                command.bizId(),
+                bizId,
                 List.of(
-                        WalletPosting.debit(walletAccountService.ensureUserWallet(command.userId()), command.amount()),
-                        WalletPosting.credit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), command.amount())
+                        WalletPosting.debit(walletAccountService.ensureUserWallet(buyerUserId), amount),
+                        WalletPosting.credit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), amount)
                 )
         ));
-        return new WalletMarketTxnResult(result.txnId(), WalletTxnType.ORDER_ESCROW.name(), result.status(), command.amount(), command.bizId());
+        return new WalletMarketTxnView(result.txnId(), WalletTxnType.ORDER_ESCROW.name(), result.status(), amount, bizId);
     }
 
+    @Override
     @Transactional
-    public WalletMarketTxnResult releaseOrder(WalletMarketTxnCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        validateRequest(command.requestId(), command.userId(), command.amount(), command.bizId());
+    public WalletMarketTxnView releaseOrder(String requestId, UUID sellerUserId, long amount, String bizId) {
+        validateRequest(requestId, sellerUserId, amount, bizId);
         WalletTxnResult result = walletLedgerService.post(new WalletLedgerCommand(
-                command.requestId(),
+                requestId,
                 WalletTxnType.ORDER_RELEASE,
                 WalletTxnType.ORDER_RELEASE.name(),
-                command.bizId(),
+                bizId,
                 List.of(
-                        WalletPosting.debit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), command.amount()),
-                        WalletPosting.credit(walletAccountService.ensureUserWallet(command.userId()), command.amount())
+                        WalletPosting.debit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), amount),
+                        WalletPosting.credit(walletAccountService.ensureUserWallet(sellerUserId), amount)
                 )
         ));
-        return new WalletMarketTxnResult(result.txnId(), WalletTxnType.ORDER_RELEASE.name(), result.status(), command.amount(), command.bizId());
+        return new WalletMarketTxnView(result.txnId(), WalletTxnType.ORDER_RELEASE.name(), result.status(), amount, bizId);
     }
 
+    @Override
     @Transactional
-    public WalletMarketTxnResult refundOrder(WalletMarketTxnCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        validateRequest(command.requestId(), command.userId(), command.amount(), command.bizId());
+    public WalletMarketTxnView refundOrder(String requestId, UUID buyerUserId, long amount, String bizId) {
+        validateRequest(requestId, buyerUserId, amount, bizId);
         WalletTxnResult result = walletLedgerService.post(new WalletLedgerCommand(
-                command.requestId(),
+                requestId,
                 WalletTxnType.ORDER_REFUND,
                 WalletTxnType.ORDER_REFUND.name(),
-                command.bizId(),
+                bizId,
                 List.of(
-                        WalletPosting.debit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), command.amount()),
-                        WalletPosting.credit(walletAccountService.ensureUserWallet(command.userId()), command.amount())
+                        WalletPosting.debit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), amount),
+                        WalletPosting.credit(walletAccountService.ensureUserWallet(buyerUserId), amount)
                 )
         ));
-        return new WalletMarketTxnResult(result.txnId(), WalletTxnType.ORDER_REFUND.name(), result.status(), command.amount(), command.bizId());
+        return new WalletMarketTxnView(result.txnId(), WalletTxnType.ORDER_REFUND.name(), result.status(), amount, bizId);
     }
 
     private void validateRequest(String requestId, UUID userId, long amount, String bizId) {

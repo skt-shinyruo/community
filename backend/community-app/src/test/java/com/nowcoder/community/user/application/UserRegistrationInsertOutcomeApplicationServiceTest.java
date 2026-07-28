@@ -2,8 +2,8 @@ package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.user.application.command.CreateVerifiedRegistrationUserCommand;
-import com.nowcoder.community.user.application.result.UserCredentialResult;
+import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
@@ -66,7 +66,7 @@ class UserRegistrationInsertOutcomeApplicationServiceTest {
         );
         when(repository.findById(userId)).thenReturn(Optional.of(canonical));
 
-        UserCredentialResult result = service(repository, eventPublisher)
+        UserCredentialView result = service(repository, eventPublisher)
                 .createVerifiedRegistrationUser(command(
                         userId,
                         "alice",
@@ -74,7 +74,7 @@ class UserRegistrationInsertOutcomeApplicationServiceTest {
                         "canonical-header"
                 ));
 
-        assertThat(result).isEqualTo(new UserCredentialResult(
+        assertThat(result).isEqualTo(new UserCredentialView(
                 userId,
                 "alice",
                 1,
@@ -199,17 +199,17 @@ class UserRegistrationInsertOutcomeApplicationServiceTest {
         );
     }
 
-    private CreateVerifiedRegistrationUserCommand command(
+    private VerifiedRegistrationUserCommand command(
             UUID userId,
             String username,
             String email,
             String headerUrl
     ) {
-        return new CreateVerifiedRegistrationUserCommand(
+        return new VerifiedRegistrationUserCommand(
                 userId,
                 username,
-                ENCODED_PASSWORD,
                 email,
+                ENCODED_PASSWORD,
                 headerUrl
         );
     }

@@ -2,6 +2,7 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.pagination.Pagination;
+import com.nowcoder.community.social.api.query.SocialFollowQueryApi;
 import com.nowcoder.community.social.application.command.FollowCommand;
 import com.nowcoder.community.social.application.command.UnfollowCommand;
 import com.nowcoder.community.social.application.result.FollowRelationResult;
@@ -27,7 +28,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service("socialFollowApplicationService")
-public class FollowApplicationService {
+public class FollowApplicationService implements SocialFollowQueryApi {
 
     private final FollowRepository followRepository;
     private final BlockRepository blockRepository;
@@ -90,21 +91,25 @@ public class FollowApplicationService {
         followRepository.unfollow(command.actorUserId(), command.entityType(), command.entityId());
     }
 
+    @Override
     public boolean hasFollowed(UUID actorUserId, int entityType, UUID entityId) {
         validateFollowRelationQuery(actorUserId, entityType, entityId);
         return followRepository.hasFollowed(actorUserId, entityType, entityId);
     }
 
+    @Override
     public long followeeCount(UUID userId, int entityType) {
         validateFollowUserQuery(userId, entityType);
         return followRepository.countFolloweesExcludingBlocked(userId, entityType, blockRepository);
     }
 
+    @Override
     public long followerCount(int entityType, UUID entityId) {
         validateFollowTargetQuery(entityType, entityId);
         return followRepository.countFollowersExcludingBlocked(entityType, entityId, blockRepository);
     }
 
+    @Override
     public List<UUID> listFolloweeIds(UUID userId, int limit) {
         validateFollowUserQuery(userId, USER);
         int safeLimit = Math.min(200, Math.max(1, limit));

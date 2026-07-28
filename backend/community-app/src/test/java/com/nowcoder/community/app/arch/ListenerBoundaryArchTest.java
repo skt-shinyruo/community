@@ -9,31 +9,14 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
-import org.junit.jupiter.api.Test;
-
-import java.util.Set;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
-import static org.assertj.core.api.Assertions.assertThat;
 
 @AnalyzeClasses(
         packages = "com.nowcoder.community",
         importOptions = ImportOption.DoNotIncludeTests.class
 )
 class ListenerBoundaryArchTest {
-
-    private static final Set<String> LEGACY_LISTENER_APPLICATION_BOUNDARY = Set.of();
-    private static final Set<String> LEGACY_INBOUND_FOREIGN_API_BOUNDARY = Set.of();
-
-    @Test
-    void listenerApplicationBoundaryShouldNotRequireLegacyExceptions() {
-        assertThat(LEGACY_LISTENER_APPLICATION_BOUNDARY).isEmpty();
-    }
-
-    @Test
-    void inboundForeignApiBoundaryShouldNotRequireLegacyExceptions() {
-        assertThat(LEGACY_INBOUND_FOREIGN_API_BOUNDARY).isEmpty();
-    }
 
     @ArchTest
     static final ArchRule listeners_must_not_depend_on_same_domain_non_application_entry_points =
@@ -44,22 +27,7 @@ class ListenerBoundaryArchTest {
                             "..infra.job.handlers.."
                     )
                     .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
-                    .should(ArchitectureRulesSupport.notDependOnSameDomainServicesExceptApplicationServices(
-                            LEGACY_LISTENER_APPLICATION_BOUNDARY
-                    ));
-
-    @ArchTest
-    static final ArchRule inbound_adapters_must_enter_same_domain_application_service_before_helpers =
-            classes()
-                    .that().resideInAnyPackage(
-                            "..infrastructure.event..",
-                            "..infrastructure.job..",
-                            "..infra.job.handlers.."
-                    )
-                    .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
-                    .should(ArchitectureRulesSupport.notDependOnSameDomainApplicationHelpersBeforeApplicationService(
-                            LEGACY_LISTENER_APPLICATION_BOUNDARY
-                    ));
+                    .should(ArchitectureRulesSupport.notDependOnSameDomainServicesExceptApplicationServices());
 
     @ArchTest
     static final ArchRule inbound_adapters_must_not_depend_on_same_domain_infrastructure_before_application_service =
@@ -70,9 +38,7 @@ class ListenerBoundaryArchTest {
                             "..infra.job.handlers.."
                     )
                     .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
-                    .should(ArchitectureRulesSupport.notDependOnSameDomainInfrastructureBeforeApplicationService(
-                            LEGACY_LISTENER_APPLICATION_BOUNDARY
-                    ));
+                    .should(ArchitectureRulesSupport.notDependOnSameDomainInfrastructureBeforeApplicationService());
 
     @ArchTest
     static final ArchRule inbound_adapters_must_not_bypass_application_service_to_same_domain_domain_or_persistence =
@@ -83,9 +49,7 @@ class ListenerBoundaryArchTest {
                             "..infra.job.handlers.."
                     )
                     .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
-                    .should(ArchitectureRulesSupport.notDependOnSameDomainDomainOrPersistenceBeforeApplicationService(
-                            LEGACY_LISTENER_APPLICATION_BOUNDARY
-                    ));
+                    .should(ArchitectureRulesSupport.notDependOnSameDomainDomainOrPersistenceBeforeApplicationService());
 
     @ArchTest
     static final ArchRule inbound_adapters_must_not_depend_on_foreign_owner_apis =
@@ -96,9 +60,7 @@ class ListenerBoundaryArchTest {
                             "..infra.job.handlers.."
                     )
                     .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
-                    .should(ArchitectureRulesSupport.notDependOnForeignOwnerApiPackages(
-                            LEGACY_INBOUND_FOREIGN_API_BOUNDARY
-                    ));
+                    .should(ArchitectureRulesSupport.notDependOnForeignOwnerApiPackages());
 
     @ArchTest
     static final ArchRule inbound_adapters_must_not_depend_on_foreign_application_packages =
@@ -109,9 +71,7 @@ class ListenerBoundaryArchTest {
                             "..infra.job.handlers.."
                     )
                     .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
-                    .should(ArchitectureRulesSupport.notDependOnForeignApplicationPackages(
-                            LEGACY_INBOUND_FOREIGN_API_BOUNDARY
-                    ));
+                    .should(ArchitectureRulesSupport.notDependOnForeignApplicationPackages());
 
     @ArchTest
     static final ArchRule inbound_adapters_must_not_send_kafka_directly =

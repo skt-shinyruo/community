@@ -6,7 +6,6 @@ import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
 import com.nowcoder.community.content.application.result.PostCreateResult;
-import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.PostDraft;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
@@ -74,7 +73,8 @@ class PostPublishingMediaDesiredStateTest {
     private PostMediaReferenceCommandPublisher commandPublisher;
     private CategoryRepository categoryRepository;
     private PostTagRepository tagRepository;
-    private PostDomainEventPublisher eventPublisher;
+    private PostIntegrationEventPublisher eventPublisher;
+    private PostMediaReferenceScheduler mediaReferenceScheduler;
     private PostPublishingApplicationService service;
 
     @BeforeEach
@@ -91,7 +91,11 @@ class PostPublishingMediaDesiredStateTest {
         commandPublisher = register(PostMediaReferenceCommandPublisher.class, mock(PostMediaReferenceCommandPublisher.class));
         categoryRepository = register(CategoryRepository.class, mock(CategoryRepository.class));
         tagRepository = register(PostTagRepository.class, mock(PostTagRepository.class));
-        eventPublisher = register(PostDomainEventPublisher.class, mock(PostDomainEventPublisher.class));
+        eventPublisher = register(PostIntegrationEventPublisher.class, mock(PostIntegrationEventPublisher.class));
+        mediaReferenceScheduler = register(
+                PostMediaReferenceScheduler.class,
+                mock(PostMediaReferenceScheduler.class)
+        );
         register(ContentTextCodec.class, new SpringHtmlContentTextCodec());
         register(PostBusinessEventLogger.class, new PostBusinessEventLogger());
         register(Clock.class, Clock.fixed(NOW, ZoneOffset.UTC));

@@ -1,6 +1,7 @@
 package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import com.nowcoder.community.wallet.application.command.WalletRewardCommand;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
@@ -13,7 +14,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Service
-public class WalletRewardApplicationService {
+public class WalletRewardApplicationService implements WalletRewardActionApi {
 
     private static final String PLATFORM_REWARD_EXPENSE = "PLATFORM_REWARD_EXPENSE";
     private final WalletAccountApplicationService walletAccountService;
@@ -24,13 +25,16 @@ public class WalletRewardApplicationService {
         this.walletLedgerService = walletLedgerService;
     }
 
+    @Override
+    @Transactional
+    public void issue(String requestId, UUID userId, long amount, String sourceType) {
+        issueInternal(requestId, userId, amount, sourceType);
+    }
+
     @Transactional
     public void issue(WalletRewardCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        if (command.amount() <= 0) {
-            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "reward amount must be positive");
-        }
-        postRewardTxn(command.requestId(), command.userId(), command.amount(), command.sourceType(), WalletTxnType.REWARD_ISSUE);
+        issueInternal(command.requestId(), command.userId(), command.amount(), command.sourceType());
     }
 
     @Transactional
@@ -42,13 +46,30 @@ public class WalletRewardApplicationService {
         postRewardTxn(command.requestId(), command.userId(), -command.amount(), command.sourceType(), WalletTxnType.REWARD_ISSUE);
     }
 
+    @Override
+    @Transactional
+    public void applyDelta(String requestId, UUID userId, long amount, String sourceType) {
+        applyDeltaInternal(requestId, userId, amount, sourceType);
+    }
+
     @Transactional
     public void applyDelta(WalletRewardCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        if (command.amount() == 0) {
+        applyDeltaInternal(command.requestId(), command.userId(), command.amount(), command.sourceType());
+    }
+
+    private void issueInternal(String requestId, UUID userId, long amount, String sourceType) {
+        if (amount <= 0) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "reward amount must be positive");
+        }
+        postRewardTxn(requestId, userId, amount, sourceType, WalletTxnType.REWARD_ISSUE);
+    }
+
+    private void applyDeltaInternal(String requestId, UUID userId, long amount, String sourceType) {
+        if (amount == 0) {
             return;
         }
-        postRewardTxn(command.requestId(), command.userId(), command.amount(), command.sourceType(), WalletTxnType.REWARD_ISSUE);
+        postRewardTxn(requestId, userId, amount, sourceType, WalletTxnType.REWARD_ISSUE);
     }
 
     private void postRewardTxn(String requestId, UUID userId, long amount, String sourceType, WalletTxnType txnType) {

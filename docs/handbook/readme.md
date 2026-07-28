@@ -9,7 +9,7 @@
 ### 新人先理解项目
 
 1. [overview.md](overview.md)：项目形态、主请求路径、主站和 IM 的拆分方式、读源码顺序。
-2. [architecture.md](architecture.md)：模块边界、DDD Tactical Layering、跨域协作规则。
+2. [architecture.md](architecture.md)：模块边界、轻量领域分层、跨域协作规则。
 3. [system-design.md](system-design.md)：同步 API、异步事件、最终一致、投影和失败语义。
 4. [frontend.md](frontend.md)：Vue3 SPA 的路由鉴权、会话恢复、API 访问、IM 长连和页面状态。
 
@@ -66,7 +66,7 @@
 | 新增本地服务、端口、env、dev-only 能力 | [local-development.md](local-development.md)、[operations.md](operations.md) |
 | 新增观测字段、指标、trace/span 命名、告警规则或 SLO | [observability.md](observability.md)、[operations.md](operations.md)、必要时同步 `deploy/observability/contracts` 和 `deploy/tests` |
 | 新增测试层级、关键测试套件、验证命令或工具测试约定 | [testing.md](testing.md) |
-| 修改 backend 架构规则或包边界 | [architecture.md](architecture.md)、[system-design.md](system-design.md)、严格 DDD spec 和 ArchUnit 测试 |
+| 修改 backend 架构规则或包边界 | [architecture.md](architecture.md)、[system-design.md](system-design.md)、轻量领域分层 spec 和 ArchUnit 测试 |
 
 文档应描述当前代码真实行为，不把历史 spec / plan 当作现状。旧设计仍有参考价值时，只能作为“历史/遗留/已退休”明确标注。当前行为不能只写在 `docs/superpowers/specs` 或 `docs/superpowers/plans`，必须沉淀到本目录相应 handbook。
 
@@ -74,7 +74,7 @@
 
 - [architecture.md](architecture.md)
 - [system-design.md](system-design.md)
-- `docs/superpowers/specs/2026-04-27-community-app-strict-ddd-tactical-layering-design.md`
+- `docs/superpowers/specs/2026-07-27-community-app-lightweight-domain-layering-design.md`
 - `backend/community-app/src/test/java/com/nowcoder/community/app/arch`
 
 ## 旧文档迁移索引

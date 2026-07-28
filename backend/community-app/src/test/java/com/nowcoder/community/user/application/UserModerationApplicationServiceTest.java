@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.application.command.ApplyUserModerationCommand;
+import com.nowcoder.community.user.api.model.UserModerationStateView;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.model.UserModerationStatus;
@@ -56,7 +56,7 @@ class UserModerationApplicationServiceTest {
         UserModerationApplicationService service = service();
         when(userRepository.findById(USER_ID_7)).thenReturn(Optional.of(account(USER_ID_7, EXISTING_MUTE, EXISTING_BAN)));
 
-        UserModerationStatus status = service.getModerationState(USER_ID_7);
+        UserModerationStateView status = service.getModerationState(USER_ID_7);
 
         assertThat(status.userId()).isEqualTo(USER_ID_7);
         assertThat(status.muteUntil()).isEqualTo(EXISTING_MUTE);
@@ -75,10 +75,10 @@ class UserModerationApplicationServiceTest {
                 new UserModerationStatus(USER_ID_4, null, null, 302L)
         ));
 
-        List<UserModerationStatus> statuses = service.scanModerationStatesAfterId(null, 999);
+        List<UserModerationStateView> statuses = service.scanModerationStatesAfterId(null, 999);
 
         assertThat(statuses)
-                .extracting(UserModerationStatus::userId)
+                .extracting(UserModerationStateView::userId)
                 .containsExactly(USER_ID_3, USER_ID_4);
         assertThat(statuses.get(0).muteUntil()).isEqualTo(EXISTING_MUTE);
         assertThat(statuses.get(0).version()).isEqualTo(301L);
@@ -94,7 +94,7 @@ class UserModerationApplicationServiceTest {
         when(userRepository.nextUserPolicyVersion(USER_ID_7)).thenReturn(101L);
 
         Instant before = Instant.now();
-        UserModerationStatus status = service.applyModeration(new ApplyUserModerationCommand(USER_ID_7, " mute ", 120));
+        UserModerationStateView status = service.applyModeration(USER_ID_7, " mute ", 120);
         Instant after = Instant.now();
 
         assertThat(status.userId()).isEqualTo(USER_ID_7);
@@ -107,7 +107,9 @@ class UserModerationApplicationServiceTest {
         ArgumentCaptor<UserModerationStatus> statusCaptor = ArgumentCaptor.forClass(UserModerationStatus.class);
         ArgumentCaptor<Instant> occurredAtCaptor = ArgumentCaptor.forClass(Instant.class);
         verify(userPolicyEventPublisher).publishUserPolicyChanged(statusCaptor.capture(), occurredAtCaptor.capture());
-        assertThat(statusCaptor.getValue()).isEqualTo(status);
+        assertThat(statusCaptor.getValue()).isEqualTo(new UserModerationStatus(
+                status.userId(), status.muteUntil(), status.banUntil(), status.version()
+        ));
         assertThat(occurredAtCaptor.getValue()).isBetween(before, after);
     }
 
@@ -119,7 +121,7 @@ class UserModerationApplicationServiceTest {
         when(userRepository.nextUserSecurityVersion(USER_ID_7)).thenReturn(202L);
 
         Instant before = Instant.now();
-        UserModerationStatus status = service.applyModeration(new ApplyUserModerationCommand(USER_ID_7, "ban", 120));
+        UserModerationStateView status = service.applyModeration(USER_ID_7, "ban", 120);
         Instant after = Instant.now();
 
         assertThat(status.userId()).isEqualTo(USER_ID_7);
@@ -132,16 +134,16 @@ class UserModerationApplicationServiceTest {
         inOrder.verify(userRepository).nextUserPolicyVersion(USER_ID_7);
         inOrder.verify(userRepository).nextUserSecurityVersion(USER_ID_7);
         inOrder.verify(userRepository).updateModerationUntil(USER_ID_7, null, status.banUntil(), 101L, 202L);
-        inOrder.verify(userPolicyEventPublisher).publishUserPolicyChanged(eq(status), any(Instant.class));
+        inOrder.verify(userPolicyEventPublisher).publishUserPolicyChanged(eq(new UserModerationStatus(
+                status.userId(), status.muteUntil(), status.banUntil(), status.version()
+        )), any(Instant.class));
     }
 
     @Test
     void applyModerationShouldRejectBlankActionBeforeLoadingUser() {
         UserModerationApplicationService service = service();
 
-        Throwable thrown = catchThrowable(() -> service.applyModeration(
-                new ApplyUserModerationCommand(USER_ID_7, " ", 60)
-        ));
+        Throwable thrown = catchThrowable(() -> service.applyModeration(USER_ID_7, " ", 60));
 
         assertThat(thrown).isInstanceOf(BusinessException.class)
                 .hasMessage("action 不能为空");
@@ -150,22 +152,11 @@ class UserModerationApplicationServiceTest {
     }
 
     @Test
-    void applyModerationShouldRejectNullCommand() {
-        UserModerationApplicationService service = service();
-
-        assertThatThrownBy(() -> service.applyModeration(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("command must not be null");
-    }
-
-    @Test
     void applyModerationShouldRejectMissingUser() {
         UserModerationApplicationService service = service();
         when(userRepository.findById(USER_ID_7)).thenReturn(Optional.empty());
 
-        Throwable thrown = catchThrowable(() -> service.applyModeration(
-                new ApplyUserModerationCommand(USER_ID_7, "mute", 60)
-        ));
+        Throwable thrown = catchThrowable(() -> service.applyModeration(USER_ID_7, "mute", 60));
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
         assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);

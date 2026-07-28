@@ -7,6 +7,7 @@ import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.wallet.domain.model.TransferOrder;
 import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
@@ -52,7 +53,7 @@ class WalletTransferApplicationServiceTest {
     private ClientIpResolver clientIpResolver;
 
     @MockBean
-    private UserLookupQueryApi userLookupQueryApi;
+    private UserReadApplicationService userReadApplicationService;
 
     @BeforeEach
     void setUp() {
@@ -62,7 +63,7 @@ class WalletTransferApplicationServiceTest {
         jdbcTemplate.update("delete from withdraw_order");
         jdbcTemplate.update("delete from transfer_order");
         jdbcTemplate.update("delete from wallet_account");
-        when(userLookupQueryApi.getSummaryById(any(UUID.class)))
+        when(userReadApplicationService.getSummaryById(any(UUID.class)))
                 .thenAnswer(invocation -> summary(invocation.getArgument(0)));
     }
 
@@ -185,7 +186,7 @@ class WalletTransferApplicationServiceTest {
         UUID fromUserId = uuid(101);
         UUID missingToUserId = uuid(404);
         seedUserBalance(fromUserId, 900);
-        when(userLookupQueryApi.getSummaryById(missingToUserId)).thenReturn(null);
+        when(userReadApplicationService.getSummaryById(missingToUserId)).thenReturn(null);
 
         assertThatThrownBy(() -> transferService.create("transfer:req-missing-receiver", fromUserId, missingToUserId, 300))
                 .isInstanceOf(BusinessException.class)

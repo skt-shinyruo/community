@@ -45,16 +45,16 @@ class MarketOrderTransitionApplicationServiceTest {
     @Test
     void userCommandShouldMapStaleTransitionToConflictWithoutEnqueuingWalletAction() {
         MarketOrderRepository orderRepository = staleOrderRepository();
-        MarketWalletActionApplicationService walletActionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator walletActionCoordinator = mock(MarketWalletActionCoordinator.class);
         MarketOrder delivered = orderIn(MarketOrderStatus.DELIVERED, MarketGoodsType.PHYSICAL, new Date(1_000L));
         when(orderRepository.lockById(ORDER_ID)).thenReturn(delivered);
         when(orderRepository.findById(ORDER_ID)).thenReturn(delivered);
-        MarketOrderApplicationService service = orderService(orderRepository, walletActionService);
+        MarketOrderApplicationService service = orderService(orderRepository, walletActionCoordinator);
 
         Throwable failure = catchThrowable(() -> service.confirmOrder(ORDER_ID, BUYER_ID));
 
         assertStaleConflictAndGenericApply(failure, orderRepository, "markReleasePending");
-        assertSoftly(softly -> softly.assertThat(invocationNames(walletActionService))
+        assertSoftly(softly -> softly.assertThat(invocationNames(walletActionCoordinator))
                 .as("stale confirmation must not enqueue release")
                 .isEmpty());
     }
@@ -62,11 +62,11 @@ class MarketOrderTransitionApplicationServiceTest {
     @Test
     void deliveryCommandShouldFailClosedWhenTransitionIsStale() {
         MarketOrderRepository orderRepository = staleOrderRepository();
-        MarketWalletActionApplicationService walletActionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator walletActionCoordinator = mock(MarketWalletActionCoordinator.class);
         MarketOrder escrowed = orderIn(MarketOrderStatus.ESCROWED, MarketGoodsType.VIRTUAL, null);
         when(orderRepository.lockById(ORDER_ID)).thenReturn(escrowed);
         when(orderRepository.findById(ORDER_ID)).thenReturn(escrowed);
-        MarketOrderApplicationService service = orderService(orderRepository, walletActionService);
+        MarketOrderApplicationService service = orderService(orderRepository, walletActionCoordinator);
 
         Throwable failure = catchThrowable(() -> service.deliverVirtualOrder(ORDER_ID, SELLER_ID, "CODE-001"));
 
@@ -77,7 +77,7 @@ class MarketOrderTransitionApplicationServiceTest {
     void disputeResolutionShouldNotPersistAnExternalActionAfterStaleOrderTransition() {
         MarketOrderRepository orderRepository = staleOrderRepository();
         MarketDisputeRepository disputeRepository = mock(MarketDisputeRepository.class);
-        MarketWalletActionApplicationService walletActionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator walletActionCoordinator = mock(MarketWalletActionCoordinator.class);
         MarketDispute openDispute = openDispute();
         when(disputeRepository.lockById(DISPUTE_ID)).thenReturn(openDispute);
         when(disputeRepository.findById(DISPUTE_ID)).thenReturn(openDispute);
@@ -86,7 +86,7 @@ class MarketOrderTransitionApplicationServiceTest {
         MarketDisputeApplicationService service = new MarketDisputeApplicationService(
                 disputeRepository,
                 orderRepository,
-                walletActionService,
+                walletActionCoordinator,
                 new UuidV7Generator()
         );
 
@@ -97,7 +97,7 @@ class MarketOrderTransitionApplicationServiceTest {
         ));
 
         assertStaleConflictAndGenericApply(failure, orderRepository, "markDisputeReleasePending");
-        assertSoftly(softly -> softly.assertThat(invocationNames(walletActionService))
+        assertSoftly(softly -> softly.assertThat(invocationNames(walletActionCoordinator))
                 .as("stale dispute resolution must not enqueue release")
                 .isEmpty());
     }
@@ -105,13 +105,13 @@ class MarketOrderTransitionApplicationServiceTest {
     @Test
     void autoConfirmShouldMapStaleTransitionToFalseWithoutEnqueuingRelease() {
         MarketOrderRepository orderRepository = staleOrderRepository();
-        MarketWalletActionApplicationService walletActionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator walletActionCoordinator = mock(MarketWalletActionCoordinator.class);
         Date now = new Date(2_000L);
         when(orderRepository.lockById(ORDER_ID)).thenReturn(
                 orderIn(MarketOrderStatus.DELIVERED, MarketGoodsType.PHYSICAL, new Date(1_000L))
         );
-        MarketOrderAutoConfirmSingleOrderApplicationService service =
-                new MarketOrderAutoConfirmSingleOrderApplicationService(orderRepository, walletActionService);
+        MarketOrderAutoConfirmer service =
+                new MarketOrderAutoConfirmer(orderRepository, walletActionCoordinator);
 
         boolean confirmed = service.confirmOneDueOrder(ORDER_ID, now);
 
@@ -120,7 +120,7 @@ class MarketOrderTransitionApplicationServiceTest {
             softly.assertThat(invocationNames(orderRepository))
                     .contains("apply")
                     .doesNotContain("markReleasePending");
-            softly.assertThat(invocationNames(walletActionService)).isEmpty();
+            softly.assertThat(invocationNames(walletActionCoordinator)).isEmpty();
         });
     }
 
@@ -148,7 +148,7 @@ class MarketOrderTransitionApplicationServiceTest {
 
     private static MarketOrderApplicationService orderService(
             MarketOrderRepository orderRepository,
-            MarketWalletActionApplicationService walletActionService
+            MarketWalletActionCoordinator walletActionCoordinator
     ) {
         return new MarketOrderApplicationService(
                 mock(MarketListingRepository.class),
@@ -157,7 +157,7 @@ class MarketOrderTransitionApplicationServiceTest {
                 mock(MarketAddressRepository.class),
                 mock(MarketDeliveryRepository.class),
                 mock(MarketShipmentRepository.class),
-                walletActionService,
+                walletActionCoordinator,
                 mock(MarketOrderSagaApplicationService.class),
                 new UuidV7Generator()
         );

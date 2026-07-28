@@ -2,9 +2,9 @@ package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.user.application.command.CreateVerifiedRegistrationUserCommand;
-import com.nowcoder.community.user.application.result.PreparedRegistrationUserResult;
-import com.nowcoder.community.user.application.result.UserCredentialResult;
+import com.nowcoder.community.user.api.model.PreparedRegistrationUserView;
+import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
@@ -52,7 +52,7 @@ class UserRegistrationApplicationServiceTest {
     void prepareRegistrationUserShouldReturnPreparedMaterialWithoutWritingUserOrPublishingEvent() {
         UserRegistrationApplicationService service = service();
 
-        PreparedRegistrationUserResult prepared = service.prepareRegistrationUser(
+        PreparedRegistrationUserView prepared = service.prepareRegistrationUser(
                 "  alice  ",
                 "secret12",
                 "  alice@example.com  "
@@ -74,11 +74,11 @@ class UserRegistrationApplicationServiceTest {
         String encodedPassword = new BCryptPasswordEncoder().encode("secret12");
         when(userRepository.insertUser(any())).thenReturn(InsertResult.CREATED);
 
-        UserCredentialResult result = service.createVerifiedRegistrationUser(new CreateVerifiedRegistrationUserCommand(
+        UserCredentialView result = service.createVerifiedRegistrationUser(new VerifiedRegistrationUserCommand(
                 userId,
                 "alice",
-                encodedPassword,
                 "alice@example.com",
+                encodedPassword,
                 "http://images.nowcoder.com/head/1t.png"
         ));
 
@@ -116,11 +116,11 @@ class UserRegistrationApplicationServiceTest {
                 .thenReturn(Optional.of(existingUser("other", "alice@example.com")));
         String encodedPassword = new BCryptPasswordEncoder().encode("secret12");
 
-        assertThatThrownBy(() -> service.createVerifiedRegistrationUser(new CreateVerifiedRegistrationUserCommand(
+        assertThatThrownBy(() -> service.createVerifiedRegistrationUser(new VerifiedRegistrationUserCommand(
                 userId,
                 "alice",
-                encodedPassword,
                 "alice@example.com",
+                encodedPassword,
                 "h"
         )))
                 .isInstanceOf(BusinessException.class)
@@ -134,11 +134,11 @@ class UserRegistrationApplicationServiceTest {
     void createVerifiedRegistrationUserShouldRejectMalformedEncodedPassword() {
         UserRegistrationApplicationService service = service();
 
-        assertThatThrownBy(() -> service.createVerifiedRegistrationUser(new CreateVerifiedRegistrationUserCommand(
+        assertThatThrownBy(() -> service.createVerifiedRegistrationUser(new VerifiedRegistrationUserCommand(
                 userId(23),
                 "alice",
-                "secret12",
                 "alice@example.com",
+                "secret12",
                 "h"
         )))
                 .isInstanceOf(BusinessException.class)

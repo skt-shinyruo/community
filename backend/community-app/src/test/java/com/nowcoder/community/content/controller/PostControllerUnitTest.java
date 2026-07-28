@@ -7,7 +7,7 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.application.command.RecordPostViewCommand;
 import com.nowcoder.community.content.application.command.CreateCommentCommand;
-import com.nowcoder.community.content.application.result.CommentCreateResult;
+import com.nowcoder.community.content.application.CommentApplicationService.CommentCreateResult;
 import com.nowcoder.community.content.application.result.CommentPageResult;
 import com.nowcoder.community.content.application.result.CommentResult;
 import com.nowcoder.community.content.application.result.PostDetailResult;

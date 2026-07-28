@@ -47,7 +47,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldUseConfiguredProcessingLease() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = escrowAction();
         Instant now = Instant.parse("2026-05-18T00:00:00Z");
@@ -56,7 +56,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.fixed(now, ZoneOffset.UTC),
                 Duration.ofSeconds(120)
         );
@@ -76,7 +76,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldNoopEscrowWhenSagaRejectsForwardAction() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = escrowAction();
         when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
@@ -87,7 +87,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC()
         );
 
@@ -107,7 +107,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketOrderRepository orderRepository = mock(MarketOrderRepository.class);
         MarketListingRepository listingRepository = mock(MarketListingRepository.class);
         MarketInventoryRepository inventoryRepository = mock(MarketInventoryRepository.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = escrowAction();
         var walletActionRepository = new MyBatisMarketWalletActionRepository(mapper);
@@ -209,14 +209,14 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 walletActionRepository,
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 clock
         );
         MarketWalletActionRecoveryApplicationService recovery = new MarketWalletActionRecoveryApplicationService(
                 walletActionRepository,
                 orderRepository,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 clock
         );
 
@@ -255,7 +255,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldRetryReleaseRecoverablyWhenWalletRejectsBusinessFailure() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
@@ -267,7 +267,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC()
         );
 
@@ -291,7 +291,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldRetryRefundRecoverablyWhenWalletRejectsBusinessFailure() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = refundAction();
         when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
@@ -303,7 +303,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC()
         );
 
@@ -327,7 +327,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldMarkReleaseDeadWhenRecoverableFailureExceedsRetryBudget() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         action.setRetryCount(7);
@@ -340,7 +340,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC(),
                 Duration.ofSeconds(60),
                 8
@@ -361,7 +361,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldFailReleasePermanentlyWhenWalletRejectsInvalidRequest() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
@@ -373,7 +373,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC()
         );
 
@@ -396,7 +396,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldUseClaimedLeaseForSuccessfulTransition() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
@@ -420,7 +420,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC()
         );
 
@@ -441,7 +441,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldLeaveReleaseActionRecoverableWhenSagaStateDoesNotAdvance() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
@@ -462,7 +462,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC()
         );
 
@@ -486,7 +486,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldLeaveEscrowActionRecoverableWhenWalletSucceedsButSagaCannotApply() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = escrowAction();
         var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
@@ -509,7 +509,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC()
         );
 
@@ -528,14 +528,14 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 eq("SAGA_STATE_NOT_ADVANCED"),
                 eq("market order saga did not advance after wallet success")
         );
-        verify(actionService, never()).enqueueRefund(any(), any(), any(), anyLong());
+        verify(actionCoordinator, never()).enqueueRefund(any(), any(), any(), anyLong());
     }
 
     @Test
     void processOneShouldStopWhenSucceededTransitionLosesLease() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
@@ -559,7 +559,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC()
         );
 
@@ -574,7 +574,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldStopBeforeCompletingNoopWhenCancelledTransitionLosesLease() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = escrowAction();
         when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
@@ -584,7 +584,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC()
         );
 
@@ -599,7 +599,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldNotFallbackWhenRetryTransitionLosesLease() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
@@ -617,7 +617,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC()
         );
 
@@ -632,7 +632,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldNotFallbackWhenFailedTransitionLosesLease() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
@@ -647,7 +647,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC()
         );
 
@@ -666,7 +666,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldNotFallbackWhenRecoveryPendingTransitionLosesLease() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
@@ -690,7 +690,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC()
         );
 
@@ -710,7 +710,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
     void processOneShouldNotFallbackWhenDeadTransitionLosesLease() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         action.setRetryCount(7);
@@ -729,7 +729,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.systemUTC(),
                 Duration.ofSeconds(60),
                 8
@@ -747,7 +747,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderRepository orderRepository = mock(MarketOrderRepository.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
@@ -808,21 +808,21 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 walletActionRepository,
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 clock
         );
         MarketWalletActionProcessorApplicationService workerB = new MarketWalletActionProcessorApplicationService(
                 walletActionRepository,
                 walletApi,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 clock
         );
         MarketWalletActionRecoveryApplicationService recovery = new MarketWalletActionRecoveryApplicationService(
                 walletActionRepository,
                 orderRepository,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 clock
         );
         AtomicInteger sagaCallCount = new AtomicInteger();

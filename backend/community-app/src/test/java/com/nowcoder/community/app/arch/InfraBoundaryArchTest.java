@@ -21,6 +21,15 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 )
 class InfraBoundaryArchTest {
 
+    private static final Set<String> REVIEWED_SUBSTANTIVE_API_ADAPTERS = Set.of(
+            "com.nowcoder.community.analytics.infrastructure.api.AnalyticsIngestActionApiAdapter",
+            "com.nowcoder.community.content.infrastructure.api.CommentReadQueryApiAdapter",
+            "com.nowcoder.community.content.infrastructure.api.PostPublishingActionApiAdapter",
+            "com.nowcoder.community.content.infrastructure.api.PostReadQueryApiAdapter",
+            "com.nowcoder.community.content.infrastructure.api.SocialLikeQueryAdapter",
+            "com.nowcoder.community.user.infrastructure.api.UserCredentialApiAdapter"
+    );
+
     private static final Set<String> FOREIGN_IMPLEMENTATION_LAYERS = Set.of(
             "controller",
             "mapper",
@@ -38,8 +47,7 @@ class InfraBoundaryArchTest {
                     .should(ArchitectureRulesSupport.notDependOnLayers(
                             "not depend on core-domain controller/mapper/dao/entity/config/security/service packages",
                             FOREIGN_IMPLEMENTATION_LAYERS,
-                            true,
-                            Set.of()
+                            true
                     ));
 
     @ArchTest
@@ -54,6 +62,13 @@ class InfraBoundaryArchTest {
             classes()
                     .that().resideInAnyPackage("..infrastructure.api..")
                     .should(haveApiAdapterNameWhenImplementingOwnerApi());
+
+    @ArchTest
+    static final ArchRule infrastructure_api_adapters_must_have_a_reviewed_conversion_responsibility =
+            classes()
+                    .that().resideInAnyPackage("..infrastructure.api..")
+                    .should(beAReviewedSubstantiveApiAdapter())
+                    .because("owner ApplicationServices implement APIs directly unless an adapter owns real conversion or policy");
 
     private static ArchCondition<JavaClass> haveApiAdapterNameWhenImplementingOwnerApi() {
         return new ArchCondition<>("end with ApiAdapter when implementing published owner APIs") {
@@ -72,6 +87,24 @@ class InfraBoundaryArchTest {
                 events.add(SimpleConditionEvent.violated(
                         item,
                         item.getFullName() + " implements api.query/api.action but is not named *ApiAdapter"
+                ));
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> beAReviewedSubstantiveApiAdapter() {
+        return new ArchCondition<>("be a reviewed API adapter with substantive conversion or policy") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                String fullName = item.getFullName();
+                int nestedTypeSeparator = fullName.indexOf('$');
+                String topLevelName = nestedTypeSeparator < 0 ? fullName : fullName.substring(0, nestedTypeSeparator);
+                if (REVIEWED_SUBSTANTIVE_API_ADAPTERS.contains(topLevelName)) {
+                    return;
+                }
+                events.add(SimpleConditionEvent.violated(
+                        item,
+                        fullName + " is not in the reviewed substantive infrastructure.api adapter set"
                 ));
             }
         };

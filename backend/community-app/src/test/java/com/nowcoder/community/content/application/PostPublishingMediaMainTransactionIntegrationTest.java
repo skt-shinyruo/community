@@ -8,7 +8,6 @@ import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
 import com.nowcoder.community.content.application.result.PostCreateResult;
-import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.PostDraft;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceOperation;
 import com.nowcoder.community.content.domain.repository.CategoryRepository;
@@ -96,7 +95,10 @@ class PostPublishingMediaMainTransactionIntegrationTest {
     private PostTagRepository tagRepository;
 
     @MockBean
-    private PostDomainEventPublisher domainEventPublisher;
+    private PostIntegrationEventPublisher integrationEventPublisher;
+
+    @MockBean
+    private PostMediaReferenceScheduler mediaReferenceScheduler;
 
     @MockBean
     private PostMediaStoragePort storagePort;

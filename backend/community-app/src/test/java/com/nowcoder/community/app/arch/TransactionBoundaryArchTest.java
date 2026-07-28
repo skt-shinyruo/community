@@ -10,7 +10,6 @@ import com.nowcoder.community.social.application.command.CleanupDeletedContentLi
 import com.nowcoder.community.user.application.AdminUserApplicationService;
 import com.nowcoder.community.user.application.UserCredentialApplicationService;
 import com.nowcoder.community.user.application.UserModerationApplicationService;
-import com.nowcoder.community.user.application.command.ApplyUserModerationCommand;
 import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
 import com.nowcoder.community.wallet.application.WalletRechargeApplicationService;
 import com.nowcoder.community.wallet.application.WalletTransferApplicationService;
@@ -91,7 +90,7 @@ class TransactionBoundaryArchTest {
         assertTransactional(MarketWalletActionRecoveryApplicationService.class, "reconcileOnce", int.class);
         assertTransactional(AdminUserApplicationService.class, "updateRole", UpdateUserRoleCommand.class);
         assertTransactional(UserCredentialApplicationService.class, "updatePassword", UUID.class, String.class);
-        assertTransactional(UserModerationApplicationService.class, "applyModeration", ApplyUserModerationCommand.class);
+        assertTransactional(UserModerationApplicationService.class, "applyModeration", UUID.class, String.class, int.class);
         assertTransactional(
                 LikeApplicationService.class,
                 "cleanupDeletedContentLikes",

@@ -4,7 +4,6 @@ import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.pagination.Pagination;
 import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.command.ListNoticeItemsCommand;
-import com.nowcoder.community.notice.application.command.MarkNoticeReadCommand;
 import com.nowcoder.community.notice.application.result.NoticeItemResult;
 import com.nowcoder.community.notice.application.result.NoticeTopicSummaryResult;
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
@@ -101,16 +100,11 @@ public class NoticeApplicationService {
         }).toList();
     }
 
-    public void markRead(MarkNoticeReadCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        if (command.ids() == null || command.ids().isEmpty()) {
+    public void markRead(UUID userId, List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
             return;
         }
-        noticeRepository.markRead(command.userId(), command.ids(), STATUS_READ);
-    }
-
-    public void markRead(UUID userId, List<UUID> ids) {
-        markRead(new MarkNoticeReadCommand(userId, ids));
+        noticeRepository.markRead(userId, ids, STATUS_READ);
     }
 
     public void revokeLikeNotice(UUID recipientUserId, String relationKey) {

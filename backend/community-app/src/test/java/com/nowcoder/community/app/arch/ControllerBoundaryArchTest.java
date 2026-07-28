@@ -9,13 +9,11 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
-import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
@@ -28,27 +26,6 @@ class ControllerBoundaryArchTest {
     private static final String BASE_PACKAGE = "com.nowcoder.community.";
     private static final Pattern SERVICE_PACKAGE =
             Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.service(\\..*)?");
-
-    private static final Set<String> LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS = Set.of();
-    private static final Set<String> LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS = Set.of();
-    private static final Set<String> LEGACY_SAME_DOMAIN_OWNER_API_CONTROLLER_CALLERS = Set.of();
-    private static final Set<String> LEGACY_CONTROLLER_APPLICATION_BOUNDARY = Set.of();
-
-    @Test
-    void dtoBoundaryShouldNotRequireSharedMessageDtoExceptions() {
-        assertThat(LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS).isEmpty();
-        assertThat(ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN).isEmpty();
-    }
-
-    @Test
-    void sameDomainOwnerApiBoundaryShouldNotRequireLegacyControllerExceptions() {
-        assertThat(LEGACY_SAME_DOMAIN_OWNER_API_CONTROLLER_CALLERS).isEmpty();
-    }
-
-    @Test
-    void applicationBoundaryShouldNotRequireLegacyControllerExceptions() {
-        assertThat(LEGACY_CONTROLLER_APPLICATION_BOUNDARY).isEmpty();
-    }
 
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_other_controllers =
@@ -63,8 +40,7 @@ class ControllerBoundaryArchTest {
                     .should(ArchitectureRulesSupport.notDependOnLayers(
                             "not depend on mapper or dao packages",
                             Set.of("mapper", "dao"),
-                            false,
-                            ArchitectureRulesSupport.MIGRATION_BASELINE_CONTROLLER_MAPPER_CALLERS
+                            false
                     ));
 
     @ArchTest
@@ -74,8 +50,7 @@ class ControllerBoundaryArchTest {
                     .should(ArchitectureRulesSupport.notDependOnLayers(
                             "not depend on foreign entity packages",
                             Set.of("entity"),
-                            true,
-                            ArchitectureRulesSupport.MIGRATION_BASELINE_CONTROLLER_FOREIGN_ENTITY_CALLERS
+                            true
                     ));
 
     @ArchTest
@@ -85,24 +60,20 @@ class ControllerBoundaryArchTest {
                     .should(ArchitectureRulesSupport.notDependOnLayers(
                             "not depend on foreign dto packages",
                             Set.of("dto"),
-                            true,
-                            LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS,
-                            ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN
+                            true
                     ));
 
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_foreign_services =
             classes()
                     .that().areAnnotatedWith(RestController.class)
-                    .should(notDependOnForeignPackage("services", SERVICE_PACKAGE, LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS));
+                    .should(notDependOnForeignPackage("services", SERVICE_PACKAGE));
 
     @ArchTest
-    static final ArchRule controllers_must_not_depend_on_same_domain_owner_apis =
+    static final ArchRule controllers_must_not_depend_on_same_domain_owner_api_entries =
             classes()
                     .that().areAnnotatedWith(RestController.class)
-                    .should(ArchitectureRulesSupport.notDependOnSameDomainOwnerApiPackages(
-                            LEGACY_SAME_DOMAIN_OWNER_API_CONTROLLER_CALLERS
-                    ));
+                    .should(ArchitectureRulesSupport.notDependOnSameDomainOwnerApiEntries());
 
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_domain_entities =
@@ -111,17 +82,14 @@ class ControllerBoundaryArchTest {
                     .should(ArchitectureRulesSupport.notDependOnLayers(
                             "not depend on any entity packages",
                             Set.of("entity"),
-                            false,
-                            ArchitectureRulesSupport.MIGRATION_BASELINE_CONTROLLER_ENTITY_CALLERS
+                            false
                     ));
 
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_same_domain_non_application_entry_points =
             classes()
                     .that().areAnnotatedWith(RestController.class)
-                    .should(ArchitectureRulesSupport.notDependOnSameDomainServicesExceptApplicationServices(
-                            LEGACY_CONTROLLER_APPLICATION_BOUNDARY
-                    ));
+                    .should(ArchitectureRulesSupport.notDependOnSameDomainServicesExceptApplicationServices());
 
     @ArchTest
     static final ArchRule drive_controllers_should_only_depend_on_drive_application_boundary =
@@ -159,15 +127,11 @@ class ControllerBoundaryArchTest {
 
     private static ArchCondition<JavaClass> notDependOnForeignPackage(
             String packageLabel,
-            Pattern trackedPackage,
-            Set<String> legacyCallers
+            Pattern trackedPackage
     ) {
         return new ArchCondition<>("not depend on foreign " + packageLabel) {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
-                if (legacyCallers.contains(item.getName())) {
-                    return;
-                }
                 String originDomain = domainOf(item);
                 if (originDomain.isEmpty()) {
                     return;

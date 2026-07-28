@@ -40,13 +40,13 @@ Client + Authorization + Idempotency-Key
   -> controller / listener / handler / bridge / enqueuer / job
   -> owner ApplicationService
   -> transaction
-  -> domain rules
+  -> domain rules when the use case has domain behavior
   -> repository interface
   -> infrastructure persistence
-  -> domain event / contract event / outbox
+  -> contract event outbox, or an internal domain event when local subscribers exist
 ```
 
-同域 controller、listener、outbox handler、event bridge、enqueuer、job 都只进入同域 `ApplicationService`。跨域同步协作发生在 application 层，通过 foreign owner-domain `api.query` / `api.action` 完成；inbound adapter 不在 application 边界之前直接调用 foreign owner `api.*`、foreign `application.*`、same-domain application helper/port、domain model/service/repository 或 persistence 实现。
+同域 controller 进入 `ApplicationService`；其他 inbound adapter 进入一个公开的同域 application entry，不为固定类名增加转发层。跨域同步协作发生在 application 层，通过 foreign owner-domain `api.query` / `api.action` 完成；inbound adapter 不在 application 边界之前直接调用 foreign owner `api.*`、foreign `application.*`、domain model/service/repository 或 persistence 实现。
 
 ## 错误协议
 
@@ -71,7 +71,7 @@ Client + Authorization + Idempotency-Key
 ```text
 caller ApplicationService
   -> owner-domain api.query / api.action
-  -> owner adapter / owner ApplicationService
+  -> owner ApplicationService implementing the API / substantive adapter
   -> owner domain
 ```
 
@@ -86,17 +86,22 @@ caller ApplicationService
 原则：
 
 - `api.model` 是同步协作模型，不复用 `contracts.event`。
+- API request/result 可以嵌套在 API 接口中；Owner ApplicationService 可以直接实现 API。
+- 当前多数 owner API 由 ApplicationService 直接实现；`infrastructure.api` 只保留 6 个负责错误翻译、协议投影或配置策略的 reviewed adapter，不为纯 delegate 增加一层。
 - domain 不依赖 `api.*`。
 - same-domain 调用不绕回 same-domain `api.*`。
+- 架构守卫检查 business / adapter domain application 跨域只能依赖 published API，并检查核心域同步依赖图无环；不冻结具体类到具体 API model 的 edge 清单。
 - 尽量避免跨域 JOIN；聚合优先 owner API + batch / cache。
 
 ## 异步事件协作
 
-异步事件分三层：
+异步事件最多分三层：
 
-1. domain event：域内语义，属于 owner 实现细节。
+1. domain event：可选的域内语义，只在有独立本地订阅者时存在。
 2. owner-domain `contracts.event`：跨域异步契约，生产方 owns semantics。
 3. transport / outbox / Kafka payload：技术交付形态。
+
+单一跨域 durable reaction 不要求经过 domain event 和 Spring bridge。Owner ApplicationService 可以在主事务内直接通过 application port 写 contract event outbox；content 的帖子和评论链路都采用这一形态，主代码当前没有本地 Spring event bridge。
 
 当前 `community-app` 内部跨域事件 contract 主要由：
 
@@ -290,9 +295,9 @@ workerId、wsPath、wsPort、capacity 和 shardGroup。metadata 不承载用户�
 
 ## 演进原则
 
-- 新业务优先按 [architecture.md](architecture.md) 的 DDD Tactical Layering 建模，不扩展旧 `service/entity/mapper/app` 表面。
-- 新跨域同步协作先设计 owner `api.model`，再暴露 `api.query` 或 `api.action`。
-- 新跨域异步协作先设计 owner `contracts.event`，再决定 local listener、outbox 或 Kafka。
+- 新业务按 [architecture.md](architecture.md) 的轻量领域分层建模，不扩展旧 `service/entity/mapper/app` 表面，也不预建空的战术 DDD 类型。
+- 新跨域同步协作先设计 owner `api.query` 或 `api.action`；用例专用 request/result 优先嵌套在接口中。
+- 新跨域异步协作先设计 owner `contracts.event` 和 outbox；只有存在独立本地订阅者时才增加 domain event 或 local listener。
 - 新可靠投影默认要求 handler 幂等、可重试、可观测。
 - 新高风险 HTTP 写接口要评估是否接入 `Idempotency-Key`。
 - 新运维入口统一走 scheduler / XXL owner action 或独立 owner admin API，不新增裸 `/internal/**` 管理面。

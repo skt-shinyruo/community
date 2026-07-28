@@ -1,7 +1,9 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.application.command.ApplyUserModerationCommand;
+import com.nowcoder.community.user.api.action.UserModerationActionApi;
+import com.nowcoder.community.user.api.model.UserModerationStateView;
+import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.model.UserModerationStatus;
@@ -12,14 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @Service
-public class UserModerationApplicationService {
+public class UserModerationApplicationService implements UserModerationActionApi, UserModerationQueryApi {
 
     private static final UUID ZERO_UUID = new UUID(0L, 0L);
 
@@ -37,7 +38,12 @@ public class UserModerationApplicationService {
         this.userPolicyEventPublisher = userPolicyEventPublisher;
     }
 
-    public UserModerationStatus getModerationState(UUID userId) {
+    @Override
+    public UserModerationStateView getModerationState(UUID userId) {
+        return toView(getModerationStatus(userId));
+    }
+
+    private UserModerationStatus getModerationStatus(UUID userId) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
@@ -46,26 +52,26 @@ public class UserModerationApplicationService {
                 .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
     }
 
-    public List<UserModerationStatus> scanModerationStatesAfterId(UUID afterUserId, int limit) {
+    @Override
+    public List<UserModerationStateView> scanModerationStatesAfterId(UUID afterUserId, int limit) {
         UUID normalizedAfterUserId = afterUserId == null ? ZERO_UUID : afterUserId;
         int normalizedLimit = Math.min(500, Math.max(1, limit));
         return userRepository.scanModerationStatesAfterId(normalizedAfterUserId, normalizedLimit).stream()
                 .filter(status -> status != null && status.userId() != null)
+                .map(this::toView)
                 .toList();
     }
 
+    @Override
     public long currentModerationProjectionVersion() {
         return userRepository.currentUserPolicyVersion();
     }
 
-    @Transactional
-    public UserModerationStatus applyModeration(ApplyUserModerationCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        UUID userId = command.userId();
+    private UserModerationStatus applyModerationInternal(UUID userId, String rawAction, int durationSeconds) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        String action = userModerationDomainService.requireNonBlankAction(command.action());
+        String action = userModerationDomainService.requireNonBlankAction(rawAction);
         UserAccount user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
 
@@ -75,7 +81,7 @@ public class UserModerationApplicationService {
         UserModerationStatus next = userModerationDomainService.applyModeration(
                 toStatus(user),
                 action,
-                command.durationSeconds(),
+                durationSeconds,
                 now
         );
         long version = userRepository.nextUserPolicyVersion(userId);
@@ -103,11 +109,21 @@ public class UserModerationApplicationService {
         return new UserModerationStatus(user.id(), user.muteUntil(), user.banUntil(), user.policyVersion());
     }
 
+    private UserModerationStateView toView(UserModerationStatus status) {
+        return new UserModerationStateView(status.userId(), status.muteUntil(), status.banUntil(), status.version());
+    }
+
     private boolean isActiveBan(Instant banUntil, Instant now) {
         return banUntil != null && banUntil.isAfter(now);
     }
 
     private boolean sameInstant(Instant left, Instant right) {
         return left == null ? right == null : left.equals(right);
+    }
+
+    @Override
+    @Transactional
+    public UserModerationStateView applyModeration(UUID userId, String action, int durationSeconds) {
+        return toView(applyModerationInternal(userId, action, durationSeconds));
     }
 }

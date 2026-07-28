@@ -1,7 +1,6 @@
 package com.nowcoder.community.growth.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.growth.application.command.RecordTaskProgressCommand;
 import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
@@ -84,24 +83,24 @@ public class TaskProgressApplicationService {
         this.idGenerator = idGenerator;
     }
 
-    private void recordProgress(RecordTaskProgressCommand command) {
-        if (command == null || !taskProgressDomainService.isProcessableEvent(command.userId(), command.triggerEventType(), command.sourceEventId(), command.bizDate())) {
+    private void recordProgress(UUID userId, String triggerEventType, String sourceEventId, LocalDate bizDate) {
+        if (!taskProgressDomainService.isProcessableEvent(userId, triggerEventType, sourceEventId, bizDate)) {
             return;
         }
-        String triggerEventType = command.triggerEventType().trim();
-        String sourceEventId = command.sourceEventId().trim();
-        List<TaskTemplate> templates = taskTemplateRepository.findActiveByTriggerEventType(triggerEventType);
+        String normalizedTriggerEventType = triggerEventType.trim();
+        String normalizedSourceEventId = sourceEventId.trim();
+        List<TaskTemplate> templates = taskTemplateRepository.findActiveByTriggerEventType(normalizedTriggerEventType);
         for (TaskTemplate template : templates) {
             if (template == null || template.getTargetValue() <= 0) {
                 continue;
             }
-            applyTemplate(command.userId(), template, sourceEventId, command.bizDate());
+            applyTemplate(userId, template, normalizedSourceEventId, bizDate);
         }
     }
 
     @Transactional
     public void processEvent(UUID userId, String triggerEventType, String sourceEventId, LocalDate bizDate) {
-        recordProgress(new RecordTaskProgressCommand(userId, triggerEventType, sourceEventId, bizDate));
+        recordProgress(userId, triggerEventType, sourceEventId, bizDate);
     }
 
     @Transactional
@@ -152,7 +151,7 @@ public class TaskProgressApplicationService {
         if (bizDate == null) {
             return;
         }
-        recordProgress(new RecordTaskProgressCommand(userId, triggerEventType, sourceEventId, bizDate));
+        recordProgress(userId, triggerEventType, sourceEventId, bizDate);
     }
 
     private void applyTemplate(UUID userId, TaskTemplate template, String sourceEventId, LocalDate bizDate) {

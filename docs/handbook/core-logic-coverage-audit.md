@@ -111,6 +111,7 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 | `interaction.application.LikeInteractionApplicationService` | `Covered` | [Interaction 互动写入编排逻辑](business-logic/interaction.md) |
 | `content.application.ContentEntityResolutionApplicationService` | `Covered` | [Content 内容业务逻辑](business-logic/content.md#owner-entity-resolution) |
 | `content.application.ContentEventDispatchApplicationService` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
+| `content.application.PostIntegrationEventPublisher` | `Covered` | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) |
 | `content.controller.FeedController` | `IndexOnly` | [Content 内容业务逻辑](business-logic/content.md#帖子读取) |
 | `content.application.FeedReadApplicationService` | `Covered` | [Content 内容业务逻辑](business-logic/content.md#feed缓存与降级) |
 | `content.application.FollowFeedReadApplicationService` | `Covered` | [Content 内容业务逻辑](business-logic/content.md#feed缓存与降级) |
@@ -120,7 +121,7 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 | `content.domain.service.PostHotnessDomainService` | `Covered` | [Content 内容业务逻辑](business-logic/content.md#热度预热与-counter) |
 | `content.application.PostMediaUploadRecoveryApplicationService` | `Covered` | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) |
 | `content.application.PostMediaReferenceApplicationService` | `Covered` | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) |
-| `content.application.PostMediaReferenceSchedulingApplicationService` | `Covered` | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) |
+| `content.application.PostMediaReferenceScheduler` | `Covered` | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) |
 | `content.application.PostMediaReferenceReconciliationApplicationService` | `Covered` | [Content 内容业务逻辑](business-logic/content.md#帖子媒体上传) |
 | `content.infrastructure.event.ContentEventKafkaOutboxHandler` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `content.infrastructure.event.PostHotFeedProjectionKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |

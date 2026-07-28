@@ -21,14 +21,14 @@
 
 | 类 | 核心职责 | 读代码时重点看什么 |
 | --- | --- | --- |
-| `wallet.application.WalletAccountApplicationService` | 账户创建、余额、状态、version 条件更新。 | 看余额和状态如何通过条件更新收敛。 |
+| `wallet.application.WalletAccountApplicationService` | 账户创建、余额、状态、version 条件更新；直接实现账户查询 owner API。 | 看余额和状态如何通过条件更新收敛。 |
 | `wallet.application.WalletLedgerApplicationService` | 总账交易、双分录、requestId replay 校验。 | 看双分录 balance 和 replay 语义。 |
 | `wallet.application.WalletRechargeApplicationService` | 充值 HTTP 幂等、订单和 RECHARGE 总账。 | 看 Idempotency-Key、订单和账本如何一起推进。 |
 | `wallet.application.WalletWithdrawApplicationService` | 提现 HTTP 幂等、订单、两段 WITHDRAW 总账。 | 看提现申请和出账确认如何拆开。 |
 | `wallet.application.WalletTransferApplicationService` | 转账 HTTP 幂等、订单和 TRANSFER 总账。 | 看转账 from/to 约束和幂等键。 |
-| `wallet.application.WalletMarketApplicationService` | market escrow / release / refund owner action。 | 看 market 与 wallet 的资金协作接口。 |
+| `wallet.application.WalletMarketApplicationService` | market escrow / release / refund owner action；直接实现 market action API。 | 看 market 与 wallet 的资金协作接口。 |
 | `wallet.application.WalletRewardProjectionApplicationService` | content/social owner event 到固定奖励 delta 和稳定 requestId 的映射。 | 看自点赞过滤、`+10/+2/+1/-1` 和 `wallet-reward:<sourceId>`。 |
-| `wallet.application.WalletRewardApplicationService` | growth / reward 入账 owner action。 | 看奖励发放如何由 requestId 保护。 |
+| `wallet.application.WalletRewardApplicationService` | growth / reward 入账 owner action；直接实现 reward action API。 | 看奖励发放如何由 requestId 保护。 |
 | `wallet.application.WalletAdminOpsApplicationService` | freeze / reverse 管理操作和审计。 | 看治理操作如何保持可追溯。 |
 
 ## 领域服务
@@ -45,9 +45,6 @@
 
 | 类 | 核心职责 |
 | --- | --- |
-| `wallet.infrastructure.api.WalletAccountQueryApiAdapter` | 账户查询同步适配。 |
-| `wallet.infrastructure.api.WalletMarketActionApiAdapter` | market 钱包动作同步适配。 |
-| `wallet.infrastructure.api.WalletRewardActionApiAdapter` | reward 入账同步适配。 |
 | `wallet.infrastructure.event.WalletRewardKafkaListener` | 消费 `content.events` / `social.events`，校验目标事件并进入 wallet projection application。 |
 | `wallet.infrastructure.persistence.*` | account、ledger、order、admin action 的 MyBatis 持久化。 |
 

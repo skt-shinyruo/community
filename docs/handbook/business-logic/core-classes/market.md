@@ -8,7 +8,7 @@
 2. `MarketInventoryApplicationService`
 3. `MarketOrderApplicationService`
 4. `MarketDisputeApplicationService`
-5. `MarketWalletActionApplicationService`
+5. `MarketWalletActionCoordinator`
 6. `MarketWalletActionProcessorApplicationService` / `MarketWalletActionRecoveryApplicationService`
 7. `MarketOrderSagaApplicationService`
 
@@ -29,12 +29,12 @@
 | `market.application.MarketAddressApplicationService` | 收货地址簿。 | 看地址快照和用户绑定规则。 |
 | `market.application.MarketOrderApplicationService` | 下单、取消、交付、发货、确认。 | 看订单状态机和总额校验。 |
 | `market.application.MarketDisputeApplicationService` | 买家争议、卖家处理、管理员裁决。 | 看争议如何推进订单终态。 |
-| `market.application.MarketWalletActionApplicationService` | escrow / release / refund durable command 写入。 | 看 durable command 的 requestId 规则。 |
+| `market.application.MarketWalletActionCoordinator` | escrow / release / refund durable command 写入。 | 看 durable command 的 requestId 规则。 |
 | `market.application.MarketWalletActionProcessorApplicationService` | due action claim、调用 wallet、推进 saga。 | 看 lease、重试和 wallet 回执。 |
 | `market.application.MarketWalletActionRecoveryApplicationService` | lease 恢复、缺失 command 补写、已有 wallet 结果应用。 | 看崩溃恢复时如何补状态。 |
 | `market.application.MarketOrderSagaApplicationService` | wallet action 后的订单 / 争议条件状态推进。 | 看 market 状态如何跟随 wallet 结果收敛。 |
-| `market.application.MarketOrderAutoConfirmApplicationService` | 自动确认批任务入口。 | 看 due order 的批处理入口。 |
-| `market.application.MarketOrderAutoConfirmSingleOrderApplicationService` | 单订单锁定和自动确认。 | 看单订单锁和重复执行幂等。 |
+| `market.application.MarketOrderAutoConfirmApplicationService` | 自动确认批任务入口；直接实现 owner action API。 | 看 due order 的批处理入口。 |
+| `market.application.MarketOrderAutoConfirmer` | 单订单锁定和自动确认。 | 看单订单锁和重复执行幂等。 |
 
 ## 领域服务
 
@@ -49,7 +49,6 @@
 
 | 类 | 核心职责 |
 | --- | --- |
-| `market.infrastructure.api.MarketOrderAutoConfirmActionApiAdapter` | 自动确认动作的同步适配。 |
 | `market.infrastructure.job.MarketOrderAutoConfirmHandler` | XXL 自动确认 job。 |
 | `market.infrastructure.job.MarketWalletActionProcessorHandler` | XXL wallet action processor job。 |
 | `market.infrastructure.job.MarketWalletActionRecoveryHandler` | XXL recovery job。 |

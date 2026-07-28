@@ -121,13 +121,6 @@ class NoticeApplicationServiceTest {
     }
 
     @Test
-    void markReadShouldRejectNullCommand() {
-        assertThatThrownBy(() -> noticeService.markRead(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("command must not be null");
-    }
-
-    @Test
     void revokeLikeNoticeShouldHideMatchingNoticeFromUnreadAndListViews() {
         UUID recipientUserId = uuid(9);
         jdbcTemplate.update(

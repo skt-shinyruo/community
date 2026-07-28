@@ -2,10 +2,9 @@ package com.nowcoder.community.interaction.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.interaction.application.LikeInteractionApplicationService;
-import com.nowcoder.community.interaction.application.command.SetLikeInteractionCommand;
-import com.nowcoder.community.interaction.application.result.LikeInteractionResult;
+import com.nowcoder.community.interaction.application.LikeInteractionApplicationService.LikeResult;
+import com.nowcoder.community.interaction.application.LikeInteractionApplicationService.SetLikeCommand;
 import com.nowcoder.community.interaction.controller.dto.LikeRequest;
-import com.nowcoder.community.interaction.controller.dto.LikeResponse;
 import com.nowcoder.community.social.controller.LikeController;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.TestingAuthenticationToken;
@@ -59,15 +58,15 @@ class LikeInteractionControllerTest {
         request.setEntityType(POST);
         request.setEntityId(postId);
         request.setLiked(Boolean.TRUE);
-        when(applicationService.setLike(new SetLikeInteractionCommand(actorUserId, POST, postId, true)))
-                .thenReturn(new LikeInteractionResult(true, 3L));
+        when(applicationService.setLike(new SetLikeCommand(actorUserId, POST, postId, true)))
+                .thenReturn(new LikeResult(true, 3L));
 
-        Result<LikeResponse> result = controller.setLike(authentication(actorUserId), request);
+        Result<LikeResult> result = controller.setLike(authentication(actorUserId), request);
 
         assertThat(result.getCode()).isZero();
-        assertThat(result.getData().isLiked()).isTrue();
-        assertThat(result.getData().getLikeCount()).isEqualTo(3L);
-        verify(applicationService).setLike(new SetLikeInteractionCommand(actorUserId, POST, postId, true));
+        assertThat(result.getData().liked()).isTrue();
+        assertThat(result.getData().likeCount()).isEqualTo(3L);
+        verify(applicationService).setLike(new SetLikeCommand(actorUserId, POST, postId, true));
     }
 
     private Authentication authentication(UUID userId) {

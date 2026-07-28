@@ -1,8 +1,8 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.command.PrewarmHotFeedCacheCommand;
-import com.nowcoder.community.content.application.command.UpdateHotFeedDegradationSignalCommand;
+import com.nowcoder.community.content.api.model.HotFeedCachePrewarmRequest;
+import com.nowcoder.community.content.api.model.UpdateHotFeedDegradationSignalRequest;
 import com.nowcoder.community.content.application.result.HotFeedDegradationSignalResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.DiscussPost;
@@ -84,7 +84,7 @@ class HotFeedCacheGovernanceApplicationServiceTest {
         when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(posts);
         when(postFeedSummaryLoader.assembleSummaries(posts)).thenReturn(summaries);
 
-        var result = service.prewarm(new PrewarmHotFeedCacheCommand("global", null, 2, "warm cold cache"));
+        var result = service.prewarm(new HotFeedCachePrewarmRequest("global", null, 2, "warm cold cache"));
 
         assertThat(result.scope()).isEqualTo("global");
         assertThat(result.requestedCount()).isEqualTo(2);
@@ -108,7 +108,7 @@ class HotFeedCacheGovernanceApplicationServiceTest {
         when(postContentRepository.listPosts(0, 10, PostContentRepository.ORDER_HOT, boardId, null)).thenReturn(posts);
         when(postFeedSummaryLoader.assembleSummaries(posts)).thenReturn(summaries);
 
-        var result = service.prewarm(new PrewarmHotFeedCacheCommand("board", boardId, 10, "warm board"));
+        var result = service.prewarm(new HotFeedCachePrewarmRequest("board", boardId, 10, "warm board"));
 
         assertThat(result.scope()).isEqualTo("board");
         assertThat(result.boardId()).isEqualTo(boardId);
@@ -124,8 +124,8 @@ class HotFeedCacheGovernanceApplicationServiceTest {
         when(postFeedCache.writeDegradationSignal(false, ""))
                 .thenReturn(new HotFeedDegradationSignalResult(false, "", Instant.parse("2026-07-07T10:01:00Z")));
 
-        var degraded = service.updateDegradationSignal(new UpdateHotFeedDegradationSignalCommand(true, "redis maintenance"));
-        var cleared = service.updateDegradationSignal(new UpdateHotFeedDegradationSignalCommand(false, "clear"));
+        var degraded = service.updateDegradationSignal(new UpdateHotFeedDegradationSignalRequest(true, "redis maintenance"));
+        var cleared = service.updateDegradationSignal(new UpdateHotFeedDegradationSignalRequest(false, "clear"));
 
         assertThat(degraded.degraded()).isTrue();
         assertThat(degraded.reason()).isEqualTo("redis maintenance");
@@ -136,7 +136,7 @@ class HotFeedCacheGovernanceApplicationServiceTest {
 
     @Test
     void prewarmShouldRejectInvalidLimit() {
-        assertThatThrownBy(() -> service.prewarm(new PrewarmHotFeedCacheCommand("global", null, 501, "warm")))
+        assertThatThrownBy(() -> service.prewarm(new HotFeedCachePrewarmRequest("global", null, 501, "warm")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("limit must be between 1 and 500");
     }

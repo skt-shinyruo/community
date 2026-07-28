@@ -1,6 +1,6 @@
 # 架构规则
 
-本文档是 handbook 的架构规则 SSOT。它描述 deployable 边界、业务包边界、DDD Tactical Layering、跨域协作入口和守卫测试。系统协作机制见 [system-design.md](system-design.md)，业务链路见 [business-flows.md](business-flows.md)。
+本文档是 handbook 的架构规则 SSOT。它描述 deployable 边界、轻量领域分层、跨域协作入口和守卫测试。系统协作机制见 [system-design.md](system-design.md)，业务链路见 [business-flows.md](business-flows.md)。
 
 ## 当前形态
 
@@ -41,21 +41,21 @@
 | IM 私信/群聊 | `/api/im/sessions`, `/ws/im`, `/api/im/**` | `community-im-gateway` + `im-realtime` + `im-core` | IM 服务各自配置 |
 | IM policy snapshot | `/internal/im/realtime/projections/**` | `user` / `social` SSOT，`community-app` 暴露 snapshot | internal scope JWT |
 
-## community-app 强制包形态
+## community-app 轻量领域分层
 
-所有 `backend/community-app` 后端业务代码必须使用 strict DDD Tactical Layering。每个业务域的标准包形态是：
+`backend/community-app` 使用轻量领域分层：所有权、事务和基础设施边界是强约束，战术 DDD 类型按业务需要创建。包结构是可用能力清单，不要求每个领域或用例填满所有层：
 
 ```text
 com.nowcoder.community.<domain>
   controller
   application
-    command
-    result
+    command             # 可选；单用例值优先使用嵌套 record
+    result              # 可选；单用例值优先使用嵌套 record
   domain
     model
     service
     repository
-    event
+    event               # 可选的内部领域事件
   infrastructure
     persistence
       mapper
@@ -64,16 +64,16 @@ com.nowcoder.community.<domain>
   api
     query
     action
-    model
+    model               # 可选；API 专用值也可嵌套在接口中
   contracts
     event
 ```
 
-![Strict DDD tactical layering](assets/architecture-ddd-layering.svg)
+![Lightweight domain layering](assets/architecture-ddd-layering.svg)
 
 允许有少量域特定 adapter 包，但职责必须能映射回上面的层次。例如 owner API adapter 可以位于 `infrastructure.api`，Spring event / outbox adapter 可以位于 `infrastructure.event`。
 
-`drive` follows the same DDD tactical layering guardrails: controllers call same-domain application services, application services depend on drive domain contracts and application ports, and OSS collaboration is hidden behind drive infrastructure adapters.
+简单查询可以止于 application query port，不必为了完整包形态构造 domain model。复杂写入仍由 ApplicationService 编排 domain 和 repository。`drive` 等涉及外部存储、恢复和事务切分的领域继续使用完整分层。
 
 ## 非 business 代码边界
 
@@ -87,9 +87,9 @@ com.nowcoder.community.<domain>
 
 ### Controller / Listener / Handler / Bridge / Enqueuer / Job
 
-- 只处理 HTTP / message / job 入口绑定、认证信息提取、基础参数转换、DTO 转换和 validation handoff。
-- Inbound adapters include controllers, local event listeners, outbox handlers, event bridges, enqueuers, and scheduled jobs. They adapt input and call same-domain application services; they must not perform foreign owner `api.*`, foreign `application.*`, same-domain application helper/port, domain model/service/repository, or persistence collaboration before entering the same-domain application layer.
-- same-domain 调用只能进入同域 `*ApplicationService`。
+- 只处理 HTTP / message / job 入口绑定、认证信息提取、基础参数转换、必要的 DTO 转换和 validation handoff。Application result 与 HTTP response 的字段和语义完全一致且不含 transport type 时，controller 可以直接返回该 result。
+- Inbound adapters include controllers, local event listeners, outbox handlers, event bridges, enqueuers, and scheduled jobs. They adapt input and enter the same-domain application layer; they must not perform foreign owner `api.*`, foreign `application.*`, domain model/service/repository, or persistence collaboration before that boundary.
+- controller 进入同域 `*ApplicationService`。其他入站适配器进入一个公开的同域 application entry；默认使用 `*ApplicationService`，当组件确实承担调度、投影或发布语义时也可以使用 `*Scheduler`、`*Handler`、`*Publisher`。
 - 不直接调用 raw service、repository、mapper、domain service、infrastructure adapter。
 - 不把 same-domain `api.*` 当内部入口使用。
 
@@ -97,17 +97,19 @@ com.nowcoder.community.<domain>
 
 - 是同域 use case 入口，命名为 `*ApplicationService`。
 - 负责事务边界、幂等、actor/viewer 转换、command/result 装配、领域调用、领域事件发布和 foreign-domain `api.*` 调用。
-- `application.command` / `application.result` / application-owned ports only express application semantics. They must not expose HTTP transport types such as `ResponseEntity`, `ResponseCookie`, `Resource`, `MediaType`, Servlet request/response types, or Spring Web upload types such as `MultipartFile`.
+- 单用例 command/result 优先作为 ApplicationService 或 owner API 的嵌套 record；只有复用、独立语义或可读性需要时才建立顶层文件。`CommentApplicationService.CommentCreateResult` 和 `HotPathPrewarmApplicationService.HotPathPrewarmResult` 是当前的局部结果示例。
+- Application values and application-owned ports only express application semantics. They must not expose HTTP transport types such as `ResponseEntity`, `ResponseCookie`, `Resource`, `MediaType`, Servlet request/response types, or Spring Web upload types such as `MultipartFile`.
 - 不直接依赖 MyBatis mapper 或 dataobject；持久化只通过 domain repository interface 或明确的 infrastructure port。
+- 简单 read model 可以由 application-owned query port 直接返回 application result，不强制经过 domain model。
 - 不新增以域名命名的聚合入口门面，例如 `AuthApplicationService`、`WalletApplicationService`、`MarketApplicationService`、`AdminWalletApplicationService`、`AdminMarketApplicationService` 这类只路由到同域多个更细 `*ApplicationService` 的类。controller / admin controller 应直接进入拥有该用例事务、幂等、审计和跨域协作语义的具体同域 `*ApplicationService`。
 
 #### Application Service Collaboration
 
-`ApplicationService` remains the same-domain use-case entry style. Controllers, listeners, jobs, outbox handlers, bridges, and enqueuers must enter only a same-domain `*ApplicationService`.
+`ApplicationService` remains the default same-domain use-case entry style. Controllers use it directly；listener、job 和 outbox handler 也可以进入一个具有真实 application 语义的 focused entry，不为满足类名规则增加一层转发。
 
 Same-domain `ApplicationService -> ApplicationService` collaboration is allowed only when the caller is an explicit process manager or larger use-case orchestrator. The class name must identify the process it owns, for example `MarketWalletActionProcessorApplicationService`, `MarketWalletActionRecoveryApplicationService`, `MarketOrderAutoConfirmApplicationService`, `NoticeProjectionApplicationService`, or `SearchPostProjectionApplicationService`.
 
-Domain-named facade services such as `MarketApplicationService`, `WalletApplicationService`, or `ContentApplicationService` must not delegate to multiple same-domain application services. Reusable application helpers that are not use-case entries should use focused names such as `*Issuer`, `*Assembler`, `*Scheduler`, `*Coordinator`, or `*Component` and must stay in the application package only when they express application semantics.
+Domain-named facade services such as `MarketApplicationService`, `WalletApplicationService`, or `ContentApplicationService` must not delegate to multiple same-domain application services. Reusable application helpers that are not use-case entries should use focused names such as `*Issuer`, `*Assembler`, `*Scheduler`, `*Publisher`, `*Coordinator`, or `*Component` and must stay in the application package only when they express application semantics. For example, `MarketOrderAutoConfirmer` owns one-order confirmation and `MarketWalletActionCoordinator` coordinates durable wallet actions without presenting themselves as use-case entries.
 
 Transactional methods must not rely on self-invocation for Spring proxy behavior. Public `@Transactional` overloads should delegate to a private non-annotated helper when they share an implementation.
 
@@ -125,10 +127,27 @@ Transactional methods must not rely on self-invocation for Spring proxy behavior
 
 ### API 与 Contracts
 
-- `api.query`、`api.action`、`api.model` 是 owner-domain 对外发布的同步协作契约，只给 foreign domain 使用。
-- 同域调用不得把 same-domain `api.*` 当 service locator。
+- `api.query`、`api.action` 是 owner-domain 对外发布的同步入口契约；`api.model` 是其同步协作模型。
+- 同域调用不得把 same-domain `api.query` / `api.action` 当 service locator。若字段语义和生命周期完全一致，owner ApplicationService 和 controller 可以复用 `api.model`，不为包纯度建立镜像 result。
+- Owner ApplicationService 可以直接实现本域发布的 API；只有存在实质协议转换或模型转换时才建立 infrastructure API adapter。
+- API 专用 request/result 可以嵌套在接口中，不要求为每个值创建 `api.model` 文件。
 - `contracts.event` 是 owner-domain 对外发布的异步事件契约。
 - 同步 API 边界不得 import、返回或接收 `contracts.event` 类型；同步和异步字段相同也要分别定义 `api.model` 和 `contracts.event` payload。
+
+#### Reviewed API adapter surface
+
+`infrastructure.api` 是需要显式评审的例外面，不是每个 owner API 的必备层。当前保留 6 个 adapter：
+
+| Adapter | 保留理由 |
+| --- | --- |
+| `AnalyticsIngestActionApiAdapter` | 注入采集配置并决定 DAU capture policy。 |
+| `PostPublishingActionApiAdapter` | published block payload 到内部发布 command 的规范化。 |
+| `PostReadQueryApiAdapter` | 大型帖子 read projection 到 published view 的递归转换。 |
+| `CommentReadQueryApiAdapter` | 根据评论层级推导 published entity type / id。 |
+| `SocialLikeQueryAdapter` | foreign social API 到 content query port，并提供 null/default policy。 |
+| `UserCredentialApiAdapter` | 用户不存在、认证失败和 published credential view 的错误/模型翻译。 |
+
+其余 owner API 由 owner ApplicationService 直接实现。新增 adapter 必须说明独立转换或策略，并同步更新 `InfraBoundaryArchTest` 的 reviewed set；纯 delegate 不得进入该包。
 
 ## 跨域协作规则
 
@@ -137,23 +156,21 @@ Transactional methods must not rely on self-invocation for Spring proxy behavior
 ```text
 caller ApplicationService
   -> owner-domain api.query / api.action
-  -> owner ApplicationService / adapter
+  -> owner ApplicationService implementing the API / substantive adapter
   -> owner domain
 ```
 
 异步跨域协作：
 
 ```text
-owner domain event
-  -> same-domain event bridge
-  -> owner ApplicationService
-  -> owner contracts.event -> eventbus.<owner>
+owner ApplicationService
+  -> owner contracts.event -> eventbus.<owner> outbox
   -> owner outbox handler -> <owner>.events
   -> consumer Kafka listener
   -> consumer ApplicationService
 ```
 
-当前 Content、Social、User 的跨域事件都使用上述唯一链路。`projection.im.policy` 是 consumer 侧唯一保留的内部 projection outbox，不是第二条跨域发布路径。
+Domain event 和本地 Spring bridge 不是发布 integration event 的必经层。只有存在多个独立本地订阅者时才保留；单一 durable reaction 由 owner ApplicationService 在主事务内直接写 contract event outbox。`projection.im.policy` 是 consumer 侧内部 projection outbox，不是第二条跨域发布路径。
 
 禁止把以下类型作为跨域入口：
 
@@ -186,6 +203,8 @@ owner domain event
 - `CommandService`、`ActionService`、`FacadeService` 作为应用入口命名
 - `AuthApplicationService` / `WalletApplicationService` 这类绕过 `FacadeService` 命名但实际只转发到同域多个应用服务的聚合入口
 - `app/query`、`app/command` 或新的 `*UseCase` 包
+- 只为满足命名或调用跳数而存在的 pass-through API adapter、event bridge 或 ApplicationService
+- 语义和生命周期完全相同、每次都共同修改的镜像 command/result/API model
 
 旧 `service`、`entity`、`mapper`、`app` 包只能作为迁移表面。触碰相关代码时，应继续把业务规则迁向 `domain`，把 MyBatis 细节迁向 `infrastructure.persistence`，把同域入口迁向 `application.*ApplicationService`。
 
@@ -238,6 +257,7 @@ MySQL 主业务 schema 不再由 runtime service 或 first-boot final-state SQL 
 - `DtoBoundaryArchTest`
 - `InfraBoundaryArchTest`
 - `ListenerBoundaryArchTest`
+- `SynchronousCollaborationArchTest`
 - `TransactionBoundaryArchTest`
 
 路径：
@@ -246,7 +266,7 @@ MySQL 主业务 schema 不再由 runtime service 或 first-boot final-state SQL 
 backend/community-app/src/test/java/com/nowcoder/community/app/arch
 ```
 
-当前 controller / listener / handler / bridge / enqueuer / job 应用边界 baseline 应保持为空；遗留的非协作面依赖只能收缩，不允许扩散。新增或修改架构规则时，必须同步更新本文件、[system-design.md](system-design.md)、严格 DDD 设计 spec 和对应 ArchUnit 测试。
+ArchUnit 守卫直接表达危险依赖，不为已经清零的迁移例外保留空白名单或空断言，也不规定一个用例必须经过多少个类。`SynchronousCollaborationArchTest` 只检查 business / adapter domain application 的跨域依赖必须进入 published `api.query` / `api.action` / `api.model`，以及核心域同步依赖图无环；它不维护逐类型 edge baseline。`InfraBoundaryArchTest` 另外把狭窄的 `infrastructure.api` 包作为 reviewed exception surface，避免 identity adapter 再次扩散；有实质转换的新 adapter 可以连同理由一起更新 reviewed set。新增或修改架构规则时，必须同步更新本文件、[system-design.md](system-design.md)、轻量领域分层设计 spec 和对应 ArchUnit 测试。
 
 ## Architecture Verification
 

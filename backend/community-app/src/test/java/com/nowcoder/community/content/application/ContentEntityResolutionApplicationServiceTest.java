@@ -2,7 +2,7 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.result.ResolvedContentResult;
+import com.nowcoder.community.content.api.model.ResolvedContentRef;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.CommentContentRepository;
@@ -67,7 +67,7 @@ class ContentEntityResolutionApplicationServiceTest {
 
         ContentEntityResolutionApplicationService service = service(postRepository, commentRepository);
 
-        ResolvedContentResult resolved = service.resolve(EntityTypes.POST, postId);
+        ResolvedContentRef resolved = service.resolve(EntityTypes.POST, postId);
 
         assertThat(resolved.entityUserId()).isEqualTo(userId);
         assertThat(resolved.postId()).isEqualTo(postId);
@@ -90,7 +90,7 @@ class ContentEntityResolutionApplicationServiceTest {
 
         ContentEntityResolutionApplicationService service = service(postRepository, commentRepository);
 
-        ResolvedContentResult resolved = service.resolve(EntityTypes.COMMENT, replyId);
+        ResolvedContentRef resolved = service.resolve(EntityTypes.COMMENT, replyId);
 
         assertThat(resolved.entityUserId()).isEqualTo(replyUserId);
         assertThat(resolved.postId()).isEqualTo(postId);
@@ -173,7 +173,7 @@ class ContentEntityResolutionApplicationServiceTest {
 
         ContentEntityResolutionApplicationService service = service(postRepository, commentRepository);
 
-        ResolvedContentResult resolved = service.resolve(EntityTypes.COMMENT, replyId);
+        ResolvedContentRef resolved = service.resolve(EntityTypes.COMMENT, replyId);
 
         assertThat(resolved.entityUserId()).isEqualTo(replyUserId);
         assertThat(resolved.postId()).isEqualTo(postId);

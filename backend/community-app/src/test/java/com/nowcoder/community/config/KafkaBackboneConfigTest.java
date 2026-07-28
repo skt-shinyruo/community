@@ -25,6 +25,7 @@ class KafkaBackboneConfigTest {
 
         assertBackboneDefaults(environment);
         assertConsumerDefaults(environment);
+        assertThat(environment.getProperty("events.outbox.worker-enabled", Boolean.class)).isFalse();
     }
 
     @Test

@@ -1,14 +1,24 @@
 package com.nowcoder.community.app.arch;
 
+import com.nowcoder.community.social.api.action.SocialLikeActionApi;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 @AnalyzeClasses(packages = "com.nowcoder.community", importOptions = ImportOption.DoNotIncludeTests.class)
 class LikeInteractionBoundaryArchTest {
+
+    @ArchTest
+    static final ArchRule social_like_api_should_be_implemented_directly_by_its_application_service = classes()
+            .that().implement(SocialLikeActionApi.class)
+            .should().haveFullyQualifiedName(
+                    "com.nowcoder.community.social.application.LikeApplicationService"
+            )
+            .because("an identity API adapter adds no boundary or protocol conversion");
 
     @ArchTest
     static final ArchRule social_like_application_must_not_call_foreign_owner_apis = noClasses()

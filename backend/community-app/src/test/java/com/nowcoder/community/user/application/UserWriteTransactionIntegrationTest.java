@@ -2,7 +2,6 @@ package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.user.application.command.ApplyUserModerationCommand;
 import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
 import com.nowcoder.community.user.infrastructure.audit.Slf4jUserAuditLogAdapter;
 import com.nowcoder.community.user.infrastructure.event.OutboxUserPolicyEventPublisher;
@@ -127,9 +126,7 @@ class UserWriteTransactionIntegrationTest {
             throw new IllegalStateException("policy publication failed");
         }).when(userPolicyEventPublisher).publishUserPolicyChanged(any(), any());
 
-        assertThatThrownBy(() -> userModerationApplicationService.applyModeration(
-                new ApplyUserModerationCommand(TARGET_USER_ID, "ban", 120)
-        ))
+        assertThatThrownBy(() -> userModerationApplicationService.applyModeration(TARGET_USER_ID, "ban", 120))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("policy publication failed");
 

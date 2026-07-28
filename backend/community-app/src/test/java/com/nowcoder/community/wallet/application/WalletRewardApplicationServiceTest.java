@@ -4,7 +4,7 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserSummaryView;
-import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.wallet.application.command.WalletRewardCommand;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +47,7 @@ class WalletRewardApplicationServiceTest {
     private ClientIpResolver clientIpResolver;
 
     @MockBean
-    private UserLookupQueryApi userLookupQueryApi;
+    private UserReadApplicationService userReadApplicationService;
 
     @BeforeEach
     void setUp() {
@@ -55,7 +55,7 @@ class WalletRewardApplicationServiceTest {
         jdbcTemplate.update("delete from wallet_txn");
         jdbcTemplate.update("delete from transfer_order");
         jdbcTemplate.update("delete from wallet_account");
-        when(userLookupQueryApi.getSummaryById(any(UUID.class)))
+        when(userReadApplicationService.getSummaryById(any(UUID.class)))
                 .thenAnswer(invocation -> summary(invocation.getArgument(0)));
     }
 

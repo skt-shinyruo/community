@@ -168,7 +168,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         MarketWalletActionRepository walletActionRepository = mock(MarketWalletActionRepository.class);
         MarketOrderRepository orderRepository = mock(MarketOrderRepository.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         MarketWalletAction action = action(uuid(601), uuid(602), "RELEASE");
         action.setStatus("FAILED");
         action.setWalletTxnId(uuid(603));
@@ -185,7 +185,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
                 walletActionRepository,
                 orderRepository,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.fixed(Instant.parse("2026-04-25T10:00:00Z"), ZoneOffset.UTC)
         );
 
@@ -211,7 +211,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         MarketWalletActionRepository walletActionRepository = mock(MarketWalletActionRepository.class);
         MarketOrderRepository orderRepository = mock(MarketOrderRepository.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         MarketWalletAction action = action(uuid(604), uuid(605), "REFUND");
         action.setStatus("FAILED");
         action.setWalletTxnId(uuid(606));
@@ -227,7 +227,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
                 walletActionRepository,
                 orderRepository,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.fixed(Instant.parse("2026-04-25T10:00:00Z"), ZoneOffset.UTC)
         );
 
@@ -253,7 +253,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         MarketWalletActionRepository walletActionRepository = mock(MarketWalletActionRepository.class);
         MarketOrderRepository orderRepository = mock(MarketOrderRepository.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         MarketWalletAction action = action(uuid(607), uuid(608), "RELEASE");
         action.setStatus("PROCESSING");
         action.setWalletTxnId(uuid(609));
@@ -264,7 +264,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
                 walletActionRepository,
                 orderRepository,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.fixed(Instant.parse("2026-04-25T10:00:00Z"), ZoneOffset.UTC)
         );
 
@@ -281,7 +281,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         MarketWalletActionRepository walletActionRepository = mock(MarketWalletActionRepository.class);
         MarketOrderRepository orderRepository = mock(MarketOrderRepository.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         Instant now = Instant.parse("2026-04-25T10:00:00Z");
         UUID actionOrderId = uuid(611);
         MarketOrder pendingOrder = order(actionOrderId).status("RELEASE_PENDING").build();
@@ -302,7 +302,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
                 walletActionRepository,
                 orderRepository,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.fixed(now, ZoneOffset.UTC)
         );
 
@@ -328,7 +328,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         MarketWalletActionRepository walletActionRepository = mock(MarketWalletActionRepository.class);
         MarketOrderRepository orderRepository = mock(MarketOrderRepository.class);
         MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
-        MarketWalletActionApplicationService actionService = mock(MarketWalletActionApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         Instant now = Instant.parse("2026-04-25T10:00:00Z");
         UUID actionOrderId = uuid(613);
         MarketOrder pendingOrder = order(actionOrderId).status("REFUND_PENDING").build();
@@ -349,7 +349,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
                 walletActionRepository,
                 orderRepository,
                 sagaService,
-                actionService,
+                actionCoordinator,
                 Clock.fixed(now, ZoneOffset.UTC)
         );
 

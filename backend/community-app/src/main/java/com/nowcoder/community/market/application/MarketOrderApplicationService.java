@@ -55,7 +55,7 @@ public class MarketOrderApplicationService {
     private final MarketAddressRepository marketAddressRepository;
     private final MarketDeliveryRepository marketDeliveryRepository;
     private final MarketShipmentRepository marketShipmentRepository;
-    private final MarketWalletActionApplicationService marketWalletActionService;
+    private final MarketWalletActionCoordinator marketWalletActionCoordinator;
     private final MarketOrderSagaApplicationService marketOrderSagaService;
     private final IdempotencyGuard idempotencyGuard;
     private final UuidV7Generator idGenerator;
@@ -68,7 +68,7 @@ public class MarketOrderApplicationService {
                               MarketAddressRepository marketAddressRepository,
                               MarketDeliveryRepository marketDeliveryRepository,
                               MarketShipmentRepository marketShipmentRepository,
-                              MarketWalletActionApplicationService marketWalletActionService,
+                              MarketWalletActionCoordinator marketWalletActionCoordinator,
                               MarketOrderSagaApplicationService marketOrderSagaService,
                               IdempotencyGuard idempotencyGuard) {
         this(marketListingRepository,
@@ -77,7 +77,7 @@ public class MarketOrderApplicationService {
                 marketAddressRepository,
                 marketDeliveryRepository,
                 marketShipmentRepository,
-                marketWalletActionService,
+                marketWalletActionCoordinator,
                 marketOrderSagaService,
                 idempotencyGuard,
                 new UuidV7Generator());
@@ -89,7 +89,7 @@ public class MarketOrderApplicationService {
                        MarketAddressRepository marketAddressRepository,
                        MarketDeliveryRepository marketDeliveryRepository,
                        MarketShipmentRepository marketShipmentRepository,
-                       MarketWalletActionApplicationService marketWalletActionService,
+                       MarketWalletActionCoordinator marketWalletActionCoordinator,
                        MarketOrderSagaApplicationService marketOrderSagaService,
                        IdempotencyGuard idempotencyGuard,
                        UuidV7Generator idGenerator) {
@@ -99,7 +99,7 @@ public class MarketOrderApplicationService {
         this.marketAddressRepository = marketAddressRepository;
         this.marketDeliveryRepository = marketDeliveryRepository;
         this.marketShipmentRepository = marketShipmentRepository;
-        this.marketWalletActionService = marketWalletActionService;
+        this.marketWalletActionCoordinator = marketWalletActionCoordinator;
         this.marketOrderSagaService = marketOrderSagaService;
         this.idempotencyGuard = idempotencyGuard;
         this.idGenerator = idGenerator;
@@ -111,7 +111,7 @@ public class MarketOrderApplicationService {
                        MarketAddressRepository marketAddressRepository,
                        MarketDeliveryRepository marketDeliveryRepository,
                        MarketShipmentRepository marketShipmentRepository,
-                       MarketWalletActionApplicationService marketWalletActionService,
+                       MarketWalletActionCoordinator marketWalletActionCoordinator,
                        MarketOrderSagaApplicationService marketOrderSagaService,
                        UuidV7Generator idGenerator) {
         this(marketListingRepository,
@@ -120,7 +120,7 @@ public class MarketOrderApplicationService {
                 marketAddressRepository,
                 marketDeliveryRepository,
                 marketShipmentRepository,
-                marketWalletActionService,
+                marketWalletActionCoordinator,
                 marketOrderSagaService,
                 null,
                 idGenerator);
@@ -214,7 +214,7 @@ public class MarketOrderApplicationService {
         if (listing.isPreloadedDelivery()) {
             reserveUnitsForOrder(createdOrExisting.getOrderId(), reservedUnits);
         }
-        marketWalletActionService.enqueueEscrow(
+        marketWalletActionCoordinator.enqueueEscrow(
                 createdOrExisting.getOrderId(),
                 buyerUserId,
                 listing.getSellerUserId(),
@@ -257,7 +257,7 @@ public class MarketOrderApplicationService {
         MarketOrderTransition transition = order.requestRelease();
 
         applyForeground(transition);
-        marketWalletActionService.enqueueRelease(
+        marketWalletActionCoordinator.enqueueRelease(
                 transition.orderId(),
                 order.getSellerUserId(),
                 order.getBuyerUserId(),
@@ -302,13 +302,13 @@ public class MarketOrderApplicationService {
         if (order.status() == MarketOrderStatus.ESCROWED) {
             MarketOrderTransition transition = order.requestRefund();
             applyForeground(transition);
-            marketWalletActionService.enqueueRefund(orderId, buyerUserId, order.getSellerUserId(), order.getTotalAmount());
+            marketWalletActionCoordinator.enqueueRefund(orderId, buyerUserId, order.getSellerUserId(), order.getTotalAmount());
             return MarketOrderResult.from(reloadOrder(orderId));
         }
         if (order.status() == MarketOrderStatus.ESCROW_PENDING) {
             MarketOrderTransition transition = order.requestEscrowCancel();
             applyForeground(transition);
-            if (marketWalletActionService.cancelPendingEscrowIfPossible(orderId)) {
+            if (marketWalletActionCoordinator.cancelPendingEscrowIfPossible(orderId)) {
                 marketOrderSagaService.completeEscrowNoop(orderId);
             }
             return MarketOrderResult.from(reloadOrder(orderId));

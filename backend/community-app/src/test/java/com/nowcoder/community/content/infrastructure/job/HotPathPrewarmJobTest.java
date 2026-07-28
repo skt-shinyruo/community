@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.infrastructure.job;
 
 import com.nowcoder.community.content.application.HotPathPrewarmApplicationService;
-import com.nowcoder.community.content.application.result.HotPathPrewarmResult;
+import com.nowcoder.community.content.application.HotPathPrewarmApplicationService.HotPathPrewarmResult;
 import org.junit.jupiter.api.Test;
 
 import static org.mockito.Mockito.mock;

@@ -1,8 +1,7 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.content.domain.event.CommentDeletedDomainEvent;
-import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
+import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
@@ -51,7 +50,7 @@ class CommentDeletionCardinalityContractTest {
     private PostContentRepository postRepository;
     private PostCounterCache counterCache;
     private CommentPageCache pageCache;
-    private CommentDomainEventPublisher eventPublisher;
+    private ContentEventPublisher eventPublisher;
     private CommentApplicationService service;
 
     @BeforeEach
@@ -60,7 +59,7 @@ class CommentDeletionCardinalityContractTest {
         postRepository = mock(PostContentRepository.class);
         counterCache = mock(PostCounterCache.class);
         pageCache = mock(CommentPageCache.class);
-        eventPublisher = mock(CommentDomainEventPublisher.class);
+        eventPublisher = mock(ContentEventPublisher.class);
         service = new CommentApplicationService(
                 mock(ContentSanitizer.class),
                 mock(IdempotencyGuard.class),
@@ -87,11 +86,11 @@ class CommentDeletionCardinalityContractTest {
 
         service.deleteByAuthor(AUTHOR_ID, POST_ID, ROOT_ID);
 
-        ArgumentCaptor<CommentDeletedDomainEvent> events = ArgumentCaptor.forClass(CommentDeletedDomainEvent.class);
-        verify(eventPublisher, times(3)).commentDeleted(events.capture());
-        assertThat(events.getAllValues()).extracting(CommentDeletedDomainEvent::commentId)
+        ArgumentCaptor<CommentPayload> events = ArgumentCaptor.forClass(CommentPayload.class);
+        verify(eventPublisher, times(3)).publishCommentDeleted(events.capture());
+        assertThat(events.getAllValues()).extracting(CommentPayload::getCommentId)
                 .containsExactly(ROOT_ID, FIRST_REPLY_ID, SECOND_REPLY_ID);
-        assertThat(events.getAllValues()).extracting(CommentDeletedDomainEvent::entityType)
+        assertThat(events.getAllValues()).extracting(CommentPayload::getEntityType)
                 .containsExactly(POST, COMMENT, COMMENT);
         verify(postRepository).incrementCommentCount(POST_ID, -3);
         verify(counterCache).incrementCommentCount(POST_ID, -3L);
@@ -137,11 +136,11 @@ class CommentDeletionCardinalityContractTest {
 
         service.deleteByModeration(moderatorId, FIRST_REPLY_ID, "hide: spam");
 
-        ArgumentCaptor<CommentDeletedDomainEvent> event = ArgumentCaptor.forClass(CommentDeletedDomainEvent.class);
-        verify(eventPublisher).commentDeleted(event.capture());
-        assertThat(event.getValue().commentId()).isEqualTo(FIRST_REPLY_ID);
-        assertThat(event.getValue().userId()).isEqualTo(AUTHOR_ID);
-        assertThat(event.getValue().entityType()).isEqualTo(COMMENT);
+        ArgumentCaptor<CommentPayload> event = ArgumentCaptor.forClass(CommentPayload.class);
+        verify(eventPublisher).publishCommentDeleted(event.capture());
+        assertThat(event.getValue().getCommentId()).isEqualTo(FIRST_REPLY_ID);
+        assertThat(event.getValue().getUserId()).isEqualTo(AUTHOR_ID);
+        assertThat(event.getValue().getEntityType()).isEqualTo(COMMENT);
     }
 
     private CommentSnapshot root(UUID id, UUID authorId) {

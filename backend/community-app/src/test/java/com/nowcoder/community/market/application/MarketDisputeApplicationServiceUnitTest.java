@@ -31,7 +31,7 @@ class MarketDisputeApplicationServiceUnitTest {
     private MarketOrderRepository marketOrderRepository;
 
     @Mock
-    private MarketWalletActionApplicationService marketWalletActionService;
+    private MarketWalletActionCoordinator marketWalletActionCoordinator;
 
     @Test
     void sellerRejectRefundShouldLockDisputeBeforeSavingDecision() {
@@ -49,7 +49,7 @@ class MarketDisputeApplicationServiceUnitTest {
         MarketDisputeResult result = new MarketDisputeApplicationService(
                 marketDisputeRepository,
                 marketOrderRepository,
-                marketWalletActionService
+                marketWalletActionCoordinator
         ).sellerRejectRefund(disputeId, sellerUserId, "不同意退款");
 
         assertThat(result.status()).isEqualTo("SELLER_REJECTED");
@@ -81,14 +81,14 @@ class MarketDisputeApplicationServiceUnitTest {
         MarketDisputeResult result = new MarketDisputeApplicationService(
                 marketDisputeRepository,
                 marketOrderRepository,
-                marketWalletActionService
+                marketWalletActionCoordinator
         ).adminResolveRelease(disputeId, adminUserId, "证据支持卖家");
 
         assertThat(result.status()).isEqualTo("ADMIN_RESOLVED");
         assertThat(result.resolutionType()).isEqualTo("RELEASE");
         verify(marketDisputeRepository).lockById(disputeId);
         verify(marketOrderRepository).lockById(orderId);
-        verify(marketWalletActionService).enqueueDisputeRelease(orderId, disputeId, sellerUserId, buyerUserId, 12_900L);
+        verify(marketWalletActionCoordinator).enqueueDisputeRelease(orderId, disputeId, sellerUserId, buyerUserId, 12_900L);
     }
 
     private MarketDispute openDispute(UUID disputeId, UUID orderId, UUID sellerUserId) {

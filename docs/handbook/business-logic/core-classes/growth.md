@@ -15,7 +15,7 @@
 | 类 | 核心职责 | 读代码时重点看什么 |
 | --- | --- | --- |
 | `growth.application.TaskProgressApplicationService` | 任务进度更新、事件去重和奖励触发。 | 看它如何处理重复事件和已完成任务。 |
-| `growth.application.UserLevelApplicationService` | 用户等级查询和等级相关聚合。 | 看它如何把规则配置和用户进度合并。 |
+| `growth.application.UserLevelApplicationService` | 用户等级查询和等级相关聚合；直接实现 owner query API。 | 看它如何把规则配置和用户进度合并。 |
 | `growth.application.GrowthBusinessTimeService` | growth 的 business time source。 | 看日/周/月统计的时间切分口径。 |
 
 ## 领域服务
@@ -31,7 +31,6 @@
 | 类 | 核心职责 |
 | --- | --- |
 | `growth.infrastructure.event.TaskProgressEventBackboneKafkaListener` | 从 `content.events` / `social.events` 识别成长事件并进入 application。 |
-| `growth.infrastructure.api.UserLevelQueryApiAdapter` | 对外暴露等级查询。 |
 | `growth.infrastructure.persistence.*` | task template、progress、event log、level rule 的持久化。 |
 
 ## 关键语义

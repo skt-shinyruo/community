@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Clock;
@@ -38,16 +39,26 @@ public class OutboxAutoConfiguration {
         return Clock.systemUTC();
     }
 
-    @Bean
-    @ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "true")
-    @ConditionalOnMissingBean
-    public OutboxWorkerScheduler outboxWorkerScheduler(
-            JdbcOutboxEventStore store,
-            ObjectProvider<java.util.List<OutboxHandler>> handlersProvider,
-            OutboxProperties properties,
-            Clock clock,
-            ObjectProvider<MeterRegistry> meterRegistryProvider
-    ) {
-        return new OutboxWorkerScheduler(store, handlersProvider, properties, clock, meterRegistryProvider);
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnProperty(
+            prefix = "events.outbox",
+            name = "worker-enabled",
+            havingValue = "true",
+            matchIfMissing = true
+    )
+    static class WorkerConfiguration {
+
+        @Bean
+        @ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "true")
+        @ConditionalOnMissingBean
+        OutboxWorkerScheduler outboxWorkerScheduler(
+                JdbcOutboxEventStore store,
+                ObjectProvider<java.util.List<OutboxHandler>> handlersProvider,
+                OutboxProperties properties,
+                Clock clock,
+                ObjectProvider<MeterRegistry> meterRegistryProvider
+        ) {
+            return new OutboxWorkerScheduler(store, handlersProvider, properties, clock, meterRegistryProvider);
+        }
     }
 }

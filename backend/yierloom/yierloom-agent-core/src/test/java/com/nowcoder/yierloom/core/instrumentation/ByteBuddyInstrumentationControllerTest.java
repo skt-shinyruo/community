@@ -13,6 +13,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.jar.JarFile;
 
 import com.nowcoder.yierloom.api.PluginConfig;
@@ -163,6 +164,26 @@ class ByteBuddyInstrumentationControllerTest {
     }
 
     @Test
+    void evaluatesContributedTransformersForBootstrapLoadedTypes() throws Exception {
+        RecordingInstrumentation jvm = new RecordingInstrumentation();
+        ByteBuddyInstrumentationController controller = controller(jvm, new ArrayList<>());
+        AtomicInteger calls = new AtomicInteger();
+        TypeInstrumentation bootstrapType = typeInstrumentation(
+                ElementMatchers.named(String.class.getName()),
+                (builder, description, loader, module, domain) -> {
+                    assertThat(loader).isNull();
+                    calls.incrementAndGet();
+                    return builder;
+                });
+        controller.install(validatedPlugin(
+                "alpha", List.of(module("bootstrap", Set.of(), List.of(bootstrapType)))));
+
+        jvm.transform(String.class, classBytes(String.class));
+
+        assertThat(calls).hasValue(1);
+    }
+
+    @Test
     void partialInstallationFailureRemovesAlreadyInstalledModules() {
         RecordingInstrumentation jvm = new RecordingInstrumentation();
         jvm.failAddCall(2);
@@ -236,6 +257,51 @@ class ByteBuddyInstrumentationControllerTest {
         controller.removeAll();
         assertThat(jvm.removedTransformers()).containsExactly(second);
         assertThat(controller.installedModuleIds("alpha")).isEmpty();
+    }
+
+    @Test
+    void repeatedRemovalFailureInstanceDoesNotInterruptRemainingCleanup() {
+        RecordingInstrumentation jvm = new RecordingInstrumentation();
+        ByteBuddyInstrumentationController controller = controller(jvm, new ArrayList<>());
+        controller.install(validatedPlugin("alpha", modules("one", "two")));
+        RuntimeException shared = new IllegalStateException("shared removal failure");
+        jvm.failRemoval(jvm.addedTransformers().get(0), shared);
+        jvm.failRemoval(jvm.addedTransformers().get(1), shared);
+
+        assertThatThrownBy(controller::removeAll)
+                .isInstanceOf(PluginInstrumentationException.class);
+
+        assertThat(jvm.removedTransformers()).containsExactly(
+                jvm.addedTransformers().get(1), jvm.addedTransformers().get(0));
+        assertThat(controller.installedModuleIds("alpha")).containsExactly("one", "two");
+    }
+
+    @Test
+    void laterFatalRemovalFailureWinsWhenTheFirstFailureDisablesSuppression() {
+        RecordingInstrumentation jvm = new RecordingInstrumentation();
+        ByteBuddyInstrumentationController controller = controller(jvm, new ArrayList<>());
+        controller.install(validatedPlugin("alpha", modules("one", "two")));
+        RuntimeException suppressionDisabled = new RuntimeException(null, null, false, false) { };
+        jvm.failRemoval(jvm.addedTransformers().get(1), suppressionDisabled);
+        jvm.failRemoval(jvm.addedTransformers().get(0), new OutOfMemoryError("fatal"));
+
+        assertThatThrownBy(controller::removeAll)
+                .isInstanceOf(OutOfMemoryError.class);
+
+        assertThat(jvm.removedTransformers()).containsExactly(
+                jvm.addedTransformers().get(1), jvm.addedTransformers().get(0));
+    }
+
+    @Test
+    void findsFatalCauseBeyondTheFormerTraversalLimit() {
+        Throwable failure = new OutOfMemoryError("fatal");
+        for (int depth = 0; depth < 100; depth++) {
+            failure = new IllegalStateException("wrapped", failure);
+        }
+        Throwable deeplyWrapped = failure;
+
+        assertThatThrownBy(() -> PluginInstrumentationException.rethrowIfFatal(deeplyWrapped))
+                .isInstanceOf(OutOfMemoryError.class);
     }
 
     @Test
@@ -322,7 +388,10 @@ class ByteBuddyInstrumentationControllerTest {
 
     private static byte[] classBytes(Class<?> type) throws Exception {
         String resource = type.getName().replace('.', '/') + ".class";
-        try (InputStream input = type.getClassLoader().getResourceAsStream(resource)) {
+        ClassLoader loader = type.getClassLoader();
+        try (InputStream input = loader == null
+                ? ClassLoader.getSystemResourceAsStream(resource)
+                : loader.getResourceAsStream(resource)) {
             assertThat(input).isNotNull();
             return input.readAllBytes();
         }
@@ -343,6 +412,7 @@ class ByteBuddyInstrumentationControllerTest {
         private final List<ClassFileTransformer> addedTransformers = new ArrayList<>();
         private final List<ClassFileTransformer> removedTransformers = new ArrayList<>();
         private final Map<ClassFileTransformer, Integer> removalFailures = new IdentityHashMap<>();
+        private final Map<ClassFileTransformer, Throwable> forcedRemovalFailures = new IdentityHashMap<>();
         private int addCalls;
         private int failingAddCall = -1;
         private RuntimeException addFailure = new IllegalStateException("installation failed");
@@ -368,6 +438,13 @@ class ByteBuddyInstrumentationControllerTest {
         @Override
         public boolean removeTransformer(ClassFileTransformer transformer) {
             removedTransformers.add(transformer);
+            Throwable forced = forcedRemovalFailures.get(transformer);
+            if (forced instanceof RuntimeException runtimeFailure) {
+                throw runtimeFailure;
+            }
+            if (forced instanceof Error error) {
+                throw error;
+            }
             int failures = removalFailures.getOrDefault(transformer, 0);
             if (failures > 0) {
                 removalFailures.put(transformer, failures - 1);
@@ -417,6 +494,10 @@ class ByteBuddyInstrumentationControllerTest {
 
         private void failRemoval(ClassFileTransformer transformer, int times) {
             removalFailures.put(transformer, times);
+        }
+
+        private void failRemoval(ClassFileTransformer transformer, Throwable failure) {
+            forcedRemovalFailures.put(transformer, failure);
         }
 
         private void clearRemovedTransformers() {

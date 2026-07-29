@@ -22,6 +22,7 @@ import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.agent.builder.ResettableClassFileTransformer;
 import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.matcher.ElementMatcher;
+import net.bytebuddy.matcher.ElementMatchers;
 import net.bytebuddy.utility.JavaModule;
 
 public final class ByteBuddyInstrumentationController implements PluginInstrumentationController {
@@ -100,9 +101,6 @@ public final class ByteBuddyInstrumentationController implements PluginInstrumen
         } catch (VirtualMachineError | ThreadDeath fatal) {
             RemovalResult cleanup = remove(handles);
             retainFailedCleanup(pluginId, plan.helperNames(), cleanup.remaining());
-            if (cleanup.failure() != null) {
-                fatal.addSuppressed(cleanup.failure());
-            }
             throw fatal;
         } catch (Throwable failure) {
             RemovalResult cleanup = remove(handles);
@@ -110,14 +108,10 @@ public final class ByteBuddyInstrumentationController implements PluginInstrumen
             try {
                 PluginInstrumentationException.rethrowIfFatal(failure);
             } catch (VirtualMachineError | ThreadDeath fatal) {
-                if (cleanup.failure() != null && cleanup.failure() != fatal) {
-                    fatal.addSuppressed(cleanup.failure());
-                }
                 throw fatal;
             }
             if (cleanup.failure() != null) {
                 PluginInstrumentationException.rethrowIfFatal(cleanup.failure());
-                failure.addSuppressed(cleanup.failure());
             }
             throw new PluginInstrumentationException(pluginId, failure);
         }
@@ -145,9 +139,10 @@ public final class ByteBuddyInstrumentationController implements PluginInstrumen
             updateAfterRemoval(pluginId, result.remaining());
             failures.record(result.failure());
         }
-        if (failures.failure != null) {
-            PluginInstrumentationException.rethrowIfFatal(failures.failure);
-            throw new PluginInstrumentationException("<multiple>", failures.failure);
+        Throwable failure = failures.failure();
+        if (failure != null) {
+            PluginInstrumentationException.rethrowIfFatal(failure);
+            throw new PluginInstrumentationException("<multiple>", failure);
         }
     }
 
@@ -210,6 +205,7 @@ public final class ByteBuddyInstrumentationController implements PluginInstrumen
 
     private AgentBuilder builderFor(String pluginId, ModulePlan module) {
         AgentBuilder builder = new AgentBuilder.Default()
+                .ignore(ElementMatchers.none())
                 .disableClassFormatChanges()
                 .with(AgentBuilder.RedefinitionStrategy.DISABLED)
                 .with(injectionStrategy)
@@ -256,7 +252,7 @@ public final class ByteBuddyInstrumentationController implements PluginInstrumen
             }
         }
         Collections.reverse(remaining);
-        return new RemovalResult(List.copyOf(remaining), failures.failure);
+        return new RemovalResult(List.copyOf(remaining), failures.failure());
     }
 
     private void retainFailedCleanup(
@@ -358,17 +354,25 @@ public final class ByteBuddyInstrumentationController implements PluginInstrumen
     }
 
     private static final class FailureAccumulator {
-        private Throwable failure;
+        private Throwable ordinaryFailure;
+        private Throwable fatalFailure;
 
         private void record(Throwable candidate) {
             if (candidate == null) {
                 return;
             }
-            if (failure == null) {
-                failure = candidate;
-            } else {
-                failure.addSuppressed(candidate);
+            Throwable fatal = PluginInstrumentationException.fatalCause(candidate);
+            if (fatal != null) {
+                if (fatalFailure == null) {
+                    fatalFailure = fatal;
+                }
+            } else if (ordinaryFailure == null) {
+                ordinaryFailure = candidate;
             }
+        }
+
+        private Throwable failure() {
+            return fatalFailure == null ? ordinaryFailure : fatalFailure;
         }
     }
 }

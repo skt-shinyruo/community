@@ -3,6 +3,7 @@ package com.nowcoder.yierloom.core.event;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -11,8 +12,10 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.stream.IntStream;
@@ -23,6 +26,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 class YierLoomEventPipelineTest {
 
@@ -160,6 +164,66 @@ class YierLoomEventPipelineTest {
         assertThat(out.toString(StandardCharsets.UTF_8)).contains("\"event.action\":\"final_summary\"");
     }
 
+    @Test
+    void timeoutCleanupWaitsForAdmissionAndCountsTheAcceptedEvent() throws Exception {
+        YierLoomEventPipeline pipeline = pipelineWithCapacity(1);
+        BlockingOfferQueue queue = new BlockingOfferQueue(1);
+        replaceQueue(pipeline, queue);
+        pipeline.registerPlugin("alpha");
+        AtomicBoolean accepted = new AtomicBoolean();
+        Thread producer = new Thread(() -> accepted.set(
+                pipeline.emit("alpha", DiagnosticEvent.builder("late").build())));
+        CountDownLatch shutdownFinished = new CountDownLatch(1);
+        AtomicBoolean drained = new AtomicBoolean(true);
+        Thread shutdown = new Thread(() -> {
+            drained.set(pipeline.drainAndClose(Duration.ZERO));
+            shutdownFinished.countDown();
+        });
+
+        producer.start();
+        assertThat(queue.offerEntered.await(2, TimeUnit.SECONDS)).isTrue();
+        shutdown.start();
+        try {
+            assertThat(shutdownFinished.await(200, TimeUnit.MILLISECONDS)).isFalse();
+        } finally {
+            queue.releaseOffers.countDown();
+            producer.join(2_000);
+            shutdown.join(2_000);
+        }
+
+        assertThat(producer.isAlive()).isFalse();
+        assertThat(shutdown.isAlive()).isFalse();
+        assertThat(accepted).isTrue();
+        assertThat(drained).isFalse();
+        assertThat(pipeline.droppedMessages().events("alpha")).isEqualTo(1);
+    }
+
+    @Test
+    void drainTimeoutHasATwoSecondUpperLimit() throws Exception {
+        CountDownLatch exporting = new CountDownLatch(1);
+        CountDownLatch releaseExporter = new CountDownLatch(1);
+        ExporterFailureReporter failures = new ExporterFailureReporter(Clock.systemUTC(), report -> { });
+        YierLoomEventPipeline pipeline = new YierLoomEventPipeline(1, (pluginId, event) -> {
+            exporting.countDown();
+            try {
+                releaseExporter.await();
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }, failures);
+        pipeline.registerPlugin("alpha");
+        pipeline.start();
+        assertThat(pipeline.emit("alpha", DiagnosticEvent.builder("blocked").build())).isTrue();
+        assertThat(exporting.await(2, TimeUnit.SECONDS)).isTrue();
+
+        try {
+            assertTimeoutPreemptively(Duration.ofMillis(2_500), () ->
+                    assertThat(pipeline.drainAndClose(Duration.ofDays(1))).isFalse());
+        } finally {
+            releaseExporter.countDown();
+        }
+    }
+
     private static YierLoomEventPipeline pipelineWithCapacity(int capacity) {
         return new YierLoomEventPipeline(
                 capacity,
@@ -183,6 +247,36 @@ class YierLoomEventPipelineTest {
             Thread.yield();
         }
         return condition.getAsBoolean();
+    }
+
+    private static void replaceQueue(
+            YierLoomEventPipeline pipeline,
+            ArrayBlockingQueue<PipelineMessage> queue
+    ) throws ReflectiveOperationException {
+        Field queueField = YierLoomEventPipeline.class.getDeclaredField("queue");
+        queueField.setAccessible(true);
+        queueField.set(pipeline, queue);
+    }
+
+    private static final class BlockingOfferQueue extends ArrayBlockingQueue<PipelineMessage> {
+        private final CountDownLatch offerEntered = new CountDownLatch(1);
+        private final CountDownLatch releaseOffers = new CountDownLatch(1);
+
+        private BlockingOfferQueue(int capacity) {
+            super(capacity);
+        }
+
+        @Override
+        public boolean offer(PipelineMessage message) {
+            offerEntered.countDown();
+            try {
+                releaseOffers.await();
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+            return super.offer(message);
+        }
     }
 
     private static final class MutableClock extends Clock {

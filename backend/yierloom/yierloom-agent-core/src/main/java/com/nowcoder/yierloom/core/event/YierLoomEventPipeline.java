@@ -25,6 +25,7 @@ import com.nowcoder.yierloom.core.config.YierLoomConfig;
 public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
     private static final String EXPORTER_NAME = "json-lines";
     private static final String EXPORT_STAGE = "write";
+    private static final Duration MAX_DRAIN_TIMEOUT = Duration.ofSeconds(2);
 
     private final ArrayBlockingQueue<PipelineMessage> queue;
     private final ConcurrentMap<String, HandlerState> handlers = new ConcurrentHashMap<>();
@@ -34,6 +35,7 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
     private final DroppedMessages droppedMessages = new DroppedMessages();
     private final AtomicBoolean started = new AtomicBoolean();
     private final AtomicInteger pendingMessages = new AtomicInteger();
+    private final Object admissionGate = new Object();
     private final Object drainMonitor = new Object();
     private final EventExporter exporter;
     private final ExporterFailureReporter failureReporter;
@@ -93,25 +95,29 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
     @Override
     public boolean observe(String pluginId, PluginObservation observation) {
         pendingMessages.incrementAndGet();
-        HandlerState handler = handlers.get(pluginId);
-        if (!acceptingObservations.get()
-                || observation == null
-                || !activePlugins.contains(pluginId)
-                || handler == null) {
-            messageFinished();
-            return false;
+        synchronized (admissionGate) {
+            HandlerState handler = handlers.get(pluginId);
+            if (!acceptingObservations.get()
+                    || observation == null
+                    || !activePlugins.contains(pluginId)
+                    || handler == null) {
+                messageFinished();
+                return false;
+            }
+            return offer(new PipelineMessage.Observation(pluginId, observation));
         }
-        return offer(new PipelineMessage.Observation(pluginId, observation));
     }
 
     @Override
     public boolean emit(String pluginId, DiagnosticEvent event) {
         pendingMessages.incrementAndGet();
-        if (!acceptingEvents.get() || event == null || !activePlugins.contains(pluginId)) {
-            messageFinished();
-            return false;
+        synchronized (admissionGate) {
+            if (!acceptingEvents.get() || event == null || !activePlugins.contains(pluginId)) {
+                messageFinished();
+                return false;
+            }
+            return offer(new PipelineMessage.Event(pluginId, event));
         }
-        return offer(new PipelineMessage.Event(pluginId, event));
     }
 
     public DroppedMessages droppedMessages() {
@@ -119,8 +125,10 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
     }
 
     public void stopObservations() {
-        acceptingObservations.set(false);
-        handlers.clear();
+        synchronized (admissionGate) {
+            acceptingObservations.set(false);
+            handlers.clear();
+        }
     }
 
     public boolean drainAndClose(Duration timeout) {
@@ -129,9 +137,15 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
             throw new IllegalArgumentException("timeout must not be negative");
         }
 
-        stopObservations();
-        acceptingEvents.set(false);
-        long deadline = deadlineAfter(timeout);
+        Duration effectiveTimeout = timeout.compareTo(MAX_DRAIN_TIMEOUT) > 0
+                ? MAX_DRAIN_TIMEOUT
+                : timeout;
+        long deadline = deadlineAfter(effectiveTimeout);
+        synchronized (admissionGate) {
+            acceptingObservations.set(false);
+            handlers.clear();
+            acceptingEvents.set(false);
+        }
         boolean drained = awaitPendingMessages(deadline);
         if (!drained) {
             dropQueuedMessages();
@@ -152,11 +166,13 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
 
     private void registerHandler(String pluginId, ObservationHandler handler) {
         Objects.requireNonNull(handler, "handler");
-        if (!acceptingObservations.get() || !activePlugins.contains(pluginId)) {
-            throw new IllegalStateException("plugin is not accepting observations: " + pluginId);
-        }
-        if (handlers.putIfAbsent(pluginId, new HandlerState(handler)) != null) {
-            throw new IllegalStateException("observation handler already registered: " + pluginId);
+        synchronized (admissionGate) {
+            if (!acceptingObservations.get() || !activePlugins.contains(pluginId)) {
+                throw new IllegalStateException("plugin is not accepting observations: " + pluginId);
+            }
+            if (handlers.putIfAbsent(pluginId, new HandlerState(handler)) != null) {
+                throw new IllegalStateException("observation handler already registered: " + pluginId);
+            }
         }
     }
 

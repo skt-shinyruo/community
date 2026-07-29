@@ -20,25 +20,32 @@ public final class PluginInstrumentationException extends RuntimeException {
     }
 
     static void rethrowIfFatal(Throwable failure) {
+        Throwable fatal = fatalCause(failure);
+        if (fatal instanceof VirtualMachineError virtualMachineError) {
+            throw virtualMachineError;
+        }
+        if (fatal instanceof ThreadDeath threadDeath) {
+            throw threadDeath;
+        }
+    }
+
+    static Throwable fatalCause(Throwable failure) {
         ArrayDeque<Throwable> pending = new ArrayDeque<>();
         Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         pending.add(Objects.requireNonNull(failure, "failure"));
-        int inspected = 0;
-        while (!pending.isEmpty() && inspected++ < 64) {
+        while (!pending.isEmpty()) {
             Throwable current = pending.removeFirst();
             if (!visited.add(current)) {
                 continue;
             }
-            if (current instanceof VirtualMachineError fatal) {
-                throw fatal;
-            }
-            if (current instanceof ThreadDeath fatal) {
-                throw fatal;
+            if (current instanceof VirtualMachineError || current instanceof ThreadDeath) {
+                return current;
             }
             if (current.getCause() != null) {
                 pending.addLast(current.getCause());
             }
             Collections.addAll(pending, current.getSuppressed());
         }
+        return null;
     }
 }

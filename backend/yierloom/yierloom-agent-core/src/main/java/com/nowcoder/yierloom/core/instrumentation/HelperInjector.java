@@ -11,6 +11,8 @@ import java.util.Objects;
 import java.util.Set;
 
 import net.bytebuddy.agent.builder.AgentBuilder;
+import net.bytebuddy.dynamic.loading.ClassInjector;
+import net.bytebuddy.dynamic.loading.PackageDefinitionStrategy;
 
 final class HelperInjector {
     private final AgentBuilder.InjectionStrategy strategy;
@@ -44,8 +46,28 @@ final class HelperInjector {
             if (missing.isEmpty()) {
                 return;
             }
-            strategy.resolve(loader, protectionDomain).injectRaw(missing);
+            rejectVisibleHelpers(loader, missing.keySet());
+            ClassInjector injector = strategy.resolve(loader, protectionDomain);
+            if (loader != null && injector instanceof ClassInjector.UsingReflection) {
+                injector = new ClassInjector.UsingReflection(
+                        loader,
+                        protectionDomain,
+                        PackageDefinitionStrategy.Trivial.INSTANCE,
+                        true);
+            }
+            injector.injectRaw(missing);
             known.addAll(missing.keySet());
+        }
+    }
+
+    private static void rejectVisibleHelpers(ClassLoader loader, Set<String> helperNames) {
+        for (String helperName : helperNames) {
+            try {
+                Class.forName(helperName, false, loader);
+                throw new IllegalStateException("Helper class is already visible: " + helperName);
+            } catch (ClassNotFoundException expected) {
+                // The exact declared bytes can be injected under this binary name.
+            }
         }
     }
 

@@ -15,6 +15,7 @@ import net.bytebuddy.dynamic.loading.ClassInjector;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class HelperInjectorTest {
     private static final String BASE_NAME =
@@ -63,6 +64,21 @@ class HelperInjectorTest {
         injector.inject(null, protectionDomain(), helper);
 
         assertThat(strategy.resolveCalls()).hasValue(1);
+    }
+
+    @Test
+    void rejectsAHelperNameAlreadyVisibleToTheTargetLoader() {
+        RecordingInjectionStrategy strategy = new RecordingInjectionStrategy();
+        HelperInjector injector = new HelperInjector(strategy);
+        Map<String, byte[]> helpers = HelperClassBytes.read(
+                InjectedHelper.class.getClassLoader(),
+                Set.of(InjectedHelper.class.getName()));
+
+        assertThatThrownBy(() -> injector.inject(
+                InjectedHelper.class.getClassLoader(), protectionDomain(), helpers))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(InjectedHelper.class.getName());
+        assertThat(strategy.resolveCalls()).hasValue(0);
     }
 
     private static ProtectionDomain protectionDomain() {

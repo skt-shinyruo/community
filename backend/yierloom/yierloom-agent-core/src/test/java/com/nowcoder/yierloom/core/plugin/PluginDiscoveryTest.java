@@ -124,20 +124,47 @@ class PluginDiscoveryTest {
     @Test
     void rejectsJarsThatBundleSharedOrInternalClasses() throws Exception {
         Path plugins = Files.createDirectories(tempDir.resolve("plugins"));
-        PluginJarFixture.jarWithForbiddenEntries(plugins, "bundled.jar", List.of(
+        List<String> forbiddenEntries = List.of(
                 "com/nowcoder/yierloom/api/Copy.class",
                 "com/nowcoder/yierloom/sdk/Copy.class",
                 "net/bytebuddy/Copy.class",
                 "com/nowcoder/yierloom/core/Copy.class",
                 "com/nowcoder/yierloom/bootstrap/Copy.class",
-                "com/nowcoder/yierloom/plugins/Copy.class"));
+                "com/nowcoder/yierloom/plugins/Copy.class");
+        for (int index = 0; index < forbiddenEntries.size(); index++) {
+            PluginJarFixture.jarWithForbiddenEntries(
+                    plugins, "bundled-" + index + ".jar", List.of(forbiddenEntries.get(index)));
+        }
 
         PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), getClass().getClassLoader());
 
         assertThat(result.plugins()).isEmpty();
         assertThat(result.issues()).extracting(PluginIssue::reasonCode)
-                .containsExactly("BUNDLED_FORBIDDEN_CLASS");
+                .containsOnly("BUNDLED_FORBIDDEN_CLASS")
+                .hasSize(forbiddenEntries.size());
         assertThat(result.externalLoaders()).isEmpty();
+    }
+
+    @Test
+    void rejectsExternalServiceDeclarationThatNamesAParentOwnedProvider() throws Exception {
+        Path plugins = Files.createDirectories(tempDir.resolve("plugins"));
+        String providerName = "fixture.parent.ParentOwnedPlugin";
+        Path parentJar = PluginJarFixture.classesOnlyJar(
+                tempDir.resolve("engine"),
+                "parent-classes.jar",
+                providerName,
+                providerSource("fixture.parent", "ParentOwnedPlugin", "parent-owned"));
+        PluginJarFixture.serviceOnlyJar(plugins, "borrowed-provider.jar", providerName);
+
+        try (URLClassLoader engineLoader = new URLClassLoader(
+                new java.net.URL[]{parentJar.toUri().toURL()}, getClass().getClassLoader())) {
+            PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), engineLoader);
+
+            assertThat(result.plugins()).isEmpty();
+            assertThat(result.issues()).extracting(PluginIssue::reasonCode)
+                    .containsExactly("PROVIDER_TYPE_INVALID");
+            assertThat(result.externalLoaders()).isEmpty();
+        }
     }
 
     @Test
@@ -215,15 +242,19 @@ class PluginDiscoveryTest {
     }
 
     private static String providerSource(String simpleName, String id) {
+        return providerSource("fixture.external", simpleName, id);
+    }
+
+    private static String providerSource(String packageName, String simpleName, String id) {
         return """
-                package fixture.external;
+                package %s;
                 import com.nowcoder.yierloom.api.*;
                 public final class %s implements YierLoomPlugin, RuntimeCapability {
                     public PluginDescriptor descriptor() { return new PluginDescriptor("%s", "%s", "1.0.0", "1.0.0", true, 0); }
                     public void start(PluginRuntimeContext context) { }
                     public void stop() { }
                 }
-                """.formatted(simpleName, id, simpleName);
+                """.formatted(packageName, simpleName, id, simpleName);
     }
 
     private static YierLoomConfig config(Path pluginDirectory) {

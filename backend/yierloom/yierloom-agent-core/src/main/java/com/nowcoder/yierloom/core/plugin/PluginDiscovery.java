@@ -136,7 +136,8 @@ public final class PluginDiscovery {
         try {
             loader = new YierLoomPluginClassLoader(candidate, engineLoader);
             Class<?> providerType = Class.forName(providerName, true, loader);
-            if (!YierLoomPlugin.class.isAssignableFrom(providerType)) {
+            if (providerType.getClassLoader() != loader
+                    || !YierLoomPlugin.class.isAssignableFrom(providerType)) {
                 issues.add(new PluginIssue(candidate, "PROVIDER_TYPE_INVALID"));
                 closeQuietly(loader);
                 return;
@@ -230,6 +231,7 @@ public final class PluginDiscovery {
             loader.close();
         } catch (Throwable failure) {
             rethrowFatal(failure);
+            // Candidate cleanup failure must not stop discovery of later JARs.
         }
     }
 

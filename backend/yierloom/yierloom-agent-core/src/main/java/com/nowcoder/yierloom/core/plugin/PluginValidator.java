@@ -37,6 +37,7 @@ public final class PluginValidator {
         List<Candidate> declarations = readDescriptors(candidates);
 
         Set<String> builtInIds = new HashSet<>();
+        Map<String, Integer> builtInIdCounts = new HashMap<>();
         Map<String, Integer> externalIdCounts = new HashMap<>();
         for (Candidate candidate : declarations) {
             if (candidate.descriptor == null) {
@@ -44,6 +45,7 @@ public final class PluginValidator {
             }
             if (candidate.discovered.source() == PluginSource.BUILT_IN) {
                 builtInIds.add(candidate.descriptor.id());
+                builtInIdCounts.merge(candidate.descriptor.id(), 1, Integer::sum);
             } else {
                 externalIdCounts.merge(candidate.descriptor.id(), 1, Integer::sum);
             }
@@ -53,7 +55,7 @@ public final class PluginValidator {
             if (candidate.failed()) {
                 continue;
             }
-            validateDeclaration(candidate, config, builtInIds, externalIdCounts);
+            validateDeclaration(candidate, config, builtInIds, builtInIdCounts, externalIdCounts);
         }
         rejectHelperCollisions(declarations);
 
@@ -95,11 +97,17 @@ public final class PluginValidator {
             Candidate candidate,
             YierLoomConfig config,
             Set<String> builtInIds,
+            Map<String, Integer> builtInIdCounts,
             Map<String, Integer> externalIdCounts
     ) {
         try {
             if (!ApiVersion.isCompatible(YierLoomApi.VERSION, candidate.descriptor.apiVersion())) {
                 candidate.fail("API_INCOMPATIBLE");
+                return;
+            }
+            if (candidate.discovered.source() == PluginSource.BUILT_IN
+                    && builtInIdCounts.getOrDefault(candidate.descriptor.id(), 0) > 1) {
+                candidate.fail("DUPLICATE_ID");
                 return;
             }
             if (candidate.discovered.source() == PluginSource.EXTERNAL

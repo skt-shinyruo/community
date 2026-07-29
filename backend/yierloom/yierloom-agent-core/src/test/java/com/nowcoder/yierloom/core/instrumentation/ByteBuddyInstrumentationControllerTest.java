@@ -177,6 +177,48 @@ class ByteBuddyInstrumentationControllerTest {
     }
 
     @Test
+    void wrappedVmFatalInstallationFailureStillRemovesAlreadyInstalledModules() {
+        RecordingInstrumentation jvm = new RecordingInstrumentation();
+        jvm.failAddCall(2, new IllegalStateException(
+                "wrapped fatal", new OutOfMemoryError("fatal")));
+        ByteBuddyInstrumentationController controller = controller(jvm, new ArrayList<>());
+
+        assertThatThrownBy(() -> controller.install(validatedPlugin("alpha", modules("one", "two"))))
+                .isInstanceOf(OutOfMemoryError.class);
+
+        assertThat(jvm.addedTransformers()).hasSize(1);
+        assertThat(jvm.removedTransformers()).endsWith(jvm.addedTransformers().get(0));
+        assertThat(controller.installedModuleIds("alpha")).isEmpty();
+    }
+
+    @Test
+    void wrappedVmFatalFromPluginPreflightIsRethrownBeforeInstallation() {
+        RecordingInstrumentation jvm = new RecordingInstrumentation();
+        ByteBuddyInstrumentationController controller = controller(jvm, new ArrayList<>());
+        InstrumentationModule module = new InstrumentationModule() {
+            @Override
+            public String id() {
+                return "fatal";
+            }
+
+            @Override
+            public List<? extends TypeInstrumentation> typeInstrumentations() {
+                return List.of();
+            }
+
+            @Override
+            public Set<String> helperClassNames() {
+                throw new IllegalStateException(
+                        "wrapped fatal", new OutOfMemoryError("fatal"));
+            }
+        };
+
+        assertThatThrownBy(() -> controller.install(validatedPlugin("alpha", List.of(module))))
+                .isInstanceOf(OutOfMemoryError.class);
+        assertThat(jvm.addedTransformers()).isEmpty();
+    }
+
+    @Test
     void failedRemovalAttemptsEveryTransformerAndCanRetryTheRemainingHandle() {
         RecordingInstrumentation jvm = new RecordingInstrumentation();
         ByteBuddyInstrumentationController controller = controller(jvm, new ArrayList<>());
@@ -303,6 +345,7 @@ class ByteBuddyInstrumentationControllerTest {
         private final Map<ClassFileTransformer, Integer> removalFailures = new IdentityHashMap<>();
         private int addCalls;
         private int failingAddCall = -1;
+        private RuntimeException addFailure = new IllegalStateException("installation failed");
 
         @Override
         public void addTransformer(ClassFileTransformer transformer, boolean canRetransform) {
@@ -317,7 +360,7 @@ class ByteBuddyInstrumentationControllerTest {
         private void add(ClassFileTransformer transformer) {
             addCalls++;
             if (addCalls == failingAddCall) {
-                throw new IllegalStateException("installation failed");
+                throw addFailure;
             }
             addedTransformers.add(transformer);
         }
@@ -365,6 +408,11 @@ class ByteBuddyInstrumentationControllerTest {
 
         private void failAddCall(int call) {
             failingAddCall = call;
+        }
+
+        private void failAddCall(int call, RuntimeException failure) {
+            failingAddCall = call;
+            addFailure = failure;
         }
 
         private void failRemoval(ClassFileTransformer transformer, int times) {

@@ -75,7 +75,19 @@ public final class ByteBuddyInstrumentationController implements PluginInstrumen
             throw new IllegalStateException("instrumentation already installed for plugin: " + pluginId);
         }
 
-        PluginPlan plan = preflight(plugin);
+        PluginPlan plan;
+        try {
+            plan = preflight(plugin);
+        } catch (Throwable failure) {
+            PluginInstrumentationException.rethrowIfFatal(failure);
+            if (failure instanceof RuntimeException runtimeFailure) {
+                throw runtimeFailure;
+            }
+            if (failure instanceof Error error) {
+                throw error;
+            }
+            throw new PluginInstrumentationException(pluginId, failure);
+        }
         List<InstalledTransformer> handles = new ArrayList<>();
         try {
             for (ModulePlan module : plan.modules()) {
@@ -93,9 +105,16 @@ public final class ByteBuddyInstrumentationController implements PluginInstrumen
             }
             throw fatal;
         } catch (Throwable failure) {
-            PluginInstrumentationException.rethrowIfFatal(failure);
             RemovalResult cleanup = remove(handles);
             retainFailedCleanup(pluginId, plan.helperNames(), cleanup.remaining());
+            try {
+                PluginInstrumentationException.rethrowIfFatal(failure);
+            } catch (VirtualMachineError | ThreadDeath fatal) {
+                if (cleanup.failure() != null && cleanup.failure() != fatal) {
+                    fatal.addSuppressed(cleanup.failure());
+                }
+                throw fatal;
+            }
             if (cleanup.failure() != null) {
                 PluginInstrumentationException.rethrowIfFatal(cleanup.failure());
                 failure.addSuppressed(cleanup.failure());

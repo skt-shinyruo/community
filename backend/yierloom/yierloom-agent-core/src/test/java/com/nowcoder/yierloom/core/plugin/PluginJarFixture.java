@@ -69,6 +69,29 @@ final class PluginJarFixture {
         return jar(directory, fileName, Map.of(), null, List.of());
     }
 
+    static Path classesOnlyJar(
+            Path directory,
+            String fileName,
+            String className,
+            String source
+    ) throws IOException {
+        return jar(directory, fileName, Map.of(className, source), null, List.of());
+    }
+
+    static Path resourceOnlyJar(
+            Path directory,
+            String fileName,
+            String resourceName,
+            String value
+    ) throws IOException {
+        Files.createDirectories(directory);
+        Path jar = directory.resolve(fileName);
+        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
+            addEntry(output, resourceName, value.getBytes(StandardCharsets.UTF_8));
+        }
+        return jar;
+    }
+
     static Path jarWithProviders(
             Path directory,
             String fileName,

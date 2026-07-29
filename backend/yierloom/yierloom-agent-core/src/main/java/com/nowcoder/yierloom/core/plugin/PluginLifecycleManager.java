@@ -75,8 +75,9 @@ public final class PluginLifecycleManager {
             states.put(id, PluginState.STARTING);
             reports.put(id, PluginReport.lifecycle(plugin, PluginState.STARTING, null, ""));
             if (plugin.hasRuntime()) {
+                DefaultPluginRuntimeContext context = contextFor(plugin);
                 runtimeAttempted = true;
-                plugin.runtimeCapability().start(contextFor(plugin));
+                plugin.runtimeCapability().start(context);
             }
             instrumentation.install(plugin);
             active.add(plugin);

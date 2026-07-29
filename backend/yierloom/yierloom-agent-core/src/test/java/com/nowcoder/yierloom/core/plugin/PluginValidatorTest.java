@@ -46,6 +46,17 @@ class PluginValidatorTest {
     }
 
     @Test
+    void rejectsEveryBuiltInThatSharesAnId() {
+        PluginValidator.ValidationResult result = validator.validate(List.of(
+                builtIn(runtimePlugin("duplicate", 10)),
+                builtIn(runtimePlugin("duplicate", 20))), config(Map.of(), Map.of()));
+
+        assertThat(result.plugins()).isEmpty();
+        assertThat(result.reports()).extracting(PluginReport::reasonCode)
+                .containsExactly("DUPLICATE_ID", "DUPLICATE_ID");
+    }
+
+    @Test
     void validatesCapabilitiesAndInstrumentationDeclarations() {
         YierLoomPlugin rootOnly = plugin("root-only", 0);
         YierLoomPlugin emptyInstrumentation = instrumentationPlugin("empty", 1, List.of());

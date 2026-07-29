@@ -1,0 +1,277 @@
+package com.nowcoder.yierloom.core.plugin;
+
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import com.nowcoder.yierloom.api.PluginDescriptor;
+import com.nowcoder.yierloom.api.PluginRuntimeContext;
+import com.nowcoder.yierloom.api.RuntimeCapability;
+import com.nowcoder.yierloom.api.YierLoomPlugin;
+import com.nowcoder.yierloom.core.config.YierLoomConfig;
+import com.nowcoder.yierloom.core.event.YierLoomEventPipeline;
+import com.nowcoder.yierloom.core.instrumentation.PluginInstrumentationController;
+import com.nowcoder.yierloom.core.runtime.ManagedSchedulerRegistry;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class PluginDiscoveryTest {
+    private static final AtomicInteger BUILT_IN_STARTS = new AtomicInteger();
+
+    @TempDir
+    Path tempDir;
+
+    @BeforeEach
+    void resetBuiltIn() {
+        BUILT_IN_STARTS.set(0);
+    }
+
+    @Test
+    void invalidExternalDirectoriesStillReturnAnActivatableBuiltIn() throws Exception {
+        Path serviceJar = PluginJarFixture.serviceOnlyJar(
+                tempDir.resolve("engine"), "built-in.jar", BuiltInPlugin.class.getName());
+        try (URLClassLoader engineLoader = new URLClassLoader(
+                new java.net.URL[]{serviceJar.toUri().toURL()}, getClass().getClassLoader())) {
+            Path missing = tempDir.resolve("missing");
+            PluginDiscovery.Result missingResult = new PluginDiscovery().discover(config(missing), engineLoader);
+
+            assertThat(missingResult.plugins()).extracting(plugin -> plugin.descriptor().id())
+                    .containsExactly("built-in");
+            assertThat(missingResult.issues()).extracting(PluginIssue::reasonCode)
+                    .containsExactly("EXTERNAL_DIRECTORY_INVALID");
+            assertActivatable(missingResult);
+
+            Path regularFile = Files.writeString(tempDir.resolve("not-a-directory"), "value");
+            PluginDiscovery.Result fileResult = new PluginDiscovery().discover(config(regularFile), engineLoader);
+            assertThat(fileResult.plugins()).extracting(plugin -> plugin.descriptor().id())
+                    .containsExactly("built-in");
+            assertThat(fileResult.issues()).extracting(PluginIssue::reasonCode)
+                    .containsExactly("EXTERNAL_DIRECTORY_INVALID");
+            assertActivatable(fileResult);
+        }
+    }
+
+    @Test
+    void ordersOnlyJarCandidatesByNormalizedAbsolutePath() throws Exception {
+        Path plugins = Files.createDirectories(tempDir.resolve("plugins"));
+        Path zeta = PluginJarFixture.providerJar(
+                plugins, "zeta.JAR", "fixture.external.ZetaPlugin", providerSource("ZetaPlugin", "zeta"));
+        Path alpha = PluginJarFixture.providerJar(
+                plugins, "alpha.jar", "fixture.external.AlphaPlugin", providerSource("AlphaPlugin", "alpha"));
+        Files.writeString(plugins.resolve("ignored.txt"), "ignored");
+
+        PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), getClass().getClassLoader());
+
+        assertThat(result.plugins()).extracting(plugin -> plugin.sourcePath().toString())
+                .containsExactly(
+                        alpha.toAbsolutePath().normalize().toString(),
+                        zeta.toAbsolutePath().normalize().toString());
+        assertThat(result.issues()).isEmpty();
+        assertThat(result.externalLoaders()).hasSize(2);
+        close(result);
+    }
+
+    @Test
+    void corruptJarFailsOpenAndLeavesBuiltInsActivatable() throws Exception {
+        Path plugins = Files.createDirectories(tempDir.resolve("plugins"));
+        PluginJarFixture.corruptJar(plugins, "broken.jar");
+        Path serviceJar = PluginJarFixture.serviceOnlyJar(
+                tempDir.resolve("engine"), "built-in.jar", BuiltInPlugin.class.getName());
+
+        try (URLClassLoader engineLoader = new URLClassLoader(
+                new java.net.URL[]{serviceJar.toUri().toURL()}, getClass().getClassLoader())) {
+            PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), engineLoader);
+
+            assertThat(result.plugins()).extracting(plugin -> plugin.descriptor().id())
+                    .containsExactly("built-in");
+            assertThat(result.issues()).extracting(PluginIssue::reasonCode)
+                    .containsExactly("CANDIDATE_INVALID");
+            assertActivatable(result);
+        }
+    }
+
+    @Test
+    void rejectsZeroOrMultipleProviderDeclarations() throws Exception {
+        Path plugins = Files.createDirectories(tempDir.resolve("plugins"));
+        PluginJarFixture.jarWithoutProvider(plugins, "none.jar");
+        PluginJarFixture.jarWithProviders(
+                plugins,
+                "two.jar",
+                Map.of(
+                        "fixture.external.OnePlugin", providerSource("OnePlugin", "one"),
+                        "fixture.external.TwoPlugin", providerSource("TwoPlugin", "two")),
+                List.of("fixture.external.OnePlugin", "fixture.external.TwoPlugin"));
+
+        PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), getClass().getClassLoader());
+
+        assertThat(result.plugins()).isEmpty();
+        assertThat(result.issues()).extracting(PluginIssue::reasonCode)
+                .containsExactly("PROVIDER_DECLARATION_INVALID", "PROVIDER_DECLARATION_INVALID");
+        assertThat(result.externalLoaders()).isEmpty();
+    }
+
+    @Test
+    void rejectsJarsThatBundleSharedOrInternalClasses() throws Exception {
+        Path plugins = Files.createDirectories(tempDir.resolve("plugins"));
+        PluginJarFixture.jarWithForbiddenEntries(plugins, "bundled.jar", List.of(
+                "com/nowcoder/yierloom/api/Copy.class",
+                "com/nowcoder/yierloom/sdk/Copy.class",
+                "net/bytebuddy/Copy.class",
+                "com/nowcoder/yierloom/core/Copy.class",
+                "com/nowcoder/yierloom/bootstrap/Copy.class",
+                "com/nowcoder/yierloom/plugins/Copy.class"));
+
+        PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), getClass().getClassLoader());
+
+        assertThat(result.plugins()).isEmpty();
+        assertThat(result.issues()).extracting(PluginIssue::reasonCode)
+                .containsExactly("BUNDLED_FORBIDDEN_CLASS");
+        assertThat(result.externalLoaders()).isEmpty();
+    }
+
+    @Test
+    void constructorFailureDoesNotPreventLaterCandidates() throws Exception {
+        Path plugins = Files.createDirectories(tempDir.resolve("plugins"));
+        PluginJarFixture.providerJar(plugins, "a-broken.jar", "fixture.external.BrokenPlugin", """
+                package fixture.external;
+                import com.nowcoder.yierloom.api.*;
+                public final class BrokenPlugin implements YierLoomPlugin {
+                    public BrokenPlugin() { throw new IllegalStateException("private constructor failure"); }
+                    public PluginDescriptor descriptor() { return new PluginDescriptor("broken", "Broken", "1.0.0", "1.0.0", true, 0); }
+                }
+                """);
+        PluginJarFixture.providerJar(
+                plugins, "b-valid.jar", "fixture.external.ValidPlugin", providerSource("ValidPlugin", "valid"));
+
+        PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), getClass().getClassLoader());
+
+        assertThat(result.plugins()).extracting(plugin -> plugin.descriptor().id()).containsExactly("valid");
+        assertThat(result.issues()).extracting(PluginIssue::reasonCode)
+                .containsExactly("PROVIDER_INSTANTIATION_FAILED");
+        assertThat(result.externalLoaders()).hasSize(1);
+        assertThat(result.issues().get(0).summary()).doesNotContain("private constructor failure");
+        close(result);
+    }
+
+    @Test
+    void parentServiceLoaderProviderIsNotCountedForAnExternalJar() throws Exception {
+        Path plugins = Files.createDirectories(tempDir.resolve("plugins"));
+        PluginJarFixture.jarWithoutProvider(plugins, "empty.jar");
+        Path serviceJar = PluginJarFixture.serviceOnlyJar(
+                tempDir.resolve("engine"), "parent-provider.jar", BuiltInPlugin.class.getName());
+
+        try (URLClassLoader engineLoader = new URLClassLoader(
+                new java.net.URL[]{serviceJar.toUri().toURL()}, getClass().getClassLoader())) {
+            PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), engineLoader);
+
+            assertThat(result.plugins()).hasSize(1);
+            assertThat(result.plugins().get(0).source()).isEqualTo(PluginSource.BUILT_IN);
+            assertThat(result.issues()).extracting(PluginIssue::reasonCode)
+                    .containsExactly("PROVIDER_DECLARATION_INVALID");
+            assertThat(result.externalLoaders()).isEmpty();
+        }
+    }
+
+    private void assertActivatable(PluginDiscovery.Result discovery) {
+        int startsBeforeActivation = BUILT_IN_STARTS.get();
+        YierLoomConfig config = config(null);
+        PluginValidator.ValidationResult validation = new PluginValidator().validate(discovery.plugins(), config);
+        YierLoomEventPipeline pipeline = pipeline();
+        ManagedSchedulerRegistry schedulers = new ManagedSchedulerRegistry();
+        PluginLifecycleManager manager = new PluginLifecycleManager(
+                config,
+                pipeline,
+                schedulers,
+                new NoOpInstrumentationController(),
+                discovery.externalLoaders(),
+                Clock.systemUTC());
+        try {
+            manager.activate(validation.plugins());
+            assertThat(manager.activePluginIds()).containsExactly("built-in");
+            assertThat(BUILT_IN_STARTS).hasValue(startsBeforeActivation + 1);
+        } finally {
+            manager.stopRuntimesInReverseOrder();
+            manager.cancelManagedTasks();
+            manager.removeTransformers();
+            manager.closeExternalLoaders();
+        }
+    }
+
+    private static void close(PluginDiscovery.Result result) throws Exception {
+        for (YierLoomPluginClassLoader loader : result.externalLoaders()) {
+            loader.close();
+        }
+    }
+
+    private static String providerSource(String simpleName, String id) {
+        return """
+                package fixture.external;
+                import com.nowcoder.yierloom.api.*;
+                public final class %s implements YierLoomPlugin, RuntimeCapability {
+                    public PluginDescriptor descriptor() { return new PluginDescriptor("%s", "%s", "1.0.0", "1.0.0", true, 0); }
+                    public void start(PluginRuntimeContext context) { }
+                    public void stop() { }
+                }
+                """.formatted(simpleName, id, simpleName);
+    }
+
+    private static YierLoomConfig config(Path pluginDirectory) {
+        return new YierLoomConfig(
+                true,
+                Optional.ofNullable(pluginDirectory),
+                8,
+                "test-service",
+                Map.of(),
+                Map.of(),
+                List.of());
+    }
+
+    private static YierLoomEventPipeline pipeline() {
+        return new YierLoomEventPipeline(
+                8,
+                "test-service",
+                Clock.systemUTC(),
+                new PrintStream(OutputStream.nullOutputStream(), true, StandardCharsets.UTF_8));
+    }
+
+    public static final class BuiltInPlugin implements YierLoomPlugin, RuntimeCapability {
+        @Override
+        public PluginDescriptor descriptor() {
+            return new PluginDescriptor("built-in", "Built In", "1.0.0", "1.0.0", true, 0);
+        }
+
+        @Override
+        public void start(PluginRuntimeContext context) {
+            BUILT_IN_STARTS.incrementAndGet();
+        }
+
+        @Override
+        public void stop() {
+        }
+    }
+
+    private static final class NoOpInstrumentationController implements PluginInstrumentationController {
+        @Override
+        public void install(ValidatedPlugin plugin) {
+        }
+
+        @Override
+        public void removePlugin(String pluginId) {
+        }
+
+        @Override
+        public void removeAll() {
+        }
+    }
+}

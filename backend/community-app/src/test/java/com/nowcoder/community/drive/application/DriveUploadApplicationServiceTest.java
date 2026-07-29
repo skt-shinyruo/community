@@ -297,6 +297,7 @@ class DriveUploadApplicationServiceTest {
         DriveUpload prepared = uploads.findById(completingUploadId).orElseThrow();
         assertThat(spaces.reserve(prepared.spaceId(), prepared.sizeBytes(), NOW)).isTrue();
         assertThat(uploads.transitionStatus(prepared.startCompleting(uuid(500), NOW), DriveUploadStatus.PREPARED)).isTrue();
+        storage.metadataStatuses.put(prepared.objectId(), "PURGED");
 
         DriveUploadRecoveryResult result = service.recoverStaleUploads(NOW.plusSeconds(1), 10);
 
@@ -342,6 +343,340 @@ class DriveUploadApplicationServiceTest {
         assertThat(spaces.findByUserId(userId).orElseThrow().usedBytes()).isEqualTo(512L);
         assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isZero();
         assertThat(storage.completed).hasSize(1);
+    }
+
+    @Test
+    void recoverStaleUploadsShouldReleaseExpiredUnknownCompletion() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(
+                userId, null, "unknown-outcome.txt", "text/plain", 512L, ""));
+        UUID uploadId = UUID.fromString(session.uploadId());
+        DriveUpload prepared = uploads.findById(uploadId).orElseThrow();
+        assertThat(spaces.reserve(prepared.spaceId(), prepared.sizeBytes(), NOW)).isTrue();
+        assertThat(uploads.transitionStatus(
+                prepared.startCompleting(uuid(500), NOW), DriveUploadStatus.PREPARED)).isTrue();
+        storage.metadataUnavailable = true;
+
+        DriveUploadRecoveryResult beforeDeadline = service(
+                spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_599), ZoneOffset.UTC))
+                .recoverStaleUploads(NOW.plusSeconds(3_600), 10);
+
+        assertThat(beforeDeadline.skipped()).isEqualTo(1);
+        assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.COMPLETING);
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isEqualTo(512L);
+
+        DriveUploadRecoveryResult atDeadline = service(
+                spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
+                .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
+
+        assertThat(atDeadline.failed()).isEqualTo(1);
+        assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.FAILED);
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isZero();
+        assertThat(storage.deletedObjects).containsExactly(prepared.objectId());
+    }
+
+    @Test
+    void recoverStaleUploadsShouldKeepOssUploadsInProgressBeforeDeadline() {
+        for (String ossStatus : List.of("STAGED", "UPLOADING")) {
+            InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+            InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+            InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+            FakeStoragePort storage = new FakeStoragePort();
+            UUID userId = uuid(7);
+            DriveUploadSessionResult session = service(spaces, entries, uploads, storage)
+                    .prepareUpload(new PrepareDriveUploadCommand(
+                            userId, null, ossStatus.toLowerCase() + ".txt", "text/plain", 512L, ""));
+            UUID uploadId = UUID.fromString(session.uploadId());
+            DriveUpload prepared = uploads.findById(uploadId).orElseThrow();
+            assertThat(spaces.reserve(prepared.spaceId(), prepared.sizeBytes(), NOW)).isTrue();
+            assertThat(uploads.transitionStatus(
+                    prepared.startCompleting(uuid(500), NOW), DriveUploadStatus.PREPARED)).isTrue();
+            storage.metadataStatuses.put(prepared.objectId(), ossStatus);
+
+            DriveUploadRecoveryResult result = service(
+                    spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_599), ZoneOffset.UTC))
+                    .recoverStaleUploads(NOW.plusSeconds(3_600), 10);
+
+            assertThat(result.skipped()).as(ossStatus).isEqualTo(1);
+            assertThat(uploads.findById(uploadId).orElseThrow().status())
+                    .as(ossStatus)
+                    .isEqualTo(DriveUploadStatus.COMPLETING);
+            assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes())
+                    .as(ossStatus)
+                    .isEqualTo(512L);
+            assertThat(storage.cancelledSessions).as(ossStatus).isEmpty();
+            assertThat(storage.deletedObjects).as(ossStatus).isEmpty();
+        }
+    }
+
+    @Test
+    void recoverExpiredUnknownCompletionShouldFinalizeWhenOssCompletionWonCancellationRace() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        UUID userId = uuid(7);
+        DriveUploadSessionResult session = service(spaces, entries, uploads, storage)
+                .prepareUpload(new PrepareDriveUploadCommand(
+                        userId, null, "cancel-race.txt", "text/plain", 512L, ""));
+        UUID uploadId = UUID.fromString(session.uploadId());
+        DriveUpload prepared = uploads.findById(uploadId).orElseThrow();
+        assertThat(spaces.reserve(prepared.spaceId(), prepared.sizeBytes(), NOW)).isTrue();
+        assertThat(uploads.transitionStatus(
+                prepared.startCompleting(uuid(500), NOW), DriveUploadStatus.PREPARED)).isTrue();
+        storage.metadataUnavailable = true;
+        storage.cancellationCompleted = true;
+
+        DriveUploadRecoveryResult result = service(
+                spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
+                .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
+
+        assertThat(result.markedObjectCompleted()).isEqualTo(1);
+        assertThat(result.finalized()).isEqualTo(1);
+        assertThat(result.failed()).isZero();
+        assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.COMPLETED);
+        assertThat(spaces.findByUserId(userId).orElseThrow().usedBytes()).isEqualTo(512L);
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isZero();
+        assertThat(storage.cancelledSessions).containsExactly(prepared.ossSessionId());
+        assertThat(storage.deletedObjects).isEmpty();
+    }
+
+    @Test
+    void recoverExpiredUnknownCompletionShouldRetainReservationUntilOssConfirmsCancellation() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        UUID userId = uuid(7);
+        DriveUploadSessionResult session = service(spaces, entries, uploads, storage)
+                .prepareUpload(new PrepareDriveUploadCommand(
+                        userId, null, "cancel-retry.txt", "text/plain", 512L, ""));
+        UUID uploadId = UUID.fromString(session.uploadId());
+        DriveUpload prepared = uploads.findById(uploadId).orElseThrow();
+        assertThat(spaces.reserve(prepared.spaceId(), prepared.sizeBytes(), NOW)).isTrue();
+        assertThat(uploads.transitionStatus(
+                prepared.startCompleting(uuid(500), NOW), DriveUploadStatus.PREPARED)).isTrue();
+        storage.metadataUnavailable = true;
+        storage.cancelFailuresRemaining = 1;
+
+        DriveUploadRecoveryResult first = service(
+                spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
+                .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
+
+        assertThat(first.skipped()).isEqualTo(1);
+        assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.COMPLETING);
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isEqualTo(512L);
+        assertThat(storage.deletedObjects).isEmpty();
+
+        DriveUploadRecoveryResult retried = service(
+                spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_601), ZoneOffset.UTC))
+                .recoverStaleUploads(NOW.plusSeconds(3_602), 10);
+
+        assertThat(retried.failed()).isEqualTo(1);
+        assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.FAILED);
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isZero();
+        assertThat(storage.cancelledSessions)
+                .containsExactly(prepared.ossSessionId(), prepared.ossSessionId());
+        assertThat(storage.deletedObjects).containsExactly(prepared.objectId());
+    }
+
+    @Test
+    void recoverStaleUploadsShouldRetryPendingCleanupAfterDeletionFailure() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        UUID userId = uuid(7);
+        DriveUploadSessionResult session = service(spaces, entries, uploads, storage)
+                .prepareUpload(new PrepareDriveUploadCommand(
+                        userId, null, "cleanup-retry.txt", "text/plain", 512L, ""));
+        UUID uploadId = UUID.fromString(session.uploadId());
+        DriveUpload prepared = uploads.findById(uploadId).orElseThrow();
+        assertThat(spaces.reserve(prepared.spaceId(), prepared.sizeBytes(), NOW)).isTrue();
+        assertThat(uploads.transitionStatus(
+                prepared.startCompleting(uuid(500), NOW), DriveUploadStatus.PREPARED)).isTrue();
+        storage.metadataStatuses.put(prepared.objectId(), "STAGED");
+        storage.deleteFailuresRemaining = 1;
+
+        DriveUploadRecoveryResult first = service(
+                spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
+                .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
+
+        assertThat(first.failed()).isZero();
+        assertThat(first.skipped()).isEqualTo(1);
+        assertThat(uploads.findById(uploadId).orElseThrow().status())
+                .isEqualTo(DriveUploadStatus.CLEANUP_PENDING);
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isZero();
+        assertThat(storage.cancelledSessions).containsExactly(prepared.ossSessionId());
+        assertThat(storage.deleteAttempts).containsExactly(prepared.objectId());
+        assertThat(storage.deletedObjects).isEmpty();
+
+        DriveUploadRecoveryResult retried = service(
+                spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_601), ZoneOffset.UTC))
+                .recoverStaleUploads(NOW.plusSeconds(3_602), 10);
+
+        assertThat(retried.failed()).isEqualTo(1);
+        assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.FAILED);
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isZero();
+        assertThat(storage.cancelledSessions).containsExactly(prepared.ossSessionId());
+        assertThat(storage.deleteAttempts).containsExactly(prepared.objectId(), prepared.objectId());
+        assertThat(storage.deletedObjects).containsExactly(prepared.objectId());
+    }
+
+    @Test
+    void recoverStaleUploadsShouldCompleteActiveObjectAfterRecoveryDeadline() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(
+                userId, null, "confirmed.txt", "text/plain", 512L, ""));
+        UUID uploadId = UUID.fromString(session.uploadId());
+        DriveUpload prepared = uploads.findById(uploadId).orElseThrow();
+        assertThat(spaces.reserve(prepared.spaceId(), prepared.sizeBytes(), NOW)).isTrue();
+        DriveUpload completing = prepared.startCompleting(uuid(500), NOW);
+        assertThat(uploads.transitionStatus(completing, DriveUploadStatus.PREPARED)).isTrue();
+        storage.completeUpload(new DriveObjectStoragePort.CompleteObject(
+                completing.ossSessionId(),
+                completing.objectId(),
+                completing.versionId(),
+                completing.name(),
+                completing.mimeType(),
+                completing.sizeBytes(),
+                completing.checksumSha256(),
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 512L)
+        ));
+
+        DriveUploadRecoveryResult result = service(
+                spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
+                .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
+
+        assertThat(result.markedObjectCompleted()).isEqualTo(1);
+        assertThat(result.finalized()).isEqualTo(1);
+        assertThat(result.failed()).isZero();
+        assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.COMPLETED);
+        assertThat(spaces.findByUserId(userId).orElseThrow().usedBytes()).isEqualTo(512L);
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isZero();
+        assertThat(storage.deletedObjects).isEmpty();
+    }
+
+    @Test
+    void recoverStaleUploadsShouldKeepExpiredObjectCompletedRecoverableAfterInfrastructureFailure() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(
+                userId, null, "retry-expired.txt", "text/plain", 512L, ""));
+        UUID uploadId = UUID.fromString(session.uploadId());
+        entries.returnNextCreate(DriveEntryRepository.CreateStatus.CONFLICT);
+        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+                userId,
+                uploadId,
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 512L)
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessage("网盘条目创建失败");
+        entries.returnNextCreate(DriveEntryRepository.CreateStatus.CONFLICT);
+
+        DriveUploadRecoveryResult failedAttempt = service(
+                spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
+                .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
+
+        DriveUpload recoverable = uploads.findById(uploadId).orElseThrow();
+        assertThat(failedAttempt.failed()).isZero();
+        assertThat(failedAttempt.finalized()).isZero();
+        assertThat(failedAttempt.skipped()).isEqualTo(1);
+        assertThat(recoverable.status()).isEqualTo(DriveUploadStatus.OBJECT_COMPLETED);
+        assertThat(recoverable.expiredAt(NOW.plusSeconds(3_600))).isTrue();
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isEqualTo(512L);
+        assertThat(storage.deletedObjects).isEmpty();
+
+        DriveUploadRecoveryResult retried = service(
+                spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_601), ZoneOffset.UTC))
+                .recoverStaleUploads(NOW.plusSeconds(3_602), 10);
+
+        assertThat(retried.finalized()).isEqualTo(1);
+        assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.COMPLETED);
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isZero();
+        assertThat(storage.deletedObjects).isEmpty();
+    }
+
+    @Test
+    void recoverStaleUploadsShouldRotateFailedCleanupBeyondFixedBatch() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        UUID userId = uuid(7);
+        DriveUploadApplicationService initialService = service(spaces, entries, uploads, storage);
+        UUID firstUploadId = UUID.fromString(initialService.prepareUpload(new PrepareDriveUploadCommand(
+                userId, null, "blocked-cleanup.txt", "text/plain", 10L, "")).uploadId());
+        UUID secondUploadId = UUID.fromString(initialService.prepareUpload(new PrepareDriveUploadCommand(
+                userId, null, "next-cleanup.txt", "text/plain", 20L, "")).uploadId());
+        DriveUpload firstPrepared = uploads.findById(firstUploadId).orElseThrow();
+        DriveUpload secondPrepared = uploads.findById(secondUploadId).orElseThrow();
+        DriveUpload firstCompleting = firstPrepared.startCompleting(uuid(501), NOW);
+        DriveUpload secondCompleting = secondPrepared.startCompleting(uuid(502), NOW);
+        assertThat(uploads.transitionStatus(firstCompleting, DriveUploadStatus.PREPARED)).isTrue();
+        assertThat(uploads.transitionStatus(secondCompleting, DriveUploadStatus.PREPARED)).isTrue();
+        assertThat(uploads.transitionStatus(
+                firstCompleting.startCleanup(NOW.plusSeconds(1)), DriveUploadStatus.COMPLETING)).isTrue();
+        assertThat(uploads.transitionStatus(
+                secondCompleting.startCleanup(NOW.plusSeconds(2)), DriveUploadStatus.COMPLETING)).isTrue();
+        storage.alwaysFailDeleteObjectId = firstPrepared.objectId();
+        DriveUploadApplicationService recoveryService = service(
+                spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(10), ZoneOffset.UTC));
+
+        DriveUploadRecoveryResult firstBatch = recoveryService.recoverStaleUploads(NOW.plusSeconds(10), 1);
+        DriveUploadRecoveryResult secondBatch = recoveryService.recoverStaleUploads(NOW.plusSeconds(10), 1);
+
+        assertThat(firstBatch.skipped()).isEqualTo(1);
+        assertThat(secondBatch.failed()).isEqualTo(1);
+        assertThat(uploads.findById(firstUploadId).orElseThrow().status())
+                .isEqualTo(DriveUploadStatus.CLEANUP_PENDING);
+        assertThat(uploads.findById(secondUploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.FAILED);
+        assertThat(storage.deleteAttempts)
+                .containsExactly(firstPrepared.objectId(), secondPrepared.objectId());
+    }
+
+    @Test
+    void recoverStaleUploadsShouldFinalizeObjectCompletedAfterRecoveryDeadlineWhenPossible() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(
+                userId, null, "retry-success.txt", "text/plain", 512L, ""));
+        UUID uploadId = UUID.fromString(session.uploadId());
+        entries.returnNextCreate(DriveEntryRepository.CreateStatus.CONFLICT);
+        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+                userId,
+                uploadId,
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 512L)
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessage("网盘条目创建失败");
+
+        DriveUploadRecoveryResult result = service(
+                spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
+                .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
+
+        assertThat(result.finalized()).isEqualTo(1);
+        assertThat(result.failed()).isZero();
+        assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.COMPLETED);
+        assertThat(spaces.findByUserId(userId).orElseThrow().usedBytes()).isEqualTo(512L);
+        assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isZero();
+        assertThat(storage.deletedObjects).isEmpty();
     }
 
     @Test
@@ -574,7 +909,17 @@ class DriveUploadApplicationServiceTest {
             DriveUploadRepository uploads,
             DriveObjectStoragePort storage
     ) {
-        return new DriveUploadApplicationService(spaces, entries, uploads, storage, CLOCK);
+        return service(spaces, entries, uploads, storage, CLOCK);
+    }
+
+    private static DriveUploadApplicationService service(
+            DriveSpaceRepository spaces,
+            DriveEntryRepository entries,
+            DriveUploadRepository uploads,
+            DriveObjectStoragePort storage,
+            Clock clock
+    ) {
+        return new DriveUploadApplicationService(spaces, entries, uploads, storage, clock);
     }
 
     private static final class InMemoryDriveSpaceRepository implements DriveSpaceRepository {
@@ -755,6 +1100,16 @@ class DriveUploadApplicationServiceTest {
         }
 
         @Override
+        public boolean recordRecoveryAttempt(UUID uploadId, DriveUploadStatus expectedStatus, Instant attemptedAt) {
+            DriveUpload current = rows.get(uploadId);
+            if (current == null || current.status() != expectedStatus) {
+                return false;
+            }
+            rows.put(uploadId, withUpdatedAt(current, attemptedAt));
+            return true;
+        }
+
+        @Override
         public List<DriveUpload> listRecoverableBefore(Instant updatedBefore, int limit) {
             if (updatedBefore == null || limit <= 0) {
                 return List.of();
@@ -762,7 +1117,8 @@ class DriveUploadApplicationServiceTest {
             return rows.values().stream()
                     .filter(upload -> upload.status() == DriveUploadStatus.PREPARING
                             || upload.status() == DriveUploadStatus.COMPLETING
-                            || upload.status() == DriveUploadStatus.OBJECT_COMPLETED)
+                            || upload.status() == DriveUploadStatus.OBJECT_COMPLETED
+                            || upload.status() == DriveUploadStatus.CLEANUP_PENDING)
                     .filter(upload -> upload.updatedAt().isBefore(updatedBefore))
                     .sorted(Comparator.comparing(DriveUpload::updatedAt).thenComparing(DriveUpload::uploadId))
                     .limit(limit)
@@ -801,13 +1157,30 @@ class DriveUploadApplicationServiceTest {
                     upload.completedAt()
             ));
         }
+
+        private static DriveUpload withUpdatedAt(DriveUpload upload, Instant updatedAt) {
+            return new DriveUpload(
+                    upload.uploadId(), upload.spaceId(), upload.parentId(), upload.name(), upload.sizeBytes(),
+                    upload.mimeType(), upload.checksumSha256(), upload.objectId(), upload.versionId(),
+                    upload.ossSessionId(), upload.createdBy(), upload.status(), upload.completedEntryId(),
+                    upload.createdAt(), updatedAt, upload.expiresAt(), upload.completedAt()
+            );
+        }
     }
 
     private static final class FakeStoragePort implements DriveObjectStoragePort {
         private final List<PrepareObject> prepared = new ArrayList<>();
         private final List<CompleteObject> completed = new ArrayList<>();
+        private final Map<UUID, String> metadataStatuses = new LinkedHashMap<>();
+        private final List<UUID> cancelledSessions = new ArrayList<>();
+        private final List<UUID> deleteAttempts = new ArrayList<>();
         private final List<UUID> deletedObjects = new ArrayList<>();
         private boolean failAfterObjectCompleted;
+        private boolean metadataUnavailable;
+        private boolean cancellationCompleted;
+        private int cancelFailuresRemaining;
+        private int deleteFailuresRemaining;
+        private UUID alwaysFailDeleteObjectId;
         private Runnable afterComplete;
 
         @Override
@@ -833,7 +1206,33 @@ class DriveUploadApplicationServiceTest {
         }
 
         @Override
+        public UploadCancellation cancelUpload(UUID sessionId, UUID objectId, UUID versionId) {
+            cancelledSessions.add(sessionId);
+            if (cancelFailuresRemaining > 0) {
+                cancelFailuresRemaining--;
+                throw new RuntimeException("cancel unavailable");
+            }
+            return new UploadCancellation(cancellationCompleted, !cancellationCompleted);
+        }
+
+        @Override
         public ObjectMetadata getMetadata(UUID objectId) {
+            if (metadataUnavailable) {
+                throw new RuntimeException("metadata unavailable");
+            }
+            String metadataStatus = metadataStatuses.get(objectId);
+            if (metadataStatus != null) {
+                return new ObjectMetadata(
+                        objectId,
+                        null,
+                        metadataStatus,
+                        "",
+                        "application/octet-stream",
+                        0L,
+                        "",
+                        ""
+                );
+            }
             return completed.stream()
                     .filter(command -> command.objectId().equals(objectId))
                     .findFirst()
@@ -857,6 +1256,14 @@ class DriveUploadApplicationServiceTest {
 
         @Override
         public void deleteObject(UUID objectId, String actorId) {
+            deleteAttempts.add(objectId);
+            if (objectId.equals(alwaysFailDeleteObjectId)) {
+                throw new RuntimeException("delete unavailable");
+            }
+            if (deleteFailuresRemaining > 0) {
+                deleteFailuresRemaining--;
+                throw new RuntimeException("delete unavailable");
+            }
             deletedObjects.add(objectId);
         }
     }

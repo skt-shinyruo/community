@@ -17,9 +17,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:oss-upload-fencing;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false",
@@ -33,6 +39,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "spring.cloud.discovery.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",
         "spring.cloud.nacos.config.enabled=false",
+        "community.oss.upload-recovery.enabled=false",
+        "community.oss.delete-recovery.enabled=false",
         "oss.object-store.mode=local",
         "oss.object-store.local-root=${java.io.tmpdir}/community-oss-transaction-test"
 })
@@ -158,6 +166,172 @@ class ObjectUploadTransactionOperationsIntegrationTest {
                 .isEqualTo("STAGED");
         assertThat(value("select status from oss_upload_session where session_id = ?", fixture.session().sessionId()))
                 .isEqualTo("READY");
+    }
+
+    @Test
+    void cancelledSessionMustFenceTheOldClaimBeforeCanonicalMetadataChanges() {
+        Fixture fixture = seed(7550);
+        OssUploadSession oldClaim = operations.claimCompletion(
+                fixture.session().sessionId(), NOW.plusSeconds(1)).orElseThrow();
+        Instant cleanupAfter = NOW.plusSeconds(3_600);
+
+        assertThat(sessionRepository.cancelActiveSession(
+                oldClaim.sessionId(), uuid(9991), oldClaim.versionId(), NOW.plusSeconds(2), cleanupAfter)).isFalse();
+        OssUploadSession cancelled = operations.cancelSession(
+                oldClaim.sessionId(), oldClaim.objectId(), oldClaim.versionId(), NOW.plusSeconds(2), cleanupAfter);
+
+        assertThat(cancelled.status().name()).isEqualTo("CANCELLED_CLEANUP_PENDING");
+        assertThat(cancelled.claimVersion()).isEqualTo(oldClaim.claimVersion() + 1L);
+        assertThat(sessionRepository.recordCompletionFailure(
+                oldClaim.sessionId(), oldClaim.claimVersion(), "late", NOW.plusSeconds(3))).isFalse();
+        assertThat(sessionRepository.resetFailedClaim(
+                oldClaim.sessionId(), oldClaim.claimVersion(), NOW.plusSeconds(3), NOW.plusSeconds(903))).isFalse();
+        assertThat(sessionRepository.completeClaim(
+                oldClaim.sessionId(), oldClaim.claimVersion(), NOW.plusSeconds(3))).isFalse();
+
+        OssObjectVersion lateVersion = fixture.version()
+                .withUploadedContentAt("attempt/cancelled", "image/png", 4L, "sha256-post")
+                .activate("late-etag", NOW.plusSeconds(3));
+        OssObject lateObject = fixture.object().activate(lateVersion, NOW.plusSeconds(3));
+        assertThatThrownBy(() -> operations.finalizeUpload(
+                lateVersion, lateObject, oldClaim.complete(NOW.plusSeconds(3))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("claim");
+
+        assertThat(operations.completeCancellationCleanup(
+                oldClaim.sessionId(), oldClaim.claimVersion(), NOW.plusSeconds(4))).isFalse();
+        assertThat(operations.completeCancellationCleanup(
+                cancelled.sessionId(), cancelled.claimVersion(), cleanupAfter.minusSeconds(1))).isFalse();
+        assertThat(operations.completeCancellationCleanup(
+                cancelled.sessionId(), cancelled.claimVersion(), cleanupAfter)).isTrue();
+
+        assertThat(value("select status from oss_upload_session where session_id = ?", oldClaim.sessionId()))
+                .isEqualTo("CANCELLED");
+        assertThat(value("select status from oss_object where object_id = ?", fixture.object().objectId()))
+                .isEqualTo("STAGED");
+        assertThat(value("select status from oss_object_version where version_id = ?", fixture.version().versionId()))
+                .isEqualTo("STAGED");
+    }
+
+    @Test
+    void recoverableQueryMustApplySeparateUploadAndCancellationCutoffs() {
+        Instant uploadingCutoff = NOW.plusSeconds(100);
+        Instant cancellationCutoff = NOW.plusSeconds(500);
+
+        Fixture staleUpload = seed(7560);
+        Fixture activeUpload = seed(7570);
+        Fixture failedRecovery = seed(7580);
+        Fixture failedPut = seed(7590);
+        Fixture pendingCancellation = seed(7600);
+        Fixture freshCancellation = seed(7610);
+
+        operations.claimCompletion(staleUpload.session().sessionId(), uploadingCutoff).orElseThrow();
+        operations.claimCompletion(activeUpload.session().sessionId(), cancellationCutoff).orElseThrow();
+        OssUploadSession recoveryClaim = operations.claimCompletion(
+                failedRecovery.session().sessionId(), uploadingCutoff).orElseThrow();
+        OssUploadSession putClaim = operations.claimCompletion(
+                failedPut.session().sessionId(), uploadingCutoff).orElseThrow();
+        assertThat(sessionRepository.recordCompletionFailure(
+                recoveryClaim.sessionId(),
+                recoveryClaim.claimVersion(),
+                "RECOVERY_FAILED:IllegalStateException:head unavailable",
+                cancellationCutoff
+        )).isTrue();
+        assertThat(sessionRepository.recordCompletionFailure(
+                putClaim.sessionId(),
+                putClaim.claimVersion(),
+                "PUT_FAILED:timeout",
+                cancellationCutoff
+        )).isTrue();
+        operations.cancelSession(
+                pendingCancellation.session().sessionId(),
+                pendingCancellation.object().objectId(),
+                pendingCancellation.version().versionId(),
+                cancellationCutoff,
+                NOW.plusSeconds(3_600)
+        );
+        operations.cancelSession(
+                freshCancellation.session().sessionId(),
+                freshCancellation.object().objectId(),
+                freshCancellation.version().versionId(),
+                cancellationCutoff.plusSeconds(1),
+                NOW.plusSeconds(3_600)
+        );
+
+        assertThat(sessionRepository.listRecoverable(uploadingCutoff, cancellationCutoff, 10))
+                .extracting(OssUploadSession::sessionId)
+                .containsExactly(
+                        staleUpload.session().sessionId(),
+                        failedRecovery.session().sessionId(),
+                        pendingCancellation.session().sessionId()
+                );
+    }
+
+    @Test
+    void concurrentCancellationAndFinalizeMustProduceOneConsistentWinner() throws Exception {
+        Fixture fixture = seed(7575);
+        OssUploadSession claim = operations.claimCompletion(
+                fixture.session().sessionId(), NOW.plusSeconds(1)).orElseThrow();
+        OssObjectVersion activeVersion = fixture.version()
+                .withUploadedContentAt("attempt/race", "image/png", 4L, "sha256-post")
+                .activate("race-etag", NOW.plusSeconds(2));
+        OssObject activeObject = fixture.object().activate(activeVersion, NOW.plusSeconds(2));
+        OssUploadSession completedClaim = claim.complete(NOW.plusSeconds(2));
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Throwable> finalizeResult = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return catchThrowable(() -> operations.finalizeUpload(
+                        activeVersion, activeObject, completedClaim));
+            });
+            Future<OssUploadSession> cancellationResult = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return operations.cancelSession(
+                        claim.sessionId(),
+                        claim.objectId(),
+                        claim.versionId(),
+                        NOW.plusSeconds(2),
+                        NOW.plusSeconds(2_102)
+                );
+            });
+            assertThat(ready.await(1, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            Throwable finalizeFailure = finalizeResult.get(5, TimeUnit.SECONDS);
+            OssUploadSession cancellationObservation = cancellationResult.get(5, TimeUnit.SECONDS);
+            String storedStatus = value(
+                    "select status from oss_upload_session where session_id = ?", claim.sessionId());
+
+            if (finalizeFailure == null) {
+                assertThat(storedStatus).isEqualTo("COMPLETED");
+                assertThat(cancellationObservation.status().name()).isEqualTo("COMPLETED");
+                assertThat(value(
+                        "select status from oss_object_version where version_id = ?", fixture.version().versionId()))
+                        .isEqualTo("ACTIVE");
+                assertThat(value(
+                        "select status from oss_object where object_id = ?", fixture.object().objectId()))
+                        .isEqualTo("ACTIVE");
+            } else {
+                assertThat(finalizeFailure)
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("claim");
+                assertThat(storedStatus).isEqualTo("CANCELLED_CLEANUP_PENDING");
+                assertThat(cancellationObservation.status().name()).isEqualTo("CANCELLED_CLEANUP_PENDING");
+                assertThat(value(
+                        "select status from oss_object_version where version_id = ?", fixture.version().versionId()))
+                        .isEqualTo("STAGED");
+                assertThat(value(
+                        "select status from oss_object where object_id = ?", fixture.object().objectId()))
+                        .isEqualTo("STAGED");
+            }
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+        }
     }
 
     @Test

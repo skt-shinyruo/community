@@ -43,6 +43,7 @@ public class ObjectUploadApplicationService {
     private static final String USAGE_USER_AVATAR = "USER_AVATAR";
     private static final String FEATURE_FILE_UPLOAD = "file-upload";
     private static final Duration DEFAULT_SESSION_TTL = Duration.ofMinutes(15);
+    private static final Duration CANCELLATION_QUIESCENCE_WINDOW = Duration.ofMinutes(35);
 
     private final OssObjectRepository objectRepository;
     private final OssObjectVersionRepository versionRepository;
@@ -323,6 +324,55 @@ public class ObjectUploadApplicationService {
         return prepareUploadCore(command, serviceSubject.trim());
     }
 
+    public UploadCancellationResult cancelInternalUpload(
+            String serviceSubject,
+            UUID sessionId,
+            UUID objectId,
+            UUID versionId
+    ) {
+        if (serviceSubject == null || serviceSubject.isBlank()
+                || sessionId == null || objectId == null || versionId == null) {
+            throw objectNotFound();
+        }
+        String authenticatedService = serviceSubject.trim();
+        OssUploadSession session = uploadSessionRepository.findById(sessionId)
+                .orElseThrow(this::objectNotFound);
+        OssObject object = objectRepository.findById(objectId)
+                .orElseThrow(this::objectNotFound);
+        OssObjectVersion version = versionRepository.findById(versionId)
+                .orElseThrow(this::objectNotFound);
+        if (!authenticatedService.equals(session.ownerService())
+                || "USER".equalsIgnoreCase(session.ownerType())
+                || !objectId.equals(session.objectId())
+                || !versionId.equals(session.versionId())
+                || !authenticatedService.equals(object.ownerService())
+                || "USER".equalsIgnoreCase(object.ownerType())
+                || !objectId.equals(version.objectId())) {
+            throw objectNotFound();
+        }
+
+        Instant cancelledAt = clock.instant();
+        OssUploadSession current = transactionOperations.cancelSession(
+                sessionId,
+                objectId,
+                versionId,
+                cancelledAt,
+                cancelledAt.plus(CANCELLATION_QUIESCENCE_WINDOW)
+        );
+        if (current.status() == OssUploadSessionStatus.COMPLETED) {
+            return toCancellationResult(current, true, false);
+        }
+        if (current.status() == OssUploadSessionStatus.CANCELLED) {
+            return toCancellationResult(current, false, true);
+        }
+        if (current.status() != OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING) {
+            throw new IllegalStateException("upload session is not cancellable: " + current.status());
+        }
+
+        deleteCancellationAttempts(objectStore, version.storageBucket(), current);
+        return toCancellationResult(current, false, true);
+    }
+
     public ObjectMetadataResult completeUpload(CompleteObjectUploadCommand command) {
         requireCompleteCommand(command);
         OssUploadSession session = uploadSessionRepository.findById(command.sessionId())
@@ -388,27 +438,46 @@ public class ObjectUploadApplicationService {
             );
         } catch (Exception e) {
             recordDefinitivePutFailureIfMissing(uploadingSession, version.storageBucket(), attemptStorageKey, e);
+            AttemptClaimState claimState = cleanupAttemptIfClaimLost(
+                    uploadingSession, version.storageBucket(), attemptStorageKey);
+            if (claimState == AttemptClaimState.CANCELLED) {
+                throw new IllegalStateException("upload session was cancelled", e);
+            }
+            if (claimState == AttemptClaimState.SUPERSEDED) {
+                throw new IllegalStateException("upload session claim is no longer current", e);
+            }
             throw new IllegalStateException("failed to store object content", e);
         }
 
-        ObjectStoreObject stored = objectStore.head(version.storageBucket(), attemptStorageKey)
-                .orElseThrow(() -> new IllegalStateException(
-                        "stored object metadata is not yet visible; recovery will retry"));
-        validateSubmittedContentMetadata(content, stored);
-        String etag = stored.etag();
-        OssObjectVersion uploadedVersion = version.withUploadedContentAt(
-                attemptStorageKey,
-                content.contentType(),
-                content.contentLength(),
-                content.checksumSha256()
-        );
-        OssObjectVersion activatedVersion = uploadedVersion.activate(etag, now);
-        OssObject activatedObject = object.activate(activatedVersion, now);
-        OssUploadSession completedSession = uploadingSession.complete(now);
+        try {
+            ObjectStoreObject stored = objectStore.head(version.storageBucket(), attemptStorageKey)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "stored object metadata is not yet visible; recovery will retry"));
+            validateSubmittedContentMetadata(content, stored);
+            String etag = stored.etag();
+            OssObjectVersion uploadedVersion = version.withUploadedContentAt(
+                    attemptStorageKey,
+                    content.contentType(),
+                    content.contentLength(),
+                    content.checksumSha256()
+            );
+            OssObjectVersion activatedVersion = uploadedVersion.activate(etag, now);
+            OssObject activatedObject = object.activate(activatedVersion, now);
+            OssUploadSession completedSession = uploadingSession.complete(now);
 
-        transactionOperations.finalizeUpload(activatedVersion, activatedObject, completedSession);
-
-        return toMetadataResult(activatedObject, activatedVersion);
+            transactionOperations.finalizeUpload(activatedVersion, activatedObject, completedSession);
+            return toMetadataResult(activatedObject, activatedVersion);
+        } catch (RuntimeException failure) {
+            AttemptClaimState claimState = cleanupAttemptIfClaimLost(
+                    uploadingSession, version.storageBucket(), attemptStorageKey);
+            if (claimState == AttemptClaimState.CANCELLED) {
+                throw new IllegalStateException("upload session was cancelled", failure);
+            }
+            if (claimState == AttemptClaimState.SUPERSEDED) {
+                throw new IllegalStateException("upload session claim is no longer current", failure);
+            }
+            throw failure;
+        }
     }
 
     public ObjectMetadataResult completeInternalUpload(
@@ -486,12 +555,42 @@ public class ObjectUploadApplicationService {
     }
 
     static String attemptStorageKey(OssUploadSession session) {
+        return attemptStorageKey(session, session.claimVersion());
+    }
+
+    static String attemptStorageKey(OssUploadSession session, long claimVersion) {
         String baseStorageKey = "objects/" + session.objectId() + "/"
                 + session.versionId() + "/" + session.expectedFileName();
-        if (session.claimVersion() <= 0L) {
+        if (claimVersion <= 0L) {
             return baseStorageKey;
         }
-        return baseStorageKey + ".claim-" + session.claimVersion();
+        return baseStorageKey + ".claim-" + claimVersion;
+    }
+
+    static void deleteCancellationAttempts(ObjectStore objectStore, String bucket, OssUploadSession session) {
+        for (long claimVersion = 0L; claimVersion < session.claimVersion(); claimVersion++) {
+            objectStore.delete(bucket, attemptStorageKey(session, claimVersion));
+        }
+    }
+
+    private AttemptClaimState cleanupAttemptIfClaimLost(
+            OssUploadSession attemptedSession,
+            String bucket,
+            String attemptStorageKey
+    ) {
+        OssUploadSession current = uploadSessionRepository.findById(attemptedSession.sessionId())
+                .orElse(null);
+        if (current == null
+                || !current.objectId().equals(attemptedSession.objectId())
+                || !current.versionId().equals(attemptedSession.versionId())
+                || current.claimVersion() <= attemptedSession.claimVersion()) {
+            return AttemptClaimState.CURRENT;
+        }
+        objectStore.delete(bucket, attemptStorageKey);
+        return current.status() == OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING
+                || current.status() == OssUploadSessionStatus.CANCELLED
+                ? AttemptClaimState.CANCELLED
+                : AttemptClaimState.SUPERSEDED;
     }
 
     private ObjectMetadataResult canonicalMetadata(UUID objectId, UUID versionId) {
@@ -523,6 +622,22 @@ public class ObjectUploadApplicationService {
                 session.uploadMode(),
                 "/api/oss/objects/" + session.objectId() + "/complete",
                 session.expiresAt()
+        );
+    }
+
+    private UploadCancellationResult toCancellationResult(
+            OssUploadSession session,
+            boolean completed,
+            boolean cancelled
+    ) {
+        return new UploadCancellationResult(
+                session.sessionId(),
+                session.objectId(),
+                session.versionId(),
+                completed ? OssUploadSessionStatus.COMPLETED.name() : OssUploadSessionStatus.CANCELLED.name(),
+                session.claimVersion(),
+                completed,
+                cancelled
         );
     }
 
@@ -772,5 +887,22 @@ public class ObjectUploadApplicationService {
     }
 
     private record UploadTarget(OssObject object, OssObjectVersion version) {
+    }
+
+    private enum AttemptClaimState {
+        CURRENT,
+        SUPERSEDED,
+        CANCELLED
+    }
+
+    public record UploadCancellationResult(
+            UUID sessionId,
+            UUID objectId,
+            UUID versionId,
+            String status,
+            long claimVersion,
+            boolean completed,
+            boolean cancelled
+    ) {
     }
 }

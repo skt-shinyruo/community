@@ -18,11 +18,13 @@ oss:
     region: garage
     path-style: true
     local-root: /tmp/community-oss
+    api-call-timeout: 30m
 
 community:
   oss:
     upload-recovery:
       enabled: true
       batch-size: 100
-      stale-seconds: 300
+      stale-seconds: 2100
+      cancellation-stale-seconds: 300
       delay-ms: 60000

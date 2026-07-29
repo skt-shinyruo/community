@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OssLifecycleModelTest {
 
@@ -96,6 +97,39 @@ class OssLifecycleModelTest {
         assertThat(deletePendingObject.status()).isEqualTo(OssObjectStatus.DELETE_PENDING);
         assertThat(purgedObject.status()).isEqualTo(OssObjectStatus.PURGED);
         assertThat(purgedVersion.status()).isEqualTo(OssObjectVersionStatus.PURGED);
+    }
+
+    @Test
+    void uploadCancellationShouldFenceTheActiveClaimAndRemainIdempotent() {
+        OssUploadSession ready = OssUploadSession.ready(
+                uuid(10), uuid(11), uuid(12), "PROXY", "community-app", "drive",
+                "DRIVE_UPLOAD", "upload-7", "note.txt", "text/plain", 4L,
+                "sha256-note", "user-7", NOW, NOW.plusSeconds(900));
+        OssUploadSession uploading = ready.startUploading(NOW.plusSeconds(1));
+        Instant cleanupAfter = NOW.plusSeconds(3_600);
+
+        OssUploadSession cleanupPending = uploading.cancel(NOW.plusSeconds(2), cleanupAfter);
+        OssUploadSession replay = cleanupPending.cancel(NOW.plusSeconds(3), cleanupAfter.plusSeconds(1));
+        OssUploadSession observed = cleanupPending.recordCancellationCleanup(NOW.plusSeconds(4), "retry");
+        OssUploadSession cancelled = observed.completeCancellationCleanup(cleanupAfter);
+
+        assertThat(cleanupPending.status()).isEqualTo(OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING);
+        assertThat(cleanupPending.claimVersion()).isEqualTo(uploading.claimVersion() + 1L);
+        assertThat(cleanupPending.updatedAt()).isEqualTo(NOW.plusSeconds(2));
+        assertThat(cleanupPending.expiresAt()).isEqualTo(cleanupAfter);
+        assertThat(replay).isSameAs(cleanupPending);
+        assertThat(observed.updatedAt()).isEqualTo(NOW.plusSeconds(4));
+        assertThat(observed.lastError()).isEqualTo("retry");
+        assertThat(cancelled.status()).isEqualTo(OssUploadSessionStatus.CANCELLED);
+        assertThat(cancelled.claimVersion()).isEqualTo(cleanupPending.claimVersion());
+        assertThat(cancelled.completedAt()).isEqualTo(cleanupAfter);
+        assertThatThrownBy(() -> cleanupPending.completeCancellationCleanup(cleanupAfter.minusSeconds(1)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("quiescence");
+        assertThatThrownBy(() -> uploading.complete(NOW.plusSeconds(2))
+                .cancel(NOW.plusSeconds(3), cleanupAfter))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("not cancellable");
     }
 
     private static UUID uuid(long suffix) {

@@ -69,6 +69,8 @@ class InternalOssObjectControllerTest {
                 String.class, PrepareObjectUploadCommand.class);
         assertMethodExists(ObjectUploadApplicationService.class, "completeInternalUpload",
                 String.class, CompleteObjectUploadCommand.class);
+        assertMethodExists(ObjectUploadApplicationService.class, "cancelInternalUpload",
+                String.class, UUID.class, UUID.class, UUID.class);
         assertMethodExists(ObjectQueryApplicationService.class, "getInternalMetadata",
                 UUID.class, String.class);
         assertMethodExists(ObjectAccessApplicationService.class, "createInternalSignedDownloadUrl",
@@ -184,6 +186,33 @@ class InternalOssObjectControllerTest {
         assertThat(command.getValue().content().contentType()).isEqualTo("text/plain");
         assertThat(command.getValue().content().contentLength()).isEqualTo(content.length);
         assertThat(command.getValue().content().openStream().readAllBytes()).isEqualTo(content);
+    }
+
+    @Test
+    void cancelShouldUseServiceSubjectAndPreserveTheUploadTuple() throws Exception {
+        UUID sessionId = uuid(3);
+        UUID objectId = uuid(1);
+        UUID versionId = uuid(2);
+        ObjectUploadApplicationService uploadService = mock(ObjectUploadApplicationService.class);
+        when(uploadService.cancelInternalUpload(
+                SERVICE_SUBJECT, sessionId, objectId, versionId)).thenReturn(
+                new ObjectUploadApplicationService.UploadCancellationResult(
+                        sessionId, objectId, versionId, "CANCELLED", 2L, false, true));
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(controller(uploadService,
+                mock(ObjectQueryApplicationService.class),
+                mock(ObjectAccessApplicationService.class),
+                mock(ObjectReferenceApplicationService.class),
+                mock(ObjectLifecycleApplicationService.class))).build();
+
+        mvc.perform(post("/internal/oss/upload-sessions/{sessionId}/cancel", sessionId)
+                        .param("objectId", objectId.toString())
+                        .param("versionId", versionId.toString())
+                        .principal(serviceAuthentication(SERVICE_SUBJECT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.cancelled").value(true));
+
+        verify(uploadService).cancelInternalUpload(SERVICE_SUBJECT, sessionId, objectId, versionId);
     }
 
     @Test

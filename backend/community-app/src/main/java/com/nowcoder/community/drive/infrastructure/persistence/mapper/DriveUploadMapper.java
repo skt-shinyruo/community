@@ -25,4 +25,8 @@ public interface DriveUploadMapper {
 
     int updateStatusIfCurrent(@Param("upload") DriveUploadDataObject upload,
                               @Param("expectedStatus") DriveUploadStatus expectedStatus);
+
+    int updateRecoveryAttemptIfCurrent(@Param("uploadId") UUID uploadId,
+                                       @Param("expectedStatus") DriveUploadStatus expectedStatus,
+                                       @Param("attemptedAt") Instant attemptedAt);
 }

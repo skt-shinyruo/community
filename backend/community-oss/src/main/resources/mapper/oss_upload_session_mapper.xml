@@ -77,6 +77,38 @@
           and status = 'UPLOADING'
           and claim_version = #{claimVersion}
     </update>
+    <update id="cancelActiveSession">
+        update oss_upload_session
+        set status = 'CANCELLED_CLEANUP_PENDING',
+            claim_version = claim_version + 1,
+            updated_at = #{updatedAt},
+            expires_at = #{cleanupAfter},
+            completed_at = null,
+            last_error = ''
+        where session_id = #{sessionId,jdbcType=BINARY}
+          and object_id = #{objectId,jdbcType=BINARY}
+          and version_id = #{versionId,jdbcType=BINARY}
+          and status in ('READY', 'UPLOADING', 'EXPIRED')
+    </update>
+    <update id="recordCancellationCleanup">
+        update oss_upload_session
+        set last_error = #{lastError},
+            updated_at = #{updatedAt}
+        where session_id = #{sessionId,jdbcType=BINARY}
+          and status = 'CANCELLED_CLEANUP_PENDING'
+          and claim_version = #{claimVersion}
+    </update>
+    <update id="completeCancellationCleanup">
+        update oss_upload_session
+        set status = 'CANCELLED',
+            updated_at = #{completedAt},
+            completed_at = #{completedAt},
+            last_error = ''
+        where session_id = #{sessionId,jdbcType=BINARY}
+          and status = 'CANCELLED_CLEANUP_PENDING'
+          and claim_version = #{claimVersion}
+          and expires_at &lt;= #{completedAt}
+    </update>
     <update id="renewReadySession">
         update oss_upload_session
         set expires_at = #{renewedExpiresAt},
@@ -89,8 +121,13 @@
     <select id="listRecoverable" resultType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssUploadSessionDataObject">
         select <include refid="fields"/>
         from oss_upload_session
-        where status = 'UPLOADING'
-          and updated_at &lt;= #{updatedBefore}
+        where (status = 'UPLOADING' and (
+                 (last_error like 'RECOVERY_FAILED:%'
+                     and updated_at &lt;= #{cancellationUpdatedBefore})
+                 or (last_error not like 'RECOVERY_FAILED:%'
+                     and updated_at &lt;= #{uploadingUpdatedBefore})
+              ))
+           or (status = 'CANCELLED_CLEANUP_PENDING' and updated_at &lt;= #{cancellationUpdatedBefore})
         order by updated_at asc, session_id asc
         limit #{limit}
     </select>

@@ -19,6 +19,7 @@ HTTP：
 - `POST /api/oss/objects/{objectId}/grants`
 - `DELETE /api/oss/objects/{objectId}/grants/{grantId}`
 - `DELETE /api/oss/objects/{objectId}`
+- `POST /internal/oss/upload-sessions/{sessionId}/cancel`
 - `POST /internal/oss/objects/{objectId}/references`
 - `DELETE /internal/oss/objects/{objectId}/references/{referenceId}`
 - `GET /files/**`
@@ -33,7 +34,7 @@ Gateway：
 OSS 的数据流只负责对象技术事实，业务授权仍由消费方 owner 决定：
 
 1. 上传：消费方先完成自己的业务授权，再通过 `community-oss-client` 请求 prepare upload。OSS 保存对象、版本、上传会话和 owner context，返回通用上传能力而不是存储凭证。
-2. 完成上传：消费方把浏览器上传结果回传给 OSS complete。OSS 先以 `claimVersion` claim session，再写带 claim 后缀的 blob，校验 metadata，最后以 session ID + claim version fencing 激活 version 和 object。
+2. 完成上传：消费方把浏览器上传结果回传给 OSS complete。OSS 先以 `claimVersion` claim session，再写带 claim 后缀的 blob，校验 metadata，最后以 session ID + claim version fencing 激活 version 和 object。内部消费方需要放弃无法确认的上传时，通过 cancellation 与 completion 原子竞争，不能只删除 object。
 3. 下载：`PUBLIC` 对象可匿名走 `/files/**`。canonical URL 以 objectId + versionId 为 authority。
 4. 引用和授权：业务 owner 在自己的主事实写入路径内先判断是否允许，再通过 OSS reference / grant API 绑定引用或发放临时访问权。OSS 只记录技术授权事实。
 5. 删除：对象删除先看 active reference 和 grant；如果还存在 active 依赖，只能进入 delete pending。没有 active 依赖时才删除 blob、purge version，并把对象标记为 purged。
@@ -56,11 +57,13 @@ OSS 的数据流只负责对象技术事实，业务授权仍由消费方 owner 
 5. `ObjectUploadTransactionOperations.finalizeUpload(...)` 以 session ID 和 claim version 完成 `UPLOADING -> COMPLETED`；fence 丢失时不激活 version/object。
 6. OSS 激活 version，更新 object current version，返回 canonical public URL，例如 `/files/{objectId}/{versionId}/{fileName}`。
 
-上传状态机为 `READY -> UPLOADING -> COMPLETED`。PUT 明确失败时会在同一 claim 上记录失败证据，session 仍保持可恢复的 `UPLOADING`，而不是假装完成。
+上传状态机主路径为 `READY -> UPLOADING -> COMPLETED`。内部取消可把 `READY/UPLOADING/EXPIRED` 原子迁移到 `CANCELLED_CLEANUP_PENDING` 并递增 `claimVersion`：completion 先完成时取消返回 `completed=true`；取消先完成时旧 completion 的 fenced finalize 必然失败，不能激活 version/object。取消会立即删除该 session 已产生的全部历史 attempt key；删除失败会让取消调用失败以便调用方重试，仍在运行的迟到 completion 也会在发现取消后再次删除自己的 attempt blob。
 
-`ObjectUploadRecoveryJob` 扫描 stale `UPLOADING` session。`ObjectUploadRecoveryApplicationService` 先验证 object/version metadata 仍存在且互相匹配，再 head 当前 claim 的 attempt key：blob 不存在时以原 claim version 条件重置为 `READY` 并续期，允许新 complete 取得更高 claim；blob 存在时重新校验 metadata，并走同一个 fenced finalize。恢复观察失败只记录到当前 claim，不能越过新 claim 改状态。
+PUT 明确失败时会在同一 claim 上记录失败证据，session 仍保持可恢复的 `UPLOADING`，而不是假装完成。
 
-Nacos seed `community-oss.yaml` 默认启用 recovery，batch `100`、stale `300s`、delay `60s`。代码级默认值是关闭，部署是否实际启用以发布到 Nacos 的配置为准。
+`ObjectUploadRecoveryJob` 扫描 stale `UPLOADING/CANCELLED_CLEANUP_PENDING` session。首次上传观察和 `PUT_FAILED` 使用至少 35 分钟的静默截止点，不能在合法的 30 分钟 PUT 仍执行时重置 claim；已经标记为 `RECOVERY_FAILED` 的上传和 pending cancellation 每 5 分钟进入一次重试候选。`ObjectUploadRecoveryApplicationService` 先验证 object/version metadata 仍存在且互相匹配：上传 claim 会 head 当前 attempt key，blob 不存在时以原 claim version 条件重置为 `READY` 并续期，blob 存在时重新校验 metadata 并走同一个 fenced finalize；取消 claim 在 35 分钟静默窗口内反复删除全部历史 attempt key 并推进观察时间，只有到达截止时间且本轮删除成功后才以 session ID + claim version CAS 转为 `CANCELLED`。清理失败会在当前 cancellation claim 上更新 `lastError/updatedAt`，避免永久失败的旧记录占满 recovery batch；任何恢复观察都不能越过新 claim 改状态，失去 claim 的 writer/recovery 只清理自己的 attempt key。
+
+Recovery 代码级默认启用。Nacos seed `community-oss.yaml` 使用 batch `100`、upload stale `2100s`、cancellation stale `300s`、delay `60s`；upload stale 在代码中还有 35 分钟硬下限，较小配置不会提前回收仍可能在执行的 PUT。
 
 下载：
 
@@ -101,6 +104,8 @@ Nacos seed `community-oss.yaml` 默认启用 recovery，batch `100`、stale `300
 - S3-compatible：Garage 首版生产后端，也可替换为 Ceph RGW。
 
 单机开发可以使用 local filesystem 或 Garage single-node。生产拓扑至少 3 节点 Garage，开启副本、健康检查、日志和 Prometheus 监控。以后换 Ceph RGW 时，只替换 `ObjectStore` adapter 和配置，`/api/oss/**`、`/files/**` 与 consumer client contract 不变。
+
+S3-compatible 后端的整个 SDK API call timeout（包含 retry）由 `oss.object-store.api-call-timeout`（环境变量 `OSS_OBJECT_STORE_API_CALL_TIMEOUT`）控制，默认且最大为 `30m`；更大或非正的配置会导致 S3 client 创建失败。该硬上限小于 cancellation 和 upload recovery 的 35 分钟静默边界，为 SDK 超时后的连接中止保留 5 分钟余量。local filesystem 仅用于开发/测试，没有等价的远端调用超时，迟到写入清理属于 best-effort。
 
 ## Current Consumers
 

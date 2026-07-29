@@ -80,9 +80,9 @@ Front-end：
 7. 完成时再次校验文件大小、父目录、重名和剩余空间；claim 成功后状态从 `PREPARED` 变成 `COMPLETING`，并把容量写入 `reserved_bytes`，避免并发请求重复打 OSS 或超卖配额。
 8. drive 在事务外通过 OSS complete 写 blob 和激活版本；OSS 成功后先把 upload 标记为 `OBJECT_COMPLETED`，再在短事务里创建 `DriveEntry` file、把 `reserved_bytes` 转入 `used_bytes`，最后标记 `COMPLETED`。
 9. 如果 OSS 已成功但后续只是瞬时数据库故障，upload 会停在 `OBJECT_COMPLETED`，用户暂时看不到文件，`used_bytes` 不增加，后续重试或 recovery 会用同一个 entryId 补完，不会再次 complete OSS。
-10. 如果 OSS 已成功但父目录已失效或同目录出现重名，drive 会把 upload 标记为 `FAILED`、释放 `reserved_bytes`，并尽力删除刚完成的 OSS 对象，避免 quota 长期卡死。
+10. 如果 OSS 已成功但父目录已失效或同目录出现重名，drive 会把 upload 标记为 `CLEANUP_PENDING`、释放 `reserved_bytes` 并删除刚完成的 OSS 对象；删除成功后才转为 `FAILED`，失败则由 recovery 重试。
 11. 如果 OSS complete 返回失败但 OSS 元数据已显示对象 active，upload 也会进入 `OBJECT_COMPLETED` 等待补偿；如果元数据无法确认，则保持 `COMPLETING`，由 recovery 后续判断。
-12. `DriveUploadRecoveryJob` 定期扫描 stale `COMPLETING/OBJECT_COMPLETED`：可确认 OSS active 的会补写 entry 和 used quota；如果补写时发现父目录失效或重名冲突，会标记 failed 并释放 reserved quota；确认未完成的也会标记 failed；无法确认的留到下一轮。
+12. `DriveUploadRecoveryJob` 定期扫描 stale `COMPLETING/OBJECT_COMPLETED/CLEANUP_PENDING`：可确认 OSS active 的会补写 entry 和 used quota；无法确认且到期的上传先由 OSS 取消并 fence 旧 claim；业务终止或取消成功的对象进入可重试清理，清理成功后才标记 failed。
 
 回收站：
 
@@ -114,6 +114,8 @@ Front-end：
 - OSS 不可用：上传、下载链接签发和生命周期动作会返回网盘存储不可用。
 - 上传完成链路不依赖 MQ；MQ/outbox 只适合作为补偿触发源。当前实现使用 DB 状态机和定时 recovery 兜底，避免主链路等待消息投递。
 - OSS 成功但 DB finalization 失败：`drive_upload` 保持 recoverable，`reserved_bytes` 保留容量占位，`used_bytes` 不增加，避免用户可见配额和 entry 不一致。
+- `COMPLETING` 和 `OBJECT_COMPLETED` 各自把稳定的一小时恢复截止时间写入 `expires_at`。每次 recovery 只推进 `updated_at` 作为下次调度时间，失败项会移到批次尾部且不会延长业务截止时间。
+- 恢复会优先完成已确认存在的 OSS 对象；无法确认的上传到期后由 OSS 原子取消并 fence 旧上传 claim，再进入可重试的对象清理。只有 OSS 确认取消或对象已完成，Drive 才分别释放预留配额或继续 finalization；只有 OSS 明确返回对象已 `PURGED` 后上传才转为 `FAILED`。未知数据库或存储异常保持可恢复，不会因为超过一小时而触发破坏性清理。
 - 彻底删除时数据库状态和 quota 先收敛；OSS 删除失败后依靠重复 delete 重试 blob 清理。
 - share verify 使用 `noRollbackFor=BusinessException`，因此失败访问记录会保留。
 
@@ -121,7 +123,7 @@ Front-end：
 
 - `drive_space`：每个用户一个空间，记录 quota、used、reserved 和更新时间；`reserved` 是上传完成中的容量占位，`used` 只代表已经生成 drive entry 的真实占用。
 - `drive_entry`：目录树节点，`type=FOLDER|FILE`，`status=ACTIVE|TRASHED|DELETED`。
-- `drive_upload`：上传会话，保存 OSS object/version/session、文件元数据、创建人、过期时间和 completed entry；状态包括 `PREPARED`、`COMPLETING`、`OBJECT_COMPLETED`、`COMPLETED`、`FAILED`、`EXPIRED`。
+- `drive_upload`：上传会话，保存 OSS object/version/session、文件元数据、创建人、过期时间和 completed entry；状态包括 `PREPARING`、`PREPARED`、`COMPLETING`、`OBJECT_COMPLETED`、`CLEANUP_PENDING`、`COMPLETED`、`FAILED`、`EXPIRED`。
 - `drive_share`：分享 token、entry、提取码 hash、过期时间、状态和创建人。
 - `drive_share_access`：分享校验访问日志，记录 visitor fingerprint 和 success。
 

@@ -11,6 +11,7 @@ import com.nowcoder.community.oss.client.model.OssReferenceResponse;
 import com.nowcoder.community.oss.client.model.OssSignedUrlResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
+import com.nowcoder.community.oss.client.model.OssUploadCancellationResponse;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.util.UUID;
@@ -38,6 +39,14 @@ public class ObservedCommunityOssClient implements CommunityOssClient {
     public OssMetadataResponse completeProxyUpload(OssCompleteUploadRequest request) {
         long objectSize = request == null ? -1 : request.contentLength();
         return observeTransfer("upload", objectSize, () -> delegate.completeProxyUpload(request));
+    }
+
+    @Override
+    public OssUploadCancellationResponse cancelUpload(UUID sessionId, UUID objectId, UUID versionId) {
+        return observeClientCall(
+                "cancel_upload",
+                () -> delegate.cancelUpload(sessionId, objectId, versionId)
+        );
     }
 
     @Override

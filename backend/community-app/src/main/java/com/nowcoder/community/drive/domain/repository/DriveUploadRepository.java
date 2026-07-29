@@ -14,6 +14,8 @@ public interface DriveUploadRepository {
 
     boolean transitionStatus(DriveUpload upload, DriveUploadStatus expectedStatus);
 
+    boolean recordRecoveryAttempt(UUID uploadId, DriveUploadStatus expectedStatus, Instant attemptedAt);
+
     List<DriveUpload> listRecoverableBefore(Instant updatedBefore, int limit);
 
     void save(DriveUpload upload);

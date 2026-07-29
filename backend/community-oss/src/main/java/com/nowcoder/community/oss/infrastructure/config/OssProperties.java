@@ -2,6 +2,8 @@ package com.nowcoder.community.oss.infrastructure.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
+
 @ConfigurationProperties(prefix = "oss")
 public class OssProperties {
 
@@ -26,6 +28,9 @@ public class OssProperties {
 
     public static class ObjectStoreProperties {
 
+        private static final Duration DEFAULT_API_CALL_TIMEOUT = Duration.ofMinutes(30);
+        private static final Duration MAX_API_CALL_TIMEOUT = Duration.ofMinutes(30);
+
         private String mode = "garage";
         private String endpoint = "http://garage:3900";
         private String accessKey = "";
@@ -34,6 +39,7 @@ public class OssProperties {
         private String region = "garage";
         private boolean pathStyle = true;
         private String localRoot = "/tmp/community-oss";
+        private Duration apiCallTimeout = DEFAULT_API_CALL_TIMEOUT;
 
         public String mode() {
             return mode;
@@ -97,6 +103,21 @@ public class OssProperties {
 
         public void setLocalRoot(String localRoot) {
             this.localRoot = localRoot;
+        }
+
+        public Duration apiCallTimeout() {
+            Duration configured = apiCallTimeout == null ? DEFAULT_API_CALL_TIMEOUT : apiCallTimeout;
+            if (configured.isZero() || configured.isNegative()) {
+                throw new IllegalStateException("oss.object-store.api-call-timeout must be positive");
+            }
+            if (configured.compareTo(MAX_API_CALL_TIMEOUT) > 0) {
+                throw new IllegalStateException("oss.object-store.api-call-timeout must not exceed 30 minutes");
+            }
+            return configured;
+        }
+
+        public void setApiCallTimeout(Duration apiCallTimeout) {
+            this.apiCallTimeout = apiCallTimeout;
         }
     }
 }

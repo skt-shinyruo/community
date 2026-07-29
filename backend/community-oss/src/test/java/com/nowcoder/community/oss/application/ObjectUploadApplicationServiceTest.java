@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -290,6 +291,133 @@ class ObjectUploadApplicationServiceTest {
                 internalPrepareCommand(uuid(805), "service-a", "actor-a"));
 
         assertThat(publicEntryCalls).hasValue(0);
+    }
+
+    @Test
+    void cancelInternalUploadShouldFenceAndCleanTheAttemptIdempotently() {
+        InternalUploadFixture fixture = internalUploadFixture(806);
+        OssUploadSession before = fixture.sessionRepository
+                .findById(fixture.prepared.sessionId()).orElseThrow();
+
+        ObjectUploadApplicationService.UploadCancellationResult first = fixture.service.cancelInternalUpload(
+                "community-app",
+                fixture.prepared.sessionId(),
+                fixture.prepared.objectId(),
+                fixture.prepared.versionId()
+        );
+
+        assertAll(
+                () -> assertThat(first.status()).isEqualTo("CANCELLED"),
+                () -> assertThat(first.cancelled()).isTrue(),
+                () -> assertThat(first.completed()).isFalse(),
+                () -> assertThat(first.claimVersion()).isEqualTo(before.claimVersion() + 1L),
+                () -> assertThat(fixture.objectStore.deletedKey).isEqualTo(
+                        ObjectUploadApplicationService.attemptStorageKey(before)),
+                () -> assertThat(fixture.objectRepository.findById(first.objectId()).orElseThrow().status())
+                        .isEqualTo(OssObjectStatus.STAGED),
+                () -> assertThat(fixture.versionRepository.findById(first.versionId()).orElseThrow().status().name())
+                        .isEqualTo("STAGED")
+        );
+
+        fixture.resetEffects();
+        ObjectUploadApplicationService.UploadCancellationResult replay = fixture.service.cancelInternalUpload(
+                "community-app",
+                fixture.prepared.sessionId(),
+                fixture.prepared.objectId(),
+                fixture.prepared.versionId()
+        );
+
+        assertAll(
+                () -> assertThat(replay).isEqualTo(first),
+                () -> assertThat(fixture.sessionRepository.mutationCount).isZero(),
+                () -> assertThat(fixture.objectStore.operationCount).isEqualTo(1),
+                () -> assertThat(fixture.objectStore.deletedKey).isEqualTo(
+                        ObjectUploadApplicationService.attemptStorageKey(before))
+        );
+    }
+
+    @Test
+    void cancelInternalUploadShouldReturnCompletedWithoutDeletingCanonicalContent() {
+        InternalUploadFixture fixture = internalUploadFixture(807);
+        fixture.service.completeInternalUpload(
+                "community-app",
+                completeCommand(fixture.prepared, new AtomicInteger())
+        );
+        fixture.resetEffects();
+
+        ObjectUploadApplicationService.UploadCancellationResult result = fixture.service.cancelInternalUpload(
+                "community-app",
+                fixture.prepared.sessionId(),
+                fixture.prepared.objectId(),
+                fixture.prepared.versionId()
+        );
+
+        assertAll(
+                () -> assertThat(result.status()).isEqualTo("COMPLETED"),
+                () -> assertThat(result.completed()).isTrue(),
+                () -> assertThat(result.cancelled()).isFalse(),
+                () -> assertThat(fixture.sessionRepository.mutationCount).isZero(),
+                () -> assertThat(fixture.objectStore.operationCount).isZero(),
+                () -> assertThat(fixture.objectStore.deletedKey).isNull()
+        );
+    }
+
+    @Test
+    void cancelInternalUploadShouldRemainRetryableWhenAttemptCleanupFails() {
+        InternalUploadFixture fixture = internalUploadFixture(809);
+        fixture.objectStore.failNextDelete.set(true);
+
+        assertThatThrownBy(() -> fixture.service.cancelInternalUpload(
+                "community-app",
+                fixture.prepared.sessionId(),
+                fixture.prepared.objectId(),
+                fixture.prepared.versionId()
+        )).isInstanceOf(IllegalStateException.class)
+                .hasMessage("simulated object store delete failure");
+        assertThat(fixture.sessionRepository.findById(fixture.prepared.sessionId()).orElseThrow().status())
+                .isEqualTo(OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING);
+
+        fixture.resetEffects();
+        ObjectUploadApplicationService.UploadCancellationResult replay = fixture.service.cancelInternalUpload(
+                "community-app",
+                fixture.prepared.sessionId(),
+                fixture.prepared.objectId(),
+                fixture.prepared.versionId()
+        );
+
+        assertAll(
+                () -> assertThat(replay.cancelled()).isTrue(),
+                () -> assertThat(fixture.sessionRepository.mutationCount).isZero(),
+                () -> assertThat(fixture.objectStore.operationCount).isEqualTo(1),
+                () -> assertThat(fixture.objectStore.deletedKey).isNotNull()
+        );
+    }
+
+    @Test
+    void cancelInternalUploadShouldHideForeignServiceAndTupleMismatchWithoutEffects() {
+        InternalUploadFixture fixture = internalUploadFixture(808);
+
+        Throwable foreign = catchThrowable(() -> fixture.service.cancelInternalUpload(
+                "profile-service",
+                fixture.prepared.sessionId(),
+                fixture.prepared.objectId(),
+                fixture.prepared.versionId()
+        ));
+        Throwable mismatch = catchThrowable(() -> fixture.service.cancelInternalUpload(
+                "community-app",
+                fixture.prepared.sessionId(),
+                fixture.prepared.objectId(),
+                uuid(999)
+        ));
+
+        assertAll(
+                () -> assertHiddenObjectNotFound(foreign),
+                () -> assertHiddenObjectNotFound(mismatch),
+                () -> assertThat(fixture.sessionRepository.mutationCount).isZero(),
+                () -> assertThat(fixture.objectStore.operationCount).isZero(),
+                () -> assertThat(fixture.sessionRepository.findById(fixture.prepared.sessionId()).orElseThrow().status())
+                        .isEqualTo(OssUploadSessionStatus.READY)
+        );
     }
 
     @Test
@@ -1361,6 +1489,7 @@ class ObjectUploadApplicationServiceTest {
             versionRepository.saveCount = 0;
             sessionRepository.mutationCount = 0;
             objectStore.operationCount = 0;
+            objectStore.deletedKey = null;
         }
     }
 
@@ -1503,6 +1632,8 @@ class ObjectUploadApplicationServiceTest {
         private String capturedKey;
         private String capturedContentType;
         private long capturedContentLength;
+        private String deletedKey;
+        private final AtomicBoolean failNextDelete = new AtomicBoolean();
         private int operationCount;
 
         @Override
@@ -1540,6 +1671,10 @@ class ObjectUploadApplicationServiceTest {
         @Override
         public void delete(String bucket, String key) {
             operationCount++;
+            deletedKey = key;
+            if (failNextDelete.compareAndSet(true, false)) {
+                throw new IllegalStateException("simulated object store delete failure");
+            }
         }
 
         @Override

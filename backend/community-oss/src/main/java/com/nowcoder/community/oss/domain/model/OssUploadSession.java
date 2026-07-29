@@ -240,6 +240,49 @@ public record OssUploadSession(
         return withStatus(OssUploadSessionStatus.COMPLETED, claimVersion, now, now, "");
     }
 
+    public OssUploadSession cancel(Instant now, Instant cleanupAfter) {
+        if (status == OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING
+                || status == OssUploadSessionStatus.CANCELLED) {
+            return this;
+        }
+        if (status != OssUploadSessionStatus.READY
+                && status != OssUploadSessionStatus.UPLOADING
+                && status != OssUploadSessionStatus.EXPIRED) {
+            throw new IllegalStateException("upload session is not cancellable: " + status);
+        }
+        if (cleanupAfter == null || !cleanupAfter.isAfter(now)) {
+            throw new IllegalArgumentException("cancellation cleanup deadline must be after cancellation time");
+        }
+        return withState(
+                OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING,
+                nextClaimVersion(),
+                cleanupAfter,
+                now,
+                null,
+                ""
+        );
+    }
+
+    public OssUploadSession recordCancellationCleanup(Instant now, String error) {
+        if (status != OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING) {
+            throw new IllegalStateException("upload session has no pending cancellation cleanup: " + status);
+        }
+        return withStatus(status, claimVersion, now, completedAt, normalize(error));
+    }
+
+    public OssUploadSession completeCancellationCleanup(Instant now) {
+        if (status == OssUploadSessionStatus.CANCELLED) {
+            return this;
+        }
+        if (status != OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING) {
+            throw new IllegalStateException("upload session has no pending cancellation cleanup: " + status);
+        }
+        if (now.isBefore(expiresAt)) {
+            throw new IllegalStateException("upload cancellation cleanup is still in its quiescence window");
+        }
+        return withStatus(OssUploadSessionStatus.CANCELLED, claimVersion, now, now, "");
+    }
+
     private OssUploadSession withStatus(
             OssUploadSessionStatus nextStatus,
             long nextClaimVersion,

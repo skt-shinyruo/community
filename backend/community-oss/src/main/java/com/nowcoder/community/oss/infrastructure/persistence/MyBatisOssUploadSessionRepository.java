@@ -76,6 +76,34 @@ public class MyBatisOssUploadSessionRepository implements OssUploadSessionReposi
     }
 
     @Override
+    public boolean cancelActiveSession(
+            UUID sessionId,
+            UUID objectId,
+            UUID versionId,
+            Instant updatedAt,
+            Instant cleanupAfter
+    ) {
+        return mapper.cancelActiveSession(
+                sessionId, objectId, versionId, updatedAt, cleanupAfter) == 1;
+    }
+
+    @Override
+    public boolean recordCancellationCleanup(
+            UUID sessionId,
+            long claimVersion,
+            String lastError,
+            Instant updatedAt
+    ) {
+        return mapper.recordCancellationCleanup(
+                sessionId, claimVersion, lastError, updatedAt) == 1;
+    }
+
+    @Override
+    public boolean completeCancellationCleanup(UUID sessionId, long claimVersion, Instant completedAt) {
+        return mapper.completeCancellationCleanup(sessionId, claimVersion, completedAt) == 1;
+    }
+
+    @Override
     public boolean renewReadySession(
             UUID sessionId,
             Instant expectedExpiresAt,
@@ -87,9 +115,17 @@ public class MyBatisOssUploadSessionRepository implements OssUploadSessionReposi
     }
 
     @Override
-    public List<OssUploadSession> listRecoverable(Instant updatedBefore, int limit) {
+    public List<OssUploadSession> listRecoverable(
+            Instant uploadingUpdatedBefore,
+            Instant cancellationUpdatedBefore,
+            int limit
+    ) {
         int safeLimit = Math.max(1, Math.min(500, limit));
-        return mapper.listRecoverable(updatedBefore, safeLimit).stream()
+        return mapper.listRecoverable(
+                        uploadingUpdatedBefore,
+                        cancellationUpdatedBefore,
+                        safeLimit
+                ).stream()
                 .map(OssUploadSessionDataObject::toDomain)
                 .toList();
     }

@@ -35,6 +35,14 @@ public class MyBatisDriveUploadRepository implements DriveUploadRepository {
     }
 
     @Override
+    public boolean recordRecoveryAttempt(UUID uploadId, DriveUploadStatus expectedStatus, Instant attemptedAt) {
+        if (uploadId == null || expectedStatus == null || attemptedAt == null) {
+            return false;
+        }
+        return mapper.updateRecoveryAttemptIfCurrent(uploadId, expectedStatus, attemptedAt) == 1;
+    }
+
+    @Override
     public List<DriveUpload> listRecoverableBefore(Instant updatedBefore, int limit) {
         if (updatedBefore == null || limit <= 0) {
             return List.of();

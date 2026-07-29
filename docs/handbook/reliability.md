@@ -397,16 +397,28 @@ content.events
 - 每条实际删除的关系继续发布 like-removed event，使 wallet、growth、notice 和 hot-feed 走正常消费路径。
 - `SocialLikeCleanupReconciliationJob` 扫描仍有点赞的 deleted target 并重跑 owner cleanup。代码默认 disabled，batch `50`、delay `300s`。
 
+## Drive Upload Completion Recovery
+
+Drive completion 使用 `PREPARED -> COMPLETING -> OBJECT_COMPLETED -> COMPLETED`；明确业务终止或 OSS 取消成功后进入 `CLEANUP_PENDING`，远端对象确认清除后才转为 `FAILED`。
+
+- `COMPLETING` 和 `OBJECT_COMPLETED` 进入状态时分别把一小时稳定截止时间写入 `expires_at`。`updated_at` 只用于 recovery 排序和退避，恢复尝试通过状态 CAS 推进它，因此固定 batch 中的永久失败项不会挡住后续上传。
+- 已确认 active 的对象始终继续 finalization，包括超过截止时间后；父目录失效、同名冲突或配额提交失败等明确业务终止才释放 reservation 并进入清理。
+- 数据库、repository 或 OSS 的未知异常保持当前可恢复状态。超过截止时间本身不会把 `OBJECT_COMPLETED` 降级为清理任务。
+- Drive 只有在 OSS lifecycle response 同时匹配 object ID、`status=PURGED`、`purged=true` 且 `deletePending=false` 时确认清理成功；其余结果保持 `CLEANUP_PENDING` 重试。
+
 ## OSS Upload Claim Recovery
 
-OSS upload session 使用 `READY -> UPLOADING -> COMPLETED`。complete 先条件 claim session 并递增 `claimVersion`，本次 blob 写入 key 为 `<base>.claim-<claimVersion>`。
+OSS upload session 主路径使用 `READY -> UPLOADING -> COMPLETED`。complete 先条件 claim session 并递增 `claimVersion`，本次 blob 写入 key 为 `<base>.claim-<claimVersion>`。
 
 - 旧 complete 尝试只能写自己的 attempt key，不能覆盖新 claim。
 - finalize 同时校验 session ID 和 claim version；失去 claim 后不能激活 object/version。
 - `ObjectUploadRecoveryApplicationService` 先验证 object/version metadata，再 head 当前 attempt key。
 - 没有 blob 时，以原 claim version 重置到 `READY` 并续期；有 blob 时校验 content type、length、checksum 后走同一个 fenced finalize。
 - metadata 不一致或恢复异常只记录当前 claim 的观察信息，不会越过新 claim。
-- Nacos seed：enabled `true`、batch `100`、stale `300s`、delay `60s`。
+- 内部取消以同一个 `claimVersion` fence 与 completion 原子竞争；取消获胜后进入 `CANCELLED_CLEANUP_PENDING`，立即删除该 session 的全部历史 attempt key。
+- pending cancellation 在 35 分钟静默窗口内由 recovery 重复清理，到达截止时间且删除成功后才转为 `CANCELLED`；清理失败会推进 `updatedAt`，不能长期占住固定 recovery batch。
+- S3-compatible 整个 API call 的超时默认且最大为 30 分钟；超限配置启动失败。首次 `UPLOADING` 观察和 `PUT_FAILED` recovery 使用 35 分钟硬下限，不能提前 reset 合法的在途 PUT；`RECOVERY_FAILED` 使用 5 分钟重试窗口，避免一次临时 HEAD/metadata 故障把下一次恢复推迟 35 分钟。
+- Recovery 默认启用。Nacos seed：batch `100`、upload stale `2100s`、cancellation stale `300s`、delay `60s`。
 
 ## Single-flight
 

@@ -2,6 +2,7 @@ package com.nowcoder.community.drive.domain.model;
 
 import com.nowcoder.community.drive.domain.service.DriveEntryDomainService;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -27,6 +28,8 @@ public record DriveUpload(
 ) {
     private static final DriveEntryDomainService DOMAIN_SERVICE = new DriveEntryDomainService();
 
+    private static final Duration COMPLETION_RECOVERY_WINDOW = Duration.ofHours(1);
+
     public DriveUpload {
         requireId(uploadId, "uploadId");
         requireId(spaceId, "spaceId");
@@ -47,6 +50,7 @@ public record DriveUpload(
         } else if (status == DriveUploadStatus.PREPARED
                 || status == DriveUploadStatus.COMPLETING
                 || status == DriveUploadStatus.OBJECT_COMPLETED
+                || status == DriveUploadStatus.CLEANUP_PENDING
                 || status == DriveUploadStatus.COMPLETED) {
             if (!hasCompleteOssIdentity) {
                 throw new IllegalArgumentException("prepared upload must have complete OSS identifiers");
@@ -157,7 +161,12 @@ public record DriveUpload(
 
     public boolean expiredAt(Instant now) {
         requireNow(now);
-        return status == DriveUploadStatus.EXPIRED || (expiresAt != null && !now.isBefore(expiresAt));
+        return switch (status) {
+            case EXPIRED -> true;
+            case PREPARING, PREPARED -> !now.isBefore(expiresAt);
+            case COMPLETING, OBJECT_COMPLETED -> !now.isBefore(expiresAt);
+            case CLEANUP_PENDING, COMPLETED, FAILED -> false;
+        };
     }
 
     public boolean completed() {
@@ -181,7 +190,7 @@ public record DriveUpload(
         if (status != DriveUploadStatus.PREPARED) {
             throw new IllegalStateException("upload is not ready to complete: " + status);
         }
-        return withState(DriveUploadStatus.COMPLETING, entryId, now, null);
+        return withCompletionDeadline(DriveUploadStatus.COMPLETING, entryId, now);
     }
 
     public DriveUpload markObjectCompleted(Instant now) {
@@ -193,7 +202,7 @@ public record DriveUpload(
             throw new IllegalStateException("upload object completion cannot be recorded from: " + status);
         }
         requireId(completedEntryId, "completedEntryId");
-        return withState(DriveUploadStatus.OBJECT_COMPLETED, completedEntryId, now, null);
+        return withCompletionDeadline(DriveUploadStatus.OBJECT_COMPLETED, completedEntryId, now);
     }
 
     public DriveUpload completeFinalization(Instant now) {
@@ -208,10 +217,24 @@ public record DriveUpload(
         return withState(DriveUploadStatus.COMPLETED, completedEntryId, now, now);
     }
 
-    public DriveUpload failCompletion(Instant now) {
+    public DriveUpload startCleanup(Instant now) {
         requireNow(now);
-        if (status == DriveUploadStatus.COMPLETED) {
+        if (status == DriveUploadStatus.CLEANUP_PENDING) {
             return this;
+        }
+        if (status != DriveUploadStatus.COMPLETING && status != DriveUploadStatus.OBJECT_COMPLETED) {
+            throw new IllegalStateException("upload cleanup cannot start from: " + status);
+        }
+        return withState(DriveUploadStatus.CLEANUP_PENDING, completedEntryId, now, completedAt);
+    }
+
+    public DriveUpload completeCleanup(Instant now) {
+        requireNow(now);
+        if (status == DriveUploadStatus.FAILED) {
+            return this;
+        }
+        if (status != DriveUploadStatus.CLEANUP_PENDING) {
+            throw new IllegalStateException("upload cleanup cannot complete from: " + status);
         }
         return withState(DriveUploadStatus.FAILED, completedEntryId, now, completedAt);
     }
@@ -274,6 +297,28 @@ public record DriveUpload(
                 nextUpdatedAt,
                 expiresAt,
                 nextCompletedAt
+        );
+    }
+
+    private DriveUpload withCompletionDeadline(DriveUploadStatus nextStatus, UUID nextCompletedEntryId, Instant now) {
+        return new DriveUpload(
+                uploadId,
+                spaceId,
+                parentId,
+                name,
+                sizeBytes,
+                mimeType,
+                checksumSha256,
+                objectId,
+                versionId,
+                ossSessionId,
+                createdBy,
+                nextStatus,
+                nextCompletedEntryId,
+                createdAt,
+                now,
+                now.plus(COMPLETION_RECOVERY_WINDOW),
+                completedAt
         );
     }
 

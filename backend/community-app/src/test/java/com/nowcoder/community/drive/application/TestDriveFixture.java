@@ -306,13 +306,24 @@ final class TestDriveFixture {
         }
 
         @Override
+        public boolean recordRecoveryAttempt(UUID uploadId, DriveUploadStatus expectedStatus, Instant attemptedAt) {
+            DriveUpload current = rows.get(uploadId);
+            if (current == null || current.status() != expectedStatus) {
+                return false;
+            }
+            rows.put(uploadId, withUpdatedAt(current, attemptedAt));
+            return true;
+        }
+
+        @Override
         public List<DriveUpload> listRecoverableBefore(Instant updatedBefore, int limit) {
             if (updatedBefore == null || limit <= 0) {
                 return List.of();
             }
             return rows.values().stream()
                     .filter(upload -> upload.status() == DriveUploadStatus.COMPLETING
-                            || upload.status() == DriveUploadStatus.OBJECT_COMPLETED)
+                            || upload.status() == DriveUploadStatus.OBJECT_COMPLETED
+                            || upload.status() == DriveUploadStatus.CLEANUP_PENDING)
                     .filter(upload -> upload.updatedAt().isBefore(updatedBefore))
                     .sorted(Comparator.comparing(DriveUpload::updatedAt).thenComparing(DriveUpload::uploadId))
                     .limit(limit)
@@ -322,6 +333,15 @@ final class TestDriveFixture {
         @Override
         public void save(DriveUpload upload) {
             rows.put(upload.uploadId(), upload);
+        }
+
+        private static DriveUpload withUpdatedAt(DriveUpload upload, Instant updatedAt) {
+            return new DriveUpload(
+                    upload.uploadId(), upload.spaceId(), upload.parentId(), upload.name(), upload.sizeBytes(),
+                    upload.mimeType(), upload.checksumSha256(), upload.objectId(), upload.versionId(),
+                    upload.ossSessionId(), upload.createdBy(), upload.status(), upload.completedEntryId(),
+                    upload.createdAt(), updatedAt, upload.expiresAt(), upload.completedAt()
+            );
         }
     }
 
@@ -384,6 +404,11 @@ final class TestDriveFixture {
         public StoredObject completeUpload(CompleteObject command) {
             completed.add(command);
             return new StoredObject(command.objectId(), command.versionId(), "");
+        }
+
+        @Override
+        public UploadCancellation cancelUpload(UUID sessionId, UUID objectId, UUID versionId) {
+            return new UploadCancellation(false, true);
         }
 
         @Override

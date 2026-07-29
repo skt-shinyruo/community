@@ -44,5 +44,5 @@
 
 - OSS 只拥有对象事实，不拥有上游业务授权。
 - 上传会话、引用和生命周期是三条不同的事实线。
-- 上传会话使用 `READY -> UPLOADING -> COMPLETED` 和单调 `claimVersion`；每次 attempt 写 `.claim-<claimVersion>`，恢复不能完成已失去的 claim。
+- 上传会话主路径使用 `READY -> UPLOADING -> COMPLETED` 和单调 `claimVersion`；每次 attempt 写 `.claim-<claimVersion>`，恢复不能完成已失去的 claim。内部取消先进入 `CANCELLED_CLEANUP_PENDING`，在有界静默窗口内重复删除全部历史 attempt key，再进入 `CANCELLED`。
 - 上游域通常只拿到 signed URL 或对象引用，不直接碰 blob 存储。

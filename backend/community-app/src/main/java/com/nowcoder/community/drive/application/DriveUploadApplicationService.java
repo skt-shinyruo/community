@@ -47,6 +47,7 @@ public class DriveUploadApplicationService {
     private static final String UPLOAD_METHOD = "POST";
     private static final String FILE_FIELD = "file";
     private static final String OSS_STATUS_ACTIVE = "ACTIVE";
+    private static final String OSS_STATUS_PURGED = "PURGED";
     private static final long PREPARATION_TTL_SECONDS = 900L;
 
     private final DriveSpaceRepository spaceRepository;
@@ -220,7 +221,9 @@ public class DriveUploadApplicationService {
         if (claimed.status() == DriveUploadStatus.OBJECT_COMPLETED) {
             return finalizeObjectCompletedUpload(claimed.uploadId(), actorUserId);
         }
-        if (claimed.status() == DriveUploadStatus.EXPIRED || claimed.status() == DriveUploadStatus.FAILED) {
+        if (claimed.status() == DriveUploadStatus.EXPIRED
+                || claimed.status() == DriveUploadStatus.FAILED
+                || claimed.status() == DriveUploadStatus.CLEANUP_PENDING) {
             throw new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用");
         }
         if (claimed.status() != DriveUploadStatus.COMPLETING) {
@@ -260,14 +263,19 @@ public class DriveUploadApplicationService {
         if (updatedBefore == null || limit <= 0) {
             return new DriveUploadRecoveryResult(0, 0, 0, 0);
         }
+        Instant now = clock.instant();
         int prepared = 0;
         int finalized = 0;
         int markedObjectCompleted = 0;
         int failed = 0;
         int skipped = 0;
         for (DriveUpload upload : uploadRepository.listRecoverableBefore(updatedBefore, limit)) {
+            if (!uploadRepository.recordRecoveryAttempt(upload.uploadId(), upload.status(), now)) {
+                skipped++;
+                continue;
+            }
             if (upload.status() == DriveUploadStatus.PREPARING) {
-                if (upload.expiredAt(clock.instant())) {
+                if (upload.expiredAt(now)) {
                     expirePreparingUpload(upload.uploadId());
                     failed++;
                     continue;
@@ -281,6 +289,14 @@ public class DriveUploadApplicationService {
                 }
                 continue;
             }
+            if (upload.status() == DriveUploadStatus.CLEANUP_PENDING) {
+                if (cleanupPendingUpload(upload.uploadId(), upload.createdBy())) {
+                    failed++;
+                } else {
+                    skipped++;
+                }
+                continue;
+            }
             if (upload.status() == DriveUploadStatus.OBJECT_COMPLETED) {
                 try {
                     finalizeObjectCompletedUpload(upload.uploadId(), upload.createdBy());
@@ -289,6 +305,8 @@ public class DriveUploadApplicationService {
                     DriveUpload latest = uploadRepository.findById(upload.uploadId()).orElse(upload);
                     if (latest.status() == DriveUploadStatus.FAILED) {
                         failed++;
+                    } else if (latest.status() == DriveUploadStatus.CLEANUP_PENDING) {
+                        skipped++;
                     } else {
                         skipped++;
                     }
@@ -298,24 +316,28 @@ public class DriveUploadApplicationService {
             if (upload.status() == DriveUploadStatus.COMPLETING) {
                 StorageCompletionState storageState = storageCompletionState(upload);
                 if (storageState == StorageCompletionState.COMPLETED) {
-                    try {
-                        DriveUpload objectCompleted = markObjectCompleted(upload.uploadId());
-                        markedObjectCompleted++;
-                        if (objectCompleted.status() == DriveUploadStatus.OBJECT_COMPLETED) {
-                            finalizeObjectCompletedUpload(objectCompleted.uploadId(), objectCompleted.createdBy());
-                            finalized++;
-                        }
-                    } catch (RuntimeException e) {
-                        DriveUpload latest = uploadRepository.findById(upload.uploadId()).orElse(upload);
-                        if (latest.status() == DriveUploadStatus.FAILED) {
-                            failed++;
-                        } else {
-                            skipped++;
-                        }
+                    CompletionRecovery recovery = recoverCompletedUpload(upload);
+                    finalized += recovery.finalized();
+                    markedObjectCompleted += recovery.markedObjectCompleted();
+                    failed += recovery.failed();
+                    skipped += recovery.skipped();
+                } else if (storageState == StorageCompletionState.NOT_COMPLETED || upload.expiredAt(now)) {
+                    DriveObjectStoragePort.UploadCancellation cancellation = cancelUpload(upload);
+                    if (cancellation == null) {
+                        skipped++;
+                    } else if (cancellation.completed()) {
+                        CompletionRecovery recovery = recoverCompletedUpload(upload);
+                        finalized += recovery.finalized();
+                        markedObjectCompleted += recovery.markedObjectCompleted();
+                        failed += recovery.failed();
+                        skipped += recovery.skipped();
+                    } else if (cancellation.cancelled()
+                            && beginUploadCleanup(upload.uploadId(), DriveUploadStatus.COMPLETING, now)
+                            && cleanupPendingUpload(upload.uploadId(), upload.createdBy())) {
+                        failed++;
+                    } else {
+                        skipped++;
                     }
-                } else if (storageState == StorageCompletionState.NOT_COMPLETED) {
-                    markUploadFailed(upload.uploadId());
-                    failed++;
                 } else {
                     skipped++;
                 }
@@ -398,6 +420,25 @@ public class DriveUploadApplicationService {
         });
     }
 
+    private CompletionRecovery recoverCompletedUpload(DriveUpload upload) {
+        int markedObjectCompleted = 0;
+        try {
+            DriveUpload objectCompleted = markObjectCompleted(upload.uploadId());
+            if (objectCompleted.status() != DriveUploadStatus.OBJECT_COMPLETED) {
+                return new CompletionRecovery(0, 0, 0, 1);
+            }
+            markedObjectCompleted = 1;
+            finalizeObjectCompletedUpload(objectCompleted.uploadId(), objectCompleted.createdBy());
+            return new CompletionRecovery(1, markedObjectCompleted, 0, 0);
+        } catch (RuntimeException e) {
+            DriveUpload latest = uploadRepository.findById(upload.uploadId()).orElse(upload);
+            if (latest.status() == DriveUploadStatus.FAILED) {
+                return new CompletionRecovery(0, markedObjectCompleted, 1, 0);
+            }
+            return new CompletionRecovery(0, markedObjectCompleted, 0, 1);
+        }
+    }
+
     private StorageCompletionState storageCompletionState(DriveUpload upload) {
         DriveObjectStoragePort.ObjectMetadata metadata;
         try {
@@ -406,56 +447,66 @@ public class DriveUploadApplicationService {
             return StorageCompletionState.UNKNOWN;
         }
         if (metadata == null || !upload.objectId().equals(metadata.objectId())) {
-            return StorageCompletionState.NOT_COMPLETED;
+            return StorageCompletionState.UNKNOWN;
         }
         if (upload.versionId().equals(metadata.currentVersionId()) && OSS_STATUS_ACTIVE.equalsIgnoreCase(metadata.status())) {
             return StorageCompletionState.COMPLETED;
         }
-        return StorageCompletionState.NOT_COMPLETED;
+        if (OSS_STATUS_PURGED.equalsIgnoreCase(metadata.status())) {
+            return StorageCompletionState.NOT_COMPLETED;
+        }
+        return StorageCompletionState.UNKNOWN;
     }
 
-    private void markUploadFailed(UUID uploadId) {
-        runInCompletionTransaction(() -> {
+    private DriveObjectStoragePort.UploadCancellation cancelUpload(DriveUpload upload) {
+        try {
+            return objectStoragePort.cancelUpload(
+                    upload.ossSessionId(),
+                    upload.objectId(),
+                    upload.versionId()
+            );
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private boolean beginUploadCleanup(UUID uploadId, DriveUploadStatus expectedStatus, Instant now) {
+        return runInCompletionTransaction(() -> {
             DriveUpload upload = loadUpload(uploadId);
-            if (upload.status() != DriveUploadStatus.COMPLETING) {
-                return upload;
+            if (upload.status() != expectedStatus) {
+                return false;
             }
             DriveSpace space = loadSpace(upload.spaceId());
             lockSpace(space.spaceId());
-            DriveUpload failed = upload.failCompletion(clock.instant());
-            if (uploadRepository.transitionStatus(failed, DriveUploadStatus.COMPLETING)) {
-                spaceRepository.releaseReserved(space.spaceId(), upload.sizeBytes(), failed.updatedAt());
-                return failed;
+            DriveUpload cleanupPending = upload.startCleanup(now);
+            if (uploadRepository.transitionStatus(cleanupPending, expectedStatus)) {
+                spaceRepository.releaseReserved(upload.spaceId(), upload.sizeBytes(), now);
+                return true;
             }
-            return loadUpload(uploadId);
+            return false;
         });
     }
 
-    private DriveUpload terminalizeObjectCompletedUpload(DriveUpload upload, Instant now) {
-        return runInCompletionTransaction(() -> {
-            DriveUpload latest = loadUpload(upload.uploadId());
-            if (latest.status() == DriveUploadStatus.FAILED) {
-                return latest;
-            }
-            if (latest.status() != DriveUploadStatus.OBJECT_COMPLETED) {
-                return latest;
-            }
-            DriveSpace space = loadSpace(latest.spaceId());
-            lockSpace(space.spaceId());
-            DriveUpload failed = latest.failCompletion(now);
-            if (uploadRepository.transitionStatus(failed, DriveUploadStatus.OBJECT_COMPLETED)) {
-                spaceRepository.releaseReserved(latest.spaceId(), latest.sizeBytes(), now);
-                return failed;
-            }
-            return loadUpload(upload.uploadId());
-        });
-    }
-
-    private void deleteObjectQuietly(DriveUpload upload, UUID actorUserId) {
+    private boolean cleanupPendingUpload(UUID uploadId, UUID actorUserId) {
+        DriveUpload upload = loadUpload(uploadId);
+        if (upload.status() != DriveUploadStatus.CLEANUP_PENDING) {
+            return false;
+        }
         try {
             objectStoragePort.deleteObject(upload.objectId(), actorUserId == null ? "" : actorUserId.toString());
         } catch (RuntimeException ignored) {
+            return false;
         }
+        return runInCompletionTransaction(() -> {
+            DriveUpload current = loadUpload(uploadId);
+            if (current.status() != DriveUploadStatus.CLEANUP_PENDING) {
+                return false;
+            }
+            return uploadRepository.transitionStatus(
+                    current.completeCleanup(clock.instant()),
+                    DriveUploadStatus.CLEANUP_PENDING
+            );
+        });
     }
 
     private DriveEntryResult finalizeObjectCompletedUpload(UUID uploadId, UUID actorUserId) {
@@ -523,12 +574,13 @@ public class DriveUploadApplicationService {
                 return toEntryResult(entry);
             });
         } catch (TerminalObjectCompletedException e) {
-            DriveUpload terminalized = terminalizeObjectCompletedUpload(e.upload(), e.failedAt());
-            if (terminalized.status() == DriveUploadStatus.COMPLETED) {
-                return completedEntryResult(terminalized);
-            }
-            if (terminalized.status() == DriveUploadStatus.FAILED) {
-                deleteObjectQuietly(e.upload(), actorUserId);
+            if (beginUploadCleanup(e.upload().uploadId(), DriveUploadStatus.OBJECT_COMPLETED, e.failedAt())) {
+                cleanupPendingUpload(e.upload().uploadId(), actorUserId);
+            } else {
+                DriveUpload latest = loadUpload(e.upload().uploadId());
+                if (latest.status() == DriveUploadStatus.COMPLETED) {
+                    return completedEntryResult(latest);
+                }
             }
             throw e.cause();
         }
@@ -597,6 +649,9 @@ public class DriveUploadApplicationService {
     }
 
     private record CompletionClaim(DriveUpload upload, boolean owned) {
+    }
+
+    private record CompletionRecovery(int finalized, int markedObjectCompleted, int failed, int skipped) {
     }
 
     private enum StorageCompletionState {

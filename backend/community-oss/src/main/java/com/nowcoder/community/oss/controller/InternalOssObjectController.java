@@ -106,6 +106,21 @@ public class InternalOssObjectController {
         ));
     }
 
+    @PostMapping("/internal/oss/upload-sessions/{sessionId}/cancel")
+    public ObjectUploadApplicationService.UploadCancellationResult cancelUpload(
+            @PathVariable UUID sessionId,
+            @RequestParam UUID objectId,
+            @RequestParam UUID versionId,
+            Authentication authentication
+    ) {
+        return uploadApplicationService.cancelInternalUpload(
+                requireServiceSubject(authentication),
+                sessionId,
+                objectId,
+                versionId
+        );
+    }
+
     @GetMapping("/internal/oss/objects/{objectId}")
     public ObjectMetadataResult getMetadata(
             @PathVariable UUID objectId,

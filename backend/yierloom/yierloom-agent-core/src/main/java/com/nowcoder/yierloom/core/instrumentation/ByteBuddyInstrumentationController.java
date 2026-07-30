@@ -5,6 +5,7 @@ import java.lang.instrument.Instrumentation;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -26,6 +27,7 @@ import net.bytebuddy.matcher.ElementMatchers;
 import net.bytebuddy.utility.JavaModule;
 
 public final class ByteBuddyInstrumentationController implements PluginInstrumentationController {
+    private static final Duration TRANSFORMER_QUIESCE_TIMEOUT = Duration.ofSeconds(2);
     private static final System.Logger LOGGER = System.getLogger(
             ByteBuddyInstrumentationController.class.getName());
 
@@ -94,7 +96,11 @@ public final class ByteBuddyInstrumentationController implements PluginInstrumen
             for (ModulePlan module : plan.modules()) {
                 ResettableClassFileTransformer transformer = builderFor(pluginId, module)
                         .installOn(instrumentation);
-                handles.add(new InstalledTransformer(pluginId, module.id(), transformer));
+                if (!(transformer instanceof QuiescingTransformer quiescingTransformer)) {
+                    throw new IllegalStateException("YierLoom transformer gate was not installed");
+                }
+                handles.add(new InstalledTransformer(
+                        pluginId, module.id(), quiescingTransformer));
             }
             installed.put(pluginId, List.copyOf(handles));
             reserveHelpers(pluginId, plan.helperNames());
@@ -209,6 +215,7 @@ public final class ByteBuddyInstrumentationController implements PluginInstrumen
                 .disableClassFormatChanges()
                 .with(AgentBuilder.RedefinitionStrategy.DISABLED)
                 .with(injectionStrategy)
+                .with((AgentBuilder.TransformerDecorator) QuiescingTransformer::new)
                 .with(listener(pluginId, module.id()));
         for (TypePlan type : module.types()) {
             builder = builder
@@ -242,10 +249,15 @@ public final class ByteBuddyInstrumentationController implements PluginInstrumen
     private RemovalResult remove(List<InstalledTransformer> handles) {
         List<InstalledTransformer> remaining = new ArrayList<>();
         FailureAccumulator failures = new FailureAccumulator();
+        long deadline = deadlineAfter(TRANSFORMER_QUIESCE_TIMEOUT);
         for (int index = handles.size() - 1; index >= 0; index--) {
             InstalledTransformer handle = handles.get(index);
             try {
-                instrumentation.removeTransformer(handle.transformer());
+                if (!handle.remove(instrumentation, deadline)) {
+                    remaining.add(handle);
+                    failures.record(new IllegalStateException(
+                            "YierLoom transformer removal was not confirmed"));
+                }
             } catch (Throwable failure) {
                 remaining.add(handle);
                 failures.record(failure);
@@ -253,6 +265,12 @@ public final class ByteBuddyInstrumentationController implements PluginInstrumen
         }
         Collections.reverse(remaining);
         return new RemovalResult(List.copyOf(remaining), failures.failure());
+    }
+
+    private static long deadlineAfter(Duration timeout) {
+        long now = System.nanoTime();
+        long nanos = timeout.toNanos();
+        return nanos >= Long.MAX_VALUE - now ? Long.MAX_VALUE : now + nanos;
     }
 
     private void retainFailedCleanup(

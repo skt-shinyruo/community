@@ -10,13 +10,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.nowcoder.yierloom.api.DiagnosticEvent;
 import com.nowcoder.yierloom.api.PluginConfig;
 import com.nowcoder.yierloom.api.PluginConfigurationException;
 import com.nowcoder.yierloom.api.PluginDescriptor;
 import com.nowcoder.yierloom.api.PluginRuntimeContext;
+import com.nowcoder.yierloom.api.PluginObservation;
 import com.nowcoder.yierloom.api.RuntimeCapability;
 import com.nowcoder.yierloom.api.YierLoomPlugin;
 import com.nowcoder.yierloom.core.config.ConfigOrigin;
@@ -98,6 +103,90 @@ class PluginLifecycleManagerTest {
     }
 
     @Test
+    void activationRollbackWaitsForThePluginHandlerBeforeStoppingRuntime() throws Exception {
+        CountDownLatch installEntered = new CountDownLatch(1);
+        CountDownLatch failInstallation = new CountDownLatch(1);
+        CountDownLatch handlerStarted = new CountDownLatch(1);
+        CountDownLatch releaseHandler = new CountDownLatch(1);
+        AtomicBoolean handlerRunning = new AtomicBoolean();
+        AtomicBoolean stoppedWhileHandlerRan = new AtomicBoolean();
+        PluginInstrumentationController instrumentation = new PluginInstrumentationController() {
+            @Override
+            public void install(ValidatedPlugin plugin) {
+                installEntered.countDown();
+                try {
+                    failInstallation.await();
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new IllegalStateException("installation failed");
+            }
+
+            @Override
+            public void removePlugin(String pluginId) {
+            }
+
+            @Override
+            public void removeAll() {
+            }
+        };
+        manager = manager(instrumentation, config(Map.of(), Map.of()));
+        ValidatedPlugin plugin = validated(new LifecyclePlugin("racing", 0, false, false) {
+            @Override
+            public void start(PluginRuntimeContext context) {
+                startCalls.add("racing");
+                context.observations().register(observation -> {
+                    handlerRunning.set(true);
+                    handlerStarted.countDown();
+                    try {
+                        releaseHandler.await();
+                    } finally {
+                        handlerRunning.set(false);
+                    }
+                });
+            }
+
+            @Override
+            public void stop() {
+                stoppedWhileHandlerRan.set(handlerRunning.get());
+                stopCalls.add("racing");
+            }
+        });
+        pipeline.start();
+        AtomicReference<Throwable> activationFailure = new AtomicReference<>();
+        CountDownLatch activationFinished = new CountDownLatch(1);
+        Thread activation = new Thread(() -> {
+            try {
+                manager.activate(List.of(plugin));
+            } catch (Throwable failure) {
+                activationFailure.set(failure);
+            } finally {
+                activationFinished.countDown();
+            }
+        });
+
+        activation.start();
+        assertThat(installEntered.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(pipeline.observe(
+                "racing", PluginObservation.builder("probe").build())).isTrue();
+        assertThat(handlerStarted.await(2, TimeUnit.SECONDS)).isTrue();
+        failInstallation.countDown();
+        try {
+            assertThat(activationFinished.await(200, TimeUnit.MILLISECONDS)).isFalse();
+            assertThat(stopCalls).isEmpty();
+        } finally {
+            releaseHandler.countDown();
+            activation.join(2_000);
+        }
+
+        assertThat(activation.isAlive()).isFalse();
+        assertThat(activationFailure.get()).isNull();
+        assertThat(stoppedWhileHandlerRan).isFalse();
+        assertThat(stopCalls).containsExactly("racing");
+        assertThat(pipeline.drainAndClose(Duration.ofSeconds(2))).isTrue();
+    }
+
+    @Test
     void stopsRuntimesInReverseOrderAndContinuesAfterOrdinaryFailures() {
         RecordingInstrumentationController instrumentation = new RecordingInstrumentationController(null);
         manager = manager(instrumentation, config(Map.of(), Map.of()));
@@ -156,6 +245,52 @@ class PluginLifecycleManagerTest {
     }
 
     @Test
+    void deeplyWrappedFatalActivationErrorIsRethrownAfterRollback() {
+        RecordingInstrumentationController instrumentation = new RecordingInstrumentationController(null);
+        manager = manager(instrumentation, config(Map.of(), Map.of()));
+        ValidatedPlugin plugin = validated(new LifecyclePlugin("fatal", 0, false, false) {
+            @Override
+            public void start(PluginRuntimeContext context) {
+                Throwable failure = new OutOfMemoryError("fatal");
+                for (int depth = 0; depth < 100; depth++) {
+                    failure = new IllegalStateException("wrapped", failure);
+                }
+                throw (RuntimeException) failure;
+            }
+        });
+
+        assertThatThrownBy(() -> manager.activate(List.of(plugin)))
+                .isInstanceOf(OutOfMemoryError.class);
+        assertThat(stopCalls).containsExactly("fatal");
+        assertThat(manager.activePluginIds()).isEmpty();
+    }
+
+    @Test
+    void repeatedFatalInstanceDuringRollbackDoesNotMaskTheFatal() {
+        RecordingInstrumentationController instrumentation = new RecordingInstrumentationController(null);
+        manager = manager(instrumentation, config(Map.of(), Map.of()));
+        OutOfMemoryError shared = new OutOfMemoryError("fatal");
+        ValidatedPlugin plugin = validated(new LifecyclePlugin("fatal", 0, false, false) {
+            @Override
+            public void start(PluginRuntimeContext context) {
+                startCalls.add("fatal");
+                throw shared;
+            }
+
+            @Override
+            public void stop() {
+                stopCalls.add("fatal");
+                throw shared;
+            }
+        });
+
+        assertThatThrownBy(() -> manager.activate(List.of(plugin)))
+                .isSameAs(shared);
+        assertThat(stopCalls).containsExactly("fatal");
+        assertThat(manager.activePluginIds()).isEmpty();
+    }
+
+    @Test
     void splitShutdownOperationsAreIdempotent() {
         RecordingInstrumentationController instrumentation = new RecordingInstrumentationController(null);
         manager = manager(instrumentation, config(Map.of(), Map.of()));
@@ -165,8 +300,8 @@ class PluginLifecycleManagerTest {
         manager.stopRuntimesInReverseOrder();
         manager.cancelManagedTasks();
         manager.cancelManagedTasks();
-        manager.removeTransformers();
-        manager.removeTransformers();
+        assertThat(manager.removeTransformers()).isTrue();
+        assertThat(manager.removeTransformers()).isTrue();
         manager.closeExternalLoaders();
         manager.closeExternalLoaders();
 
@@ -189,11 +324,11 @@ class PluginLifecycleManagerTest {
                 List.of(loader),
                 Clock.systemUTC());
 
-        manager.removeTransformers();
+        assertThat(manager.removeTransformers()).isFalse();
         manager.closeExternalLoaders();
         assertThat(loader.loadClass("fixture.privatecopy.One")).isNotNull();
 
-        manager.removeTransformers();
+        assertThat(manager.removeTransformers()).isTrue();
         manager.closeExternalLoaders();
         manager.closeExternalLoaders();
 
@@ -203,7 +338,7 @@ class PluginLifecycleManagerTest {
     }
 
     private PluginLifecycleManager manager(
-            RecordingInstrumentationController instrumentation,
+            PluginInstrumentationController instrumentation,
             YierLoomConfig config
     ) {
         return new PluginLifecycleManager(

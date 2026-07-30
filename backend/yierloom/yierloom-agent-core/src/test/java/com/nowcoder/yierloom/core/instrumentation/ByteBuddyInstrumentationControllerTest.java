@@ -13,7 +13,10 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.JarFile;
 
 import com.nowcoder.yierloom.api.PluginConfig;
@@ -260,6 +263,84 @@ class ByteBuddyInstrumentationControllerTest {
     }
 
     @Test
+    void falseRemovalResultRetainsTheHandleUntilARetrySucceeds() {
+        RecordingInstrumentation jvm = new RecordingInstrumentation();
+        ByteBuddyInstrumentationController controller = controller(jvm, new ArrayList<>());
+        controller.install(validatedPlugin("alpha", modules("one")));
+        ClassFileTransformer transformer = jvm.addedTransformers().get(0);
+        jvm.returnFalseOnRemoval(transformer, 1);
+
+        assertThatThrownBy(controller::removeAll)
+                .isInstanceOf(PluginInstrumentationException.class);
+        assertThat(controller.installedModuleIds("alpha")).containsExactly("one");
+
+        controller.removeAll();
+        assertThat(controller.installedModuleIds("alpha")).isEmpty();
+    }
+
+    @Test
+    void removalWaitsForInFlightTransformationAndLateCallbacksSkipPluginCode() throws Exception {
+        RecordingInstrumentation jvm = new RecordingInstrumentation();
+        ByteBuddyInstrumentationController controller = controller(jvm, new ArrayList<>());
+        CountDownLatch transformerEntered = new CountDownLatch(1);
+        CountDownLatch releaseTransformer = new CountDownLatch(1);
+        AtomicInteger transformerCalls = new AtomicInteger();
+        TypeInstrumentation blocking = typeInstrumentation(
+                ElementMatchers.named(UnmodifiedTarget.class.getName()),
+                (builder, type, loader, module, domain) -> {
+                    transformerCalls.incrementAndGet();
+                    transformerEntered.countDown();
+                    try {
+                        releaseTransformer.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("interrupted", interrupted);
+                    }
+                    return builder;
+                });
+        controller.install(validatedPlugin(
+                "alpha", List.of(module("blocking", Set.of(), List.of(blocking)))));
+        byte[] original = classBytes(UnmodifiedTarget.class);
+        AtomicReference<Throwable> transformFailure = new AtomicReference<>();
+        Thread transformation = new Thread(() -> {
+            try {
+                jvm.transform(UnmodifiedTarget.class, original);
+            } catch (Throwable failure) {
+                transformFailure.set(failure);
+            }
+        });
+        CountDownLatch removalFinished = new CountDownLatch(1);
+        AtomicReference<Throwable> removalFailure = new AtomicReference<>();
+        Thread removal = new Thread(() -> {
+            try {
+                controller.removeAll();
+            } catch (Throwable failure) {
+                removalFailure.set(failure);
+            } finally {
+                removalFinished.countDown();
+            }
+        });
+
+        transformation.start();
+        assertThat(transformerEntered.await(2, TimeUnit.SECONDS)).isTrue();
+        removal.start();
+        try {
+            assertThat(removalFinished.await(200, TimeUnit.MILLISECONDS)).isFalse();
+        } finally {
+            releaseTransformer.countDown();
+            transformation.join(2_000);
+            removal.join(2_000);
+        }
+
+        assertThat(transformFailure.get()).isNull();
+        assertThat(removalFailure.get()).isNull();
+        assertThat(removalFinished.getCount()).isZero();
+        assertThat(controller.installedModuleIds("alpha")).isEmpty();
+        jvm.transform(UnmodifiedTarget.class, original);
+        assertThat(transformerCalls).hasValue(1);
+    }
+
+    @Test
     void repeatedRemovalFailureInstanceDoesNotInterruptRemainingCleanup() {
         RecordingInstrumentation jvm = new RecordingInstrumentation();
         ByteBuddyInstrumentationController controller = controller(jvm, new ArrayList<>());
@@ -412,6 +493,7 @@ class ByteBuddyInstrumentationControllerTest {
         private final List<ClassFileTransformer> addedTransformers = new ArrayList<>();
         private final List<ClassFileTransformer> removedTransformers = new ArrayList<>();
         private final Map<ClassFileTransformer, Integer> removalFailures = new IdentityHashMap<>();
+        private final Map<ClassFileTransformer, Integer> falseRemovalResults = new IdentityHashMap<>();
         private final Map<ClassFileTransformer, Throwable> forcedRemovalFailures = new IdentityHashMap<>();
         private int addCalls;
         private int failingAddCall = -1;
@@ -449,6 +531,11 @@ class ByteBuddyInstrumentationControllerTest {
             if (failures > 0) {
                 removalFailures.put(transformer, failures - 1);
                 throw new IllegalStateException("removal failed");
+            }
+            int falseResults = falseRemovalResults.getOrDefault(transformer, 0);
+            if (falseResults > 0) {
+                falseRemovalResults.put(transformer, falseResults - 1);
+                return false;
             }
             return true;
         }
@@ -498,6 +585,10 @@ class ByteBuddyInstrumentationControllerTest {
 
         private void failRemoval(ClassFileTransformer transformer, Throwable failure) {
             forcedRemovalFailures.put(transformer, failure);
+        }
+
+        private void returnFalseOnRemoval(ClassFileTransformer transformer, int times) {
+            falseRemovalResults.put(transformer, times);
         }
 
         private void clearRemovedTransformers() {

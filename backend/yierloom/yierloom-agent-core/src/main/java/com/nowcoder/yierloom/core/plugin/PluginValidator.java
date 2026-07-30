@@ -18,6 +18,7 @@ import com.nowcoder.yierloom.api.PluginConfigurationException;
 import com.nowcoder.yierloom.api.PluginDescriptor;
 import com.nowcoder.yierloom.api.RuntimeCapability;
 import com.nowcoder.yierloom.api.YierLoomApi;
+import com.nowcoder.yierloom.core.FatalFailures;
 import com.nowcoder.yierloom.core.config.ApiVersion;
 import com.nowcoder.yierloom.core.config.ConfigOrigin;
 import com.nowcoder.yierloom.core.config.YierLoomConfig;
@@ -245,12 +246,7 @@ public final class PluginValidator {
     }
 
     private static void rethrowFatal(Throwable failure) {
-        if (failure instanceof VirtualMachineError fatal) {
-            throw fatal;
-        }
-        if (failure instanceof ThreadDeath fatal) {
-            throw fatal;
-        }
+        FatalFailures.rethrow(failure);
     }
 
     public record ValidationResult(List<ValidatedPlugin> plugins, List<PluginReport> reports) {

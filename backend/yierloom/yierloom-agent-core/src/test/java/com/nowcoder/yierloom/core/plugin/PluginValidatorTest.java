@@ -23,6 +23,7 @@ import com.nowcoder.yierloom.sdk.TypeInstrumentation;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PluginValidatorTest {
     private final PluginValidator validator = new PluginValidator();
@@ -43,6 +44,24 @@ class PluginValidatorTest {
         assertThat(result.reports()).filteredOn(report -> report.state() == PluginState.FAILED)
                 .extracting(PluginReport::reasonCode)
                 .containsExactlyInAnyOrder("RESERVED_ID", "DUPLICATE_ID", "DUPLICATE_ID");
+    }
+
+    @Test
+    void deeplyWrappedFatalFromAProviderDeclarationIsRethrown() {
+        YierLoomPlugin provider = new BasePlugin("fatal", 0, "1.0.0") {
+            @Override
+            public PluginDescriptor descriptor() {
+                Throwable failure = new OutOfMemoryError("fatal");
+                for (int depth = 0; depth < 100; depth++) {
+                    failure = new IllegalStateException("wrapped", failure);
+                }
+                throw (RuntimeException) failure;
+            }
+        };
+
+        assertThatThrownBy(() -> validator.validate(
+                List.of(builtIn(provider)), config(Map.of(), Map.of())))
+                .isInstanceOf(OutOfMemoryError.class);
     }
 
     @Test

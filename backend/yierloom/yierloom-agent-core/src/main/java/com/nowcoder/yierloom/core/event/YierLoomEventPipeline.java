@@ -4,7 +4,9 @@ import java.io.PrintStream;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -20,6 +22,7 @@ import com.nowcoder.yierloom.api.ObservationChannel;
 import com.nowcoder.yierloom.api.ObservationHandler;
 import com.nowcoder.yierloom.api.PluginObservation;
 import com.nowcoder.yierloom.api.YierLoomBridge;
+import com.nowcoder.yierloom.core.FatalFailures;
 import com.nowcoder.yierloom.core.config.YierLoomConfig;
 
 public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
@@ -32,14 +35,17 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
     private final Set<String> activePlugins = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean acceptingObservations = new AtomicBoolean(true);
     private final AtomicBoolean acceptingEvents = new AtomicBoolean(true);
+    private final AtomicBoolean closing = new AtomicBoolean();
     private final DroppedMessages droppedMessages = new DroppedMessages();
     private final AtomicBoolean started = new AtomicBoolean();
     private final AtomicInteger pendingMessages = new AtomicInteger();
     private final Object admissionGate = new Object();
+    private final Object observationMonitor = new Object();
     private final Object drainMonitor = new Object();
     private final EventExporter exporter;
     private final ExporterFailureReporter failureReporter;
     private final Thread consumer;
+    private final Map<String, Integer> runningHandlers = new HashMap<>();
 
     public YierLoomEventPipeline(YierLoomConfig config, Clock clock, PrintStream output) {
         this(config.eventQueueCapacity(), config.serviceName(), clock, output);
@@ -71,9 +77,15 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
         activePlugins.add(requirePluginId(pluginId));
     }
 
-    public void unregisterPlugin(String pluginId) {
-        activePlugins.remove(pluginId);
-        handlers.remove(pluginId);
+    public boolean unregisterPlugin(String pluginId) {
+        String ownerId = requirePluginId(pluginId);
+        synchronized (admissionGate) {
+            activePlugins.remove(ownerId);
+            synchronized (observationMonitor) {
+                handlers.remove(ownerId);
+            }
+        }
+        return awaitHandlers(ownerId, deadlineAfter(MAX_DRAIN_TIMEOUT));
     }
 
     public ObservationChannel observations(String pluginId) {
@@ -124,11 +136,18 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
         return droppedMessages;
     }
 
-    public void stopObservations() {
+    public boolean stopObservations() {
+        return stopObservationsUntil(deadlineAfter(MAX_DRAIN_TIMEOUT));
+    }
+
+    private boolean stopObservationsUntil(long deadline) {
         synchronized (admissionGate) {
             acceptingObservations.set(false);
-            handlers.clear();
+            synchronized (observationMonitor) {
+                handlers.clear();
+            }
         }
+        return awaitHandlers(null, deadline);
     }
 
     public boolean drainAndClose(Duration timeout) {
@@ -141,9 +160,8 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
                 ? MAX_DRAIN_TIMEOUT
                 : timeout;
         long deadline = deadlineAfter(effectiveTimeout);
+        boolean handlersStopped = stopObservationsUntil(deadline);
         synchronized (admissionGate) {
-            acceptingObservations.set(false);
-            handlers.clear();
             acceptingEvents.set(false);
         }
         boolean drained = awaitPendingMessages(deadline);
@@ -151,9 +169,10 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
             dropQueuedMessages();
         }
 
+        closing.set(true);
         consumer.interrupt();
         joinConsumer(deadline);
-        return drained && pendingMessages.get() == 0 && !consumer.isAlive();
+        return handlersStopped && drained && pendingMessages.get() == 0 && !consumer.isAlive();
     }
 
     boolean consumerAlive() {
@@ -170,8 +189,11 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
             if (!acceptingObservations.get() || !activePlugins.contains(pluginId)) {
                 throw new IllegalStateException("plugin is not accepting observations: " + pluginId);
             }
-            if (handlers.putIfAbsent(pluginId, new HandlerState(handler)) != null) {
-                throw new IllegalStateException("observation handler already registered: " + pluginId);
+            synchronized (observationMonitor) {
+                if (handlers.putIfAbsent(pluginId, new HandlerState(handler)) != null) {
+                    throw new IllegalStateException(
+                            "observation handler already registered: " + pluginId);
+                }
             }
         }
     }
@@ -187,6 +209,9 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
 
     private void consume() {
         while (true) {
+            if (closing.get() && queue.isEmpty()) {
+                return;
+            }
             try {
                 PipelineMessage message = queue.take();
                 try {
@@ -210,9 +235,16 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
     }
 
     private void notifyHandler(PipelineMessage.Observation observation) {
-        HandlerState state = handlers.get(observation.pluginId());
-        if (state == null) {
-            return;
+        HandlerState state;
+        synchronized (observationMonitor) {
+            if (!acceptingObservations.get()) {
+                return;
+            }
+            state = handlers.get(observation.pluginId());
+            if (state == null) {
+                return;
+            }
+            runningHandlers.merge(observation.pluginId(), 1, Integer::sum);
         }
         try {
             state.handler.onObservation(observation.value());
@@ -220,9 +252,37 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
         } catch (VirtualMachineError | ThreadDeath fatal) {
             throw fatal;
         } catch (Throwable failure) {
+            FatalFailures.rethrow(failure);
             if (state.consecutiveFailures.incrementAndGet() >= 3) {
                 handlers.remove(observation.pluginId(), state);
             }
+        } finally {
+            synchronized (observationMonitor) {
+                runningHandlers.computeIfPresent(
+                        observation.pluginId(),
+                        (ignored, count) -> count == 1 ? null : count - 1);
+                observationMonitor.notifyAll();
+            }
+        }
+    }
+
+    private boolean awaitHandlers(String pluginId, long deadline) {
+        synchronized (observationMonitor) {
+            while (pluginId == null
+                    ? !runningHandlers.isEmpty()
+                    : runningHandlers.containsKey(pluginId)) {
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) {
+                    return false;
+                }
+                try {
+                    TimeUnit.NANOSECONDS.timedWait(observationMonitor, remaining);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
@@ -232,6 +292,7 @@ public final class YierLoomEventPipeline implements YierLoomBridge.Endpoint {
         } catch (VirtualMachineError | ThreadDeath fatal) {
             throw fatal;
         } catch (Throwable failure) {
+            FatalFailures.rethrow(failure);
             failureReporter.report(EXPORTER_NAME, EXPORT_STAGE, failure);
         }
     }

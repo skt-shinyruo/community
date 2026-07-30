@@ -165,6 +165,86 @@ class YierLoomEventPipelineTest {
     }
 
     @Test
+    void stoppingObservationsWaitsForAnAlreadyRunningHandler() throws Exception {
+        YierLoomEventPipeline pipeline = startedPipeline(4);
+        pipeline.registerPlugin("alpha");
+        CountDownLatch handlerStarted = new CountDownLatch(1);
+        CountDownLatch releaseHandler = new CountDownLatch(1);
+        pipeline.observations("alpha").register(observation -> {
+            handlerStarted.countDown();
+            releaseHandler.await();
+        });
+        assertThat(pipeline.observe(
+                "alpha", PluginObservation.builder("blocking").build())).isTrue();
+        assertThat(handlerStarted.await(2, TimeUnit.SECONDS)).isTrue();
+        CountDownLatch stopped = new CountDownLatch(1);
+        Thread shutdown = new Thread(() -> {
+            pipeline.stopObservations();
+            stopped.countDown();
+        });
+
+        shutdown.start();
+        try {
+            assertThat(stopped.await(200, TimeUnit.MILLISECONDS)).isFalse();
+        } finally {
+            releaseHandler.countDown();
+            shutdown.join(2_000);
+        }
+
+        assertThat(shutdown.isAlive()).isFalse();
+        assertThat(stopped.getCount()).isZero();
+        assertThat(pipeline.drainAndClose(Duration.ofSeconds(2))).isTrue();
+    }
+
+    @Test
+    void unregisteringOnePluginWaitsForItsAlreadyRunningHandler() throws Exception {
+        YierLoomEventPipeline pipeline = startedPipeline(4);
+        pipeline.registerPlugin("alpha");
+        CountDownLatch handlerStarted = new CountDownLatch(1);
+        CountDownLatch releaseHandler = new CountDownLatch(1);
+        pipeline.observations("alpha").register(observation -> {
+            handlerStarted.countDown();
+            releaseHandler.await();
+        });
+        assertThat(pipeline.observe(
+                "alpha", PluginObservation.builder("blocking").build())).isTrue();
+        assertThat(handlerStarted.await(2, TimeUnit.SECONDS)).isTrue();
+        CountDownLatch unregistered = new CountDownLatch(1);
+        Thread rollback = new Thread(() -> {
+            pipeline.unregisterPlugin("alpha");
+            unregistered.countDown();
+        });
+
+        rollback.start();
+        try {
+            assertThat(unregistered.await(200, TimeUnit.MILLISECONDS)).isFalse();
+        } finally {
+            releaseHandler.countDown();
+            rollback.join(2_000);
+        }
+
+        assertThat(rollback.isAlive()).isFalse();
+        assertThat(unregistered.getCount()).isZero();
+        assertThat(pipeline.observe(
+                "alpha", PluginObservation.builder("after-unregister").build())).isFalse();
+        assertThat(pipeline.drainAndClose(Duration.ofSeconds(2))).isTrue();
+    }
+
+    @Test
+    void deeplyWrappedFatalFromFailureReporterIsRethrown() {
+        ExporterFailureReporter failures = new ExporterFailureReporter(
+                Clock.systemUTC(), report -> { });
+        Throwable failure = new OutOfMemoryError("fatal");
+        for (int depth = 0; depth < 100; depth++) {
+            failure = new IllegalStateException("wrapped", failure);
+        }
+        Throwable wrapped = failure;
+
+        assertThatThrownBy(() -> failures.report("json-lines", "write", wrapped))
+                .isInstanceOf(OutOfMemoryError.class);
+    }
+
+    @Test
     void timeoutCleanupWaitsForAdmissionAndCountsTheAcceptedEvent() throws Exception {
         YierLoomEventPipeline pipeline = pipelineWithCapacity(1);
         BlockingOfferQueue queue = new BlockingOfferQueue(1);

@@ -1,10 +1,8 @@
 package com.nowcoder.yierloom.core.instrumentation;
 
-import java.util.ArrayDeque;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.Objects;
-import java.util.Set;
+
+import com.nowcoder.yierloom.core.FatalFailures;
 
 public final class PluginInstrumentationException extends RuntimeException {
     private final String pluginId;
@@ -20,32 +18,10 @@ public final class PluginInstrumentationException extends RuntimeException {
     }
 
     static void rethrowIfFatal(Throwable failure) {
-        Throwable fatal = fatalCause(failure);
-        if (fatal instanceof VirtualMachineError virtualMachineError) {
-            throw virtualMachineError;
-        }
-        if (fatal instanceof ThreadDeath threadDeath) {
-            throw threadDeath;
-        }
+        FatalFailures.rethrow(Objects.requireNonNull(failure, "failure"));
     }
 
     static Throwable fatalCause(Throwable failure) {
-        ArrayDeque<Throwable> pending = new ArrayDeque<>();
-        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
-        pending.add(Objects.requireNonNull(failure, "failure"));
-        while (!pending.isEmpty()) {
-            Throwable current = pending.removeFirst();
-            if (!visited.add(current)) {
-                continue;
-            }
-            if (current instanceof VirtualMachineError || current instanceof ThreadDeath) {
-                return current;
-            }
-            if (current.getCause() != null) {
-                pending.addLast(current.getCause());
-            }
-            Collections.addAll(pending, current.getSuppressed());
-        }
-        return null;
+        return FatalFailures.find(Objects.requireNonNull(failure, "failure"));
     }
 }

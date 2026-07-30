@@ -130,6 +130,83 @@ class ManagedSchedulerRegistryTest {
     }
 
     @Test
+    void deeplyWrappedVirtualMachineErrorsEscapeTheManagedTaskBoundary() {
+        ManualScheduledExecutorService executor = new ManualScheduledExecutorService();
+        ManagedSchedulerRegistry registry = new ManagedSchedulerRegistry(executor);
+        registry.forPlugin("alpha", recordingSink()).scheduleWithFixedDelay(
+                "fatal", Duration.ZERO, Duration.ofSeconds(1), () -> {
+                    Throwable failure = new TestVirtualMachineError();
+                    for (int depth = 0; depth < 100; depth++) {
+                        failure = new IllegalStateException("wrapped", failure);
+                    }
+                    throw (RuntimeException) failure;
+                });
+
+        assertThatThrownBy(() -> executor.runTask(0))
+                .isInstanceOf(TestVirtualMachineError.class);
+        registry.close();
+    }
+
+    @Test
+    void cancelledRunningTaskRemainsOwnedUntilItStopsAndCloseCanRetry() throws Exception {
+        ManualScheduledExecutorService executor = new ManualScheduledExecutorService();
+        ManagedSchedulerRegistry registry = new ManagedSchedulerRegistry(executor);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        ManagedTask task = registry.forPlugin("alpha", recordingSink()).scheduleWithFixedDelay(
+                "blocking", Duration.ZERO, Duration.ofDays(1), () -> {
+                    started.countDown();
+                    awaitUninterruptibly(release);
+                });
+        Thread worker = new Thread(() -> executor.runTask(0));
+        worker.start();
+        try {
+            assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
+
+            task.cancel();
+
+            assertThat(registry.taskCount("alpha")).isEqualTo(1);
+            assertThat(registry.closePlugin("alpha")).isFalse();
+            release.countDown();
+            worker.join(2_000);
+            assertThat(registry.closePlugin("alpha")).isTrue();
+            assertThat(registry.taskCount("alpha")).isZero();
+        } finally {
+            release.countDown();
+            worker.join(2_000);
+            registry.close();
+        }
+    }
+
+    @Test
+    void productionExecutorSurfacesFatalTaskFailureToTheUncaughtBoundary() throws Exception {
+        Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        AtomicReference<Throwable> uncaught = new AtomicReference<>();
+        CountDownLatch observed = new CountDownLatch(1);
+        Thread.setDefaultUncaughtExceptionHandler((thread, failure) -> {
+            if (thread.getName().startsWith("yierloom-scheduler-")) {
+                uncaught.compareAndSet(null, failure);
+                observed.countDown();
+            } else if (previous != null) {
+                previous.uncaughtException(thread, failure);
+            }
+        });
+        ManagedSchedulerRegistry registry = new ManagedSchedulerRegistry();
+        try {
+            registry.forPlugin("alpha", recordingSink()).scheduleWithFixedDelay(
+                    "fatal", Duration.ZERO, Duration.ofDays(1), () -> {
+                        throw new TestVirtualMachineError();
+                    });
+
+            assertThat(observed.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(uncaught.get()).isInstanceOf(TestVirtualMachineError.class);
+        } finally {
+            registry.close();
+            Thread.setDefaultUncaughtExceptionHandler(previous);
+        }
+    }
+
+    @Test
     void defaultRegistryRunsTasksOnNamedDaemonThreads() throws Exception {
         ManagedSchedulerRegistry registry = new ManagedSchedulerRegistry();
         CountDownLatch ran = new CountDownLatch(1);
@@ -154,6 +231,21 @@ class ManagedSchedulerRegistryTest {
 
     private static RecordingEventSink recordingSink() {
         return new RecordingEventSink();
+    }
+
+    private static void awaitUninterruptibly(CountDownLatch latch) {
+        boolean interrupted = false;
+        while (true) {
+            try {
+                latch.await();
+                break;
+            } catch (InterruptedException ignored) {
+                interrupted = true;
+            }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static final class RecordingEventSink implements EventSink {

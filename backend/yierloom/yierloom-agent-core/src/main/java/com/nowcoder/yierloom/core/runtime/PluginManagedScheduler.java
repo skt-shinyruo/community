@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.nowcoder.yierloom.api.EventSink;
 import com.nowcoder.yierloom.api.ManagedScheduler;
@@ -18,6 +19,7 @@ final class PluginManagedScheduler implements ManagedScheduler {
     private final EventSink events;
     private final ManagedSchedulerRegistry registry;
     private final ConcurrentMap<String, ManagedScheduledTask> tasks = new ConcurrentHashMap<>();
+    private final AtomicBoolean acceptingTasks = new AtomicBoolean(true);
 
     PluginManagedScheduler(String pluginId, EventSink events, ManagedSchedulerRegistry registry) {
         this.pluginId = pluginId;
@@ -50,6 +52,9 @@ final class PluginManagedScheduler implements ManagedScheduler {
         Duration startingDelay = requireNonNegative(initialDelay, "initialDelay");
         Duration recurringDelay = requirePositive(delay, "delay");
         Objects.requireNonNull(task, "task");
+        if (!acceptingTasks.get()) {
+            throw new IllegalStateException("plugin scheduler is closed");
+        }
 
         ManagedScheduledTask managedTask = new ManagedScheduledTask(
                 name,
@@ -76,6 +81,20 @@ final class PluginManagedScheduler implements ManagedScheduler {
 
     void cancelAll() {
         new ArrayList<>(tasks.values()).forEach(ManagedScheduledTask::cancel);
+    }
+
+    boolean cancelAllAndAwait(long deadline) {
+        boolean stopped = true;
+        for (ManagedScheduledTask task : new ArrayList<>(tasks.values())) {
+            if (!task.cancelAndAwait(deadline)) {
+                stopped = false;
+            }
+        }
+        return stopped;
+    }
+
+    void rejectNewTasks() {
+        acceptingTasks.set(false);
     }
 
     int taskCount() {

@@ -10,6 +10,7 @@ import java.util.function.Consumer;
 import com.nowcoder.yierloom.api.DiagnosticEvent;
 import com.nowcoder.yierloom.api.EventSink;
 import com.nowcoder.yierloom.api.ManagedTask;
+import com.nowcoder.yierloom.core.FatalFailures;
 
 final class ManagedScheduledTask implements ManagedTask, Runnable {
     private static final int FAILURE_LIMIT = 3;
@@ -21,6 +22,8 @@ final class ManagedScheduledTask implements ManagedTask, Runnable {
     private final AtomicInteger consecutiveFailures = new AtomicInteger();
     private final AtomicBoolean cancelled = new AtomicBoolean();
     private final AtomicReference<ScheduledFuture<?>> future = new AtomicReference<>();
+    private final Object runMonitor = new Object();
+    private int running;
 
     ManagedScheduledTask(
             String name,
@@ -41,15 +44,19 @@ final class ManagedScheduledTask implements ManagedTask, Runnable {
 
     @Override
     public boolean cancel() {
-        if (!cancelled.compareAndSet(false, true)) {
-            return false;
-        }
+        return cancel(false);
+    }
+
+    private boolean cancel(boolean mayInterruptIfRunning) {
+        boolean firstCancellation = cancelled.compareAndSet(false, true);
         ScheduledFuture<?> scheduledFuture = future.get();
         if (scheduledFuture != null) {
-            scheduledFuture.cancel(false);
+            scheduledFuture.cancel(mayInterruptIfRunning);
         }
-        cancellationListener.accept(this);
-        return true;
+        if (firstCancellation) {
+            removeWhenIdle();
+        }
+        return firstCancellation;
     }
 
     @Override
@@ -60,8 +67,11 @@ final class ManagedScheduledTask implements ManagedTask, Runnable {
 
     @Override
     public void run() {
-        if (isCancelled()) {
-            return;
+        synchronized (runMonitor) {
+            if (isCancelled()) {
+                return;
+            }
+            running++;
         }
         try {
             delegate.run();
@@ -69,12 +79,39 @@ final class ManagedScheduledTask implements ManagedTask, Runnable {
         } catch (VirtualMachineError | ThreadDeath fatal) {
             throw fatal;
         } catch (Throwable failure) {
+            FatalFailures.rethrow(failure);
             if (consecutiveFailures.incrementAndGet() >= FAILURE_LIMIT && cancel()) {
                 events.emit(DiagnosticEvent.builder("agent_task_disabled")
                         .attribute("task.name", name)
                         .attribute("event.outcome", "failure")
                         .build());
             }
+        } finally {
+            synchronized (runMonitor) {
+                running--;
+                runMonitor.notifyAll();
+            }
+            removeWhenIdle();
+        }
+    }
+
+    boolean cancelAndAwait(long deadline) {
+        cancel(true);
+        synchronized (runMonitor) {
+            while (running != 0) {
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) {
+                    return false;
+                }
+                try {
+                    java.util.concurrent.TimeUnit.NANOSECONDS.timedWait(
+                            runMonitor, remaining);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
@@ -85,6 +122,16 @@ final class ManagedScheduledTask implements ManagedTask, Runnable {
         }
         if (cancelled.get()) {
             scheduledFuture.cancel(false);
+        }
+    }
+
+    private void removeWhenIdle() {
+        boolean removable;
+        synchronized (runMonitor) {
+            removable = cancelled.get() && running == 0;
+        }
+        if (removable) {
+            cancellationListener.accept(this);
         }
     }
 }

@@ -9,12 +9,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.CodeSource;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.ServiceLoader;
+import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
@@ -31,6 +35,15 @@ public final class PluginDiscovery {
             "com/nowcoder/yierloom/core/",
             "com/nowcoder/yierloom/bootstrap/",
             "com/nowcoder/yierloom/plugins/");
+    private final ExternalLoaderFactory loaderFactory;
+
+    public PluginDiscovery() {
+        this(YierLoomPluginClassLoader::new);
+    }
+
+    PluginDiscovery(ExternalLoaderFactory loaderFactory) {
+        this.loaderFactory = Objects.requireNonNull(loaderFactory, "loaderFactory");
+    }
 
     public Result discover(YierLoomConfig config, ClassLoader engineLoader) {
         Objects.requireNonNull(config, "config");
@@ -62,8 +75,13 @@ public final class PluginDiscovery {
             return new Result(plugins, issues, externalLoaders);
         }
 
-        for (Path candidate : candidates) {
-            discoverExternal(candidate, engineLoader, plugins, issues, externalLoaders);
+        try {
+            for (Path candidate : candidates) {
+                discoverExternal(candidate, engineLoader, plugins, issues, externalLoaders);
+            }
+        } catch (VirtualMachineError | ThreadDeath fatal) {
+            closeAllAndCapture(externalLoaders);
+            throw fatal;
         }
         return new Result(plugins, issues, externalLoaders);
     }
@@ -107,7 +125,7 @@ public final class PluginDiscovery {
         return new Result(plugins, issues, List.of());
     }
 
-    private static void discoverExternal(
+    private void discoverExternal(
             Path candidate,
             ClassLoader engineLoader,
             List<DiscoveredPlugin> plugins,
@@ -134,12 +152,12 @@ public final class PluginDiscovery {
 
         YierLoomPluginClassLoader loader = null;
         try {
-            loader = new YierLoomPluginClassLoader(candidate, engineLoader);
+            loader = loaderFactory.open(candidate, engineLoader);
             Class<?> providerType = Class.forName(providerName, true, loader);
             if (providerType.getClassLoader() != loader
                     || !YierLoomPlugin.class.isAssignableFrom(providerType)) {
                 issues.add(new PluginIssue(candidate, "PROVIDER_TYPE_INVALID"));
-                closeQuietly(loader);
+                rethrowFatal(closeAndCapture(loader));
                 return;
             }
             Constructor<?> constructor = providerType.getConstructor();
@@ -147,11 +165,15 @@ public final class PluginDiscovery {
             plugins.add(new DiscoveredPlugin(provider, PluginSource.EXTERNAL, candidate));
             externalLoaders.add(loader);
         } catch (NoSuchMethodException failure) {
-            closeQuietly(loader);
+            rethrowFatal(closeAndCapture(loader));
             issues.add(new PluginIssue(candidate, "PROVIDER_CONSTRUCTOR_INVALID"));
         } catch (Throwable failure) {
-            closeQuietly(loader);
-            rethrowFatal(failure);
+            Throwable cleanupFailure = closeAndCapture(loader);
+            Throwable fatal = fatalCause(failure);
+            if (fatal == null) {
+                fatal = fatalCause(cleanupFailure);
+            }
+            throwFatal(fatal);
             issues.add(new PluginIssue(candidate, "PROVIDER_INSTANTIATION_FAILED"));
         }
     }
@@ -223,35 +245,76 @@ public final class PluginDiscovery {
         return Path.of("built-in", provider.getClass().getName());
     }
 
-    private static void closeQuietly(YierLoomPluginClassLoader loader) {
+    private static Throwable closeAndCapture(YierLoomPluginClassLoader loader) {
         if (loader == null) {
-            return;
+            return null;
         }
         try {
             loader.close();
+            return null;
         } catch (Throwable failure) {
-            rethrowFatal(failure);
-            // Candidate cleanup failure must not stop discovery of later JARs.
+            return failure;
         }
     }
 
-    private static void rethrowFatal(Throwable failure) {
-        Throwable current = failure;
-        for (int depth = 0; current != null && depth < 16; depth++) {
-            if (current instanceof VirtualMachineError fatal) {
-                throw fatal;
-            }
-            if (current instanceof ThreadDeath fatal) {
-                throw fatal;
-            }
-            if (current instanceof InvocationTargetException invocation) {
-                current = invocation.getTargetException();
-            } else if (current instanceof ExceptionInInitializerError initializer) {
-                current = initializer.getException();
-            } else {
-                current = current.getCause();
+    private static Throwable closeAllAndCapture(List<YierLoomPluginClassLoader> loaders) {
+        Throwable fatal = null;
+        for (int index = loaders.size() - 1; index >= 0; index--) {
+            Throwable candidate = fatalCause(closeAndCapture(loaders.get(index)));
+            if (fatal == null && candidate != null) {
+                fatal = candidate;
             }
         }
+        return fatal;
+    }
+
+    private static void rethrowFatal(Throwable failure) {
+        throwFatal(fatalCause(failure));
+    }
+
+    private static Throwable fatalCause(Throwable failure) {
+        if (failure == null) {
+            return null;
+        }
+        ArrayDeque<Throwable> pending = new ArrayDeque<>();
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        pending.add(failure);
+        while (!pending.isEmpty()) {
+            Throwable current = pending.removeFirst();
+            if (!visited.add(current)) {
+                continue;
+            }
+            if (current instanceof VirtualMachineError || current instanceof ThreadDeath) {
+                return current;
+            }
+            if (current.getCause() != null) {
+                pending.addLast(current.getCause());
+            }
+            if (current instanceof InvocationTargetException invocation
+                    && invocation.getTargetException() != null) {
+                pending.addLast(invocation.getTargetException());
+            }
+            if (current instanceof ExceptionInInitializerError initializer
+                    && initializer.getException() != null) {
+                pending.addLast(initializer.getException());
+            }
+            Collections.addAll(pending, current.getSuppressed());
+        }
+        return null;
+    }
+
+    private static void throwFatal(Throwable failure) {
+        if (failure instanceof VirtualMachineError fatal) {
+            throw fatal;
+        }
+        if (failure instanceof ThreadDeath fatal) {
+            throw fatal;
+        }
+    }
+
+    @FunctionalInterface
+    interface ExternalLoaderFactory {
+        YierLoomPluginClassLoader open(Path jar, ClassLoader parent) throws IOException;
     }
 
     public record Result(

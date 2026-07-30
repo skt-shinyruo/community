@@ -35,7 +35,8 @@ final class TransformationErrorReporter {
                     .record(key, targetClass, failure.getClass().getName(), clock.instant(), reportSink);
         } catch (VirtualMachineError | ThreadDeath fatal) {
             throw fatal;
-        } catch (Throwable ignored) {
+        } catch (Throwable reportingFailure) {
+            PluginInstrumentationException.rethrowIfFatal(reportingFailure);
             // Diagnostics must not replace the transformation failure being reported.
         }
     }
@@ -84,7 +85,8 @@ final class TransformationErrorReporter {
                 sink.accept(message);
             } catch (VirtualMachineError | ThreadDeath fatal) {
                 throw fatal;
-            } catch (Throwable ignored) {
+            } catch (Throwable failure) {
+                PluginInstrumentationException.rethrowIfFatal(failure);
                 // Logging infrastructure is outside the transformation path's trust boundary.
             }
         }

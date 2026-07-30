@@ -8,6 +8,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 
+import com.nowcoder.yierloom.core.FatalFailures;
+
 final class ExporterFailureReporter {
     private static final Duration SUMMARY_INTERVAL = Duration.ofSeconds(60);
 
@@ -22,12 +24,7 @@ final class ExporterFailureReporter {
 
     void report(String exporter, String stage, Throwable failure) {
         Objects.requireNonNull(failure, "failure");
-        if (failure instanceof VirtualMachineError virtualMachineError) {
-            throw virtualMachineError;
-        }
-        if (failure instanceof ThreadDeath threadDeath) {
-            throw threadDeath;
-        }
+        FatalFailures.rethrow(failure);
 
         FailureKey key = new FailureKey(
                 Objects.requireNonNull(exporter, "exporter"),

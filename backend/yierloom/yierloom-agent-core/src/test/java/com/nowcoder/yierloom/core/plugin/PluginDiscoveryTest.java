@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PluginDiscoveryTest {
     private static final AtomicInteger BUILT_IN_STARTS = new AtomicInteger();
@@ -207,6 +209,63 @@ class PluginDiscoveryTest {
             assertThat(result.issues()).extracting(PluginIssue::reasonCode)
                     .containsExactly("PROVIDER_DECLARATION_INVALID");
             assertThat(result.externalLoaders()).isEmpty();
+        }
+    }
+
+    @Test
+    void deeplyWrappedFatalDiscoveryFailureClosesEveryOpenedExternalLoader() throws Exception {
+        Path plugins = Files.createDirectories(tempDir.resolve("plugins"));
+        PluginJarFixture.jarWithProviders(
+                plugins,
+                "a-valid.jar",
+                Map.of(
+                        "fixture.external.ValidPlugin", providerSource("ValidPlugin", "valid"),
+                        "fixture.external.Unused", """
+                                package fixture.external;
+                                public final class Unused { }
+                                """),
+                List.of("fixture.external.ValidPlugin"));
+        PluginJarFixture.jarWithProviders(
+                plugins,
+                "b-fatal.jar",
+                Map.of(
+                        "fixture.external.FatalPlugin", """
+                                package fixture.external;
+                                import com.nowcoder.yierloom.api.*;
+                                public final class FatalPlugin implements YierLoomPlugin, RuntimeCapability {
+                                    public FatalPlugin() {
+                                        Throwable failure = new OutOfMemoryError("fatal");
+                                        for (int depth = 0; depth < 100; depth++) {
+                                            failure = new IllegalStateException("wrapped", failure);
+                                        }
+                                        throw (RuntimeException) failure;
+                                    }
+                                    public PluginDescriptor descriptor() {
+                                        return new PluginDescriptor("fatal", "Fatal", "1.0.0", "1.0.0", true, 0);
+                                    }
+                                    public void start(PluginRuntimeContext context) { }
+                                    public void stop() { }
+                                }
+                                """,
+                        "fixture.external.Unused", """
+                                package fixture.external;
+                                public final class Unused { }
+                                """),
+                List.of("fixture.external.FatalPlugin"));
+        List<YierLoomPluginClassLoader> opened = new ArrayList<>();
+        PluginDiscovery discovery = new PluginDiscovery((jar, parent) -> {
+            YierLoomPluginClassLoader loader = new YierLoomPluginClassLoader(jar, parent);
+            opened.add(loader);
+            return loader;
+        });
+
+        assertThatThrownBy(() -> discovery.discover(config(plugins), getClass().getClassLoader()))
+                .isInstanceOf(OutOfMemoryError.class);
+
+        assertThat(opened).hasSize(2);
+        for (YierLoomPluginClassLoader loader : opened) {
+            assertThatThrownBy(() -> loader.loadClass("fixture.external.Unused"))
+                    .isInstanceOf(ClassNotFoundException.class);
         }
     }
 

@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.Attributes;
@@ -87,11 +88,64 @@ class YierLoomAgentPackagingIT {
         assertThat(process.exitValue()).as(output).isZero();
         assertThat(output).contains(
                 "bridge-loader=bootstrap",
-                "[YierLoom] started: discovered=0");
+                "[YierLoom] started: discovered=2, enabled=2, disabled=0, active=2, failed=0");
         assertThat(output).doesNotContain(
                 "disabled after bootstrap failure",
                 "Exception in thread",
                 "NoClassDefFoundError");
+    }
+
+    @Test
+    void instrumentsMethodsAndExceptionsWithoutLeakingSensitiveFields() throws Exception {
+        Path artifact = Path.of("target", "yierloom-agent.jar").toAbsolutePath().normalize();
+        Path testClasses = Path.of("target", "test-classes").toAbsolutePath().normalize();
+        Path java = Path.of(
+                System.getProperty("java.home"), "bin", isWindows() ? "java.exe" : "java");
+        String targetClass = "com.example.yierloomfixture.ObservedTarget";
+        String arguments = String.join(",",
+                "yierloom.enabled=true",
+                "yierloom.service.name=plugin-instrumentation-it",
+                "yierloom.plugins.method.includes=" + targetClass,
+                "yierloom.plugins.method.slow-threshold=0ms",
+                "yierloom.plugins.method.summary-interval=1h",
+                "yierloom.plugins.exception.includes=" + targetClass);
+        Process process = new ProcessBuilder(
+                java.toString(),
+                "-javaagent:" + artifact + "=" + arguments,
+                "-cp",
+                testClasses.toString(),
+                "com.example.yierloomfixture.YierLoomPluginProbe")
+                .redirectErrorStream(true)
+                .start();
+
+        boolean exited = process.waitFor(20, TimeUnit.SECONDS);
+        if (!exited) {
+            process.destroyForcibly();
+            process.waitFor(5, TimeUnit.SECONDS);
+        }
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        List<String> lines = output.lines().toList();
+
+        assertThat(exited).as(output).isTrue();
+        assertThat(process.exitValue()).as(output).isZero();
+        assertThat(output).contains("same-exception=true", "probe-finished=true");
+        assertThat(lines).anySatisfy(line -> assertThat(line).contains(
+                "\"event.action\":\"method_slow_call\"",
+                "\"diagnostic.plugin.id\":\"method\"",
+                "\"method.class\":\"" + targetClass + "\"",
+                "\"method.name\":\"slowCall\""));
+        assertThat(lines).anySatisfy(line -> assertThat(line).contains(
+                "\"event.action\":\"exception_observed\"",
+                "\"diagnostic.plugin.id\":\"exception\"",
+                "\"exception.type\":\"java.lang.IllegalStateException\"",
+                "\"method.class\":\"" + targetClass + "\"",
+                "\"method.name\":\"fail\""));
+        assertThat(output).doesNotContain(
+                "private-exception-message",
+                "\"method.descriptor\"",
+                "\"exception.message\"",
+                "\"exception.stacktrace\"",
+                "(Ljava/lang/IllegalStateException;)V");
     }
 
     @Test

@@ -39,14 +39,23 @@ final class HelperInjector {
             Set<String> known = loader == null ? bootstrapInjected : knownFor(loader);
             Map<String, byte[]> missing = new LinkedHashMap<>();
             for (Map.Entry<String, byte[]> helper : helpers.entrySet()) {
-                if (!known.contains(helper.getKey())) {
-                    missing.put(helper.getKey(), helper.getValue());
+                String helperName = helper.getKey();
+                if (known.contains(helperName)) {
+                    continue;
+                }
+                Class<?> visible = visibleClass(helperName, loader);
+                if (visible == null) {
+                    missing.put(helperName, helper.getValue());
+                } else if (wasInjected(visible.getClassLoader(), helperName)) {
+                    known.add(helperName);
+                } else {
+                    throw new IllegalStateException(
+                            "Helper class is already visible: " + helperName);
                 }
             }
             if (missing.isEmpty()) {
                 return;
             }
-            rejectVisibleHelpers(loader, missing.keySet());
             ClassInjector injector = strategy.resolve(loader, protectionDomain);
             if (loader != null && injector instanceof ClassInjector.UsingReflection) {
                 injector = new ClassInjector.UsingReflection(
@@ -60,15 +69,20 @@ final class HelperInjector {
         }
     }
 
-    private static void rejectVisibleHelpers(ClassLoader loader, Set<String> helperNames) {
-        for (String helperName : helperNames) {
-            try {
-                Class.forName(helperName, false, loader);
-                throw new IllegalStateException("Helper class is already visible: " + helperName);
-            } catch (ClassNotFoundException expected) {
-                // The exact declared bytes can be injected under this binary name.
-            }
+    private static Class<?> visibleClass(String helperName, ClassLoader loader) {
+        try {
+            return Class.forName(helperName, false, loader);
+        } catch (ClassNotFoundException expected) {
+            return null;
         }
+    }
+
+    private boolean wasInjected(ClassLoader definingLoader, String helperName) {
+        if (definingLoader == null) {
+            return bootstrapInjected.contains(helperName);
+        }
+        Set<String> known = injected.get(new WeakIdentityKey(definingLoader, null));
+        return known != null && known.contains(helperName);
     }
 
     private Set<String> knownFor(ClassLoader loader) {

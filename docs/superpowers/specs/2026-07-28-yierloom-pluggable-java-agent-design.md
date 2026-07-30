@@ -399,6 +399,8 @@ Advice 的 `@Advice.OnMethodEnter` 和 `@Advice.OnMethodExit` 必须设置 `supp
 
 `method` 和 `exception` 各自拥有 matcher、Advice 和状态，不通过插件间调用共享生命周期。HTTP、JDBC、Redis 和 Kafka 可以复用 `com.nowcoder.yierloom.plugins` 下的内部无状态工具，但不能绕过 SPI 访问 Core 私有入口。
 
+Instrumentation 类匹配必须硬排除 JDK、日志框架、Byte Buddy 和 YierLoom 自身实现包；JDK 范围同时覆盖 `java.*`、`javax.*`、`sun.*`、`com.sun.*` 与 `jdk.*`，避免默认 `includes=*` 增强 JDK 内部实现类。
+
 旧配置按职责拆入插件 namespace：
 
 | 旧配置职责 | 新配置位置 |

@@ -49,7 +49,7 @@ class PluginDiscoveryTest {
             PluginDiscovery.Result missingResult = new PluginDiscovery().discover(config(missing), engineLoader);
 
             assertThat(missingResult.plugins()).extracting(plugin -> plugin.descriptor().id())
-                    .containsExactly("built-in");
+                    .containsExactly("built-in", "exception", "method");
             assertThat(missingResult.issues()).extracting(PluginIssue::reasonCode)
                     .containsExactly("EXTERNAL_DIRECTORY_INVALID");
             assertActivatable(missingResult);
@@ -57,7 +57,7 @@ class PluginDiscoveryTest {
             Path regularFile = Files.writeString(tempDir.resolve("not-a-directory"), "value");
             PluginDiscovery.Result fileResult = new PluginDiscovery().discover(config(regularFile), engineLoader);
             assertThat(fileResult.plugins()).extracting(plugin -> plugin.descriptor().id())
-                    .containsExactly("built-in");
+                    .containsExactly("built-in", "exception", "method");
             assertThat(fileResult.issues()).extracting(PluginIssue::reasonCode)
                     .containsExactly("EXTERNAL_DIRECTORY_INVALID");
             assertActivatable(fileResult);
@@ -75,7 +75,7 @@ class PluginDiscoveryTest {
 
         PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), getClass().getClassLoader());
 
-        assertThat(result.plugins()).extracting(plugin -> plugin.sourcePath().toString())
+        assertThat(externalPlugins(result)).extracting(plugin -> plugin.sourcePath().toString())
                 .containsExactly(
                         alpha.toAbsolutePath().normalize().toString(),
                         zeta.toAbsolutePath().normalize().toString());
@@ -96,7 +96,7 @@ class PluginDiscoveryTest {
             PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), engineLoader);
 
             assertThat(result.plugins()).extracting(plugin -> plugin.descriptor().id())
-                    .containsExactly("built-in");
+                    .containsExactly("built-in", "exception", "method");
             assertThat(result.issues()).extracting(PluginIssue::reasonCode)
                     .containsExactly("CANDIDATE_INVALID");
             assertActivatable(result);
@@ -117,7 +117,7 @@ class PluginDiscoveryTest {
 
         PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), getClass().getClassLoader());
 
-        assertThat(result.plugins()).isEmpty();
+        assertThat(externalPlugins(result)).isEmpty();
         assertThat(result.issues()).extracting(PluginIssue::reasonCode)
                 .containsExactly("PROVIDER_DECLARATION_INVALID", "PROVIDER_DECLARATION_INVALID");
         assertThat(result.externalLoaders()).isEmpty();
@@ -140,7 +140,7 @@ class PluginDiscoveryTest {
 
         PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), getClass().getClassLoader());
 
-        assertThat(result.plugins()).isEmpty();
+        assertThat(externalPlugins(result)).isEmpty();
         assertThat(result.issues()).extracting(PluginIssue::reasonCode)
                 .containsOnly("BUNDLED_FORBIDDEN_CLASS")
                 .hasSize(forbiddenEntries.size());
@@ -162,7 +162,7 @@ class PluginDiscoveryTest {
                 new java.net.URL[]{parentJar.toUri().toURL()}, getClass().getClassLoader())) {
             PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), engineLoader);
 
-            assertThat(result.plugins()).isEmpty();
+            assertThat(externalPlugins(result)).isEmpty();
             assertThat(result.issues()).extracting(PluginIssue::reasonCode)
                     .containsExactly("PROVIDER_TYPE_INVALID");
             assertThat(result.externalLoaders()).isEmpty();
@@ -185,7 +185,9 @@ class PluginDiscoveryTest {
 
         PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), getClass().getClassLoader());
 
-        assertThat(result.plugins()).extracting(plugin -> plugin.descriptor().id()).containsExactly("valid");
+        assertThat(externalPlugins(result))
+                .extracting(plugin -> plugin.descriptor().id())
+                .containsExactly("valid");
         assertThat(result.issues()).extracting(PluginIssue::reasonCode)
                 .containsExactly("PROVIDER_INSTANTIATION_FAILED");
         assertThat(result.externalLoaders()).hasSize(1);
@@ -204,12 +206,31 @@ class PluginDiscoveryTest {
                 new java.net.URL[]{serviceJar.toUri().toURL()}, getClass().getClassLoader())) {
             PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), engineLoader);
 
-            assertThat(result.plugins()).hasSize(1);
-            assertThat(result.plugins().get(0).source()).isEqualTo(PluginSource.BUILT_IN);
+            assertThat(result.plugins())
+                    .extracting(plugin -> plugin.descriptor().id())
+                    .containsExactly("built-in", "exception", "method");
+            assertThat(result.plugins()).allMatch(
+                    plugin -> plugin.source() == PluginSource.BUILT_IN);
             assertThat(result.issues()).extracting(PluginIssue::reasonCode)
                     .containsExactly("PROVIDER_DECLARATION_INVALID");
             assertThat(result.externalLoaders()).isEmpty();
         }
+    }
+
+    @Test
+    void discoversRegisteredMethodAndExceptionBuiltIns() {
+        PluginDiscovery.Result result = new PluginDiscovery().discover(
+                config(null), getClass().getClassLoader());
+
+        assertThat(result.plugins())
+                .allMatch(plugin -> plugin.source() == PluginSource.BUILT_IN)
+                .extracting(plugin -> plugin.descriptor().id())
+                .containsExactly("exception", "method");
+        assertThat(result.plugins())
+                .extracting(plugin -> plugin.descriptor().order())
+                .containsExactly(110, 100);
+        assertThat(result.issues()).isEmpty();
+        assertThat(result.externalLoaders()).isEmpty();
     }
 
     @Test
@@ -284,7 +305,7 @@ class PluginDiscoveryTest {
                 Clock.systemUTC());
         try {
             manager.activate(validation.plugins());
-            assertThat(manager.activePluginIds()).containsExactly("built-in");
+            assertThat(manager.activePluginIds()).contains("built-in", "method", "exception");
             assertThat(BUILT_IN_STARTS).hasValue(startsBeforeActivation + 1);
         } finally {
             manager.stopRuntimesInReverseOrder();
@@ -298,6 +319,12 @@ class PluginDiscoveryTest {
         for (YierLoomPluginClassLoader loader : result.externalLoaders()) {
             loader.close();
         }
+    }
+
+    private static List<DiscoveredPlugin> externalPlugins(PluginDiscovery.Result result) {
+        return result.plugins().stream()
+                .filter(plugin -> plugin.source() == PluginSource.EXTERNAL)
+                .toList();
     }
 
     private static String providerSource(String simpleName, String id) {

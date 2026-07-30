@@ -1,6 +1,5 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.api.action.PostModerationActionApi;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.repository.PostRepository;
 import com.nowcoder.community.content.domain.service.PostModerationDomainService;
@@ -11,7 +10,7 @@ import java.util.Date;
 import java.util.UUID;
 
 @Service
-public class PostModerationApplicationService implements PostModerationActionApi {
+public class PostModerationApplicationService {
 
     private final PostModerationDomainService domainService;
     private final PostRepository postRepository;
@@ -33,7 +32,6 @@ public class PostModerationApplicationService implements PostModerationActionApi
         this.postBusinessEventLogger = postBusinessEventLogger;
     }
 
-    @Override
     @Transactional
     public void top(UUID actorUserId, UUID postId) {
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
@@ -43,7 +41,6 @@ public class PostModerationApplicationService implements PostModerationActionApi
         postBusinessEventLogger.postTop(actorUserId, postId);
     }
 
-    @Override
     @Transactional
     public void wonderful(UUID actorUserId, UUID postId) {
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
@@ -53,7 +50,6 @@ public class PostModerationApplicationService implements PostModerationActionApi
         postBusinessEventLogger.postWonderful(actorUserId, postId);
     }
 
-    @Override
     @Transactional
     public void delete(UUID actorUserId, UUID postId) {
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);

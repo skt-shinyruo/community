@@ -1,7 +1,5 @@
 package com.nowcoder.community.market.application;
 
-import com.nowcoder.community.market.api.action.MarketOrderAutoConfirmActionApi;
-import com.nowcoder.community.market.api.model.MarketOrderAutoConfirmResult;
 import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import org.springframework.stereotype.Service;
@@ -9,7 +7,7 @@ import org.springframework.stereotype.Service;
 import java.util.Date;
 
 @Service
-public class MarketOrderAutoConfirmApplicationService implements MarketOrderAutoConfirmActionApi {
+public class MarketOrderAutoConfirmApplicationService {
 
     private final MarketOrderRepository marketOrderRepository;
     private final MarketOrderAutoConfirmer autoConfirmer;
@@ -22,7 +20,6 @@ public class MarketOrderAutoConfirmApplicationService implements MarketOrderAuto
         this.autoConfirmer = autoConfirmer;
     }
 
-    @Override
     public MarketOrderAutoConfirmResult autoConfirmDueOrders() {
         int completed = 0;
         int skipped = 0;
@@ -39,5 +36,11 @@ public class MarketOrderAutoConfirmApplicationService implements MarketOrderAuto
             }
         }
         return new MarketOrderAutoConfirmResult(completed, skipped);
+    }
+
+    public record MarketOrderAutoConfirmResult(
+            int completedCount,
+            int skippedCount
+    ) {
     }
 }

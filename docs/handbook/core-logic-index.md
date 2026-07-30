@@ -148,9 +148,7 @@
 | `content.domain.service.ModerationDecisionDomainService` | 内容治理决策规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.domain.service.PostModerationDomainService` | 帖子治理状态规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.domain.service.PostHotnessDomainService` | epoch、加精、评论、点赞与 signal weight 热度公式 | [Content 内容业务逻辑](business-logic/content.md#热度预热与-counter) | Covered |
-| `content.infrastructure.api.PostPublishingActionApiAdapter` | published block payload 到内部发布 command 的规范化 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
-| `content.infrastructure.api.PostReadQueryApiAdapter` | 大型帖子 read projection 到 published view 的转换 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
-| `content.infrastructure.api.CommentReadQueryApiAdapter` | 评论层级到 published entity target 的转换 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
+| `content.infrastructure.api.PostReadQueryApiAdapter` | content read result 到 profile author activity view 的转换 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
 | `content.infrastructure.text.SensitiveFilter` | sensitive word trie sanitizer and fail-fast dictionary loading | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
 | `content.infrastructure.event.OutboxContentEventPublisher` | content contract event 写 `eventbus.content` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `content.infrastructure.event.ContentEventKafkaOutboxHandler` | `eventbus.content` outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |

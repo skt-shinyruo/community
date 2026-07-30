@@ -68,9 +68,7 @@ ArchUnit 主要守卫越层、owner 泄漏、transport 泄漏和事务位置。�
 | Adapter | 实质职责 |
 | --- | --- |
 | `AnalyticsIngestActionApiAdapter` | 配置驱动的 DAU capture policy。 |
-| `PostPublishingActionApiAdapter` | published content block 到内部 command 的规范化。 |
-| `PostReadQueryApiAdapter` | 大型、递归 read projection 的 published view 转换。 |
-| `CommentReadQueryApiAdapter` | comment hierarchy 到 entity target 的推导。 |
+| `PostReadQueryApiAdapter` | content read result 到 profile 所需 published author activity view 的收缩。 |
 | `SocialLikeQueryAdapter` | foreign API 到本地 port 的 entity type 和空值策略。 |
 | `UserCredentialApiAdapter` | not-found、authentication failure 和 credential view 翻译。 |
 

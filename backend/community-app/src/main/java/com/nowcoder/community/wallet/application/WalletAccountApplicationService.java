@@ -2,7 +2,6 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.wallet.api.query.WalletAccountQueryApi;
 import com.nowcoder.community.wallet.application.result.WalletSummaryResult;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletAccountChange;
@@ -20,7 +19,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Service
-public class WalletAccountApplicationService implements WalletAccountQueryApi {
+public class WalletAccountApplicationService {
 
     private static final UUID SYSTEM_OWNER_ID = new UUID(0L, 0L);
 
@@ -62,7 +61,6 @@ public class WalletAccountApplicationService implements WalletAccountQueryApi {
         );
     }
 
-    @Override
     public long balanceOfUser(UUID userId) {
         WalletAccount account = walletAccountRepository.findByOwner(
                 WalletAccountDomainService.OWNER_TYPE_USER,
@@ -76,7 +74,6 @@ public class WalletAccountApplicationService implements WalletAccountQueryApi {
         return new WalletSummaryResult(userId, balanceOfUser(userId), statusOfUser(userId));
     }
 
-    @Override
     public String statusOfUser(UUID userId) {
         WalletAccount account = walletAccountRepository.findByOwner(
                 WalletAccountDomainService.OWNER_TYPE_USER,

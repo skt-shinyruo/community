@@ -71,9 +71,7 @@
 
 | 类 | 核心职责 |
 | --- | --- |
-| `content.infrastructure.api.PostPublishingActionApiAdapter` | published block payload 到内部发布 command 的规范化。 |
-| `content.infrastructure.api.PostReadQueryApiAdapter` | 大型帖子 read projection 到 published view 的转换。 |
-| `content.infrastructure.api.CommentReadQueryApiAdapter` | 根据评论层级推导 published entity type / id。 |
+| `content.infrastructure.api.PostReadQueryApiAdapter` | content read result 到 profile author activity view 的转换。 |
 | `content.infrastructure.api.SocialLikeQueryAdapter` | social owner query 到 content like query port，并提供空值策略。 |
 | `content.infrastructure.text.SensitiveFilter` | 敏感词 trie sanitizer 和 fail-fast 字典加载。 |
 | `content.infrastructure.oss.OssPostMediaStorageAdapter` | content 到 OSS 的媒体适配。 |

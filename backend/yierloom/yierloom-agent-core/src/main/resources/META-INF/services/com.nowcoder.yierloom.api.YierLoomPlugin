@@ -1,1 +1,2 @@
-# Built-in YierLoom providers are registered by their migration tasks.
+com.nowcoder.yierloom.plugins.method.MethodPlugin
+com.nowcoder.yierloom.plugins.exception.ExceptionPlugin

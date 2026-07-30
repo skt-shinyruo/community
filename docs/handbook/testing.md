@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 后端单元 / slice / 集成测试 | 验证 domain、application、adapter、controller、infra 行为。 | `backend/**/src/test/java/**/*.java` |
 | 架构守卫 | 防止 DDD 分层、事务边界、DTO / domain / infra 依赖退化。 | `backend/community-app/src/test/java/com/nowcoder/community/app/arch` |
-| 数据库迁移契约 / 集成测试 | 验证三个 Flyway deployable、V001 manifest、升级、权限与 Compose 启动依赖。 | `backend/community-*-db-migrations/src/test/**`、`deploy/tests/*_migration_contract.sh` |
+| 数据库当前态契约 / 集成测试 | 验证单一 schema 快照、必要引用数据、最小权限、Compose 初始化/复制依赖和 MySQL-only reset。 | `deploy/tests/*_schema_snapshot_contract.sh`、`deploy/tests/reset_mysql_contract.sh`、相关模块 MySQL 契约测试 |
 | 前端单元 / 组件测试 | 验证路由、session、HTTP interceptor、状态纯函数、Vue 组件交互。 | `frontend/src/**/*.test.js` |
 | 压测套件结构测试 | 验证 k6 profile、运行器、共享库、场景和文档入口。 | `tests/k6/tests/*.test.mjs` |
 | 工具测试 | 验证本地工具的 env、API contract、job、planner、batch delete。 | `tools/**/test/*.mjs` |
@@ -22,7 +22,7 @@
 | 只改 handbook / README | `git diff --check -- docs README.md frontend/README.md backend/README.md deploy/README.md tools` | 视内容引用的命令，抽样运行相关测试。 |
 | 后端业务逻辑 | 定向 `mvn test -pl <module> -Dtest=<TestName>` | `cd backend && mvn test` |
 | 后端架构规则 / 包结构 | 对应 ArchUnit 测试 | `cd backend && mvn test -pl :community-app -Dtest='*ArchTest'` 和全量后端测试 |
-| Flyway migration / schema / Compose 依赖 | 对应 migration 模块测试 | 三个 `deploy/tests/*_migration_contract.sh`，可用 Docker 时再跑模块 Testcontainers 集成测试 |
+| 当前态 schema / Compose 依赖 | 三个 schema snapshot 契约和 `reset_mysql_contract.sh` | 可用 Docker 时运行 community-app、community-oss、im-core 的 MySQL/Testcontainers 契约和 clean topology smoke |
 | 幂等 / outbox / scheduler / saga | 定向可靠性测试 | `cd backend && mvn test`，必要时本地 compose 演练 |
 | 前端路由 / session / HTTP / store / 页面状态 | 定向 Vitest 文件 | `cd frontend && npm test` |
 | 前端构建相关 | `cd frontend && npm run build` | `cd frontend && npm test && npm run build` |
@@ -111,26 +111,27 @@ mvn test -pl :community-app -Dtest='*ArchTest'
 4. 下游失败后的重试或补偿。
 5. 坏 payload / 不支持版本进入明确失败路径。
 
-## 数据库迁移验证
+## 数据库当前态验证
 
-只读渲染并验证三个 migration service、DDL/DML 账号和 runtime 等待关系：
+验证快照内容、Compose 初始化挂载、DML-only 账号、runtime 等待关系和 MySQL-only reset：
 
 ```bash
-./deploy/tests/community_migration_contract.sh
-./deploy/tests/oss_migration_contract.sh
-./deploy/tests/im_migration_contract.sh
+./deploy/tests/community_schema_snapshot_contract.sh
+./deploy/tests/oss_schema_snapshot_contract.sh
+./deploy/tests/im_schema_snapshot_contract.sh
+./deploy/tests/reset_mysql_contract.sh
 ```
 
-模块测试从 `backend/` 执行；其中集成测试需要可用的 Docker/Testcontainers：
+相关 Testcontainers 契约从 `backend/` 执行，需要可用的 Docker：
 
 ```bash
 cd backend
-mvn test -pl :community-db-migrations
-mvn test -pl :community-oss-db-migrations
-mvn test -pl :community-im-db-migrations
+mvn test -pl :community-app -Dtest='CommunityBootstrapScriptTest,DriveSchemaResourceTest'
+mvn test -pl :community-oss -Dtest='OssSchemaResourceTest,OssUploadCurrentSchemaContractTest,ObjectUploadPrepareMySqlConcurrencyContractTest'
+mvn test -pl :im-core -Dtest=ImCoreMySqlCurrentSchemaRepositoryContractTest
 ```
 
-这些测试应覆盖空库 migrate、V001 baseline 精确校验、后续版本升级、固定 location、默认或受约束的 history table，以及禁止危险 override。运行 `baseline` 命令会改数据库，不属于 handbook-only 变更的验证动作。
+这些测试应覆盖三个固定 schema、最终列/索引、必要引用行、无 history table、无 evolution DDL、空卷初始化、cluster 复制依赖，以及 reset 只删除明确命名的 MySQL volumes。
 
 ## 前端测试
 

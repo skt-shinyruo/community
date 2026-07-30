@@ -11,15 +11,17 @@ class OssSchemaResourceTest {
 
     @Test
     void deploySchemaShouldCreateAllOssTables() throws Exception {
-        String schema = Files.readString(Path.of("..", "..", "deploy", "mysql", "community_oss", "010_schema.sql"));
+        String schema = Files.readString(Path.of(
+                "..", "..", "deploy", "mysql", "primary-init", "010_current_schema.sql"))
+                .toLowerCase(java.util.Locale.ROOT);
 
         assertThat(schema).contains(
-                "create table if not exists oss_object",
-                "create table if not exists oss_object_version",
-                "create table if not exists oss_upload_session",
-                "create table if not exists oss_access_grant",
-                "create table if not exists oss_object_reference",
-                "create table if not exists oss_usage_policy"
+                "create table `oss_object`",
+                "create table `oss_object_version`",
+                "create table `oss_upload_session`",
+                "create table `oss_access_grant`",
+                "create table `oss_object_reference`",
+                "create table `oss_usage_policy`"
         );
     }
 

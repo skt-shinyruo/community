@@ -108,7 +108,7 @@ services:
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
     - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
-    - DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${MYSQL_DATABASE:-community}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - DB_USERNAME=${MYSQL_USER:-community}
     - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
     - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
@@ -129,8 +129,6 @@ services:
       nacos-1:
         condition: service_healthy
       mock-data-studio-db-bootstrap:
-        condition: service_completed_successfully
-      community-db-migrations:
         condition: service_completed_successfully
       community-dev-seed:
         condition: service_completed_successfully
@@ -198,7 +196,7 @@ services:
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
     - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
-    - DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${MYSQL_DATABASE:-community}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - DB_USERNAME=${MYSQL_USER:-community}
     - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
     - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
@@ -219,8 +217,6 @@ services:
       nacos-1:
         condition: service_healthy
       mock-data-studio-db-bootstrap:
-        condition: service_completed_successfully
-      community-db-migrations:
         condition: service_completed_successfully
       community-dev-seed:
         condition: service_completed_successfully
@@ -284,7 +280,7 @@ services:
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
     - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
-    - DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${MYSQL_DATABASE:-community}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - DB_USERNAME=${MYSQL_USER:-community}
     - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
     - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
@@ -305,8 +301,6 @@ services:
       nacos-1:
         condition: service_healthy
       mock-data-studio-db-bootstrap:
-        condition: service_completed_successfully
-      community-db-migrations:
         condition: service_completed_successfully
       community-dev-seed:
         condition: service_completed_successfully
@@ -366,13 +360,15 @@ services:
     - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
-    - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${OSS_MYSQL_DATABASE:-community_oss}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/community_oss?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - OSS_DB_USERNAME=${OSS_MYSQL_USER:-community_oss}
     - OSS_DB_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}
     - OSS_OBJECT_STORE_ACCESS_KEY=${GARAGE_DEFAULT_ACCESS_KEY:-GK000000000000000000000001}
     - OSS_OBJECT_STORE_SECRET_KEY=${GARAGE_DEFAULT_SECRET_KEY:-0000000000000000000000000000000000000000000000000000000000000001}
     depends_on:
-      community-oss-db-migrations:
+      community-db-user-bootstrap:
+        condition: service_completed_successfully
+      mysql-replication-bootstrap:
         condition: service_completed_successfully
       nacos-db-bootstrap:
         condition: service_completed_successfully
@@ -442,14 +438,12 @@ services:
     - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
-    - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${OSS_MYSQL_DATABASE:-community_oss}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/community_oss?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - OSS_DB_USERNAME=${OSS_MYSQL_USER:-community_oss}
     - OSS_DB_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}
     - OSS_OBJECT_STORE_ACCESS_KEY=${GARAGE_DEFAULT_ACCESS_KEY:-GK000000000000000000000001}
     - OSS_OBJECT_STORE_SECRET_KEY=${GARAGE_DEFAULT_SECRET_KEY:-0000000000000000000000000000000000000000000000000000000000000001}
     depends_on:
-      community-oss-db-migrations:
-        condition: service_completed_successfully
       community-oss-1:
         condition: service_healthy
       nacos-config-bootstrap:
@@ -502,14 +496,12 @@ services:
     - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
     - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
-    - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${OSS_MYSQL_DATABASE:-community_oss}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/community_oss?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - OSS_DB_USERNAME=${OSS_MYSQL_USER:-community_oss}
     - OSS_DB_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}
     - OSS_OBJECT_STORE_ACCESS_KEY=${GARAGE_DEFAULT_ACCESS_KEY:-GK000000000000000000000001}
     - OSS_OBJECT_STORE_SECRET_KEY=${GARAGE_DEFAULT_SECRET_KEY:-0000000000000000000000000000000000000000000000000000000000000001}
     depends_on:
-      community-oss-db-migrations:
-        condition: service_completed_successfully
       community-oss-1:
         condition: service_healthy
       nacos-config-bootstrap:
@@ -975,7 +967,7 @@ services:
     - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
     - IM_CORE_DB_PRIMARY_HOST=${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}
-    - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/im_core?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
     - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
     depends_on:
@@ -987,7 +979,9 @@ services:
         condition: service_healthy
       mysql-primary:
         condition: service_healthy
-      community-im-db-migrations:
+      community-db-user-bootstrap:
+        condition: service_completed_successfully
+      mysql-replication-bootstrap:
         condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
@@ -1043,7 +1037,7 @@ services:
     - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
     - IM_CORE_DB_PRIMARY_HOST=${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}
-    - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/im_core?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
     - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
     depends_on:
@@ -1055,7 +1049,9 @@ services:
         condition: service_healthy
       mysql-primary:
         condition: service_healthy
-      community-im-db-migrations:
+      community-db-user-bootstrap:
+        condition: service_completed_successfully
+      mysql-replication-bootstrap:
         condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
@@ -1107,7 +1103,7 @@ services:
     - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
     - IM_CORE_DB_PRIMARY_HOST=${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}
-    - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/im_core?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
     - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
     depends_on:
@@ -1119,7 +1115,9 @@ services:
         condition: service_healthy
       mysql-primary:
         condition: service_healthy
-      community-im-db-migrations:
+      community-db-user-bootstrap:
+        condition: service_completed_successfully
+      mysql-replication-bootstrap:
         condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully

@@ -1,37 +1,15 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import test from 'node:test'
-import { fileURLToPath } from 'node:url'
 
 import { createBatchRepository } from '../src/batches/batchRepository.mjs'
 import { createEntityRefRepository } from '../src/batches/entityRefRepository.mjs'
 import { createJobRepository } from '../src/jobs/jobRepository.mjs'
-import {
-  bootstrapDemoSchema,
-  demoMetadataTableStatements
-} from '../src/db/bootstrap.mjs'
+import { seedDefaultAiConfig } from '../src/db/bootstrap.mjs'
 import { createTargetRepository } from '../src/batches/targetRepository.mjs'
 import { bufferToUuid, isUuidV7 } from '../src/db/uuidv7.mjs'
 
-const communityDir = fileURLToPath(new URL('../../../deploy/mysql/community/', import.meta.url))
-const demoMetadataSchemaPath = path.join(communityDir, '011_schema_demo_metadata.sql')
-const communityBootstrapPath = path.join(communityDir, '001_bootstrap.sh')
-
 function normalizeSql(sql) {
   return sql.replace(/;+\s*$/u, '').trim().replace(/\s+/gu, ' ').toLowerCase()
-}
-
-function extractDemoCreateTableStatements(schemaSql) {
-  return [
-    ...schemaSql.matchAll(/create table if not exists (?:demo_[^(]+|ai_config)\s*\([\s\S]*?\);/giu)
-  ].map((match) => match[0])
-}
-
-function extractBootstrapOrder(scriptText) {
-  const match = scriptText.match(/SCHEMA_FILES=\(([\s\S]*?)\)\n/u)
-  assert.ok(match, 'SCHEMA_FILES array missing from community bootstrap script')
-  return [...match[1].matchAll(/\s+([0-9]{3}_[A-Za-z0-9_.-]+)\n/gu)].map((entry) => entry[1])
 }
 
 function stringifyKey(batchId, entityType, key) {
@@ -388,24 +366,15 @@ function hydrateTimestamp(value) {
   return new Date(String(value).replace(' ', 'T').replace(/$/u, 'Z'))
 }
 
-test('bootstrapDemoSchema DDL matches the deploy community metadata schema and replay order', async () => {
+test('seedDefaultAiConfig inserts exactly one idempotent default row', async () => {
   const db = new FakeMetadataDb()
 
-  await bootstrapDemoSchema(db)
+  await seedDefaultAiConfig(db)
 
-  const schemaSql = readFileSync(demoMetadataSchemaPath, 'utf8')
-  const schemaStatements = extractDemoCreateTableStatements(schemaSql)
-  const bootstrapOrder = extractBootstrapOrder(readFileSync(communityBootstrapPath, 'utf8'))
-
-  assert.equal(schemaStatements.length, demoMetadataTableStatements.length)
-  assert.deepEqual(
-    db.ddlStatements.map(normalizeSql),
-    schemaStatements.map(normalizeSql)
-  )
-  assert.deepEqual(bootstrapOrder.slice(0, 2), ['010_schema_shared.sql', '011_schema_demo_metadata.sql'])
+  assert.deepEqual(db.ddlStatements, [])
   assert.equal(db.tables.ai_config.length, 1)
 
-  await bootstrapDemoSchema(db)
+  await seedDefaultAiConfig(db)
 
   assert.equal(db.tables.ai_config.length, 1)
 })

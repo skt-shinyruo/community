@@ -16,6 +16,12 @@ if rg -n "${retired}" "${REPO_ROOT}/backend" --glob '**/src/main/**' --glob '!**
   exit 1
 fi
 
+if rg -n 'nacos/nacos-server:v2\.3\.2-slim|/nacos/actuator/health' "${REPO_ROOT}/deploy" \
+    --glob '!deploy/tests/**'; then
+  echo "retired Nacos 2.3.2 runtime or health endpoint remains" >&2
+  exit 1
+fi
+
 current_schema="${REPO_ROOT}/deploy/mysql/primary-init/010_current_schema.sql"
 in_place_schema_change='information_schema|prepare[[:space:]]+stmt|deallocate[[:space:]]+prepare|alter[[:space:]]+table|drop[[:space:]]+(table|index)'
 if rg -n -i "${in_place_schema_change}" "${current_schema}"; then
@@ -130,3 +136,4 @@ rg -Fq 'im.command.room-fanout-routed' "${REPO_ROOT}/deploy/scripts/bootstrap-ka
 rg -Fq 'im.command.room-fanout-routed' "${REPO_ROOT}/docs/handbook"
 rg -q 'schemaVersion.{0,12}1' "${REPO_ROOT}/docs/handbook/business-logic/im.md"
 "${REPO_ROOT}/deploy/tests/topology_single_cluster.sh" >/dev/null
+"${REPO_ROOT}/deploy/tests/nacos_schema_contract.sh" >/dev/null

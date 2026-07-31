@@ -281,6 +281,14 @@ public final class EngineRuntime implements AutoCloseable {
         return List.copyOf(lines);
     }
 
+    static List<String> shutdownIssueLines(List<PluginReport> reports) {
+        return Objects.requireNonNull(reports, "reports").stream()
+                .filter(report -> report.state() == PluginState.STOPPED)
+                .filter(report -> report.reasonCode() != null)
+                .map(report -> "[YierLoom] plugin shutdown issue: " + report.summary())
+                .toList();
+    }
+
     private static PluginIdentity identity(PluginReport report) {
         return new PluginIdentity(report.sourcePath(), report.pluginId());
     }
@@ -455,6 +463,7 @@ public final class EngineRuntime implements AutoCloseable {
         @Override
         public void stopPluginRuntimes() {
             lifecycle.stopRuntimesInReverseOrder();
+            shutdownIssueLines(lifecycle.reports()).forEach(System.err::println);
         }
 
         @Override

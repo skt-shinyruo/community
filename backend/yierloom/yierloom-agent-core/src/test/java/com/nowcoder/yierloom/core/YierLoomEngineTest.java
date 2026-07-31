@@ -377,7 +377,7 @@ class YierLoomEngineTest {
                         true,
                         PluginState.STOPPED,
                         "RUNTIME_STOP_FAILED",
-                        ""),
+                        "exception.message=secret, stack=private"),
                 new PluginReport(
                         Path.of("plugins", "healthy.jar"),
                         "healthy",
@@ -390,7 +390,8 @@ class YierLoomEngineTest {
                 "[YierLoom] plugin shutdown issue: source=plugins/stop-failure.jar, "
                         + "plugin=stop-failure, enabled=true, state=STOPPED, "
                         + "reason=RUNTIME_STOP_FAILED");
-        assertThat(String.join("\n", lines)).doesNotContain("exception", "message", "stack");
+        assertThat(String.join("\n", lines))
+                .doesNotContain("exception", "message", "secret", "stack", "private");
     }
 
     private YierLoomBridge.Endpoint endpoint() {

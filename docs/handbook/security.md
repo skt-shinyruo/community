@@ -76,8 +76,9 @@ gateway-first 模式下，浏览器入口配置来自：
 
 - `nacos-config-bootstrap` 使用唯一的 `BROWSER_ALLOWED_ORIGINS` 输入渲染
   `community-gateway.yaml`，再发布 `gateway.cors.allowed-origins`。
-- 同一个 bootstrap 还渲染 `FRONTEND_PUBLIC_ORIGIN`、`OSS_PUBLIC_BASE_URL` 和
-  `IM_GATEWAY_PUBLIC_WS_URL`，分别用于重置密码链接、OSS 文件地址和 IM WebSocket 地址。
+- 同一个 bootstrap 还渲染 `FRONTEND_PUBLIC_ORIGIN`、`GATEWAY_PUBLIC_BASE_URL`、
+  `OSS_PUBLIC_BASE_URL` 和 `IM_GATEWAY_PUBLIC_WS_URL`，分别用于重置密码链接、运行时
+  Gateway 地址、OSS 文件地址和 IM WebSocket 地址。
 - 覆盖 `/api/**` 与 `/files/**`。
 - gateway 会去重下游重复 `Access-Control-Allow-*` 头。
 

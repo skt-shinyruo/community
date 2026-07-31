@@ -1,8 +1,8 @@
 frontend:
   runtime:
     api-base-path: /api
-    public-gateway-origin: http://localhost:12880
-    websocket-url: ws://localhost:12880/ws/im
+    public-gateway-origin: ${GATEWAY_PUBLIC_BASE_URL}
+    websocket-url: ${IM_GATEWAY_PUBLIC_WS_URL}
     analytics-enabled: false
     analytics-sample-rate: 0.0
     release-channel: local

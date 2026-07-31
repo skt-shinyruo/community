@@ -123,8 +123,9 @@
 
 `nacos-config-bootstrap` 会把 `deploy/nacos/config/*.yaml` 发布到 Nacos group
 `COMMUNITY`。启动时它接收 `BROWSER_ALLOWED_ORIGINS`、`FRONTEND_PUBLIC_ORIGIN`、
-`OSS_PUBLIC_BASE_URL` 和 `IM_GATEWAY_PUBLIC_WS_URL`，将它们渲染到 Gateway、
-community-app、community-oss 和 IM 的浏览器 CORS/OriginGuard/公开端点 seed 后再上传；
+`GATEWAY_PUBLIC_BASE_URL`、`OSS_PUBLIC_BASE_URL` 和 `IM_GATEWAY_PUBLIC_WS_URL`，将它们
+渲染到 Gateway、community-app、community-oss、frontend runtime 和 IM 的浏览器
+CORS/OriginGuard/公开端点 seed 后再上传；
 原始 seed 文件保持只读模板。这样动态端口和本地默认端口走同一条配置链，runtime service
 不需要接收 owner-specific CORS 环境变量。这些 seed 文件不得包含密码、token、access
 key、JWT HMAC secret 或其他密钥。

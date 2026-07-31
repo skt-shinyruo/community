@@ -7,6 +7,7 @@ NACOS_NAMESPACE="${NACOS_NAMESPACE:-}"
 CONFIG_DIR="${CONFIG_DIR:-/nacos/config}"
 BROWSER_ALLOWED_ORIGINS="${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}"
 FRONTEND_PUBLIC_ORIGIN="${FRONTEND_PUBLIC_ORIGIN:?FRONTEND_PUBLIC_ORIGIN is required}"
+GATEWAY_PUBLIC_BASE_URL="${GATEWAY_PUBLIC_BASE_URL:?GATEWAY_PUBLIC_BASE_URL is required}"
 OSS_PUBLIC_BASE_URL="${OSS_PUBLIC_BASE_URL:?OSS_PUBLIC_BASE_URL is required}"
 IM_GATEWAY_PUBLIC_WS_URL="${IM_GATEWAY_PUBLIC_WS_URL:?IM_GATEWAY_PUBLIC_WS_URL is required}"
 
@@ -21,6 +22,7 @@ validate_template_value() {
 
 validate_template_value BROWSER_ALLOWED_ORIGINS "${BROWSER_ALLOWED_ORIGINS}"
 validate_template_value FRONTEND_PUBLIC_ORIGIN "${FRONTEND_PUBLIC_ORIGIN}"
+validate_template_value GATEWAY_PUBLIC_BASE_URL "${GATEWAY_PUBLIC_BASE_URL}"
 validate_template_value OSS_PUBLIC_BASE_URL "${OSS_PUBLIC_BASE_URL}"
 validate_template_value IM_GATEWAY_PUBLIC_WS_URL "${IM_GATEWAY_PUBLIC_WS_URL}"
 
@@ -36,6 +38,7 @@ escape_sed_replacement() {
 
 escaped_browser_origins="$(escape_sed_replacement "${BROWSER_ALLOWED_ORIGINS}")"
 escaped_frontend_origin="$(escape_sed_replacement "${FRONTEND_PUBLIC_ORIGIN}")"
+escaped_gateway_base_url="$(escape_sed_replacement "${GATEWAY_PUBLIC_BASE_URL}")"
 escaped_oss_base_url="$(escape_sed_replacement "${OSS_PUBLIC_BASE_URL}")"
 escaped_im_ws_url="$(escape_sed_replacement "${IM_GATEWAY_PUBLIC_WS_URL}")"
 render_config() {
@@ -46,10 +49,11 @@ render_config() {
   sed \
     -e "s|\${BROWSER_ALLOWED_ORIGINS}|${escaped_browser_origins}|g" \
     -e "s|\${FRONTEND_PUBLIC_ORIGIN}|${escaped_frontend_origin}|g" \
+    -e "s|\${GATEWAY_PUBLIC_BASE_URL}|${escaped_gateway_base_url}|g" \
     -e "s|\${OSS_PUBLIC_BASE_URL}|${escaped_oss_base_url}|g" \
     -e "s|\${IM_GATEWAY_PUBLIC_WS_URL}|${escaped_im_ws_url}|g" \
     "${source_file}" >"${rendered_file}"
-  for placeholder in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
+  for placeholder in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN GATEWAY_PUBLIC_BASE_URL OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
     if grep -F "\${${placeholder}}" "${rendered_file}" >/dev/null; then
       echo "[nacos-config-bootstrap] unresolved ${placeholder} placeholder in ${data_id}" >&2
       exit 1

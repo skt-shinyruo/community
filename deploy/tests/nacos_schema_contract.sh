@@ -71,3 +71,41 @@ for required_structure in config_info_gray publish_type gray_name ext_info; do
     exit 1
   fi
 done
+
+schema_container="nacos-schema-contract-$$"
+cleanup_schema_container() {
+  docker rm -f "${schema_container}" >/dev/null 2>&1 || true
+}
+trap 'cleanup_schema_container; rm -rf "${tmp_dir}"' EXIT
+
+docker run -d --rm --name "${schema_container}" \
+  -e MYSQL_ROOT_PASSWORD=contract-root-password \
+  -e MYSQL_DATABASE=nacos \
+  mysql:8.0 >/dev/null
+for attempt in $(seq 1 60); do
+  if docker exec "${schema_container}" mysqladmin ping \
+      -h127.0.0.1 -uroot -pcontract-root-password --silent >/dev/null 2>&1; then
+    break
+  fi
+  if [ "${attempt}" -eq 60 ]; then
+    echo 'contract MySQL did not become ready' >&2
+    exit 1
+  fi
+  sleep 1
+done
+docker exec -i "${schema_container}" mysql --default-character-set=utf8mb4 \
+  -uroot -pcontract-root-password nacos <"${baseline_schema}"
+docker exec -i "${schema_container}" mysql --default-character-set=utf8mb4 \
+  -uroot -pcontract-root-password nacos <"${compatibility_migration}"
+docker exec -i "${schema_container}" mysql --default-character-set=utf8mb4 \
+  -uroot -pcontract-root-password nacos <"${compatibility_migration}"
+schema_check="$(docker exec "${schema_container}" mysql -N -B \
+  -uroot -pcontract-root-password nacos -e \
+  "select count(*) from information_schema.tables where table_schema = 'nacos' and table_name = 'config_info_gray';")"
+test "${schema_check}" = '1'
+for required_column in publish_type gray_name ext_info; do
+  schema_check="$(docker exec "${schema_container}" mysql -N -B \
+    -uroot -pcontract-root-password nacos -e \
+    "select count(*) from information_schema.columns where table_schema = 'nacos' and table_name = 'his_config_info' and column_name = '${required_column}';")"
+  test "${schema_check}" = '1'
+done

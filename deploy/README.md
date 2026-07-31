@@ -86,7 +86,7 @@
 - 统一入口：`http://localhost:12880`
 - IM session bootstrap：`POST http://localhost:12880/api/im/sessions`
 - IM WebSocket：session `wsUrl` 默认 `ws://localhost:12880/ws/im`
-- Nacos：`http://localhost:18848/nacos`，作为服务注册中心和非密钥配置中心。
+- Nacos 3.1.2：`http://localhost:18848/nacos`，作为服务注册中心和非密钥配置中心。
 - XXL-JOB：`http://localhost:12887/xxl-job-admin`
 - MailHog：`http://localhost:8025`
 
@@ -124,6 +124,11 @@
 `nacos-config-bootstrap` 会把 `deploy/nacos/config/*.yaml` 发布到 Nacos group
 `COMMUNITY`。这些 seed 文件不得包含密码、token、access key、JWT HMAC secret 或
 其他密钥。
+
+Nacos 3.1.2 使用 `/nacos/v3/admin/core/state/readiness` 作为 readiness 接口，Compose
+健康检查会同时验证响应中的 `code=0` 和 9848 gRPC 端口。`nacos-db-bootstrap` 会在
+新数据库导入 3.1.2 基线；检测到已有 Nacos 2.3.2 数据库时，会保留历史数据并幂等补齐
+`config_info_gray` 及 `his_config_info` 的灰度字段。
 
 ## 停止与清理
 

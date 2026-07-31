@@ -63,7 +63,9 @@ class NacosImRealtimeBindingTest {
                 .isEqualTo("${IM_ROOM_FANOUT_WORKER_INBOX_SLOT}");
         assertThat(environment.getProperty("im.room-fanout.worker-inbox-slot", Integer.class)).isZero();
         assertThat(environment.getProperty("im.room-fanout.publish-timeout")).isEqualTo("PT1S");
-        assertThat(environment.getProperty("im.cors.allowed-origins[2]")).isEqualTo("http://localhost:12881");
+        assertThat(environment.getProperty("im.cors.allowed-origins")).isEqualTo(
+                "http://localhost:5173,http://127.0.0.1:5173,http://localhost:12881,http://127.0.0.1:12881,http://localhost:12888,http://127.0.0.1:12888"
+        );
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.draining", Boolean.class)).isFalse();
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.maxConnections", Integer.class)).isEqualTo(10000);
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.activeConnectionHint", Integer.class)).isZero();
@@ -92,7 +94,9 @@ class NacosImRealtimeBindingTest {
         sources.addFirst(new YamlPropertySourceLoader().load(fileName, new FileSystemResource(path)).get(0));
         sources.addFirst(new MapPropertySource("test-worker-env", Map.of(
                 "IM_REALTIME_WORKER_ID", "im-realtime-test",
-                "IM_ROOM_FANOUT_WORKER_INBOX_SLOT", "0"
+                "IM_ROOM_FANOUT_WORKER_INBOX_SLOT", "0",
+                "BROWSER_ALLOWED_ORIGINS",
+                "http://localhost:5173,http://127.0.0.1:5173,http://localhost:12881,http://127.0.0.1:12881,http://localhost:12888,http://127.0.0.1:12888"
         )));
         return environment;
     }

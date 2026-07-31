@@ -5,6 +5,7 @@ import com.nowcoder.community.gateway.edge.EdgeTrustedProxyProperties;
 import com.nowcoder.community.gateway.edge.RateLimitProperties;
 import com.nowcoder.community.gateway.edge.TrafficPolicyProperties;
 import com.nowcoder.community.gateway.http.GatewayHttpRouteProperties;
+import com.nowcoder.community.gateway.security.GatewayCorsProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
@@ -32,6 +33,8 @@ class NacosGatewayBindingTest {
                 .orElseThrow(IllegalStateException::new);
         TrafficPolicyProperties traffic = binder.bind("gateway.http.traffic-policy", TrafficPolicyProperties.class)
                 .orElseThrow(IllegalStateException::new);
+        GatewayCorsProperties cors = binder.bind("gateway.cors", GatewayCorsProperties.class)
+                .orElseThrow(IllegalStateException::new);
 
         assertThat(routes.getRoutes())
                 .extracting(GatewayHttpRouteProperties.Route::getServiceId)
@@ -40,7 +43,14 @@ class NacosGatewayBindingTest {
         assertThat(rateLimit.isEnabled()).isTrue();
         assertThat(rateLimit.isFailOpenOnError()).isFalse();
         assertThat(traffic.getDefaultPolicyId()).isEqualTo("baseline");
-        assertThat(environment.getProperty("gateway.cors.allowed-origins[2]")).isEqualTo("http://localhost:12881");
+        assertThat(cors.getAllowedOrigins()).containsExactly(
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:12881",
+                "http://127.0.0.1:12881",
+                "http://localhost:12888",
+                "http://127.0.0.1:12888"
+        );
         assertThat(environment.getProperty("security.jwt.issuer")).isEqualTo("community-auth");
     }
 
@@ -75,7 +85,10 @@ class NacosGatewayBindingTest {
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {
-        return environmentFrom(fileName, Map.of());
+        return environmentFrom(fileName, Map.of(
+                "BROWSER_ALLOWED_ORIGINS",
+                "http://localhost:5173,http://127.0.0.1:5173,http://localhost:12881,http://127.0.0.1:12881,http://localhost:12888,http://127.0.0.1:12888"
+        ));
     }
 
     private static StandardEnvironment environmentFrom(

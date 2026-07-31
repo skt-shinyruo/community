@@ -48,6 +48,15 @@ cat >"${fake_bin}/curl" <<'EOF'
 set -euo pipefail
 
 printf '%s\n' "$*" >>"${FAKE_NACOS_CURL_LOG}"
+for arg in "$@"; do
+  case "${arg}" in
+    content@*)
+      printf '%s\n' '--- published-content ---' >>"${FAKE_NACOS_CURL_LOG}"
+      cat "${arg#content@}" >>"${FAKE_NACOS_CURL_LOG}"
+      printf '%s\n' '--- end-published-content ---' >>"${FAKE_NACOS_CURL_LOG}"
+      ;;
+  esac
+done
 case "$*" in
   *"/nacos/v3/admin/core/state/readiness"*)
     readiness_count="$(cat "${FAKE_NACOS_READINESS_COUNT}")"
@@ -76,6 +85,10 @@ chmod +x "${fake_bin}/curl" "${fake_bin}/sleep"
 PATH="${fake_bin}:${PATH}" \
   FAKE_NACOS_CURL_LOG="${curl_log}" \
   FAKE_NACOS_READINESS_COUNT="${readiness_count_file}" \
+  BROWSER_ALLOWED_ORIGINS="http://localhost:13110,http://127.0.0.1:13110" \
+  FRONTEND_PUBLIC_ORIGIN="http://localhost:13110" \
+  OSS_PUBLIC_BASE_URL="http://localhost:13109" \
+  IM_GATEWAY_PUBLIC_WS_URL="ws://localhost:13109/ws/im" \
   CONFIG_DIR="${CONFIG_DIR}" \
   NACOS_ADDR="http://nacos:8848" \
   "${SEED_SCRIPT}" >/dev/null
@@ -96,6 +109,34 @@ if grep -F '/nacos/actuator/health' "${curl_log}" >/dev/null; then
   echo 'seed script must use the Nacos v3 readiness endpoint' >&2
   exit 1
 fi
+
+browser_origin_seed_files=(
+  community-gateway.yaml
+  community-app.yaml
+  community-im-gateway.yaml
+  im-core.yaml
+  im-realtime.yaml
+)
+for data_id in "${browser_origin_seed_files[@]}"; do
+  grep -F 'allowed-origins: ${BROWSER_ALLOWED_ORIGINS}' "${CONFIG_DIR}/${data_id}"
+done
+grep -F 'http://localhost:13110,http://127.0.0.1:13110' "${curl_log}"
+grep -F 'reset-base-url: ${FRONTEND_PUBLIC_ORIGIN}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'public-base-url: ${OSS_PUBLIC_BASE_URL}' "${CONFIG_DIR}/community-oss.yaml"
+grep -F 'public-ws-url: ${IM_GATEWAY_PUBLIC_WS_URL}' "${CONFIG_DIR}/community-im-gateway.yaml"
+grep -F 'reset-base-url: http://localhost:13110' "${curl_log}"
+grep -F 'public-base-url: http://localhost:13109' "${curl_log}"
+grep -F 'public-ws-url: ws://localhost:13109/ws/im' "${curl_log}"
+if grep -F '${BROWSER_ALLOWED_ORIGINS}' "${curl_log}" >/dev/null; then
+  echo 'published Nacos config must not contain an unresolved browser origin placeholder' >&2
+  exit 1
+fi
+for placeholder in FRONTEND_PUBLIC_ORIGIN OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
+  if grep -F "\${${placeholder}}" "${curl_log}" >/dev/null; then
+    echo "published Nacos config must not contain an unresolved ${placeholder} placeholder" >&2
+    exit 1
+  fi
+done
 
 for data_id in "${required_data_ids[@]}"; do
   test -s "${CONFIG_DIR}/${data_id}"
@@ -212,10 +253,8 @@ awk '
 grep -F 'refresh:' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'cleanup:' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'interval-ms: 3600000' "${CONFIG_DIR}/community-app.yaml"
-grep -F 'reset-base-url: http://localhost:12881' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'from: no-reply@community.local' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'subject: 注册验证码' "${CONFIG_DIR}/community-app.yaml"
-grep -F 'http://localhost:5173' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'http:' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'idempotency:' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'growth:' "${CONFIG_DIR}/community-app.yaml"
@@ -275,6 +314,8 @@ nacos_owned_env_vars=(
   OSS_CLIENT_TOKEN_TTL
   SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE
   SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE
+  BROWSER_ALLOWED_ORIGINS
+  FRONTEND_PUBLIC_ORIGIN
   AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS
   AUTH_MAIL_ENABLED
   AUTH_PASSWORD_RESET_BASE_URL

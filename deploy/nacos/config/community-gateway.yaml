@@ -17,13 +17,7 @@ gateway:
     cidrs: ${GATEWAY_TRUSTED_PROXY_CIDRS:}
     source: compose-environment
   cors:
-    allowed-origins:
-      - http://localhost:5173
-      - http://127.0.0.1:5173
-      - http://localhost:12881
-      - http://127.0.0.1:12881
-      - http://localhost:12888
-      - http://127.0.0.1:12888
+    allowed-origins: ${BROWSER_ALLOWED_ORIGINS}
   im-edge:
     service-id: community-im-gateway
     session-path: /api/im/sessions

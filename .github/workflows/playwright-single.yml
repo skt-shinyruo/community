@@ -61,7 +61,6 @@ jobs:
             echo "OSS_PUBLIC_BASE_URL=http://localhost:${nginx_api_port}"
             echo "IM_GATEWAY_PUBLIC_WS_URL=ws://localhost:${nginx_api_port}/ws/im"
             echo "BROWSER_ALLOWED_ORIGINS=http://localhost:${frontend_host_port},http://127.0.0.1:${frontend_host_port},http://localhost:12881,http://127.0.0.1:12881"
-            echo "IM_CORS_ALLOWED_ORIGINS=http://localhost:${frontend_host_port},http://127.0.0.1:${frontend_host_port},http://localhost:12881,http://127.0.0.1:12881"
           } >> "${env_file}"
 
           {
@@ -85,7 +84,6 @@ jobs:
             echo "OSS_PUBLIC_BASE_URL=http://localhost:${nginx_api_port}"
             echo "IM_GATEWAY_PUBLIC_WS_URL=ws://localhost:${nginx_api_port}/ws/im"
             echo "BROWSER_ALLOWED_ORIGINS=http://localhost:${frontend_host_port},http://127.0.0.1:${frontend_host_port},http://localhost:12881,http://127.0.0.1:12881"
-            echo "IM_CORS_ALLOWED_ORIGINS=http://localhost:${frontend_host_port},http://127.0.0.1:${frontend_host_port},http://localhost:12881,http://127.0.0.1:12881"
           } >> "${GITHUB_ENV}"
 
       - name: Install Playwright dependencies

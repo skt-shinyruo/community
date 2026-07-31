@@ -47,7 +47,14 @@ class NacosPolicyBindingTest {
 
         assertThat(originGuard.isEnabled()).isTrue();
         assertThat(originGuard.isFailOpenWhenAllowlistEmpty()).isFalse();
-        assertThat(originGuard.getAllowedOrigins()).contains("http://localhost:12881");
+        assertThat(originGuard.getAllowedOrigins()).containsExactly(
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:12881",
+                "http://127.0.0.1:12881",
+                "http://localhost:12888",
+                "http://127.0.0.1:12888"
+        );
         assertThat(environment.containsProperty("auth.login-rate-limit.enabled")).isTrue();
         assertThat(environment.containsProperty("auth.login-rate-limit.max-failures-per-user")).isTrue();
         assertThat(loginRateLimit.isEnabled()).isTrue();
@@ -279,10 +286,16 @@ class NacosPolicyBindingTest {
         assertThat(environment.getProperty(
                 "community.oss.upload-recovery.cancellation-stale-seconds", Long.class)).isEqualTo(300L);
         assertThat(environment.getProperty("community.oss.upload-recovery.delay-ms", Long.class)).isEqualTo(60_000L);
+        assertThat(environment.getProperty("oss.public-base-url")).isEqualTo("http://localhost:12880");
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {
-        return environmentFrom(fileName, Map.of());
+        return environmentFrom(fileName, Map.of(
+                "BROWSER_ALLOWED_ORIGINS",
+                "http://localhost:5173,http://127.0.0.1:5173,http://localhost:12881,http://127.0.0.1:12881,http://localhost:12888,http://127.0.0.1:12888",
+                "FRONTEND_PUBLIC_ORIGIN", "http://localhost:12881",
+                "OSS_PUBLIC_BASE_URL", "http://localhost:12880"
+        ));
     }
 
     private static StandardEnvironment environmentFrom(

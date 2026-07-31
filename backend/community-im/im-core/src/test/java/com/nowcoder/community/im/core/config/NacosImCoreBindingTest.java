@@ -6,11 +6,13 @@ import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.env.MutablePropertySources;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.FileSystemResource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -24,8 +26,6 @@ class NacosImCoreBindingTest {
         assertThat(environment.getProperty("spring.kafka.consumer.auto-offset-reset")).isEqualTo("earliest");
         assertThat(environment.containsProperty("im.kafka.consumer.group-id")).isFalse();
         assertThat(environment.containsProperty("im.kafka.consumer.auto-offset-reset")).isFalse();
-        assertThat(environment.getProperty("im.cors.allowed-origins[2]")).isEqualTo("http://localhost:12881");
-
         ImCoreCorsProperties properties = Binder.get(environment)
                 .bind("im.cors", Bindable.of(ImCoreCorsProperties.class))
                 .orElseThrow(() -> new AssertionError("im.cors properties did not bind"));
@@ -45,6 +45,10 @@ class NacosImCoreBindingTest {
         StandardEnvironment environment = new StandardEnvironment();
         MutablePropertySources sources = environment.getPropertySources();
         sources.addFirst(new YamlPropertySourceLoader().load(fileName, new FileSystemResource(path)).get(0));
+        sources.addFirst(new MapPropertySource("browser-origin-test-input", Map.of(
+                "BROWSER_ALLOWED_ORIGINS",
+                "http://localhost:5173,http://127.0.0.1:5173,http://localhost:12881,http://127.0.0.1:12881,http://localhost:12888,http://127.0.0.1:12888"
+        )));
         return environment;
     }
 

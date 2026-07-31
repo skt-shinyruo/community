@@ -403,9 +403,12 @@ grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F 'bash -c'
 grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F '/dev/tcp/127.0.0.1/9848'
 grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F 'healthcheck:'
 grep -E '^  nacos-config-bootstrap:$' "${single_infra}"
-grep -A24 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F '/deploy/nacos'
-grep -A24 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F 'target: /nacos'
-grep -A24 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F 'read_only: true'
+grep -A36 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F '/deploy/nacos'
+grep -A36 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F 'target: /nacos'
+grep -A36 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F 'read_only: true'
+for variable in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
+  grep -A30 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F "${variable}:"
+done
 grep -E '^  community-gateway:$' "${single_full}"
 grep -A4 -E '^      nacos:$' "${single_full}" | grep -F 'condition: service_healthy'
 grep -A6 -E '^      nacos-config-bootstrap:$' "${single_full}" | grep -F 'condition: service_completed_successfully'
@@ -433,9 +436,12 @@ for nacos_node in nacos-1 nacos-2 nacos-3; do
   grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F 'healthcheck:'
 done
 grep -E '^  nacos-config-bootstrap:$' "${cluster_infra}"
-grep -A24 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F '/deploy/nacos'
-grep -A24 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F 'target: /nacos'
-grep -A24 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F 'read_only: true'
+grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F '/deploy/nacos'
+grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F 'target: /nacos'
+grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F 'read_only: true'
+for variable in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
+  grep -A30 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F "${variable}:"
+done
 grep -E '^  community-gateway-1:$' "${cluster_full}"
 grep -A4 -E '^      nacos-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'
 grep -A6 -E '^      nacos-config-bootstrap:$' "${cluster_full}" | grep -F 'condition: service_completed_successfully'

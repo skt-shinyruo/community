@@ -136,11 +136,11 @@ COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_CPU_LOAD_THRESHOLD_PERCENT=85
 COMMUNITY_OBSERVABILITY_RUNTIME_HTTP_SLOW_REQUEST_THRESHOLD_MS=1000
 ```
 
-### Runtime Diagnostics Agent
+### YierLoom Agent
 
-`runtime-diagnostics-agent` is an optional JVM diagnostic agent for short troubleshooting sessions. It is disabled by default and is enabled per deployment with `RUNTIME_DIAGNOSTICS_ENABLED=true`.
+YierLoom is an optional JVM Agent for short troubleshooting sessions. It is disabled by default. Enable it per deployment with `YIERLOOM_ENABLED=true`; the built-in `method`, `exception`, `thread`, and `jvm` plugins then start by default.
 
-Safe Phase 1 probes:
+Built-in core plugins:
 
 - `method`: method latency summaries and slow-call events.
 - `exception`: exception type events from instrumented methods without raw messages or stack traces.
@@ -150,7 +150,8 @@ Safe Phase 1 probes:
 Useful Kibana filters:
 
 ```text
-event.category : runtime_diagnostics
+event.category : yierloom
+diagnostic.plugin.id : method
 event.action : method_latency_summary
 event.action : exception_observed
 event.action : thread_snapshot
@@ -158,28 +159,40 @@ event.action : jvm_runtime_summary
 trace.id : "<trace id>"
 ```
 
-Dependency probe filters:
+Dependency plugin filters:
 
 ```text
-event.category : runtime_diagnostics
+event.category : yierloom
 event.action : jdbc_call_summary
 event.action : redis_call_summary
 event.action : kafka_produce_summary
 event.action : http_call_summary
-diagnostic.probe : jdbc
+diagnostic.plugin.id : jdbc
 trace.id : "<trace id>"
 ```
 
-Tune dependency thresholds with `RUNTIME_DIAGNOSTICS_HTTP_SLOW_THRESHOLD_MS`, `RUNTIME_DIAGNOSTICS_JDBC_SLOW_THRESHOLD_MS`, `RUNTIME_DIAGNOSTICS_REDIS_SLOW_THRESHOLD_MS`, and `RUNTIME_DIAGNOSTICS_KAFKA_SLOW_THRESHOLD_MS`. Matching sample and rate-limit settings use the corresponding `RUNTIME_DIAGNOSTICS_HTTP_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_JDBC_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_REDIS_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_KAFKA_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_HTTP_MAX_EVENTS_PER_SECOND`, `RUNTIME_DIAGNOSTICS_JDBC_MAX_EVENTS_PER_SECOND`, `RUNTIME_DIAGNOSTICS_REDIS_MAX_EVENTS_PER_SECOND`, and `RUNTIME_DIAGNOSTICS_KAFKA_MAX_EVENTS_PER_SECOND` variables. Kafka topic names stay hashed unless `RUNTIME_DIAGNOSTICS_KAFKA_TOPIC_NAMES_ENABLED=true` is set explicitly.
+Dependency plugins are opt-in: use `YIERLOOM_PLUGIN__HTTP__ENABLED=true`, `YIERLOOM_PLUGIN__JDBC__ENABLED=true`, `YIERLOOM_PLUGIN__REDIS__ENABLED=true`, or `YIERLOOM_PLUGIN__KAFKA__ENABLED=true` only for the dependency under investigation. Plugin duration settings accept values such as `2s`; for example, set `YIERLOOM_PLUGIN__HTTP__SLOW_THRESHOLD=2s`. Sample and rate-limit settings use the same plugin-scoped form, such as `YIERLOOM_PLUGIN__HTTP__SAMPLE_RATE` and `YIERLOOM_PLUGIN__HTTP__MAX_EVENTS_PER_SECOND`. Kafka topic names stay hashed unless `YIERLOOM_PLUGIN__KAFKA__TOPIC_NAMES_ENABLED=true` is set explicitly.
 
-Keep includes narrow during diagnostic runs:
+Keep method includes narrow during captures and keep the event queue bounded:
 
 ```text
-RUNTIME_DIAGNOSTICS_INCLUDES=com.nowcoder.community.*
-RUNTIME_DIAGNOSTICS_PROBES=method,exception,thread,jvm
+YIERLOOM_PLUGIN__METHOD__INCLUDES=com.nowcoder.community.*
+YIERLOOM_EVENTS_QUEUE_CAPACITY=8192
 ```
 
-The agent reads existing OTel/MDC trace context when present and does not create a new trace root. It must not be used to collect payload data or secrets.
+The queue is non-blocking for instrumented application work: when it is full, YierLoom drops new observations or events. The Agent reads existing OTel/MDC trace context when present and does not create a new trace root. It must not collect method arguments, return values, request or response bodies, SQL bind values, Redis keys or values, Kafka payloads, credentials, cookies, or headers.
+
+#### Trusted External Plugin Installation
+
+Treat every external plugin as trusted code. Build one fat JAR per plugin with exactly one `YierLoomPlugin` ServiceLoader provider and the plugin's private dependencies. Do not bundle YierLoom API, YierLoom SDK, or Byte Buddy classes.
+
+Verify the finished JAR through the `yierloom-plugin-testkit` Java API `PluginContractVerifier.verifyOrThrow(Path)` before it reaches a runtime image or volume:
+
+```java
+PluginContractVerifier.verifyOrThrow(Path.of("/path/to/plugin.jar"));
+```
+
+`PluginContractVerifier` has no CLI. Mount or copy a verified JAR into `/opt/yierloom/plugins`; when another directory is required, configure it with `YIERLOOM_PLUGINS_DIR`. Restart the target JVM after adding, replacing, or removing a JAR. Hot reload and runtime attach are not supported.
 
 ## Stability Observability Runbooks
 
@@ -198,7 +211,7 @@ Inspect: `service.name`, `jvm.memory.area`, `jvm.memory.used.percent`, `jvm.gc.n
 
 Interpretation: repeated memory pressure or GC pause threshold events mean the service is under runtime pressure, even if request traces only show downstream latency.
 
-Next action: check `process.cpu.load.percent`, recent deploy version, traffic shape, and whether one service produces most pressure events. Enable `runtime-diagnostics-agent` `thread,jvm` probes only if the standard runtime logs do not show enough detail.
+Next action: check `process.cpu.load.percent`, recent deploy version, traffic shape, and whether one service produces most pressure events. Enable the YierLoom `thread` and `jvm` plugins only if the standard runtime logs do not show enough detail.
 
 ### Thread Pool Or Scheduler Saturation
 
@@ -229,7 +242,7 @@ Inspect: for `hikari_pool_pressure`, check `db.pool.name`, `db.pool.active`, `db
 
 Interpretation: Hikari pending count indicates pool wait. Slow SQL events show statement identity without bind values.
 
-Next action: compare with traces for the same time window. Enable diagnostics `jdbc` only for a short run if traces and SQL slow events are not enough.
+Next action: compare with traces for the same time window. Enable the YierLoom `jdbc` plugin only for a short run if traces and SQL slow events are not enough.
 
 ### Redis Instability Or Slow Operations
 
@@ -244,7 +257,7 @@ Inspect: `cache.system`, `cache.operation`, `cache.pool.active`, `cache.pool.pen
 
 Interpretation: Redis slow operations or pool pressure can cause application latency before database metrics change.
 
-Next action: check whether the issue is isolated to one service and compare with request traces. Enable diagnostics `redis` only for a short run; raw keys and values must remain absent.
+Next action: check whether the issue is isolated to one service and compare with request traces. Enable the YierLoom `redis` plugin only for a short run; raw keys and values must remain absent.
 
 ### Content Hot Path Degradation
 
@@ -280,7 +293,7 @@ Inspect: `messaging.destination.name`, `messaging.kafka.consumer.group`, `messag
 
 Interpretation: lag and rebalance events explain delayed projections, IM fanout, and outbox delivery even when HTTP traces look healthy.
 
-Next action: check outbox state and consumer services. Enable diagnostics `kafka` only for short producer/consumer investigation; payloads must remain absent.
+Next action: check outbox state and consumer services. Enable the YierLoom `kafka` plugin only for short producer/consumer investigation; payloads must remain absent.
 
 ### Slow HTTP Requests
 
@@ -297,38 +310,44 @@ Interpretation: use `trace.id` to pivot into traces and request-correlated logs.
 
 Next action: if traces identify a dependency, inspect the matching database, cache, messaging, or HTTP client event category for the same time window. Use `event.category : "http_client"` for outbound HTTP client events such as `http_client_slow` and `http_client_error`.
 
-### When To Enable Runtime Diagnostics
+### When To Enable YierLoom
 
-Enable diagnostics only after always-on traces and runtime logs do not explain the symptom. Keep includes narrow:
+Enable YierLoom only after always-on traces and runtime logs do not explain the symptom. Keep includes narrow:
 
 ```bash
-RUNTIME_DIAGNOSTICS_ENABLED=true \
-RUNTIME_DIAGNOSTICS_INCLUDES='com.nowcoder.community.*' \
-RUNTIME_DIAGNOSTICS_PROBES='method,exception,thread,jvm' \
+YIERLOOM_ENABLED=true \
+YIERLOOM_PLUGIN__METHOD__INCLUDES='com.nowcoder.community.*' \
 ./deploy/deployment.sh up --topology single
 ```
 
 Query:
 
 ```text
-event.category : runtime_diagnostics and diagnostic.probe : *
+event.category : yierloom and diagnostic.plugin.id : *
 ```
 
-Inspect: `diagnostic.probe`, `event.action`, `service.name`, `trace.id`, `duration.ms`, `threshold.ms`.
+Inspect: `diagnostic.plugin.id`, `event.action`, `service.name`, `trace.id`, `duration.ms`, `threshold.ms`.
 
-Interpretation: runtime diagnostics is for focused deep dives; it should explain one unresolved symptom, not replace always-on traces or runtime logs.
+Interpretation: YierLoom is for focused deep dives; it should explain one unresolved symptom, not replace always-on traces or runtime logs.
 
-Next action: disable diagnostics after the capture window. Use dependency probes only for focused short sessions:
+Next action: disable YierLoom immediately after the capture window and restart the target services:
 
 ```bash
-RUNTIME_DIAGNOSTICS_ENABLED=true \
-RUNTIME_DIAGNOSTICS_PROBES='method,exception,thread,jvm,http,jdbc,redis,kafka' \
+YIERLOOM_ENABLED=false ./deploy/deployment.sh up --topology single
+```
+
+For a focused dependency capture, opt in only to the required plugin. For example:
+
+```bash
+YIERLOOM_ENABLED=true \
+YIERLOOM_PLUGIN__HTTP__ENABLED=true \
+YIERLOOM_PLUGIN__HTTP__SLOW_THRESHOLD=2s \
 ./deploy/deployment.sh up --topology single
 ```
 
 ### Production Compatibility
 
-Phase 1 intentionally keeps Elastic/Kibana as the local UI and does not add Prometheus, Grafana, Loki, or Alertmanager. Production alerting can later use the same signal split: traces for timelines, metrics for trends and SLOs, runtime logs for discrete stability events, and runtime diagnostics for short deep dives.
+Phase 1 intentionally keeps Elastic/Kibana as the local UI and does not add Prometheus, Grafana, Loki, or Alertmanager. Production alerting can later use the same signal split: traces for timelines, metrics for trends and SLOs, runtime logs for discrete stability events, and YierLoom for short deep dives.
 
 Query:
 

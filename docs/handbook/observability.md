@@ -98,7 +98,7 @@ http_client
 job
 security
 logging
-runtime_diagnostics
+yierloom
 business
 ```
 
@@ -301,11 +301,13 @@ Run local smoke after the stack is up:
 ./deploy/tests/observability_smoke.sh
 ```
 
-For a short diagnostics run:
+For a short YierLoom capture:
 
 ```bash
-RUNTIME_DIAGNOSTICS_ENABLED=true RUNTIME_DIAGNOSTICS_INCLUDES='com.nowcoder.community.*' ./deploy/deployment.sh up --topology single
+YIERLOOM_ENABLED=true \
+YIERLOOM_PLUGIN__METHOD__INCLUDES='com.nowcoder.community.*' \
+./deploy/deployment.sh up --topology single
 OBSERVABILITY_EXPECT_DIAGNOSTICS=true ./deploy/tests/observability_smoke.sh
 ```
 
-Runtime diagnostics remains default-off and must not collect payload data or secrets.
+YierLoom remains default-off. Its events use `event.category=yierloom` and identify their owner with `diagnostic.plugin.id`. Its bounded queue must isolate application work from exporter pressure. YierLoom must not collect arguments, return values, bodies, SQL bind values, Redis keys or values, Kafka payloads, credentials, cookies, or headers.

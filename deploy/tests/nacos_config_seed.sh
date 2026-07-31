@@ -4,6 +4,13 @@ set -euo pipefail
 REPO_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 CONFIG_DIR="${REPO_ROOT}/deploy/nacos/config"
 SEED_SCRIPT="${REPO_ROOT}/deploy/nacos/seed-configs.sh"
+tmp_dir="$(mktemp -d)"
+fake_bin="${tmp_dir}/bin"
+curl_log="${tmp_dir}/curl.log"
+readiness_count_file="${tmp_dir}/readiness-count"
+mkdir -p "${fake_bin}"
+printf '0\n' >"${readiness_count_file}"
+trap 'rm -rf "${tmp_dir}"' EXIT
 
 required_data_ids=(
   community-shared.yaml
@@ -33,6 +40,60 @@ grep -F '[ "${publish_response}" != "true" ]' "${SEED_SCRIPT}"
 grep -F 'failed to publish ${data_id}' "${SEED_SCRIPT}"
 if grep -F 'seq ' "${SEED_SCRIPT}"; then
   echo "seed script must use a POSIX health retry loop without seq" >&2
+  exit 1
+fi
+
+cat >"${fake_bin}/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$*" >>"${FAKE_NACOS_CURL_LOG}"
+case "$*" in
+  *"/nacos/v3/admin/core/state/readiness"*)
+    readiness_count="$(cat "${FAKE_NACOS_READINESS_COUNT}")"
+    readiness_count="$((readiness_count + 1))"
+    printf '%s\n' "${readiness_count}" >"${FAKE_NACOS_READINESS_COUNT}"
+    if [ "${readiness_count}" -eq 1 ]; then
+      printf '%s\n' '{"code":1}'
+    else
+      printf '%s\n' '{"code":0}'
+    fi
+    ;;
+  *"/nacos/v1/cs/configs"*)
+    printf '%s\n' 'true'
+    ;;
+  *)
+    printf '%s\n' 'true'
+    ;;
+esac
+EOF
+cat >"${fake_bin}/sleep" <<'EOF'
+#!/usr/bin/env sh
+exit 0
+EOF
+chmod +x "${fake_bin}/curl" "${fake_bin}/sleep"
+
+PATH="${fake_bin}:${PATH}" \
+  FAKE_NACOS_CURL_LOG="${curl_log}" \
+  FAKE_NACOS_READINESS_COUNT="${readiness_count_file}" \
+  CONFIG_DIR="${CONFIG_DIR}" \
+  NACOS_ADDR="http://nacos:8848" \
+  "${SEED_SCRIPT}" >/dev/null
+
+if [ "$(cat "${readiness_count_file}")" -ne 2 ]; then
+  echo 'seed script must retry readiness until the response body contains code=0' >&2
+  exit 1
+fi
+if [ "$(grep -Fc '/nacos/v3/admin/core/state/readiness' "${curl_log}")" -ne 2 ]; then
+  echo 'seed script must call the Nacos v3 readiness endpoint until code=0' >&2
+  exit 1
+fi
+if [ "$(grep -Fc '/nacos/v1/cs/configs' "${curl_log}")" -ne 17 ]; then
+  echo 'seed script must publish every required Nacos configuration after readiness' >&2
+  exit 1
+fi
+if grep -F '/nacos/actuator/health' "${curl_log}" >/dev/null; then
+  echo 'seed script must use the Nacos v3 readiness endpoint' >&2
   exit 1
 fi
 

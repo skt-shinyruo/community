@@ -154,6 +154,44 @@ assert_distinct_ticket_secret() {
   fi
 }
 
+assert_nacos_auth_environment() {
+  local rendered_config="$1"
+  local env_file="$2"
+  shift 2
+
+  local variable
+  local expected
+  for variable in NACOS_AUTH_TOKEN NACOS_AUTH_IDENTITY_KEY NACOS_AUTH_IDENTITY_VALUE; do
+    expected="$(environment_file_value "${env_file}" "${variable}")"
+    assert_environment_value_for_services \
+      "${rendered_config}" "${variable}" "${expected}" "${env_file}" "$@"
+  done
+}
+
+assert_required_nacos_auth_values() {
+  local topology="$1"
+  local source_env_file="$2"
+  local missing_env_file
+  local error_file
+  local variable
+
+  for variable in NACOS_AUTH_TOKEN NACOS_AUTH_IDENTITY_KEY NACOS_AUTH_IDENTITY_VALUE; do
+    missing_env_file="$(mktemp)"
+    error_file="$(mktemp)"
+    awk -v variable="${variable}" 'index($0, variable "=") != 1' \
+      "${source_env_file}" >"${missing_env_file}"
+    if env -u NACOS_AUTH_TOKEN -u NACOS_AUTH_IDENTITY_KEY -u NACOS_AUTH_IDENTITY_VALUE \
+      ./deploy/deployment.sh config --topology "${topology}" --scope infra \
+        --env-file "${missing_env_file}" >/dev/null 2>"${error_file}"; then
+      rm -f "${missing_env_file}" "${error_file}"
+      echo "expected ${topology} topology without ${variable} to fail" >&2
+      return 1
+    fi
+    grep -F "${variable} is required" "${error_file}" >/dev/null
+    rm -f "${missing_env_file}" "${error_file}"
+  done
+}
+
 without_ticket_secret() {
   awk '!/^IM_SESSION_TICKET_HMAC_SECRET=/' "$1"
 }
@@ -221,6 +259,10 @@ assert_ticket_runtime_environment "${cluster_full}" deploy/.env.cluster.example 
   im-realtime-1 im-realtime-2 im-realtime-3
 assert_distinct_ticket_secret deploy/.env.single.example
 assert_distinct_ticket_secret deploy/.env.cluster.example
+assert_nacos_auth_environment "${single_infra}" deploy/.env.single.example nacos
+assert_nacos_auth_environment "${cluster_infra}" deploy/.env.cluster.example nacos-1 nacos-2 nacos-3
+assert_required_nacos_auth_values single deploy/.env.single.example
+assert_required_nacos_auth_values cluster deploy/.env.cluster.example
 
 ticket_sentinel_secret="topology-test-im-session-ticket-secret-override-20260722"
 ticket_sentinel_issuer="topology-test-im-session-ticket-issuer"
@@ -354,6 +396,9 @@ grep -F 'name: community_single_environment_mysql_primary_data' "${environment_o
 grep -F 'name: community-single' "${single_infra}"
 grep -E '^  mysql:$' "${single_infra}"
 grep -E '^  nacos:$' "${single_infra}"
+grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F 'image: nacos/nacos-server:v3.1.2-slim'
+grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F '/nacos/v3/admin/core/state/readiness'
+grep -A40 -E '^  nacos:$' "${single_infra}" | grep -E 'code.*0'
 grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F 'healthcheck:'
 grep -E '^  nacos-config-bootstrap:$' "${single_infra}"
 grep -A24 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F '/deploy/nacos'
@@ -377,7 +422,12 @@ fi
 grep -F 'name: community-cluster' "${cluster_infra}"
 grep -E '^  mysql-primary:$' "${cluster_infra}"
 grep -E '^  nacos-1:$' "${cluster_infra}"
-grep -A40 -E '^  nacos-1:$' "${cluster_infra}" | grep -F 'healthcheck:'
+for nacos_node in nacos-1 nacos-2 nacos-3; do
+  grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F 'image: nacos/nacos-server:v3.1.2-slim'
+  grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F '/nacos/v3/admin/core/state/readiness'
+  grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -E 'code.*0'
+  grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F 'healthcheck:'
+done
 grep -E '^  nacos-config-bootstrap:$' "${cluster_infra}"
 grep -A24 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F '/deploy/nacos'
 grep -A24 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F 'target: /nacos'

@@ -87,6 +87,7 @@ PATH="${fake_bin}:${PATH}" \
   FAKE_NACOS_READINESS_COUNT="${readiness_count_file}" \
   BROWSER_ALLOWED_ORIGINS="http://localhost:13110,http://127.0.0.1:13110" \
   FRONTEND_PUBLIC_ORIGIN="http://localhost:13110" \
+  GATEWAY_PUBLIC_BASE_URL="http://localhost:13109" \
   OSS_PUBLIC_BASE_URL="http://localhost:13109" \
   IM_GATEWAY_PUBLIC_WS_URL="ws://localhost:13109/ws/im" \
   CONFIG_DIR="${CONFIG_DIR}" \
@@ -122,16 +123,20 @@ for data_id in "${browser_origin_seed_files[@]}"; do
 done
 grep -F 'http://localhost:13110,http://127.0.0.1:13110' "${curl_log}"
 grep -F 'reset-base-url: ${FRONTEND_PUBLIC_ORIGIN}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'public-gateway-origin: ${GATEWAY_PUBLIC_BASE_URL}' "${CONFIG_DIR}/community-frontend-runtime.yaml"
+grep -F 'websocket-url: ${IM_GATEWAY_PUBLIC_WS_URL}' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'public-base-url: ${OSS_PUBLIC_BASE_URL}' "${CONFIG_DIR}/community-oss.yaml"
 grep -F 'public-ws-url: ${IM_GATEWAY_PUBLIC_WS_URL}' "${CONFIG_DIR}/community-im-gateway.yaml"
 grep -F 'reset-base-url: http://localhost:13110' "${curl_log}"
+grep -F 'public-gateway-origin: http://localhost:13109' "${curl_log}"
+grep -F 'websocket-url: ws://localhost:13109/ws/im' "${curl_log}"
 grep -F 'public-base-url: http://localhost:13109' "${curl_log}"
 grep -F 'public-ws-url: ws://localhost:13109/ws/im' "${curl_log}"
 if grep -F '${BROWSER_ALLOWED_ORIGINS}' "${curl_log}" >/dev/null; then
   echo 'published Nacos config must not contain an unresolved browser origin placeholder' >&2
   exit 1
 fi
-for placeholder in FRONTEND_PUBLIC_ORIGIN OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
+for placeholder in FRONTEND_PUBLIC_ORIGIN GATEWAY_PUBLIC_BASE_URL OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
   if grep -F "\${${placeholder}}" "${curl_log}" >/dev/null; then
     echo "published Nacos config must not contain an unresolved ${placeholder} placeholder" >&2
     exit 1
@@ -316,6 +321,7 @@ nacos_owned_env_vars=(
   SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE
   BROWSER_ALLOWED_ORIGINS
   FRONTEND_PUBLIC_ORIGIN
+  GATEWAY_PUBLIC_BASE_URL
   AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS
   AUTH_MAIL_ENABLED
   AUTH_PASSWORD_RESET_BASE_URL

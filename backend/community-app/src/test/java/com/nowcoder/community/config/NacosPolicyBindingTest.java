@@ -251,6 +251,8 @@ class NacosPolicyBindingTest {
         assertThat(environment.getProperty("frontend.runtime.upload.allowed-extensions[0]")).isEqualTo("jpg");
         assertThat(environment.getProperty("frontend.runtime.upload.avatar-upload-enabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("frontend.runtime.upload.media-upload-enabled", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("frontend.runtime.public-gateway-origin")).isEqualTo("http://localhost:12880");
+        assertThat(environment.getProperty("frontend.runtime.websocket-url")).isEqualTo("ws://localhost:12880/ws/im");
     }
 
     @Test
@@ -294,7 +296,9 @@ class NacosPolicyBindingTest {
                 "BROWSER_ALLOWED_ORIGINS",
                 "http://localhost:5173,http://127.0.0.1:5173,http://localhost:12881,http://127.0.0.1:12881,http://localhost:12888,http://127.0.0.1:12888",
                 "FRONTEND_PUBLIC_ORIGIN", "http://localhost:12881",
-                "OSS_PUBLIC_BASE_URL", "http://localhost:12880"
+                "GATEWAY_PUBLIC_BASE_URL", "http://localhost:12880",
+                "OSS_PUBLIC_BASE_URL", "http://localhost:12880",
+                "IM_GATEWAY_PUBLIC_WS_URL", "ws://localhost:12880/ws/im"
         ));
     }
 

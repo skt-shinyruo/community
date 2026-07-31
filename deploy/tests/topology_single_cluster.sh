@@ -406,7 +406,7 @@ grep -E '^  nacos-config-bootstrap:$' "${single_infra}"
 grep -A36 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F '/deploy/nacos'
 grep -A36 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F 'target: /nacos'
 grep -A36 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F 'read_only: true'
-for variable in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
+for variable in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN GATEWAY_PUBLIC_BASE_URL OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
   grep -A30 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F "${variable}:"
 done
 grep -E '^  community-gateway:$' "${single_full}"
@@ -439,7 +439,7 @@ grep -E '^  nacos-config-bootstrap:$' "${cluster_infra}"
 grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F '/deploy/nacos'
 grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F 'target: /nacos'
 grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F 'read_only: true'
-for variable in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
+for variable in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN GATEWAY_PUBLIC_BASE_URL OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
   grep -A30 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F "${variable}:"
 done
 grep -E '^  community-gateway-1:$' "${cluster_full}"

@@ -37,6 +37,7 @@ jobs:
           nginx_api_port=$((12880 + port_offset))
           frontend_host_port=$((12881 + port_offset))
           nginx_xxl_job_port=$((12887 + port_offset))
+          mock_data_studio_host_port=$((12890 + port_offset))
           env_file="${RUNNER_TEMP}/community-single-${run_suffix}.env"
 
           cp deploy/.env.single.example "${env_file}"
@@ -54,6 +55,7 @@ jobs:
             echo "NGINX_API_PORT=${nginx_api_port}"
             echo "FRONTEND_HOST_PORT=${frontend_host_port}"
             echo "NGINX_XXL_JOB_PORT=${nginx_xxl_job_port}"
+            echo "MOCK_DATA_STUDIO_HOST_PORT=${mock_data_studio_host_port}"
             echo "SINGLE_API_BASE_URL=http://localhost:${nginx_api_port}"
             echo "SINGLE_WEB_BASE_URL=http://localhost:${frontend_host_port}"
             echo "FRONTEND_PUBLIC_ORIGIN=http://localhost:${frontend_host_port}"
@@ -77,6 +79,7 @@ jobs:
             echo "NGINX_API_PORT=${nginx_api_port}"
             echo "FRONTEND_HOST_PORT=${frontend_host_port}"
             echo "NGINX_XXL_JOB_PORT=${nginx_xxl_job_port}"
+            echo "MOCK_DATA_STUDIO_HOST_PORT=${mock_data_studio_host_port}"
             echo "SINGLE_API_BASE_URL=http://localhost:${nginx_api_port}"
             echo "SINGLE_WEB_BASE_URL=http://localhost:${frontend_host_port}"
             echo "FRONTEND_PUBLIC_ORIGIN=http://localhost:${frontend_host_port}"

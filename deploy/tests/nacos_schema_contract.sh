@@ -83,8 +83,8 @@ docker run -d --rm --name "${schema_container}" \
   -e MYSQL_DATABASE=nacos \
   mysql:8.0 >/dev/null
 for attempt in $(seq 1 60); do
-  if docker exec "${schema_container}" mysqladmin ping \
-      -h127.0.0.1 -uroot -pcontract-root-password --silent >/dev/null 2>&1; then
+  if docker exec -e MYSQL_PWD=contract-root-password "${schema_container}" mysqladmin ping \
+      -h127.0.0.1 -uroot --silent >/dev/null 2>&1; then
     break
   fi
   if [ "${attempt}" -eq 60 ]; then
@@ -93,19 +93,19 @@ for attempt in $(seq 1 60); do
   fi
   sleep 1
 done
-docker exec -i "${schema_container}" mysql --default-character-set=utf8mb4 \
-  -uroot -pcontract-root-password nacos <"${baseline_schema}"
-docker exec -i "${schema_container}" mysql --default-character-set=utf8mb4 \
-  -uroot -pcontract-root-password nacos <"${compatibility_migration}"
-docker exec -i "${schema_container}" mysql --default-character-set=utf8mb4 \
-  -uroot -pcontract-root-password nacos <"${compatibility_migration}"
-schema_check="$(docker exec "${schema_container}" mysql -N -B \
-  -uroot -pcontract-root-password nacos -e \
+docker exec -e MYSQL_PWD=contract-root-password -i "${schema_container}" mysql --default-character-set=utf8mb4 \
+  -uroot nacos <"${baseline_schema}"
+docker exec -e MYSQL_PWD=contract-root-password -i "${schema_container}" mysql --default-character-set=utf8mb4 \
+  -uroot nacos <"${compatibility_migration}" >/dev/null
+docker exec -e MYSQL_PWD=contract-root-password -i "${schema_container}" mysql --default-character-set=utf8mb4 \
+  -uroot nacos <"${compatibility_migration}" >/dev/null
+schema_check="$(docker exec -e MYSQL_PWD=contract-root-password "${schema_container}" mysql -N -B \
+  -uroot nacos -e \
   "select count(*) from information_schema.tables where table_schema = 'nacos' and table_name = 'config_info_gray';")"
 test "${schema_check}" = '1'
 for required_column in publish_type gray_name ext_info; do
-  schema_check="$(docker exec "${schema_container}" mysql -N -B \
-    -uroot -pcontract-root-password nacos -e \
+  schema_check="$(docker exec -e MYSQL_PWD=contract-root-password "${schema_container}" mysql -N -B \
+    -uroot nacos -e \
     "select count(*) from information_schema.columns where table_schema = 'nacos' and table_name = 'his_config_info' and column_name = '${required_column}';")"
   test "${schema_check}" = '1'
 done

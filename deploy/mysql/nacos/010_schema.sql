@@ -1,5 +1,6 @@
--- Vendored from https://raw.githubusercontent.com/alibaba/nacos/2.3.2/distribution/conf/mysql-schema.sql
--- Matches nacos/nacos-server:v2.3.2-slim used by deploy/compose.infra.nacos.single.yml and deploy/compose.infra.nacos.cluster.yml.
+-- Vendored from https://raw.githubusercontent.com/alibaba/nacos/3.1.2/distribution/conf/mysql-schema.sql
+-- Baseline for nacos/nacos-server:v3.1.2-slim. Legacy 2.x tables remain below so an existing
+-- Nacos database can be upgraded without deleting historical configuration data.
 
 /*
  * Copyright 1999-2018 Alibaba Group Holding Ltd.
@@ -37,10 +38,34 @@ CREATE TABLE `config_info` (
   `effect` varchar(64) DEFAULT NULL COMMENT '配置生效的描述',
   `type` varchar(64) DEFAULT NULL COMMENT '配置的类型',
   `c_schema` text COMMENT '配置的模式',
-  `encrypted_data_key` text NOT NULL COMMENT '密钥',
+  `encrypted_data_key` varchar(1024) NOT NULL DEFAULT '' COMMENT '密钥',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_configinfo_datagrouptenant` (`data_id`,`group_id`,`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='config_info';
+
+/******************************************/
+/*   表名称 = config_info_gray             */
+/******************************************/
+CREATE TABLE `config_info_gray` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT 'id',
+  `data_id` varchar(255) NOT NULL COMMENT 'data_id',
+  `group_id` varchar(128) NOT NULL COMMENT 'group_id',
+  `content` longtext NOT NULL COMMENT 'content',
+  `md5` varchar(32) DEFAULT NULL COMMENT 'md5',
+  `src_user` text COMMENT 'src_user',
+  `src_ip` varchar(100) DEFAULT NULL COMMENT 'src_ip',
+  `gmt_create` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'gmt_create',
+  `gmt_modified` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'gmt_modified',
+  `app_name` varchar(128) DEFAULT NULL COMMENT 'app_name',
+  `tenant_id` varchar(128) DEFAULT '' COMMENT 'tenant_id',
+  `gray_name` varchar(128) NOT NULL COMMENT 'gray_name',
+  `gray_rule` text NOT NULL COMMENT 'gray_rule',
+  `encrypted_data_key` varchar(256) NOT NULL DEFAULT '' COMMENT 'encrypted_data_key',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_configinfogray_datagrouptenantgray` (`data_id`,`group_id`,`tenant_id`,`gray_name`),
+  KEY `idx_dataid_gmt_modified` (`data_id`,`gmt_modified`),
+  KEY `idx_gmt_modified` (`gmt_modified`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COMMENT='config_info_gray';
 
 /******************************************/
 /*   表名称 = config_info_aggr             */
@@ -75,7 +100,10 @@ CREATE TABLE `config_info_beta` (
   `src_user` text COMMENT 'source user',
   `src_ip` varchar(50) DEFAULT NULL COMMENT 'source ip',
   `tenant_id` varchar(128) DEFAULT '' COMMENT '租户字段',
-  `encrypted_data_key` text NOT NULL COMMENT '密钥',
+  `encrypted_data_key` varchar(1024) NOT NULL DEFAULT '' COMMENT '密钥',
+  `publish_type` varchar(50) DEFAULT 'formal' COMMENT 'publish type gray or formal',
+  `gray_name` varchar(50) DEFAULT NULL COMMENT 'gray name',
+  `ext_info` longtext DEFAULT NULL COMMENT 'ext info',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_configinfobeta_datagrouptenant` (`data_id`,`group_id`,`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='config_info_beta';

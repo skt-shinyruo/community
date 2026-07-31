@@ -18,6 +18,7 @@
 - 查看日志：`./deploy/deployment.sh logs --topology cluster community-gateway-1`
 - 渲染配置：`./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example`
 - 关闭观测层：`./deploy/deployment.sh up --topology cluster --no-observability`
+- 只重置 MySQL：`./deploy/deployment.sh reset-mysql --topology single`
 
 默认 compose project name：
 
@@ -127,9 +128,14 @@
 ## 停止与清理
 
 - 停止：`./deploy/deployment.sh down --topology single`
+- 只重置 MySQL：`./deploy/deployment.sh reset-mysql --topology single`
 - 完全重置：`./deploy/deployment.sh down --topology cluster -- -v`
 
-`-v` 是传给 `docker compose down` 的参数，要放在 `--` 后面。默认 project name 是 `community-single` / `community-cluster`，默认 volume namespace 是 `community_single` / `community_cluster`，对应的 MySQL 数据卷名分别是 `community_single_mysql_primary_data` / `community_cluster_mysql_primary_data`。
+`reset-mysql` 会先停止完整拓扑，只删除明确命名的 MySQL volumes，并保留 Redis、Kafka、Garage、Elasticsearch 等数据。它只接受 `--scope full`。single 删除 primary volume；cluster 删除 primary 和两个 replica volumes。此操作不可恢复。
+
+`-v` 是传给 `docker compose down` 的参数，要放在 `--` 后面，会删除该拓扑的所有 Compose volumes。默认 project name 是 `community-single` / `community-cluster`，默认 volume namespace 是 `community_single` / `community_cluster`，对应的 MySQL 数据卷名分别是 `community_single_mysql_primary_data` / `community_cluster_mysql_primary_data`。
+
+三个业务 schema 固定为 `community`、`community_oss`、`im_core`，最终结构统一维护在 `mysql/primary-init/010_current_schema.sql`。MySQL entrypoint 只在 primary volume 为空时执行该文件。改表后应修改最终 `CREATE TABLE`、同步测试 schema，运行 `reset-mysql`，再重新 `up`；不要在已有 volume 上重放快照。development 身份数据位于 `mysql/community/090_seed_identity.sql`，不属于当前态 schema。
 
 如需给 volume 使用独立前缀，可在命令前设置 `COMMUNITY_VOLUME_NAMESPACE`，例如 `COMMUNITY_VOLUME_NAMESPACE=community_smoke ./deploy/deployment.sh up --topology single`。
 

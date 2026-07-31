@@ -19,7 +19,7 @@
     <select id="selectRecoverableBefore" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveUploadDataObject">
         select <include refid="fields"/>
         from drive_upload
-        where status in ('PREPARING', 'COMPLETING', 'OBJECT_COMPLETED')
+        where status in ('PREPARING', 'COMPLETING', 'OBJECT_COMPLETED', 'CLEANUP_PENDING')
           and updated_at &lt; #{updatedBefore}
         order by updated_at asc, upload_id asc
         limit #{limit}
@@ -77,6 +77,13 @@
             completed_entry_id = #{upload.completedEntryId, jdbcType=BINARY}
         where upload_id = #{upload.uploadId, jdbcType=BINARY}
           and space_id = #{upload.spaceId, jdbcType=BINARY}
+          and status = #{expectedStatus}
+    </update>
+
+    <update id="updateRecoveryAttemptIfCurrent">
+        update drive_upload
+        set updated_at = #{attemptedAt}
+        where upload_id = #{uploadId, jdbcType=BINARY}
           and status = #{expectedStatus}
     </update>
 

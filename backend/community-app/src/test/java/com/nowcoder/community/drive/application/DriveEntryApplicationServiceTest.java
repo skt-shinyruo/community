@@ -306,6 +306,11 @@ class DriveEntryApplicationServiceTest {
             }
 
             @Override
+            public UploadCancellation cancelUpload(UUID sessionId, UUID objectId, UUID versionId) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             public ObjectMetadata getMetadata(UUID objectId) {
                 return null;
             }

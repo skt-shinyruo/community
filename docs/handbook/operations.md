@@ -493,48 +493,39 @@ XXL-JOB Admin 本地入口：
 http://localhost:12887/xxl-job-admin
 ```
 
-## Database Migration Runbook
+## Current-State Schema Runbook
 
-三个 owner schema 分别由 `community-db-migrations`、`community-oss-db-migrations`、`community-im-db-migrations` 管理。history table 和固定 classpath location 见 [数据与存储](data-and-storage.md#flyway-migration-deployables)。
+三个业务 schema 由 `deploy/mysql/primary-init/010_current_schema.sql` 统一描述。MySQL entrypoint 只在主库数据目录为空时执行它，因此结构变化不会自动应用到已有 volume。
 
-### 常规发布
+### 结构变化
 
-1. 备份目标 schema，并确认本次镜像包含预期 migration 文件和 manifest。
-2. 使用对应专用 DDL 账号运行 `migrate`；不要给 `community-app`、`community-oss` 或 `im-core` runtime 账号追加 DDL 权限。
-3. migration 成功后运行 `validate`，确认 history、checksum、命名和可见 location 一致。
-4. 再启动 runtime。Compose 已用 `service_completed_successfully` 建立依赖；migration 失败或退出非零时，不得移除依赖强行启动。
-5. 观察 owner runtime startup、数据库错误和 Flyway history；后续 schema 变化只通过新的 `VNNN__*.sql` 前向迁移，不修改已发布 migration。
+1. 直接修改快照中的最终 `CREATE TABLE` 定义；保留分类、任务模板、OSS usage policy、IM version counter 等必要引用数据，不要加入 development 用户。
+2. 同步受影响的 H2 `schema.sql` 测试夹具、Java MySQL 契约和三个部署快照契约。
+3. 先停止完整拓扑并只删除 MySQL volumes：`./deploy/deployment.sh reset-mysql --topology single` 或 `--topology cluster`。
+4. 重新执行 `deployment.sh up`。single 在 `mysql` 初始化快照；cluster 只在 `mysql-primary` 初始化，再通过 GTID 复制到两个 replica。
+5. 确认 runtime 账号没有 DDL 权限、三个 schema 没有 history table，并检查必要引用数据和 development seed 状态。
 
-location 必须是随包固定值。检测到 `COMMUNITY_MIGRATION_LOCATIONS`、`OSS_MIGRATION_LOCATIONS` 或 `IM_MIGRATION_LOCATIONS` 时 runner 会拒绝启动；不要用 override 临时注入 SQL。`clean` 永久禁用，常规发布也不运行 `baseline`。
-
-### 既有 V001 Schema 接管
-
-baseline 只适用于“数据库已经精确等于该模块 V001，但没有 Flyway history”的一次性接管：
-
-1. 先做可恢复备份，并停止/冻结该 schema 的业务写入。
-2. 使用与目标 deployable 同版本的 JAR 和专用 DDL 账号。
-3. 设置对应确认变量为固定值：`COMMUNITY_MIGRATION_BASELINE_CONFIRMATION=I_HAVE_VERIFIED_THE_COMMUNITY_SCHEMA`、`OSS_MIGRATION_BASELINE_CONFIRMATION=I_HAVE_VERIFIED_THE_OSS_SCHEMA` 或 `IM_MIGRATION_BASELINE_CONFIRMATION=I_HAVE_VERIFIED_THE_IM_CORE_SCHEMA`。
-4. 执行 `baseline`。`*SchemaVerifier` 会在写 history 前将实际表、列/默认值、索引和约束与随包 V001 manifest 精确比较。
-5. 任意 missing/unexpected/changed 差异都应中止并调查；不要修 manifest、放宽 verifier 或用 baseline 跳过 V002+。
-6. baseline 成功后执行 `migrate` 和 `validate`，最后再放行业务 runtime。
+`reset-mysql` 是破坏性 clean break，只支持 `--scope full`。它不会删除 Redis、Kafka、Garage 或 Elasticsearch volumes，但会永久删除目标拓扑的 MySQL 数据。需要保留既有业务数据时不要执行；当前态快照模型不提供原地升级，必须先设计并验证数据导出/导入或正式前向升级流程。
 
 ### Development Seed
 
-只有 community runner 接受 `development-seed`。必须同时设置 `COMMUNITY_MIGRATION_PROFILE=development`；它先执行 production migration，再使用独立 history `community_development_seed_history` 运行 `classpath:db/dev-seed/community`。生产环境不得把 `DEPLOYMENT_ENVIRONMENT` 伪装为 development；OSS/IM 不存在 seed action。
+`community-dev-seed` 使用 DML-only community 账号执行 `deploy/mysql/community/090_seed_identity.sql`。只有 `COMMUNITY_DEV_SEED_ENABLED=true` 且 `DEPLOYMENT_ENVIRONMENT=development` 时才运行；生产环境误开开关会失败关闭。该 SQL 不属于当前态 schema，不会污染 production 初始化。
 
 ### 故障定位
 
-- migration service 不成功：先看对应 one-shot service 日志，再查 JDBC 权限、目标 schema、history checksum 和脚本错误。
-- baseline 报 schema mismatch：按异常中的 `missing`、`unexpected`、`changed` facet 对照 manifest；保持 runtime 停止，不要写 baseline history。
-- runtime 未启动：确认对应 migration service 是否 `service_completed_successfully`，不要只重启 runtime container。
-- 开发卷包含旧的非 Flyway 最终态 schema：不需要数据时使用 documented `down ... -- -v` 重建；需要数据时按正式前向 migration 处理。
+- 新快照没有执行：确认目标 MySQL volume 是否确实为空；普通 restart 不会重放 `/docker-entrypoint-initdb.d`。
+- runtime 未启动：检查 `community-db-user-bootstrap`；cluster 还要检查 `mysql-replication-bootstrap` 是否成功。
+- cluster replica 缺表或缺引用数据：保持 runtime 停止，检查 primary 初始化日志、GTID 状态和 replication bootstrap 日志。
+- development seed 失败：确认部署环境精确为 `development`，开关为 `true`，且当前态快照已经创建 `user` 等目标表。
+- 结构漂移：不要手工补 `ALTER TABLE`；修正当前态快照并重新执行 `reset-mysql`。
 
 契约验证：
 
 ```bash
-./deploy/tests/community_migration_contract.sh
-./deploy/tests/oss_migration_contract.sh
-./deploy/tests/im_migration_contract.sh
+./deploy/tests/community_schema_snapshot_contract.sh
+./deploy/tests/oss_schema_snapshot_contract.sh
+./deploy/tests/im_schema_snapshot_contract.sh
+./deploy/tests/reset_mysql_contract.sh
 ```
 
 ## Startup Fail-closed

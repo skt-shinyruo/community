@@ -5,6 +5,7 @@ public enum DriveUploadStatus {
     PREPARED,
     COMPLETING,
     OBJECT_COMPLETED,
+    CLEANUP_PENDING,
     COMPLETED,
     FAILED,
     EXPIRED

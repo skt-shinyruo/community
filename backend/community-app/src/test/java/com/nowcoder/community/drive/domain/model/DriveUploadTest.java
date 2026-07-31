@@ -45,6 +45,59 @@ class DriveUploadTest {
     }
 
     @Test
+    void preparedUploadShouldExpireAtOssDeadline() {
+        DriveUpload upload = preparedUpload();
+
+        assertThat(upload.expiredAt(NOW.plusSeconds(899))).isFalse();
+        assertThat(upload.expiredAt(NOW.plusSeconds(900))).isTrue();
+        assertThat(upload.startCompleting(uuid(90), NOW.plusSeconds(900)).status())
+                .isEqualTo(DriveUploadStatus.EXPIRED);
+    }
+
+    @Test
+    void completionRecoveryWindowShouldStartAtEachCompletionStateTransition() {
+        DriveUpload completing = preparedUpload().startCompleting(uuid(90), NOW.plusSeconds(1));
+
+        assertThat(completing.expiresAt()).isEqualTo(NOW.plusSeconds(3_601));
+        assertThat(completing.expiredAt(NOW.plusSeconds(900))).isFalse();
+        assertThat(completing.expiredAt(NOW.plusSeconds(3_600))).isFalse();
+        assertThat(completing.expiredAt(NOW.plusSeconds(3_601))).isTrue();
+
+        DriveUpload objectCompleted = completing.markObjectCompleted(NOW.plusSeconds(100));
+        assertThat(objectCompleted.expiresAt()).isEqualTo(NOW.plusSeconds(3_700));
+        assertThat(objectCompleted.expiredAt(NOW.plusSeconds(3_699))).isFalse();
+        assertThat(objectCompleted.expiredAt(NOW.plusSeconds(3_700))).isTrue();
+    }
+
+    @Test
+    void terminalCompletionStatesShouldNotExpire() {
+        DriveUpload objectCompleted = preparedUpload()
+                .startCompleting(uuid(90), NOW.plusSeconds(1))
+                .markObjectCompleted(NOW.plusSeconds(2));
+        DriveUpload cleanupPending = objectCompleted.startCleanup(NOW.plusSeconds(3));
+
+        assertThat(objectCompleted.completeFinalization(NOW.plusSeconds(4)).expiredAt(NOW.plusSeconds(10_000)))
+                .isFalse();
+        assertThat(cleanupPending.expiredAt(NOW.plusSeconds(10_000)))
+                .isFalse();
+    }
+
+    @Test
+    void cleanupShouldRemainRecoverableUntilObjectDeletionCompletes() {
+        DriveUpload objectCompleted = preparedUpload()
+                .startCompleting(uuid(90), NOW.plusSeconds(1))
+                .markObjectCompleted(NOW.plusSeconds(2));
+
+        DriveUpload cleanupPending = objectCompleted.startCleanup(NOW.plusSeconds(3));
+        DriveUpload failed = cleanupPending.completeCleanup(NOW.plusSeconds(4));
+
+        assertThat(cleanupPending.status()).isEqualTo(DriveUploadStatus.CLEANUP_PENDING);
+        assertThat(cleanupPending.objectId()).isEqualTo(objectCompleted.objectId());
+        assertThat(failed.status()).isEqualTo(DriveUploadStatus.FAILED);
+        assertThat(failed.updatedAt()).isEqualTo(NOW.plusSeconds(4));
+    }
+
+    @Test
     void markObjectCompletedShouldKeepStableEntryIdForRecoveryFinalization() {
         UUID entryId = uuid(90);
         DriveUpload completing = preparedUpload().startCompleting(entryId, NOW.plusSeconds(1));

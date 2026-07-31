@@ -161,6 +161,27 @@ class OssPersistenceMappingTest {
         assertThat(sessionRepository.completeClaim(
                 session.sessionId(), retryClaim.claimVersion(), NOW.plusSeconds(5))).isTrue();
 
+        OssUploadSession cancellable = OssUploadSession.ready(
+                uuid(30), uuid(31), uuid(32), "PROXY", "community-app", "drive",
+                "DRIVE_UPLOAD", "upload-30", "note.txt", "text/plain", 2L,
+                "sha256-note", "actor-30", NOW, NOW.plusSeconds(900));
+        sessionRepository.save(cancellable);
+        Instant cleanupAfter = NOW.plusSeconds(3_600);
+        assertThat(sessionRepository.cancelActiveSession(
+                cancellable.sessionId(), uuid(99), cancellable.versionId(), NOW.plusSeconds(1), cleanupAfter)).isFalse();
+        assertThat(sessionRepository.cancelActiveSession(
+                cancellable.sessionId(), cancellable.objectId(), cancellable.versionId(), NOW.plusSeconds(1), cleanupAfter)).isTrue();
+        OssUploadSession cleanupPending = sessionRepository.findById(cancellable.sessionId()).orElseThrow();
+        assertThat(cleanupPending.status().name()).isEqualTo("CANCELLED_CLEANUP_PENDING");
+        assertThat(cleanupPending.claimVersion()).isEqualTo(cancellable.claimVersion() + 1L);
+        assertThat(cleanupPending.expiresAt()).isEqualTo(cleanupAfter);
+        assertThat(sessionRepository.recordCancellationCleanup(
+                cleanupPending.sessionId(), cleanupPending.claimVersion(), "retry", NOW.plusSeconds(2))).isTrue();
+        assertThat(sessionRepository.completeCancellationCleanup(
+                cleanupPending.sessionId(), cleanupPending.claimVersion(), cleanupAfter)).isTrue();
+        assertThat(sessionRepository.findById(cancellable.sessionId()).orElseThrow().status().name())
+                .isEqualTo("CANCELLED");
+
         assertThat(objectRepository.findById(objectId)).get().extracting(OssObject::currentVersionId).isEqualTo(versionId);
         assertThat(versionRepository.findById(versionId)).get().extracting(OssObjectVersion::storageKey).isEqualTo(version.storageKey());
         assertThat(sessionRepository.findById(session.sessionId())).get().extracting(OssUploadSession::expectedFileName).isEqualTo(session.expectedFileName());
@@ -342,6 +363,66 @@ class OssPersistenceMappingTest {
         }
 
         @Override
+        public int cancelActiveSession(
+                UUID sessionId,
+                UUID objectId,
+                UUID versionId,
+                Instant updatedAt,
+                Instant cleanupAfter
+        ) {
+            OssUploadSessionDataObject row = rows.get(sessionId);
+            if (row == null
+                    || !objectId.equals(row.getObjectId())
+                    || !versionId.equals(row.getVersionId())
+                    || !("READY".equals(row.getStatus())
+                    || "UPLOADING".equals(row.getStatus())
+                    || "EXPIRED".equals(row.getStatus()))) {
+                return 0;
+            }
+            row.setStatus("CANCELLED_CLEANUP_PENDING");
+            row.setClaimVersion(row.getClaimVersion() + 1L);
+            row.setUpdatedAt(updatedAt);
+            row.setExpiresAt(cleanupAfter);
+            row.setCompletedAt(null);
+            row.setLastError("");
+            return 1;
+        }
+
+        @Override
+        public int recordCancellationCleanup(
+                UUID sessionId,
+                long claimVersion,
+                String lastError,
+                Instant updatedAt
+        ) {
+            OssUploadSessionDataObject row = rows.get(sessionId);
+            if (row == null
+                    || !"CANCELLED_CLEANUP_PENDING".equals(row.getStatus())
+                    || row.getClaimVersion() != claimVersion) {
+                return 0;
+            }
+            row.setUpdatedAt(updatedAt);
+            row.setLastError(lastError);
+            return 1;
+        }
+
+        @Override
+        public int completeCancellationCleanup(UUID sessionId, long claimVersion, Instant completedAt) {
+            OssUploadSessionDataObject row = rows.get(sessionId);
+            if (row == null
+                    || !"CANCELLED_CLEANUP_PENDING".equals(row.getStatus())
+                    || row.getClaimVersion() != claimVersion
+                    || row.getExpiresAt().isAfter(completedAt)) {
+                return 0;
+            }
+            row.setStatus("CANCELLED");
+            row.setUpdatedAt(completedAt);
+            row.setCompletedAt(completedAt);
+            row.setLastError("");
+            return 1;
+        }
+
+        @Override
         public int renewReadySession(
                 UUID sessionId,
                 Instant expectedExpiresAt,
@@ -361,10 +442,19 @@ class OssPersistenceMappingTest {
         }
 
         @Override
-        public List<OssUploadSessionDataObject> listRecoverable(Instant updatedBefore, int limit) {
+        public List<OssUploadSessionDataObject> listRecoverable(
+                Instant uploadingUpdatedBefore,
+                Instant cancellationUpdatedBefore,
+                int limit
+        ) {
             return rows.values().stream()
-                    .filter(row -> "UPLOADING".equals(row.getStatus()))
-                    .filter(row -> !row.getUpdatedAt().isAfter(updatedBefore))
+                    .filter(row -> "UPLOADING".equals(row.getStatus())
+                            || "CANCELLED_CLEANUP_PENDING".equals(row.getStatus()))
+                    .filter(row -> "UPLOADING".equals(row.getStatus())
+                            ? !row.getUpdatedAt().isAfter(row.getLastError().startsWith("RECOVERY_FAILED:")
+                            ? cancellationUpdatedBefore
+                            : uploadingUpdatedBefore)
+                            : !row.getUpdatedAt().isAfter(cancellationUpdatedBefore))
                     .limit(limit)
                     .toList();
         }

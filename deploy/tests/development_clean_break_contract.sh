@@ -16,9 +16,10 @@ if rg -n "${retired}" "${REPO_ROOT}/backend" --glob '**/src/main/**' --glob '!**
   exit 1
 fi
 
-baseline_migration='information_schema|prepare[[:space:]]+stmt|deallocate[[:space:]]+prepare|alter[[:space:]]+table|drop[[:space:]]+index'
-if rg -n -i "${baseline_migration}" "${REPO_ROOT}/deploy/mysql/community" --glob '*.sql'; then
-  echo "development baseline still contains an in-place schema migration" >&2
+current_schema="${REPO_ROOT}/deploy/mysql/primary-init/010_current_schema.sql"
+in_place_schema_change='information_schema|prepare[[:space:]]+stmt|deallocate[[:space:]]+prepare|alter[[:space:]]+table|drop[[:space:]]+(table|index)'
+if rg -n -i "${in_place_schema_change}" "${current_schema}"; then
+  echo "current-state snapshot still contains an in-place schema change" >&2
   exit 1
 fi
 
@@ -30,13 +31,9 @@ if rg -n -i "${mock_metadata_migration}" \
   exit 1
 fi
 
-rg -Fq 'request_hash varchar(64) not null' "${REPO_ROOT}/deploy/mysql/community/010_schema_shared.sql"
-for outbox_schema in \
-    "${REPO_ROOT}/deploy/mysql/community/010_schema_shared.sql" \
-    "${REPO_ROOT}/deploy/mysql/community/070_schema_im_core.sql"; do
-  rg -Fq 'index idx_outbox_status_updated (status, updated_at, id)' "${outbox_schema}"
-  rg -Fq 'index idx_outbox_status_created (status, created_at, id)' "${outbox_schema}"
-done
+rg -Fq '`request_hash` varchar(64)' "${current_schema}"
+test "$(grep -Fc 'KEY `idx_outbox_status_updated` (`status`,`updated_at`,`id`)' "${current_schema}")" -eq 2
+test "$(grep -Fc 'KEY `idx_outbox_status_created` (`status`,`created_at`,`id`)' "${current_schema}")" -eq 2
 
 second_round_backend='content\.counter\.flush\.batch-size|im\.kafka\.consumer\.(group-id|auto-offset-reset)|numeric (userId|reportId) 已不再受支持'
 if rg -n "${second_round_backend}" "${REPO_ROOT}/backend" --glob '**/src/main/**' --glob '!**/target/**' \
@@ -49,7 +46,7 @@ fi
 if rg -n 'createTime|occurredAt' \
     "${REPO_ROOT}/backend/community-app/src/main/java/com/nowcoder/community/social/contracts/event/LikePayload.java" \
     || rg -n 'entityUserId|postId' \
-        "${REPO_ROOT}/backend/community-app/src/main/java/com/nowcoder/community/social/controller/dto/LikeRequest.java" \
+        "${REPO_ROOT}/backend/community-app/src/main/java/com/nowcoder/community/interaction/controller/dto/LikeRequest.java" \
     || rg -n 'entityUserId' \
         "${REPO_ROOT}/backend/community-app/src/main/java/com/nowcoder/community/social/controller/dto/FollowRequest.java" \
     || rg -n 'class[[:space:]]+UserSummary([[:space:]]|\{)' \
@@ -76,7 +73,6 @@ fi
 strict_contracts=(
   "${REPO_ROOT}/backend/community-app/src/main/java/com/nowcoder/community/auth/domain/repository/RefreshTokenRepository.java"
   "${REPO_ROOT}/backend/community-app/src/main/java/com/nowcoder/community/auth/domain/repository/PasswordResetTokenRepository.java"
-  "${REPO_ROOT}/backend/community-app/src/main/java/com/nowcoder/community/user/domain/repository/RefreshTokenSessionRepository.java"
   "${REPO_ROOT}/backend/community-app/src/main/java/com/nowcoder/community/user/domain/repository/UserRepository.java"
   "${REPO_ROOT}/backend/community-app/src/main/java/com/nowcoder/community/social/api/query/SocialBlockQueryApi.java"
   "${REPO_ROOT}/backend/community-app/src/main/java/com/nowcoder/community/user/api/query/UserModerationQueryApi.java"

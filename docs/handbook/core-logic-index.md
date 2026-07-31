@@ -148,9 +148,7 @@
 | `content.domain.service.ModerationDecisionDomainService` | 内容治理决策规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.domain.service.PostModerationDomainService` | 帖子治理状态规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.domain.service.PostHotnessDomainService` | epoch、加精、评论、点赞与 signal weight 热度公式 | [Content 内容业务逻辑](business-logic/content.md#热度预热与-counter) | Covered |
-| `content.infrastructure.api.PostPublishingActionApiAdapter` | published block payload 到内部发布 command 的规范化 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
-| `content.infrastructure.api.PostReadQueryApiAdapter` | 大型帖子 read projection 到 published view 的转换 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
-| `content.infrastructure.api.CommentReadQueryApiAdapter` | 评论层级到 published entity target 的转换 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
+| `content.infrastructure.api.PostReadQueryApiAdapter` | content read result 到 profile author activity view 的转换 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
 | `content.infrastructure.text.SensitiveFilter` | sensitive word trie sanitizer and fail-fast dictionary loading | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
 | `content.infrastructure.event.OutboxContentEventPublisher` | content contract event 写 `eventbus.content` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `content.infrastructure.event.ContentEventKafkaOutboxHandler` | `eventbus.content` outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
@@ -418,23 +416,6 @@
 | `im.core.outbox.ImMessageOutboxEnqueuer` | enqueue IM persisted/rejected/member events | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.core.outbox.ImKafkaOutboxHandler` | dispatch IM outbox rows to Kafka topics | [集成契约](integration-contracts.md#im-kafka-contract) | Covered |
 
-## Database Migrations
-
-| Core class | Role | Handbook section | Coverage |
-| --- | --- | --- | --- |
-| `community-db-migrations.CommunityMigrationApplication` | community migration `migrate/validate/baseline/development-seed` CLI entry | [数据与存储](data-and-storage.md#flyway-migration-deployables) | Covered |
-| `community-db-migrations.CommunityMigrationRunner` | 固定 production location、接收 history table、禁 clean 和 guarded baseline | [数据与存储](data-and-storage.md#flyway-migration-deployables) | Covered |
-| `community-db-migrations.CommunitySchemaCatalog` | 从 `information_schema` 捕获并读取 V001 manifest | [数据与存储](data-and-storage.md#v001-baseline-保护) | Covered |
-| `community-db-migrations.CommunitySchemaVerifier` | baseline 前精确验证 community V001 | [数据与存储](data-and-storage.md#v001-baseline-保护) | Covered |
-| `community-oss-db-migrations.OssMigrationApplication` | OSS migration `migrate/validate/baseline` CLI entry | [数据与存储](data-and-storage.md#flyway-migration-deployables) | Covered |
-| `community-oss-db-migrations.OssMigrationRunner` | 固定 location/history、禁 clean 和 guarded baseline | [数据与存储](data-and-storage.md#flyway-migration-deployables) | Covered |
-| `community-oss-db-migrations.OssSchemaCatalog` | 从 `information_schema` 捕获并读取 OSS V001 manifest | [数据与存储](data-and-storage.md#v001-baseline-保护) | Covered |
-| `community-oss-db-migrations.OssSchemaVerifier` | baseline 前精确验证 OSS V001 | [数据与存储](data-and-storage.md#v001-baseline-保护) | Covered |
-| `community-im-db-migrations.ImMigrationApplication` | IM Core migration `migrate/validate/baseline` CLI entry | [数据与存储](data-and-storage.md#flyway-migration-deployables) | Covered |
-| `community-im-db-migrations.ImMigrationRunner` | 固定 location/history、禁 clean 和 guarded baseline | [数据与存储](data-and-storage.md#flyway-migration-deployables) | Covered |
-| `community-im-db-migrations.ImSchemaCatalog` | 从 `information_schema` 捕获并读取 IM Core V001 manifest | [数据与存储](data-and-storage.md#v001-baseline-保护) | Covered |
-| `community-im-db-migrations.ImSchemaVerifier` | baseline 前精确验证 IM Core V001 | [数据与存储](data-and-storage.md#v001-baseline-保护) | Covered |
-
 ## Shared Infrastructure And Clients
 
 | Core class | Role | Handbook section | Coverage |
@@ -511,7 +492,7 @@
 
 When adding or changing core backend or frontend runtime behavior, update this index in the same change as the relevant handbook section:
 
-1. Add the new `ApplicationService`, domain service, listener, handler, enqueuer, job, gateway filter, WebSocket handler, IM service, migration runner/catalog/verifier, shared guard/scheduler, typed client, or other core runtime entry.
+1. Add the new `ApplicationService`, domain service, listener, handler, enqueuer, job, gateway filter, WebSocket handler, IM service, shared guard/scheduler, typed client, or other core runtime entry.
 2. Link it to the exact handbook section that describes current behavior.
 3. Every candidate must end as `Covered`, `IndexOnly`, or an explicitly justified `Excluded` item in the audit; do not leave a `Partial` or unclassified state.
 4. Do not point current behavior only at `docs/superpowers/specs` or `docs/superpowers/plans`; those are design and migration history unless explicitly restated in handbook.

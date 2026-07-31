@@ -2,7 +2,7 @@ package com.nowcoder.community.market.infrastructure.job;
 
 import com.nowcoder.community.common.trace.TraceJobRunner;
 import com.nowcoder.community.market.application.MarketOrderAutoConfirmApplicationService;
-import com.nowcoder.community.market.api.model.MarketOrderAutoConfirmResult;
+import com.nowcoder.community.market.application.MarketOrderAutoConfirmApplicationService.MarketOrderAutoConfirmResult;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;

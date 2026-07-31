@@ -5,7 +5,7 @@ import { createTargetRepository } from '../batches/targetRepository.mjs'
 import { createAiContentEnhancer } from '../ai/aiContentEnhancer.mjs'
 import { createOpenAiClient } from '../ai/openaiClient.mjs'
 import { loadConfig } from '../config/env.mjs'
-import { bootstrapDemoSchema } from '../db/bootstrap.mjs'
+import { seedDefaultAiConfig } from '../db/bootstrap.mjs'
 import { createDb } from '../db/mysql.mjs'
 import { createCommunityApi } from '../integration/communityApi.mjs'
 import {
@@ -183,7 +183,7 @@ async function main() {
     }
 
     db = await createDb(config)
-    await bootstrapDemoSchema(db)
+    await seedDefaultAiConfig(db)
     const runtime = await createRuntime({ db, config })
     startServer({ config, runtime })
     await triggerStartupAutoFill({ config, jobRunner: runtime.jobRunner, autoFillService: runtime.autoFillService })

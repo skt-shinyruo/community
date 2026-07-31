@@ -9,6 +9,7 @@ Usage:
 Commands:
   up        Start the stack with `up -d --build`
   down      Stop the stack
+  reset-mysql  Stop the stack and delete only its MySQL data volumes
   ps        Show compose status
   logs      Show logs with `logs -f --tail=200`
   config    Render the merged compose config
@@ -31,6 +32,7 @@ Examples:
   ./deploy/deployment.sh config --topology single -p community-single-smoke --env-file deploy/.env.single.smoke
   ./deploy/deployment.sh logs --no-observability community-app-1
   ./deploy/deployment.sh down --no-observability
+  ./deploy/deployment.sh reset-mysql --topology single
   ./deploy/deployment.sh config --topology single
 EOF
 }
@@ -363,6 +365,9 @@ case "${COMMAND}" in
   down)
     SUBCOMMAND=(down)
     ;;
+  reset-mysql)
+    SUBCOMMAND=()
+    ;;
   ps)
     SUBCOMMAND=(ps)
     ;;
@@ -437,6 +442,38 @@ COMPOSE_CMD=(docker compose --env-file "${ENV_FILE}" -p "${PROJECT_NAME}")
 for compose_file in "${COMPOSE_FILES[@]}"; do
   COMPOSE_CMD+=(-f "${compose_file}")
 done
+
+if [ "${COMMAND}" = "reset-mysql" ]; then
+  if [ "${#EXTRA_ARGS[@]}" -ne 0 ]; then
+    echo "[deployment.sh] reset-mysql does not accept compose arguments" >&2
+    exit 1
+  fi
+  if [ "${SCOPE}" != "full" ]; then
+    echo "[deployment.sh] reset-mysql requires --scope full so every container using MySQL is stopped" >&2
+    exit 1
+  fi
+
+  cd "${REPO_ROOT}"
+  "${COMPOSE_CMD[@]}" down
+
+  MYSQL_VOLUMES=("${COMMUNITY_VOLUME_NAMESPACE}_mysql_primary_data")
+  if [ "${TOPOLOGY}" = "cluster" ]; then
+    MYSQL_VOLUMES+=(
+      "${COMMUNITY_VOLUME_NAMESPACE}_mysql_replica_1_data"
+      "${COMMUNITY_VOLUME_NAMESPACE}_mysql_replica_2_data"
+    )
+  fi
+
+  for mysql_volume in "${MYSQL_VOLUMES[@]}"; do
+    if docker volume inspect "${mysql_volume}" >/dev/null 2>&1; then
+      echo "[deployment.sh] deleting MySQL volume ${mysql_volume}"
+      docker volume rm "${mysql_volume}"
+    else
+      echo "[deployment.sh] MySQL volume ${mysql_volume} does not exist"
+    fi
+  done
+  exit 0
+fi
 
 COMPOSE_CMD+=("${SUBCOMMAND[@]}")
 COMPOSE_CMD+=("${EXTRA_ARGS[@]}")

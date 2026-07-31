@@ -14,6 +14,7 @@ import com.nowcoder.community.oss.client.model.OssReferenceResponse;
 import com.nowcoder.community.oss.client.model.OssSignedUrlResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
+import com.nowcoder.community.oss.client.model.OssUploadCancellationResponse;
 import org.springframework.core.io.AbstractResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -74,6 +75,18 @@ public class HttpCommunityOssClient implements CommunityOssClient {
                 .body(request)
                 .retrieve()
                 .body(String.class), OssUploadSessionResponse.class);
+    }
+
+    @Override
+    public OssUploadCancellationResponse cancelUpload(UUID sessionId, UUID objectId, UUID versionId) {
+        return execute(() -> internalRestClient.post()
+                .uri(builder -> builder
+                        .path("/internal/oss/upload-sessions/{sessionId}/cancel")
+                        .queryParam("objectId", objectId)
+                        .queryParam("versionId", versionId)
+                        .build(sessionId))
+                .retrieve()
+                .body(String.class), OssUploadCancellationResponse.class);
     }
 
     @Override

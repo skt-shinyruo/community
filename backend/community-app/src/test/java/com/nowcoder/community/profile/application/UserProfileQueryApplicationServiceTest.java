@@ -1,8 +1,8 @@
 package com.nowcoder.community.profile.application;
 
-import com.nowcoder.community.content.api.model.PostSummaryView;
-import com.nowcoder.community.content.api.model.RecentUserCommentView;
 import com.nowcoder.community.content.api.query.PostReadQueryApi;
+import com.nowcoder.community.content.api.query.PostReadQueryApi.PostSummaryView;
+import com.nowcoder.community.content.api.query.PostReadQueryApi.RecentUserCommentView;
 import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
 import com.nowcoder.community.growth.api.query.UserLevelQueryApi;
 import com.nowcoder.community.profile.application.result.UserProfilePageResult;
@@ -91,7 +91,7 @@ class UserProfileQueryApplicationServiceTest {
         when(userProfileQueryApi.getProfile(userId))
                 .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 1, createTime));
         when(postReadQueryApi.listPostsByUser(userId, 1, 5)).thenReturn(List.of(new PostSummaryView(
-                postId, userId, "first post", "preview", 1, 0, createTime, 4, 9.5,
+                postId, userId, "first post", 1, 0, createTime, 4, 9.5,
                 uuid(3), List.of("java"), uuid(8), createTime, createTime, "latest reply"
         )));
 

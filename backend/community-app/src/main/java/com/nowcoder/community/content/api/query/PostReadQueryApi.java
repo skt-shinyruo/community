@@ -1,21 +1,43 @@
 package com.nowcoder.community.content.api.query;
 
-import com.nowcoder.community.content.api.model.PostDetailView;
-import com.nowcoder.community.content.api.model.PostSummaryView;
-import com.nowcoder.community.content.api.model.RecentUserCommentView;
-
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
 public interface PostReadQueryApi {
 
-    List<PostSummaryView> listPosts(UUID currentUserId, String order, UUID categoryId, String tag, Boolean subscribed, Integer page, Integer size);
-
     List<PostSummaryView> listPostsByUser(UUID userId, Integer page, Integer size);
 
-    List<PostSummaryView> listPostsByIds(List<UUID> postIds);
-
-    PostDetailView getPostDetail(UUID currentUserId, UUID postId);
-
     List<RecentUserCommentView> listRecentCommentsByUser(UUID userId, Integer page, Integer size);
+
+    record PostSummaryView(
+            UUID id,
+            UUID userId,
+            String title,
+            int type,
+            int status,
+            Date createTime,
+            int commentCount,
+            double score,
+            UUID categoryId,
+            List<String> tags,
+            UUID lastReplyUserId,
+            Date lastReplyTime,
+            Date lastActivityTime,
+            String lastReplyPreview
+    ) {
+    }
+
+    record RecentUserCommentView(
+            UUID id,
+            UUID userId,
+            int entityType,
+            UUID entityId,
+            UUID targetId,
+            UUID postId,
+            String postTitle,
+            String content,
+            Date createTime
+    ) {
+    }
 }

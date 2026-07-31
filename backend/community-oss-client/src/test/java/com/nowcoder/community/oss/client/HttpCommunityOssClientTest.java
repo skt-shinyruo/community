@@ -9,6 +9,7 @@ import com.nowcoder.community.oss.client.model.OssPublicFileResponse;
 import com.nowcoder.community.oss.client.model.OssReferenceResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
+import com.nowcoder.community.oss.client.model.OssUploadCancellationResponse;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -234,6 +235,7 @@ class HttpCommunityOssClientTest {
             );
 
             client.prepareUpload(uploadSessionRequest());
+            OssUploadCancellationResponse cancellation = client.cancelUpload(sessionId, objectId, versionId);
             client.completeProxyUpload(new OssCompleteUploadRequest(
                     sessionId,
                     objectId,
@@ -261,9 +263,12 @@ class HttpCommunityOssClientTest {
             client.releaseObjectReference(objectId, referenceId, "actor-7");
             client.deleteObject(objectId, "actor-7");
 
+            assertThat(cancellation).isEqualTo(new OssUploadCancellationResponse(
+                    sessionId, objectId, versionId, "CANCELLED", 2, false, true));
             assertThat(requests).extracting(CapturedRequest::method, CapturedRequest::path)
                     .containsExactly(
                             org.assertj.core.groups.Tuple.tuple("POST", "/internal/oss/upload-sessions"),
+                            org.assertj.core.groups.Tuple.tuple("POST", "/internal/oss/upload-sessions/" + sessionId + "/cancel"),
                             org.assertj.core.groups.Tuple.tuple("POST", "/internal/oss/upload-sessions/" + sessionId + "/complete"),
                             org.assertj.core.groups.Tuple.tuple("GET", "/internal/oss/objects/" + objectId),
                             org.assertj.core.groups.Tuple.tuple("GET", "/internal/oss/objects/" + objectId + "/signed-url"),
@@ -272,6 +277,10 @@ class HttpCommunityOssClientTest {
                             org.assertj.core.groups.Tuple.tuple("DELETE", "/internal/oss/objects/" + objectId + "/references/" + referenceId),
                             org.assertj.core.groups.Tuple.tuple("DELETE", "/internal/oss/objects/" + objectId)
                     );
+            assertThat(requests.get(1).query()).containsExactlyInAnyOrder(
+                    "objectId=" + objectId,
+                    "versionId=" + versionId
+            );
             assertThat(requests).allSatisfy(request ->
                     assertThat(request.authorization()).containsExactly("Bearer service-token-1"));
         } finally {
@@ -738,6 +747,9 @@ class HttpCommunityOssClientTest {
             requests.add(new CapturedRequest(
                     exchange.getRequestMethod(),
                     path,
+                    exchange.getRequestURI().getRawQuery() == null
+                            ? List.of()
+                            : Arrays.asList(exchange.getRequestURI().getRawQuery().split("&")),
                     List.copyOf(exchange.getRequestHeaders().getOrDefault(HttpHeaders.AUTHORIZATION, List.of()))
             ));
             exchange.getRequestBody().readAllBytes();
@@ -761,6 +773,9 @@ class HttpCommunityOssClientTest {
     ) {
         if (path.endsWith("/upload-sessions")) {
             return wrappedUploadSessionResponse();
+        }
+        if (path.endsWith("/cancel")) {
+            return wrappedUploadCancellationResponse(objectId, versionId);
         }
         if (path.endsWith("/signed-url")) {
             return wrappedSignedUrlResponse();
@@ -814,6 +829,27 @@ class HttpCommunityOssClientTest {
                       "timestamp": 1778396128900
                     }
                     """.formatted(directUploadSessionResponse());
+    }
+
+    private static String wrappedUploadCancellationResponse(UUID objectId, UUID versionId) {
+        return """
+                    {
+                      "code": 0,
+                      "message": "OK",
+                      "httpStatus": 200,
+                      "data": {
+                        "sessionId": "00000000-0000-7000-8000-000000000003",
+                        "objectId": "%s",
+                        "versionId": "%s",
+                        "status": "CANCELLED",
+                        "claimVersion": 2,
+                        "completed": false,
+                        "cancelled": true
+                      },
+                      "traceId": "trace-1",
+                      "timestamp": 1778396128900
+                    }
+                    """.formatted(objectId, versionId);
     }
 
     private static String wrappedMetadataResponseWithOwnerFields() {
@@ -937,7 +973,12 @@ class HttpCommunityOssClientTest {
         throw new IllegalArgumentException("multipart sequence is missing");
     }
 
-    private record CapturedRequest(String method, String path, List<String> authorization) {
+    private record CapturedRequest(
+            String method,
+            String path,
+            List<String> query,
+            List<String> authorization
+    ) {
     }
 
     private record CapturedMultipartRequest(List<String> authorization, String contentType, byte[] body) {

@@ -55,6 +55,13 @@ mybatis:
     map-underscore-to-camel-case: true
 
 community:
+  oss:
+    upload-recovery:
+      enabled: ${OSS_UPLOAD_RECOVERY_ENABLED:true}
+      batch-size: ${OSS_UPLOAD_RECOVERY_BATCH_SIZE:100}
+      stale-seconds: ${OSS_UPLOAD_RECOVERY_STALE_SECONDS:2100}
+      cancellation-stale-seconds: ${OSS_UPLOAD_RECOVERY_CANCELLATION_STALE_SECONDS:300}
+      delay-ms: ${OSS_UPLOAD_RECOVERY_DELAY_MS:60000}
   metrics:
     basic-auth:
       username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
@@ -123,4 +130,5 @@ oss:
     region: ${OSS_OBJECT_STORE_REGION:garage}
     path-style: ${OSS_OBJECT_STORE_PATH_STYLE:true}
     local-root: ${OSS_OBJECT_STORE_LOCAL_ROOT:/tmp/community-oss}
+    api-call-timeout: ${OSS_OBJECT_STORE_API_CALL_TIMEOUT:30m}
   public-base-url: ${OSS_PUBLIC_BASE_URL:http://localhost:12880}

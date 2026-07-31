@@ -4,8 +4,10 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
+import com.nowcoder.community.oss.client.model.OssLifecycleResponse;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssSignedUrlResponse;
+import com.nowcoder.community.oss.client.model.OssUploadCancellationResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
 import org.springframework.stereotype.Component;
@@ -62,6 +64,29 @@ public class OssDriveObjectStorageAdapter implements DriveObjectStoragePort {
     }
 
     @Override
+    public UploadCancellation cancelUpload(
+            java.util.UUID sessionId,
+            java.util.UUID objectId,
+            java.util.UUID versionId
+    ) {
+        OssUploadCancellationResponse response = ossClient.cancelUpload(sessionId, objectId, versionId);
+        if (response == null
+                || !sessionId.equals(response.sessionId())
+                || !objectId.equals(response.objectId())
+                || !versionId.equals(response.versionId())) {
+            throw new BusinessException(INTERNAL_ERROR, "取消网盘上传失败");
+        }
+        boolean completedStatus = "COMPLETED".equalsIgnoreCase(response.status());
+        boolean cancelledStatus = "CANCELLED".equalsIgnoreCase(response.status());
+        if (response.completed() == response.cancelled()
+                || response.completed() != completedStatus
+                || response.cancelled() != cancelledStatus) {
+            throw new BusinessException(INTERNAL_ERROR, "取消网盘上传失败");
+        }
+        return new UploadCancellation(response.completed(), response.cancelled());
+    }
+
+    @Override
     public ObjectMetadata getMetadata(java.util.UUID objectId) {
         OssMetadataResponse response = ossClient.getMetadata(objectId);
         if (response == null || response.objectId() == null) {
@@ -90,6 +115,13 @@ public class OssDriveObjectStorageAdapter implements DriveObjectStoragePort {
 
     @Override
     public void deleteObject(java.util.UUID objectId, String actorId) {
-        ossClient.deleteObject(objectId, actorId == null ? "" : actorId);
+        OssLifecycleResponse response = ossClient.deleteObject(objectId, actorId == null ? "" : actorId);
+        if (response == null
+                || !objectId.equals(response.objectId())
+                || !"PURGED".equalsIgnoreCase(response.status())
+                || !response.purged()
+                || response.deletePending()) {
+            throw new BusinessException(INTERNAL_ERROR, "删除网盘文件失败");
+        }
     }
 }

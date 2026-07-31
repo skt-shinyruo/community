@@ -20,12 +20,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
-import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.util.Comparator;
+import java.sql.DriverManager;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -64,9 +62,6 @@ class ObjectUploadPrepareMySqlConcurrencyContractTest {
         registry.add("spring.datasource.password", MYSQL::getPassword);
         registry.add("spring.datasource.driver-class-name", () -> "com.mysql.cj.jdbc.Driver");
     }
-
-    @Autowired
-    private DataSource dataSource;
 
     @Autowired
     private ObjectUploadApplicationService applicationService;
@@ -159,31 +154,20 @@ class ObjectUploadPrepareMySqlConcurrencyContractTest {
     }
 
     private void installCurrentSchema() throws Exception {
-        Path migrationDirectory = Path.of(
+        Path currentSchema = Path.of(
                 "..",
-                "community-oss-db-migrations",
-                "src",
-                "main",
-                "resources",
-                "db",
-                "migration",
-                "community-oss"
-        );
-        List<Path> migrations;
-        try (var paths = Files.list(migrationDirectory)) {
-            migrations = paths
-                    .filter(path -> path.getFileName().toString().matches("V[0-9]+__.*\\.sql"))
-                    .sorted(Comparator.comparing(path -> path.getFileName().toString()))
-                    .toList();
-        }
-        assertThat(migrations).isNotEmpty();
-        try (Connection connection = dataSource.getConnection()) {
-            for (Path migration : migrations) {
-                ScriptUtils.executeSqlScript(
-                        connection,
-                        new EncodedResource(new FileSystemResource(migration), StandardCharsets.UTF_8)
-                );
-            }
+                "..",
+                "deploy",
+                "mysql",
+                "primary-init",
+                "010_current_schema.sql"
+        ).toAbsolutePath().normalize();
+        try (Connection connection = DriverManager.getConnection(
+                MYSQL.getJdbcUrl(), "root", MYSQL.getPassword())) {
+            ScriptUtils.executeSqlScript(
+                    connection,
+                    new EncodedResource(new FileSystemResource(currentSchema), StandardCharsets.UTF_8)
+            );
         }
     }
 

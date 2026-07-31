@@ -209,6 +209,133 @@ class ObjectUploadReliabilityContractTest {
     }
 
     @Test
+    void cancellationWhilePutIsBlockedMustFenceFinalizeAndRemoveTheLateAttempt() throws Exception {
+        ServiceHarness harness = new ServiceHarness();
+        ObjectUploadSessionResult prepared = harness.prepareLegacy();
+        harness.objectStore.blockFirstPut.set(true);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<ObjectMetadataResult> writer = executor.submit(() -> harness.service.completeUpload(
+                    completeCommand(prepared, new AtomicInteger())));
+            assertThat(harness.objectStore.firstPutEntered.await(1, TimeUnit.SECONDS)).isTrue();
+            OssUploadSession oldClaim = harness.session.get();
+            String attemptKey = ObjectUploadApplicationService.attemptStorageKey(oldClaim);
+
+            ObjectUploadApplicationService.UploadCancellationResult cancelled =
+                    harness.service.cancelInternalUpload(
+                            "community-app",
+                            prepared.sessionId(),
+                            prepared.objectId(),
+                            prepared.versionId()
+                    );
+            assertThat(cancelled.status()).isEqualTo("CANCELLED");
+            assertThat(cancelled.claimVersion()).isEqualTo(oldClaim.claimVersion() + 1L);
+
+            harness.objectStore.releaseFirstPut.countDown();
+            assertThatThrownBy(() -> writer.get(2, TimeUnit.SECONDS))
+                    .isInstanceOf(ExecutionException.class)
+                    .cause()
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("cancelled");
+
+            assertThat(harness.session.get().status())
+                    .isEqualTo(OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING);
+            assertThat(harness.object.get().status()).isEqualTo(OssObjectStatus.STAGED);
+            assertThat(harness.version.get().status()).isEqualTo(OssObjectVersionStatus.STAGED);
+            assertThat(harness.objectStore.head(harness.version.get().storageBucket(), attemptKey)).isEmpty();
+            assertThat(harness.objectStore.deleteCalls).hasValueGreaterThanOrEqualTo(2);
+
+            Instant cleanupAfter = harness.session.get().expiresAt();
+            harness.recoverAt(cleanupAfter.minusSeconds(1));
+            assertThat(harness.session.get().status())
+                    .isEqualTo(OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING);
+
+            harness.recoverAt(cleanupAfter);
+            assertThat(harness.session.get().status()).isEqualTo(OssUploadSessionStatus.CANCELLED);
+            assertThat(harness.sessionRepository.listRecoverable(cleanupAfter, cleanupAfter, 10)).isEmpty();
+        } finally {
+            harness.objectStore.releaseFirstPut.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void cancellationRecoveryMustRemovePreResetAttemptEvenWhenItLandsAfterAnEarlierCleanup() throws Exception {
+        ServiceHarness harness = new ServiceHarness();
+        ObjectUploadSessionResult prepared = harness.prepareLegacy();
+        assertThat(harness.sessionRepository.claimForCompletion(
+                prepared.sessionId(), CLOCK.instant())).isTrue();
+        OssUploadSession abandoned = harness.session.get();
+
+        harness.recover(CLOCK.instant().plusSeconds(60));
+        OssUploadSession reset = harness.session.get();
+        assertThat(reset.status()).isEqualTo(OssUploadSessionStatus.READY);
+        assertThat(reset.claimVersion()).isGreaterThan(abandoned.claimVersion());
+        String bucket = harness.version.get().storageBucket();
+        List<String> historicalAttemptKeys = List.of(
+                ObjectUploadApplicationService.attemptStorageKey(reset, 0L),
+                ObjectUploadApplicationService.attemptStorageKey(reset, abandoned.claimVersion()),
+                ObjectUploadApplicationService.attemptStorageKey(reset, reset.claimVersion())
+        );
+        historicalAttemptKeys.forEach(key -> harness.objectStore.seedStored(
+                bucket,
+                key,
+                "image/png",
+                4L,
+                "etag-before-cancel"
+        ));
+
+        ObjectUploadApplicationService.UploadCancellationResult cancellation =
+                harness.service.cancelInternalUpload(
+                        "community-app",
+                        prepared.sessionId(),
+                        prepared.objectId(),
+                        prepared.versionId()
+                );
+        assertThat(cancellation.cancelled()).isTrue();
+        assertThat(harness.session.get().status())
+                .isEqualTo(OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING);
+        assertThat(harness.session.get().claimVersion()).isEqualTo(reset.claimVersion() + 1L);
+        historicalAttemptKeys.forEach(key ->
+                assertThat(harness.objectStore.head(bucket, key)).isEmpty());
+
+        String preResetAttemptKey = ObjectUploadApplicationService.attemptStorageKey(abandoned);
+        harness.objectStore.seedStored(bucket, preResetAttemptKey, "image/png", 4L, "etag-late-1");
+        assertThat(harness.objectStore.head(bucket, preResetAttemptKey)).isPresent();
+
+        Instant cleanupAfter = harness.session.get().expiresAt();
+        Instant firstCleanupAt = cleanupAfter.minusSeconds(2);
+        harness.recoverAt(firstCleanupAt);
+
+        historicalAttemptKeys.forEach(key ->
+                assertThat(harness.objectStore.head(bucket, key)).isEmpty());
+        assertThat(harness.session.get().status())
+                .isEqualTo(OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING);
+        assertThat(harness.session.get().updatedAt()).isEqualTo(firstCleanupAt);
+
+        harness.objectStore.seedStored(bucket, historicalAttemptKeys.get(0), "image/png", 4L, "etag-late-2");
+        harness.objectStore.seedStored(bucket, historicalAttemptKeys.get(2), "image/png", 4L, "etag-late-2");
+        Instant secondCleanupAt = cleanupAfter.minusSeconds(1);
+        harness.recoverAt(secondCleanupAt);
+
+        historicalAttemptKeys.forEach(key ->
+                assertThat(harness.objectStore.head(bucket, key)).isEmpty());
+        assertThat(harness.session.get().status())
+                .isEqualTo(OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING);
+        assertThat(harness.session.get().updatedAt()).isEqualTo(secondCleanupAt);
+
+        harness.objectStore.seedStored(bucket, preResetAttemptKey, "image/png", 4L, "etag-late-3");
+        harness.recoverAt(cleanupAfter);
+
+        historicalAttemptKeys.forEach(key ->
+                assertThat(harness.objectStore.head(bucket, key)).isEmpty());
+        assertThat(harness.session.get().status()).isEqualTo(OssUploadSessionStatus.CANCELLED);
+        assertThat(harness.session.get().updatedAt()).isEqualTo(cleanupAfter);
+        assertThat(harness.object.get().status()).isEqualTo(OssObjectStatus.STAGED);
+        assertThat(harness.version.get().status()).isEqualTo(OssObjectVersionStatus.STAGED);
+    }
+
+    @Test
     void staleWriterReleasedAfterResetAndRetryMustNotOverwriteTheWinningAttempt() throws Exception {
         ServiceHarness harness = new ServiceHarness();
         ObjectUploadSessionResult prepared = harness.prepareLegacy();
@@ -235,6 +362,7 @@ class ObjectUploadReliabilityContractTest {
                     .hasMessageContaining("claim");
 
             assertThat(harness.objectStore.putKeys).hasSize(2);
+            assertThat(harness.objectStore.head("community-oss", harness.objectStore.putKeys.get(0))).isEmpty();
             assertThat(winningKey).isEqualTo(harness.objectStore.putKeys.get(1));
             assertThat(harness.version.get().storageKey()).isEqualTo(winningKey);
             assertThat(harness.version.get().etag()).isEqualTo("etag-put-2");
@@ -271,9 +399,10 @@ class ObjectUploadReliabilityContractTest {
         Class<?> recoveryType = Class.forName(
                 "com.nowcoder.community.oss.application.ObjectUploadRecoveryApplicationService");
         Object recovery = instantiateRecovery(recoveryType, harness);
-        Method recover = recoveryType.getMethod("recoverStaleUploads", Instant.class, int.class);
+        Method recover = recoveryType.getMethod(
+                "recoverStaleUploads", Instant.class, Instant.class, int.class);
 
-        recover.invoke(recovery, CLOCK.instant().plusSeconds(60), 10);
+        recover.invoke(recovery, CLOCK.instant().plusSeconds(60), CLOCK.instant().plusSeconds(60), 10);
 
         assertThat(harness.session.get().status()).isEqualTo(OssUploadSessionStatus.COMPLETED);
         assertThat(harness.object.get().status()).isEqualTo(OssObjectStatus.ACTIVE);
@@ -436,8 +565,70 @@ class ObjectUploadReliabilityContractTest {
     }
 
     @Test
+    void recoveryThatLosesItsClaimMustDeleteItsAttemptWithoutRecordingFalseFailure() {
+        RecoveryFixture fixture = recoveryFixture(7250, CLOCK.instant().minusSeconds(60));
+        AtomicReference<OssUploadSession> current = new AtomicReference<>(fixture.session());
+        AtomicInteger recoveryFailureRecords = new AtomicInteger();
+        OssObjectRepository objectRepository = mock(OssObjectRepository.class, invocation -> {
+            if (invocation.getMethod().getName().equals("findById")) {
+                return Optional.of(fixture.object());
+            }
+            return org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
+        });
+        OssObjectVersionRepository versionRepository = mock(OssObjectVersionRepository.class, invocation -> {
+            if (invocation.getMethod().getName().equals("findById")) {
+                return Optional.of(fixture.version());
+            }
+            return org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
+        });
+        OssUploadSessionRepository sessionRepository = mock(OssUploadSessionRepository.class, invocation -> {
+            String name = invocation.getMethod().getName();
+            if (name.equals("listRecoverable")) {
+                return List.of(fixture.session());
+            }
+            if (name.equals("findById")) {
+                return Optional.of(current.get());
+            }
+            if (name.equals("completeClaim")) {
+                current.set(current.get().resetFailedClaim(
+                        CLOCK.instant(), CLOCK.instant().plusSeconds(900)));
+                return false;
+            }
+            if (name.equals("recordCompletionFailure")) {
+                recoveryFailureRecords.incrementAndGet();
+                return false;
+            }
+            return org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
+        });
+        CountingObjectStore objectStore = new CountingObjectStore();
+        String attemptKey = ObjectUploadApplicationService.attemptStorageKey(fixture.session());
+        objectStore.seedStored(
+                fixture.version().storageBucket(),
+                attemptKey,
+                fixture.version().contentType(),
+                fixture.version().contentLength()
+        );
+        ObjectUploadRecoveryApplicationService recovery = new ObjectUploadRecoveryApplicationService(
+                objectRepository, versionRepository, sessionRepository, objectStore, CLOCK);
+
+        recovery.recoverStaleUploads(CLOCK.instant(), CLOCK.instant(), 1);
+
+        assertThat(current.get().status()).isEqualTo(OssUploadSessionStatus.READY);
+        assertThat(objectStore.head(fixture.version().storageBucket(), attemptKey)).isEmpty();
+        assertThat(recoveryFailureRecords).hasValue(0);
+    }
+
+    @Test
     void failedOldestCandidateMustAdvanceItsObservationTimeAndNotStarvePastTheLimit() {
-        RecoveryFixture bad = recoveryFixture(7300, CLOCK.instant().minusSeconds(120));
+        RecoveryFixture cancellable = recoveryFixture(7300, CLOCK.instant().minusSeconds(120));
+        RecoveryFixture bad = new RecoveryFixture(
+                cancellable.object(),
+                cancellable.version(),
+                cancellable.session().cancel(
+                        cancellable.session().updatedAt(),
+                        CLOCK.instant().plusSeconds(3_600)
+                )
+        );
         RecoveryFixture good = recoveryFixture(7400, CLOCK.instant().minusSeconds(60));
         Map<UUID, OssObject> objects = new ConcurrentHashMap<>(Map.of(
                 bad.object().objectId(), bad.object(),
@@ -476,11 +667,15 @@ class ObjectUploadReliabilityContractTest {
         OssUploadSessionRepository sessionRepository = mock(OssUploadSessionRepository.class, invocation -> {
             String name = invocation.getMethod().getName();
             if (name.equals("listRecoverable")) {
-                Instant cutoff = invocation.getArgument(0);
-                int limit = invocation.getArgument(1);
+                Instant uploadingCutoff = invocation.getArgument(0);
+                Instant cancellationCutoff = invocation.getArgument(1);
+                int limit = invocation.getArgument(2);
                 return sessions.values().stream()
-                        .filter(value -> value.status() == OssUploadSessionStatus.UPLOADING)
-                        .filter(value -> !value.updatedAt().isAfter(cutoff))
+                        .filter(value -> value.status() == OssUploadSessionStatus.UPLOADING
+                                || value.status() == OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING)
+                        .filter(value -> value.status() == OssUploadSessionStatus.UPLOADING
+                                ? !value.updatedAt().isAfter(uploadingCutoff)
+                                : !value.updatedAt().isAfter(cancellationCutoff))
                         .sorted(java.util.Comparator.comparing(OssUploadSession::updatedAt))
                         .limit(limit)
                         .toList();
@@ -499,6 +694,19 @@ class ObjectUploadReliabilityContractTest {
                         invocation.getArgument(3), invocation.getArgument(2)));
                 return true;
             }
+            if (name.equals("recordCancellationCleanup")) {
+                UUID id = invocation.getArgument(0);
+                long claimVersion = invocation.getArgument(1);
+                OssUploadSession current = sessions.get(id);
+                if (current == null
+                        || current.status() != OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING
+                        || current.claimVersion() != claimVersion) {
+                    return false;
+                }
+                sessions.put(id, current.recordCancellationCleanup(
+                        invocation.getArgument(3), invocation.getArgument(2)));
+                return true;
+            }
             if (name.equals("completeClaim")) {
                 UUID id = invocation.getArgument(0);
                 long claimVersion = invocation.getArgument(1);
@@ -512,7 +720,7 @@ class ObjectUploadReliabilityContractTest {
             return org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
         });
         CountingObjectStore objectStore = new CountingObjectStore();
-        objectStore.failNextHead.set(true);
+        objectStore.failNextDelete.set(true);
         objectStore.seedStored(
                 good.version().storageBucket(),
                 ObjectUploadApplicationService.attemptStorageKey(good.session()),
@@ -523,18 +731,18 @@ class ObjectUploadReliabilityContractTest {
                 objectRepository, versionRepository, sessionRepository, objectStore, CLOCK);
         Instant cutoff = CLOCK.instant().minusSeconds(30);
 
-        recovery.recoverStaleUploads(cutoff, 1);
+        recovery.recoverStaleUploads(cutoff, cutoff, 1);
 
         OssUploadSession observedBad = sessions.get(bad.session().sessionId());
         assertThat(observedBad.lastError()).startsWith("RECOVERY_FAILED:");
         assertThat(observedBad.updatedAt()).isEqualTo(CLOCK.instant());
 
-        recovery.recoverStaleUploads(cutoff, 1);
+        recovery.recoverStaleUploads(cutoff, cutoff, 1);
 
         assertThat(sessions.get(good.session().sessionId()).status())
                 .isEqualTo(OssUploadSessionStatus.COMPLETED);
         assertThat(sessions.get(bad.session().sessionId()).status())
-                .isEqualTo(OssUploadSessionStatus.UPLOADING);
+                .isEqualTo(OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING);
     }
 
     @Test
@@ -572,7 +780,7 @@ class ObjectUploadReliabilityContractTest {
         Method complete = OssUploadSessionRepository.class.getMethod(
                 "completeClaim", UUID.class, long.class, Instant.class);
         Method scan = OssUploadSessionRepository.class.getMethod(
-                "listRecoverable", Instant.class, int.class);
+                "listRecoverable", Instant.class, Instant.class, int.class);
 
         assertThat(claim.getReturnType()).isEqualTo(boolean.class);
         assertThat(recordFailure.getReturnType()).isEqualTo(boolean.class);
@@ -764,6 +972,14 @@ class ObjectUploadReliabilityContractTest {
     }
 
     private static Object instantiateRecovery(Class<?> recoveryType, ServiceHarness harness) throws Exception {
+        return instantiateRecovery(recoveryType, harness, CLOCK);
+    }
+
+    private static Object instantiateRecovery(
+            Class<?> recoveryType,
+            ServiceHarness harness,
+            Clock recoveryClock
+    ) throws Exception {
         Constructor<?> constructor = Arrays.stream(recoveryType.getDeclaredConstructors())
                 .min(java.util.Comparator.comparingInt(Constructor::getParameterCount))
                 .orElseThrow();
@@ -781,7 +997,7 @@ class ObjectUploadReliabilityContractTest {
                 return harness.objectStore;
             }
             if (type == Clock.class) {
-                return CLOCK;
+                return recoveryClock;
             }
             if (type == OssProperties.class) {
                 return new OssProperties();
@@ -942,6 +1158,53 @@ class ObjectUploadReliabilityContractTest {
                     return true;
                 }
             }
+            if (name.equals("cancelActiveSession")) {
+                synchronized (session) {
+                    OssUploadSession current = session.get();
+                    UUID objectId = invocation.getArgument(1);
+                    UUID versionId = invocation.getArgument(2);
+                    if (current == null
+                            || !current.objectId().equals(objectId)
+                            || !current.versionId().equals(versionId)
+                            || (current.status() != OssUploadSessionStatus.READY
+                            && current.status() != OssUploadSessionStatus.UPLOADING
+                            && current.status() != OssUploadSessionStatus.EXPIRED)) {
+                        return false;
+                    }
+                    session.set(current.cancel(invocation.getArgument(3), invocation.getArgument(4)));
+                    sessionSaveCalls.incrementAndGet();
+                    return true;
+                }
+            }
+            if (name.equals("recordCancellationCleanup")) {
+                synchronized (session) {
+                    OssUploadSession current = session.get();
+                    long claimVersion = invocation.getArgument(1);
+                    if (current == null
+                            || current.status() != OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING
+                            || current.claimVersion() != claimVersion) {
+                        return false;
+                    }
+                    session.set(current.recordCancellationCleanup(
+                            invocation.getArgument(3), invocation.getArgument(2)));
+                    sessionSaveCalls.incrementAndGet();
+                    return true;
+                }
+            }
+            if (name.equals("completeCancellationCleanup")) {
+                synchronized (session) {
+                    OssUploadSession current = session.get();
+                    long claimVersion = invocation.getArgument(1);
+                    if (current == null
+                            || current.status() != OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING
+                            || current.claimVersion() != claimVersion) {
+                        return false;
+                    }
+                    session.set(current.completeCancellationCleanup(invocation.getArgument(2)));
+                    sessionSaveCalls.incrementAndGet();
+                    return true;
+                }
+            }
             if (name.equals("renewReadySession")) {
                 synchronized (session) {
                     OssUploadSession current = session.get();
@@ -958,7 +1221,9 @@ class ObjectUploadReliabilityContractTest {
             }
             if (name.equals("listRecoverable")) {
                 OssUploadSession current = session.get();
-                return current != null && current.status() == OssUploadSessionStatus.UPLOADING
+                return current != null
+                        && (current.status() == OssUploadSessionStatus.UPLOADING
+                        || current.status() == OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING)
                         ? java.util.Collections.nCopies(recoveryCopies.get(), current)
                         : List.of();
             }
@@ -998,8 +1263,22 @@ class ObjectUploadReliabilityContractTest {
             Class<?> recoveryType = Class.forName(
                     "com.nowcoder.community.oss.application.ObjectUploadRecoveryApplicationService");
             Object recovery = instantiateRecovery(recoveryType, this);
-            Method recover = recoveryType.getMethod("recoverStaleUploads", Instant.class, int.class);
-            recover.invoke(recovery, updatedBefore, 10);
+            Method recover = recoveryType.getMethod(
+                    "recoverStaleUploads", Instant.class, Instant.class, int.class);
+            recover.invoke(recovery, updatedBefore, updatedBefore, 10);
+        }
+
+        private void recoverAt(Instant now) throws Exception {
+            Class<?> recoveryType = Class.forName(
+                    "com.nowcoder.community.oss.application.ObjectUploadRecoveryApplicationService");
+            Object recovery = instantiateRecovery(
+                    recoveryType,
+                    this,
+                    Clock.fixed(now, ZoneOffset.UTC)
+            );
+            Method recover = recoveryType.getMethod(
+                    "recoverStaleUploads", Instant.class, Instant.class, int.class);
+            recover.invoke(recovery, now, now, 10);
         }
 
         private void seedRecoverableStoredObject() {
@@ -1071,6 +1350,7 @@ class ObjectUploadReliabilityContractTest {
         private final AtomicBoolean blockFirstPut = new AtomicBoolean();
         private final AtomicBoolean failNextPut = new AtomicBoolean();
         private final AtomicBoolean failNextHead = new AtomicBoolean();
+        private final AtomicBoolean failNextDelete = new AtomicBoolean();
         private final AtomicReference<MetadataOverride> nextHeadMetadataOverride = new AtomicReference<>();
         private final AtomicBoolean completeFailedPutAfterRetry = new AtomicBoolean();
         private final CountDownLatch firstPutEntered = new CountDownLatch(1);
@@ -1153,6 +1433,9 @@ class ObjectUploadReliabilityContractTest {
         @Override
         public void delete(String bucket, String key) {
             deleteCalls.incrementAndGet();
+            if (failNextDelete.compareAndSet(true, false)) {
+                throw new IllegalStateException("simulated object store delete failure");
+            }
             storedObjects.remove(storeId(bucket, key));
         }
 

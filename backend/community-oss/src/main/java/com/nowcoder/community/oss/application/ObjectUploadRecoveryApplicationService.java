@@ -3,6 +3,7 @@ package com.nowcoder.community.oss.application;
 import com.nowcoder.community.oss.domain.model.OssObject;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssUploadSession;
+import com.nowcoder.community.oss.domain.model.OssUploadSessionStatus;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.domain.repository.OssUploadSessionRepository;
@@ -68,11 +69,19 @@ public class ObjectUploadRecoveryApplicationService {
         );
     }
 
-    public void recoverStaleUploads(Instant updatedBefore, int limit) {
-        if (updatedBefore == null) {
+    public void recoverStaleUploads(
+            Instant uploadingUpdatedBefore,
+            Instant cancellationUpdatedBefore,
+            int limit
+    ) {
+        if (uploadingUpdatedBefore == null || cancellationUpdatedBefore == null) {
             return;
         }
-        List<OssUploadSession> sessions = sessionRepository.listRecoverable(updatedBefore, limit);
+        List<OssUploadSession> sessions = sessionRepository.listRecoverable(
+                uploadingUpdatedBefore,
+                cancellationUpdatedBefore,
+                limit
+        );
         if (sessions == null || sessions.isEmpty()) {
             return;
         }
@@ -101,30 +110,68 @@ public class ObjectUploadRecoveryApplicationService {
             );
             return;
         }
-        String attemptStorageKey = ObjectUploadApplicationService.attemptStorageKey(session);
-        Optional<ObjectStoreObject> stored = objectStore.head(version.storageBucket(), attemptStorageKey);
-        if (stored.isEmpty()) {
-            Instant resetAt = clock.instant();
-            transactionOperations.resetFailedClaim(
-                    session.sessionId(),
-                    session.claimVersion(),
-                    resetAt,
-                    resetAt.plus(retryTtl(session))
-            );
+        if (session.status() == OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING) {
+            cleanupCancelledAttempt(session, version.storageBucket());
             return;
         }
-        Instant now = clock.instant();
-        ObjectStoreObject metadata = stored.get();
-        ObjectUploadApplicationService.validateStoredMetadata(session, metadata);
-        OssObjectVersion activatedVersion = version.withUploadedContentAt(
-                attemptStorageKey,
-                metadata.contentType(),
-                metadata.contentLength(),
-                session.expectedChecksumSha256()
-        ).activate(metadata.etag(), now);
-        OssObject activatedObject = object.activate(activatedVersion, now);
-        OssUploadSession completedSession = session.complete(now);
-        transactionOperations.finalizeUpload(activatedVersion, activatedObject, completedSession);
+        String attemptStorageKey = ObjectUploadApplicationService.attemptStorageKey(session);
+        try {
+            Optional<ObjectStoreObject> stored = objectStore.head(version.storageBucket(), attemptStorageKey);
+            if (stored.isEmpty()) {
+                Instant resetAt = clock.instant();
+                transactionOperations.resetFailedClaim(
+                        session.sessionId(),
+                        session.claimVersion(),
+                        resetAt,
+                        resetAt.plus(retryTtl(session))
+                );
+                return;
+            }
+            Instant now = clock.instant();
+            ObjectStoreObject metadata = stored.get();
+            ObjectUploadApplicationService.validateStoredMetadata(session, metadata);
+            OssObjectVersion activatedVersion = version.withUploadedContentAt(
+                    attemptStorageKey,
+                    metadata.contentType(),
+                    metadata.contentLength(),
+                    session.expectedChecksumSha256()
+            ).activate(metadata.etag(), now);
+            OssObject activatedObject = object.activate(activatedVersion, now);
+            OssUploadSession completedSession = session.complete(now);
+            transactionOperations.finalizeUpload(activatedVersion, activatedObject, completedSession);
+        } catch (RuntimeException failure) {
+            if (cleanupAttemptIfClaimLost(session, version.storageBucket(), attemptStorageKey)) {
+                return;
+            }
+            throw failure;
+        }
+    }
+
+    private void cleanupCancelledAttempt(OssUploadSession session, String bucket) {
+        ObjectUploadApplicationService.deleteCancellationAttempts(objectStore, bucket, session);
+        Instant observedAt = clock.instant();
+        if (session.expiredAt(observedAt)) {
+            transactionOperations.completeCancellationCleanup(
+                    session.sessionId(), session.claimVersion(), observedAt);
+        } else {
+            transactionOperations.recordCancellationCleanup(session, observedAt);
+        }
+    }
+
+    private boolean cleanupAttemptIfClaimLost(
+            OssUploadSession attemptedSession,
+            String bucket,
+            String attemptStorageKey
+    ) {
+        OssUploadSession current = sessionRepository.findById(attemptedSession.sessionId()).orElse(null);
+        if (current == null
+                || !current.objectId().equals(attemptedSession.objectId())
+                || !current.versionId().equals(attemptedSession.versionId())
+                || current.claimVersion() <= attemptedSession.claimVersion()) {
+            return false;
+        }
+        objectStore.delete(bucket, attemptStorageKey);
+        return true;
     }
 
     private void safelyRecordRecoveryFailure(OssUploadSession session, RuntimeException failure) {

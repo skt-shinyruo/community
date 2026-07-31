@@ -9,12 +9,15 @@ import com.nowcoder.community.oss.client.model.OssReferenceResponse;
 import com.nowcoder.community.oss.client.model.OssSignedUrlResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
+import com.nowcoder.community.oss.client.model.OssUploadCancellationResponse;
 
 import java.util.UUID;
 
 public interface CommunityOssClient {
 
     OssUploadSessionResponse prepareUpload(OssUploadSessionRequest request);
+
+    OssUploadCancellationResponse cancelUpload(UUID sessionId, UUID objectId, UUID versionId);
 
     OssMetadataResponse completeProxyUpload(OssCompleteUploadRequest request);
 

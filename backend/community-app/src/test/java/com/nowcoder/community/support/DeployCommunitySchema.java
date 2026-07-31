@@ -11,6 +11,6 @@ public final class DeployCommunitySchema {
 
     public static String read(Path repoRoot) throws IOException {
         return Files.readString(repoRoot.resolve(
-                "backend/community-db-migrations/src/main/resources/db/migration/community/V001__baseline.sql"));
+                "deploy/mysql/primary-init/010_current_schema.sql"));
     }
 }

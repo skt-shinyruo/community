@@ -25,7 +25,6 @@ owner API：
 - `WalletMarketActionApi`：market escrow/release/refund。
 - `WalletRewardActionApi`：growth 等外域提交显式奖励 issue/revoke。
 - `WalletRewardKafkaListener`：从 `content.events` / `social.events` 接收标准内容和点赞奖励信号。
-- `WalletAccountQueryApi`：账户和余额查询。
 
 ## 数据流
 

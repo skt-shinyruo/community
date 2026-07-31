@@ -46,6 +46,27 @@ public interface OssUploadSessionMapper {
             @Param("completedAt") Instant completedAt
     );
 
+    int cancelActiveSession(
+            @Param("sessionId") UUID sessionId,
+            @Param("objectId") UUID objectId,
+            @Param("versionId") UUID versionId,
+            @Param("updatedAt") Instant updatedAt,
+            @Param("cleanupAfter") Instant cleanupAfter
+    );
+
+    int recordCancellationCleanup(
+            @Param("sessionId") UUID sessionId,
+            @Param("claimVersion") long claimVersion,
+            @Param("lastError") String lastError,
+            @Param("updatedAt") Instant updatedAt
+    );
+
+    int completeCancellationCleanup(
+            @Param("sessionId") UUID sessionId,
+            @Param("claimVersion") long claimVersion,
+            @Param("completedAt") Instant completedAt
+    );
+
     int renewReadySession(
             @Param("sessionId") UUID sessionId,
             @Param("expectedExpiresAt") Instant expectedExpiresAt,
@@ -54,7 +75,8 @@ public interface OssUploadSessionMapper {
     );
 
     List<OssUploadSessionDataObject> listRecoverable(
-            @Param("updatedBefore") Instant updatedBefore,
+            @Param("uploadingUpdatedBefore") Instant uploadingUpdatedBefore,
+            @Param("cancellationUpdatedBefore") Instant cancellationUpdatedBefore,
             @Param("limit") int limit
     );
 }

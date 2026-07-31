@@ -3,7 +3,7 @@ package com.nowcoder.community.market.infrastructure.job;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.application.MarketOrderAutoConfirmApplicationService;
-import com.nowcoder.community.market.api.model.MarketOrderAutoConfirmResult;
+import com.nowcoder.community.market.application.MarketOrderAutoConfirmApplicationService.MarketOrderAutoConfirmResult;
 import com.nowcoder.community.market.controller.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.controller.dto.CreateMarketListingRequest;
 import com.nowcoder.community.market.application.MarketAddressApplicationService;

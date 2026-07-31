@@ -14,19 +14,20 @@ class DriveSchemaResourceTest {
 
     @Test
     void productionSchemaShouldDefineDriveTablesAndIndexes() throws IOException {
-        String sql = Files.readString(REPO_ROOT.resolve("deploy/mysql/community/090_schema_drive.sql"));
+        String sql = Files.readString(REPO_ROOT.resolve("deploy/mysql/primary-init/010_current_schema.sql"))
+                .toLowerCase(java.util.Locale.ROOT);
 
         assertThat(sql).contains(
-                "create table if not exists drive_space",
-                "create table if not exists drive_entry",
-                "create table if not exists drive_upload",
-                "create table if not exists drive_share",
-                "create table if not exists drive_share_access",
-                "reserved_bytes bigint not null default 0",
-                "unique key uk_drive_space_user",
-                "unique key uk_drive_entry_active_name",
-                "key idx_drive_upload_recovery",
-                "unique key uk_drive_share_token"
+                "create table `drive_space`",
+                "create table `drive_entry`",
+                "create table `drive_upload`",
+                "create table `drive_share`",
+                "create table `drive_share_access`",
+                "`reserved_bytes` bigint not null default '0'",
+                "unique key `uk_drive_space_user`",
+                "unique key `uk_drive_entry_active_name`",
+                "key `idx_drive_upload_recovery`",
+                "unique key `uk_drive_share_token`"
         );
     }
 }

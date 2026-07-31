@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -52,11 +53,14 @@ public class OssInfrastructureConfiguration {
         return logger == null ? objectStore : new ObservedObjectStore(objectStore, logger);
     }
 
-    private S3Client s3Client(OssProperties.ObjectStoreProperties store) {
+    S3Client s3Client(OssProperties.ObjectStoreProperties store) {
         return S3Client.builder()
                 .region(region(store))
                 .endpointOverride(URI.create(store.endpoint()))
                 .credentialsProvider(credentials(store))
+                .overrideConfiguration(ClientOverrideConfiguration.builder()
+                        .apiCallTimeout(store.apiCallTimeout())
+                        .build())
                 .serviceConfiguration(S3Configuration.builder()
                         .pathStyleAccessEnabled(store.pathStyle())
                         .build())

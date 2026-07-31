@@ -12,11 +12,8 @@
 - `backend/community-oss`：独立 OSS deployable，负责对象元数据、版本、签名和公有文件访问。
 - `backend/community-oss-client`：给业务服务调用 OSS 的 typed client。
 - `backend/community-im`：IM 聚合模块，包含 `im-common`、`im-core`、`im-realtime`。
-- `backend/community-db-migrations`：`community` schema 的 Flyway migration deployable。
-- `backend/community-oss-db-migrations`：`community_oss` schema 的 Flyway migration deployable。
-- `backend/community-im-db-migrations`：`im_core` schema 的 Flyway migration deployable。
 - `backend/community-common/*`：共享 Web、安全、幂等、outbox、错误协议、trace 等横切能力。
-- `deploy/`：本地 single / cluster 拓扑和默认启用的 observability overlay。
+- `deploy/`：本地 single / cluster 拓扑、三个业务 schema 的当前态 SQL 和默认启用的 observability overlay。
 
 默认对外业务入口为 `community-gateway`，本地通过 NGINX / gateway 暴露在 `12880`。对外 API 前缀稳定为 `/api/**`，静态文件前缀稳定为 `/files/**`，其中 `/files/**` 由 `community-oss` 承担 canonical 对象读取；IM WebSocket 前缀稳定为 `/ws/im`；session bootstrap 由 `community-im-gateway` 负责，返回稳定的 `/ws/im`，worker 选择和内部桥接对客户端不可见。
 
@@ -136,14 +133,12 @@ Transactional methods must not rely on self-invocation for Spring proxy behavior
 
 #### Reviewed API adapter surface
 
-`infrastructure.api` 是需要显式评审的例外面，不是每个 owner API 的必备层。当前保留 6 个 adapter：
+`infrastructure.api` 是需要显式评审的例外面，不是每个 owner API 的必备层。当前保留 4 个 adapter：
 
 | Adapter | 保留理由 |
 | --- | --- |
 | `AnalyticsIngestActionApiAdapter` | 注入采集配置并决定 DAU capture policy。 |
-| `PostPublishingActionApiAdapter` | published block payload 到内部发布 command 的规范化。 |
-| `PostReadQueryApiAdapter` | 大型帖子 read projection 到 published view 的递归转换。 |
-| `CommentReadQueryApiAdapter` | 根据评论层级推导 published entity type / id。 |
+| `PostReadQueryApiAdapter` | 将 content 内部 read result 收缩为 profile 所需的 published author activity view。 |
 | `SocialLikeQueryAdapter` | foreign social API 到 content query port，并提供 null/default policy。 |
 | `UserCredentialApiAdapter` | 用户不存在、认证失败和 published credential view 的错误/模型翻译。 |
 
@@ -243,7 +238,7 @@ Domain event 和本地 Spring bridge 不是发布 integration event 的必经层
 - `--scope infra`：只启动基础设施，便于 IDE 启动业务服务。
 - `--no-observability`：关闭 observability overlay。
 
-MySQL 主业务 schema 不再由 runtime service 或 first-boot final-state SQL 隐式升级。single / cluster 拓扑先运行 `community-db-migrations`、`community-oss-db-migrations`、`community-im-db-migrations`，对应 runtime service 通过 `service_completed_successfully` 等待 owner migration 成功后再启动。迁移账号拥有 DDL 权限，runtime 账号只保留 DML 权限；具体命令、history table 和 baseline 保护见 [data-and-storage.md](data-and-storage.md#flyway-migration-deployables)。
+MySQL 的 `community`、`community_oss`、`im_core` 结构统一由 `deploy/mysql/primary-init/010_current_schema.sql` 描述。MySQL entrypoint 只在主库数据目录为空时执行该快照；cluster replica 通过 GTID 复制获得相同结构。runtime 账号只保留 DML 权限，不在应用启动时建表或升级结构。结构变化直接修改最终定义并重建 MySQL volumes，详见 [data-and-storage.md](data-and-storage.md#当前态-schema-快照)。
 
 运行命令和端口见 [local-development.md](local-development.md)，观测和排障见 [operations.md](operations.md)。
 

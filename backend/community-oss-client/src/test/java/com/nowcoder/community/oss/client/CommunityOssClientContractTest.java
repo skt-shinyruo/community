@@ -10,6 +10,7 @@ import com.nowcoder.community.oss.client.model.OssSignedUrlResponse;
 import com.nowcoder.community.oss.client.model.OssReferenceResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
+import com.nowcoder.community.oss.client.model.OssUploadCancellationResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
@@ -102,6 +103,15 @@ class CommunityOssClientContractTest {
                 "/api/oss/objects/" + objectId + "/complete",
                 Instant.parse("2026-05-07T00:15:00Z")
         );
+        OssUploadCancellationResponse cancellation = new OssUploadCancellationResponse(
+                sessionId,
+                objectId,
+                versionId,
+                "CANCELLED",
+                2,
+                false,
+                true
+        );
         OssMetadataResponse metadata = new OssMetadataResponse(
                 objectId,
                 versionId,
@@ -169,6 +179,8 @@ class CommunityOssClientContractTest {
         assertThat(CommunityOssClient.class).isNotNull();
         assertThat(request.usage()).isEqualTo("USER_AVATAR");
         assertThat(upload.uploadMode()).isEqualTo("PROXY");
+        assertThat(cancellation.cancelled()).isTrue();
+        assertThat(cancellation.claimVersion()).isEqualTo(2);
         assertThat(metadata.currentVersionId()).isEqualTo(versionId);
         assertThat(signedUrl.method()).isEqualTo("GET");
         assertThat(publicFile.contentType()).isEqualTo("text/plain");

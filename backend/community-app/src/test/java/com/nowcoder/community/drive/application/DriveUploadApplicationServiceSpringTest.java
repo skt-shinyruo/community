@@ -1,6 +1,7 @@
 package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
+import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.drive.application.command.CompleteDriveUploadCommand;
 import com.nowcoder.community.drive.application.command.DriveUploadContent;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -22,11 +24,19 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.io.ByteArrayInputStream;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,7 +51,7 @@ class DriveUploadApplicationServiceSpringTest {
     @Autowired
     private DriveUploadApplicationService service;
 
-    @Autowired
+    @SpyBean
     private DriveSpaceRepository spaceRepository;
 
     @Autowired
@@ -140,5 +150,133 @@ class DriveUploadApplicationServiceSpringTest {
 
         assertThat(spaceRepository.findByUserId(userId).orElseThrow().usedBytes()).isEqualTo(uploadSize);
         verify(objectStoragePort, times(1)).completeUpload(any());
+    }
+
+    @Test
+    void terminalFinalizationFailureShouldRollbackEntryBeforeFailingUploadInNewTransaction() {
+        UUID userId = uuid(9);
+        Instant expiresAt = Instant.now().plusSeconds(900);
+        when(objectStoragePort.prepareUpload(any()))
+                .thenReturn(new DriveObjectStoragePort.PreparedObject(
+                        uuid(131),
+                        uuid(132),
+                        uuid(133),
+                        expiresAt
+                ));
+        var session = service.prepareUpload(new PrepareDriveUploadCommand(
+                userId, null, "rollback.txt", "text/plain", 2L, ""));
+        UUID uploadId = UUID.fromString(session.uploadId());
+        when(objectStoragePort.completeUpload(any())).thenAnswer(invocation -> {
+            DriveObjectStoragePort.CompleteObject command = invocation.getArgument(0);
+            DriveUpload completing = uploadRepository.findById(uploadId).orElseThrow();
+            assertThat(completing.status()).isEqualTo(DriveUploadStatus.COMPLETING);
+            jdbcTemplate.update(
+                    "update drive_space set reserved_bytes = 1 where space_id = ?",
+                    BinaryUuidCodec.toBytes(completing.spaceId())
+            );
+            return new DriveObjectStoragePort.StoredObject(command.objectId(), command.versionId(), "");
+        });
+
+        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+                userId,
+                uploadId,
+                new DriveUploadContent(() -> new ByteArrayInputStream("xx".getBytes()), "text/plain", 2L)
+        ))).isInstanceOf(RuntimeException.class)
+                .hasMessage("网盘容量不足");
+
+        DriveUpload failed = uploadRepository.findById(uploadId).orElseThrow();
+        assertThat(failed.status()).isEqualTo(DriveUploadStatus.FAILED);
+        assertThat(spaceRepository.findByUserId(userId).orElseThrow().reservedBytes()).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from drive_entry where entry_id = ?",
+                Integer.class,
+                BinaryUuidCodec.toBytes(failed.completedEntryId())
+        )).isZero();
+        verify(objectStoragePort).deleteObject(failed.objectId(), userId.toString());
+    }
+
+    @Test
+    void concurrentRecoveryShouldReleaseCompletingUploadReservationOnce() throws Exception {
+        UUID userId = uuid(10);
+        long uploadSize = 512L;
+        Instant expiresAt = Instant.now().plusSeconds(900);
+        when(objectStoragePort.prepareUpload(any()))
+                .thenReturn(new DriveObjectStoragePort.PreparedObject(
+                        uuid(141),
+                        uuid(142),
+                        uuid(143),
+                        expiresAt
+                ));
+        var session = service.prepareUpload(new PrepareDriveUploadCommand(
+                userId, null, "concurrent-recovery.bin", "application/octet-stream", uploadSize, ""));
+        UUID uploadId = UUID.fromString(session.uploadId());
+        DriveUpload prepared = uploadRepository.findById(uploadId).orElseThrow();
+        Instant staleAt = Instant.now().minusSeconds(3_601);
+        assertThat(spaceRepository.reserve(prepared.spaceId(), uploadSize, staleAt)).isTrue();
+        assertThat(uploadRepository.transitionStatus(
+                prepared.startCompleting(uuid(144), staleAt),
+                DriveUploadStatus.PREPARED
+        )).isTrue();
+
+        when(objectStoragePort.getMetadata(prepared.objectId())).thenReturn(new DriveObjectStoragePort.ObjectMetadata(
+                prepared.objectId(),
+                prepared.versionId(),
+                "STAGED",
+                prepared.name(),
+                prepared.mimeType(),
+                prepared.sizeBytes(),
+                prepared.checksumSha256(),
+                ""
+        ));
+        CountDownLatch bothAtCancellation = new CountDownLatch(2);
+        CountDownLatch allowCancellation = new CountDownLatch(1);
+        when(objectStoragePort.cancelUpload(prepared.ossSessionId(), prepared.objectId(), prepared.versionId()))
+                .thenAnswer(invocation -> {
+                    bothAtCancellation.countDown();
+                    await(allowCancellation);
+                    return new DriveObjectStoragePort.UploadCancellation(false, true);
+                });
+        clearInvocations(spaceRepository, objectStoragePort);
+
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Instant updatedBefore = Instant.now();
+            Future<?> first = executor.submit(() -> {
+                await(start);
+                return service.recoverStaleUploads(updatedBefore, 10);
+            });
+            Future<?> second = executor.submit(() -> {
+                await(start);
+                return service.recoverStaleUploads(updatedBefore, 10);
+            });
+
+            start.countDown();
+            assertThat(bothAtCancellation.await(5, TimeUnit.SECONDS)).isTrue();
+            allowCancellation.countDown();
+            first.get(5, TimeUnit.SECONDS);
+            second.get(5, TimeUnit.SECONDS);
+
+            assertThat(uploadRepository.findById(uploadId).orElseThrow().status())
+                    .isEqualTo(DriveUploadStatus.FAILED);
+            assertThat(spaceRepository.findById(prepared.spaceId()).orElseThrow().reservedBytes()).isZero();
+            verify(objectStoragePort, times(2))
+                    .cancelUpload(prepared.ossSessionId(), prepared.objectId(), prepared.versionId());
+            verify(spaceRepository, times(1))
+                    .releaseReserved(eq(prepared.spaceId()), eq(uploadSize), any(Instant.class));
+            verify(objectStoragePort, atLeastOnce()).deleteObject(prepared.objectId(), userId.toString());
+        } finally {
+            allowCancellation.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted while awaiting concurrent recovery", e);
+        }
     }
 }

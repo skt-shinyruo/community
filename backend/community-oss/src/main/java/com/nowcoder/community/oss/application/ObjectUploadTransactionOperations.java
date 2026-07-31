@@ -3,6 +3,7 @@ package com.nowcoder.community.oss.application;
 import com.nowcoder.community.oss.domain.model.OssObject;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssUploadSession;
+import com.nowcoder.community.oss.domain.model.OssUploadSessionStatus;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.domain.repository.OssUploadSessionRepository;
@@ -87,6 +88,14 @@ public class ObjectUploadTransactionOperations {
             String lastError,
             Instant observedAt
     ) {
+        if (session.status() == OssUploadSessionStatus.CANCELLED_CLEANUP_PENDING) {
+            return sessionRepository.recordCancellationCleanup(
+                    session.sessionId(),
+                    session.claimVersion(),
+                    lastError,
+                    observedAt
+            );
+        }
         return sessionRepository.recordCompletionFailure(
                 session.sessionId(),
                 session.claimVersion(),
@@ -104,6 +113,31 @@ public class ObjectUploadTransactionOperations {
     ) {
         return sessionRepository.resetFailedClaim(
                 sessionId, claimVersion, updatedAt, retryExpiresAt);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public OssUploadSession cancelSession(
+            UUID sessionId,
+            UUID objectId,
+            UUID versionId,
+            Instant updatedAt,
+            Instant cleanupAfter
+    ) {
+        sessionRepository.cancelActiveSession(
+                sessionId, objectId, versionId, updatedAt, cleanupAfter);
+        return sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalStateException("upload session disappeared during cancellation"));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean recordCancellationCleanup(OssUploadSession session, Instant observedAt) {
+        return sessionRepository.recordCancellationCleanup(
+                session.sessionId(), session.claimVersion(), "", observedAt);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean completeCancellationCleanup(UUID sessionId, long claimVersion, Instant completedAt) {
+        return sessionRepository.completeCancellationCleanup(sessionId, claimVersion, completedAt);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

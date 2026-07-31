@@ -3,7 +3,6 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.content.api.action.CommentActionApi;
 import com.nowcoder.community.content.application.command.CreateCommentCommand;
 import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
@@ -36,7 +35,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service
-public class CommentApplicationService implements CommentActionApi {
+public class CommentApplicationService {
 
     private static final String CREATE_COMMENT_IDEMPOTENCY_SCOPE = "content:create_comment";
 
@@ -81,22 +80,6 @@ public class CommentApplicationService implements CommentActionApi {
         return createFromCommand(idempotencyKey, command);
     }
 
-    @Override
-    @Transactional
-    public UUID addComment(
-            UUID userId,
-            String idempotencyKey,
-            UUID postId,
-            UUID parentCommentId,
-            String content
-    ) {
-        return createFromCommand(
-                idempotencyKey,
-                new CreateCommentCommand(userId, postId, parentCommentId, content)
-        ).commentId();
-    }
-
-    @Override
     @Transactional
     public void updateComment(UUID userId, UUID postId, UUID commentId, String content) {
         updateCommentInternal(userId, postId, commentId, content);

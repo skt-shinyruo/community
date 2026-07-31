@@ -6,5 +6,6 @@ public enum OssUploadSessionStatus {
     UPLOADING,
     COMPLETED,
     EXPIRED,
+    CANCELLED_CLEANUP_PENDING,
     CANCELLED
 }

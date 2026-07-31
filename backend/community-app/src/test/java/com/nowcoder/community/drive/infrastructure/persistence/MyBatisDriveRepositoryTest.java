@@ -227,6 +227,58 @@ class MyBatisDriveRepositoryTest {
                 .extracting(DriveUpload::uploadId)
                 .containsExactly(UPLOAD_ID);
         assertThat(uploadRepository.listRecoverableBefore(NOW.plusSeconds(2), 10)).isEmpty();
+
+        DriveUpload cleanupPending = objectCompleted.startCleanup(NOW.plusSeconds(4));
+        assertThat(uploadRepository.transitionStatus(cleanupPending, DriveUploadStatus.OBJECT_COMPLETED)).isTrue();
+        assertThat(uploadRepository.listRecoverableBefore(NOW.plusSeconds(5), 10))
+                .extracting(DriveUpload::status)
+                .containsExactly(DriveUploadStatus.CLEANUP_PENDING);
+    }
+
+    @Test
+    void driveUploadRepositoryShouldRecordRecoveryAttemptOnlyForExpectedStatus() {
+        DriveUpload prepared = DriveUpload.prepared(
+                UPLOAD_ID,
+                SPACE_ID,
+                ROOT_ID,
+                "recovery.bin",
+                99L,
+                "application/octet-stream",
+                "",
+                uuid(30),
+                uuid(31),
+                uuid(32),
+                USER_ID,
+                NOW,
+                NOW.plusSeconds(3600)
+        );
+        UUID entryId = uuid(90);
+        DriveUpload completing = prepared.startCompleting(entryId, NOW.plusSeconds(1));
+        uploadRepository.save(prepared);
+        assertThat(uploadRepository.transitionStatus(completing, DriveUploadStatus.PREPARED)).isTrue();
+
+        assertThat(uploadRepository.recordRecoveryAttempt(
+                UPLOAD_ID, DriveUploadStatus.PREPARED, NOW.plusSeconds(10))).isFalse();
+        assertThat(uploadRepository.recordRecoveryAttempt(
+                UPLOAD_ID, DriveUploadStatus.COMPLETING, NOW.plusSeconds(10))).isTrue();
+
+        DriveUpload touched = uploadRepository.findById(UPLOAD_ID).orElseThrow();
+        assertThat(touched)
+                .extracting(DriveUpload::status, DriveUpload::completedEntryId,
+                        DriveUpload::updatedAt, DriveUpload::expiresAt)
+                .containsExactly(DriveUploadStatus.COMPLETING, entryId,
+                        NOW.plusSeconds(10), completing.expiresAt());
+        assertThat(uploadRepository.listRecoverableBefore(NOW.plusSeconds(10), 10)).isEmpty();
+        assertThat(uploadRepository.listRecoverableBefore(NOW.plusSeconds(11), 10))
+                .extracting(DriveUpload::uploadId)
+                .containsExactly(UPLOAD_ID);
+
+        DriveUpload objectCompleted = touched.markObjectCompleted(NOW.plusSeconds(12));
+        assertThat(uploadRepository.transitionStatus(objectCompleted, DriveUploadStatus.COMPLETING)).isTrue();
+        assertThat(uploadRepository.recordRecoveryAttempt(
+                UPLOAD_ID, DriveUploadStatus.COMPLETING, NOW.plusSeconds(13))).isFalse();
+        assertThat(uploadRepository.findById(UPLOAD_ID).orElseThrow().updatedAt())
+                .isEqualTo(NOW.plusSeconds(12));
     }
 
     @Test

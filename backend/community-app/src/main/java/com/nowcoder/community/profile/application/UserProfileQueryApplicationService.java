@@ -1,8 +1,8 @@
 package com.nowcoder.community.profile.application;
 
-import com.nowcoder.community.content.api.model.PostSummaryView;
-import com.nowcoder.community.content.api.model.RecentUserCommentView;
 import com.nowcoder.community.content.api.query.PostReadQueryApi;
+import com.nowcoder.community.content.api.query.PostReadQueryApi.PostSummaryView;
+import com.nowcoder.community.content.api.query.PostReadQueryApi.RecentUserCommentView;
 import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
 import com.nowcoder.community.growth.api.query.UserLevelQueryApi;
 import com.nowcoder.community.profile.application.result.UserProfilePageResult;

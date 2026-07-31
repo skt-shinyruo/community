@@ -34,7 +34,6 @@
 - `Filter`
 - `WebSocketHandler`
 - 核心 `Service`
-- 三个数据库迁移模块中的 `MigrationRunner`、`SchemaCatalog`、`SchemaVerifier`
 
 第一层扫描后，按行为分类：是否被 controller、listener、job 或 handler 调用；是否参与事务、事件、outbox、恢复或投影；是否承载业务规则；或者是否只是配置、类型转换或技术 glue。
 
@@ -42,7 +41,7 @@
 
 ## 可重复扫描
 
-最近一次生产源码基线扫描：2026-07-15。扫描范围是 `backend/**/src/main/java/**` 和前端收窄候选；测试源码不作为生产候选。
+最近一次生产源码基线扫描：2026-07-28。扫描范围是 `backend/**/src/main/java/**` 和前端收窄候选；测试源码不作为生产候选。
 
 优先用代码图谱发现：
 
@@ -66,8 +65,6 @@ WHERE c.file_path CONTAINS '/src/main/java/'
 RETURN c.name AS name, c.file_path AS path
 ORDER BY path
 ```
-
-数据库 migration 模块另外扫描 `*MigrationRunner.java`、`*SchemaCatalog.java`、`*SchemaVerifier.java`。该规则只针对 `community-db-migrations`、`community-oss-db-migrations`、`community-im-db-migrations`；普通业务包里名字包含 `Catalog` / `Verifier` 的端口或 bean discovery helper 仍需按行为人工判断。
 
 图谱不可用时，用 shell 扫描兜底：
 
@@ -156,9 +153,6 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 | `social.infrastructure.event.SocialEventKafkaOutboxHandler` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `user.application.UserEventDispatchApplicationService` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `user.infrastructure.event.UserEventKafkaOutboxHandler` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
-| `community-db-migrations.CommunityMigrationRunner` / `CommunitySchemaCatalog` / `CommunitySchemaVerifier` | `Covered` | [数据与存储](data-and-storage.md#flyway-migration-deployables) |
-| `community-oss-db-migrations.OssMigrationRunner` / `OssSchemaCatalog` / `OssSchemaVerifier` | `Covered` | [数据与存储](data-and-storage.md#flyway-migration-deployables) |
-| `community-im-db-migrations.ImMigrationRunner` / `ImSchemaCatalog` / `ImSchemaVerifier` | `Covered` | [数据与存储](data-and-storage.md#flyway-migration-deployables) |
 | `im.core.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | `IndexOnly` | [数据与存储](data-and-storage.md#mysql) |
 | `common.observability.app.RuntimeApplicationLifecycleListener` | `Covered` | [Runtime Observability](core-logic/runtime-observability.md) |
 | `common.observability.autoconfig.RuntimeSnapshotScheduler` | `Covered` | [Runtime Observability](core-logic/runtime-observability.md) |
@@ -193,7 +187,7 @@ Frontend 收窄范围的 API service 和 `*State.js` 文件已经进入 [core-lo
 - refresh session 归 auth 所有；`RefreshTokenSessionApplicationService` 已退役，当前 DB adapter 是 `MyBatisRefreshTokenRepository`。
 - 用户主页聚合已从 user 移到 profile；点赞 POST 的可信目标解析已从 social 移到 interaction。
 - 标准内容/点赞奖励由 wallet listener/projection 消费 owner event；`UserRewardApplicationService` 和 `UserRewardKafkaListener` 已退役。
-- 按上述候选规则复核后，本轮没有剩余未分类或 `Partial` 候选。`docs/superpowers/**` 不在本轮允许修改范围内，不能据此宣称其已同步。
+- 按上述候选规则复核后，本轮没有剩余未分类或 `Partial` 候选。
 
 ## Excluded Examples
 
@@ -205,5 +199,4 @@ Frontend 收窄范围的 API service 和 `*State.js` 文件已经进入 [core-lo
 | `content.application.ContentHotPathProperties` | 纯配置绑定；默认值和运行语义已由 content 文档覆盖，不是独立核心入口。 |
 | `analytics.application.AnalyticsRequestCapturePort` | application-owned 发布端口；行为由 capture application 与 Kafka adapter 覆盖。 |
 | `common.trace.TraceJobRunner` | 为 job 建 trace 的横切包装，没有 owner 业务规则。 |
-| `*SchemaMismatchException` | migration 精确校验的异常载体；核心判断在对应 `SchemaCatalog` / `SchemaVerifier`。 |
 | `frontend.ui.toastService` | 只保存并调用 toast handler，不解释业务状态、权限、路由或 API 结果。 |

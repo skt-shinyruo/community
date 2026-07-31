@@ -23,8 +23,6 @@ class InfraBoundaryArchTest {
 
     private static final Set<String> REVIEWED_SUBSTANTIVE_API_ADAPTERS = Set.of(
             "com.nowcoder.community.analytics.infrastructure.api.AnalyticsIngestActionApiAdapter",
-            "com.nowcoder.community.content.infrastructure.api.CommentReadQueryApiAdapter",
-            "com.nowcoder.community.content.infrastructure.api.PostPublishingActionApiAdapter",
             "com.nowcoder.community.content.infrastructure.api.PostReadQueryApiAdapter",
             "com.nowcoder.community.content.infrastructure.api.SocialLikeQueryAdapter",
             "com.nowcoder.community.user.infrastructure.api.UserCredentialApiAdapter"

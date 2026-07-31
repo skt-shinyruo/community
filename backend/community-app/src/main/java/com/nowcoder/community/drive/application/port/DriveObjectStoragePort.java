@@ -11,6 +11,8 @@ public interface DriveObjectStoragePort {
 
     StoredObject completeUpload(CompleteObject command);
 
+    UploadCancellation cancelUpload(UUID sessionId, UUID objectId, UUID versionId);
+
     ObjectMetadata getMetadata(UUID objectId);
 
     SignedDownloadUrl createDownloadUrl(UUID objectId, long ttlSeconds);
@@ -49,6 +51,9 @@ public interface DriveObjectStoragePort {
     }
 
     record StoredObject(UUID objectId, UUID versionId, String publicUrl) {
+    }
+
+    record UploadCancellation(boolean completed, boolean cancelled) {
     }
 
     record ObjectMetadata(

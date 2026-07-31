@@ -236,19 +236,13 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - 自动动作型任务只写 owner command，例如市场自动确认只写 release command，不在 job 中直接记账。
 - 长任务或集群互斥任务需要 single-flight、lease 或条件更新保护。
 
-## Database Migration 设计
+## Current-State Schema 设计
 
-三个 schema 分别由独立的一次性 deployable 管理：
+`deploy/mysql/primary-init/010_current_schema.sql` 是 `community`、`community_oss`、`im_core` 的单一结构事实源。它包含最终建表语句与必要引用数据，不包含版本化演进、历史表或 development 身份数据。schema 名固定，Compose 和 runtime JDBC URL 不支持改名。
 
-| Schema | Deployable | History table | 固定 location |
-| --- | --- | --- | --- |
-| `community` | `community-db-migrations` | `community_schema_history` | `classpath:db/migration/community` |
-| `community_oss` | `community-oss-db-migrations` | `oss_schema_history` | `classpath:db/migration/community-oss` |
-| `im_core` | `community-im-db-migrations` | `im_core_schema_history` | `classpath:db/migration/im-core` |
+MySQL entrypoint 在空主库卷上先创建最小权限账号，再执行当前态快照。single 只有一个 MySQL；cluster 只初始化 primary，并在放行 runtime 前由 replication bootstrap 确认两个 replica 的 GTID 复制。业务服务、Mock Data Studio 和 development seed 都使用 DML-only 账号，不能在 runtime 启动路径中补表。
 
-runner 默认执行 `migrate`，也支持 `validate` 和受保护的 `baseline`。`baselineOnMigrate=false`，且 baseline 前必须提供对应确认值并由 `*SchemaVerifier` 将实际 schema 与 V001 manifest 做精确比对；location override 被显式拒绝，避免同一 deployable 在不同环境读取不同迁移集合。只有 community runner 支持 `development-seed`，并要求 `COMMUNITY_MIGRATION_PROFILE=development`。
-
-部署先创建独立 DDL 账号，再运行 migration deployable；`community-app`、`community-oss`、`im-core` 等 runtime 只使用 DML 账号，并等待对应 migration 成功。迁移失败必须阻断 owner runtime 启动，不能由应用启动时临时补表或静默 baseline。
+结构变更采用 clean break：直接修改最终定义、同步测试夹具、删除该拓扑的 MySQL volumes，然后从空卷启动。已有数据需要保留时，这套本地可丢弃环境流程不提供原地升级能力，必须另行设计数据迁移。
 
 ## Config And Discovery 设计
 

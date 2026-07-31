@@ -368,6 +368,31 @@ class YierLoomEngineTest {
                 .allMatch(line -> line.contains("reason=DUPLICATE_ID"));
     }
 
+    @Test
+    void shutdownIssuesExposeOnlyStablePluginMetadata() {
+        List<String> lines = EngineRuntime.shutdownIssueLines(List.of(
+                new PluginReport(
+                        Path.of("plugins", "stop-failure.jar"),
+                        "stop-failure",
+                        true,
+                        PluginState.STOPPED,
+                        "RUNTIME_STOP_FAILED",
+                        ""),
+                new PluginReport(
+                        Path.of("plugins", "healthy.jar"),
+                        "healthy",
+                        true,
+                        PluginState.STOPPED,
+                        null,
+                        "")));
+
+        assertThat(lines).containsExactly(
+                "[YierLoom] plugin shutdown issue: source=plugins/stop-failure.jar, "
+                        + "plugin=stop-failure, enabled=true, state=STOPPED, "
+                        + "reason=RUNTIME_STOP_FAILED");
+        assertThat(String.join("\n", lines)).doesNotContain("exception", "message", "stack");
+    }
+
     private YierLoomBridge.Endpoint endpoint() {
         YierLoomBridge.Endpoint endpoint = new YierLoomBridge.Endpoint() {
             @Override

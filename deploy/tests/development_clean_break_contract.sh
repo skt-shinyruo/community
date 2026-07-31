@@ -16,7 +16,7 @@ if rg -n "${retired}" "${REPO_ROOT}/backend" --glob '**/src/main/**' --glob '!**
   exit 1
 fi
 
-if rg -n 'nacos/nacos-server:v2\.3\.2-slim|/nacos/actuator/health' "${REPO_ROOT}/deploy" \
+if rg -n 'nacos/nacos-server:v2\.3\.2-slim|/nacos/actuator/health|-XX:-UseContainerSupport' "${REPO_ROOT}/deploy" \
     --glob '!deploy/tests/**'; then
   echo "retired Nacos 2.3.2 runtime or health endpoint remains" >&2
   exit 1

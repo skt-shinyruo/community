@@ -63,9 +63,9 @@ event.action : http_slow_request
 Diagnostics queries are expected to return data only after a short diagnostics run:
 
 ```text
-event.category : runtime_diagnostics
-diagnostic.probe : method
-diagnostic.probe : thread
+event.category : yierloom
+diagnostic.plugin.id : method
+diagnostic.plugin.id : thread
 ```
 
 If a baseline query is empty, first run:

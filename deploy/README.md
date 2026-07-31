@@ -189,7 +189,7 @@ body or `traceparent` header, and checks Elasticsearch for:
 - a matching trace document in `traces-*`
 - request-correlated logs with the same `trace.id`
 
-For a short diagnostics run, start with `RUNTIME_DIAGNOSTICS_ENABLED=true` and set:
+For a short YierLoom capture, start the stack with YierLoom enabled as described below, then set:
 
 ```bash
 OBSERVABILITY_EXPECT_DIAGNOSTICS=true ./deploy/tests/observability_smoke.sh
@@ -197,22 +197,43 @@ OBSERVABILITY_EXPECT_DIAGNOSTICS=true ./deploy/tests/observability_smoke.sh
 
 日志路径是 backend JSON stdout / OTLP logs -> EDOT collector logs pipeline -> Elasticsearch / Kibana。更多说明见 `docs/handbook/operations.md`。
 
-### Optional Runtime Diagnostics Agent
+### Optional YierLoom Agent
 
-Backend images include a generic JVM runtime diagnostics agent at `/otel/runtime-diagnostics-agent.jar`. It is disabled by default. Enable it for a short diagnostic run with:
-
-```bash
-RUNTIME_DIAGNOSTICS_ENABLED=true RUNTIME_DIAGNOSTICS_INCLUDES='com.nowcoder.community.*' ./deploy/deployment.sh up --topology single
-```
-
-The Phase 1 probes are `method`, `exception`, `thread`, and `jvm`. The agent emits `event.category=runtime_diagnostics` logs to the same observability path as other backend logs. It does not collect method arguments, return values, request bodies, SQL bind values, Redis keys or values, Kafka payloads, JWTs, cookies, or secrets.
-
-Enable dependency probes only for focused diagnostic runs:
+Backend images include YierLoom at `/otel/yierloom-agent.jar`. It is disabled by default and is intended for short, focused troubleshooting sessions. Enable it with a narrow method include:
 
 ```bash
-RUNTIME_DIAGNOSTICS_ENABLED=true RUNTIME_DIAGNOSTICS_PROBES='method,exception,thread,jvm,http,jdbc,redis,kafka' ./deploy/deployment.sh up --topology single
+YIERLOOM_ENABLED=true \
+YIERLOOM_PLUGIN__METHOD__INCLUDES='com.nowcoder.community.*' \
+./deploy/deployment.sh up --topology single
 ```
 
-Dependency probes emit summaries and slow-call events. They do not record HTTP bodies, SQL bind values, Redis keys or values, Kafka payloads, cookies, JWTs, or authorization headers.
+The built-in `method`, `exception`, `thread`, and `jvm` plugins are enabled when the Agent starts. YierLoom emits `event.category=yierloom` logs with `diagnostic.plugin.id` through the same observability path as other backend logs. Its event queue is bounded; `YIERLOOM_EVENTS_QUEUE_CAPACITY` defaults to `8192`, and a full queue drops new observations or events instead of blocking instrumented application work.
 
-Tune dependency thresholds with `RUNTIME_DIAGNOSTICS_HTTP_SLOW_THRESHOLD_MS`, `RUNTIME_DIAGNOSTICS_JDBC_SLOW_THRESHOLD_MS`, `RUNTIME_DIAGNOSTICS_REDIS_SLOW_THRESHOLD_MS`, and `RUNTIME_DIAGNOSTICS_KAFKA_SLOW_THRESHOLD_MS`. Matching sample and rate-limit settings use the corresponding `RUNTIME_DIAGNOSTICS_HTTP_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_JDBC_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_REDIS_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_KAFKA_SAMPLE_RATE`, `RUNTIME_DIAGNOSTICS_HTTP_MAX_EVENTS_PER_SECOND`, `RUNTIME_DIAGNOSTICS_JDBC_MAX_EVENTS_PER_SECOND`, `RUNTIME_DIAGNOSTICS_REDIS_MAX_EVENTS_PER_SECOND`, and `RUNTIME_DIAGNOSTICS_KAFKA_MAX_EVENTS_PER_SECOND` variables. Kafka topic names remain hashed unless `RUNTIME_DIAGNOSTICS_KAFKA_TOPIC_NAMES_ENABLED=true` is set explicitly.
+Dependency plugins are opt-in. Enable only the plugin needed for the capture; for example, the HTTP plugin and a two-second slow threshold use duration syntax such as `2s`:
+
+```bash
+YIERLOOM_ENABLED=true \
+YIERLOOM_PLUGIN__HTTP__ENABLED=true \
+YIERLOOM_PLUGIN__HTTP__SLOW_THRESHOLD=2s \
+./deploy/deployment.sh up --topology single
+```
+
+The equivalent switches are `YIERLOOM_PLUGIN__JDBC__ENABLED=true`, `YIERLOOM_PLUGIN__REDIS__ENABLED=true`, and `YIERLOOM_PLUGIN__KAFKA__ENABLED=true`. Sample rates and per-second limits follow the same plugin-scoped mapping, for example `YIERLOOM_PLUGIN__HTTP__SAMPLE_RATE` and `YIERLOOM_PLUGIN__HTTP__MAX_EVENTS_PER_SECOND`. Kafka topic names are hashed by default; disclose raw names only by explicitly setting `YIERLOOM_PLUGIN__KAFKA__TOPIC_NAMES_ENABLED=true`.
+
+YierLoom must not collect method arguments, return values, request or response bodies, SQL bind values, Redis keys or values, Kafka payloads, credentials, cookies, or headers. Disable it immediately after the capture window and restart the target services:
+
+```bash
+YIERLOOM_ENABLED=false ./deploy/deployment.sh up --topology single
+```
+
+#### Trusted External Plugins
+
+External plugins are trusted code and must be reviewed before deployment. Build each plugin as one fat JAR with exactly one `YierLoomPlugin` ServiceLoader provider and its private dependencies. Do not bundle YierLoom API, YierLoom SDK, or Byte Buddy classes in that JAR.
+
+Before installation, call the `yierloom-plugin-testkit` Java API `PluginContractVerifier.verifyOrThrow(Path)` against the finished artifact:
+
+```java
+PluginContractVerifier.verifyOrThrow(Path.of("/path/to/plugin.jar"));
+```
+
+`PluginContractVerifier` has no CLI. After verification, mount or copy the fat JAR into `/opt/yierloom/plugins`, or point `YIERLOOM_PLUGINS_DIR` at another plugin directory, then restart the target JVM. YierLoom does not support hot reload or runtime attach; changing, adding, or removing a plugin always requires a JVM restart.

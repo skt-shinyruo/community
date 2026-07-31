@@ -175,6 +175,6 @@ require_count "request-correlated logs" "logs-community-default" \
   "{\"term\":{\"trace.id\":\"${escaped_trace_id}\"}}"
 
 if [ "${OBSERVABILITY_EXPECT_DIAGNOSTICS:-false}" = "true" ]; then
-  require_count "runtime diagnostics events" "logs-community-default" \
-    '{"term":{"event.category":"runtime_diagnostics"}}'
+  require_count "YierLoom events" "logs-community-default" \
+    '{"term":{"event.category":"yierloom"}}'
 fi

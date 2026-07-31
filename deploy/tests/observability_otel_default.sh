@@ -58,25 +58,38 @@ if ! rg -n 'OTEL_LOGS_COLLECTION[=: ]+"?stdout"?|OTEL_LOGS_COLLECTION=stdout' "$
   exit 1
 fi
 
-if ! rg -n 'RUNTIME_DIAGNOSTICS_ENABLED[=: ]+"?false"?|RUNTIME_DIAGNOSTICS_ENABLED=false' "${single_config}" >/dev/null; then
-  echo "expected single config to keep runtime diagnostics disabled by default" >&2
-  exit 1
-fi
+require_env_count() {
+  local key="$1"
+  local expected="$2"
+  local config="$3"
+  local topology="$4"
+  local actual
 
-if ! rg -n 'RUNTIME_DIAGNOSTICS_ENABLED[=: ]+"?false"?|RUNTIME_DIAGNOSTICS_ENABLED=false' "${cluster_config}" >/dev/null; then
-  echo "expected cluster config to keep runtime diagnostics disabled by default" >&2
-  exit 1
-fi
+  actual="$(rg -c "${key}[=:]" "${config}" || true)"
+  if [ "${actual}" != "${expected}" ]; then
+    echo "expected ${topology} config to expose ${key} for all ${expected} services, found ${actual}" >&2
+    exit 1
+  fi
+}
 
-if ! rg -n 'RUNTIME_DIAGNOSTICS_INCLUDES[=: ]+"?com.nowcoder.community.\*"?|RUNTIME_DIAGNOSTICS_INCLUDES=com.nowcoder.community.\*' "${single_config}" >/dev/null; then
-  echo "expected single config to use conservative community diagnostics includes" >&2
-  exit 1
-fi
+for requirement in \
+  'YIERLOOM_ENABLED[=: ]+"?false"?|YIERLOOM_ENABLED=false' \
+  'YIERLOOM_PLUGIN__METHOD__INCLUDES[=: ]+"?com.nowcoder.community.\*"?|YIERLOOM_PLUGIN__METHOD__INCLUDES=com.nowcoder.community.\*' \
+  'YIERLOOM_PLUGINS_DIR[=: ]+"?/opt/yierloom/plugins"?|YIERLOOM_PLUGINS_DIR=/opt/yierloom/plugins'; do
+  if ! rg -n "${requirement}" "${single_config}" >/dev/null; then
+    echo "expected single config to expose the YierLoom default: ${requirement}" >&2
+    exit 1
+  fi
+  if ! rg -n "${requirement}" "${cluster_config}" >/dev/null; then
+    echo "expected cluster config to expose the YierLoom default: ${requirement}" >&2
+    exit 1
+  fi
+done
 
-if ! rg -n 'RUNTIME_DIAGNOSTICS_INCLUDES[=: ]+"?com.nowcoder.community.\*"?|RUNTIME_DIAGNOSTICS_INCLUDES=com.nowcoder.community.\*' "${cluster_config}" >/dev/null; then
-  echo "expected cluster config to use conservative community diagnostics includes" >&2
-  exit 1
-fi
+for key in YIERLOOM_ENABLED YIERLOOM_PLUGIN__METHOD__INCLUDES YIERLOOM_PLUGINS_DIR; do
+  require_env_count "${key}" 6 "${single_config}" single
+  require_env_count "${key}" 18 "${cluster_config}" cluster
+done
 
 old_profiler_prefix='METHOD''_PROFILER_'
 if rg -n "${old_profiler_prefix}" "${single_config}" "${cluster_config}" >/dev/null; then
@@ -288,17 +301,17 @@ if ! require_console_json_content 'service[.]name' "${logback_config}"; then
   exit 1
 fi
 
-if ! require_console_json_content '<mdc>' "${logback_config}" ||
-  ! require_console_json_content '<excludeMdcKeyName>traceId</excludeMdcKeyName>' "${logback_config}"; then
+if ! require_console_json_content '<mdc[[:space:]]*/>' "${logback_config}"; then
   echo "expected shared logback CONSOLE_JSON appender to preserve trace/span MDC correlation" >&2
   exit 1
 fi
 
-if ! reject_console_json_content '<excludeMdcKeyName>trace[.]id</excludeMdcKeyName>' "${logback_config}" ||
+if ! reject_console_json_content '<excludeMdcKeyName>traceId</excludeMdcKeyName>' "${logback_config}" ||
+  ! reject_console_json_content '<excludeMdcKeyName>trace[.]id</excludeMdcKeyName>' "${logback_config}" ||
   ! reject_console_json_content '<excludeMdcKeyName>trace_id</excludeMdcKeyName>' "${logback_config}" ||
   ! reject_console_json_content '<excludeMdcKeyName>span[.]id</excludeMdcKeyName>' "${logback_config}" ||
   ! reject_console_json_content '<excludeMdcKeyName>span_id</excludeMdcKeyName>' "${logback_config}"; then
-  echo "expected shared logback CONSOLE_JSON appender not to exclude trace/span correlation MDC keys" >&2
+  echo "expected shared logback CONSOLE_JSON appender not to reference retired or current trace/span MDC keys as exclusions" >&2
   exit 1
 fi
 

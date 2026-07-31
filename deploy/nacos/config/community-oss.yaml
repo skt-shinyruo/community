@@ -10,7 +10,7 @@ oss:
       issuer: ${OSS_SERVICE_JWT_ISSUER:community-auth}
       audience: ${OSS_SERVICE_JWT_AUDIENCE:community-oss}
       scope: ${OSS_SERVICE_JWT_SCOPE:oss.internal}
-  public-base-url: http://localhost:12880
+  public-base-url: ${OSS_PUBLIC_BASE_URL}
   object-store:
     mode: garage
     endpoint: http://garage:3900

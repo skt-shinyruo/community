@@ -1,14 +1,8 @@
 im:
   gateway:
     cors:
-      allowed-origins:
-        - http://localhost:5173
-        - http://127.0.0.1:5173
-        - http://localhost:12881
-        - http://127.0.0.1:12881
-        - http://localhost:12888
-        - http://127.0.0.1:12888
-    public-ws-url: ws://localhost:12880/ws/im
+      allowed-origins: ${BROWSER_ALLOWED_ORIGINS}
+    public-ws-url: ${IM_GATEWAY_PUBLIC_WS_URL}
     session:
       ticket-ttl: PT2M
     worker:

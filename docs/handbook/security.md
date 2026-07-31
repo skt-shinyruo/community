@@ -74,7 +74,10 @@ gateway-first 模式下，浏览器入口配置来自：
 
 `community-gateway` 是浏览器流量 CORS 唯一出口：
 
-- `gateway.cors.allowed-origins` 由 `GATEWAY_CORS_ALLOWED_ORIGINS` 注入。
+- `nacos-config-bootstrap` 使用唯一的 `BROWSER_ALLOWED_ORIGINS` 输入渲染
+  `community-gateway.yaml`，再发布 `gateway.cors.allowed-origins`。
+- 同一个 bootstrap 还渲染 `FRONTEND_PUBLIC_ORIGIN`、`OSS_PUBLIC_BASE_URL` 和
+  `IM_GATEWAY_PUBLIC_WS_URL`，分别用于重置密码链接、OSS 文件地址和 IM WebSocket 地址。
 - 覆盖 `/api/**` 与 `/files/**`。
 - gateway 会去重下游重复 `Access-Control-Allow-*` 头。
 
@@ -90,12 +93,17 @@ OriginGuard 位于 `community-app`：
 - 覆盖 `POST /api/auth/register/code/verify`
 - 覆盖 `POST /api/auth/password/reset/request`
 - 覆盖 `POST /api/auth/password/reset/confirm`
-- allowlist 通过 `AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS` 注入。
+- `community-app.yaml` 使用同一个 `BROWSER_ALLOWED_ORIGINS` 渲染 OriginGuard allowlist。
 - 配置键仍沿用 `gateway.origin-guard.*`，执行位置在单体内。
 - 同源请求始终放行。
 - prod 下 allowlist 缺失会 fail-closed，并由启动校验提前阻断。
 
-如果用 `127.0.0.1` 访问前端，或修改前端端口，需要同步更新浏览器 origin 相关配置。
+`community-im-gateway.yaml`、`im-core.yaml` 和 `im-realtime.yaml` 的浏览器 CORS
+allowlist 也由同一个输入渲染。若使用 `127.0.0.1` 或修改前端端口，只需要更新
+`BROWSER_ALLOWED_ORIGINS`；不应把 owner-specific CORS 变量加入 runtime service
+Compose environment。`application.yml` 中的 `GATEWAY_CORS_ALLOWED_ORIGINS`、
+`AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS` 和 `IM_CORS_ALLOWED_ORIGINS` 仅用于绕过 Nacos
+时的本地/测试 fallback。
 
 ## 授权矩阵
 

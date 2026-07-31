@@ -49,7 +49,9 @@ class PluginDiscoveryTest {
             PluginDiscovery.Result missingResult = new PluginDiscovery().discover(config(missing), engineLoader);
 
             assertThat(missingResult.plugins()).extracting(plugin -> plugin.descriptor().id())
-                    .containsExactly("built-in", "exception", "jvm", "method", "thread");
+                    .containsExactly(
+                            "built-in", "exception", "http", "jdbc", "jvm",
+                            "kafka", "method", "redis", "thread");
             assertThat(missingResult.issues()).extracting(PluginIssue::reasonCode)
                     .containsExactly("EXTERNAL_DIRECTORY_INVALID");
             assertActivatable(missingResult);
@@ -57,7 +59,9 @@ class PluginDiscoveryTest {
             Path regularFile = Files.writeString(tempDir.resolve("not-a-directory"), "value");
             PluginDiscovery.Result fileResult = new PluginDiscovery().discover(config(regularFile), engineLoader);
             assertThat(fileResult.plugins()).extracting(plugin -> plugin.descriptor().id())
-                    .containsExactly("built-in", "exception", "jvm", "method", "thread");
+                    .containsExactly(
+                            "built-in", "exception", "http", "jdbc", "jvm",
+                            "kafka", "method", "redis", "thread");
             assertThat(fileResult.issues()).extracting(PluginIssue::reasonCode)
                     .containsExactly("EXTERNAL_DIRECTORY_INVALID");
             assertActivatable(fileResult);
@@ -96,7 +100,9 @@ class PluginDiscoveryTest {
             PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), engineLoader);
 
             assertThat(result.plugins()).extracting(plugin -> plugin.descriptor().id())
-                    .containsExactly("built-in", "exception", "jvm", "method", "thread");
+                    .containsExactly(
+                            "built-in", "exception", "http", "jdbc", "jvm",
+                            "kafka", "method", "redis", "thread");
             assertThat(result.issues()).extracting(PluginIssue::reasonCode)
                     .containsExactly("CANDIDATE_INVALID");
             assertActivatable(result);
@@ -208,7 +214,9 @@ class PluginDiscoveryTest {
 
             assertThat(result.plugins())
                     .extracting(plugin -> plugin.descriptor().id())
-                    .containsExactly("built-in", "exception", "jvm", "method", "thread");
+                    .containsExactly(
+                            "built-in", "exception", "http", "jdbc", "jvm",
+                            "kafka", "method", "redis", "thread");
             assertThat(result.plugins()).allMatch(
                     plugin -> plugin.source() == PluginSource.BUILT_IN);
             assertThat(result.issues()).extracting(PluginIssue::reasonCode)
@@ -225,10 +233,11 @@ class PluginDiscoveryTest {
         assertThat(result.plugins())
                 .allMatch(plugin -> plugin.source() == PluginSource.BUILT_IN)
                 .extracting(plugin -> plugin.descriptor().id())
-                .containsExactly("exception", "jvm", "method", "thread");
+                .containsExactly(
+                        "exception", "http", "jdbc", "jvm", "kafka", "method", "redis", "thread");
         assertThat(result.plugins())
                 .extracting(plugin -> plugin.descriptor().order())
-                .containsExactly(110, 310, 100, 300);
+                .containsExactly(110, 200, 210, 310, 230, 100, 220, 300);
         assertThat(result.issues()).isEmpty();
         assertThat(result.externalLoaders()).isEmpty();
     }

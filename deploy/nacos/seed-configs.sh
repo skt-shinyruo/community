@@ -27,9 +27,15 @@ im-realtime.yaml
 "
 
 echo "[nacos-config-bootstrap] waiting for ${NACOS_ADDR}"
+is_ready() {
+  readiness_response="$(curl -fsS "${NACOS_ADDR}/nacos/v3/admin/core/state/readiness" 2>/dev/null)" || return 1
+  printf '%s' "${readiness_response}" \
+    | grep -Eq '"code"[[:space:]]*:[[:space:]]*0([,}])'
+}
+
 health_attempt=1
 while [ "${health_attempt}" -le 120 ]; do
-  if curl -fsS "${NACOS_ADDR}/nacos/actuator/health" >/dev/null 2>&1; then
+  if is_ready; then
     break
   fi
   if [ "${health_attempt}" -eq 120 ]; then

@@ -399,6 +399,7 @@ grep -E '^  nacos:$' "${single_infra}"
 grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F 'image: nacos/nacos-server:v3.1.2-slim'
 grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F '/nacos/v3/admin/core/state/readiness'
 grep -A40 -E '^  nacos:$' "${single_infra}" | grep -E 'code.*0'
+grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F '9848'
 grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F 'healthcheck:'
 grep -E '^  nacos-config-bootstrap:$' "${single_infra}"
 grep -A24 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F '/deploy/nacos'
@@ -426,6 +427,7 @@ for nacos_node in nacos-1 nacos-2 nacos-3; do
   grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F 'image: nacos/nacos-server:v3.1.2-slim'
   grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F '/nacos/v3/admin/core/state/readiness'
   grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -E 'code.*0'
+  grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F '9848'
   grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F 'healthcheck:'
 done
 grep -E '^  nacos-config-bootstrap:$' "${cluster_infra}"

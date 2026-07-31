@@ -288,12 +288,12 @@ public final class ForkedJvm {
         }
     }
 
-    private static String completedOutput(Future<byte[]> output) {
+    private static String completedOutput(Future<byte[]> output) throws InterruptedException {
         try {
             return new String(
                     output.get(TERMINATION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
                     StandardCharsets.UTF_8);
-        } catch (Exception ignored) {
+        } catch (ExecutionException | TimeoutException ignored) {
             return "<output unavailable>";
         }
     }

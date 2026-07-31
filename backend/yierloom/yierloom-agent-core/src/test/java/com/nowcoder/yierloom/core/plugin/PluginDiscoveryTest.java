@@ -49,7 +49,7 @@ class PluginDiscoveryTest {
             PluginDiscovery.Result missingResult = new PluginDiscovery().discover(config(missing), engineLoader);
 
             assertThat(missingResult.plugins()).extracting(plugin -> plugin.descriptor().id())
-                    .containsExactly("built-in", "exception", "method");
+                    .containsExactly("built-in", "exception", "jvm", "method", "thread");
             assertThat(missingResult.issues()).extracting(PluginIssue::reasonCode)
                     .containsExactly("EXTERNAL_DIRECTORY_INVALID");
             assertActivatable(missingResult);
@@ -57,7 +57,7 @@ class PluginDiscoveryTest {
             Path regularFile = Files.writeString(tempDir.resolve("not-a-directory"), "value");
             PluginDiscovery.Result fileResult = new PluginDiscovery().discover(config(regularFile), engineLoader);
             assertThat(fileResult.plugins()).extracting(plugin -> plugin.descriptor().id())
-                    .containsExactly("built-in", "exception", "method");
+                    .containsExactly("built-in", "exception", "jvm", "method", "thread");
             assertThat(fileResult.issues()).extracting(PluginIssue::reasonCode)
                     .containsExactly("EXTERNAL_DIRECTORY_INVALID");
             assertActivatable(fileResult);
@@ -96,7 +96,7 @@ class PluginDiscoveryTest {
             PluginDiscovery.Result result = new PluginDiscovery().discover(config(plugins), engineLoader);
 
             assertThat(result.plugins()).extracting(plugin -> plugin.descriptor().id())
-                    .containsExactly("built-in", "exception", "method");
+                    .containsExactly("built-in", "exception", "jvm", "method", "thread");
             assertThat(result.issues()).extracting(PluginIssue::reasonCode)
                     .containsExactly("CANDIDATE_INVALID");
             assertActivatable(result);
@@ -208,7 +208,7 @@ class PluginDiscoveryTest {
 
             assertThat(result.plugins())
                     .extracting(plugin -> plugin.descriptor().id())
-                    .containsExactly("built-in", "exception", "method");
+                    .containsExactly("built-in", "exception", "jvm", "method", "thread");
             assertThat(result.plugins()).allMatch(
                     plugin -> plugin.source() == PluginSource.BUILT_IN);
             assertThat(result.issues()).extracting(PluginIssue::reasonCode)
@@ -218,17 +218,17 @@ class PluginDiscoveryTest {
     }
 
     @Test
-    void discoversRegisteredMethodAndExceptionBuiltIns() {
+    void discoversRegisteredBuiltIns() {
         PluginDiscovery.Result result = new PluginDiscovery().discover(
                 config(null), getClass().getClassLoader());
 
         assertThat(result.plugins())
                 .allMatch(plugin -> plugin.source() == PluginSource.BUILT_IN)
                 .extracting(plugin -> plugin.descriptor().id())
-                .containsExactly("exception", "method");
+                .containsExactly("exception", "jvm", "method", "thread");
         assertThat(result.plugins())
                 .extracting(plugin -> plugin.descriptor().order())
-                .containsExactly(110, 100);
+                .containsExactly(110, 310, 100, 300);
         assertThat(result.issues()).isEmpty();
         assertThat(result.externalLoaders()).isEmpty();
     }
@@ -305,7 +305,8 @@ class PluginDiscoveryTest {
                 Clock.systemUTC());
         try {
             manager.activate(validation.plugins());
-            assertThat(manager.activePluginIds()).contains("built-in", "method", "exception");
+            assertThat(manager.activePluginIds())
+                    .contains("built-in", "method", "exception", "thread", "jvm");
             assertThat(BUILT_IN_STARTS).hasValue(startsBeforeActivation + 1);
         } finally {
             manager.stopRuntimesInReverseOrder();

@@ -1,2 +1,4 @@
 com.nowcoder.yierloom.plugins.method.MethodPlugin
 com.nowcoder.yierloom.plugins.exception.ExceptionPlugin
+com.nowcoder.yierloom.plugins.thread.ThreadPlugin
+com.nowcoder.yierloom.plugins.jvm.JvmPlugin

@@ -285,7 +285,12 @@ public final class EngineRuntime implements AutoCloseable {
         return Objects.requireNonNull(reports, "reports").stream()
                 .filter(report -> report.state() == PluginState.STOPPED)
                 .filter(report -> report.reasonCode() != null)
-                .map(report -> "[YierLoom] plugin shutdown issue: " + report.summary())
+                .map(report -> "[YierLoom] plugin shutdown issue: source="
+                        + report.sourcePath()
+                        + ", plugin=" + report.pluginId()
+                        + ", enabled=" + report.enabled()
+                        + ", state=" + report.state()
+                        + ", reason=" + report.reasonCode())
                 .toList();
     }
 

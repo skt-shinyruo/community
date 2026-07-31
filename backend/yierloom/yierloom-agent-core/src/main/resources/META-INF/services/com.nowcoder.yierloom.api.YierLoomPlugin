@@ -2,3 +2,7 @@ com.nowcoder.yierloom.plugins.method.MethodPlugin
 com.nowcoder.yierloom.plugins.exception.ExceptionPlugin
 com.nowcoder.yierloom.plugins.thread.ThreadPlugin
 com.nowcoder.yierloom.plugins.jvm.JvmPlugin
+com.nowcoder.yierloom.plugins.http.HttpPlugin
+com.nowcoder.yierloom.plugins.jdbc.JdbcPlugin
+com.nowcoder.yierloom.plugins.redis.RedisPlugin
+com.nowcoder.yierloom.plugins.kafka.KafkaPlugin

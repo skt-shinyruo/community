@@ -88,7 +88,7 @@ class YierLoomAgentPackagingIT {
         assertThat(process.exitValue()).as(output).isZero();
         assertThat(output).contains(
                 "bridge-loader=bootstrap",
-                "[YierLoom] started: discovered=4, enabled=4, disabled=0, active=4, failed=0");
+                "[YierLoom] started: discovered=8, enabled=4, disabled=4, active=4, failed=0");
         assertThat(output).doesNotContain(
                 "disabled after bootstrap failure",
                 "Exception in thread",

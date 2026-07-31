@@ -1,6 +1,7 @@
 package com.nowcoder.yierloom.plugins;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -8,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import com.nowcoder.yierloom.api.DiagnosticEvent;
 import com.nowcoder.yierloom.api.EventSink;
@@ -47,7 +49,7 @@ public final class PluginTestContext implements PluginRuntimeContext {
             if (name.isBlank() || initialDelay.isNegative() || delay.isZero() || delay.isNegative()) {
                 throw new IllegalArgumentException("invalid scheduled task");
             }
-            TestManagedTask managed = new TestManagedTask(name, task);
+            TestManagedTask managed = new TestManagedTask(name, initialDelay, delay, task);
             if (tasks.putIfAbsent(name, managed) != null) {
                 throw new IllegalStateException("duplicate task: " + name);
             }
@@ -115,13 +117,46 @@ public final class PluginTestContext implements PluginRuntimeContext {
         return matching.get(0);
     }
 
+    public Set<String> scheduledTaskNames() {
+        return Set.copyOf(tasks.keySet());
+    }
+
+    public Duration initialDelay(String name) {
+        return task(name).initialDelay;
+    }
+
+    public Duration delay(String name) {
+        return task(name).delay;
+    }
+
+    public boolean isTaskCancelled(String name) {
+        return task(name).isCancelled();
+    }
+
+    private TestManagedTask task(String name) {
+        TestManagedTask task = tasks.get(name);
+        if (task == null) {
+            throw new IllegalArgumentException("unknown task: " + name);
+        }
+        return task;
+    }
+
     private static final class TestManagedTask implements ManagedTask {
         private final String name;
+        private final Duration initialDelay;
+        private final Duration delay;
         private final Runnable task;
         private boolean cancelled;
 
-        private TestManagedTask(String name, Runnable task) {
+        private TestManagedTask(
+                String name,
+                Duration initialDelay,
+                Duration delay,
+                Runnable task
+        ) {
             this.name = name;
+            this.initialDelay = initialDelay;
+            this.delay = delay;
             this.task = task;
         }
 

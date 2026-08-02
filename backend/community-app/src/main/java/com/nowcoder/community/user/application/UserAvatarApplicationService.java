@@ -6,7 +6,7 @@ import com.nowcoder.community.user.application.port.AvatarStoragePort;
 import com.nowcoder.community.user.application.result.AvatarUploadSessionResult;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.UUID;
 import java.util.Objects;
@@ -17,11 +17,19 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 public class UserAvatarApplicationService {
 
     private final AvatarStoragePort avatarStoragePort;
-    private final UserRepository userRepository;
+    private final UserAvatarTransactionOperations transactionOperations;
+
+    @Autowired
+    public UserAvatarApplicationService(
+            AvatarStoragePort avatarStoragePort,
+            UserAvatarTransactionOperations transactionOperations
+    ) {
+        this.avatarStoragePort = avatarStoragePort;
+        this.transactionOperations = transactionOperations;
+    }
 
     public UserAvatarApplicationService(AvatarStoragePort avatarStoragePort, UserRepository userRepository) {
-        this.avatarStoragePort = avatarStoragePort;
-        this.userRepository = userRepository;
+        this(avatarStoragePort, new UserAvatarTransactionOperations(userRepository));
     }
 
     public AvatarUploadSessionResult createUploadSession(UUID actorUserId, UUID userId, CreateAvatarUploadSessionCommand command) {
@@ -30,11 +38,10 @@ public class UserAvatarApplicationService {
         return avatarStoragePort.createUploadSession(userId, command);
     }
 
-    @Transactional
     public void updateAvatar(UUID actorUserId, UUID userId, UUID objectId) {
         requireSelf(actorUserId, userId);
         String headerUrl = avatarStoragePort.resolvePublicAvatarUrl(userId, objectId);
-        userRepository.updateHeaderUrl(userId, headerUrl);
+        transactionOperations.updateHeaderUrl(userId, headerUrl);
     }
 
     private void requireSelf(UUID actorUserId, UUID userId) {

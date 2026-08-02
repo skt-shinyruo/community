@@ -36,7 +36,14 @@ public interface UserRepository {
 
     void updatePassword(UUID userId, String encodedPassword, long securityVersion);
 
-    void updateModerationUntil(UUID userId, Instant muteUntil, Instant banUntil, long policyVersion, long securityVersion);
+    void updateModerationUntil(
+            UUID userId,
+            Instant muteUntil,
+            Instant banUntil,
+            long policyVersion,
+            long securityVersion,
+            long expectedPolicyVersion
+    );
 
     List<UserModerationStatus> scanModerationStatesAfterId(UUID afterUserId, int limit);
 

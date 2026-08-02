@@ -86,10 +86,12 @@ class UserRegistrationInsertOutcomeApplicationServiceTest {
         ));
         verify(repository).findById(userId);
         verify(repository, never()).nextUserPolicyVersion(any(UUID.class));
+        verify(repository, never()).nextUserSecurityVersion(any(UUID.class));
         verify(repository, never()).updateModerationUntil(
                 any(UUID.class),
                 any(),
                 any(),
+                anyLong(),
                 anyLong(),
                 anyLong()
         );
@@ -128,6 +130,7 @@ class UserRegistrationInsertOutcomeApplicationServiceTest {
 
         verify(repository).findById(userId);
         verify(repository, never()).nextUserPolicyVersion(any(UUID.class));
+        verify(repository, never()).nextUserSecurityVersion(any(UUID.class));
         verify(eventPublisher, never()).publishUserPolicyChanged(
                 any(UUID.class),
                 anyBoolean(),
@@ -153,10 +156,12 @@ class UserRegistrationInsertOutcomeApplicationServiceTest {
 
         verify(repository, never()).findById(any(UUID.class));
         verify(repository, never()).nextUserPolicyVersion(any(UUID.class));
+        verify(repository, never()).nextUserSecurityVersion(any(UUID.class));
         verify(repository, never()).updateModerationUntil(
                 any(UUID.class),
                 any(),
                 any(),
+                anyLong(),
                 anyLong(),
                 anyLong()
         );

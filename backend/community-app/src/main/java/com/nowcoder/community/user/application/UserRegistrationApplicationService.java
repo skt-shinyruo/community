@@ -117,9 +117,20 @@ public class UserRegistrationApplicationService implements UserRegistrationActio
             throw new BusinessException(INTERNAL_ERROR, "创建用户失败");
         }
         long version = userRepository.nextUserPolicyVersion(user.id());
-        userRepository.updateModerationUntil(user.id(), user.muteUntil(), user.banUntil(), version, 0L);
+        long securityVersion = userRepository.nextUserSecurityVersion(user.id());
+        if (securityVersion <= 0L) {
+            throw new BusinessException(INTERNAL_ERROR, "用户安全版本分配失败");
+        }
+        userRepository.updateModerationUntil(
+                user.id(),
+                user.muteUntil(),
+                user.banUntil(),
+                version,
+                securityVersion,
+                user.policyVersion()
+        );
         publishUserPolicyChanged(user.id(), true, version);
-        return toCredentialResult(user, 1);
+        return toCredentialResult(user, 1, securityVersion);
     }
 
     private UserCredentialView resolveExistingRegistration(UserAccount attempted) {
@@ -153,6 +164,10 @@ public class UserRegistrationApplicationService implements UserRegistrationActio
     }
 
     private UserCredentialView toCredentialResult(UserAccount user, int status) {
+        return toCredentialResult(user, status, user.securityVersion());
+    }
+
+    private UserCredentialView toCredentialResult(UserAccount user, int status, long securityVersion) {
         boolean allowed = status != 0;
         return new UserCredentialView(
                 user.id(),
@@ -160,7 +175,7 @@ public class UserRegistrationApplicationService implements UserRegistrationActio
                 status,
                 user.type(),
                 user.headerUrl(),
-                user.securityVersion(),
+                securityVersion,
                 allowed,
                 allowed
         );

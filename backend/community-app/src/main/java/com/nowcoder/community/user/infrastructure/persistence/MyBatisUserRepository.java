@@ -129,17 +129,21 @@ public class MyBatisUserRepository implements UserRepository {
             Instant muteUntil,
             Instant banUntil,
             long policyVersion,
-            long securityVersion
+            long securityVersion,
+            long expectedPolicyVersion
     ) {
         int updated = userMapper.updateModerationUntil(
                 userId,
                 muteUntil == null ? null : Date.from(muteUntil),
                 banUntil == null ? null : Date.from(banUntil),
                 policyVersion,
-                securityVersion
+                securityVersion,
+                expectedPolicyVersion
         );
         if (updated <= 0) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新处罚状态失败");
+            throw new BusinessException(
+                    com.nowcoder.community.user.exception.UserErrorCode.USER_MODERATION_CONFLICT
+            );
         }
     }
 

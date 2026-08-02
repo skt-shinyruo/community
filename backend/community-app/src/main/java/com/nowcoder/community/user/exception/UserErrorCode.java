@@ -17,6 +17,7 @@ public enum UserErrorCode implements ErrorCode {
     AVATAR_FILE_INVALID(11004, "头像文件不合法", ErrorKind.INVALID_INPUT),
     AVATAR_SAVE_FAILED(11005, "保存头像失败", ErrorKind.INTERNAL),
     STORAGE_UNAVAILABLE(11006, "用户存储不可用", ErrorKind.UNAVAILABLE),
+    USER_MODERATION_CONFLICT(11008, "用户处罚状态已被其他请求修改，请重试", ErrorKind.CONFLICT),
 
     INTERNAL_ERROR(11007, "用户服务异常", ErrorKind.INTERNAL);
 

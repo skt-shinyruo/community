@@ -73,6 +73,8 @@ class UserRegistrationApplicationServiceTest {
         UUID userId = userId(21);
         String encodedPassword = new BCryptPasswordEncoder().encode("secret12");
         when(userRepository.insertUser(any())).thenReturn(InsertResult.CREATED);
+        when(userRepository.nextUserPolicyVersion(userId)).thenReturn(17L);
+        when(userRepository.nextUserSecurityVersion(userId)).thenReturn(41L);
 
         UserCredentialView result = service.createVerifiedRegistrationUser(new VerifiedRegistrationUserCommand(
                 userId,
@@ -93,9 +95,18 @@ class UserRegistrationApplicationServiceTest {
         assertThat(inserted.type()).isEqualTo(0);
         assertThat(result.userId()).isEqualTo(userId);
         assertThat(result.status()).isEqualTo(1);
+        assertThat(result.securityVersion()).isEqualTo(41L);
         verify(userRepository).nextUserPolicyVersion(userId);
-        verify(userRepository).updateModerationUntil(eq(userId), eq(null), eq(null), anyLong(), eq(0L));
-        verify(userPolicyEventPublisher).publishUserPolicyChanged(eq(userId), eq(true), any(Instant.class), anyLong());
+        verify(userRepository).nextUserSecurityVersion(userId);
+        verify(userRepository).updateModerationUntil(
+                eq(userId),
+                eq(null),
+                eq(null),
+                eq(17L),
+                eq(41L),
+                eq(0L)
+        );
+        verify(userPolicyEventPublisher).publishUserPolicyChanged(eq(userId), eq(true), any(Instant.class), eq(17L));
     }
 
     @Test

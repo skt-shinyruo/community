@@ -33,7 +33,8 @@ public interface UserMapper {
             @Param("muteUntil") java.util.Date muteUntil,
             @Param("banUntil") java.util.Date banUntil,
             @Param("policyVersion") long policyVersion,
-            @Param("securityVersion") long securityVersion
+            @Param("securityVersion") long securityVersion,
+            @Param("expectedPolicyVersion") long expectedPolicyVersion
     );
 
     /**

@@ -3,6 +3,8 @@ package com.nowcoder.community.user.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
+import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
 import com.nowcoder.community.user.infrastructure.audit.Slf4jUserAuditLogAdapter;
 import com.nowcoder.community.user.infrastructure.event.OutboxUserPolicyEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +22,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.reset;
 
@@ -32,6 +36,7 @@ class UserWriteTransactionIntegrationTest {
 
     private static final UUID ACTOR_USER_ID = uuid(91);
     private static final UUID TARGET_USER_ID = uuid(92);
+    private static final UUID REGISTRATION_USER_ID = uuid(93);
     private static final long INITIAL_POLICY_COUNTER = 50L;
     private static final long INITIAL_SECURITY_COUNTER = 40L;
     private static final long INITIAL_USER_POLICY_VERSION = 5L;
@@ -42,6 +47,9 @@ class UserWriteTransactionIntegrationTest {
 
     @Autowired
     private UserModerationApplicationService userModerationApplicationService;
+
+    @Autowired
+    private UserRegistrationApplicationService userRegistrationApplicationService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -57,6 +65,7 @@ class UserWriteTransactionIntegrationTest {
         reset(userAuditLogAdapter, userPolicyEventPublisher);
         jdbcTemplate.update("delete from outbox_event");
         jdbcTemplate.update("delete from user where id = ?", BinaryUuidCodec.toBytes(TARGET_USER_ID));
+        jdbcTemplate.update("delete from user where id = ?", BinaryUuidCodec.toBytes(REGISTRATION_USER_ID));
         jdbcTemplate.update(
                 "update user_policy_version_counter set current_version = ? where id = 1",
                 INITIAL_POLICY_COUNTER
@@ -138,6 +147,59 @@ class UserWriteTransactionIntegrationTest {
         assertThat(outboxCount()).isZero();
     }
 
+    @Test
+    void registrationMustReturnThePositiveSecurityVersionPersistedInItsTransaction() {
+        UserCredentialView result = userRegistrationApplicationService.createVerifiedRegistrationUser(
+                registrationCommand()
+        );
+
+        long persistedSecurityVersion = requiredValue(
+                REGISTRATION_USER_ID,
+                "select security_version from user where id = ?",
+                Long.class
+        );
+        assertThat(persistedSecurityVersion).isEqualTo(INITIAL_SECURITY_COUNTER + 1L);
+        assertThat(persistedSecurityVersion).isPositive();
+        assertThat(result.securityVersion()).isEqualTo(persistedSecurityVersion);
+        assertThat(securityCounter()).isEqualTo(persistedSecurityVersion);
+        assertThat(requiredValue(
+                REGISTRATION_USER_ID,
+                "select policy_version from user where id = ?",
+                Long.class
+        )).isEqualTo(INITIAL_POLICY_COUNTER + 1L);
+        assertThat(outboxCount()).isOne();
+    }
+
+    @Test
+    void registrationPublicationFailureMustRollbackUserAndBothVersionCounters() {
+        doAnswer(invocation -> {
+            invocation.callRealMethod();
+            assertThat(registrationUserCount()).isOne();
+            assertThat(requiredValue(
+                    REGISTRATION_USER_ID,
+                    "select security_version from user where id = ?",
+                    Long.class
+            )).isEqualTo(INITIAL_SECURITY_COUNTER + 1L);
+            throw new IllegalStateException("registration publication failed");
+        }).when(userPolicyEventPublisher).publishUserPolicyChanged(
+                eq(REGISTRATION_USER_ID),
+                eq(true),
+                any(Instant.class),
+                anyLong()
+        );
+
+        assertThatThrownBy(() -> userRegistrationApplicationService.createVerifiedRegistrationUser(
+                registrationCommand()
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("registration publication failed");
+
+        assertThat(registrationUserCount()).isZero();
+        assertThat(policyCounter()).isEqualTo(INITIAL_POLICY_COUNTER);
+        assertThat(securityCounter()).isEqualTo(INITIAL_SECURITY_COUNTER);
+        assertThat(outboxCount()).isZero();
+    }
+
     private int userType() {
         return requiredValue("select type from user where id = ?", Integer.class);
     }
@@ -179,8 +241,31 @@ class UserWriteTransactionIntegrationTest {
         return value == null ? 0L : value;
     }
 
+    private long registrationUserCount() {
+        Long value = jdbcTemplate.queryForObject(
+                "select count(*) from user where id = ?",
+                Long.class,
+                BinaryUuidCodec.toBytes(REGISTRATION_USER_ID)
+        );
+        return value == null ? 0L : value;
+    }
+
+    private VerifiedRegistrationUserCommand registrationCommand() {
+        return new VerifiedRegistrationUserCommand(
+                REGISTRATION_USER_ID,
+                "transaction-registration",
+                "transaction-registration@example.com",
+                "$2a$10$7EqJtq98hPqEX7fNZaFWoOHiE9VYh4Vh7H1w52x1x7YjQwlhbR1XK",
+                "registration-header"
+        );
+    }
+
     private <T> T requiredValue(String sql, Class<T> type) {
         return jdbcTemplate.queryForObject(sql, type, BinaryUuidCodec.toBytes(TARGET_USER_ID));
+    }
+
+    private <T> T requiredValue(UUID userId, String sql, Class<T> type) {
+        return jdbcTemplate.queryForObject(sql, type, BinaryUuidCodec.toBytes(userId));
     }
 
     private static UUID uuid(long suffix) {

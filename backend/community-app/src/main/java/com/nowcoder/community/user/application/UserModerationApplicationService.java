@@ -99,7 +99,8 @@ public class UserModerationApplicationService implements UserModerationActionApi
                 versionedNext.muteUntil(),
                 versionedNext.banUntil(),
                 version,
-                securityVersion
+                securityVersion,
+                user.policyVersion()
         );
         userPolicyEventPublisher.publishUserPolicyChanged(versionedNext, Instant.now());
         return versionedNext;

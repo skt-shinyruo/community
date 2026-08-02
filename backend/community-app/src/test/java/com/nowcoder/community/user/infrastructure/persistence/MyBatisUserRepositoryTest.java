@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
+import static com.nowcoder.community.user.exception.UserErrorCode.USER_MODERATION_CONFLICT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -120,7 +121,7 @@ class MyBatisUserRepositoryTest {
         userRepository.updatePassword(ALICE_ID, "new-password", passwordSecurityVersion);
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(passwordSecurityVersion);
         long policyVersion = userRepository.nextUserPolicyVersion(ALICE_ID);
-        userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, policyVersion, 0L);
+        userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, policyVersion, 0L, 0L);
 
         UserAccount updated = userRepository.findById(ALICE_ID).orElseThrow();
         assertThat(updated.headerUrl()).isEqualTo("new-header");
@@ -170,9 +171,9 @@ class MyBatisUserRepositoryTest {
         insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "h7", createTime, null, null);
 
         long first = userRepository.nextUserPolicyVersion(ALICE_ID);
-        userRepository.updateModerationUntil(ALICE_ID, muteUntil, null, first, 0L);
+        userRepository.updateModerationUntil(ALICE_ID, muteUntil, null, first, 0L, 0L);
         long second = userRepository.nextUserPolicyVersion(ALICE_ID);
-        userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, second, 0L);
+        userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, second, 0L, first);
 
         assertThat(first).isEqualTo(1L);
         assertThat(second).isEqualTo(2L);
@@ -207,12 +208,41 @@ class MyBatisUserRepositoryTest {
         long policyVersion = userRepository.nextUserPolicyVersion(ALICE_ID);
         long securityVersion = userRepository.nextUserSecurityVersion(ALICE_ID);
 
-        userRepository.updateModerationUntil(ALICE_ID, null, banUntil, policyVersion, securityVersion);
+        userRepository.updateModerationUntil(ALICE_ID, null, banUntil, policyVersion, securityVersion, 0L);
 
         UserAccount updated = userRepository.findById(ALICE_ID).orElseThrow();
         assertThat(updated.banUntil()).isEqualTo(banUntil);
         assertThat(updated.policyVersion()).isEqualTo(policyVersion);
         assertThat(updated.securityVersion()).isEqualTo(securityVersion);
+    }
+
+    @Test
+    void updateModerationUntilShouldRejectStalePolicyVersionWithoutOverwritingCurrentState() {
+        Date createTime = Date.from(Instant.parse("2026-04-27T10:15:30Z"));
+        Instant muteUntil = Instant.parse("2026-04-28T10:15:30Z");
+        Instant staleBanUntil = Instant.parse("2026-04-29T10:15:30Z");
+        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "h7", createTime, null, null);
+
+        long first = userRepository.nextUserPolicyVersion(ALICE_ID);
+        userRepository.updateModerationUntil(ALICE_ID, muteUntil, null, first, 0L, 0L);
+        long staleWriteVersion = userRepository.nextUserPolicyVersion(ALICE_ID);
+
+        assertThatThrownBy(() -> userRepository.updateModerationUntil(
+                ALICE_ID,
+                null,
+                staleBanUntil,
+                staleWriteVersion,
+                0L,
+                0L
+        ))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(USER_MODERATION_CONFLICT));
+
+        UserAccount current = userRepository.findById(ALICE_ID).orElseThrow();
+        assertThat(current.muteUntil()).isEqualTo(muteUntil);
+        assertThat(current.banUntil()).isNull();
+        assertThat(current.policyVersion()).isEqualTo(first);
     }
 
     private void insertUser(

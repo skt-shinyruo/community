@@ -102,7 +102,14 @@ class UserModerationApplicationServiceTest {
         assertThat(status.banUntil()).isEqualTo(EXISTING_BAN);
         assertThat(status.version()).isEqualTo(101L);
         verify(userRepository).nextUserPolicyVersion(USER_ID_7);
-        verify(userRepository).updateModerationUntil(USER_ID_7, status.muteUntil(), EXISTING_BAN, 101L, 0L);
+        verify(userRepository).updateModerationUntil(
+                USER_ID_7,
+                status.muteUntil(),
+                EXISTING_BAN,
+                101L,
+                0L,
+                100L
+        );
 
         ArgumentCaptor<UserModerationStatus> statusCaptor = ArgumentCaptor.forClass(UserModerationStatus.class);
         ArgumentCaptor<Instant> occurredAtCaptor = ArgumentCaptor.forClass(Instant.class);
@@ -133,7 +140,14 @@ class UserModerationApplicationServiceTest {
         inOrder.verify(userRepository).findById(USER_ID_7);
         inOrder.verify(userRepository).nextUserPolicyVersion(USER_ID_7);
         inOrder.verify(userRepository).nextUserSecurityVersion(USER_ID_7);
-        inOrder.verify(userRepository).updateModerationUntil(USER_ID_7, null, status.banUntil(), 101L, 202L);
+        inOrder.verify(userRepository).updateModerationUntil(
+                USER_ID_7,
+                null,
+                status.banUntil(),
+                101L,
+                202L,
+                100L
+        );
         inOrder.verify(userPolicyEventPublisher).publishUserPolicyChanged(eq(new UserModerationStatus(
                 status.userId(), status.muteUntil(), status.banUntil(), status.version()
         )), any(Instant.class));
@@ -160,7 +174,14 @@ class UserModerationApplicationServiceTest {
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
         assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
-        verify(userRepository, never()).updateModerationUntil(eq(USER_ID_7), eq(EXISTING_MUTE), eq(EXISTING_BAN), anyLong(), anyLong());
+        verify(userRepository, never()).updateModerationUntil(
+                eq(USER_ID_7),
+                eq(EXISTING_MUTE),
+                eq(EXISTING_BAN),
+                anyLong(),
+                anyLong(),
+                anyLong()
+        );
         verifyNoInteractions(userPolicyEventPublisher);
     }
 

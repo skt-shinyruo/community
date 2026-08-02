@@ -74,6 +74,7 @@
                 , security_version = #{securityVersion}
             </if>
         where id = #{id, jdbcType=BINARY}
+          and policy_version = #{expectedPolicyVersion}
     </update>
 
     <select id="selectModerationUsersAfterId" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">

@@ -3,13 +3,14 @@ package com.nowcoder.community.im.gateway.session;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.gateway.CommunityImGatewayApplication;
+import com.nowcoder.community.im.gateway.TestJwtKeys;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
@@ -43,7 +44,7 @@ class ImSessionApiIntegrationTest {
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
-        registry.add("security.jwt.hmac-secret", () -> SECRET);
+        registry.add("security.jwt.access-public-key", TestJwtKeys::publicKey);
         registry.add("security.jwt.issuer", () -> "community-auth");
         registry.add("im.session-ticket.hmac-secret", () -> TICKET_SECRET);
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
@@ -119,17 +120,19 @@ class ImSessionApiIntegrationTest {
     }
 
     private static String accessToken() {
-        JwtProperties properties = new JwtProperties();
-        properties.setHmacSecret(SECRET);
-        properties.setIssuer("community-auth");
-        JwtEncoder encoder = JwtCodecs.jwtEncoder(properties);
+        JwtProperties properties = TestJwtKeys.accessProperties();
+        JwtEncoder encoder = JwtCodecs.accessTokenEncoder(properties);
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer("community-auth")
                 .subject("00000000-0000-7000-8000-000000000123")
+                .audience(java.util.List.of("community-api"))
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(300))
                 .build();
-        return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
+        JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256)
+                .type(JwtCodecs.ACCESS_TOKEN_TYPE)
+                .build();
+        return encoder.encode(JwtEncoderParameters.from(header, claims))
                 .getTokenValue();
     }
 

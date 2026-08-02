@@ -11,6 +11,6 @@ public class JwtCryptoConfig {
 
     @Bean
     public JwtEncoder jwtEncoder(JwtProperties jwtProperties) {
-        return JwtCodecs.jwtEncoder(jwtProperties);
+        return JwtCodecs.accessTokenEncoder(jwtProperties);
     }
 }

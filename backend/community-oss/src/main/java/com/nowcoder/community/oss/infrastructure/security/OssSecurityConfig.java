@@ -17,13 +17,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
-import org.springframework.security.oauth2.core.OAuth2Error;
-import org.springframework.security.oauth2.core.OAuth2TokenValidator;
-import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -193,22 +187,11 @@ public class OssSecurityConfig {
             JwtProperties jwtProperties,
             OssServiceJwtProperties serviceJwtProperties
     ) {
-        NimbusJwtDecoder decoder = JwtCodecs.jwtDecoder(jwtProperties);
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(serviceJwtProperties.issuer()),
-                audienceValidator(serviceJwtProperties.audience())
-        ));
-        return decoder;
-    }
-
-    private OAuth2TokenValidator<Jwt> audienceValidator(String expectedAudience) {
-        return jwt -> jwt.getAudience() != null && jwt.getAudience().contains(expectedAudience)
-                ? OAuth2TokenValidatorResult.success()
-                : OAuth2TokenValidatorResult.failure(new OAuth2Error(
-                        "invalid_token",
-                        "The required audience is missing",
-                        null
-                ));
+        return JwtCodecs.serviceTokenDecoder(
+                jwtProperties,
+                serviceJwtProperties.issuer(),
+                serviceJwtProperties.audience()
+        );
     }
 
     private boolean isAuthorizedService(Authentication authentication, OssServiceJwtProperties properties) {

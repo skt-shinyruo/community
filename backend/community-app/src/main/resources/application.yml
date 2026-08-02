@@ -163,9 +163,14 @@ community:
 
 security:
   jwt:
-    # Required (>= 32 bytes). Set JWT_HMAC_SECRET via env/secret store.
-    hmac-secret: ${JWT_HMAC_SECRET:}
+    # Base64-encoded X.509 public key for access-token verification.
+    access-public-key: ${JWT_ACCESS_PUBLIC_KEY:}
+    # Base64-encoded PKCS#8 private key; only community-app may receive it.
+    access-private-key: ${JWT_ACCESS_PRIVATE_KEY:}
+    # Independent HS256 key for authenticated service-to-service calls.
+    service-hmac-secret: ${JWT_SERVICE_HMAC_SECRET:}
     issuer: ${JWT_ISSUER:community-auth}
+    access-token-audience: ${JWT_ACCESS_TOKEN_AUDIENCE:community-api}
     access-token-ttl-seconds: 900
     refresh-token-ttl-seconds: 604800
     refresh-cookie-name: refresh_token

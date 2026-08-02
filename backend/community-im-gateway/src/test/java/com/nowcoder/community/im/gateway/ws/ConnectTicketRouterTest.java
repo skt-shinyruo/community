@@ -55,7 +55,7 @@ class ConnectTicketRouterTest {
 
     private static SessionTicketCodec ticketCodec() {
         JwtProperties accessProperties = new JwtProperties();
-        accessProperties.setHmacSecret(ACCESS_SECRET);
+        accessProperties.setServiceHmacSecret(ACCESS_SECRET);
         ImSessionTicketProperties ticketProperties = new ImSessionTicketProperties();
         ticketProperties.setHmacSecret(TICKET_SECRET);
         ticketProperties.setIssuer(TICKET_ISSUER);

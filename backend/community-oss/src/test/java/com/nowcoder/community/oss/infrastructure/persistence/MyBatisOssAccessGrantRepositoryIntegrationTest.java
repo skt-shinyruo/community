@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.datasource.password=",
         "spring.sql.init.mode=never",
         "spring.task.scheduling.enabled=false",
-        "security.jwt.hmac-secret=01234567890123456789012345678901",
+        "security.jwt.service-hmac-secret=01234567890123456789012345678901",
         "security.jwt.issuer=community-oss-access-grant-test",
         "spring.cloud.discovery.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",

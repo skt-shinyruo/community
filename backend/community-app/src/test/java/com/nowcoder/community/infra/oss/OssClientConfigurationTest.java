@@ -3,6 +3,7 @@ package com.nowcoder.community.infra.oss;
 import com.nowcoder.community.auth.config.JwtCryptoConfig;
 import com.nowcoder.community.common.observability.oss.OssRuntimeLogger;
 import com.nowcoder.community.common.security.autoconfig.SecurityCommonAutoConfiguration;
+import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.infra.observability.ObservedCommunityOssClient;
 import com.nowcoder.community.oss.client.CommunityOssClient;
@@ -12,16 +13,16 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
-import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
+import java.time.temporal.ChronoUnit;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,8 +33,9 @@ import static org.mockito.Mockito.mock;
 
 class OssClientConfigurationTest {
 
-    private static final Instant INITIAL_NOW = Instant.parse("2026-07-20T08:15:30Z");
-    private static final String VALID_SECRET = "community-app-test-jwt-secret-32-bytes-minimum";
+    private static final Instant INITIAL_NOW = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+    private static final String VALID_SERVICE_SECRET = "community-app-test-service-jwt-secret-32-bytes-minimum";
+    private static final KeyPair ACCESS_KEY_PAIR = rsaKeyPair();
     private static final Map<String, String> VALID_OSS_SETTINGS = Map.of(
             "oss.client.base-url", "https://oss.example.test",
             "oss.client.service-subject", "community-app",
@@ -48,10 +50,12 @@ class OssClientConfigurationTest {
             assertThat(context).hasNotFailed();
 
             String token = context.getBean(OssServiceTokenProvider.class).tokenValue();
-            JwtEncoderParameters parameters = context.getBean(RecordingJwtEncoder.class).latest();
-            Map<String, Object> claims = parameters.getClaims().getClaims();
+            var decoded = JwtCodecs.serviceTokenDecoder(
+                    validJwtProperties(), "community-auth", "community-oss"
+            ).decode(token);
+            Map<String, Object> claims = decoded.getClaims();
 
-            assertThat(token).isEqualTo("encoded-service-token-1").doesNotStartWith("Bearer ");
+            assertThat(token).doesNotStartWith("Bearer ");
             assertThat(context.getBean(OssClientProperties.class))
                     .extracting(
                             OssClientProperties::baseUrl,
@@ -67,7 +71,9 @@ class OssClientConfigurationTest {
                             "oss.internal",
                             Duration.ofMinutes(4)
                     );
-            assertThat(parameters.getJwsHeader().getAlgorithm()).isEqualTo(MacAlgorithm.HS256);
+            assertThat(decoded.getHeaders())
+                    .containsEntry("alg", MacAlgorithm.HS256.getName())
+                    .containsEntry("typ", JwtCodecs.SERVICE_TOKEN_TYPE);
             assertThat(claims)
                     .containsEntry("iss", "community-auth")
                     .containsEntry("sub", "community-app")
@@ -85,15 +91,19 @@ class OssClientConfigurationTest {
         tokenContextRunner().run(context -> {
             assertThat(context).hasNotFailed();
             OssServiceTokenProvider provider = context.getBean(OssServiceTokenProvider.class);
-            RecordingJwtEncoder encoder = context.getBean(RecordingJwtEncoder.class);
             MutableClock clock = context.getBean(MutableClock.class);
 
-            assertThat(provider.tokenValue()).isEqualTo("encoded-service-token-1");
-            Instant firstIssuedAt = (Instant) encoder.latest().getClaims().getClaims().get("iat");
+            String firstToken = provider.tokenValue();
+            Instant firstIssuedAt = JwtCodecs.serviceTokenDecoder(
+                    validJwtProperties(), "community-auth", "community-oss"
+            ).decode(firstToken).getIssuedAt();
             clock.advance(Duration.ofMinutes(1));
-            assertThat(provider.tokenValue()).isEqualTo("encoded-service-token-2");
-            Instant secondIssuedAt = (Instant) encoder.latest().getClaims().getClaims().get("iat");
+            String secondToken = provider.tokenValue();
+            Instant secondIssuedAt = JwtCodecs.serviceTokenDecoder(
+                    validJwtProperties(), "community-auth", "community-oss"
+            ).decode(secondToken).getIssuedAt();
 
+            assertThat(secondToken).isNotEqualTo(firstToken);
             assertThat(firstIssuedAt).isEqualTo(INITIAL_NOW);
             assertThat(secondIssuedAt).isEqualTo(INITIAL_NOW.plus(Duration.ofMinutes(1)));
         });
@@ -132,7 +142,6 @@ class OssClientConfigurationTest {
         return new ApplicationContextRunner()
                 .withUserConfiguration(OssClientConfiguration.class)
                 .withBean(JwtProperties.class, OssClientConfigurationTest::validJwtProperties)
-                .withBean(RecordingJwtEncoder.class, RecordingJwtEncoder::new)
                 .withBean(MutableClock.class, () -> new MutableClock(INITIAL_NOW))
                 .withPropertyValues(settings);
     }
@@ -148,6 +157,7 @@ class OssClientConfigurationTest {
                         JwtCryptoConfig.class,
                         OssClientConfiguration.class
                 )
+                .withBean(Clock.class, Clock::systemUTC)
                 .withPropertyValues(properties(VALID_OSS_SETTINGS))
                 .withPropertyValues(jwtSettings);
     }
@@ -180,9 +190,13 @@ class OssClientConfigurationTest {
         return Stream.of(
                 invalidJwtSetting("security.jwt.issuer", null),
                 invalidJwtSetting("security.jwt.issuer", ""),
-                invalidJwtSetting("security.jwt.hmac-secret", null),
-                invalidJwtSetting("security.jwt.hmac-secret", ""),
-                invalidJwtSetting("security.jwt.hmac-secret", "short-secret")
+                invalidJwtSetting("security.jwt.access-public-key", null),
+                invalidJwtSetting("security.jwt.access-public-key", ""),
+                invalidJwtSetting("security.jwt.access-private-key", null),
+                invalidJwtSetting("security.jwt.access-private-key", ""),
+                invalidJwtSetting("security.jwt.service-hmac-secret", null),
+                invalidJwtSetting("security.jwt.service-hmac-secret", ""),
+                invalidJwtSetting("security.jwt.service-hmac-secret", "short-secret")
         );
     }
 
@@ -195,7 +209,10 @@ class OssClientConfigurationTest {
     private static InvalidSettings invalidJwtSetting(String property, String value) {
         Map<String, String> settings = new LinkedHashMap<>();
         settings.put("security.jwt.issuer", "community-auth");
-        settings.put("security.jwt.hmac-secret", VALID_SECRET);
+        settings.put("security.jwt.access-public-key", accessPublicKey());
+        settings.put("security.jwt.access-private-key", accessPrivateKey());
+        settings.put("security.jwt.access-token-audience", "community-api");
+        settings.put("security.jwt.service-hmac-secret", VALID_SERVICE_SECRET);
         replaceOrRemove(settings, property, value);
         return new InvalidSettings(property, properties(settings));
     }
@@ -217,8 +234,26 @@ class OssClientConfigurationTest {
     private static JwtProperties validJwtProperties() {
         JwtProperties properties = new JwtProperties();
         properties.setIssuer(" community-auth ");
-        properties.setHmacSecret(VALID_SECRET);
+        properties.setServiceHmacSecret(VALID_SERVICE_SECRET);
         return properties;
+    }
+
+    private static String accessPublicKey() {
+        return Base64.getEncoder().encodeToString(ACCESS_KEY_PAIR.getPublic().getEncoded());
+    }
+
+    private static String accessPrivateKey() {
+        return Base64.getEncoder().encodeToString(ACCESS_KEY_PAIR.getPrivate().getEncoded());
+    }
+
+    private static KeyPair rsaKeyPair() {
+        try {
+            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+            generator.initialize(2048);
+            return generator.generateKeyPair();
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 
     private record InvalidSettings(String property, String[] properties) {
@@ -226,28 +261,6 @@ class OssClientConfigurationTest {
         @Override
         public String toString() {
             return property;
-        }
-    }
-
-    static final class RecordingJwtEncoder implements JwtEncoder {
-
-        private final List<JwtEncoderParameters> parameters = new ArrayList<>();
-
-        @Override
-        public Jwt encode(JwtEncoderParameters parameters) {
-            this.parameters.add(parameters);
-            Map<String, Object> claims = parameters.getClaims().getClaims();
-            return new Jwt(
-                    "encoded-service-token-" + this.parameters.size(),
-                    (Instant) claims.get("iat"),
-                    (Instant) claims.get("exp"),
-                    parameters.getJwsHeader().getHeaders(),
-                    claims
-            );
-        }
-
-        JwtEncoderParameters latest() {
-            return parameters.get(parameters.size() - 1);
         }
     }
 

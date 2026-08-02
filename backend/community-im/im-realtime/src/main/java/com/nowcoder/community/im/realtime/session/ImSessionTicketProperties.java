@@ -38,16 +38,16 @@ public class ImSessionTicketProperties {
         this.audience = audience;
     }
 
-    public SecretKey secretKeyOrThrow(JwtProperties accessProperties) {
+    public SecretKey secretKeyOrThrow(JwtProperties jwtProperties) {
         String secret = requireText("hmac-secret", hmacSecret);
         byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < 32) {
             throw new IllegalArgumentException("im.session-ticket.hmac-secret must be >= 32 bytes");
         }
-        String accessSecret = accessProperties == null ? null : normalize(accessProperties.getHmacSecret());
-        if (secret.equals(accessSecret)) {
+        String serviceSecret = jwtProperties == null ? null : normalize(jwtProperties.getServiceHmacSecret());
+        if (secret.equals(serviceSecret)) {
             throw new IllegalArgumentException(
-                    "im.session-ticket.hmac-secret must differ from security.jwt.hmac-secret"
+                    "im.session-ticket.hmac-secret must differ from security.jwt.service-hmac-secret"
             );
         }
         return new SecretKeySpec(secretBytes, "HmacSHA256");

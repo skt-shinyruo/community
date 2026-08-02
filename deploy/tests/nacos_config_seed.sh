@@ -148,6 +148,13 @@ for data_id in "${required_data_ids[@]}"; do
   grep -F "${data_id}" "${SEED_SCRIPT}"
 done
 
+grep -F 'issuer: community-auth' "${CONFIG_DIR}/community-shared.yaml"
+grep -F 'access-token-audience: community-api' "${CONFIG_DIR}/community-shared.yaml"
+if grep -RE 'access-(public|private)-key|service-hmac-secret|JWT_(ACCESS|SERVICE)' "${CONFIG_DIR}" >/dev/null; then
+  echo 'Nacos seed configuration must not contain JWT key material or secret placeholders' >&2
+  exit 1
+fi
+
 backend_application_ymls=(
   "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
   "${REPO_ROOT}/backend/community-gateway/src/main/resources/application.yml"

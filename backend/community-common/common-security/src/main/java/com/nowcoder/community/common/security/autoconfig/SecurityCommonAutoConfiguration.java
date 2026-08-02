@@ -2,7 +2,7 @@ package com.nowcoder.community.common.security.autoconfig;
 
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
-import com.nowcoder.community.common.security.jwt.JwtSecretKeys;
+import com.nowcoder.community.common.security.jwt.JwtRsaKeys;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -21,14 +21,15 @@ public class SecurityCommonAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(JwtDecoder.class)
     JwtDecoder jwtDecoder(JwtProperties jwtProperties) {
-        return JwtCodecs.jwtDecoder(jwtProperties);
+        return JwtCodecs.accessTokenDecoder(jwtProperties);
     }
 
     static final class JwtConfigurationValidator {
 
         JwtConfigurationValidator(JwtProperties jwtProperties) {
-            JwtSecretKeys.hmacSha256OrThrow(jwtProperties);
+            JwtRsaKeys.accessPublicKeyOrThrow(jwtProperties);
             JwtCodecs.resolvedIssuer(jwtProperties);
+            JwtCodecs.resolvedAccessTokenAudience(jwtProperties);
         }
     }
 }

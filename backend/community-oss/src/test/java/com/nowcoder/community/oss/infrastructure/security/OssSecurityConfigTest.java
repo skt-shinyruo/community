@@ -1,14 +1,17 @@
 package com.nowcoder.community.oss.infrastructure.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.security.autoconfig.SecurityCommonAutoConfiguration;
+import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.oss.application.ObjectAccessApplicationService;
@@ -34,6 +37,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -41,7 +46,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.interfaces.RSAPrivateKey;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -67,13 +76,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.cloud.discovery.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",
         "spring.cloud.nacos.config.enabled=false",
-        "security.jwt.hmac-secret=01234567890123456789012345678901",
+        "security.jwt.service-hmac-secret=01234567890123456789012345678901",
         "security.jwt.issuer=community-auth",
+        "security.jwt.access-token-audience=community-api",
         "oss.security.service-jwt.issuer=community-auth",
         "oss.security.service-jwt.audience=community-oss",
         "oss.security.service-jwt.scope=oss.internal",
-        "METRICS_BASIC_AUTH_USERNAME=metrics-reader",
-        "METRICS_BASIC_AUTH_PASSWORD=metrics-password-123"
+        "community.metrics.basic-auth.username=metrics-reader",
+        "community.metrics.basic-auth.password=metrics-password-123"
 })
 @Import({
         InternalOssObjectController.class,
@@ -87,9 +97,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class OssSecurityConfigTest {
 
-    private static final String JWT_SECRET = "01234567890123456789012345678901";
-    private static final String INVALID_JWT_SECRET = "98765432109876543210987654321098";
+    private static final String SERVICE_JWT_SECRET = "01234567890123456789012345678901";
+    private static final String INVALID_SERVICE_JWT_SECRET = "98765432109876543210987654321098";
     private static final String USER_ISSUER = "community-auth";
+    private static final String USER_AUDIENCE = "community-api";
     private static final String SERVICE_AUDIENCE = "community-oss";
     private static final String SERVICE_SCOPE = "oss.internal";
     private static final String METRICS_USERNAME = "metrics-reader";
@@ -97,6 +108,14 @@ class OssSecurityConfigTest {
     private static final String TRACE_ID = "abcdefabcdefabcdefabcdefabcdefab";
     private static final String TRACEPARENT = "00-" + TRACE_ID + "-1234567890abcdef-01";
     private static final UUID USER_ID = uuid(9);
+    private static final KeyPair ACCESS_KEY_PAIR = rsaKeyPair();
+    private static final KeyPair INVALID_ACCESS_KEY_PAIR = rsaKeyPair();
+
+    @DynamicPropertySource
+    static void accessTokenPublicKey(DynamicPropertyRegistry registry) {
+        registry.add("security.jwt.access-public-key", () -> Base64.getEncoder()
+                .encodeToString(ACCESS_KEY_PAIR.getPublic().getEncoded()));
+    }
 
     @Autowired
     private MockMvc mvc;
@@ -184,7 +203,7 @@ class OssSecurityConfigTest {
 
     @Test
     void validUserJwtShouldAccessUserApiButNotInternalApi() throws Exception {
-        String token = token(USER_ISSUER, USER_ID.toString(), null, null, futureExpiry());
+        String token = accessToken(USER_ISSUER, USER_ID.toString(), null, futureExpiry());
 
         mvc.perform(userApiRequest(token))
                 .andExpect(status().isOk())
@@ -194,14 +213,14 @@ class OssSecurityConfigTest {
 
     @Test
     void validServiceJwtShouldAccessInternalApiButNotUserApi() throws Exception {
-        String serviceToken = token(
+        String serviceToken = serviceToken(
                 USER_ISSUER,
                 "community-app",
                 SERVICE_AUDIENCE,
                 SERVICE_SCOPE,
                 futureExpiry()
         );
-        String uuidSubjectServiceToken = token(
+        String uuidSubjectServiceToken = serviceToken(
                 USER_ISSUER,
                 USER_ID.toString(),
                 SERVICE_AUDIENCE,
@@ -212,33 +231,33 @@ class OssSecurityConfigTest {
         mvc.perform(internalApiRequest(serviceToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
-        expectSecurityError(mvc.perform(userApiRequest(uuidSubjectServiceToken)), 403);
+        expectSecurityError(mvc.perform(userApiRequest(uuidSubjectServiceToken)), 401);
     }
 
     @Test
     void internalApiShouldRejectWrongAudience() throws Exception {
-        String token = token(USER_ISSUER, "community-app", "community-search", SERVICE_SCOPE, futureExpiry());
+        String token = serviceToken(USER_ISSUER, "community-app", "community-search", SERVICE_SCOPE, futureExpiry());
 
         expectSecurityError(mvc.perform(internalApiRequest(token)), 401);
     }
 
     @Test
     void internalApiShouldForbidMissingServiceScope() throws Exception {
-        String token = token(USER_ISSUER, "community-app", SERVICE_AUDIENCE, null, futureExpiry());
+        String token = serviceToken(USER_ISSUER, "community-app", SERVICE_AUDIENCE, null, futureExpiry());
 
         expectSecurityError(mvc.perform(internalApiRequest(token)), 403);
     }
 
     @Test
     void internalApiShouldRejectWrongIssuer() throws Exception {
-        String token = token("other-issuer", "community-app", SERVICE_AUDIENCE, SERVICE_SCOPE, futureExpiry());
+        String token = serviceToken("other-issuer", "community-app", SERVICE_AUDIENCE, SERVICE_SCOPE, futureExpiry());
 
         expectSecurityError(mvc.perform(internalApiRequest(token)), 401);
     }
 
     @Test
     void internalApiShouldRejectExpiredServiceToken() throws Exception {
-        String token = token(
+        String token = serviceToken(
                 USER_ISSUER,
                 "community-app",
                 SERVICE_AUDIENCE,
@@ -251,7 +270,7 @@ class OssSecurityConfigTest {
 
     @Test
     void userTokenWithIncidentalServiceScopeShouldRemainAUserIdentity() throws Exception {
-        String token = token(USER_ISSUER, USER_ID.toString(), null, SERVICE_SCOPE, futureExpiry());
+        String token = accessToken(USER_ISSUER, USER_ID.toString(), SERVICE_SCOPE, futureExpiry());
 
         mvc.perform(userApiRequest(token))
                 .andExpect(status().isOk());
@@ -260,27 +279,26 @@ class OssSecurityConfigTest {
 
     @Test
     void internalApiShouldForbidBlankServiceSubject() throws Exception {
-        String token = token(USER_ISSUER, "   ", SERVICE_AUDIENCE, SERVICE_SCOPE, futureExpiry());
+        String token = serviceToken(USER_ISSUER, "   ", SERVICE_AUDIENCE, SERVICE_SCOPE, futureExpiry());
 
         expectSecurityError(mvc.perform(internalApiRequest(token)), 403);
     }
 
     @Test
     void userApiShouldForbidNonUuidSubject() throws Exception {
-        String token = token(USER_ISSUER, "community-app", null, null, futureExpiry());
+        String token = accessToken(USER_ISSUER, "community-app", null, futureExpiry());
 
         expectSecurityError(mvc.perform(userApiRequest(token)), 403);
     }
 
     @Test
     void userApiShouldRejectJwtWithInvalidSignature() throws Exception {
-        String token = token(
+        String token = accessToken(
                 USER_ISSUER,
                 USER_ID.toString(),
                 null,
-                null,
                 futureExpiry(),
-                INVALID_JWT_SECRET
+                (RSAPrivateKey) INVALID_ACCESS_KEY_PAIR.getPrivate()
         );
 
         expectSecurityError(mvc.perform(userApiRequest(token)), 401);
@@ -288,13 +306,13 @@ class OssSecurityConfigTest {
 
     @Test
     void internalApiShouldRejectJwtWithInvalidSignature() throws Exception {
-        String token = token(
+        String token = serviceToken(
                 USER_ISSUER,
                 "community-app",
                 SERVICE_AUDIENCE,
                 SERVICE_SCOPE,
                 futureExpiry(),
-                INVALID_JWT_SECRET
+                INVALID_SERVICE_JWT_SECRET
         );
 
         expectSecurityError(mvc.perform(internalApiRequest(token)), 401);
@@ -375,11 +393,47 @@ class OssSecurityConfigTest {
         return request;
     }
 
-    private String token(String issuer, String subject, String audience, String scope, Instant expiresAt) throws Exception {
-        return token(issuer, subject, audience, scope, expiresAt, JWT_SECRET);
+    private String accessToken(String issuer, String subject, String scope, Instant expiresAt) throws Exception {
+        return accessToken(issuer, subject, scope, expiresAt, (RSAPrivateKey) ACCESS_KEY_PAIR.getPrivate());
     }
 
-    private String token(
+    private String accessToken(
+            String issuer,
+            String subject,
+            String scope,
+            Instant expiresAt,
+            RSAPrivateKey privateKey
+    ) throws Exception {
+        JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
+                .issuer(issuer)
+                .subject(subject)
+                .audience(List.of(USER_AUDIENCE))
+                .issueTime(Date.from(Instant.now().minusSeconds(5)))
+                .expirationTime(Date.from(expiresAt));
+        if (scope != null) {
+            claims.claim("scope", scope);
+        }
+        SignedJWT jwt = new SignedJWT(
+                new JWSHeader.Builder(JWSAlgorithm.RS256)
+                        .type(new JOSEObjectType(JwtCodecs.ACCESS_TOKEN_TYPE))
+                        .build(),
+                claims.build()
+        );
+        jwt.sign(new RSASSASigner(privateKey));
+        return jwt.serialize();
+    }
+
+    private String serviceToken(
+            String issuer,
+            String subject,
+            String audience,
+            String scope,
+            Instant expiresAt
+    ) throws Exception {
+        return serviceToken(issuer, subject, audience, scope, expiresAt, SERVICE_JWT_SECRET);
+    }
+
+    private String serviceToken(
             String issuer,
             String subject,
             String audience,
@@ -398,7 +452,12 @@ class OssSecurityConfigTest {
         if (scope != null) {
             claims.claim("scope", scope);
         }
-        SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims.build());
+        SignedJWT jwt = new SignedJWT(
+                new JWSHeader.Builder(JWSAlgorithm.HS256)
+                        .type(new JOSEObjectType(JwtCodecs.SERVICE_TOKEN_TYPE))
+                        .build(),
+                claims.build()
+        );
         jwt.sign(new MACSigner(secret.getBytes(StandardCharsets.UTF_8)));
         return jwt.serialize();
     }
@@ -442,5 +501,15 @@ class OssSecurityConfigTest {
 
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+
+    private static KeyPair rsaKeyPair() {
+        try {
+            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+            generator.initialize(2048);
+            return generator.generateKeyPair();
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to generate test access-token key pair", exception);
+        }
     }
 }

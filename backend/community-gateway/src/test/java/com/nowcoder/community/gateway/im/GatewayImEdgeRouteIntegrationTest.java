@@ -71,7 +71,6 @@ class GatewayImEdgeRouteIntegrationTest {
                 () -> "http://127.0.0.1:" + imCorePort());
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("spring.cloud.nacos.config.enabled", () -> "false");
-        registry.add("security.jwt.hmac-secret", () -> "gateway-test-jwt-secret-please-change-123456");
     }
 
     @AfterAll

@@ -2,25 +2,24 @@ package com.nowcoder.community.im.core.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.MACSigner;
-import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
+import com.nowcoder.community.common.security.jwt.JwtCodecs;
+import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.core.application.RoomApplicationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -43,11 +42,8 @@ class InternalRealtimeProjectionControllerTest {
     @Autowired
     private RoomApplicationService roomApplicationService;
 
-    @Value("${security.jwt.hmac-secret}")
-    private String jwtSecret;
-
-    @Value("${security.jwt.issuer}")
-    private String jwtIssuer;
+    @Autowired
+    private JwtProperties jwtProperties;
 
     @Test
     void projectionEndpointShouldRequireInternalScope() throws Exception {
@@ -142,14 +138,12 @@ class InternalRealtimeProjectionControllerTest {
     }
 
     private String bearer(UUID userId) throws Exception {
-        String token = signHs256(jwtSecret, jwtIssuer, String.valueOf(userId), null, Instant.now().plusSeconds(120));
+        String token = signServiceToken(String.valueOf(userId), null, Instant.now().plusSeconds(120));
         return "Bearer " + token;
     }
 
     private String internalBearer(UUID userId) throws Exception {
-        String token = signHs256(
-                jwtSecret,
-                jwtIssuer,
+        String token = signServiceToken(
                 String.valueOf(userId),
                 "im.realtime.internal",
                 Instant.now().plusSeconds(120)
@@ -161,19 +155,22 @@ class InternalRealtimeProjectionControllerTest {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 
-    private static String signHs256(String secret, String issuer, String sub, String scope, Instant exp) throws Exception {
-        JWTClaimsSet.Builder claimsBuilder = new JWTClaimsSet.Builder()
-                .issuer(issuer)
-                .subject(sub)
-                .issueTime(new Date())
-                .expirationTime(Date.from(exp));
+    private String signServiceToken(String subject, String scope, Instant expiresAt) {
+        Instant issuedAt = Instant.now();
+        JwtClaimsSet.Builder claimsBuilder = JwtClaimsSet.builder()
+                .issuer(JwtCodecs.resolvedIssuer(jwtProperties))
+                .audience(List.of("im-core"))
+                .subject(subject)
+                .issuedAt(issuedAt)
+                .expiresAt(expiresAt);
         if (scope != null && !scope.isBlank()) {
             claimsBuilder.claim("scope", scope);
         }
-        JWTClaimsSet claims = claimsBuilder.build();
-
-        SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
-        jwt.sign(new MACSigner(secret.getBytes(StandardCharsets.UTF_8)));
-        return jwt.serialize();
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
+                .type(JwtCodecs.SERVICE_TOKEN_TYPE)
+                .build();
+        return JwtCodecs.serviceTokenEncoder(jwtProperties)
+                .encode(JwtEncoderParameters.from(header, claimsBuilder.build()))
+                .getTokenValue();
     }
 }

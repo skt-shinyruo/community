@@ -8,7 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.datasource.username=sa",
         "spring.datasource.password=",
-        "security.jwt.hmac-secret=01234567890123456789012345678901",
+        "security.jwt.service-hmac-secret=01234567890123456789012345678901",
         "security.jwt.issuer=community-oss-test",
         "spring.cloud.discovery.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",

@@ -5,8 +5,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "security.jwt")
 public class JwtProperties {
 
-    private String hmacSecret;
+    private String accessPublicKey;
+    private String accessPrivateKey;
+    private String serviceHmacSecret;
     private String issuer;
+    private String accessTokenAudience = "community-api";
 
     private long accessTokenTtlSeconds = 900;
     private long refreshTokenTtlSeconds = 604800;
@@ -17,12 +20,28 @@ public class JwtProperties {
     private String refreshCookieSameSite = "Lax";
     private boolean refreshCookieSecure = false;
 
-    public String getHmacSecret() {
-        return hmacSecret;
+    public String getAccessPublicKey() {
+        return accessPublicKey;
     }
 
-    public void setHmacSecret(String hmacSecret) {
-        this.hmacSecret = hmacSecret;
+    public void setAccessPublicKey(String accessPublicKey) {
+        this.accessPublicKey = accessPublicKey;
+    }
+
+    public String getAccessPrivateKey() {
+        return accessPrivateKey;
+    }
+
+    public void setAccessPrivateKey(String accessPrivateKey) {
+        this.accessPrivateKey = accessPrivateKey;
+    }
+
+    public String getServiceHmacSecret() {
+        return serviceHmacSecret;
+    }
+
+    public void setServiceHmacSecret(String serviceHmacSecret) {
+        this.serviceHmacSecret = serviceHmacSecret;
     }
 
     public String getIssuer() {
@@ -31,6 +50,14 @@ public class JwtProperties {
 
     public void setIssuer(String issuer) {
         this.issuer = issuer;
+    }
+
+    public String getAccessTokenAudience() {
+        return accessTokenAudience;
+    }
+
+    public void setAccessTokenAudience(String accessTokenAudience) {
+        this.accessTokenAudience = accessTokenAudience;
     }
 
     public long getAccessTokenTtlSeconds() {

@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "${REPO_ROOT}"
+unset JWT_ACCESS_PUBLIC_KEY JWT_ACCESS_PRIVATE_KEY JWT_SERVICE_HMAC_SECRET
 unset IM_SESSION_TICKET_HMAC_SECRET IM_SESSION_TICKET_ISSUER IM_SESSION_TICKET_AUDIENCE
 
 help_output="$(./deploy/deployment.sh --help 2>&1)"
@@ -101,6 +102,22 @@ assert_environment_value_for_services() {
   done
 }
 
+assert_environment_absent_for_services() {
+  local rendered_config="$1"
+  local variable="$2"
+  shift 2
+
+  local service
+  local actual
+  for service in "$@"; do
+    actual="$(service_environment_value "${rendered_config}" "${service}" "${variable}")"
+    if [[ -n "${actual}" ]]; then
+      echo "${service} must not receive ${variable}" >&2
+      return 1
+    fi
+  done
+}
+
 assert_ticket_runtime_environment() {
   local rendered_config="$1"
   local env_file="$2"
@@ -132,19 +149,19 @@ assert_ticket_runtime_values() {
 
 assert_distinct_ticket_secret() {
   local env_file="$1"
-  local access_secret
+  local service_secret
   local ticket_secret
   local ticket_secret_bytes
   local LC_ALL=C
 
-  access_secret="$(environment_file_value "${env_file}" JWT_HMAC_SECRET)"
+  service_secret="$(environment_file_value "${env_file}" JWT_SERVICE_HMAC_SECRET)"
   ticket_secret="$(environment_file_value "${env_file}" IM_SESSION_TICKET_HMAC_SECRET)"
-  if [[ -z "${access_secret}" || -z "${ticket_secret}" ]]; then
-    echo "${env_file} must define access and IM session ticket secrets" >&2
+  if [[ -z "${service_secret}" || -z "${ticket_secret}" ]]; then
+    echo "${env_file} must define service and IM session ticket secrets" >&2
     return 1
   fi
-  if [[ "${access_secret}" == "${ticket_secret}" ]]; then
-    echo "${env_file} must use distinct access and IM session ticket secrets" >&2
+  if [[ "${service_secret}" == "${ticket_secret}" ]]; then
+    echo "${env_file} must use distinct service and IM session ticket secrets" >&2
     return 1
   fi
   ticket_secret_bytes="${#ticket_secret}"
@@ -152,6 +169,30 @@ assert_distinct_ticket_secret() {
     echo "${env_file} IM session ticket secret must be at least 32 UTF-8 bytes" >&2
     return 1
   fi
+}
+
+assert_required_jwt_values() {
+  local topology="$1"
+  local source_env_file="$2"
+  local missing_env_file
+  local error_file
+  local variable
+
+  for variable in JWT_ACCESS_PUBLIC_KEY JWT_ACCESS_PRIVATE_KEY JWT_SERVICE_HMAC_SECRET; do
+    missing_env_file="$(mktemp)"
+    error_file="$(mktemp)"
+    awk -v variable="${variable}" 'index($0, variable "=") != 1' \
+      "${source_env_file}" >"${missing_env_file}"
+    if env -u JWT_ACCESS_PUBLIC_KEY -u JWT_ACCESS_PRIVATE_KEY -u JWT_SERVICE_HMAC_SECRET \
+      ./deploy/deployment.sh config --topology "${topology}" --scope full \
+        --env-file "${missing_env_file}" >/dev/null 2>"${error_file}"; then
+      rm -f "${missing_env_file}" "${error_file}"
+      echo "expected ${topology} topology without ${variable} to fail" >&2
+      return 1
+    fi
+    grep -F "${variable} is required" "${error_file}" >/dev/null
+    rm -f "${missing_env_file}" "${error_file}"
+  done
 }
 
 assert_nacos_auth_environment() {
@@ -252,6 +293,54 @@ rendered_service_ipv4_address() {
 ./deploy/deployment.sh config --topology cluster --scope infra --env-file deploy/.env.cluster.example >"${cluster_infra}"
 ./deploy/deployment.sh config --topology cluster --scope full --env-file deploy/.env.cluster.example >"${cluster_full}"
 
+single_access_public_key="$(environment_file_value deploy/.env.single.example JWT_ACCESS_PUBLIC_KEY)"
+single_access_private_key="$(environment_file_value deploy/.env.single.example JWT_ACCESS_PRIVATE_KEY)"
+single_service_secret="$(environment_file_value deploy/.env.single.example JWT_SERVICE_HMAC_SECRET)"
+assert_environment_value_for_services "${single_full}" JWT_ACCESS_PUBLIC_KEY \
+  "${single_access_public_key}" deploy/.env.single.example \
+  community-app community-oss community-gateway community-im-gateway im-core im-realtime
+assert_environment_value_for_services "${single_full}" JWT_ACCESS_PRIVATE_KEY \
+  "${single_access_private_key}" deploy/.env.single.example community-app
+assert_environment_absent_for_services "${single_full}" JWT_ACCESS_PRIVATE_KEY \
+  community-oss community-gateway community-im-gateway im-core im-realtime
+assert_environment_value_for_services "${single_full}" JWT_SERVICE_HMAC_SECRET \
+  "${single_service_secret}" deploy/.env.single.example \
+  community-app community-oss im-core im-realtime
+assert_environment_absent_for_services "${single_full}" JWT_SERVICE_HMAC_SECRET \
+  community-gateway community-im-gateway
+
+cluster_access_public_key="$(environment_file_value deploy/.env.cluster.example JWT_ACCESS_PUBLIC_KEY)"
+cluster_access_private_key="$(environment_file_value deploy/.env.cluster.example JWT_ACCESS_PRIVATE_KEY)"
+cluster_service_secret="$(environment_file_value deploy/.env.cluster.example JWT_SERVICE_HMAC_SECRET)"
+assert_environment_value_for_services "${cluster_full}" JWT_ACCESS_PUBLIC_KEY \
+  "${cluster_access_public_key}" deploy/.env.cluster.example \
+  community-app-1 community-app-2 community-app-3 \
+  community-oss-1 community-oss-2 community-oss-3 \
+  community-gateway-1 community-gateway-2 community-gateway-3 \
+  community-im-gateway-1 community-im-gateway-2 community-im-gateway-3 \
+  im-core-1 im-core-2 im-core-3 im-realtime-1 im-realtime-2 im-realtime-3
+assert_environment_value_for_services "${cluster_full}" JWT_ACCESS_PRIVATE_KEY \
+  "${cluster_access_private_key}" deploy/.env.cluster.example \
+  community-app-1 community-app-2 community-app-3
+assert_environment_absent_for_services "${cluster_full}" JWT_ACCESS_PRIVATE_KEY \
+  community-oss-1 community-oss-2 community-oss-3 \
+  community-gateway-1 community-gateway-2 community-gateway-3 \
+  community-im-gateway-1 community-im-gateway-2 community-im-gateway-3 \
+  im-core-1 im-core-2 im-core-3 im-realtime-1 im-realtime-2 im-realtime-3
+assert_environment_value_for_services "${cluster_full}" JWT_SERVICE_HMAC_SECRET \
+  "${cluster_service_secret}" deploy/.env.cluster.example \
+  community-app-1 community-app-2 community-app-3 \
+  community-oss-1 community-oss-2 community-oss-3 \
+  im-core-1 im-core-2 im-core-3 im-realtime-1 im-realtime-2 im-realtime-3
+assert_environment_absent_for_services "${cluster_full}" JWT_SERVICE_HMAC_SECRET \
+  community-gateway-1 community-gateway-2 community-gateway-3 \
+  community-im-gateway-1 community-im-gateway-2 community-im-gateway-3
+if grep -E '(^|[^A-Z0-9_])JWT_HMAC_SECRET([^A-Z0-9_]|$)' \
+  "${single_full}" "${cluster_full}" >/dev/null; then
+  echo "rendered service topologies must not expose the retired JWT_HMAC_SECRET" >&2
+  exit 1
+fi
+
 assert_ticket_runtime_environment "${single_full}" deploy/.env.single.example \
   community-im-gateway im-realtime
 assert_ticket_runtime_environment "${cluster_full}" deploy/.env.cluster.example \
@@ -263,6 +352,8 @@ assert_nacos_auth_environment "${single_infra}" deploy/.env.single.example nacos
 assert_nacos_auth_environment "${cluster_infra}" deploy/.env.cluster.example nacos-1 nacos-2 nacos-3
 assert_required_nacos_auth_values single deploy/.env.single.example
 assert_required_nacos_auth_values cluster deploy/.env.cluster.example
+assert_required_jwt_values single deploy/.env.single.example
+assert_required_jwt_values cluster deploy/.env.cluster.example
 
 ticket_sentinel_secret="topology-test-im-session-ticket-secret-override-20260722"
 ticket_sentinel_issuer="topology-test-im-session-ticket-issuer"

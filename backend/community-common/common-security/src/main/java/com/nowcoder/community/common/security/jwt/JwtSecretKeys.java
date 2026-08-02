@@ -17,20 +17,21 @@ public final class JwtSecretKeys {
     private JwtSecretKeys() {
     }
 
-    public static SecretKey hmacSha256OrThrow(JwtProperties properties) {
-        String secret = properties == null ? null : properties.getHmacSecret();
+    public static SecretKey serviceHmacSha256OrThrow(JwtProperties properties) {
+        String secret = properties == null ? null : properties.getServiceHmacSecret();
         secret = secret == null ? null : secret.trim();
         if (secret == null || secret.isBlank()) {
-            throw new IllegalArgumentException("security.jwt.hmac-secret is required");
+            throw new IllegalArgumentException("security.jwt.service-hmac-secret is required");
         }
         if (PLACEHOLDER_JWT_SECRETS.contains(secret)) {
             throw new IllegalArgumentException(
-                    "security.jwt.hmac-secret must not use a known placeholder; set JWT_HMAC_SECRET to a unique value >= 32 bytes"
+                    "security.jwt.service-hmac-secret must not use a known placeholder; "
+                            + "set JWT_SERVICE_HMAC_SECRET to a unique value >= 32 bytes"
             );
         }
         byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < 32) {
-            throw new IllegalArgumentException("security.jwt.hmac-secret must be >= 32 bytes");
+            throw new IllegalArgumentException("security.jwt.service-hmac-secret must be >= 32 bytes");
         }
         return new SecretKeySpec(secretBytes, "HmacSHA256");
     }

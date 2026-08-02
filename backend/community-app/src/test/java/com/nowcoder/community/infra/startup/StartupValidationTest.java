@@ -129,7 +129,9 @@ class StartupValidationTest {
                 "foreign-gateway-owner",
                 Map.of(
                         "SPRING_APPLICATION_NAME", "community-app",
-                        "SECURITY_JWT_HMAC_SECRET", "01234567890123456789012345678901",
+                        "SECURITY_JWT_ACCESS_PUBLIC_KEY", "public-key",
+                        "SECURITY_JWT_ACCESS_PRIVATE_KEY", "private-key",
+                        "SECURITY_JWT_SERVICE_HMAC_SECRET", "01234567890123456789012345678901",
                         "GATEWAY_TRUSTED_PROXY_ENABLED", "true",
                         "GATEWAY_TRUSTED_PROXY_CIDRS", "0.0.0.0/0"
                 )
@@ -142,7 +144,9 @@ class StartupValidationTest {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("spring.profiles.active", "prod")
                 .withProperty("spring.application.name", "community-app")
-                .withProperty("security.jwt.hmac-secret", "01234567890123456789012345678901");
+                .withProperty("security.jwt.access-public-key", "public-key")
+                .withProperty("security.jwt.access-private-key", "private-key")
+                .withProperty("security.jwt.service-hmac-secret", "01234567890123456789012345678901");
         environment.setActiveProfiles("prod");
         return environment;
     }

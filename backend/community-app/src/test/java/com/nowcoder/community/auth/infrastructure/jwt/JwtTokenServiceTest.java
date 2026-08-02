@@ -6,6 +6,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,14 +16,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class JwtTokenServiceTest {
 
+    private static final KeyPair ACCESS_KEY_PAIR = rsaKeyPair();
+
     @Test
     void createAccessTokenShouldIncludeSecurityVersionClaim() {
         JwtProperties properties = new JwtProperties();
-        properties.setHmacSecret("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+        properties.setAccessPublicKey(Base64.getEncoder().encodeToString(ACCESS_KEY_PAIR.getPublic().getEncoded()));
+        properties.setAccessPrivateKey(Base64.getEncoder().encodeToString(ACCESS_KEY_PAIR.getPrivate().getEncoded()));
         properties.setIssuer("community-auth-test");
+        properties.setAccessTokenAudience("community-api-test");
         properties.setAccessTokenTtlSeconds(900);
-        JwtEncoder encoder = JwtCodecs.jwtEncoder(properties);
-        JwtDecoder decoder = JwtCodecs.jwtDecoder(properties);
+        JwtEncoder encoder = JwtCodecs.accessTokenEncoder(properties);
+        JwtDecoder decoder = JwtCodecs.accessTokenDecoder(properties);
         JwtTokenService service = new JwtTokenService(encoder, properties);
 
         String token = service.createAccessToken(
@@ -30,7 +37,22 @@ class JwtTokenServiceTest {
                 123L
         );
 
-        Long securityVersion = decoder.decode(token).getClaim("security_version");
+        var decoded = decoder.decode(token);
+        Long securityVersion = decoded.getClaim("security_version");
         assertThat(securityVersion).isEqualTo(123L);
+        assertThat(decoded.getAudience()).containsExactly("community-api-test");
+        assertThat(decoded.getHeaders())
+                .containsEntry("alg", "RS256")
+                .containsEntry("typ", JwtCodecs.ACCESS_TOKEN_TYPE);
+    }
+
+    private static KeyPair rsaKeyPair() {
+        try {
+            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+            generator.initialize(2048);
+            return generator.generateKeyPair();
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 }

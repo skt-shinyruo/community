@@ -1,10 +1,13 @@
 package com.nowcoder.community.im.realtime.projection;
 
+import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.realtime.client.ImServiceClientProperties;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeFunction;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -12,10 +15,52 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SnapshotClientContractVersionTest {
+
+    @Test
+    void membershipSnapshotClientShouldUseServiceTokenForImCoreAudience() {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        MembershipSnapshotClient client = membershipClient(webClient(authorization, """
+                {
+                  "schemaVersion": 1,
+                  "entries": [],
+                  "nextRoomId": null,
+                  "nextUserId": null,
+                  "hasMore": false,
+                  "snapshotHighWatermark": 0
+                }
+                """));
+
+        StepVerifier.create(client.fetchSnapshot())
+                .expectNextCount(1)
+                .verifyComplete();
+
+        assertServiceToken(authorization.get(), "im-core");
+    }
+
+    @Test
+    void policySnapshotClientShouldUseServiceTokenForCommunityAppAudience() {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        PolicySnapshotClient client = policyClient(webClient(authorization, """
+                {
+                  "schemaVersion": 1,
+                  "entries": [],
+                  "nextUserId": null,
+                  "hasMore": false,
+                  "snapshotHighWatermark": 0
+                }
+                """));
+
+        StepVerifier.create(client.fetchUserPolicySnapshot())
+                .expectNextCount(1)
+                .verifyComplete();
+
+        assertServiceToken(authorization.get(), "community-app");
+    }
 
     @Test
     void membershipSnapshotClientShouldFailRefreshWhenSnapshotOmitsSchemaVersion() {
@@ -249,8 +294,15 @@ class SnapshotClientContractVersionTest {
     }
 
     private static WebClient webClient(String... bodies) {
+        return webClient(null, bodies);
+    }
+
+    private static WebClient webClient(AtomicReference<String> authorization, String... bodies) {
         AtomicInteger responseIndex = new AtomicInteger();
         ExchangeFunction exchange = request -> {
+            if (authorization != null) {
+                authorization.set(request.headers().getFirst(HttpHeaders.AUTHORIZATION));
+            }
             int index = responseIndex.getAndIncrement();
             if (index >= bodies.length) {
                 return Mono.error(new AssertionError("unexpected snapshot page request"));
@@ -283,8 +335,19 @@ class SnapshotClientContractVersionTest {
     private static JwtProperties jwtProperties() {
         JwtProperties properties = new JwtProperties();
         properties.setIssuer("community-test");
-        properties.setHmacSecret("snapshot-client-contract-version-secret-32b");
+        properties.setServiceHmacSecret("snapshot-client-contract-version-secret-32b");
         return properties;
+    }
+
+    private static void assertServiceToken(String authorization, String audience) {
+        assertThat(authorization).startsWith("Bearer ");
+        Jwt token = JwtCodecs.serviceTokenDecoder(jwtProperties(), "community-test", audience)
+                .decode(authorization.substring("Bearer ".length()));
+        assertThat(token.getHeaders())
+                .containsEntry("alg", "HS256")
+                .containsEntry("typ", JwtCodecs.SERVICE_TOKEN_TYPE);
+        assertThat(token.getAudience()).containsExactly(audience);
+        assertThat(token.getClaimAsString("scope")).isEqualTo("im.realtime.internal");
     }
 
     private static String rootMessage(Throwable error) {

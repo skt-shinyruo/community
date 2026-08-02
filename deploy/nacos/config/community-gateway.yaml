@@ -9,6 +9,7 @@ spring:
 security:
   jwt:
     issuer: community-auth
+    access-token-audience: community-api
 
 gateway:
   # Enable only with the controlled NGINX/load-balancer CIDRs supplied at runtime.

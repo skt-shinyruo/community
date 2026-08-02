@@ -22,12 +22,11 @@ public final class JwtOssServiceTokenProvider implements OssServiceTokenProvider
     private final Clock clock;
 
     public JwtOssServiceTokenProvider(
-            JwtEncoder jwtEncoder,
             JwtProperties jwtProperties,
             OssClientProperties properties,
             Clock clock
     ) {
-        this.jwtEncoder = Objects.requireNonNull(jwtEncoder, "jwtEncoder");
+        this.jwtEncoder = JwtCodecs.serviceTokenEncoder(jwtProperties);
         this.issuer = JwtCodecs.resolvedIssuer(jwtProperties);
         this.properties = Objects.requireNonNull(properties, "properties");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -44,7 +43,9 @@ public final class JwtOssServiceTokenProvider implements OssServiceTokenProvider
                 .issuedAt(issuedAt)
                 .expiresAt(issuedAt.plus(properties.tokenTtl()))
                 .build();
-        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
+                .type(JwtCodecs.SERVICE_TOKEN_TYPE)
+                .build();
         return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }
 }

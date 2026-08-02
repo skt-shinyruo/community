@@ -296,7 +296,6 @@ class RefreshTokenApplicationServiceTest {
 
     private static JwtProperties jwtProperties() {
         JwtProperties properties = new JwtProperties();
-        properties.setHmacSecret("12345678901234567890123456789012");
         properties.setRefreshCookieName("refresh_token");
         properties.setRefreshCookiePath("/api/auth");
         properties.setRefreshTokenTtlSeconds(600);

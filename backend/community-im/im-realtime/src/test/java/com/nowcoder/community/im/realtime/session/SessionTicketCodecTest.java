@@ -43,7 +43,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SessionTicketCodecTest {
 
-    private static final String ACCESS_SECRET = "access-token-test-secret-distinct-1234567890";
+    private static final String SERVICE_SECRET = "service-token-test-secret-distinct-1234567890";
     private static final String TICKET_SECRET = "im-session-ticket-test-secret-distinct-1234567890";
     private static final String OTHER_TICKET_SECRET = "other-session-ticket-test-secret-distinct-1234567890";
     private static final String TICKET_ISSUER = "community-im-gateway";
@@ -320,10 +320,10 @@ class SessionTicketCodecTest {
     }
 
     @Test
-    void constructor_shouldRejectTicketSecretEqualToNormalizedAccessSecret() {
-        assertThatThrownBy(() -> codec(ticketProperties("  " + ACCESS_SECRET + "  ")))
+    void constructor_shouldRejectTicketSecretEqualToNormalizedServiceSecret() {
+        assertThatThrownBy(() -> codec(ticketProperties("  " + SERVICE_SECRET + "  ")))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("must differ from security.jwt.hmac-secret");
+                .hasMessageContaining("must differ from security.jwt.service-hmac-secret");
     }
 
     @Test
@@ -356,13 +356,13 @@ class SessionTicketCodecTest {
     private static SessionTicketCodec codec(ImSessionTicketProperties ticketProperties) {
         return new SessionTicketCodec(
                 ticketProperties,
-                ticketProperties.secretKeyOrThrow(accessProperties())
+                ticketProperties.secretKeyOrThrow(serviceProperties())
         );
     }
 
-    private static JwtProperties accessProperties() {
+    private static JwtProperties serviceProperties() {
         JwtProperties properties = new JwtProperties();
-        properties.setHmacSecret(ACCESS_SECRET);
+        properties.setServiceHmacSecret(SERVICE_SECRET);
         properties.setIssuer("community-auth");
         return properties;
     }

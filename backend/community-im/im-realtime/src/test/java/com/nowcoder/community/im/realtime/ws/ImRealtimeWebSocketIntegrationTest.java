@@ -15,6 +15,7 @@ import com.nowcoder.community.im.common.ws.SendPrivateTextFrame;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
 import com.nowcoder.community.im.realtime.projection.ProjectionSyncCoordinator;
+import com.nowcoder.community.im.realtime.security.TestJwtKeys;
 import com.nowcoder.community.im.realtime.session.SessionTicketCodec;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -35,7 +36,7 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
@@ -139,6 +140,7 @@ class ImRealtimeWebSocketIntegrationTest {
     static void registerDynamicProperties(DynamicPropertyRegistry registry) {
         ensureSnapshotServers();
         registry.add("server.port", () -> APP_PORT);
+        registry.add("security.jwt.access-public-key", TestJwtKeys::publicKey);
         registry.add("spring.cloud.discovery.client.simple.instances.im-core[0].uri",
                 () -> "http://127.0.0.1:" + imCoreServer.getAddress().getPort());
         registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri",
@@ -615,11 +617,17 @@ class ImRealtimeWebSocketIntegrationTest {
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(JwtCodecs.resolvedIssuer(jwtProperties))
                 .subject(userId.toString())
+                .audience(List.of(JwtCodecs.resolvedAccessTokenAudience(jwtProperties)))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(120))
                 .build();
-        return JwtCodecs.jwtEncoder(jwtProperties)
-                .encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
+        return JwtCodecs.accessTokenEncoder(TestJwtKeys.signingProperties(jwtProperties))
+                .encode(JwtEncoderParameters.from(
+                        JwsHeader.with(SignatureAlgorithm.RS256)
+                                .type(JwtCodecs.ACCESS_TOKEN_TYPE)
+                                .build(),
+                        claims
+                ))
                 .getTokenValue();
     }
 

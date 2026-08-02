@@ -54,7 +54,7 @@ public class ServletInfraSecurityConfig {
     @Bean
     @ConditionalOnMissingBean
     public JwtDecoder jwtDecoder(JwtProperties jwtProperties) {
-        return JwtCodecs.jwtDecoder(jwtProperties);
+        return JwtCodecs.accessTokenDecoder(jwtProperties);
     }
 
     @Bean

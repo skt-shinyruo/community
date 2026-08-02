@@ -1,6 +1,7 @@
 security:
   jwt:
     issuer: community-auth
+    access-token-audience: community-api
 
 management:
   endpoints:

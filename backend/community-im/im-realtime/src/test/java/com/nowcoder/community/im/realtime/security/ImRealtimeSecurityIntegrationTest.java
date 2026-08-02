@@ -8,17 +8,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -40,6 +43,11 @@ class ImRealtimeSecurityIntegrationTest {
 
     @Autowired
     private JwtProperties jwtProperties;
+
+    @DynamicPropertySource
+    static void registerTestAccessPublicKey(DynamicPropertyRegistry registry) {
+        registry.add("security.jwt.access-public-key", TestJwtKeys::publicKey);
+    }
 
     private WebTestClient client() {
         return WebTestClient.bindToServer()
@@ -107,12 +115,15 @@ class ImRealtimeSecurityIntegrationTest {
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(JwtCodecs.resolvedIssuer(jwtProperties))
                 .subject("security-test")
+                .audience(List.of(JwtCodecs.resolvedAccessTokenAudience(jwtProperties)))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .claim("scope", scope)
                 .build();
-        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
-        JwtEncoder encoder = JwtCodecs.jwtEncoder(jwtProperties);
+        JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256)
+                .type(JwtCodecs.ACCESS_TOKEN_TYPE)
+                .build();
+        JwtEncoder encoder = JwtCodecs.accessTokenEncoder(TestJwtKeys.signingProperties(jwtProperties));
         return "Bearer " + encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }
 }

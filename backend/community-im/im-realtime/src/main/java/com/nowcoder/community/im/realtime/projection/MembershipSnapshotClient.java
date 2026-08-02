@@ -37,6 +37,7 @@ public class MembershipSnapshotClient {
     private final String issuer;
     private final String subject;
     private final String internalScope;
+    private final String audience;
 
     public MembershipSnapshotClient(
             @Qualifier("membershipSnapshotWebClient") WebClient webClient,
@@ -46,10 +47,11 @@ public class MembershipSnapshotClient {
     ) {
         this.webClient = webClient;
         this.timeout = Duration.ofMillis(Math.max(100L, properties.getSnapshotTimeoutMs()));
-        this.jwtEncoder = JwtCodecs.jwtEncoder(jwtProperties);
+        this.jwtEncoder = JwtCodecs.serviceTokenEncoder(jwtProperties);
         this.issuer = JwtCodecs.resolvedIssuer(jwtProperties);
         this.subject = StringUtils.hasText(sessionProperties.getWorkerId()) ? sessionProperties.getWorkerId().trim() : "im-realtime";
         this.internalScope = properties.getInternalScope();
+        this.audience = properties.getMembershipSnapshotServiceId();
     }
 
     public Flux<RoomMembershipEntry> fetchAll() {
@@ -90,11 +92,14 @@ public class MembershipSnapshotClient {
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(issuer)
                 .subject(subject)
+                .audience(List.of(audience))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .claim("scope", internalScope)
                 .build();
-        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
+                .type(JwtCodecs.SERVICE_TOKEN_TYPE)
+                .build();
         return "Bearer " + jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }
 

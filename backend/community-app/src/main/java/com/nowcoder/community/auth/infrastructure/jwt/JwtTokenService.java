@@ -3,7 +3,7 @@ package com.nowcoder.community.auth.infrastructure.jwt;
 import com.nowcoder.community.auth.application.port.AuthTokenPort;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -35,12 +35,15 @@ public class JwtTokenService implements AuthTokenPort {
                 .issuedAt(now)
                 .expiresAt(exp)
                 .subject(String.valueOf(userId))
+                .audience(List.of(JwtCodecs.resolvedAccessTokenAudience(jwtProperties)))
                 .claim("username", username)
                 .claim("authorities", authorities)
                 .claim("security_version", securityVersion)
                 .build();
 
-        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
+        JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256)
+                .type(JwtCodecs.ACCESS_TOKEN_TYPE)
+                .build();
         return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }
 }

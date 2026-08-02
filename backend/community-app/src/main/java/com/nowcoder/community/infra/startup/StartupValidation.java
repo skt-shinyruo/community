@@ -39,12 +39,16 @@ public class StartupValidation {
         String appName = getTrimmed(environment, "spring.application.name");
         List<String> errors = new ArrayList<>();
 
-        // 1) JWT HMAC secret：所有服务都依赖（网关/服务验签 + 授权）
-        String jwtSecret = getTrimmed(environment, "security.jwt.hmac-secret");
-        if (!StringUtils.hasText(jwtSecret)) {
-            errors.add("缺失配置：security.jwt.hmac-secret（建议设置环境变量 JWT_HMAC_SECRET 或 <SERVICE>_JWT_HMAC_SECRET，长度 >= 32）");
-        } else if (jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 32) {
-            errors.add("配置不安全：security.jwt.hmac-secret 长度不足（建议 >= 32 字节）");
+        // 1) Access token uses an asymmetric key pair; internal service tokens use a separate HMAC key.
+        requireNonBlank(environment, errors, "security.jwt.access-public-key",
+                "设置 JWT_ACCESS_PUBLIC_KEY，使用 X.509 RSA public key");
+        requireNonBlank(environment, errors, "security.jwt.access-private-key",
+                "仅 community-app 设置 JWT_ACCESS_PRIVATE_KEY，使用 PKCS#8 RSA private key");
+        String serviceSecret = getTrimmed(environment, "security.jwt.service-hmac-secret");
+        if (!StringUtils.hasText(serviceSecret)) {
+            errors.add("缺失配置：security.jwt.service-hmac-secret（设置 JWT_SERVICE_HMAC_SECRET，长度 >= 32）");
+        } else if (serviceSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 32) {
+            errors.add("配置不安全：security.jwt.service-hmac-secret 长度不足（建议 >= 32 字节）");
         }
 
         validateNacosConfig(environment, errors);

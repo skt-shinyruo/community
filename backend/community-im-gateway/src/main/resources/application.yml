@@ -64,8 +64,9 @@ community:
 
 security:
   jwt:
-    hmac-secret: ${JWT_HMAC_SECRET:}
+    access-public-key: ${JWT_ACCESS_PUBLIC_KEY:}
     issuer: ${JWT_ISSUER:community-auth}
+    access-token-audience: ${JWT_ACCESS_TOKEN_AUDIENCE:community-api}
 
 management:
   endpoints:

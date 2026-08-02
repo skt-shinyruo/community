@@ -21,8 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class LoadBalancedWebClientConfigTest {
 
-    private static final String ACCESS_SECRET =
-            "load-balanced-client-access-secret-at-least-32-bytes";
+    private static final String SERVICE_SECRET =
+            "load-balanced-client-service-secret-at-least-32-bytes";
     private static final String TICKET_SECRET =
             "load-balanced-client-ticket-secret-distinct-at-least-32-bytes";
 
@@ -57,7 +57,7 @@ class LoadBalancedWebClientConfigTest {
     @Test
     void sessionTicketCodecContextFailsWhenTicketSecretMissing() {
         contextRunner
-                .withPropertyValues("security.jwt.hmac-secret=" + ACCESS_SECRET)
+                .withPropertyValues("security.jwt.service-hmac-secret=" + SERVICE_SECRET)
                 .run(context -> assertStartupFailure(context, "im.session-ticket.hmac-secret is required"));
     }
 
@@ -65,7 +65,7 @@ class LoadBalancedWebClientConfigTest {
     void sessionTicketCodecContextFailsWhenTicketSecretBlank() {
         contextRunner
                 .withPropertyValues(
-                        "security.jwt.hmac-secret=" + ACCESS_SECRET,
+                        "security.jwt.service-hmac-secret=" + SERVICE_SECRET,
                         "im.session-ticket.hmac-secret=   "
                 )
                 .run(context -> assertStartupFailure(context, "im.session-ticket.hmac-secret is required"));
@@ -75,7 +75,7 @@ class LoadBalancedWebClientConfigTest {
     void sessionTicketCodecContextFailsWhenTicketSecretShort() {
         contextRunner
                 .withPropertyValues(
-                        "security.jwt.hmac-secret=" + ACCESS_SECRET,
+                        "security.jwt.service-hmac-secret=" + SERVICE_SECRET,
                         "im.session-ticket.hmac-secret=too-short"
                 )
                 .run(context -> assertStartupFailure(
@@ -85,15 +85,15 @@ class LoadBalancedWebClientConfigTest {
     }
 
     @Test
-    void sessionTicketCodecContextFailsWhenNormalizedTicketSecretEqualsTrimmedAccessSecret() {
+    void sessionTicketCodecContextFailsWhenNormalizedTicketSecretEqualsTrimmedServiceSecret() {
         contextRunner
                 .withPropertyValues(
-                        "security.jwt.hmac-secret=  " + ACCESS_SECRET + "  ",
-                        "im.session-ticket.hmac-secret=\t" + ACCESS_SECRET + "\t"
+                        "security.jwt.service-hmac-secret=  " + SERVICE_SECRET + "  ",
+                        "im.session-ticket.hmac-secret=\t" + SERVICE_SECRET + "\t"
                 )
                 .run(context -> assertStartupFailure(
                         context,
-                        "im.session-ticket.hmac-secret must differ from security.jwt.hmac-secret"
+                        "im.session-ticket.hmac-secret must differ from security.jwt.service-hmac-secret"
                 ));
     }
 
@@ -107,7 +107,7 @@ class LoadBalancedWebClientConfigTest {
 
     private ApplicationContextRunner validContextRunner() {
         return contextRunner.withPropertyValues(
-                "security.jwt.hmac-secret=" + ACCESS_SECRET,
+                "security.jwt.service-hmac-secret=" + SERVICE_SECRET,
                 "im.session-ticket.hmac-secret=" + TICKET_SECRET
         );
     }

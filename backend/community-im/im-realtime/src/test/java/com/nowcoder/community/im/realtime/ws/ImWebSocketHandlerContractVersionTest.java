@@ -299,18 +299,18 @@ class ImWebSocketHandlerContractVersionTest {
     private static JwtProperties jwtProperties() {
         JwtProperties properties = new JwtProperties();
         properties.setIssuer("community-test");
-        properties.setHmacSecret("ws-contract-version-secret-at-least-32b");
+        properties.setServiceHmacSecret("ws-contract-version-service-secret-at-least-32b");
         return properties;
     }
 
-    private static SessionTicketCodec sessionTicketCodec(JwtProperties accessProperties) {
+    private static SessionTicketCodec sessionTicketCodec(JwtProperties serviceProperties) {
         ImSessionTicketProperties ticketProperties = new ImSessionTicketProperties();
         ticketProperties.setHmacSecret(TICKET_SECRET);
         ticketProperties.setIssuer(TICKET_ISSUER);
         ticketProperties.setAudience(TICKET_AUDIENCE);
         return new SessionTicketCodec(
                 ticketProperties,
-                ticketProperties.secretKeyOrThrow(accessProperties)
+                ticketProperties.secretKeyOrThrow(serviceProperties)
         );
     }
 

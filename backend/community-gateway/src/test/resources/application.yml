@@ -10,5 +10,6 @@ spring:
 
 security:
   jwt:
-    hmac-secret: gateway-test-jwt-secret-please-change-123456
+    access-public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwKAq/EziErThHyOSRl1ks80h5e3HP/HzVamVc0TBsCQWLSSZjZJee8Ve05/L3oYXPe33Lt8qh/muX1FX/7/akbGHsT0K6oFHMFNEByQxpoYC2tZqLek+KMHAmLQuT1ElZYtgk/Lx4IcQ/CvgdS4Q3Q5uqDlQngo9MdPwQl+5ciWcEXgEkO3AKgAgDfXxrp0jDIovAEG0mo0+D+APPaeaoG5ap+dMixMyZDFavVzzzhR/D/cDzP+O7cniwnBeQ8QBkrvs/ppX7RqAEcySAgQFlVYCmaKNZEAmu0Y4IDXkgPcidCSvLa7qSX+to0uMErb3E5BlbrDPiZNGQEdvViUxZwIDAQAB
     issuer: community-auth
+    access-token-audience: community-api

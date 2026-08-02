@@ -10,7 +10,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.web.client.RestClient;
 
 import java.time.Clock;
@@ -21,12 +20,11 @@ public class OssClientConfiguration {
 
     @Bean
     public OssServiceTokenProvider ossServiceTokenProvider(
-            JwtEncoder jwtEncoder,
             JwtProperties jwtProperties,
             OssClientProperties properties,
             Clock clock
     ) {
-        return new JwtOssServiceTokenProvider(jwtEncoder, jwtProperties, properties, clock);
+        return new JwtOssServiceTokenProvider(jwtProperties, properties, clock);
     }
 
     @Bean

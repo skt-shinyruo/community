@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "spring.cloud.discovery.enabled=false",
                 "spring.cloud.nacos.discovery.enabled=false",
                 "spring.cloud.nacos.config.enabled=false",
-                "security.jwt.hmac-secret=01234567890123456789012345678901",
+                "security.jwt.service-hmac-secret=01234567890123456789012345678901",
                 "security.jwt.issuer=community-auth",
                 "oss.security.service-jwt.issuer=community-auth",
                 "oss.security.service-jwt.audience=community-oss",

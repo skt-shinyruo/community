@@ -2,11 +2,8 @@ package com.nowcoder.community.im.core.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.MACSigner;
-import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
+import com.nowcoder.community.common.security.jwt.JwtCodecs;
+import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.core.application.ConversationApplicationService;
 import com.nowcoder.community.im.core.application.PrivateMessageApplicationService;
 import com.nowcoder.community.im.core.application.RoomApplicationService;
@@ -16,11 +13,11 @@ import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
 import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
+import com.nowcoder.community.im.core.support.TestJwtKeys;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -28,12 +25,16 @@ import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -54,6 +55,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @TestPropertySource(properties = "im.cors.allowed-origins[0]=http://localhost:12881")
 class ImCoreApiControllerTest {
+
+    @DynamicPropertySource
+    static void registerJwtPublicKey(DynamicPropertyRegistry registry) {
+        registry.add("security.jwt.access-public-key", TestJwtKeys::publicKey);
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -76,11 +82,8 @@ class ImCoreApiControllerTest {
     @SpyBean
     private ConversationApplicationService conversationApplicationService;
 
-    @Value("${security.jwt.hmac-secret}")
-    private String jwtSecret;
-
-    @Value("${security.jwt.issuer}")
-    private String jwtIssuer;
+    @Autowired
+    private JwtProperties jwtProperties;
 
     @MockBean
     private PrivateMessagePolicyVerifier privateMessagePolicyVerifier;
@@ -526,7 +529,20 @@ class ImCoreApiControllerTest {
     }
 
     private String bearer(UUID userId) throws Exception {
-        String token = signHs256(jwtSecret, jwtIssuer, String.valueOf(userId), Instant.now().plusSeconds(120));
+        Instant issuedAt = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(JwtCodecs.resolvedIssuer(jwtProperties))
+                .audience(List.of(JwtCodecs.resolvedAccessTokenAudience(jwtProperties)))
+                .subject(String.valueOf(userId))
+                .issuedAt(issuedAt)
+                .expiresAt(issuedAt.plusSeconds(120))
+                .build();
+        JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256)
+                .type(JwtCodecs.ACCESS_TOKEN_TYPE)
+                .build();
+        String token = JwtCodecs.accessTokenEncoder(TestJwtKeys.signingProperties(jwtProperties))
+                .encode(JwtEncoderParameters.from(header, claims))
+                .getTokenValue();
         return "Bearer " + token;
     }
 
@@ -540,16 +556,4 @@ class ImCoreApiControllerTest {
         return first + "_" + second;
     }
 
-    private static String signHs256(String secret, String issuer, String sub, Instant exp) throws Exception {
-        JWTClaimsSet claims = new JWTClaimsSet.Builder()
-                .issuer(issuer)
-                .subject(sub)
-                .issueTime(new Date())
-                .expirationTime(Date.from(exp))
-                .build();
-
-        SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
-        jwt.sign(new MACSigner(secret.getBytes(StandardCharsets.UTF_8)));
-        return jwt.serialize();
-    }
 }

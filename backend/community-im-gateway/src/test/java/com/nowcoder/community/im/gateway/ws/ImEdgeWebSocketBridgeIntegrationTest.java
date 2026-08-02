@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.gateway.ws;
 
 import com.nowcoder.community.common.security.jwt.JwtProperties;
+import com.nowcoder.community.im.gateway.TestJwtKeys;
 import com.nowcoder.community.im.gateway.CommunityImGatewayApplication;
 import com.nowcoder.community.im.gateway.session.ImSessionTicketProperties;
 import com.nowcoder.community.im.gateway.session.SessionTicketCodec;
@@ -67,7 +68,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
-        registry.add("security.jwt.hmac-secret", () -> SECRET);
+        registry.add("security.jwt.access-public-key", TestJwtKeys::publicKey);
         registry.add("security.jwt.issuer", () -> "community-auth");
         registry.add("im.session-ticket.hmac-secret", () -> TICKET_SECRET);
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
@@ -496,7 +497,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
 
     private static JwtProperties jwtProperties() {
         JwtProperties properties = new JwtProperties();
-        properties.setHmacSecret(SECRET);
+        properties.setServiceHmacSecret(SECRET);
         properties.setIssuer("community-auth");
         return properties;
     }

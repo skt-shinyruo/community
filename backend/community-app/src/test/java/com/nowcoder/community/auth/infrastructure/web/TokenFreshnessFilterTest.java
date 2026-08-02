@@ -2,6 +2,7 @@ package com.nowcoder.community.auth.infrastructure.web;
 
 import com.nowcoder.community.auth.application.TokenFreshnessApplicationService;
 import com.nowcoder.community.auth.application.result.TokenFreshnessResult;
+import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class TokenFreshnessFilterTest {
@@ -31,7 +33,19 @@ class TokenFreshnessFilterTest {
     }
 
     @Test
-    void shouldBypassNonHighRiskPath() throws Exception {
+    void shouldVerifyEveryAuthenticatedPath() throws Exception {
+        UUID userId = uuid(6);
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "RS256")
+                .header("typ", JwtCodecs.ACCESS_TOKEN_TYPE)
+                .subject(userId.toString())
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(60))
+                .claim("security_version", 3L)
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+        when(tokenFreshnessApplicationService.verify(userId, 3L))
+                .thenReturn(TokenFreshnessResult.accepted());
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/users/abc");
         MockHttpServletResponse response = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
@@ -39,14 +53,15 @@ class TokenFreshnessFilterTest {
         filter.doFilter(request, response, chain);
 
         verify(chain).doFilter(request, response);
-        verify(tokenFreshnessApplicationService, never()).verify(null, 0L);
+        verify(tokenFreshnessApplicationService).verify(userId, 3L);
     }
 
     @Test
     void shouldRejectStaleHighRiskToken() throws Exception {
         UUID userId = uuid(7);
         Jwt jwt = Jwt.withTokenValue("token")
-                .header("alg", "HS256")
+                .header("alg", "RS256")
+                .header("typ", JwtCodecs.ACCESS_TOKEN_TYPE)
                 .subject(userId.toString())
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(60))
@@ -63,6 +78,30 @@ class TokenFreshnessFilterTest {
 
         assertThat(response.getStatus()).isEqualTo(401);
         verify(chain, never()).doFilter(request, response);
+    }
+
+    @Test
+    void shouldBypassServiceToken() throws Exception {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "HS256")
+                .header("typ", JwtCodecs.SERVICE_TOKEN_TYPE)
+                .subject(uuid(8).toString())
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(60))
+                .claim("scope", "im.realtime.internal")
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET",
+                "/internal/im/realtime/projections/user-policies"
+        );
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(request, response, chain);
+
+        verify(chain).doFilter(request, response);
+        verifyNoInteractions(tokenFreshnessApplicationService);
     }
 
     private static UUID uuid(long suffix) {

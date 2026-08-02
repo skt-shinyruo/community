@@ -327,14 +327,14 @@ class SessionTicketCodecTest {
     }
 
     @Test
-    void properties_shouldRejectNormalizedTicketSecretEqualToTrimmedAccessSecret() {
+    void properties_shouldRejectNormalizedTicketSecretEqualToTrimmedServiceSecret() {
         JwtProperties accessProperties = accessProperties();
-        accessProperties.setHmacSecret("  " + ACCESS_SECRET + "  ");
+        accessProperties.setServiceHmacSecret("  " + ACCESS_SECRET + "  ");
 
         assertThatThrownBy(() -> ticketProperties("\t" + ACCESS_SECRET + "\n")
                 .secretKeyOrThrow(accessProperties))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("must differ from security.jwt.hmac-secret");
+                .hasMessageContaining("must differ from security.jwt.service-hmac-secret");
     }
 
     @Test
@@ -373,7 +373,7 @@ class SessionTicketCodecTest {
 
     private static JwtProperties accessProperties() {
         JwtProperties properties = new JwtProperties();
-        properties.setHmacSecret(ACCESS_SECRET);
+        properties.setServiceHmacSecret(ACCESS_SECRET);
         properties.setIssuer("community-auth");
         return properties;
     }

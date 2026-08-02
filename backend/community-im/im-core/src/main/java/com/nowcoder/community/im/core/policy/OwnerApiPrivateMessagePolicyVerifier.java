@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +26,7 @@ public class OwnerApiPrivateMessagePolicyVerifier implements PrivateMessagePolic
     private final RestClient restClient;
     private final JwtEncoder jwtEncoder;
     private final String issuer;
+    private final String audience;
     private final String internalScope;
     private final Duration requestTimeout;
     private final Duration rejectionCacheTtl;
@@ -37,8 +39,9 @@ public class OwnerApiPrivateMessagePolicyVerifier implements PrivateMessagePolic
             JwtProperties jwtProperties
     ) {
         this.restClient = restClient;
-        this.jwtEncoder = JwtCodecs.jwtEncoder(jwtProperties);
+        this.jwtEncoder = JwtCodecs.serviceTokenEncoder(jwtProperties);
         this.issuer = JwtCodecs.resolvedIssuer(jwtProperties);
+        this.audience = properties.getCommunityServiceId();
         this.internalScope = properties.getInternalScope();
         this.requestTimeout = properties.normalizedRequestTimeout();
         this.rejectionCacheTtl = properties.normalizedRejectionCacheTtl();
@@ -92,11 +95,14 @@ public class OwnerApiPrivateMessagePolicyVerifier implements PrivateMessagePolic
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(issuer)
                 .subject("im-core")
+                .audience(List.of(audience))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(Math.max(1L, requestTimeout.toSeconds() + 300L)))
                 .claim("scope", StringUtils.hasText(internalScope) ? internalScope.trim() : "im.realtime.internal")
                 .build();
-        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
+                .type(JwtCodecs.SERVICE_TOKEN_TYPE)
+                .build();
         return "Bearer " + jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }
 

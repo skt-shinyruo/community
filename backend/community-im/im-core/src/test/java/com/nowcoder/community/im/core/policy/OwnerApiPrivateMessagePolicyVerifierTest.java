@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.core.policy;
 
+import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,7 @@ import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.mock.http.client.MockClientHttpResponse;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.client.RestClient;
 
 import java.io.ByteArrayOutputStream;
@@ -36,13 +38,14 @@ class OwnerApiPrivateMessagePolicyVerifierTest {
                         {"allowed":true,"code":0,"reasonCode":"allowed","message":"","decidedAtEpochMs":3}
                         """
         );
+        JwtProperties jwtProperties = jwtProperties();
         OwnerApiPrivateMessagePolicyVerifier verifier = new OwnerApiPrivateMessagePolicyVerifier(
                 RestClient.builder()
                         .baseUrl("http://community-app")
                         .requestFactory(requestFactory)
                         .build(),
                 properties(Duration.ofMillis(200)),
-                jwtProperties()
+                jwtProperties
         );
         UUID fromUserId = uuid(1);
         UUID toUserId = uuid(2);
@@ -61,8 +64,16 @@ class OwnerApiPrivateMessagePolicyVerifierTest {
         assertThat(requestFactory.requests().get(0).uri().getQuery())
                 .contains("fromUserId=" + fromUserId)
                 .contains("toUserId=" + toUserId);
-        assertThat(requestFactory.requests().get(0).headers().getFirst(HttpHeaders.AUTHORIZATION))
-                .startsWith("Bearer ");
+        String authorization = requestFactory.requests().get(0).headers().getFirst(HttpHeaders.AUTHORIZATION);
+        assertThat(authorization).startsWith("Bearer ");
+
+        Jwt serviceToken = JwtCodecs.serviceTokenDecoder(jwtProperties, "community-auth", "community-app")
+                .decode(authorization.substring("Bearer ".length()));
+        assertThat(serviceToken.getHeaders())
+                .containsEntry("alg", "HS256")
+                .containsEntry("typ", JwtCodecs.SERVICE_TOKEN_TYPE);
+        assertThat(serviceToken.getAudience()).containsExactly("community-app");
+        assertThat(serviceToken.getClaimAsString("scope")).isEqualTo("im.realtime.internal");
     }
 
     private static ImCorePolicyClientProperties properties(Duration ttl) {
@@ -75,7 +86,7 @@ class OwnerApiPrivateMessagePolicyVerifierTest {
 
     private static JwtProperties jwtProperties() {
         JwtProperties properties = new JwtProperties();
-        properties.setHmacSecret("im-core-test-jwt-secret-at-least-32b");
+        properties.setServiceHmacSecret("im-core-test-jwt-secret-at-least-32b");
         properties.setIssuer("community-auth");
         return properties;
     }

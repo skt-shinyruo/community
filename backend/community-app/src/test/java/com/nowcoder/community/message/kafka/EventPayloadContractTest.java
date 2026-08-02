@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.FollowPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
@@ -43,6 +44,7 @@ class EventPayloadContractTest {
     @Test
     void payloads_shouldBeJacksonSerializable_andNotContainSensitiveFields() throws Exception {
         assertRoundTrip(PostPayload.class, samplePostPayload());
+        assertRoundTrip(PostScorePayload.class, new PostScorePayload(uuid(1), 7L, 3L, 12.5));
         assertRoundTrip(CommentPayload.class, sampleCommentPayload());
         assertRoundTrip(ModerationPayload.class, sampleModerationPayload());
 
@@ -129,6 +131,7 @@ class EventPayloadContractTest {
         p.setTargetUserId(uuid(4));
         p.setContent("c");
         p.setCreateTime(Instant.now());
+        p.setPostAggregateVersion(2L);
         return p;
     }
 

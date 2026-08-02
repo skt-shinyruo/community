@@ -308,8 +308,8 @@ class FeedReadApplicationServiceTest {
 
         assertThat(result.items()).extracting(PostSummaryResult::id).containsExactly(uuid(31), uuid(32));
         assertThat(result.nextCursor()).isEmpty();
-        verify(postFeedCache).upsertGlobalHot(uuid(31), 91.0, "hot-v2");
-        verify(postFeedCache).upsertGlobalHot(uuid(32), 88.0, "hot-v2");
+        verify(postFeedCache).upsertGlobalHot(uuid(31), 91.0, "hot-v2", 7L, 3L);
+        verify(postFeedCache).upsertGlobalHot(uuid(32), 88.0, "hot-v2", 7L, 3L);
     }
 
     @Test
@@ -401,7 +401,7 @@ class FeedReadApplicationServiceTest {
 
         assertThat(result.rankVersion()).isEqualTo("hot-v9");
         verify(postFeedCache).writeRankVersion("hot-v9");
-        verify(postFeedCache).upsertGlobalHot(uuid(61), 123.0, "hot-v9");
+        verify(postFeedCache).upsertGlobalHot(uuid(61), 123.0, "hot-v9", 7L, 3L);
     }
 
     @Test
@@ -451,7 +451,7 @@ class FeedReadApplicationServiceTest {
 
         assertThat(result.items()).singleElement().satisfies(item -> assertThat(item.id()).isEqualTo(uuid(42)));
         assertThat(result.nextCursor()).isEmpty();
-        verify(postFeedCache).upsertBoardHot(boardId, uuid(42), 77.0, "hot-v2");
+        verify(postFeedCache).upsertBoardHot(boardId, uuid(42), 77.0, "hot-v2", 7L, 3L);
     }
 
     @Test
@@ -499,8 +499,10 @@ class FeedReadApplicationServiceTest {
 
         FeedPageResult page = service.listGlobalHotFeed(null, "", 2);
 
-        verify(postSummaryCache).putAll(argThat((List<PostSummaryResult> items) ->
-                items.stream().anyMatch(it -> secondPostId.equals(it.id()))));
+        verify(postSummaryCache).putVersioned(argThat((List<PostSummaryCache.VersionedSummary> items) ->
+                items.stream().anyMatch(it -> secondPostId.equals(it.summary().id())
+                        && it.aggregateVersion() == 7L
+                        && it.scoreVersion() == 3L)));
         assertThat(page.items()).extracting(PostSummaryResult::id).containsExactly(firstPostId, secondPostId);
         assertThat(page.items().get(0).title()).isEqualTo("<cached>");
         assertThat(page.items().get(1).title()).isEqualTo("<second>");
@@ -547,6 +549,8 @@ class FeedReadApplicationServiceTest {
         post.setUserId(uuid(100));
         post.setTitle(title);
         post.setCreateTime(new Date(1_000));
+        post.setAggregateVersion(7L);
+        post.setScoreVersion(3L);
         return post;
     }
 

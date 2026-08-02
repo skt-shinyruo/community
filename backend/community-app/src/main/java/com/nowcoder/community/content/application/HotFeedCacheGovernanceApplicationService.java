@@ -81,13 +81,27 @@ public class HotFeedCacheGovernanceApplicationService
                 continue;
             }
             if (SCOPE_BOARD.equals(c.scope())) {
-                postFeedCache.upsertBoardHot(c.boardId(), post.getId(), post.getScore(), rankVersion);
+                postFeedCache.upsertBoardHot(
+                        c.boardId(),
+                        post.getId(),
+                        post.getScore(),
+                        rankVersion,
+                        post.getAggregateVersion(),
+                        post.getScoreVersion()
+                );
             } else {
-                postFeedCache.upsertGlobalHot(post.getId(), post.getScore(), rankVersion);
+                postFeedCache.upsertGlobalHot(
+                        post.getId(),
+                        post.getScore(),
+                        rankVersion,
+                        post.getAggregateVersion(),
+                        post.getScoreVersion()
+                );
             }
             warmed++;
         }
-        postSummaryCache.putAll(postFeedSummaryLoader.assembleSummaries(posts));
+        var summaries = postFeedSummaryLoader.assembleSummaries(posts);
+        postFeedSummaryLoader.cacheSummaries(posts, summaries);
         Instant prewarmAt = Instant.now();
         postFeedCache.writeLastPrewarmAt(c.scope(), c.boardId(), prewarmAt);
         HotFeedDegradationSignalResult signal = safeSignal();

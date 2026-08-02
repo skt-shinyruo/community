@@ -22,6 +22,8 @@ public final class PostSearchPayloadAssembler {
                 projection.content(),
                 projection.type(),
                 projection.status(),
+                projection.aggregateVersion(),
+                projection.scoreVersion(),
                 projection.createTime(),
                 projection.score()
         );
@@ -37,6 +39,8 @@ public final class PostSearchPayloadAssembler {
                 projection.content(),
                 projection.type(),
                 projection.status(),
+                projection.aggregateVersion(),
+                projection.scoreVersion(),
                 projection.createTime(),
                 projection.score()
         );

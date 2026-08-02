@@ -171,6 +171,8 @@ class SearchApplicationServiceTest {
                 "content",
                 0,
                 0,
+                7L,
+                3L,
                 Instant.parse("2026-03-28T00:00:00Z"),
                 1.5
         ));
@@ -179,11 +181,13 @@ class SearchApplicationServiceTest {
         verify(repository).save(documentCaptor.capture());
         assertThat(documentCaptor.getValue().postId()).isEqualTo(postId);
         assertThat(documentCaptor.getValue().tags()).containsExactly("java");
+        assertThat(documentCaptor.getValue().aggregateVersion()).isEqualTo(7L);
+        assertThat(documentCaptor.getValue().scoreVersion()).isEqualTo(3L);
         verifyNoMoreInteractions(repository);
     }
 
     @Test
-    void syncPostProjectionShouldDeleteDeletedProjection() {
+    void syncPostProjectionShouldWriteVersionedTombstoneForDeletedProjection() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
         SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
         UUID postId = uuid(11);
@@ -197,11 +201,13 @@ class SearchApplicationServiceTest {
                 "content",
                 0,
                 2,
+                8L,
+                4L,
                 Instant.parse("2026-03-28T00:00:00Z"),
                 1.5
         ));
 
-        verify(repository).delete(postId);
+        verify(repository).tombstone(postId, 8L);
         verifyNoMoreInteractions(repository);
     }
 
@@ -230,7 +236,7 @@ class SearchApplicationServiceTest {
         PostSearchRepository repository = mock(PostSearchRepository.class);
         SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
 
-        service.deletePost(new DeleteIndexedPostCommand(null));
+        service.deletePost(new DeleteIndexedPostCommand(null, 1L));
 
         verifyNoMoreInteractions(repository);
     }

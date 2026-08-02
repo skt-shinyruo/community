@@ -5,6 +5,7 @@ import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import com.nowcoder.community.search.application.SearchPostProjectionApplicationService;
 import com.nowcoder.community.search.application.command.ProjectPostCommand;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -35,12 +36,29 @@ public class SearchPostProjectionKafkaListener {
             return;
         }
         requireSourceMetadata(event);
-        PostPayload payload;
+        ContentTypedEvent typedEvent;
         try {
-            payload = postPayload(contractEventCodec.decode(event));
+            typedEvent = contractEventCodec.decode(event);
         } catch (RuntimeException error) {
             throw malformed(event);
         }
+        if (ContentEventTypes.POST_SCORE_UPDATED.equals(event.type())) {
+            PostScorePayload payload = scorePayload(typedEvent);
+            if (payload == null
+                    || payload.postId() == null
+                    || payload.aggregateVersion() <= 0L
+                    || payload.scoreVersion() <= 0L
+                    || payload.scoreVersion() != event.version()) {
+                throw malformed(event);
+            }
+            searchPostProjectionApplicationService.projectPost(new ProjectPostCommand(
+                    payload.postId(),
+                    event.eventId(),
+                    payload.aggregateVersion()
+            ));
+            return;
+        }
+        PostPayload payload = postPayload(typedEvent);
         if (payload == null || payload.getPostId() == null) {
             throw malformed(event);
         }
@@ -65,6 +83,7 @@ public class SearchPostProjectionKafkaListener {
     private boolean isPostProjectionEvent(String type) {
         return ContentEventTypes.POST_PUBLISHED.equals(type)
                 || ContentEventTypes.POST_UPDATED.equals(type)
+                || ContentEventTypes.POST_SCORE_UPDATED.equals(type)
                 || ContentEventTypes.POST_DELETED.equals(type);
     }
 
@@ -79,5 +98,12 @@ public class SearchPostProjectionKafkaListener {
             return value.payload();
         }
         throw new IllegalArgumentException("unsupported search content event variant: " + event.getClass().getName());
+    }
+
+    private PostScorePayload scorePayload(ContentTypedEvent event) {
+        if (event instanceof ContentTypedEvent.PostScoreUpdated value) {
+            return value.payload();
+        }
+        throw new IllegalArgumentException("unsupported search score event variant: " + event.getClass().getName());
     }
 }

@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.content.application.HotFeedProjectionGuard;
+import com.nowcoder.community.content.application.PostProjectionVersionLane;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -39,7 +40,7 @@ class PassthroughHotFeedProjectionGuardTest {
     }
 
     @Test
-    void committedTerminalDeletionShouldPermanentlySuppressOrdinaryEventsInProcess() {
+    void committedTerminalDeletionShouldSuppressOrdinaryEventsForReplayWindow() {
         AtomicLong now = new AtomicLong(1_000L);
         PassthroughHotFeedProjectionGuard guard = new PassthroughHotFeedProjectionGuard(now::get);
 
@@ -55,12 +56,11 @@ class PassthroughHotFeedProjectionGuardTest {
 
         now.addAndGet(EVENT_TTL_MILLIS + 1L);
 
-        assertThat(guard.tryBegin(uuid(2), "evt-normal-after-event-expiry", 11L, false).accepted()).isFalse();
-        assertThat(guard.tryBegin(uuid(2), "evt-delete-5", 5L, true).accepted()).isFalse();
+        assertThat(guard.tryBegin(uuid(2), "evt-normal-after-event-expiry", 11L, false).accepted()).isTrue();
     }
 
     @Test
-    void committedEventIdentityShouldExpireAtSevenDaysWhileVersionRemainsPermanent() {
+    void committedEventIdentityAndVersionShouldExpireAtSevenDays() {
         AtomicLong now = new AtomicLong(10_000L);
         PassthroughHotFeedProjectionGuard guard = new PassthroughHotFeedProjectionGuard(now::get);
         HotFeedProjectionGuard.ProjectionAttempt first = guard.tryBegin(uuid(5), "evt-expiring", 10L, false);
@@ -85,7 +85,73 @@ class PassthroughHotFeedProjectionGuardTest {
                 guard.tryBegin(uuid(6), "evt-expiring", 10L, false);
         assertThat(replayAfterExpiry.accepted()).isTrue();
         guard.abort(replayAfterExpiry);
-        assertThat(guard.tryBegin(uuid(5), "evt-older-version", 9L, false).accepted()).isFalse();
+        assertThat(guard.tryBegin(uuid(5), "evt-older-version", 9L, false).accepted()).isTrue();
+    }
+
+    @Test
+    void independentSourceLanesShouldNotSuppressPostGovernanceEvents() {
+        PassthroughHotFeedProjectionGuard guard = new PassthroughHotFeedProjectionGuard();
+        UUID postId = uuid(13);
+
+        guard.commit(guard.tryBegin(
+                postId,
+                "opaque-social-event",
+                10_000L,
+                PostProjectionVersionLane.SOCIAL,
+                false
+        ));
+
+        assertThat(guard.tryBegin(
+                postId,
+                "opaque-post-event",
+                2L,
+                PostProjectionVersionLane.POST,
+                false
+        ).accepted()).isTrue();
+    }
+
+    @Test
+    void legacyTimestampVersionShouldNotSuppressAggregateVersion() {
+        PassthroughHotFeedProjectionGuard guard = new PassthroughHotFeedProjectionGuard();
+        UUID postId = uuid(14);
+
+        guard.commit(guard.tryBegin(
+                postId,
+                "opaque-legacy-post-event",
+                1_800_000_000_000L,
+                PostProjectionVersionLane.LEGACY_POST,
+                false
+        ));
+
+        assertThat(guard.tryBegin(
+                postId,
+                "opaque-current-post-event",
+                2L,
+                PostProjectionVersionLane.POST,
+                false
+        ).accepted()).isTrue();
+    }
+
+    @Test
+    void nonMonotonicSocialVersionsShouldRemainRecomputeSignals() {
+        PassthroughHotFeedProjectionGuard guard = new PassthroughHotFeedProjectionGuard();
+        UUID postId = uuid(15);
+
+        guard.commit(guard.tryBegin(
+                postId,
+                "social-event-before-clock-rollback",
+                1_800_000_000_000L,
+                PostProjectionVersionLane.SOCIAL,
+                false
+        ));
+
+        assertThat(guard.tryBegin(
+                postId,
+                "social-event-after-clock-rollback",
+                1_700_000_000_000L,
+                PostProjectionVersionLane.SOCIAL,
+                false
+        ).accepted()).isTrue();
     }
 
     @Test

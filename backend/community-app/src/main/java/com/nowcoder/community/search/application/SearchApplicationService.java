@@ -93,7 +93,9 @@ public class SearchApplicationService {
     public void syncPostProjection(SyncPostProjectionCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         if (!postSearchDomainService.shouldIndex(command.postId(), command.status())) {
-            postSearchRepository.delete(command.postId());
+            if (command.postId() != null) {
+                postSearchRepository.tombstone(command.postId(), command.aggregateVersion());
+            }
             return;
         }
         postSearchRepository.save(toDocument(command));
@@ -104,7 +106,7 @@ public class SearchApplicationService {
         if (command.postId() == null) {
             return;
         }
-        postSearchRepository.delete(command.postId());
+        postSearchRepository.tombstone(command.postId(), command.aggregateVersion());
     }
 
     private PostSearchDocument toDocument(SyncPostProjectionCommand command) {
@@ -117,6 +119,8 @@ public class SearchApplicationService {
                 command.content(),
                 command.type(),
                 command.status(),
+                command.aggregateVersion(),
+                command.scoreVersion(),
                 command.createTime(),
                 command.score()
         );

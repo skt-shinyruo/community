@@ -13,20 +13,44 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.core.document.Document;
 import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.data.elasticsearch.core.query.Criteria;
 import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.data.elasticsearch.core.query.Query;
+import org.springframework.data.elasticsearch.core.query.ScriptType;
+import org.springframework.data.elasticsearch.core.query.UpdateQuery;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Repository
 @ConditionalOnProperty(name = "search.storage", havingValue = "es")
 public class ElasticsearchPostSearchRepository implements PostSearchRepository {
+
+    private static final int DELETED_STATUS = 2;
+    private static final int VERSION_CONFLICT_RETRIES = 5;
+    private static final String MONOTONIC_PROJECTION_SCRIPT = """
+            if (ctx.op == 'create') {
+                ctx._source.clear();
+                ctx._source.putAll(params.document);
+            } else if (ctx._source.aggregateVersion == null
+                    || params.aggregateVersion > ctx._source.aggregateVersion) {
+                ctx._source.clear();
+                ctx._source.putAll(params.document);
+            } else if (params.aggregateVersion == ctx._source.aggregateVersion
+                    && (ctx._source.scoreVersion == null
+                        || params.scoreVersion > ctx._source.scoreVersion)) {
+                ctx._source.score = params.document.score;
+                ctx._source.scoreVersion = params.scoreVersion;
+            } else {
+                ctx.op = 'noop';
+            }
+            """;
 
     private final ElasticsearchOperations operations;
 
@@ -36,44 +60,24 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
 
     @Override
     public void save(PostSearchDocument post) {
-        EsPostDocument doc = toDocument(post);
-        if (doc == null) {
-            return;
-        }
-        operations.save(doc);
+        saveMonotonically(post, IndexCoordinates.of(EsPostDocument.INDEX_ALIAS));
     }
 
     @Override
     public void saveToIndex(PostSearchDocument post, String indexName) {
-        EsPostDocument doc = toDocument(post);
-        if (doc == null) {
-            return;
-        }
         if (!StringUtils.hasText(indexName)) {
-            operations.save(doc);
+            save(post);
             return;
         }
-        operations.save(doc, IndexCoordinates.of(indexName));
+        saveMonotonically(post, IndexCoordinates.of(indexName));
     }
 
     @Override
-    public void delete(UUID postId) {
+    public void tombstone(UUID postId, long aggregateVersion) {
         if (postId == null) {
             return;
         }
-        operations.delete(postId.toString(), EsPostDocument.class);
-    }
-
-    @Override
-    public void deleteFromIndex(UUID postId, String indexName) {
-        if (postId == null) {
-            return;
-        }
-        if (!StringUtils.hasText(indexName)) {
-            operations.delete(postId.toString(), EsPostDocument.class);
-            return;
-        }
-        operations.delete(postId.toString(), IndexCoordinates.of(indexName));
+        save(PostSearchDocument.tombstone(postId, aggregateVersion));
     }
 
     @Override
@@ -101,6 +105,7 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         if (StringUtils.hasText(safeTag)) {
             criteria = criteria.and(new Criteria("tags").is(safeTag));
         }
+        criteria = criteria.and(new Criteria("status").not().is(DELETED_STATUS));
 
         Query criteriaQuery = new CriteriaQuery(criteria);
 
@@ -171,9 +176,50 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         doc.setContent(post.content());
         doc.setType(post.type());
         doc.setStatus(post.status());
+        doc.setAggregateVersion(post.aggregateVersion());
+        doc.setScoreVersion(post.scoreVersion());
         doc.setCreateTime(post.createTime() == null ? null : post.createTime().toEpochMilli());
         doc.setScore(post.score());
         return doc;
+    }
+
+    private void saveMonotonically(PostSearchDocument post, IndexCoordinates index) {
+        EsPostDocument doc = toDocument(post);
+        if (doc == null) {
+            return;
+        }
+        Document source = toSource(doc);
+        UpdateQuery update = UpdateQuery.builder(doc.getPostId())
+                .withScript(MONOTONIC_PROJECTION_SCRIPT)
+                .withScriptType(ScriptType.INLINE)
+                .withLang("painless")
+                .withParams(Map.of(
+                        "aggregateVersion", post.aggregateVersion(),
+                        "scoreVersion", post.scoreVersion(),
+                        "document", source
+                ))
+                .withUpsert(source)
+                .withScriptedUpsert(true)
+                .withRetryOnConflict(VERSION_CONFLICT_RETRIES)
+                .build();
+        operations.update(update, index);
+    }
+
+    private Document toSource(EsPostDocument doc) {
+        Document source = Document.create();
+        source.put("postId", doc.getPostId());
+        source.put("userId", doc.getUserId());
+        source.put("categoryId", doc.getCategoryId());
+        source.put("tags", doc.getTags());
+        source.put("title", doc.getTitle());
+        source.put("content", doc.getContent());
+        source.put("type", doc.getType());
+        source.put("status", doc.getStatus());
+        source.put("aggregateVersion", doc.getAggregateVersion());
+        source.put("scoreVersion", doc.getScoreVersion());
+        source.put("createTime", doc.getCreateTime());
+        source.put("score", doc.getScore());
+        return source;
     }
 
     private UUID parseUuid(String value) {

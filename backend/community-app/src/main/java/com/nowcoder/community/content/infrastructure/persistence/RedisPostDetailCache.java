@@ -22,16 +22,39 @@ public class RedisPostDetailCache implements PostDetailCache {
 
     private static final String DETAIL_KEY = "post:detail:";
     private static final String TERMINAL_KEY_PREFIX = "post:detail:terminal:";
+    private static final String VERSION_KEY_PREFIX = "post:detail:version:";
+    private static final String TERMINAL_FENCE_TTL_SECONDS = "604800";
     private static final DefaultRedisScript<Long> PUT_SCRIPT = new DefaultRedisScript<>("""
             if redis.call('EXISTS', KEYS[2]) == 1 then
               redis.call('DEL', KEYS[1])
               return 0
             end
+            local minimumVersion = tonumber(redis.call('GET', KEYS[3]) or '0')
+            local sourceVersion = tonumber(ARGV[3])
+            if sourceVersion < minimumVersion then
+              return 0
+            end
             redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
             return 1
             """, Long.class);
+    private static final DefaultRedisScript<Long> EVICT_SCRIPT = new DefaultRedisScript<>("""
+            local minimumVersion = tonumber(redis.call('GET', KEYS[2]) or '0')
+            local nextVersion = tonumber(ARGV[1])
+            if nextVersion > minimumVersion then
+              redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[2])
+            elseif redis.call('EXISTS', KEYS[2]) == 1 then
+              redis.call('EXPIRE', KEYS[2], ARGV[2])
+            end
+            redis.call('DEL', KEYS[1])
+            return 1
+            """, Long.class);
     private static final DefaultRedisScript<Long> TERMINAL_EVICT_SCRIPT = new DefaultRedisScript<>("""
-            redis.call('SET', KEYS[2], '1')
+            redis.call('SET', KEYS[2], '1', 'EX', ARGV[1])
+            local minimumVersion = tonumber(redis.call('GET', KEYS[3]) or '0')
+            local nextVersion = tonumber(ARGV[2])
+            if nextVersion > minimumVersion then
+              redis.call('SET', KEYS[3], ARGV[2], 'EX', ARGV[1])
+            end
             redis.call('DEL', KEYS[1])
             return 1
             """, Long.class);
@@ -77,13 +100,18 @@ public class RedisPostDetailCache implements PostDetailCache {
 
     @Override
     public void put(UUID postId, PostDetailResult detail) {
+        put(postId, detail, 0L);
+    }
+
+    @Override
+    public void put(UUID postId, PostDetailResult detail, long sourceVersion) {
         if (postId == null || detail == null) {
             return;
         }
         String key = key(postId);
         redisTemplate.execute(
                 PUT_SCRIPT,
-                List.of(key, terminalKey(key)),
+                List.of(key, terminalKey(key), versionKey(key)),
                 jsonCodec.toJson(detail),
                 Long.toString(Math.max(
                         1L,
@@ -91,7 +119,8 @@ public class RedisPostDetailCache implements PostDetailCache {
                                 key,
                                 hotPathProperties.getCache().detailTtl()
                         ).toMillis()
-                ))
+                )),
+                Long.toString(Math.max(0L, sourceVersion))
         );
     }
 
@@ -108,14 +137,35 @@ public class RedisPostDetailCache implements PostDetailCache {
     }
 
     @Override
+    public void evict(UUID postId, long minimumVersion) {
+        if (postId == null) {
+            return;
+        }
+        String key = key(postId);
+        redisTemplate.execute(
+                EVICT_SCRIPT,
+                List.of(key, versionKey(key)),
+                Long.toString(Math.max(0L, minimumVersion)),
+                TERMINAL_FENCE_TTL_SECONDS
+        );
+    }
+
+    @Override
     public void terminalEvict(UUID postId) {
+        terminalEvict(postId, 0L);
+    }
+
+    @Override
+    public void terminalEvict(UUID postId, long minimumVersion) {
         if (postId == null) {
             return;
         }
         String key = key(postId);
         Long evicted = redisTemplate.execute(
                 TERMINAL_EVICT_SCRIPT,
-                List.of(key, terminalKey(key))
+                List.of(key, terminalKey(key), versionKey(key)),
+                TERMINAL_FENCE_TTL_SECONDS,
+                Long.toString(Math.max(0L, minimumVersion))
         );
         if (!Long.valueOf(1L).equals(evicted)) {
             throw new IllegalStateException("post detail terminal fence was not persisted: postId=" + postId);
@@ -128,5 +178,9 @@ public class RedisPostDetailCache implements PostDetailCache {
 
     private String terminalKey(String cacheKey) {
         return TERMINAL_KEY_PREFIX + "{" + cacheKey + "}";
+    }
+
+    private String versionKey(String cacheKey) {
+        return VERSION_KEY_PREFIX + "{" + cacheKey + "}";
     }
 }

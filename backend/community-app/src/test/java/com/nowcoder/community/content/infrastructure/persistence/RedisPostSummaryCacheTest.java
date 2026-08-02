@@ -51,14 +51,45 @@ class RedisPostSummaryCacheTest {
 
         verify(redisTemplate).execute(
                 any(RedisScript.class),
-                eq(List.of(key, "post:summary:terminal:{" + key + "}")),
+                eq(List.of(
+                        key,
+                        "post:summary:terminal:{" + key + "}",
+                        "post:summary:version:{" + key + "}",
+                        "post:summary:score-version:{" + key + "}"
+                )),
                 eq("{\"id\":\"" + postId + "\"}"),
-                eq("321000")
+                eq("321000"),
+                eq("0"),
+                eq("0"),
+                eq("604800")
         );
     }
 
     @Test
-    void terminalEvictShouldPermanentlyFenceAndDeleteOnePostAtomically() {
+    void versionedEvictShouldAdvanceAggregateAndScoreVersionTogether() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        JsonCodec jsonCodec = mock(JsonCodec.class);
+        UUID postId = uuid(10);
+        String key = "post:summary:" + postId;
+        RedisPostSummaryCache cache = new RedisPostSummaryCache(redisTemplate, jsonCodec);
+
+        cache.evictAll(List.of(postId), 7L, 3L);
+
+        verify(redisTemplate).execute(
+                any(RedisScript.class),
+                eq(List.of(
+                        key,
+                        "post:summary:version:{" + key + "}",
+                        "post:summary:score-version:{" + key + "}"
+                )),
+                eq("7"),
+                eq("3"),
+                eq("604800")
+        );
+    }
+
+    @Test
+    void terminalEvictShouldWriteBoundedFenceAndDeleteOnePostAtomically() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         JsonCodec jsonCodec = mock(JsonCodec.class);
         UUID postId = uuid(11);
@@ -70,7 +101,15 @@ class RedisPostSummaryCacheTest {
 
         verify(redisTemplate).execute(
                 any(RedisScript.class),
-                eq(List.of(key, "post:summary:terminal:{" + key + "}"))
+                eq(List.of(
+                        key,
+                        "post:summary:terminal:{" + key + "}",
+                        "post:summary:version:{" + key + "}",
+                        "post:summary:score-version:{" + key + "}"
+                )),
+                eq("604800"),
+                eq("0"),
+                eq("0")
         );
     }
 

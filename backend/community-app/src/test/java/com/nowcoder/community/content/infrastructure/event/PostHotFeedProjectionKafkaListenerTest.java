@@ -5,12 +5,14 @@ import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService;
+import com.nowcoder.community.content.application.PostProjectionVersionLane;
 import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
@@ -49,13 +51,14 @@ class PostHotFeedProjectionKafkaListenerTest {
                 ContentEventTypes.POST_PUBLISHED,
                 Instant.parse("2026-07-06T08:00:00Z"),
                 42L,
-                jsonCodec.valueToTree(postPayload(uuid(200), uuid(10)))
+                jsonCodec.valueToTree(postPayload(uuid(200), uuid(10), 42L))
         ));
 
         ArgumentCaptor<ProjectPostHotFeedCommand> captor = ArgumentCaptor.forClass(ProjectPostHotFeedCommand.class);
         verify(applicationService).project(captor.capture());
         assertThat(captor.getValue().sourceEventId()).isEqualTo("evt-post-published");
         assertThat(captor.getValue().sourceVersion()).isEqualTo(42L);
+        assertThat(captor.getValue().sourceVersionLane()).isEqualTo(PostProjectionVersionLane.POST);
         assertThat(captor.getValue().postId()).isEqualTo(uuid(200));
         assertThat(captor.getValue().boardId()).isEqualTo(uuid(10));
         assertThat(captor.getValue().terminalDeletion()).isFalse();
@@ -81,6 +84,7 @@ class PostHotFeedProjectionKafkaListenerTest {
         assertThat(captor.getValue().postId()).isEqualTo(uuid(201));
         assertThat(captor.getValue().boardId()).isEqualTo(uuid(11));
         assertThat(captor.getValue().sourceVersion()).isEqualTo(43L);
+        assertThat(captor.getValue().sourceVersionLane()).isEqualTo(PostProjectionVersionLane.LEGACY_POST);
         assertThat(captor.getValue().terminalDeletion()).isFalse();
     }
 
@@ -96,14 +100,33 @@ class PostHotFeedProjectionKafkaListenerTest {
                 ContentEventTypes.POST_DELETED,
                 Instant.parse("2026-07-06T08:01:30Z"),
                 5L,
-                jsonCodec.valueToTree(postPayload(uuid(201), uuid(11)))
+                jsonCodec.valueToTree(postPayload(uuid(201), uuid(11), 5L))
         ));
 
         ArgumentCaptor<ProjectPostHotFeedCommand> captor = ArgumentCaptor.forClass(ProjectPostHotFeedCommand.class);
         verify(applicationService).project(captor.capture());
         assertThat(captor.getValue().postId()).isEqualTo(uuid(201));
         assertThat(captor.getValue().sourceVersion()).isEqualTo(5L);
+        assertThat(captor.getValue().sourceVersionLane()).isEqualTo(PostProjectionVersionLane.POST);
         assertThat(captor.getValue().terminalDeletion()).isTrue();
+    }
+
+    @Test
+    void postScoreUpdatedShouldNotFeedBackIntoHotScoreRecomputation() {
+        PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
+
+        listener.onContentEvent(new ContentContractEvent(
+                "evt-score-3",
+                uuid(201),
+                "post",
+                ContentEventTypes.POST_SCORE_UPDATED,
+                Instant.parse("2026-07-06T08:01:20Z"),
+                3L,
+                jsonCodec.valueToTree(new PostScorePayload(uuid(201), 5L, 3L, 19.5))
+        ));
+
+        verifyNoInteractions(applicationService);
     }
 
     @Test
@@ -118,7 +141,7 @@ class PostHotFeedProjectionKafkaListenerTest {
                 ContentEventTypes.POST_DELETED,
                 Instant.parse("2026-07-06T08:01:31Z"),
                 5L,
-                jsonCodec.valueToTree(postPayload(uuid(201), uuid(11)))
+                jsonCodec.valueToTree(postPayload(uuid(201), uuid(11), 5L))
         )))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(ContentEventTypes.POST_DELETED)
@@ -139,7 +162,7 @@ class PostHotFeedProjectionKafkaListenerTest {
                 ContentEventTypes.POST_DELETED,
                 Instant.parse("2026-07-06T08:01:32Z"),
                 5L,
-                jsonCodec.valueToTree(postPayload(uuid(201), uuid(11)))
+                jsonCodec.valueToTree(postPayload(uuid(201), uuid(11), 5L))
         )))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(ContentEventTypes.POST_DELETED)
@@ -166,6 +189,33 @@ class PostHotFeedProjectionKafkaListenerTest {
         ArgumentCaptor<ProjectPostHotFeedCommand> captor = ArgumentCaptor.forClass(ProjectPostHotFeedCommand.class);
         verify(applicationService).project(captor.capture());
         assertThat(captor.getValue().postId()).isEqualTo(uuid(201));
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(6L);
+        assertThat(captor.getValue().terminalDeletion()).isFalse();
+        assertThat(captor.getValue().sourceVersionLane()).isEqualTo(PostProjectionVersionLane.COMMENT);
+    }
+
+    @Test
+    void versionedCommentShouldShareThePostAggregateVersionLane() {
+        PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
+        CommentPayload payload = commentPayload(uuid(201));
+        payload.setPostAggregateVersion(51L);
+
+        listener.onContentEvent(new ContentContractEvent(
+                "evt-comment-created-versioned",
+                uuid(211),
+                "comment",
+                ContentEventTypes.COMMENT_CREATED,
+                Instant.parse("2026-07-06T08:01:46Z"),
+                6L,
+                jsonCodec.valueToTree(payload)
+        ));
+
+        ArgumentCaptor<ProjectPostHotFeedCommand> captor = ArgumentCaptor.forClass(ProjectPostHotFeedCommand.class);
+        verify(applicationService).project(captor.capture());
+        assertThat(captor.getValue().postId()).isEqualTo(uuid(201));
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(51L);
+        assertThat(captor.getValue().sourceVersionLane()).isEqualTo(PostProjectionVersionLane.POST);
         assertThat(captor.getValue().terminalDeletion()).isFalse();
     }
 
@@ -190,8 +240,29 @@ class PostHotFeedProjectionKafkaListenerTest {
         assertThat(captor.getValue().sourceVersion()).isEqualTo(44L);
         assertThat(captor.getValue().postId()).isEqualTo(uuid(202));
         assertThat(captor.getValue().boardId()).isNull();
-        assertThat(captor.getValue().signalWeight()).isEqualTo(1.0);
+        assertThat(captor.getValue().sourceVersionLane()).isEqualTo(PostProjectionVersionLane.SOCIAL);
         assertThat(captor.getValue().terminalDeletion()).isFalse();
+    }
+
+    @Test
+    void postEventWithMismatchedAggregateVersionShouldFailDelivery() {
+        PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
+        PostHotFeedProjectionKafkaListener listener = listener(applicationService);
+
+        assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
+                "opaque-post-event",
+                uuid(204),
+                "Post",
+                ContentEventTypes.POST_UPDATED,
+                Instant.EPOCH,
+                9L,
+                jsonCodec.valueToTree(postPayload(uuid(204), uuid(12), 8L))
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.POST_UPDATED)
+                .hasMessageContaining("opaque-post-event");
+
+        verifyNoInteractions(applicationService);
     }
 
     @Test
@@ -281,10 +352,11 @@ class PostHotFeedProjectionKafkaListenerTest {
                 contentContractEventCodec, socialContractEventCodec, applicationService);
     }
 
-    private static PostPayload postPayload(java.util.UUID postId, java.util.UUID boardId) {
+    private static PostPayload postPayload(java.util.UUID postId, java.util.UUID boardId, long aggregateVersion) {
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
         payload.setCategoryId(boardId);
+        payload.setAggregateVersion(aggregateVersion);
         return payload;
     }
 

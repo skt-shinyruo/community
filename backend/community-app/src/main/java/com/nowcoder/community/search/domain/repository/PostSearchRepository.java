@@ -11,7 +11,7 @@ public interface PostSearchRepository {
 
     void save(PostSearchDocument post);
 
-    void delete(UUID postId);
+    void tombstone(UUID postId, long aggregateVersion);
 
     List<PostSearchHit> search(PostSearchQuery query);
 
@@ -19,10 +19,6 @@ public interface PostSearchRepository {
 
     default void saveToIndex(PostSearchDocument post, String indexName) {
         save(post);
-    }
-
-    default void deleteFromIndex(UUID postId, String indexName) {
-        delete(postId);
     }
 
     default void clearIndex(String indexName) {

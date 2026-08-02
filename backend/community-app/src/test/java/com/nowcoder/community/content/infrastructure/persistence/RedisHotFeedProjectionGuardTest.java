@@ -46,7 +46,8 @@ class RedisHotFeedProjectionGuardTest {
                 eq("42"),
                 eq("0"),
                 anyString(),
-                eq("30000")
+                eq("30000"),
+                eq("1")
         )).thenReturn(1L);
         RedisHotFeedProjectionGuard guard = new RedisHotFeedProjectionGuard(redisTemplate);
 
@@ -77,7 +78,8 @@ class RedisHotFeedProjectionGuardTest {
                 eq("42"),
                 eq("0"),
                 anyString(),
-                eq("30000")
+                eq("30000"),
+                eq("1")
         )).thenReturn(-1L);
         RedisHotFeedProjectionGuard guard = new RedisHotFeedProjectionGuard(redisTemplate);
 
@@ -118,10 +120,11 @@ class RedisHotFeedProjectionGuardTest {
         );
         when(redisTemplate.execute(
                 any(RedisScript.class),
-                eq(List.of(lockKey(postId), versionKey(postId), tombstoneKey(postId))),
+                eq(List.of(lockKey(postId), versionKey(postId, "evt-1"), tombstoneKey(postId))),
                 eq("token-1"),
                 eq("42"),
-                eq("0")
+                eq("0"),
+                eq("1")
         )).thenReturn(1L);
         RedisHotFeedProjectionGuard guard = new RedisHotFeedProjectionGuard(redisTemplate);
 
@@ -129,10 +132,11 @@ class RedisHotFeedProjectionGuardTest {
 
         verify(redisTemplate).execute(
                 any(RedisScript.class),
-                eq(List.of(lockKey(postId), versionKey(postId), tombstoneKey(postId))),
+                eq(List.of(lockKey(postId), versionKey(postId, "evt-1"), tombstoneKey(postId))),
                 eq("token-1"),
                 eq("42"),
-                eq("0")
+                eq("0"),
+                eq("1")
         );
     }
 
@@ -149,9 +153,10 @@ class RedisHotFeedProjectionGuardTest {
         );
         when(redisTemplate.execute(
                 any(RedisScript.class),
-                eq(List.of(lockKey(postId), versionKey(postId), tombstoneKey(postId))),
+                eq(List.of(lockKey(postId), versionKey(postId, "evt-delete"), tombstoneKey(postId))),
                 eq("expired-token"),
                 eq("5"),
+                eq("1"),
                 eq("1")
         )).thenReturn(-2L);
         RedisHotFeedProjectionGuard guard = new RedisHotFeedProjectionGuard(redisTemplate);
@@ -163,7 +168,7 @@ class RedisHotFeedProjectionGuardTest {
     }
 
     @Test
-    void commitShouldMarkEventKeepMaximumVersionAndPermanentlyTombstoneDeletion() {
+    void commitShouldMarkEventKeepMaximumVersionAndBoundDeletionTombstone() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         UUID postId = uuid(99);
         HotFeedProjectionGuard.ProjectionAttempt attempt = HotFeedProjectionGuard.ProjectionAttempt.accepted(
@@ -179,6 +184,7 @@ class RedisHotFeedProjectionGuardTest {
                 eq("token-1"),
                 eq("604800"),
                 eq("5"),
+                eq("1"),
                 eq("1")
         )).thenReturn(1L);
         RedisHotFeedProjectionGuard guard = new RedisHotFeedProjectionGuard(redisTemplate);
@@ -191,6 +197,7 @@ class RedisHotFeedProjectionGuardTest {
                 eq("token-1"),
                 eq("604800"),
                 eq("5"),
+                eq("1"),
                 eq("1")
         );
     }
@@ -214,9 +221,12 @@ class RedisHotFeedProjectionGuardTest {
             assertThat(guard.isCurrent(deletion)).isTrue();
             guard.commit(deletion);
 
-            assertThat(redisTemplate.opsForValue().get(versionKey(postId))).isEqualTo("10");
+            assertThat(redisTemplate.opsForValue().get(versionKey(postId, "evt-normal-10"))).isEqualTo("10");
+            assertThat(redisTemplate.getExpire(versionKey(postId, "evt-normal-10"), TimeUnit.SECONDS))
+                    .isBetween(1L, 604800L);
             assertThat(redisTemplate.opsForValue().get(tombstoneKey(postId))).isEqualTo("1");
-            assertThat(redisTemplate.getExpire(tombstoneKey(postId), TimeUnit.SECONDS)).isEqualTo(-1L);
+            assertThat(redisTemplate.getExpire(tombstoneKey(postId), TimeUnit.SECONDS))
+                    .isBetween(1L, 604800L);
             assertThat(redisTemplate.getExpire(eventKey(postId, "evt-delete-5"), TimeUnit.SECONDS))
                     .isBetween(1L, 604800L);
             assertThat(guard.tryBegin(postId, "evt-normal-4", 4L, false).accepted()).isFalse();
@@ -227,7 +237,45 @@ class RedisHotFeedProjectionGuardTest {
             guard.abort(deletion);
 
             assertThat(redisTemplate.opsForValue().get(tombstoneKey(postId))).isEqualTo("1");
-            assertThat(redisTemplate.getExpire(tombstoneKey(postId), TimeUnit.SECONDS)).isEqualTo(-1L);
+            assertThat(redisTemplate.getExpire(tombstoneKey(postId), TimeUnit.SECONDS))
+                    .isBetween(1L, 604800L);
+        } finally {
+            connectionFactory.destroy();
+        }
+    }
+
+    @Test
+    void socialClockRollbackShouldNotSuppressCurrentFactRecomputationInRealRedis() {
+        LettuceConnectionFactory connectionFactory = new LettuceConnectionFactory(
+                REDIS.getHost(),
+                REDIS.getMappedPort(REDIS_PORT)
+        );
+        connectionFactory.afterPropertiesSet();
+        StringRedisTemplate redisTemplate = new StringRedisTemplate(connectionFactory);
+        redisTemplate.afterPropertiesSet();
+        UUID postId = UUID.randomUUID();
+        RedisHotFeedProjectionGuard guard = new RedisHotFeedProjectionGuard(redisTemplate);
+        try {
+            HotFeedProjectionGuard.ProjectionAttempt first = guard.tryBegin(
+                    postId,
+                    "social-before-clock-rollback",
+                    1_800_000_000_000L,
+                    com.nowcoder.community.content.application.PostProjectionVersionLane.SOCIAL,
+                    false
+            );
+            assertThat(first.accepted()).isTrue();
+            guard.commit(first);
+
+            HotFeedProjectionGuard.ProjectionAttempt afterRollback = guard.tryBegin(
+                    postId,
+                    "social-after-clock-rollback",
+                    1_700_000_000_000L,
+                    com.nowcoder.community.content.application.PostProjectionVersionLane.SOCIAL,
+                    false
+            );
+
+            assertThat(afterRollback.accepted()).isTrue();
+            guard.abort(afterRollback);
         } finally {
             connectionFactory.destroy();
         }
@@ -255,7 +303,7 @@ class RedisHotFeedProjectionGuardTest {
                     .hasMessageContaining(postId.toString());
 
             assertThat(redisTemplate.hasKey(eventKey(postId, "evt-delete-abort"))).isFalse();
-            assertThat(redisTemplate.hasKey(versionKey(postId))).isFalse();
+            assertThat(redisTemplate.hasKey(versionKey(postId, "evt-delete-abort"))).isFalse();
             assertThat(redisTemplate.hasKey(tombstoneKey(postId))).isFalse();
 
             guard.abort(deletion);
@@ -294,7 +342,7 @@ class RedisHotFeedProjectionGuardTest {
         return List.of(
                 lockKey(postId),
                 eventKey(postId, sourceEventId),
-                versionKey(postId),
+                versionKey(postId, sourceEventId),
                 tombstoneKey(postId)
         );
     }
@@ -307,8 +355,8 @@ class RedisHotFeedProjectionGuardTest {
         return "post:feed:hot:projection:event:{" + postId + "}:" + sourceEventId;
     }
 
-    private static String versionKey(UUID postId) {
-        return "post:feed:hot:projection:version:{" + postId + "}";
+    private static String versionKey(UUID postId, String sourceEventId) {
+        return "post:feed:hot:projection:version:post:{" + postId + "}";
     }
 
     private static String tombstoneKey(UUID postId) {

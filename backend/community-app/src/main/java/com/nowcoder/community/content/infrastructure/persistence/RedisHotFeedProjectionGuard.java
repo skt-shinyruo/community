@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.content.application.HotFeedProjectionGuard;
+import com.nowcoder.community.content.application.PostProjectionVersionLane;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -33,7 +34,7 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
             if redis.call('EXISTS', KEYS[4]) == 1 then
               return -1
             end
-            if ARGV[2] ~= '1' then
+            if ARGV[2] ~= '1' and ARGV[5] == '1' then
               local current = redis.call('GET', KEYS[3])
               if current ~= false then
                 local currentNumber = tonumber(current)
@@ -59,7 +60,7 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
             if redis.call('EXISTS', KEYS[3]) == 1 then
               return 0
             end
-            if ARGV[3] ~= '1' then
+            if ARGV[3] ~= '1' and ARGV[4] == '1' then
               local current = redis.call('GET', KEYS[2])
               if current ~= false then
                 local currentNumber = tonumber(current)
@@ -82,7 +83,8 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
             if ARGV[4] ~= '0' and ARGV[4] ~= '1' then
               return 0
             end
-            local current = redis.call('GET', KEYS[3])
+            local enforceVersion = ARGV[5] == '1'
+            local current = enforceVersion and redis.call('GET', KEYS[3]) or false
             local currentNumber = nil
             if current ~= false then
               currentNumber = tonumber(current)
@@ -91,11 +93,15 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
               end
             end
             redis.call('SET', KEYS[2], '1', 'EX', eventTtl)
-            if currentNumber == nil or currentNumber < next then
-              redis.call('SET', KEYS[3], ARGV[3])
+            if enforceVersion then
+              if currentNumber == nil or currentNumber < next then
+                redis.call('SET', KEYS[3], ARGV[3], 'EX', eventTtl)
+              else
+                redis.call('EXPIRE', KEYS[3], eventTtl)
+              end
             end
             if ARGV[4] == '1' then
-              redis.call('SET', KEYS[4], '1')
+              redis.call('SET', KEYS[4], '1', 'EX', eventTtl)
             end
             redis.call('DEL', KEYS[1])
             return 1
@@ -118,14 +124,24 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
             UUID postId,
             String sourceEventId,
             long sourceVersion,
+            PostProjectionVersionLane sourceVersionLane,
             boolean terminalDeletion
     ) {
-        if (postId == null || !StringUtils.hasText(sourceEventId) || sourceVersion <= 0L) {
-            return ProjectionAttempt.rejected(postId, sourceEventId, sourceVersion, terminalDeletion);
+        if (postId == null
+                || !StringUtils.hasText(sourceEventId)
+                || sourceVersion <= 0L
+                || sourceVersionLane == null) {
+            return ProjectionAttempt.rejected(
+                    postId,
+                    sourceEventId,
+                    sourceVersion,
+                    sourceVersionLane,
+                    terminalDeletion
+            );
         }
         String token = UUID.randomUUID().toString();
         String normalizedEventId = sourceEventId.trim();
-        List<String> keys = allKeys(postId, normalizedEventId);
+        List<String> keys = allKeys(postId, normalizedEventId, sourceVersionLane);
         for (int attempt = 0; attempt < LOCK_ATTEMPTS; attempt++) {
             Long started = redisTemplate.execute(
                     BEGIN_SCRIPT,
@@ -133,19 +149,27 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
                     String.valueOf(sourceVersion),
                     deletionFlag(terminalDeletion),
                     token,
-                    LOCK_TTL_MILLIS
+                    LOCK_TTL_MILLIS,
+                    monotonicFlag(sourceVersionLane)
             );
             if (Long.valueOf(1L).equals(started)) {
                 return ProjectionAttempt.accepted(
                         postId,
                         normalizedEventId,
                         sourceVersion,
+                        sourceVersionLane,
                         terminalDeletion,
                         token
                 );
             }
             if (Long.valueOf(-1L).equals(started)) {
-                return ProjectionAttempt.rejected(postId, normalizedEventId, sourceVersion, terminalDeletion);
+                return ProjectionAttempt.rejected(
+                        postId,
+                        normalizedEventId,
+                        sourceVersion,
+                        sourceVersionLane,
+                        terminalDeletion
+                );
             }
             sleepBeforeRetry();
         }
@@ -161,12 +185,13 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
                 CURRENT_SCRIPT,
                 List.of(
                         lockKey(attempt.postId()),
-                        versionKey(attempt.postId()),
+                        versionKey(attempt.postId(), attempt.sourceVersionLane()),
                         tombstoneKey(attempt.postId())
                 ),
                 attempt.token(),
                 String.valueOf(attempt.sourceVersion()),
-                deletionFlag(attempt.terminalDeletion())
+                deletionFlag(attempt.terminalDeletion()),
+                monotonicFlag(attempt.sourceVersionLane())
         );
         if (current == null || Long.valueOf(-2L).equals(current)) {
             throw new IllegalStateException(
@@ -183,11 +208,12 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
         }
         Long committed = redisTemplate.execute(
                 COMMIT_SCRIPT,
-                allKeys(attempt.postId(), attempt.sourceEventId()),
+                allKeys(attempt.postId(), attempt.sourceEventId(), attempt.sourceVersionLane()),
                 attempt.token(),
                 EVENT_TTL_SECONDS,
                 String.valueOf(attempt.sourceVersion()),
-                deletionFlag(attempt.terminalDeletion())
+                deletionFlag(attempt.terminalDeletion()),
+                monotonicFlag(attempt.sourceVersionLane())
         );
         if (!Long.valueOf(1L).equals(committed)) {
             throw new IllegalStateException(
@@ -212,15 +238,20 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
         return attempt != null
                 && attempt.accepted()
                 && attempt.postId() != null
+                && attempt.sourceVersionLane() != null
                 && StringUtils.hasText(attempt.sourceEventId())
                 && StringUtils.hasText(attempt.token());
     }
 
-    private List<String> allKeys(UUID postId, String sourceEventId) {
+    private List<String> allKeys(
+            UUID postId,
+            String sourceEventId,
+            PostProjectionVersionLane sourceVersionLane
+    ) {
         return List.of(
                 lockKey(postId),
                 eventKey(postId, sourceEventId),
-                versionKey(postId),
+                versionKey(postId, sourceVersionLane),
                 tombstoneKey(postId)
         );
     }
@@ -229,8 +260,17 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
         return EVENT_KEY_PREFIX + hashTag(postId) + ":" + sourceEventId.trim();
     }
 
-    private String versionKey(UUID postId) {
-        return VERSION_KEY_PREFIX + hashTag(postId);
+    private String versionKey(UUID postId, PostProjectionVersionLane sourceVersionLane) {
+        return VERSION_KEY_PREFIX + laneKey(sourceVersionLane) + ":" + hashTag(postId);
+    }
+
+    private String laneKey(PostProjectionVersionLane sourceVersionLane) {
+        return switch (sourceVersionLane) {
+            case POST -> "post";
+            case LEGACY_POST -> "legacy-post";
+            case COMMENT -> "comment";
+            case SOCIAL -> "social";
+        };
     }
 
     private String lockKey(UUID postId) {
@@ -247,6 +287,10 @@ public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
 
     private String deletionFlag(boolean terminalDeletion) {
         return terminalDeletion ? "1" : "0";
+    }
+
+    private String monotonicFlag(PostProjectionVersionLane sourceVersionLane) {
+        return sourceVersionLane.hasMonotonicSourceVersion() ? "1" : "0";
     }
 
     private void sleepBeforeRetry() {

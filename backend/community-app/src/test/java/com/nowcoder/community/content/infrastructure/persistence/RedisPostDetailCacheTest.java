@@ -50,14 +50,19 @@ class RedisPostDetailCacheTest {
 
         verify(redisTemplate).execute(
                 any(RedisScript.class),
-                eq(List.of(key, "post:detail:terminal:{" + key + "}")),
+                eq(List.of(
+                        key,
+                        "post:detail:terminal:{" + key + "}",
+                        "post:detail:version:{" + key + "}"
+                )),
                 eq("{\"id\":\"" + postId + "\"}"),
-                eq("333000")
+                eq("333000"),
+                eq("0")
         );
     }
 
     @Test
-    void terminalEvictShouldPermanentlyFenceAndDeleteOnePostAtomically() {
+    void terminalEvictShouldWriteBoundedFenceAndDeleteOnePostAtomically() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         JsonCodec jsonCodec = mock(JsonCodec.class);
         UUID postId = uuid(11);
@@ -69,7 +74,13 @@ class RedisPostDetailCacheTest {
 
         verify(redisTemplate).execute(
                 any(RedisScript.class),
-                eq(List.of(key, "post:detail:terminal:{" + key + "}"))
+                eq(List.of(
+                        key,
+                        "post:detail:terminal:{" + key + "}",
+                        "post:detail:version:{" + key + "}"
+                )),
+                eq("604800"),
+                eq("0")
         );
     }
 

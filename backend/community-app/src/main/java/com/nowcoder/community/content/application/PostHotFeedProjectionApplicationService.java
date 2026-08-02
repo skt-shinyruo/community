@@ -6,7 +6,6 @@ import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.service.PostHotnessDomainService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
@@ -26,6 +25,7 @@ public class PostHotFeedProjectionApplicationService {
     private final ContentFeedPolicyProperties policyProperties;
     private final HotFeedProjectionGuard projectionGuard;
     private final HotFeedProjectionCompletion projectionCompletion;
+    private final PostHotFeedProjectionTransactionOperations transactionOperations;
 
     @Autowired
     public PostHotFeedProjectionApplicationService(
@@ -38,6 +38,7 @@ public class PostHotFeedProjectionApplicationService {
             PostHotnessDomainService postHotnessDomainService,
             ContentFeedPolicyProperties policyProperties,
             HotFeedProjectionGuard projectionGuard,
+            PostHotFeedProjectionTransactionOperations transactionOperations,
             HotFeedProjectionCompletion projectionCompletion
     ) {
         this.postContentRepository = postContentRepository;
@@ -49,7 +50,35 @@ public class PostHotFeedProjectionApplicationService {
         this.postHotnessDomainService = postHotnessDomainService;
         this.policyProperties = policyProperties == null ? new ContentFeedPolicyProperties() : policyProperties;
         this.projectionGuard = projectionGuard == null ? AllowAllHotFeedProjectionGuard.INSTANCE : projectionGuard;
+        this.transactionOperations = Objects.requireNonNull(transactionOperations, "transactionOperations must not be null");
         this.projectionCompletion = Objects.requireNonNull(projectionCompletion, "projectionCompletion must not be null");
+    }
+
+    public PostHotFeedProjectionApplicationService(
+            PostContentRepository postContentRepository,
+            LikeQueryPort likeQueryPort,
+            PostFeedCache postFeedCache,
+            PostSummaryCache postSummaryCache,
+            PostDetailCache postDetailCache,
+            PostCounterCache postCounterCache,
+            PostHotnessDomainService postHotnessDomainService,
+            ContentFeedPolicyProperties policyProperties,
+            HotFeedProjectionGuard projectionGuard,
+            HotFeedProjectionCompletion projectionCompletion
+    ) {
+        this(
+                postContentRepository,
+                likeQueryPort,
+                postFeedCache,
+                postSummaryCache,
+                postDetailCache,
+                postCounterCache,
+                postHotnessDomainService,
+                policyProperties,
+                projectionGuard,
+                new PostHotFeedProjectionTransactionOperations(postContentRepository),
+                projectionCompletion
+        );
     }
 
     public PostHotFeedProjectionApplicationService(
@@ -121,20 +150,22 @@ public class PostHotFeedProjectionApplicationService {
         );
     }
 
-    @Transactional
     public void project(ProjectPostHotFeedCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         UUID postId = command.postId();
         if (postId == null) {
             return;
         }
-        if (!StringUtils.hasText(command.sourceEventId()) || command.sourceVersion() <= 0L) {
+        if (!StringUtils.hasText(command.sourceEventId())
+                || command.sourceVersion() <= 0L
+                || command.sourceVersionLane() == null) {
             return;
         }
         HotFeedProjectionGuard.ProjectionAttempt attempt = projectionGuard.tryBegin(
                 postId,
                 command.sourceEventId().trim(),
                 command.sourceVersion(),
+                command.sourceVersionLane(),
                 command.terminalDeletion()
         );
         if (!attempt.accepted()) {
@@ -149,7 +180,10 @@ public class PostHotFeedProjectionApplicationService {
                     return;
                 }
                 postFeedCache.writeRankVersion(rankVersion);
-                terminallyEvictReadModels(postId, command.boardId());
+                long aggregateVersion = command.sourceVersionLane() == PostProjectionVersionLane.POST
+                        ? command.sourceVersion()
+                        : 0L;
+                terminallyEvictReadModels(postId, command.boardId(), aggregateVersion);
                 commitAfterTransaction(attempt);
                 committed = true;
                 return;
@@ -159,30 +193,44 @@ public class PostHotFeedProjectionApplicationService {
             if (!projectionGuard.isCurrent(attempt)) {
                 return;
             }
-            if (post == null || post.isDeleted() || post.getStatus() != 0) {
+            if (post == null) {
                 postFeedCache.writeRankVersion(rankVersion);
-                evictReadModels(postId);
+                long aggregateVersion = command.sourceVersionLane() == PostProjectionVersionLane.POST
+                        ? command.sourceVersion()
+                        : 0L;
+                terminallyEvictReadModels(postId, command.boardId(), aggregateVersion);
+                commitAfterTransaction(attempt);
+                committed = true;
+                return;
+            }
+            if (post.isDeleted()) {
+                postFeedCache.writeRankVersion(rankVersion);
+                terminallyEvictReadModels(postId, post.getCategoryId(), post.getAggregateVersion());
                 commitAfterTransaction(attempt);
                 committed = true;
                 return;
             }
 
             UUID boardId = post.getCategoryId();
+            long aggregateVersion = post.getAggregateVersion();
             long likeCount = likeQueryPort.countPostLikes(postId);
-            double score = postHotnessDomainService.recomputeScore(post, likeCount, command.signalWeight());
+            double score = postHotnessDomainService.recomputeScore(post, likeCount);
             if (!projectionGuard.isCurrent(attempt)) {
                 return;
             }
-            postContentRepository.updateScore(postId, score);
+            long scoreVersion = transactionOperations.updateScore(postId, score, aggregateVersion);
+            if (!projectionGuard.isCurrent(attempt)) {
+                return;
+            }
             postCounterCache.updateScore(postId, score);
             postFeedCache.writeRankVersion(rankVersion);
-            postFeedCache.remove(postId, null);
-            postFeedCache.upsertGlobalHot(postId, score, rankVersion);
+            postFeedCache.remove(postId, null, aggregateVersion);
+            postFeedCache.upsertGlobalHot(postId, score, rankVersion, aggregateVersion, scoreVersion);
             if (boardId != null) {
-                postFeedCache.upsertBoardHot(boardId, postId, score, rankVersion);
+                postFeedCache.upsertBoardHot(boardId, postId, score, rankVersion, aggregateVersion, scoreVersion);
             }
-            postSummaryCache.evictAll(List.of(postId));
-            postDetailCache.evict(postId);
+            postSummaryCache.evictAll(List.of(postId), aggregateVersion, scoreVersion);
+            postDetailCache.evict(postId, aggregateVersion);
             commitAfterTransaction(attempt);
             committed = true;
         } finally {
@@ -192,16 +240,10 @@ public class PostHotFeedProjectionApplicationService {
         }
     }
 
-    private void evictReadModels(UUID postId) {
-        postFeedCache.remove(postId, null);
-        postSummaryCache.evictAll(List.of(postId));
-        postDetailCache.evict(postId);
-    }
-
-    private void terminallyEvictReadModels(UUID postId, UUID boardId) {
-        postFeedCache.terminalRemove(postId, boardId);
-        postSummaryCache.terminalEvict(postId);
-        postDetailCache.terminalEvict(postId);
+    private void terminallyEvictReadModels(UUID postId, UUID boardId, long aggregateVersion) {
+        postFeedCache.terminalRemove(postId, boardId, aggregateVersion);
+        postSummaryCache.terminalEvict(postId, aggregateVersion);
+        postDetailCache.terminalEvict(postId, aggregateVersion);
     }
 
     private void commitAfterTransaction(HotFeedProjectionGuard.ProjectionAttempt attempt) {
@@ -228,9 +270,17 @@ public class PostHotFeedProjectionApplicationService {
                 UUID postId,
                 String sourceEventId,
                 long sourceVersion,
+                PostProjectionVersionLane sourceVersionLane,
                 boolean terminalDeletion
         ) {
-            return ProjectionAttempt.accepted(postId, sourceEventId, sourceVersion, terminalDeletion, "allow-all");
+            return ProjectionAttempt.accepted(
+                    postId,
+                    sourceEventId,
+                    sourceVersion,
+                    sourceVersionLane,
+                    terminalDeletion,
+                    "allow-all"
+            );
         }
 
         @Override

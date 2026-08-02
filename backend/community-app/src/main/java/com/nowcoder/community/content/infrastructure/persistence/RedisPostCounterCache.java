@@ -5,6 +5,7 @@ import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
@@ -21,9 +22,12 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisPostCounterCache implements PostCounterCache {
 
-    private static final String COUNTER_KEY_PREFIX = "post:counter:";
+    // The existing dirty key is also the hash tag, keeping both Lua keys in one Cluster slot.
+    private static final String COUNTER_KEY_PREFIX = "post:counter:{post:counter:dirty}:";
+    private static final String LEGACY_COUNTER_KEY_PREFIX = "post:counter:";
     private static final String VIEWER_KEY_PREFIX = "post:viewer:";
     private static final String DIRTY_KEY = "post:counter:dirty";
+    private static final String DIRTY_SEQUENCE_KEY = "post:counter:{post:counter:dirty}:sequence";
     private static final String FIELD_VIEW = "viewCount";
     private static final String FIELD_LIKE = "likeCount";
     private static final String FIELD_COMMENT = "commentCount";
@@ -33,7 +37,8 @@ public class RedisPostCounterCache implements PostCounterCache {
     private static final DefaultRedisScript<Long> UPDATE_COUNTER_SCRIPT = new DefaultRedisScript<>(
             """
             redis.call('HINCRBY', KEYS[1], ARGV[1], ARGV[2])
-            redis.call('ZADD', KEYS[2], ARGV[3], ARGV[4])
+            local revision = redis.call('INCR', KEYS[3])
+            redis.call('ZADD', KEYS[2], revision, ARGV[3])
             return 1
             """,
             Long.class
@@ -42,7 +47,8 @@ public class RedisPostCounterCache implements PostCounterCache {
     private static final DefaultRedisScript<Long> UPDATE_SCORE_SCRIPT = new DefaultRedisScript<>(
             """
             redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
-            redis.call('ZADD', KEYS[2], ARGV[3], ARGV[4])
+            local revision = redis.call('INCR', KEYS[3])
+            redis.call('ZADD', KEYS[2], revision, ARGV[3])
             return 1
             """,
             Long.class
@@ -55,6 +61,20 @@ public class RedisPostCounterCache implements PostCounterCache {
               return 1
             end
             return 0
+            """,
+            Long.class
+    );
+
+    private static final DefaultRedisScript<Long> CLEAR_DIRTY_SCRIPT = new DefaultRedisScript<>(
+            """
+            local removed = 0
+            for index = 1, #ARGV, 2 do
+              local current = redis.call('ZSCORE', KEYS[1], ARGV[index])
+              if current ~= false and tonumber(current) == tonumber(ARGV[index + 1]) then
+                removed = removed + redis.call('ZREM', KEYS[1], ARGV[index])
+              end
+            end
+            return removed
             """,
             Long.class
     );
@@ -75,19 +95,36 @@ public class RedisPostCounterCache implements PostCounterCache {
         if (postId == null) {
             return new PostCounterSnapshot(null, 0L, 0L, 0L, 0L, 0.0);
         }
-        Map<Object, Object> values = redisTemplate.opsForHash().entries(counterKey(postId));
-        if (values == null || values.isEmpty()) {
+        String counterKey = counterKey(postId);
+        String legacyCounterKey = legacyCounterKey(postId);
+        Map<Object, Object> values = entries(counterKey);
+        Map<Object, Object> legacyValues = entries(legacyCounterKey);
+        if (values.isEmpty() && legacyValues.isEmpty()) {
             return new PostCounterSnapshot(postId, 0L, 0L, 0L, 0L, 0.0);
         }
         List<Object> invalidFields = new ArrayList<>();
-        long viewCount = longValue(values.get(FIELD_VIEW), FIELD_VIEW, invalidFields);
-        long likeCount = longValue(values.get(FIELD_LIKE), FIELD_LIKE, invalidFields);
-        long commentCount = longValue(values.get(FIELD_COMMENT), FIELD_COMMENT, invalidFields);
-        long bookmarkCount = longValue(values.get(FIELD_BOOKMARK), FIELD_BOOKMARK, invalidFields);
-        double score = doubleValue(values.get(FIELD_SCORE), FIELD_SCORE, invalidFields);
-        if (!invalidFields.isEmpty()) {
-            redisTemplate.opsForHash().delete(counterKey(postId), invalidFields.toArray());
-        }
+        List<Object> invalidLegacyFields = new ArrayList<>();
+        long viewCount = addCounts(
+                longValue(legacyValues.get(FIELD_VIEW), FIELD_VIEW, invalidLegacyFields),
+                longValue(values.get(FIELD_VIEW), FIELD_VIEW, invalidFields)
+        );
+        long likeCount = addCounts(
+                longValue(legacyValues.get(FIELD_LIKE), FIELD_LIKE, invalidLegacyFields),
+                longValue(values.get(FIELD_LIKE), FIELD_LIKE, invalidFields)
+        );
+        long commentCount = addCounts(
+                longValue(legacyValues.get(FIELD_COMMENT), FIELD_COMMENT, invalidLegacyFields),
+                longValue(values.get(FIELD_COMMENT), FIELD_COMMENT, invalidFields)
+        );
+        long bookmarkCount = addCounts(
+                longValue(legacyValues.get(FIELD_BOOKMARK), FIELD_BOOKMARK, invalidLegacyFields),
+                longValue(values.get(FIELD_BOOKMARK), FIELD_BOOKMARK, invalidFields)
+        );
+        double score = values.containsKey(FIELD_SCORE)
+                ? doubleValue(values.get(FIELD_SCORE), FIELD_SCORE, invalidFields)
+                : doubleValue(legacyValues.get(FIELD_SCORE), FIELD_SCORE, invalidLegacyFields);
+        deleteInvalidFields(counterKey, invalidFields);
+        deleteInvalidFields(legacyCounterKey, invalidLegacyFields);
         return new PostCounterSnapshot(
                 postId,
                 viewCount,
@@ -152,38 +189,45 @@ public class RedisPostCounterCache implements PostCounterCache {
         }
         redisTemplate.execute(
                 UPDATE_SCORE_SCRIPT,
-                List.of(counterKey(postId), DIRTY_KEY),
+                List.of(counterKey(postId), DIRTY_KEY, DIRTY_SEQUENCE_KEY),
                 FIELD_SCORE,
                 Double.toString(score),
-                Double.toString(nowScore()),
                 postId.toString()
         );
     }
 
     @Override
-    public List<UUID> dirtyPostIds(int limit) {
+    public List<DirtyPost> dirtyPosts(int limit) {
         int size = Math.max(1, limit);
-        LinkedHashSet<UUID> ordered = new LinkedHashSet<>();
-        for (String rawId : redisTemplate.opsForZSet().range(DIRTY_KEY, 0, size - 1L)) {
-            UUID postId = parseUuid(rawId);
-            if (postId != null) {
-                ordered.add(postId);
+        LinkedHashSet<DirtyPost> ordered = new LinkedHashSet<>();
+        var tuples = redisTemplate.opsForZSet().rangeWithScores(DIRTY_KEY, 0, size - 1L);
+        if (tuples == null) {
+            return List.of();
+        }
+        for (ZSetOperations.TypedTuple<String> tuple : tuples) {
+            UUID postId = tuple == null ? null : parseUuid(tuple.getValue());
+            Double score = tuple == null ? null : tuple.getScore();
+            if (postId != null && score != null && score > 0.0 && score <= Long.MAX_VALUE) {
+                ordered.add(new DirtyPost(postId, score.longValue()));
             }
         }
         return new ArrayList<>(ordered);
     }
 
     @Override
-    public void clearDirtyPostIds(List<UUID> postIds) {
-        if (postIds == null || postIds.isEmpty()) {
+    public void clearDirtyPosts(List<DirtyPost> dirtyPosts) {
+        if (dirtyPosts == null || dirtyPosts.isEmpty()) {
             return;
         }
-        List<String> members = postIds.stream()
-                .filter(id -> id != null)
-                .map(UUID::toString)
-                .toList();
-        if (!members.isEmpty()) {
-            redisTemplate.opsForZSet().remove(DIRTY_KEY, members.toArray(Object[]::new));
+        List<String> args = new ArrayList<>();
+        for (DirtyPost dirtyPost : dirtyPosts) {
+            if (dirtyPost != null && dirtyPost.postId() != null && dirtyPost.revision() > 0L) {
+                args.add(dirtyPost.postId().toString());
+                args.add(Long.toString(dirtyPost.revision()));
+            }
+        }
+        if (!args.isEmpty()) {
+            redisTemplate.execute(CLEAR_DIRTY_SCRIPT, List.of(DIRTY_KEY), args.toArray());
         }
     }
 
@@ -193,16 +237,30 @@ public class RedisPostCounterCache implements PostCounterCache {
         }
         redisTemplate.execute(
                 UPDATE_COUNTER_SCRIPT,
-                List.of(counterKey(postId), DIRTY_KEY),
+                List.of(counterKey(postId), DIRTY_KEY, DIRTY_SEQUENCE_KEY),
                 field,
                 Long.toString(delta),
-                Double.toString(nowScore()),
                 postId.toString()
         );
     }
 
-    private static long longValue(Object raw) {
-        return longValue(raw, null, null);
+    private Map<Object, Object> entries(String key) {
+        Map<Object, Object> values = redisTemplate.opsForHash().entries(key);
+        return values == null ? Map.of() : values;
+    }
+
+    private void deleteInvalidFields(String key, List<Object> invalidFields) {
+        if (!invalidFields.isEmpty()) {
+            redisTemplate.opsForHash().delete(key, invalidFields.toArray());
+        }
+    }
+
+    private static long addCounts(long baseline, long overlay) {
+        try {
+            return Math.addExact(baseline, overlay);
+        } catch (ArithmeticException ex) {
+            return overlay >= 0L ? Long.MAX_VALUE : Long.MIN_VALUE;
+        }
     }
 
     private static long longValue(Object raw, String field, List<Object> invalidFields) {
@@ -217,10 +275,6 @@ public class RedisPostCounterCache implements PostCounterCache {
             }
             return 0L;
         }
-    }
-
-    private static double doubleValue(Object raw) {
-        return doubleValue(raw, null, null);
     }
 
     private static double doubleValue(Object raw, String field, List<Object> invalidFields) {
@@ -248,12 +302,12 @@ public class RedisPostCounterCache implements PostCounterCache {
         }
     }
 
-    private static double nowScore() {
-        return (double) Instant.now().toEpochMilli();
-    }
-
     private static String counterKey(UUID postId) {
         return COUNTER_KEY_PREFIX + postId;
+    }
+
+    private static String legacyCounterKey(UUID postId) {
+        return LEGACY_COUNTER_KEY_PREFIX + postId;
     }
 
     private static String viewerKey(UUID postId, String viewerKey) {

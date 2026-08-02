@@ -33,6 +33,10 @@ public class EsPostDocument {
     private Integer type;
     @Field(type = FieldType.Integer)
     private Integer status;
+    @Field(type = FieldType.Long)
+    private Long aggregateVersion;
+    @Field(type = FieldType.Long)
+    private Long scoreVersion;
     /**
      * 存储为 epoch millis，避免 Spring Data Elasticsearch 对 Instant 的读写转换不一致导致查询报错。
      */
@@ -103,6 +107,22 @@ public class EsPostDocument {
 
     public void setStatus(Integer status) {
         this.status = status;
+    }
+
+    public Long getAggregateVersion() {
+        return aggregateVersion;
+    }
+
+    public void setAggregateVersion(Long aggregateVersion) {
+        this.aggregateVersion = aggregateVersion;
+    }
+
+    public Long getScoreVersion() {
+        return scoreVersion;
+    }
+
+    public void setScoreVersion(Long scoreVersion) {
+        this.scoreVersion = scoreVersion;
     }
 
     public Long getCreateTime() {

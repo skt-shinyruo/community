@@ -52,15 +52,16 @@ class PostCounterApplicationServiceTest {
                 null
         );
         UUID postId = uuid(301);
-        when(postCounterCache.dirtyPostIds(500)).thenReturn(List.of(postId));
+        PostCounterCache.DirtyPost dirtyPost = new PostCounterCache.DirtyPost(postId, 17L);
+        when(postCounterCache.dirtyPosts(500)).thenReturn(List.of(dirtyPost));
         when(postCounterCache.get(postId)).thenReturn(new PostCounterSnapshot(postId, 11L, 3L, 5L, 2L, 99.5));
 
         int flushed = flushService.flushSnapshots(2_000);
 
         assertThat(flushed).isEqualTo(1);
-        verify(postCounterCache).dirtyPostIds(500);
+        verify(postCounterCache).dirtyPosts(500);
         verify(snapshotRepository).upsert(postId, 11L, 3L, 5L, 2L, 99.5);
-        verify(postCounterCache).clearDirtyPostIds(List.of(postId));
+        verify(postCounterCache).clearDirtyPosts(List.of(dirtyPost));
     }
 
     @Test
@@ -72,12 +73,12 @@ class PostCounterApplicationServiceTest {
                 null,
                 null
         );
-        when(postCounterCache.dirtyPostIds(1)).thenReturn(List.of());
+        when(postCounterCache.dirtyPosts(1)).thenReturn(List.of());
 
         int flushed = flushService.flushSnapshots(0);
 
         assertThat(flushed).isZero();
-        verify(postCounterCache).dirtyPostIds(1);
+        verify(postCounterCache).dirtyPosts(1);
         verifyNoInteractions(snapshotRepository);
     }
 }

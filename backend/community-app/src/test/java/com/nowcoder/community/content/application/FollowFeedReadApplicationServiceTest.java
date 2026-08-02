@@ -119,6 +119,8 @@ class FollowFeedReadApplicationServiceTest {
         UUID authorId = UUID.randomUUID();
         UUID postId = UUID.randomUUID();
         DiscussPost post = post(postId, authorId, Instant.parse("2026-07-06T10:00:00Z"));
+        post.setAggregateVersion(7L);
+        post.setScoreVersion(3L);
         Comment lastActivity = lastActivity(UUID.randomUUID(), "<reply>");
         PostContentBlock block = paragraphBlock(postId, "<preview-body>");
 
@@ -138,8 +140,11 @@ class FollowFeedReadApplicationServiceTest {
             assertThat(item.preview()).isEqualTo("<preview-body>");
             assertThat(item.lastReplyPreview()).isEqualTo("<reply>");
         });
-        verify(postSummaryCache).putAll(argThat((List<PostSummaryResult> items) ->
-                items.stream().anyMatch(it -> postId.equals(it.id()) && it.tags().contains("java"))));
+        verify(postSummaryCache).putVersioned(argThat((List<PostSummaryCache.VersionedSummary> items) ->
+                items.stream().anyMatch(it -> postId.equals(it.summary().id())
+                        && it.summary().tags().contains("java")
+                        && it.aggregateVersion() == post.getAggregateVersion()
+                        && it.scoreVersion() == post.getScoreVersion())));
     }
 
     @Test

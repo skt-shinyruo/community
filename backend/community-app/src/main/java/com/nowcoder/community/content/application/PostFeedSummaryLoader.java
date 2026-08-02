@@ -55,8 +55,9 @@ public class PostFeedSummaryLoader {
                 .filter(id -> !cached.containsKey(id))
                 .toList();
         if (!missingIds.isEmpty()) {
-            List<PostSummaryResult> loaded = assembleSummaries(postContentRepository.listPostsByIds(missingIds));
-            postSummaryCache.putAll(loaded);
+            List<DiscussPost> loadedPosts = postContentRepository.listPostsByIds(missingIds);
+            List<PostSummaryResult> loaded = assembleSummaries(loadedPosts);
+            cacheSummaries(loadedPosts, loaded);
             loaded.forEach(item -> cached.put(item.id(), item));
         }
         return postIds.stream()
@@ -81,5 +82,43 @@ public class PostFeedSummaryLoader {
                         postContentBlockTextProjector.preview(blocksByPostId.get(post.getId()), 240)
                 ))
                 .toList();
+    }
+
+    public void cacheSummaries(List<DiscussPost> posts, List<PostSummaryResult> summaries) {
+        if (posts == null || posts.isEmpty() || summaries == null || summaries.isEmpty()) {
+            return;
+        }
+        Map<UUID, SummaryVersion> versionsByPostId = posts.stream()
+                .filter(post -> post != null && post.getId() != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        DiscussPost::getId,
+                        post -> new SummaryVersion(post.getAggregateVersion(), post.getScoreVersion()),
+                        SummaryVersion::max
+                ));
+        postSummaryCache.putVersioned(summaries.stream()
+                .filter(summary -> summary != null
+                        && summary.id() != null
+                        && versionsByPostId.containsKey(summary.id()))
+                .map(summary -> {
+                    SummaryVersion version = versionsByPostId.get(summary.id());
+                    return new PostSummaryCache.VersionedSummary(
+                            summary,
+                            version.aggregateVersion(),
+                            version.scoreVersion()
+                    );
+                })
+                .toList());
+    }
+
+    private record SummaryVersion(long aggregateVersion, long scoreVersion) {
+
+        private SummaryVersion max(SummaryVersion other) {
+            if (other == null
+                    || aggregateVersion > other.aggregateVersion
+                    || (aggregateVersion == other.aggregateVersion && scoreVersion >= other.scoreVersion)) {
+                return this;
+            }
+            return other;
+        }
     }
 }

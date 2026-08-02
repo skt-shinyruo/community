@@ -88,7 +88,7 @@ class SearchPostProjectionApplicationServiceTest {
 
         service.projectPost(new ProjectPostCommand(uuid(101), "src-s3", 3L));
 
-        verify(searchApplicationService).deletePost(new DeleteIndexedPostCommand(uuid(101)));
+        verify(searchApplicationService).deletePost(new DeleteIndexedPostCommand(uuid(101), 3L));
         verify(searchApplicationService, never()).syncPostProjection(org.mockito.ArgumentMatchers.any());
     }
 
@@ -108,6 +108,8 @@ class SearchPostProjectionApplicationServiceTest {
                 "content",
                 0,
                 0,
+                7L,
+                3L,
                 Instant.parse("2026-03-28T00:00:00Z"),
                 1.5
         );
@@ -125,6 +127,7 @@ class SearchPostProjectionApplicationServiceTest {
         assertThat(captor.getValue().title()).isEqualTo("title");
         assertThat(captor.getValue().content()).isEqualTo("content");
         assertThat(captor.getValue().status()).isEqualTo(0);
+        assertThat(captor.getValue().aggregateVersion()).isEqualTo(7L);
     }
 
     @Test
@@ -135,8 +138,8 @@ class SearchPostProjectionApplicationServiceTest {
                 new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
 
         when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(201)))
-                .thenReturn(postProjection(uuid(201), "old title", "old content", 1.0))
-                .thenReturn(postProjection(uuid(201), "latest title", "latest content", 2.0));
+                .thenReturn(postProjection(uuid(201), "old title", "old content", 1L, 1.0))
+                .thenReturn(postProjection(uuid(201), "latest title", "latest content", 2L, 2.0));
 
         service.projectPost(new ProjectPostCommand(uuid(201), "evt-update-1", 1L));
         service.projectPost(new ProjectPostCommand(uuid(201), "evt-update-2", 2L));
@@ -149,6 +152,9 @@ class SearchPostProjectionApplicationServiceTest {
                 .containsExactly("old title", "latest title");
         assertThat(captor.getAllValues().get(1).content()).isEqualTo("latest content");
         assertThat(captor.getAllValues().get(1).score()).isEqualTo(2.0);
+        assertThat(captor.getAllValues())
+                .extracting(SyncPostProjectionCommand::aggregateVersion)
+                .containsExactly(1L, 2L);
     }
 
     @Test
@@ -169,6 +175,9 @@ class SearchPostProjectionApplicationServiceTest {
         assertThat(captor.getAllValues())
                 .extracting(DeleteIndexedPostCommand::postId)
                 .containsExactly(uuid(202), uuid(202));
+        assertThat(captor.getAllValues())
+                .extracting(DeleteIndexedPostCommand::aggregateVersion)
+                .containsExactly(1L, 2L);
     }
 
     @Test
@@ -179,7 +188,7 @@ class SearchPostProjectionApplicationServiceTest {
                 new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
 
         when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(203)))
-                .thenReturn(postProjection(uuid(203), "visible title", "visible content", 1.0))
+                .thenReturn(postProjection(uuid(203), "visible title", "visible content", 1L, 1.0))
                 .thenReturn(null)
                 .thenReturn(null);
 
@@ -195,6 +204,9 @@ class SearchPostProjectionApplicationServiceTest {
         assertThat(deleteCaptor.getAllValues())
                 .extracting(DeleteIndexedPostCommand::postId)
                 .containsExactly(uuid(203), uuid(203));
+        assertThat(deleteCaptor.getAllValues())
+                .extracting(DeleteIndexedPostCommand::aggregateVersion)
+                .containsExactly(2L, 3L);
     }
 
     @Test
@@ -206,20 +218,23 @@ class SearchPostProjectionApplicationServiceTest {
 
         when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(204)))
                 .thenReturn(null)
-                .thenReturn(postProjection(uuid(204), "restored title", "restored content", 3.0))
-                .thenReturn(postProjection(uuid(204), "restored title", "restored content", 3.0));
+                .thenReturn(postProjection(uuid(204), "restored title", "restored content", 2L, 3.0))
+                .thenReturn(postProjection(uuid(204), "restored title", "restored content", 3L, 3.0));
 
         service.projectPost(new ProjectPostCommand(uuid(204), "evt-delete", 1L));
         service.projectPost(new ProjectPostCommand(uuid(204), "evt-update-1", 2L));
         service.projectPost(new ProjectPostCommand(uuid(204), "evt-update-2", 3L));
 
         ArgumentCaptor<SyncPostProjectionCommand> syncCaptor = ArgumentCaptor.forClass(SyncPostProjectionCommand.class);
-        verify(searchApplicationService).deletePost(new DeleteIndexedPostCommand(uuid(204)));
+        verify(searchApplicationService).deletePost(new DeleteIndexedPostCommand(uuid(204), 1L));
         verify(searchApplicationService, times(2)).syncPostProjection(syncCaptor.capture());
         assertThat(syncCaptor.getAllValues())
                 .extracting(SyncPostProjectionCommand::title)
                 .containsExactly("restored title", "restored title");
         assertThat(syncCaptor.getAllValues().get(1).postId()).isEqualTo(uuid(204));
+        assertThat(syncCaptor.getAllValues())
+                .extracting(SyncPostProjectionCommand::aggregateVersion)
+                .containsExactly(2L, 3L);
     }
 
     @Test
@@ -231,20 +246,21 @@ class SearchPostProjectionApplicationServiceTest {
         java.util.UUID postId = uuid(205);
 
         when(postScanQueryApi.getPostProjectionAllowDeleted(postId))
-                .thenReturn(postProjection(postId, "visible title", "visible content", 3.0))
+                .thenReturn(postProjection(postId, "visible title", "visible content", 2L, 3.0))
                 .thenReturn(null);
 
         service.projectPost(new ProjectPostCommand(postId, "evt-current-create", 2L));
         service.projectPost(new ProjectPostCommand(postId, "evt-old-create-replayed", 1L));
 
         verify(searchApplicationService).syncPostProjection(org.mockito.ArgumentMatchers.any());
-        verify(searchApplicationService).deletePost(new DeleteIndexedPostCommand(postId));
+        verify(searchApplicationService).deletePost(new DeleteIndexedPostCommand(postId, 1L));
     }
 
     private static PostScanView.PostProjectionView postProjection(
             java.util.UUID postId,
             String title,
             String content,
+            long aggregateVersion,
             double score
     ) {
         return new PostScanView.PostProjectionView(
@@ -256,6 +272,8 @@ class SearchPostProjectionApplicationServiceTest {
                 content,
                 0,
                 0,
+                aggregateVersion,
+                3L,
                 Instant.parse("2026-03-28T00:00:00Z"),
                 score
         );

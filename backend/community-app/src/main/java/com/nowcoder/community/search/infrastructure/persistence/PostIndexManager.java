@@ -24,12 +24,21 @@ import java.util.Set;
 public class PostIndexManager {
 
     private static final DateTimeFormatter VERSION_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final String AGGREGATE_VERSION_FIELD = "aggregateVersion";
+    private static final String SCORE_VERSION_FIELD = "scoreVersion";
+    private static final Set<String> ADDITIVE_VERSION_FIELDS = Set.of(
+            AGGREGATE_VERSION_FIELD,
+            SCORE_VERSION_FIELD
+    );
     private static final Set<String> REQUIRED_SEARCH_FIELDS = Set.of(
             "postId",
             "title",
             "content",
             "categoryId",
             "tags",
+            "status",
+            AGGREGATE_VERSION_FIELD,
+            SCORE_VERSION_FIELD,
             "score",
             "createTime"
     );
@@ -50,6 +59,10 @@ public class PostIndexManager {
         if (aliasOps.exists()) {
             Set<String> missingFields = missingRequiredSearchFields(aliasOps.getMapping());
             if (missingFields.isEmpty()) {
+                return;
+            }
+            if (ADDITIVE_VERSION_FIELDS.containsAll(missingFields)
+                    && aliasOps.putMapping(aliasOps.createMapping())) {
                 return;
             }
             throw new IllegalStateException(

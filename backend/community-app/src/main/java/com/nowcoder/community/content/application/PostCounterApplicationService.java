@@ -78,15 +78,16 @@ public class PostCounterApplicationService {
             return 0;
         }
         int safeBatchSize = Math.max(1, Math.min(batchSize, 500));
-        List<UUID> requested = postCounterCache.dirtyPostIds(safeBatchSize);
+        List<PostCounterCache.DirtyPost> requested = postCounterCache.dirtyPosts(safeBatchSize);
         if (requested == null || requested.isEmpty()) {
             return 0;
         }
-        List<UUID> flushed = new ArrayList<>();
-        for (UUID postId : requested) {
-            if (postId == null) {
+        List<PostCounterCache.DirtyPost> flushed = new ArrayList<>();
+        for (PostCounterCache.DirtyPost dirtyPost : requested) {
+            if (dirtyPost == null || dirtyPost.postId() == null) {
                 continue;
             }
+            UUID postId = dirtyPost.postId();
             PostCounterSnapshot snapshot = read(postId);
             postCounterSnapshotRepository.upsert(
                     postId,
@@ -96,10 +97,10 @@ public class PostCounterApplicationService {
                     snapshot.bookmarkCount(),
                     snapshot.score()
             );
-            flushed.add(postId);
+            flushed.add(dirtyPost);
         }
         if (!flushed.isEmpty()) {
-            postCounterCache.clearDirtyPostIds(flushed);
+            postCounterCache.clearDirtyPosts(flushed);
         }
         return flushed.size();
     }

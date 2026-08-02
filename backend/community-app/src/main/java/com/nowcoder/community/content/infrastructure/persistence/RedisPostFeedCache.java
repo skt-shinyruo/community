@@ -26,20 +26,54 @@ public class RedisPostFeedCache implements PostFeedCache {
     private static final String GLOBAL_HOT_RANK_VERSION_KEY = GLOBAL_HOT_KEY + ":rank-version";
     private static final String BOARD_HOT_KEY_PREFIX = "post:feed:board:hot:";
     private static final String TERMINAL_MEMBER_KEY_PREFIX = "post:feed:terminal-members:";
+    private static final String VERSION_MEMBER_KEY_PREFIX = "post:feed:version-members:";
+    private static final String SCORE_VERSION_MEMBER_KEY_PREFIX = "post:feed:score-version-members:";
+    private static final String TERMINAL_FENCE_TTL_SECONDS = "604800";
     private static final String HOT_DEGRADATION_DEGRADED_KEY = "post:feed:hot:degradation:degraded";
     private static final String HOT_DEGRADATION_REASON_KEY = "post:feed:hot:degradation:reason";
     private static final String HOT_DEGRADATION_UPDATED_AT_KEY = "post:feed:hot:degradation:updated-at";
     private static final String LAST_PREWARM_KEY_PREFIX = "post:feed:hot:prewarm:last:";
     private static final DefaultRedisScript<Long> UPSERT_SCRIPT = new DefaultRedisScript<>("""
-            if redis.call('SISMEMBER', KEYS[2], ARGV[1]) == 1 then
+            if redis.call('EXISTS', KEYS[2]) == 1 then
               redis.call('ZREM', KEYS[1], ARGV[1])
               return 0
             end
+            local minimumVersion = tonumber(redis.call('GET', KEYS[3]) or '0')
+            local minimumScoreVersion = tonumber(redis.call('GET', KEYS[4]) or '0')
+            local aggregateVersion = tonumber(ARGV[3])
+            local scoreVersion = tonumber(ARGV[4])
+            if aggregateVersion == nil or scoreVersion == nil then
+              return 0
+            end
+            if aggregateVersion < minimumVersion then
+              return 0
+            end
+            if aggregateVersion == minimumVersion and scoreVersion < minimumScoreVersion then
+              return 0
+            end
             redis.call('ZADD', KEYS[1], ARGV[2], ARGV[1])
+            redis.call('SET', KEYS[3], ARGV[3], 'EX', ARGV[5])
+            redis.call('SET', KEYS[4], ARGV[4], 'EX', ARGV[5])
+            return 1
+            """, Long.class);
+    private static final DefaultRedisScript<Long> REMOVE_SCRIPT = new DefaultRedisScript<>("""
+            local minimumVersion = tonumber(redis.call('GET', KEYS[2]) or '0')
+            local nextVersion = tonumber(ARGV[2])
+            if nextVersion > minimumVersion then
+              redis.call('SET', KEYS[2], ARGV[2], 'EX', ARGV[3])
+            elseif redis.call('EXISTS', KEYS[2]) == 1 then
+              redis.call('EXPIRE', KEYS[2], ARGV[3])
+            end
+            redis.call('ZREM', KEYS[1], ARGV[1])
             return 1
             """, Long.class);
     private static final DefaultRedisScript<Long> TERMINAL_REMOVE_SCRIPT = new DefaultRedisScript<>("""
-            redis.call('SADD', KEYS[2], ARGV[1])
+            redis.call('SET', KEYS[2], '1', 'EX', ARGV[2])
+            local minimumVersion = tonumber(redis.call('GET', KEYS[3]) or '0')
+            local nextVersion = tonumber(ARGV[3])
+            if nextVersion > minimumVersion then
+              redis.call('SET', KEYS[3], ARGV[3], 'EX', ARGV[2])
+            end
             redis.call('ZREM', KEYS[1], ARGV[1])
             return 1
             """, Long.class);
@@ -73,18 +107,51 @@ public class RedisPostFeedCache implements PostFeedCache {
 
     @Override
     public void upsertGlobalHot(UUID postId, double score, String rankVersion) {
+        upsertGlobalHot(postId, score, rankVersion, 0L);
+    }
+
+    @Override
+    public void upsertGlobalHot(UUID postId, double score, String rankVersion, long sourceVersion) {
+        upsertGlobalHot(postId, score, rankVersion, sourceVersion, 0L);
+    }
+
+    @Override
+    public void upsertGlobalHot(
+            UUID postId,
+            double score,
+            String rankVersion,
+            long aggregateVersion,
+            long scoreVersion
+    ) {
         if (postId == null) {
             return;
         }
-        upsert(GLOBAL_HOT_KEY, postId, score);
+        upsert(GLOBAL_HOT_KEY, postId, score, aggregateVersion, scoreVersion);
     }
 
     @Override
     public void upsertBoardHot(UUID boardId, UUID postId, double score, String rankVersion) {
+        upsertBoardHot(boardId, postId, score, rankVersion, 0L);
+    }
+
+    @Override
+    public void upsertBoardHot(UUID boardId, UUID postId, double score, String rankVersion, long sourceVersion) {
+        upsertBoardHot(boardId, postId, score, rankVersion, sourceVersion, 0L);
+    }
+
+    @Override
+    public void upsertBoardHot(
+            UUID boardId,
+            UUID postId,
+            double score,
+            String rankVersion,
+            long aggregateVersion,
+            long scoreVersion
+    ) {
         if (boardId == null || postId == null) {
             return;
         }
-        upsert(boardKey(boardId), postId, score);
+        upsert(boardKey(boardId), postId, score, aggregateVersion, scoreVersion);
     }
 
     @Override
@@ -177,11 +244,37 @@ public class RedisPostFeedCache implements PostFeedCache {
     }
 
     @Override
-    public void terminalRemove(UUID postId, UUID boardId) {
+    public void remove(UUID postId, UUID boardId, long minimumVersion) {
         if (postId == null) {
             return;
         }
-        terminalRemoveFromScope(GLOBAL_HOT_KEY, postId);
+        removeFromScope(GLOBAL_HOT_KEY, postId, minimumVersion);
+        if (boardId != null) {
+            removeFromScope(boardKey(boardId), postId, minimumVersion);
+            return;
+        }
+        List<Category> categories = categoryContentRepository.listCategories();
+        if (categories == null) {
+            return;
+        }
+        for (Category category : categories) {
+            if (category != null && category.getId() != null) {
+                removeFromScope(boardKey(category.getId()), postId, minimumVersion);
+            }
+        }
+    }
+
+    @Override
+    public void terminalRemove(UUID postId, UUID boardId) {
+        terminalRemove(postId, boardId, 0L);
+    }
+
+    @Override
+    public void terminalRemove(UUID postId, UUID boardId, long minimumVersion) {
+        if (postId == null) {
+            return;
+        }
+        terminalRemoveFromScope(GLOBAL_HOT_KEY, postId, minimumVersion);
         Set<UUID> boardIds = new LinkedHashSet<>();
         if (boardId != null) {
             boardIds.add(boardId);
@@ -195,24 +288,54 @@ public class RedisPostFeedCache implements PostFeedCache {
             }
         }
         for (UUID currentBoardId : boardIds) {
-            terminalRemoveFromScope(boardKey(currentBoardId), postId);
+            terminalRemoveFromScope(boardKey(currentBoardId), postId, minimumVersion);
         }
     }
 
-    private void upsert(String feedKey, UUID postId, double score) {
+    private void upsert(
+            String feedKey,
+            UUID postId,
+            double score,
+            long aggregateVersion,
+            long scoreVersion
+    ) {
         redisTemplate.execute(
                 UPSERT_SCRIPT,
-                List.of(feedKey, terminalMemberKey(feedKey)),
+                List.of(
+                        feedKey,
+                        terminalMemberKey(feedKey, postId),
+                        versionMemberKey(feedKey, postId),
+                        scoreVersionMemberKey(feedKey, postId)
+                ),
                 postId.toString(),
-                Double.toString(score)
+                Double.toString(score),
+                Long.toString(Math.max(0L, aggregateVersion)),
+                Long.toString(Math.max(0L, scoreVersion)),
+                TERMINAL_FENCE_TTL_SECONDS
         );
     }
 
-    private void terminalRemoveFromScope(String feedKey, UUID postId) {
+    private void removeFromScope(String feedKey, UUID postId, long minimumVersion) {
+        redisTemplate.execute(
+                REMOVE_SCRIPT,
+                List.of(feedKey, versionMemberKey(feedKey, postId)),
+                postId.toString(),
+                Long.toString(Math.max(0L, minimumVersion)),
+                TERMINAL_FENCE_TTL_SECONDS
+        );
+    }
+
+    private void terminalRemoveFromScope(String feedKey, UUID postId, long minimumVersion) {
         Long removed = redisTemplate.execute(
                 TERMINAL_REMOVE_SCRIPT,
-                List.of(feedKey, terminalMemberKey(feedKey)),
-                postId.toString()
+                List.of(
+                        feedKey,
+                        terminalMemberKey(feedKey, postId),
+                        versionMemberKey(feedKey, postId)
+                ),
+                postId.toString(),
+                TERMINAL_FENCE_TTL_SECONDS,
+                Long.toString(Math.max(0L, minimumVersion))
         );
         if (!Long.valueOf(1L).equals(removed)) {
             throw new IllegalStateException(
@@ -269,8 +392,16 @@ public class RedisPostFeedCache implements PostFeedCache {
         return BOARD_HOT_KEY_PREFIX + boardId;
     }
 
-    private String terminalMemberKey(String feedKey) {
-        return TERMINAL_MEMBER_KEY_PREFIX + "{" + feedKey + "}";
+    private String terminalMemberKey(String feedKey, UUID postId) {
+        return TERMINAL_MEMBER_KEY_PREFIX + "{" + feedKey + "}:" + postId;
+    }
+
+    private String versionMemberKey(String feedKey, UUID postId) {
+        return VERSION_MEMBER_KEY_PREFIX + "{" + feedKey + "}:" + postId;
+    }
+
+    private String scoreVersionMemberKey(String feedKey, UUID postId) {
+        return SCORE_VERSION_MEMBER_KEY_PREFIX + "{" + feedKey + "}:" + postId;
     }
 
     private String lastPrewarmKey(String scope, UUID boardId) {

@@ -22,7 +22,10 @@ public interface PostCounterCache {
 
     void updateScore(UUID postId, double score);
 
-    List<UUID> dirtyPostIds(int limit);
+    List<DirtyPost> dirtyPosts(int limit);
 
-    void clearDirtyPostIds(List<UUID> postIds);
+    void clearDirtyPosts(List<DirtyPost> dirtyPosts);
+
+    record DirtyPost(UUID postId, long revision) {
+    }
 }

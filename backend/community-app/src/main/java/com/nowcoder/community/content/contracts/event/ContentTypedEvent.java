@@ -8,6 +8,7 @@ import java.util.UUID;
 public sealed interface ContentTypedEvent permits
         ContentTypedEvent.PostPublished,
         ContentTypedEvent.PostUpdated,
+        ContentTypedEvent.PostScoreUpdated,
         ContentTypedEvent.PostDeleted,
         ContentTypedEvent.CommentCreated,
         ContentTypedEvent.CommentDeleted,
@@ -41,6 +42,16 @@ public sealed interface ContentTypedEvent permits
             Instant occurredAt,
             long version,
             PostPayload payload
+    ) implements ContentTypedEvent {
+    }
+
+    record PostScoreUpdated(
+            String eventId,
+            UUID aggregateId,
+            String aggregateType,
+            Instant occurredAt,
+            long version,
+            PostScorePayload payload
     ) implements ContentTypedEvent {
     }
 

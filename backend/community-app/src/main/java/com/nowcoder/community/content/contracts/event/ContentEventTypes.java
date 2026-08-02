@@ -10,6 +10,7 @@ public final class ContentEventTypes {
 
     public static final String POST_PUBLISHED = "PostPublished";
     public static final String POST_UPDATED = "PostUpdated";
+    public static final String POST_SCORE_UPDATED = "PostScoreUpdated";
     public static final String POST_DELETED = "PostDeleted";
 
     public static final String COMMENT_CREATED = "CommentCreated";

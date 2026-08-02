@@ -8,6 +8,7 @@ import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import com.nowcoder.community.content.infrastructure.event.JacksonContentContractEventCodec;
 import com.nowcoder.community.search.application.SearchPostProjectionApplicationService;
 import com.nowcoder.community.search.application.command.ProjectPostCommand;
@@ -66,6 +67,38 @@ class SearchPostProjectionKafkaListenerTest {
                 "evt-post-map",
                 43L
         ));
+    }
+
+    @Test
+    void postScoreUpdatedShouldProjectUsingPostAggregateVersionInsteadOfScoreVersion() {
+        SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
+        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(contractEventCodec, applicationService);
+
+        listener.onContentEvent(contentEvent(
+                "evt-score-9",
+                ContentEventTypes.POST_SCORE_UPDATED,
+                9L,
+                new PostScorePayload(uuid(102), 42L, 9L, 17.5)
+        ));
+
+        verify(applicationService).projectPost(new ProjectPostCommand(uuid(102), "evt-score-9", 42L));
+    }
+
+    @Test
+    void postScoreUpdatedShouldRejectEnvelopeAndPayloadScoreVersionMismatch() {
+        SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
+        SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(contractEventCodec, applicationService);
+
+        assertThatThrownBy(() -> listener.onContentEvent(contentEvent(
+                "evt-score-mismatch",
+                ContentEventTypes.POST_SCORE_UPDATED,
+                10L,
+                new PostScorePayload(uuid(102), 42L, 9L, 17.5)
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(ContentEventTypes.POST_SCORE_UPDATED);
+
+        verifyNoInteractions(applicationService);
     }
 
     @Test

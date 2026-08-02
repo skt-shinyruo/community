@@ -10,6 +10,7 @@ import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -46,7 +47,7 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
                 postId,
                 "post",
                 occurredAt,
-                positiveVersion(occurredAt),
+                requiredPostVersion(payload),
                 payload
         ), postId.toString());
     }
@@ -66,7 +67,24 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
                 postId,
                 "post",
                 occurredAt,
-                positiveVersion(occurredAt),
+                requiredPostVersion(payload),
+                payload
+        ), postId.toString());
+    }
+
+    @Override
+    public void publishPostScoreUpdated(PostScorePayload payload) {
+        if (payload == null) {
+            return;
+        }
+        UUID postId = payload.postId();
+        Instant occurredAt = Instant.now();
+        publish(new ContentTypedEvent.PostScoreUpdated(
+                "content:PostScoreUpdated:" + postId + ":" + payload.scoreVersion(),
+                postId,
+                "post",
+                occurredAt,
+                payload.scoreVersion(),
                 payload
         ), postId.toString());
     }
@@ -86,7 +104,7 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
                 postId,
                 "post",
                 occurredAt,
-                positiveVersion(occurredAt),
+                requiredPostVersion(payload),
                 payload
         ), postId.toString());
     }
@@ -162,5 +180,13 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
 
     private long positiveVersion(Instant occurredAt) {
         return Math.max(1L, occurredAt.toEpochMilli());
+    }
+
+    private long requiredPostVersion(PostPayload payload) {
+        long version = payload == null ? 0L : payload.getAggregateVersion();
+        if (version <= 0L) {
+            throw new IllegalStateException("content post aggregate version missing");
+        }
+        return version;
     }
 }

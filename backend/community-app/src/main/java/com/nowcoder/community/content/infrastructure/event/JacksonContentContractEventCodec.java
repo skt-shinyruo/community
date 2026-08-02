@@ -9,6 +9,7 @@ import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -44,6 +45,9 @@ public class JacksonContentContractEventCodec implements ContentContractEventCod
             case ContentEventTypes.POST_UPDATED -> new ContentTypedEvent.PostUpdated(
                     envelope.eventId(), envelope.aggregateId(), envelope.aggregateType(),
                     envelope.occurredAt(), envelope.version(), decodePost(type, payload));
+            case ContentEventTypes.POST_SCORE_UPDATED -> new ContentTypedEvent.PostScoreUpdated(
+                    envelope.eventId(), envelope.aggregateId(), envelope.aggregateType(),
+                    envelope.occurredAt(), envelope.version(), decodePostScore(type, payload));
             case ContentEventTypes.POST_DELETED -> new ContentTypedEvent.PostDeleted(
                     envelope.eventId(), envelope.aggregateId(), envelope.aggregateType(),
                     envelope.occurredAt(), envelope.version(), decodePost(type, payload));
@@ -68,6 +72,8 @@ public class JacksonContentContractEventCodec implements ContentContractEventCod
             envelope = envelope(value, ContentEventTypes.POST_PUBLISHED, jsonCodec.valueToTree(value.payload()));
         } else if (event instanceof ContentTypedEvent.PostUpdated value) {
             envelope = envelope(value, ContentEventTypes.POST_UPDATED, jsonCodec.valueToTree(value.payload()));
+        } else if (event instanceof ContentTypedEvent.PostScoreUpdated value) {
+            envelope = envelope(value, ContentEventTypes.POST_SCORE_UPDATED, jsonCodec.valueToTree(value.payload()));
         } else if (event instanceof ContentTypedEvent.PostDeleted value) {
             envelope = envelope(value, ContentEventTypes.POST_DELETED, jsonCodec.valueToTree(value.payload()));
         } else if (event instanceof ContentTypedEvent.CommentCreated value) {
@@ -120,6 +126,11 @@ public class JacksonContentContractEventCodec implements ContentContractEventCod
         return convert(type, payload, PostPayload.class);
     }
 
+    private PostScorePayload decodePostScore(String type, JsonNode payload) {
+        requireUuid(type, payload, "postId");
+        return convert(type, payload, PostScorePayload.class);
+    }
+
     private CommentPayload decodeComment(String type, JsonNode payload) {
         requireUuid(type, payload, "commentId");
         return convert(type, payload, CommentPayload.class);
@@ -162,6 +173,7 @@ public class JacksonContentContractEventCodec implements ContentContractEventCod
     private boolean isKnown(String type) {
         return ContentEventTypes.POST_PUBLISHED.equals(type)
                 || ContentEventTypes.POST_UPDATED.equals(type)
+                || ContentEventTypes.POST_SCORE_UPDATED.equals(type)
                 || ContentEventTypes.POST_DELETED.equals(type)
                 || ContentEventTypes.COMMENT_CREATED.equals(type)
                 || ContentEventTypes.COMMENT_DELETED.equals(type)

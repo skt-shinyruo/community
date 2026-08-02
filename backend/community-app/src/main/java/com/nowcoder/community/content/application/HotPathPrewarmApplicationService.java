@@ -107,14 +107,27 @@ public class HotPathPrewarmApplicationService {
         }
         for (DiscussPost post : validPosts) {
             if (boardId == null) {
-                feedCache.upsertGlobalHot(post.getId(), post.getScore(), rankVersion);
+                feedCache.upsertGlobalHot(
+                        post.getId(),
+                        post.getScore(),
+                        rankVersion,
+                        post.getAggregateVersion(),
+                        post.getScoreVersion()
+                );
             } else {
-                feedCache.upsertBoardHot(boardId, post.getId(), post.getScore(), rankVersion);
+                feedCache.upsertBoardHot(
+                        boardId,
+                        post.getId(),
+                        post.getScore(),
+                        rankVersion,
+                        post.getAggregateVersion(),
+                        post.getScoreVersion()
+                );
             }
         }
 
         List<PostSummaryResult> summaryResults = safeSummaries(summaryLoader.assembleSummaries(validPosts));
-        summaryCache.putAll(summaryResults);
+        summaryLoader.cacheSummaries(validPosts, summaryResults);
 
         int details = 0;
         for (DiscussPost post : validPosts) {

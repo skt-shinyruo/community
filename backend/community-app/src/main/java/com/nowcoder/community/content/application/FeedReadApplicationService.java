@@ -267,7 +267,7 @@ public class FeedReadApplicationService {
         String rankVersion = policyProperties.getHotRankVersion();
         safeWarmFeedCache(fallbackPosts, boardId, rankVersion);
         List<PostSummaryResult> items = filterBoardItems(postFeedSummaryLoader.assembleSummaries(fallbackPosts), boardId);
-        safePutSummaryCache(items);
+        safePutSummaryCache(fallbackPosts, items);
         hotFeedReadMetrics.record(cacheDegraded ? "degraded" : "fallback", scope);
         return new LoadedFeedPage(items, !listFallbackPosts(page + 1, limit, boardId).isEmpty(), rankVersion);
     }
@@ -300,10 +300,23 @@ public class FeedReadApplicationService {
                 continue;
             }
             if (boardId == null) {
-                postFeedCache.upsertGlobalHot(post.getId(), post.getScore(), rankVersion);
+                postFeedCache.upsertGlobalHot(
+                        post.getId(),
+                        post.getScore(),
+                        rankVersion,
+                        post.getAggregateVersion(),
+                        post.getScoreVersion()
+                );
                 continue;
             }
-            postFeedCache.upsertBoardHot(boardId, post.getId(), post.getScore(), rankVersion);
+            postFeedCache.upsertBoardHot(
+                    boardId,
+                    post.getId(),
+                    post.getScore(),
+                    rankVersion,
+                    post.getAggregateVersion(),
+                    post.getScoreVersion()
+            );
         }
     }
 
@@ -315,9 +328,9 @@ public class FeedReadApplicationService {
         }
     }
 
-    private void safePutSummaryCache(List<PostSummaryResult> items) {
+    private void safePutSummaryCache(List<DiscussPost> posts, List<PostSummaryResult> items) {
         try {
-            postSummaryCache.putAll(items);
+            postFeedSummaryLoader.cacheSummaries(posts, items);
         } catch (RuntimeException ignored) {
             // Summary cache backfill is best-effort for fallback reads.
         }

@@ -2,6 +2,7 @@ package com.nowcoder.community.content.infrastructure.event;
 
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService;
+import com.nowcoder.community.content.application.PostProjectionVersionLane;
 import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
@@ -22,14 +23,6 @@ import java.util.UUID;
 
 @Component
 public class PostHotFeedProjectionKafkaListener {
-
-    private static final double POST_PUBLISHED_SIGNAL = 1.0;
-    private static final double POST_UPDATED_SIGNAL = 1.0;
-    private static final double POST_DELETED_SIGNAL = 0.0;
-    private static final double COMMENT_CREATED_SIGNAL = 1.0;
-    private static final double COMMENT_DELETED_SIGNAL = -1.0;
-    private static final double LIKE_CREATED_SIGNAL = 1.0;
-    private static final double LIKE_REMOVED_SIGNAL = -1.0;
 
     private final ContentContractEventCodec contentContractEventCodec;
     private final SocialContractEventCodec socialContractEventCodec;
@@ -103,9 +96,9 @@ public class PostHotFeedProjectionKafkaListener {
         applicationService.project(new ProjectPostHotFeedCommand(
                 postId,
                 null,
-                SocialEventTypes.LIKE_CREATED.equals(event.type()) ? LIKE_CREATED_SIGNAL : LIKE_REMOVED_SIGNAL,
                 event.eventId(),
                 event.version(),
+                PostProjectionVersionLane.SOCIAL,
                 false
         ));
     }
@@ -133,21 +126,17 @@ public class PostHotFeedProjectionKafkaListener {
         if (payload == null || payload.getPostId() == null) {
             throw malformed(event.type(), event.eventId());
         }
-        boolean terminalDeletion = ContentEventTypes.POST_DELETED.equals(event.type());
-        if (terminalDeletion
-                && (!"post".equals(event.aggregateType()) || !payload.getPostId().equals(event.aggregateId()))) {
+        if (!"post".equalsIgnoreCase(event.aggregateType()) || !payload.getPostId().equals(event.aggregateId())) {
             throw malformed(event.type(), event.eventId());
         }
+        boolean terminalDeletion = ContentEventTypes.POST_DELETED.equals(event.type());
+        PostVersionSource versionSource = postVersionSource(event, payload);
         return new ProjectPostHotFeedCommand(
                 payload.getPostId(),
                 payload.getCategoryId(),
-                switch (event.type()) {
-                    case ContentEventTypes.POST_PUBLISHED -> POST_PUBLISHED_SIGNAL;
-                    case ContentEventTypes.POST_UPDATED -> POST_UPDATED_SIGNAL;
-                    default -> POST_DELETED_SIGNAL;
-                },
                 event.eventId(),
-                event.version(),
+                versionSource.version(),
+                versionSource.lane(),
                 terminalDeletion
         );
     }
@@ -156,16 +145,28 @@ public class PostHotFeedProjectionKafkaListener {
         if (payload == null || payload.getPostId() == null) {
             throw malformed(event.type(), event.eventId());
         }
+        long postAggregateVersion = payload.getPostAggregateVersion();
         return new ProjectPostHotFeedCommand(
                 payload.getPostId(),
                 null,
-                ContentEventTypes.COMMENT_CREATED.equals(event.type())
-                        ? COMMENT_CREATED_SIGNAL
-                        : COMMENT_DELETED_SIGNAL,
                 event.eventId(),
-                event.version(),
+                postAggregateVersion > 0L ? postAggregateVersion : event.version(),
+                postAggregateVersion > 0L
+                        ? PostProjectionVersionLane.POST
+                        : PostProjectionVersionLane.COMMENT,
                 false
         );
+    }
+
+    private PostVersionSource postVersionSource(ContentContractEvent event, PostPayload payload) {
+        long aggregateVersion = payload.getAggregateVersion();
+        if (aggregateVersion <= 0L) {
+            return new PostVersionSource(event.version(), PostProjectionVersionLane.LEGACY_POST);
+        }
+        if (aggregateVersion != event.version()) {
+            throw malformed(event.type(), event.eventId());
+        }
+        return new PostVersionSource(aggregateVersion, PostProjectionVersionLane.POST);
     }
 
     private PostPayload postPayload(ContentTypedEvent event) {
@@ -198,5 +199,8 @@ public class PostHotFeedProjectionKafkaListener {
         } catch (RuntimeException error) {
             throw malformed(event.type(), event.eventId());
         }
+    }
+
+    private record PostVersionSource(long version, PostProjectionVersionLane lane) {
     }
 }

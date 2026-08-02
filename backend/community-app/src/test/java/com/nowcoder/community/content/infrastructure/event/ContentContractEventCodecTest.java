@@ -13,6 +13,7 @@ import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -123,6 +124,7 @@ class ContentContractEventCodecTest {
         assertThat(ContentTypedEvent.class.getPermittedSubclasses()).containsExactlyInAnyOrder(
                 ContentTypedEvent.PostPublished.class,
                 ContentTypedEvent.PostUpdated.class,
+                ContentTypedEvent.PostScoreUpdated.class,
                 ContentTypedEvent.PostDeleted.class,
                 ContentTypedEvent.CommentCreated.class,
                 ContentTypedEvent.CommentDeleted.class,
@@ -139,6 +141,7 @@ class ContentContractEventCodecTest {
 
     private static Stream<Arguments> knownContentEvents() {
         JsonNode post = JSON_CODEC.valueToTree(postPayload());
+        JsonNode postScore = JSON_CODEC.valueToTree(postScorePayload());
         JsonNode comment = JSON_CODEC.valueToTree(commentPayload());
         JsonNode moderation = JSON_CODEC.valueToTree(moderationPayload());
         return Stream.of(
@@ -146,6 +149,8 @@ class ContentContractEventCodecTest {
                         ContentTypedEvent.PostPublished.class, PostPayload.class),
                 Arguments.of(ContentEventTypes.POST_UPDATED, post,
                         ContentTypedEvent.PostUpdated.class, PostPayload.class),
+                Arguments.of(ContentEventTypes.POST_SCORE_UPDATED, postScore,
+                        ContentTypedEvent.PostScoreUpdated.class, PostScorePayload.class),
                 Arguments.of(ContentEventTypes.POST_DELETED, post,
                         ContentTypedEvent.PostDeleted.class, PostPayload.class),
                 Arguments.of(ContentEventTypes.COMMENT_CREATED, comment,
@@ -161,6 +166,7 @@ class ContentContractEventCodecTest {
         return Stream.of(
                 ContentEventTypes.POST_PUBLISHED,
                 ContentEventTypes.POST_UPDATED,
+                ContentEventTypes.POST_SCORE_UPDATED,
                 ContentEventTypes.POST_DELETED,
                 ContentEventTypes.COMMENT_CREATED,
                 ContentEventTypes.COMMENT_DELETED,
@@ -178,6 +184,8 @@ class ContentContractEventCodecTest {
     private static Stream<Arguments> malformedContentIdentities() {
         return Stream.of(
                 Arguments.of(ContentEventTypes.POST_PUBLISHED, "postId",
+                        JSON_CODEC.valueToTree(Map.of("postId", "not-a-uuid"))),
+                Arguments.of(ContentEventTypes.POST_SCORE_UPDATED, "postId",
                         JSON_CODEC.valueToTree(Map.of("postId", "not-a-uuid"))),
                 Arguments.of(ContentEventTypes.COMMENT_CREATED, "commentId",
                         JSON_CODEC.valueToTree(Map.of("commentId", "not-a-uuid"))),
@@ -207,12 +215,17 @@ class ContentContractEventCodecTest {
         return payload;
     }
 
+    private static PostScorePayload postScorePayload() {
+        return new PostScorePayload(uuid(101), 8L, 7L, 12.5);
+    }
+
     private static CommentPayload commentPayload() {
         CommentPayload payload = new CommentPayload();
         payload.setCommentId(uuid(201));
         payload.setPostId(uuid(101));
         payload.setUserId(uuid(102));
         payload.setCreateTime(OCCURRED_AT);
+        payload.setPostAggregateVersion(8L);
         return payload;
     }
 

@@ -39,6 +39,8 @@ class PostIndexManagerTest {
         assertFieldType("content", FieldType.Text);
         assertFieldType("type", FieldType.Integer);
         assertFieldType("status", FieldType.Integer);
+        assertFieldType("aggregateVersion", FieldType.Long);
+        assertFieldType("scoreVersion", FieldType.Long);
         assertFieldType("createTime", FieldType.Long);
         assertFieldType("score", FieldType.Double);
     }
@@ -50,7 +52,8 @@ class PostIndexManagerTest {
         when(operations.indexOps(EsPostDocument.class)).thenReturn(aliasOps);
         when(aliasOps.exists()).thenReturn(true);
         when(aliasOps.getMapping()).thenReturn(mappingWithFields(
-                "postId", "title", "content", "categoryId", "tags", "score", "createTime"
+                "postId", "title", "content", "categoryId", "tags", "status", "aggregateVersion",
+                "scoreVersion", "score", "createTime"
         ));
 
         new PostIndexManager(operations, "community_posts_v").ensureAliasReady();
@@ -59,6 +62,24 @@ class PostIndexManagerTest {
         verify(aliasOps).exists();
         verify(aliasOps).getMapping();
         verifyNoMoreInteractions(operations, aliasOps);
+    }
+
+    @Test
+    void ensureAliasReadyShouldAddVersionFieldsToAnExistingAlias() {
+        ElasticsearchOperations operations = mock(ElasticsearchOperations.class);
+        IndexOperations aliasOps = mock(IndexOperations.class);
+        Document expectedMapping = Document.create();
+        when(operations.indexOps(EsPostDocument.class)).thenReturn(aliasOps);
+        when(aliasOps.exists()).thenReturn(true);
+        when(aliasOps.getMapping()).thenReturn(mappingWithFields(
+                "postId", "title", "content", "categoryId", "tags", "status", "score", "createTime"
+        ));
+        when(aliasOps.createMapping()).thenReturn(expectedMapping);
+        when(aliasOps.putMapping(expectedMapping)).thenReturn(true);
+
+        new PostIndexManager(operations, "community_posts_v").ensureAliasReady();
+
+        verify(aliasOps).putMapping(expectedMapping);
     }
 
     @Test

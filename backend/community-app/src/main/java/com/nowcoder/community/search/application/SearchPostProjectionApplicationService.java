@@ -48,7 +48,7 @@ public class SearchPostProjectionApplicationService {
         }
         PostScanView.PostProjectionView projection = postScanQueryApi.getPostProjectionAllowDeleted(command.postId());
         if (projection == null || projection.postId() == null) {
-            searchApplicationService.deletePost(new DeleteIndexedPostCommand(command.postId()));
+            searchApplicationService.deletePost(new DeleteIndexedPostCommand(command.postId(), command.sourceVersion()));
             return;
         }
         searchApplicationService.syncPostProjection(PostSearchPayloadAssembler.toSyncCommand(projection));

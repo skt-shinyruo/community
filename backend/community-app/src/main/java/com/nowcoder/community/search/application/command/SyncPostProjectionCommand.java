@@ -13,11 +13,19 @@ public record SyncPostProjectionCommand(
         String content,
         Integer type,
         Integer status,
+        long aggregateVersion,
+        long scoreVersion,
         Instant createTime,
         Double score
 ) {
 
     public SyncPostProjectionCommand {
         tags = tags == null ? List.of() : List.copyOf(tags);
+        if (aggregateVersion <= 0L) {
+            throw new IllegalArgumentException("post projection aggregateVersion must be positive");
+        }
+        if (scoreVersion < 0L) {
+            throw new IllegalArgumentException("post projection scoreVersion must not be negative");
+        }
     }
 }

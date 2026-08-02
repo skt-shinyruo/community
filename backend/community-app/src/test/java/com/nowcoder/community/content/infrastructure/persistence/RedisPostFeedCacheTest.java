@@ -115,17 +115,30 @@ class RedisPostFeedCacheTest {
                 any(RedisScript.class),
                 eq(List.of(
                         "post:feed:global:hot",
-                        "post:feed:terminal-members:{post:feed:global:hot}"
+                        "post:feed:terminal-members:{post:feed:global:hot}:" + postId,
+                        "post:feed:version-members:{post:feed:global:hot}:" + postId,
+                        "post:feed:score-version-members:{post:feed:global:hot}:" + postId
                 )),
                 eq(postId.toString()),
-                eq("42.5")
+                eq("42.5"),
+                eq("0"),
+                eq("0"),
+                eq("604800")
         );
         String boardKey = "post:feed:board:hot:" + boardId;
         verify(redisTemplate).execute(
                 any(RedisScript.class),
-                eq(List.of(boardKey, "post:feed:terminal-members:{" + boardKey + "}")),
+                eq(List.of(
+                        boardKey,
+                        "post:feed:terminal-members:{" + boardKey + "}:" + postId,
+                        "post:feed:version-members:{" + boardKey + "}:" + postId,
+                        "post:feed:score-version-members:{" + boardKey + "}:" + postId
+                )),
                 eq(postId.toString()),
-                eq("41.5")
+                eq("41.5"),
+                eq("0"),
+                eq("0"),
+                eq("604800")
         );
     }
 
@@ -154,9 +167,12 @@ class RedisPostFeedCacheTest {
                 any(RedisScript.class),
                 eq(List.of(
                         "post:feed:global:hot",
-                        "post:feed:terminal-members:{post:feed:global:hot}"
+                        "post:feed:terminal-members:{post:feed:global:hot}:" + postId,
+                        "post:feed:version-members:{post:feed:global:hot}:" + postId
                 )),
-                eq(postId.toString())
+                eq(postId.toString()),
+                eq("604800"),
+                eq("0")
         );
         verifyTerminalBoardRemoval(redisTemplate, postId, payloadBoardId);
         verifyTerminalBoardRemoval(redisTemplate, postId, otherBoardId);
@@ -236,8 +252,14 @@ class RedisPostFeedCacheTest {
         String boardKey = "post:feed:board:hot:" + boardId;
         verify(redisTemplate).execute(
                 any(RedisScript.class),
-                eq(List.of(boardKey, "post:feed:terminal-members:{" + boardKey + "}")),
-                eq(postId.toString())
+                eq(List.of(
+                        boardKey,
+                        "post:feed:terminal-members:{" + boardKey + "}:" + postId,
+                        "post:feed:version-members:{" + boardKey + "}:" + postId
+                )),
+                eq(postId.toString()),
+                eq("604800"),
+                eq("0")
         );
     }
 }

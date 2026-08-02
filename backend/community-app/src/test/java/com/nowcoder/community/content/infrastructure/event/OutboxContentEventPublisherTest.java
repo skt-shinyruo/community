@@ -18,6 +18,7 @@ import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -58,6 +59,7 @@ class OutboxContentEventPublisherTest {
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
         payload.setCreateTime(Instant.EPOCH);
+        payload.setAggregateVersion(1L);
 
         publisher.publishPostPublished(payload);
 
@@ -71,7 +73,9 @@ class OutboxContentEventPublisherTest {
         JsonNode json = objectMapper.readTree(payloadCaptor.getValue());
         assertThat(json.path("eventId").asText()).isEqualTo("content:PostPublished:" + postId);
         assertThat(json.path("type").asText()).isEqualTo(ContentEventTypes.POST_PUBLISHED);
+        assertThat(json.path("version").asLong()).isEqualTo(1L);
         assertThat(json.path("payload").path("postId").asText()).isEqualTo(postId.toString());
+        assertThat(json.path("payload").path("aggregateVersion").asLong()).isEqualTo(1L);
     }
 
     @Test
@@ -84,6 +88,7 @@ class OutboxContentEventPublisherTest {
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
         payload.setCreateTime(Instant.parse("2026-07-06T08:00:00Z"));
+        payload.setAggregateVersion(7L);
 
         publisher.publishPostPublished(payload);
 
@@ -93,11 +98,11 @@ class OutboxContentEventPublisherTest {
         assertThat(event.aggregateId()).isEqualTo(postId);
         assertThat(event.aggregateType()).isEqualTo("post");
         assertThat(event.occurredAt()).isEqualTo(Instant.parse("2026-07-06T08:00:00Z"));
-        assertThat(event.version()).isPositive();
+        assertThat(event.version()).isEqualTo(7L);
     }
 
     @Test
-    void postDeletedShouldUseDeletionUpdateTimeForStableIdentityAndVersion() {
+    void postDeletedShouldUseDeletionTimeAndAggregateVersion() {
         JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxContentEventPublisher publisher = new OutboxContentEventPublisher(
@@ -111,6 +116,7 @@ class OutboxContentEventPublisherTest {
         payload.setPostId(postId);
         payload.setCreateTime(Instant.parse("2026-07-18T08:00:00Z"));
         payload.setUpdateTime(deletedAt);
+        payload.setAggregateVersion(9L);
 
         publisher.publishPostDeleted(payload);
 
@@ -124,7 +130,37 @@ class OutboxContentEventPublisherTest {
         ContentContractEvent event = jsonCodec.fromJson(payloadCaptor.getValue(), ContentContractEvent.class);
         assertThat(event.eventId()).isEqualTo("content:PostDeleted:" + postId);
         assertThat(event.occurredAt()).isEqualTo(deletedAt);
-        assertThat(event.version()).isEqualTo(deletedAt.toEpochMilli());
+        assertThat(event.version()).isEqualTo(9L);
+    }
+
+    @Test
+    void postScoreUpdatedShouldWriteDeterministicVersionedOwnerFact() {
+        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxContentEventPublisher publisher = new OutboxContentEventPublisher(
+                new JacksonContentContractEventCodec(jsonCodec),
+                store,
+                TOPIC
+        );
+        UUID postId = uuid(614);
+
+        publisher.publishPostScoreUpdated(new PostScorePayload(postId, 12L, 4L, 18.25));
+
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(store).enqueue(
+                eq("content:PostScoreUpdated:" + postId + ":4"),
+                eq(TOPIC),
+                eq(postId.toString()),
+                payloadCaptor.capture()
+        );
+        ContentContractEvent event = jsonCodec.fromJson(payloadCaptor.getValue(), ContentContractEvent.class);
+        assertThat(event.aggregateId()).isEqualTo(postId);
+        assertThat(event.aggregateType()).isEqualTo("post");
+        assertThat(event.type()).isEqualTo(ContentEventTypes.POST_SCORE_UPDATED);
+        assertThat(event.version()).isEqualTo(4L);
+        ContentTypedEvent.PostScoreUpdated decoded =
+                (ContentTypedEvent.PostScoreUpdated) new JacksonContentContractEventCodec(jsonCodec).decode(event);
+        assertThat(decoded.payload()).isEqualTo(new PostScorePayload(postId, 12L, 4L, 18.25));
     }
 
     @Test
@@ -203,6 +239,7 @@ class OutboxContentEventPublisherTest {
         );
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
+        payload.setAggregateVersion(1L);
 
         assertThatThrownBy(() -> publisher.publishPostPublished(payload))
                 .isInstanceOf(IllegalStateException.class)
@@ -322,6 +359,7 @@ class OutboxContentEventPublisherTest {
 
         publisher.publishPostPublished(null);
         publisher.publishPostPublished(new PostPayload());
+        publisher.publishPostScoreUpdated(null);
         publisher.publishCommentCreated(new CommentPayload());
         publisher.publishModerationActionApplied(new ModerationPayload());
 
@@ -375,6 +413,7 @@ class OutboxContentEventPublisherTest {
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(505));
         payload.setCreateTime(Instant.EPOCH);
+        payload.setAggregateVersion(1L);
 
         assertThatThrownBy(() -> publisher.publishPostPublished(payload))
                 .isInstanceOf(IllegalStateException.class)
@@ -387,6 +426,7 @@ class OutboxContentEventPublisherTest {
         payload.setPostId(postId);
         payload.setCreateTime(Instant.EPOCH);
         payload.setUpdateTime(Instant.EPOCH);
+        payload.setAggregateVersion(1L);
         return payload;
     }
 

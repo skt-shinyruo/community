@@ -277,8 +277,12 @@ create table if not exists market_address (
   postal_code varchar(16) default null,
   is_default boolean not null default false,
   status varchar(16) not null,
+  active_default_user_id binary(16) generated always as (
+    case when status = 'ACTIVE' and is_default then user_id else null end
+  ),
   create_time timestamp null default current_timestamp,
-  update_time timestamp null default current_timestamp on update current_timestamp
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_market_address_active_default_user unique(active_default_user_id)
 );
 
 create index if not exists idx_market_address_user_status on market_address(user_id, status, is_default, address_id);
@@ -387,7 +391,9 @@ create table if not exists discuss_post (
   deleted_reason varchar(255),
   deleted_time timestamp,
   comment_count int,
-  score double
+  score double,
+  score_version bigint not null default 1,
+  aggregate_version bigint not null default 1
 );
 
 create table if not exists post_media_asset (

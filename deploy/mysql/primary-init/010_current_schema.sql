@@ -188,6 +188,8 @@ CREATE TABLE `discuss_post` (
   `deleted_time` timestamp NULL DEFAULT NULL,
   `comment_count` int DEFAULT '0',
   `score` double DEFAULT '0',
+  `score_version` bigint NOT NULL DEFAULT '1',
+  `aggregate_version` bigint NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`),
   KEY `idx_discuss_post_user_id` (`user_id`),
   KEY `idx_discuss_post_category_id` (`category_id`)
@@ -334,9 +336,11 @@ CREATE TABLE `market_address` (
   `postal_code` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `is_default` tinyint(1) NOT NULL DEFAULT '0',
   `status` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `active_default_user_id` binary(16) GENERATED ALWAYS AS ((case when ((`status` = _utf8mb4'ACTIVE') and (`is_default` = 1)) then `user_id` else NULL end)) STORED,
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`address_id`),
+  UNIQUE KEY `uk_market_address_active_default_user` (`active_default_user_id`),
   KEY `idx_market_address_user_status` (`user_id`,`status`,`is_default`,`address_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;

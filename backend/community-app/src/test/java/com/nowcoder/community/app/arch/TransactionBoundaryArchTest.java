@@ -5,9 +5,16 @@ import com.nowcoder.community.growth.application.command.UpdateUserLevelConfigCo
 import com.nowcoder.community.market.application.MarketOrderApplicationService;
 import com.nowcoder.community.market.application.MarketWalletActionRecoveryApplicationService;
 import com.nowcoder.community.market.application.command.CreateMarketOrderCommand;
+import com.nowcoder.community.content.application.PostReadTransactionOperations;
+import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService;
+import com.nowcoder.community.content.application.PostHotFeedProjectionTransactionOperations;
+import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
 import com.nowcoder.community.social.application.LikeApplicationService;
+import com.nowcoder.community.social.application.LikeCleanupTransactionOperations;
 import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
 import com.nowcoder.community.user.application.AdminUserApplicationService;
+import com.nowcoder.community.user.application.UserAvatarApplicationService;
+import com.nowcoder.community.user.application.UserAvatarTransactionOperations;
 import com.nowcoder.community.user.application.UserCredentialApplicationService;
 import com.nowcoder.community.user.application.UserModerationApplicationService;
 import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
@@ -23,6 +30,7 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -91,11 +99,69 @@ class TransactionBoundaryArchTest {
         assertTransactional(AdminUserApplicationService.class, "updateRole", UpdateUserRoleCommand.class);
         assertTransactional(UserCredentialApplicationService.class, "updatePassword", UUID.class, String.class);
         assertTransactional(UserModerationApplicationService.class, "applyModeration", UUID.class, String.class, int.class);
-        assertTransactional(
+    }
+
+    @Test
+    void bulkCleanupAndRemoteIoMustRemainOutsideLongDatabaseTransactions() throws NoSuchMethodException {
+        assertNotTransactional(
                 LikeApplicationService.class,
                 "cleanupDeletedContentLikes",
                 CleanupDeletedContentLikesCommand.class
         );
+        assertTransactionalWithPropagation(
+                LikeCleanupTransactionOperations.class,
+                "persistDeletionFence",
+                org.springframework.transaction.annotation.Propagation.REQUIRES_NEW,
+                CleanupDeletedContentLikesCommand.class
+        );
+        assertTransactionalWithPropagation(
+                LikeCleanupTransactionOperations.class,
+                "cleanupBatch",
+                org.springframework.transaction.annotation.Propagation.REQUIRES_NEW,
+                int.class,
+                UUID.class,
+                int.class
+        );
+        assertNotTransactional(
+                UserAvatarApplicationService.class,
+                "updateAvatar",
+                UUID.class,
+                UUID.class,
+                UUID.class
+        );
+        assertTransactional(
+                UserAvatarTransactionOperations.class,
+                "updateHeaderUrl",
+                UUID.class,
+                String.class
+        );
+        assertNotTransactional(
+                PostHotFeedProjectionApplicationService.class,
+                "project",
+                ProjectPostHotFeedCommand.class
+        );
+        assertTransactionalWithPropagation(
+                PostHotFeedProjectionTransactionOperations.class,
+                "updateScore",
+                org.springframework.transaction.annotation.Propagation.REQUIRES_NEW,
+                UUID.class,
+                double.class,
+                long.class
+        );
+    }
+
+    @Test
+    void postMultiTableReadsMustUseRepeatableReadTransactions() throws NoSuchMethodException {
+        assertRepeatableReadOnly(PostReadTransactionOperations.class, "listPosts",
+                int.class, int.class, int.class, UUID.class, String.class);
+        assertRepeatableReadOnly(PostReadTransactionOperations.class, "listSubscribedPosts",
+                UUID.class, List.class, int.class, int.class, int.class, UUID.class, String.class);
+        assertRepeatableReadOnly(PostReadTransactionOperations.class, "listPostsByUser",
+                UUID.class, int.class, int.class);
+        assertRepeatableReadOnly(PostReadTransactionOperations.class, "listPostsByIds", List.class);
+        assertRepeatableReadOnly(PostReadTransactionOperations.class, "getDetail", UUID.class);
+        assertRepeatableReadOnly(PostReadTransactionOperations.class, "getProjectionAllowDeleted", UUID.class);
+        assertRepeatableReadOnly(PostReadTransactionOperations.class, "scanPosts", UUID.class, int.class);
     }
 
     private boolean isApplicationService(JavaClass javaClass) {
@@ -141,5 +207,40 @@ class TransactionBoundaryArchTest {
         assertThat(method.isAnnotationPresent(Transactional.class))
                 .as(owner.getSimpleName() + "." + methodName + " must remain a public transactional entry point")
                 .isTrue();
+    }
+
+    private void assertNotTransactional(Class<?> owner, String methodName, Class<?>... parameterTypes)
+            throws NoSuchMethodException {
+        Method method = owner.getMethod(methodName, parameterTypes);
+        assertThat(method.isAnnotationPresent(Transactional.class))
+                .as(owner.getSimpleName() + "." + methodName + " must remain outside a database transaction")
+                .isFalse();
+    }
+
+    private void assertTransactionalWithPropagation(
+            Class<?> owner,
+            String methodName,
+            org.springframework.transaction.annotation.Propagation propagation,
+            Class<?>... parameterTypes
+    ) throws NoSuchMethodException {
+        Method method = owner.getMethod(methodName, parameterTypes);
+        Transactional transactional = method.getAnnotation(Transactional.class);
+        assertThat(transactional)
+                .as(owner.getSimpleName() + "." + methodName + " must own a short transaction")
+                .isNotNull();
+        assertThat(transactional.propagation())
+                .as(owner.getSimpleName() + "." + methodName + " propagation")
+                .isEqualTo(propagation);
+    }
+
+    private void assertRepeatableReadOnly(Class<?> owner, String methodName, Class<?>... parameterTypes)
+            throws NoSuchMethodException {
+        Method method = owner.getMethod(methodName, parameterTypes);
+        Transactional transactional = method.getAnnotation(Transactional.class);
+        assertThat(transactional)
+                .as(owner.getSimpleName() + "." + methodName + " must own a consistent read snapshot")
+                .isNotNull();
+        assertThat(transactional.readOnly()).isTrue();
+        assertThat(transactional.isolation()).isEqualTo(Isolation.REPEATABLE_READ);
     }
 }

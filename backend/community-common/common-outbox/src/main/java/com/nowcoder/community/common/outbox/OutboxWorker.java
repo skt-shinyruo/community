@@ -34,6 +34,7 @@ public class OutboxWorker {
     private static final String TRANSITION_SUCCESS = "success";
     private static final String TRANSITION_RETRY = "retry";
     private static final String TRANSITION_DEAD = "dead";
+    private static final String TRANSITION_REFRESH = "refresh";
 
     private final JdbcOutboxEventStore store;
     private final Map<String, OutboxHandler> handlers;
@@ -98,18 +99,23 @@ public class OutboxWorker {
         List<OutboxEvent> due = store.findDuePending(properties.getBatchSize(), now);
         int processed = 0;
 
-        for (OutboxEvent event : due) {
-            if (event == null || event.id() == null) {
+        for (OutboxEvent candidate : due) {
+            if (candidate == null || candidate.id() == null) {
                 continue;
             }
 
             Instant leaseUntil = now.plus(properties.getProcessingLease());
-            OutboxLease lease = store.tryClaimProcessing(event.id(), leaseUntil, now).orElse(null);
+            OutboxLease lease = store.tryClaimProcessing(candidate.id(), leaseUntil, now).orElse(null);
             if (lease == null) {
                 continue;
             }
 
             processed++;
+            OutboxEvent event = store.findClaimedEvent(lease).orElse(null);
+            if (event == null) {
+                recordLeaseLost(candidate, TRANSITION_REFRESH);
+                continue;
+            }
 
             TraceContextSnapshot snapshot = TraceContextSnapshot.fromStored(event.traceId(), event.traceparent());
             try (var ignored = OtelTraceContext.openForInbound(

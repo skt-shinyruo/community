@@ -119,6 +119,7 @@ class OutboxWorkerSchedulerTest {
         when(store.recoverExpiredLeases(now)).thenReturn(0);
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(List.of(event));
         when(store.tryClaimProcessing(eq(rowId), any(), eq(now))).thenReturn(Optional.of(lease));
+        when(store.findClaimedEvent(lease)).thenReturn(Optional.of(event));
         when(store.markSucceeded(lease, now)).thenReturn(false);
 
         OutboxWorkerScheduler scheduler = new OutboxWorkerScheduler(

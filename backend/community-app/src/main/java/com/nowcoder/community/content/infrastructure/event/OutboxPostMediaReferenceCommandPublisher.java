@@ -7,6 +7,7 @@ import com.nowcoder.community.content.application.command.PostMediaReferenceComm
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.Objects;
 
 @Component
@@ -27,14 +28,16 @@ public class OutboxPostMediaReferenceCommandPublisher implements PostMediaRefere
     }
 
     @Override
-    public void publish(PostMediaReferenceCommand command) {
+    public boolean publish(PostMediaReferenceCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        store.enqueue(
-                eventId(command),
+        String eventId = eventId(command);
+        boolean enqueued = store.enqueue(
+                eventId,
                 topic,
                 command.assetId().toString(),
                 jsonCodec.toJson(command)
         );
+        return enqueued || store.requeueDeadByEventId(eventId, Instant.now());
     }
 
     private String eventId(PostMediaReferenceCommand command) {

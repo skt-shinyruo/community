@@ -11,15 +11,20 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.lang.reflect.RecordComponent;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class OutboxPostMediaReferenceCommandPublisherTest {
 
@@ -58,8 +63,9 @@ class OutboxPostMediaReferenceCommandPublisherTest {
                 7L,
                 ACTOR_USER_ID
         );
+        when(store.enqueue(anyString(), anyString(), anyString(), anyString())).thenReturn(true);
 
-        publisher.publish(command);
+        assertThat(publisher.publish(command)).isTrue();
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
         verify(store).enqueue(
@@ -77,5 +83,53 @@ class OutboxPostMediaReferenceCommandPublisherTest {
         assertThat(payload.path("operation").asText()).isEqualTo("BIND");
         assertThat(payload.path("operationVersion").asLong()).isEqualTo(7L);
         assertThat(payload.path("actorUserId").asText()).isEqualTo(ACTOR_USER_ID.toString());
+        verify(store, never()).requeueDeadByEventId(anyString(), any(Instant.class));
+    }
+
+    @Test
+    void duplicateDeadEventShouldBeRequeuedInPlace() {
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxPostMediaReferenceCommandPublisher publisher = publisher(store);
+        PostMediaReferenceCommand command = command();
+        String eventId = "content-media-reference:" + ASSET_ID + ":7:BIND";
+        when(store.enqueue(eq(eventId), eq(TOPIC), eq(ASSET_ID.toString()), anyString()))
+                .thenReturn(false);
+        when(store.requeueDeadByEventId(eq(eventId), any(Instant.class))).thenReturn(true);
+
+        assertThat(publisher.publish(command)).isTrue();
+
+        verify(store).requeueDeadByEventId(eq(eventId), any(Instant.class));
+    }
+
+    @Test
+    void duplicateNonDeadEventShouldNotBeReportedAsEnqueued() {
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxPostMediaReferenceCommandPublisher publisher = publisher(store);
+        PostMediaReferenceCommand command = command();
+        String eventId = "content-media-reference:" + ASSET_ID + ":7:BIND";
+        when(store.enqueue(eq(eventId), eq(TOPIC), eq(ASSET_ID.toString()), anyString()))
+                .thenReturn(false);
+        when(store.requeueDeadByEventId(eq(eventId), any(Instant.class))).thenReturn(false);
+
+        assertThat(publisher.publish(command)).isFalse();
+
+        verify(store).requeueDeadByEventId(eq(eventId), any(Instant.class));
+    }
+
+    private OutboxPostMediaReferenceCommandPublisher publisher(JdbcOutboxEventStore store) {
+        return new OutboxPostMediaReferenceCommandPublisher(
+                new JacksonJsonCodec(JsonMappers.standard()),
+                store,
+                TOPIC
+        );
+    }
+
+    private PostMediaReferenceCommand command() {
+        return new PostMediaReferenceCommand(
+                ASSET_ID,
+                PostMediaReferenceOperation.BIND,
+                7L,
+                ACTOR_USER_ID
+        );
     }
 }

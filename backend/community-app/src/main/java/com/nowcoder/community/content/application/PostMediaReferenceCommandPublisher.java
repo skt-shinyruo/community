@@ -4,5 +4,5 @@ import com.nowcoder.community.content.application.command.PostMediaReferenceComm
 
 public interface PostMediaReferenceCommandPublisher {
 
-    void publish(PostMediaReferenceCommand command);
+    boolean publish(PostMediaReferenceCommand command);
 }

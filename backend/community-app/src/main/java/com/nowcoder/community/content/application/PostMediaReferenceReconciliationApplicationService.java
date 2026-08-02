@@ -98,20 +98,16 @@ public class PostMediaReferenceReconciliationApplicationService {
 
     private ReconciliationOutcome reconcileBound(PostMediaAsset asset) {
         PostSnapshot post = postRepository.getRequiredSnapshot(asset.postId());
-        if (post.status() == 2) {
+        if (post.isDeleted()) {
             long version = assetRepository.requestRelease(asset.id(), now());
-            publish(asset, PostMediaReferenceOperation.RELEASE, version);
-            metrics.recordReconciliation("deleted_post", "scheduled");
-            return ReconciliationOutcome.DRIFT_SCHEDULED;
+            return publish(asset, PostMediaReferenceOperation.RELEASE, version, "deleted_post", true);
         }
         RemoteReferenceStatus remoteStatus = queryRemote(asset);
         if (remoteStatus != RemoteReferenceStatus.MISSING) {
             return ReconciliationOutcome.NONE;
         }
         long version = assetRepository.requestBindRepair(asset.id(), now());
-        publish(asset, PostMediaReferenceOperation.BIND, version);
-        metrics.recordReconciliation("remote_missing", "scheduled");
-        return ReconciliationOutcome.DRIFT_SCHEDULED;
+        return publish(asset, PostMediaReferenceOperation.BIND, version, "remote_missing", true);
     }
 
     private ReconciliationOutcome reconcileReleased(PostMediaAsset asset) {
@@ -119,9 +115,7 @@ public class PostMediaReferenceReconciliationApplicationService {
             return ReconciliationOutcome.NONE;
         }
         long version = assetRepository.requestReleaseRepair(asset.id(), now());
-        publish(asset, PostMediaReferenceOperation.RELEASE, version);
-        metrics.recordReconciliation("remote_active", "scheduled");
-        return ReconciliationOutcome.DRIFT_SCHEDULED;
+        return publish(asset, PostMediaReferenceOperation.RELEASE, version, "remote_active", true);
     }
 
     private ReconciliationOutcome republish(
@@ -129,9 +123,7 @@ public class PostMediaReferenceReconciliationApplicationService {
             PostMediaReferenceOperation operation,
             String reason
     ) {
-        publish(asset, operation, asset.referenceOperationVersion());
-        metrics.recordReconciliation(reason, "scheduled");
-        return ReconciliationOutcome.SCHEDULED;
+        return publish(asset, operation, asset.referenceOperationVersion(), reason, false);
     }
 
     private RemoteReferenceStatus queryRemote(PostMediaAsset asset) {
@@ -143,13 +135,21 @@ public class PostMediaReferenceReconciliationApplicationService {
         }
     }
 
-    private void publish(PostMediaAsset asset, PostMediaReferenceOperation operation, long version) {
-        commandPublisher.publish(new PostMediaReferenceCommand(
+    private ReconciliationOutcome publish(
+            PostMediaAsset asset,
+            PostMediaReferenceOperation operation,
+            long version,
+            String reason,
+            boolean drifted
+    ) {
+        boolean scheduled = commandPublisher.publish(new PostMediaReferenceCommand(
                 asset.id(),
                 operation,
                 version,
                 asset.ownerUserId()
         ));
+        metrics.recordReconciliation(reason, scheduled ? "scheduled" : "not_scheduled");
+        return new ReconciliationOutcome(drifted ? 1 : 0, scheduled ? 1 : 0);
     }
 
     private Date now() {
@@ -159,7 +159,5 @@ public class PostMediaReferenceReconciliationApplicationService {
     private record ReconciliationOutcome(int drifted, int scheduled) {
 
         private static final ReconciliationOutcome NONE = new ReconciliationOutcome(0, 0);
-        private static final ReconciliationOutcome SCHEDULED = new ReconciliationOutcome(0, 1);
-        private static final ReconciliationOutcome DRIFT_SCHEDULED = new ReconciliationOutcome(1, 1);
     }
 }

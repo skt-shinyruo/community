@@ -409,7 +409,7 @@ class ImCoreMySqlCurrentSchemaRepositoryContractTest {
         OutboxLease leaseA = outboxEventStore.tryClaimProcessing(
                 rowId,
                 recoveryTime,
-                recoveryTime.minusSeconds(30)
+                recoveryTime
         ).orElseThrow();
         assertState(rowId, new LeaseState(
                 OutboxEventStatus.PROCESSING,

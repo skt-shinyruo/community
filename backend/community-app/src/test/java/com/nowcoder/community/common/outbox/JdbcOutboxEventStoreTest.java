@@ -169,8 +169,8 @@ class JdbcOutboxEventStoreTest {
         UUID activeId = UUID.fromString("01965429-b34a-7000-8000-000000000012");
         insertPending(expiredId, "expired", 2, now.minusSeconds(5), "expired-old-error");
         insertPending(activeId, "active", 3, now.minusSeconds(5), "active-old-error");
-        OutboxLease expiredLease = store.tryClaimProcessing(expiredId, now, now.minusSeconds(30)).orElseThrow();
-        OutboxLease activeLease = store.tryClaimProcessing(activeId, now.plusSeconds(1), now.minusSeconds(30)).orElseThrow();
+        OutboxLease expiredLease = store.tryClaimProcessing(expiredId, now, now).orElseThrow();
+        OutboxLease activeLease = store.tryClaimProcessing(activeId, now.plusSeconds(1), now).orElseThrow();
 
         int recovered = store.recoverExpiredLeases(now);
 
@@ -192,6 +192,113 @@ class JdbcOutboxEventStoreTest {
                 now.plusSeconds(1)
         ));
         assertThat(expiredLease.token()).isNotEqualTo(activeLease.token());
+    }
+
+    @Test
+    void requeueByEventIdShouldOnlyReviveDeadEventsAndResetDeliveryState() {
+        Instant requeueTime = TOKEN_TIME.plusSeconds(90);
+        UUID deadId = UUID.fromString("01965429-b34a-7000-8000-000000000015");
+        UUID staleLeaseToken = UUID.fromString("01965429-b34a-7000-8000-000000000016");
+        insertPending(deadId, "dead-for-requeue", 9, requeueTime.plusSeconds(300), "retry exhausted");
+        jdbcTemplate.update(
+                "update outbox_event set status = ?, lease_token = ?, processing_lease_until = ? where id = ?",
+                OutboxEventStatus.DEAD,
+                BinaryUuidCodec.toBytes(staleLeaseToken),
+                Timestamp.from(requeueTime.plusSeconds(60)),
+                BinaryUuidCodec.toBytes(deadId)
+        );
+
+        assertThat(store.requeueDeadByEventId("dead-for-requeue", requeueTime)).isTrue();
+        assertThat(readState(deadId)).isEqualTo(new LeaseState(
+                OutboxEventStatus.PENDING,
+                0,
+                requeueTime,
+                null,
+                null,
+                null
+        ));
+
+        List<String> nonDeadStatuses = List.of(
+                OutboxEventStatus.PENDING,
+                OutboxEventStatus.PROCESSING,
+                OutboxEventStatus.SUCCEEDED
+        );
+        for (int index = 0; index < nonDeadStatuses.size(); index++) {
+            String status = nonDeadStatuses.get(index);
+            UUID rowId = UUID.fromString("01965429-b34a-7000-8000-00000000002" + index);
+            String eventId = "non-dead-" + status.toLowerCase();
+            insertPending(rowId, eventId, index + 1, requeueTime.plusSeconds(index + 1), "keep me");
+            jdbcTemplate.update(
+                    "update outbox_event set status = ? where id = ?",
+                    status,
+                    BinaryUuidCodec.toBytes(rowId)
+            );
+            LeaseState before = readState(rowId);
+
+            assertThat(store.requeueDeadByEventId(eventId, requeueTime)).isFalse();
+            assertState(rowId, before);
+        }
+    }
+
+    @Test
+    void staleDueCandidateShouldNotClaimAgainBeforeItsRetryDeadline() {
+        Instant pollTime = TOKEN_TIME.plusSeconds(120);
+        Instant nextRetryAt = pollTime.plusSeconds(30);
+        UUID rowId = UUID.fromString("01965429-b34a-7000-8000-000000000019");
+        insertPending(rowId, "claim-due-fence", 4, pollTime.minusSeconds(1), "first failure");
+        OutboxEvent staleCandidate = store.findDuePending(10, pollTime).get(0);
+        OutboxLease firstLease = store.tryClaimProcessing(
+                staleCandidate.id(),
+                pollTime.plusSeconds(10),
+                pollTime
+        ).orElseThrow();
+        assertThat(store.markFailedAndScheduleRetry(
+                firstLease,
+                pollTime,
+                nextRetryAt,
+                "retry later"
+        )).isTrue();
+
+        assertThat(store.tryClaimProcessing(
+                staleCandidate.id(),
+                pollTime.plusSeconds(10),
+                pollTime
+        )).isEmpty();
+        assertThat(readState(rowId)).isEqualTo(new LeaseState(
+                OutboxEventStatus.PENDING,
+                5,
+                nextRetryAt,
+                "retry later",
+                null,
+                null
+        ));
+    }
+
+    @Test
+    void claimedEventShouldReflectRetryResetPerformedAfterAStalePollSnapshot() {
+        Instant pollTime = TOKEN_TIME.plusSeconds(150);
+        UUID rowId = UUID.fromString("01965429-b34a-7000-8000-00000000001a");
+        insertPending(rowId, "dead-aba-refresh", 9, pollTime.minusSeconds(1), "retry exhausted");
+        OutboxEvent staleCandidate = store.findDuePending(10, pollTime).get(0);
+        jdbcTemplate.update(
+                "update outbox_event set status = ? where id = ?",
+                OutboxEventStatus.DEAD,
+                BinaryUuidCodec.toBytes(rowId)
+        );
+        assertThat(store.requeueDeadByEventId(staleCandidate.eventId(), pollTime)).isTrue();
+
+        OutboxLease lease = store.tryClaimProcessing(
+                staleCandidate.id(),
+                pollTime.plusSeconds(30),
+                pollTime
+        ).orElseThrow();
+        OutboxEvent claimed = store.findClaimedEvent(lease).orElseThrow();
+
+        assertThat(staleCandidate.retryCount()).isEqualTo(9);
+        assertThat(claimed.retryCount()).isZero();
+        assertThat(claimed.status()).isEqualTo(OutboxEventStatus.PROCESSING);
+        assertThat(claimed.nextRetryAt()).isNull();
+        assertThat(claimed.lastError()).isNull();
     }
 
     @Test
@@ -281,7 +388,7 @@ class JdbcOutboxEventStoreTest {
         OutboxLease leaseA = store.tryClaimProcessing(
                 rowId,
                 recoveryTime,
-                recoveryTime.minusSeconds(30)
+                recoveryTime
         ).orElseThrow();
         assertState(rowId, new LeaseState(
                 OutboxEventStatus.PROCESSING,

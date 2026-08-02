@@ -42,6 +42,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -199,6 +200,7 @@ class OutboxWorkerRetryTest {
         when(store.recoverExpiredLeases(now)).thenReturn(0);
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
         when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(Optional.of(lease));
+        when(store.findClaimedEvent(lease)).thenReturn(Optional.of(event));
         when(store.markDead(lease, now, "java.lang.RuntimeException: boom")).thenReturn(true);
 
         ListAppender<ILoggingEvent> logs = startOutboxWorkerLogCapture();
@@ -251,6 +253,7 @@ class OutboxWorkerRetryTest {
         when(store.recoverExpiredLeases(now)).thenReturn(0);
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
         when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(Optional.of(lease));
+        when(store.findClaimedEvent(lease)).thenReturn(Optional.of(event));
         when(store.markFailedAndScheduleRetry(
                 lease,
                 now,
@@ -322,6 +325,7 @@ class OutboxWorkerRetryTest {
         when(store.recoverExpiredLeases(now)).thenReturn(0);
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
         when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(Optional.of(lease));
+        when(store.findClaimedEvent(lease)).thenReturn(Optional.of(event));
         when(store.markSucceeded(lease, now)).thenReturn(true);
 
         OutboxWorker worker = new OutboxWorker(store, Map.of(handler.topic(), handler), properties, Clock.fixed(now, ZoneOffset.UTC));
@@ -376,6 +380,7 @@ class OutboxWorkerRetryTest {
         when(store.recoverExpiredLeases(now)).thenReturn(0);
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
         when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(Optional.of(lease));
+        when(store.findClaimedEvent(lease)).thenReturn(Optional.of(event));
         when(store.markSucceeded(lease, now)).thenReturn(true);
 
         OutboxWorker worker = new OutboxWorker(store, Map.of(handler.topic(), handler), properties, Clock.fixed(now, ZoneOffset.UTC));
@@ -425,6 +430,52 @@ class OutboxWorkerRetryTest {
                 eq(now.plus(Duration.ofSeconds(1))),
                 eq("java.lang.RuntimeException: " + EXCEPTION_MESSAGE_SECRET)
         );
+    }
+
+    @Test
+    void workerShouldUseTheClaimedSnapshotAfterDeadEventRevival() {
+        Instant now = Instant.parse("2026-03-14T00:00:00Z");
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxProperties properties = enabledProperties();
+        UUID outboxId = UUID.fromString("01965429-b34a-7000-8000-00000000001a");
+        OutboxLease lease = leaseFor(outboxId);
+        OutboxEvent staleCandidate = leaseLossEvent(outboxId, "e-revived:points", 9);
+        OutboxEvent claimedEvent = leaseLossEvent(outboxId, "e-revived:points", 0);
+        AtomicInteger handlerCalls = new AtomicInteger();
+        OutboxHandler handler = failingHandler(handlerCalls);
+
+        when(store.recoverExpiredLeases(now)).thenReturn(0);
+        when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(List.of(staleCandidate));
+        when(store.tryClaimProcessing(
+                outboxId,
+                now.plus(properties.getProcessingLease()),
+                now
+        )).thenReturn(Optional.of(lease));
+        when(store.findClaimedEvent(lease)).thenReturn(Optional.of(claimedEvent));
+        when(store.markFailedAndScheduleRetry(
+                lease,
+                now,
+                now.plus(Duration.ofSeconds(1)),
+                "java.lang.RuntimeException: " + EXCEPTION_MESSAGE_SECRET
+        )).thenReturn(true);
+
+        OutboxWorker worker = new OutboxWorker(
+                store,
+                Map.of(handler.topic(), handler),
+                properties,
+                Clock.fixed(now, ZoneOffset.UTC)
+        );
+
+        assertThat(worker.pollOnce()).isEqualTo(1);
+
+        assertThat(handlerCalls).hasValue(1);
+        verify(store).markFailedAndScheduleRetry(
+                lease,
+                now,
+                now.plus(Duration.ofSeconds(1)),
+                "java.lang.RuntimeException: " + EXCEPTION_MESSAGE_SECRET
+        );
+        verify(store, never()).markDead(any(OutboxLease.class), any(Instant.class), any(String.class));
     }
 
     @Test
@@ -881,6 +932,7 @@ class OutboxWorkerRetryTest {
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(List.of(event));
         when(store.tryClaimProcessing(event.id(), now.plus(properties.getProcessingLease()), now))
                 .thenReturn(Optional.of(lease));
+        when(store.findClaimedEvent(lease)).thenReturn(Optional.of(event));
     }
 
     private static void verifyClaimInteractions(
@@ -892,6 +944,7 @@ class OutboxWorkerRetryTest {
         verify(store).recoverExpiredLeases(now);
         verify(store).findDuePending(properties.getBatchSize(), now);
         verify(store).tryClaimProcessing(event.id(), now.plus(properties.getProcessingLease()), now);
+        verify(store).findClaimedEvent(org.mockito.ArgumentMatchers.any(OutboxLease.class));
     }
 
     private ListAppender<ILoggingEvent> startOutboxWorkerLogCapture() {

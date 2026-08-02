@@ -67,6 +67,25 @@ public class JdbcOutboxEventStore {
         }
     }
 
+    /**
+     * Re-enqueue a previously exhausted event without weakening event-id idempotency.
+     */
+    public boolean requeueDeadByEventId(String eventId, Instant now) {
+        String eid = normalize(eventId, "eventId");
+        Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
+        int updated = jdbcTemplate.update(
+                "update outbox_event set status = ?, lease_token = null, processing_lease_until = null, " +
+                        "retry_count = 0, next_retry_at = ?, last_error = null, updated_at = ? " +
+                        "where event_id = ? and status = ?",
+                OutboxEventStatus.PENDING,
+                nowTs,
+                nowTs,
+                eid,
+                OutboxEventStatus.DEAD
+        );
+        return updated == 1;
+    }
+
     public List<OutboxEvent> findDuePending(int limit, Instant now) {
         int safeLimit = Math.min(500, Math.max(1, limit));
         Timestamp ts = Timestamp.from(now == null ? Instant.now() : now);
@@ -92,15 +111,36 @@ public class JdbcOutboxEventStore {
         Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
         int updated = jdbcTemplate.update(
                 "update outbox_event set status = ?, lease_token = ?, processing_lease_until = ?, " +
-                        "next_retry_at = null, updated_at = ? where id = ? and status = ?",
+                        "next_retry_at = null, updated_at = ? where id = ? and status = ? " +
+                        "and (next_retry_at is null or next_retry_at <= ?)",
                 OutboxEventStatus.PROCESSING,
                 BinaryUuidCodec.toBytes(token),
                 leaseTs,
                 nowTs,
                 BinaryUuidCodec.toBytes(id),
-                OutboxEventStatus.PENDING
+                OutboxEventStatus.PENDING,
+                nowTs
         );
         return updated == 1 ? Optional.of(new OutboxLease(id, token)) : Optional.empty();
+    }
+
+    /**
+     * Reload the row after claiming so dispatch never relies on a stale poll snapshot.
+     */
+    public Optional<OutboxEvent> findClaimedEvent(OutboxLease lease) {
+        if (lease == null) {
+            return Optional.empty();
+        }
+        List<OutboxEvent> rows = jdbcTemplate.query(
+                "select id, event_id, topic, event_key, payload, status, retry_count, next_retry_at, " +
+                        "last_error, trace_id, traceparent from outbox_event " +
+                        "where id = ? and status = ? and lease_token = ?",
+                rowMapper(),
+                BinaryUuidCodec.toBytes(lease.rowId()),
+                OutboxEventStatus.PROCESSING,
+                BinaryUuidCodec.toBytes(lease.token())
+        );
+        return rows.stream().findFirst();
     }
 
     public boolean markSucceeded(OutboxLease lease, Instant now) {

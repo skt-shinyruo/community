@@ -77,6 +77,28 @@ class PostMediaReferenceReconciliationApplicationServiceTest {
     }
 
     @Test
+    void duplicateNonDeadCommandShouldNotBeReportedAsScheduled() {
+        Fixture fixture = fixture();
+        PostMediaAsset pending = asset(
+                uuid(607),
+                uuid(307),
+                PostMediaReferenceStatus.BIND_PENDING,
+                14L
+        );
+        when(fixture.mediaRepository.scanReferenceStatesAfter(ZERO_UUID, 10))
+                .thenReturn(List.of(pending));
+        when(fixture.publisher.publish(any(PostMediaReferenceCommand.class))).thenReturn(false);
+
+        PostMediaReferenceReconciliationResult result = fixture.service.reconcile(command(10));
+
+        assertThat(result).isEqualTo(new PostMediaReferenceReconciliationResult(
+                pending.id(), false, 1, 1, 0, 0, 0
+        ));
+        verify(fixture.metrics).recordReconciliation("pending_command", "not_scheduled");
+        verify(fixture.metrics, never()).recordReconciliation("pending_command", "scheduled");
+    }
+
+    @Test
     void deletedPostWithBoundReferenceShouldScheduleDurableRelease() {
         Fixture fixture = fixture();
         PostMediaAsset bound = asset(uuid(602), uuid(302), PostMediaReferenceStatus.BOUND, 6L);
@@ -190,6 +212,7 @@ class PostMediaReferenceReconciliationApplicationServiceTest {
         PostMediaReferenceQueryPort queryPort = mock(PostMediaReferenceQueryPort.class);
         PostMediaReferenceCommandPublisher publisher = mock(PostMediaReferenceCommandPublisher.class);
         PostMediaReferenceMetrics metrics = mock(PostMediaReferenceMetrics.class);
+        when(publisher.publish(any(PostMediaReferenceCommand.class))).thenReturn(true);
         return new Fixture(
                 mediaRepository,
                 postRepository,

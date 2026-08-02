@@ -122,6 +122,7 @@ class ErrorCodeCompatibilityGoldenTest {
                 golden(ContentErrorCode.INTERNAL_ERROR, 12008, "内容服务异常", "INTERNAL", 500),
                 golden(ContentErrorCode.REQUEST_REPLAY_CONFLICT, 12009, "请求号与已有内容请求不一致", "CONFLICT", 409),
                 golden(ContentErrorCode.MODERATION_DECISION_CONFLICT, 12010, "治理决定与已有处置冲突", "CONFLICT", 409),
+                golden(ContentErrorCode.POST_CONCURRENT_MODIFICATION, 12011, "帖子已被其他请求修改，请刷新后重试", "CONFLICT", 409),
 
                 golden(DriveErrorCode.DRIVE_SPACE_NOT_FOUND, 16001, "网盘空间不存在", "NOT_FOUND", 404),
                 golden(DriveErrorCode.DRIVE_ENTRY_NOT_FOUND, 16002, "网盘条目不存在", "NOT_FOUND", 404),
@@ -139,6 +140,8 @@ class ErrorCodeCompatibilityGoldenTest {
                 golden(GrowthErrorCode.TARGET_USER_NOT_FOUND, 16002, "目标用户不存在", "NOT_FOUND", 404),
                 golden(MarketErrorCode.REQUEST_REPLAY_CONFLICT, 18001, "请求号与已有市场订单不一致", "CONFLICT", 409),
                 golden(MarketErrorCode.ORDER_TRANSITION_CONFLICT, 18002, "市场订单状态已发生变化", "CONFLICT", 409),
+                golden(MarketErrorCode.LISTING_TRANSITION_CONFLICT, 18003, "市场商品状态已发生变化", "CONFLICT", 409),
+                golden(MarketErrorCode.DEFAULT_ADDRESS_CONFLICT, 18004, "默认地址已发生变化", "CONFLICT", 409),
                 golden(SearchErrorCode.INDEX_UNAVAILABLE, 15001, "搜索索引不可用", "UNAVAILABLE", 503),
                 golden(SearchErrorCode.INTERNAL_ERROR, 15003, "搜索服务异常", "INTERNAL", 500),
 
@@ -156,6 +159,7 @@ class ErrorCodeCompatibilityGoldenTest {
                 golden(UserErrorCode.AVATAR_SAVE_FAILED, 11005, "保存头像失败", "INTERNAL", 500),
                 golden(UserErrorCode.STORAGE_UNAVAILABLE, 11006, "用户存储不可用", "UNAVAILABLE", 503),
                 golden(UserErrorCode.INTERNAL_ERROR, 11007, "用户服务异常", "INTERNAL", 500),
+                golden(UserErrorCode.USER_MODERATION_CONFLICT, 11008, "用户处罚状态已被其他请求修改，请重试", "CONFLICT", 409),
 
                 golden(WalletErrorCode.INVALID_REQUEST, 17001, "钱包请求参数错误", "INVALID_INPUT", 400),
                 golden(WalletErrorCode.ACCOUNT_NOT_FOUND, 17002, "钱包账户不存在", "NOT_FOUND", 404),

@@ -66,7 +66,7 @@ class LikeCleanupTransactionIntegrationTest {
     }
 
     @Test
-    void publisherFailureInSecondPageShouldRollbackFenceLikesCountsAndOutboxThenRetryFromStart() {
+    void publisherFailureInSecondPageShouldKeepCommittedFirstPageAndRetryOnlyRemainingLikes() {
         List<UUID> relationInstanceIds = seedLikes(205);
         List<UUID> firstAttemptInstances = new java.util.concurrent.CopyOnWriteArrayList<>();
         AtomicInteger publicationAttempt = new AtomicInteger();
@@ -85,12 +85,13 @@ class LikeCleanupTransactionIntegrationTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("publish failed on second page");
 
-        assertThat(targetStateCount()).isZero();
-        assertThat(likeCount()).isEqualTo(205L);
-        assertThat(ownerLikeCount()).isEqualTo(205L);
-        assertThat(outboxCount()).isZero();
+        assertThat(targetStateCount()).isEqualTo(1L);
+        assertThat(targetStatus()).isEqualTo("DELETED");
+        assertThat(likeCount()).isEqualTo(5L);
+        assertThat(ownerLikeCount()).isEqualTo(5L);
+        assertThat(outboxCount()).isEqualTo(200L);
         assertThat(storedRelationInstanceIds())
-                .containsExactlyInAnyOrderElementsOf(relationInstanceIds);
+                .containsExactlyInAnyOrderElementsOf(relationInstanceIds.subList(200, 205));
         assertThat(firstAttemptInstances)
                 .containsExactlyElementsOf(relationInstanceIds.subList(0, 201));
 
@@ -102,13 +103,13 @@ class LikeCleanupTransactionIntegrationTest {
             retryInstances.add(event.relationInstanceId());
             return null;
         }).when(outboxPublisher).publishLikeChanged(any());
-        assertThat(likeApplicationService.cleanupDeletedContentLikes(command)).isEqualTo(205L);
+        assertThat(likeApplicationService.cleanupDeletedContentLikes(command)).isEqualTo(5L);
         assertThat(targetStatus()).isEqualTo("DELETED");
         assertThat(targetSourceVersion()).isEqualTo(42L);
         assertThat(likeCount()).isZero();
         assertThat(ownerLikeCount()).isZero();
         assertThat(outboxCount()).isEqualTo(205L);
-        assertThat(retryInstances).containsExactlyElementsOf(relationInstanceIds);
+        assertThat(retryInstances).containsExactlyElementsOf(relationInstanceIds.subList(200, 205));
 
         assertThat(likeApplicationService.cleanupDeletedContentLikes(command)).isZero();
         assertThat(outboxCount()).isEqualTo(205L);

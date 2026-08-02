@@ -49,6 +49,7 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
     private final SocialDomainEventPublisher eventPublisher;
     private final LikeTargetStateRepository targetStateRepository;
     private final LikeCleanupMetrics cleanupMetrics;
+    private final LikeCleanupTransactionOperations cleanupTransactionOperations;
     private final UuidV7Generator idGenerator;
 
     @Autowired
@@ -60,6 +61,7 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
             SocialDomainEventPublisher eventPublisher,
             LikeTargetStateRepository targetStateRepository,
             LikeCleanupMetrics cleanupMetrics,
+            LikeCleanupTransactionOperations cleanupTransactionOperations,
             UuidV7Generator idGenerator
     ) {
         this.likeRepository = likeRepository;
@@ -69,6 +71,7 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
         this.eventPublisher = eventPublisher;
         this.targetStateRepository = targetStateRepository;
         this.cleanupMetrics = cleanupMetrics;
+        this.cleanupTransactionOperations = cleanupTransactionOperations;
         this.idGenerator = idGenerator;
     }
 
@@ -89,6 +92,12 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
                 eventPublisher,
                 targetStateRepository,
                 LikeCleanupMetrics.noop(),
+                new LikeCleanupTransactionOperations(
+                        likeRepository,
+                        targetStateRepository,
+                        likeDomainService,
+                        eventPublisher
+                ),
                 idGenerator
         );
     }
@@ -180,7 +189,6 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
         return likeRepository.countEntityLikes(entityType, entityId);
     }
 
-    @Transactional
     public long cleanupDeletedContentLikes(CleanupDeletedContentLikesCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         if ((command.entityType() != POST && command.entityType() != COMMENT)
@@ -193,7 +201,8 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
         }
         String source = cleanupSource(command.sourceEventId());
         try {
-            long removed = cleanupDeletedContentLikesCore(command);
+            cleanupTransactionOperations.persistDeletionFence(command);
+            long removed = cleanupDeletedContentLikesInBatches(command.entityType(), command.entityId());
             cleanupMetrics.recordCleanup(source, "success");
             cleanupMetrics.recordCleanupLag(Duration.between(command.deletedAt(), Instant.now()));
             return removed;
@@ -203,50 +212,23 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
         }
     }
 
-    private long cleanupDeletedContentLikesCore(CleanupDeletedContentLikesCommand command) {
-        targetStateRepository.insertActiveIfAbsent(command.entityType(), command.entityId());
-        LikeTargetState current = targetStateRepository.findForUpdate(command.entityType(), command.entityId());
-        LikeTargetState updated = current.applyDeletion(
-                command.sourceEventId(),
-                command.sourceVersion(),
-                command.deletedAt()
-        );
-        if (updated == current) {
-            return isReconciliation(command.sourceEventId())
-                    ? cleanupEntityLikesCore(command.entityType(), command.entityId())
-                    : 0L;
-        }
-        if (!targetStateRepository.saveIfNewer(updated)) {
-            throw new IllegalStateException("failed to advance like target deletion fence");
-        }
-        return cleanupEntityLikesCore(command.entityType(), command.entityId());
-    }
-
-    private long cleanupEntityLikesCore(int entityType, UUID entityId) {
+    private long cleanupDeletedContentLikesInBatches(int entityType, UUID entityId) {
         long removed = 0L;
-        UUID afterActorUserId = new UUID(0L, 0L);
+        int noProgressBatches = 0;
         while (true) {
-            List<LikeRelation> page = likeRepository.scanLikesByEntity(entityType, entityId, afterActorUserId, CLEANUP_SCAN_LIMIT);
-            if (page == null || page.isEmpty()) {
+            LikeCleanupTransactionOperations.CleanupBatchResult batch =
+                    cleanupTransactionOperations.cleanupBatch(entityType, entityId, CLEANUP_SCAN_LIMIT);
+            removed += batch.removed();
+            if (batch.scanned() == 0) {
                 return removed;
             }
-            for (LikeRelation relation : page) {
-                boolean changed = likeRepository.removeLike(relation);
-                afterActorUserId = relation.actorUserId();
-                if (!changed) {
-                    continue;
+            if (batch.removed() == 0L) {
+                noProgressBatches++;
+                if (noProgressBatches >= 3) {
+                    throw new IllegalStateException("like cleanup made no progress");
                 }
-                if (relation.entityUserId() != null) {
-                    likeRepository.incrementUserLikeCount(relation.entityUserId(), -1L);
-                }
-                LikeChangedDomainEvent event = likeDomainService.likeChangedEvent(
-                        relation,
-                        new ResolvedSocialEntity(relation.entityUserId(), entityType == POST ? entityId : null),
-                        false,
-                        Instant.now()
-                );
-                eventPublisher.publishLikeChanged(event);
-                removed++;
+            } else {
+                noProgressBatches = 0;
             }
         }
     }

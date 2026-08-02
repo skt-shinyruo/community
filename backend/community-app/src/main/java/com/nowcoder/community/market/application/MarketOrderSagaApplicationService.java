@@ -1,11 +1,13 @@
 package com.nowcoder.community.market.application;
 
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.domain.model.MarketOrderStatus;
 import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
+import com.nowcoder.community.market.exception.MarketErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -163,13 +165,20 @@ public class MarketOrderSagaApplicationService {
     private void restoreReservedInventoryAndStock(MarketOrder order) {
         MarketListing listing = marketListingRepository.lockById(order.getListingId());
         if (listing != null && listing.isFiniteStock()) {
-            marketListingRepository.adjustStock(
+            int updated = marketListingRepository.adjustStock(
                     listing.getListingId(),
                     listing.getSellerUserId(),
                     0,
                     order.getQuantity(),
+                    listing.getStatus(),
                     listing.statusAfterStockRestoredBy(order.getQuantity())
             );
+            if (updated != 1) {
+                throw new BusinessException(
+                        MarketErrorCode.LISTING_TRANSITION_CONFLICT,
+                        "market listing stock transition conflict: listingId=" + listing.getListingId()
+                );
+            }
         }
         if (order.isPreloadedDelivery()) {
             marketInventoryRepository.releaseReservedByOrderIfNeeded(order.getOrderId());

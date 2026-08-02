@@ -392,13 +392,20 @@ public class MarketOrderApplicationService {
         if (!listing.isFiniteStock()) {
             return;
         }
-        marketListingRepository.adjustStock(
+        int updated = marketListingRepository.adjustStock(
                 listing.getListingId(),
                 listing.getSellerUserId(),
                 0,
                 -quantity,
+                listing.getStatus(),
                 listing.statusAfterStockDecreasedBy(quantity)
         );
+        if (updated != 1) {
+            throw new BusinessException(
+                    MarketErrorCode.LISTING_TRANSITION_CONFLICT,
+                    "market listing stock transition conflict: listingId=" + listing.getListingId()
+            );
+        }
     }
 
     private void reserveUnitsForOrder(UUID orderId, List<MarketInventoryUnit> units) {

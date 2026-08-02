@@ -63,14 +63,17 @@
             update_time = current_timestamp
         where listing_id = #{listingId, jdbcType=BINARY}
           and seller_user_id = #{sellerUserId, jdbcType=BINARY}
+          and status = #{status}
+          and status != 'CLOSED'
     </update>
 
     <update id="updateStatus">
         update market_listing
-        set status = #{status},
+        set status = #{nextStatus},
             update_time = current_timestamp
         where listing_id = #{listingId, jdbcType=BINARY}
           and seller_user_id = #{sellerUserId, jdbcType=BINARY}
+          and status = #{expectedStatus}
     </update>
 
     <update id="adjustStock">
@@ -81,6 +84,7 @@
             update_time = current_timestamp
         where listing_id = #{listingId, jdbcType=BINARY}
           and seller_user_id = #{sellerUserId, jdbcType=BINARY}
+          and status = #{expectedStatus}
     </update>
 
 </mapper>

@@ -51,7 +51,7 @@ public class MarketListing {
 
     public String statusAfterStockDecreasedBy(int quantity) {
         int nextAvailable = stockAvailable - quantity;
-        return nextAvailable <= 0 ? MarketListingStatus.SOLD_OUT.code() : status;
+        return isActive() && nextAvailable <= 0 ? MarketListingStatus.SOLD_OUT.code() : status;
     }
 
     public String statusAfterStockRestoredBy(int quantity) {

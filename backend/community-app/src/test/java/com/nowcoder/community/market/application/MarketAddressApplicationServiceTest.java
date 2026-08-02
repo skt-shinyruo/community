@@ -1,9 +1,14 @@
 package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.controller.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.application.result.MarketAddressResult;
+import com.nowcoder.community.market.domain.model.MarketAddress;
+import com.nowcoder.community.market.domain.repository.MarketAddressRepository;
+import com.nowcoder.community.market.exception.MarketErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,9 +17,14 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.UUID;
+
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(
         classes = CommunityAppApplication.class,
@@ -28,6 +38,9 @@ class MarketAddressApplicationServiceTest {
 
     @Autowired
     private MarketAddressApplicationService marketAddressService;
+
+    @Autowired
+    private MarketAddressRepository marketAddressRepository;
 
     @MockBean
     private ClientIpResolver clientIpResolver;
@@ -77,6 +90,42 @@ class MarketAddressApplicationServiceTest {
     }
 
     @Test
+    void databaseShouldRejectASecondActiveDefaultAddressForTheSameUser() {
+        UUID userId = uuid(9);
+        MarketAddress first = address(uuid(91), userId, "first", true);
+        MarketAddress second = address(uuid(92), userId, "second", true);
+
+        assertThat(marketAddressRepository.save(first))
+                .isEqualTo(MarketAddressRepository.WriteResult.APPLIED);
+        assertThat(marketAddressRepository.save(second))
+                .isEqualTo(MarketAddressRepository.WriteResult.DEFAULT_CONFLICT);
+
+        Integer activeDefaults = jdbcTemplate.queryForObject(
+                "select count(*) from market_address where user_id = ? and status = 'ACTIVE' and is_default = true",
+                Integer.class,
+                userId
+        );
+        assertThat(activeDefaults).isOne();
+    }
+
+    @Test
+    void defaultConstraintConflictShouldMapToMarketConflictError() {
+        MarketAddressRepository repository = mock(MarketAddressRepository.class);
+        when(repository.save(any(MarketAddress.class)))
+                .thenReturn(MarketAddressRepository.WriteResult.DEFAULT_CONFLICT);
+        MarketAddressApplicationService service = new MarketAddressApplicationService(
+                repository,
+                new UuidV7Generator()
+        );
+        CreateMarketAddressRequest request = addressRequest("conflicting");
+
+        assertThatThrownBy(() -> service.createAddress(MarketTestCommands.addressCommand(uuid(9), request)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(MarketErrorCode.DEFAULT_ADDRESS_CONFLICT));
+    }
+
+    @Test
     void createAddressShouldRejectNullCommand() {
         assertThatThrownBy(() -> marketAddressService.createAddress(null))
                 .isInstanceOf(NullPointerException.class)
@@ -88,5 +137,32 @@ class MarketAddressApplicationServiceTest {
         assertThatThrownBy(() -> marketAddressService.updateAddress(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
+    }
+
+    private MarketAddress address(UUID addressId, UUID userId, String receiverName, boolean defaultAddress) {
+        MarketAddress address = new MarketAddress();
+        address.setAddressId(addressId);
+        address.setUserId(userId);
+        address.setReceiverName(receiverName);
+        address.setReceiverPhone("13800000000");
+        address.setProvince("province");
+        address.setCity("city");
+        address.setDistrict("district");
+        address.setDetailAddress("detail");
+        address.setDefault(defaultAddress);
+        address.setStatus("ACTIVE");
+        return address;
+    }
+
+    private CreateMarketAddressRequest addressRequest(String receiverName) {
+        CreateMarketAddressRequest request = new CreateMarketAddressRequest();
+        request.setReceiverName(receiverName);
+        request.setReceiverPhone("13800000000");
+        request.setProvince("province");
+        request.setCity("city");
+        request.setDistrict("district");
+        request.setDetailAddress("detail");
+        request.setDefaultAddress(true);
+        return request;
     }
 }

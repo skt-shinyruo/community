@@ -131,7 +131,7 @@ class MarketOrderSagaApplicationServiceTest {
         ArgumentCaptor<MarketOrderTransition> transitionCaptor = ArgumentCaptor.forClass(MarketOrderTransition.class);
         verify(orderRepository).apply(transitionCaptor.capture());
         assertThat(transitionCaptor.getValue().nextStatus()).isEqualTo(MarketOrderStatus.CANCELLED);
-        verify(listingRepository, never()).adjustStock(any(), any(), anyInt(), anyInt(), any());
+        verify(listingRepository, never()).adjustStock(any(), any(), anyInt(), anyInt(), any(), any());
         verify(inventoryRepository, never()).releaseReservedByOrderIfNeeded(any());
     }
 
@@ -152,6 +152,7 @@ class MarketOrderSagaApplicationServiceTest {
         when(orderRepository.lockById(cancelledOrderId)).thenReturn(cancelPendingOrder);
         when(orderRepository.apply(any())).thenReturn(MarketOrderRepository.ApplyStatus.APPLIED);
         when(listingRepository.lockById(cancelledListingId)).thenReturn(listing);
+        when(listingRepository.adjustStock(any(), any(), anyInt(), anyInt(), any(), any())).thenReturn(1);
         MarketOrderSagaApplicationService service = new MarketOrderSagaApplicationService(
                 orderRepository,
                 listingRepository,
@@ -165,6 +166,7 @@ class MarketOrderSagaApplicationServiceTest {
                 sellerUserId,
                 0,
                 1,
+                "SOLD_OUT",
                 "ACTIVE"
         );
         verify(inventoryRepository, times(1)).releaseReservedByOrderIfNeeded(cancelledOrderId);
@@ -191,7 +193,7 @@ class MarketOrderSagaApplicationServiceTest {
 
         service.completeEscrowNoop(staleOrderId);
 
-        verify(listingRepository, never()).adjustStock(any(), any(), anyInt(), anyInt(), any());
+        verify(listingRepository, never()).adjustStock(any(), any(), anyInt(), anyInt(), any(), any());
         verify(inventoryRepository, never()).releaseReservedByOrderIfNeeded(any());
     }
 

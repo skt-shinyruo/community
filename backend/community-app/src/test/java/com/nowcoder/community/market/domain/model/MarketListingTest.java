@@ -56,6 +56,15 @@ class MarketListingTest {
     }
 
     @Test
+    void stockDecreaseShouldPreservePausedAndClosedStatusesWhenStockReachesZero() {
+        MarketListing paused = listing("VIRTUAL", "PRELOADED", "FINITE", 1, "PAUSED");
+        MarketListing closed = listing("VIRTUAL", "PRELOADED", "FINITE", 1, "CLOSED");
+
+        assertThat(paused.statusAfterStockDecreasedBy(1)).isEqualTo("PAUSED");
+        assertThat(closed.statusAfterStockDecreasedBy(1)).isEqualTo("CLOSED");
+    }
+
+    @Test
     void stockRestoreShouldReactivateSoldOutListingWhenAvailableBecomesPositive() {
         MarketListing listing = listing("VIRTUAL", "MANUAL", "FINITE", 0, "SOLD_OUT");
 

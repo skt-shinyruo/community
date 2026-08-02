@@ -148,7 +148,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
             return MarketOrderRepository.ApplyStatus.APPLIED;
         });
         when(listingRepository.lockById(listingId)).thenReturn(listing);
-        when(listingRepository.adjustStock(any(), any(), anyInt(), anyInt(), any())).thenAnswer(invocation -> {
+        when(listingRepository.adjustStock(any(), any(), anyInt(), anyInt(), any(), any())).thenAnswer(invocation -> {
             int adjusted = stock.addAndGet(invocation.getArgument(3));
             maximumObservedStock.accumulateAndGet(adjusted, Math::max);
             return 1;

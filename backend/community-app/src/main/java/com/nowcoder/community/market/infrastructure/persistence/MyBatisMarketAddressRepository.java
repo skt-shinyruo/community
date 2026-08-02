@@ -4,6 +4,7 @@ import com.nowcoder.community.market.domain.model.MarketAddress;
 import com.nowcoder.community.market.domain.repository.MarketAddressRepository;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketAddressDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketAddressMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -19,8 +20,12 @@ public class MyBatisMarketAddressRepository implements MarketAddressRepository {
     }
 
     @Override
-    public int save(MarketAddress address) {
-        return mapper.insert(MarketAddressDataObject.from(address));
+    public WriteResult save(MarketAddress address) {
+        try {
+            return writeResult(mapper.insert(MarketAddressDataObject.from(address)));
+        } catch (DuplicateKeyException exception) {
+            return WriteResult.DEFAULT_CONFLICT;
+        }
     }
 
     @Override
@@ -34,8 +39,12 @@ public class MyBatisMarketAddressRepository implements MarketAddressRepository {
     }
 
     @Override
-    public int saveChanges(MarketAddress address) {
-        return mapper.update(MarketAddressDataObject.from(address));
+    public WriteResult saveChanges(MarketAddress address) {
+        try {
+            return writeResult(mapper.update(MarketAddressDataObject.from(address)));
+        } catch (DuplicateKeyException exception) {
+            return WriteResult.DEFAULT_CONFLICT;
+        }
     }
 
     @Override
@@ -46,5 +55,9 @@ public class MyBatisMarketAddressRepository implements MarketAddressRepository {
     @Override
     public int softDelete(UUID addressId, UUID userId) {
         return mapper.softDelete(addressId, userId);
+    }
+
+    private WriteResult writeResult(int affectedRows) {
+        return affectedRows == 1 ? WriteResult.APPLIED : WriteResult.STALE;
     }
 }

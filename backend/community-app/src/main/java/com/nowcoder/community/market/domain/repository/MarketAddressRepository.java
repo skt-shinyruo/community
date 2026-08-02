@@ -7,13 +7,19 @@ import java.util.UUID;
 
 public interface MarketAddressRepository {
 
-    int save(MarketAddress address);
+    enum WriteResult {
+        APPLIED,
+        STALE,
+        DEFAULT_CONFLICT
+    }
+
+    WriteResult save(MarketAddress address);
 
     MarketAddress findById(UUID addressId);
 
     List<MarketAddress> findByUserId(UUID userId);
 
-    int saveChanges(MarketAddress address);
+    WriteResult saveChanges(MarketAddress address);
 
     int clearDefaultByUserId(UUID userId);
 

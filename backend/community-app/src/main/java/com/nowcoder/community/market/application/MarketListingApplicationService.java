@@ -13,6 +13,7 @@ import com.nowcoder.community.market.domain.model.MarketListingStatus;
 import com.nowcoder.community.market.domain.model.MarketStockMode;
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
 import com.nowcoder.community.market.domain.service.MarketListingDomainService;
+import com.nowcoder.community.market.exception.MarketErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -87,41 +88,64 @@ public class MarketListingApplicationService {
         Objects.requireNonNull(command, "command must not be null");
         validateUpdateRequest(command);
         listingDomainService.validateListingBasics(command.sellerUserId(), command.title(), command.unitPrice());
-        MarketListing listing = requireOwnedListing(command.listingId(), command.sellerUserId());
+        MarketListing listing = requireOwnedListingForUpdate(command.listingId(), command.sellerUserId());
+        if (MarketListingStatus.CLOSED.code().equals(listing.getStatus())) {
+            throw listingTransitionConflict(command.listingId());
+        }
         listing.setTitle(command.title().trim());
         listing.setDescription(command.description().trim());
         listing.setUnitPrice(command.unitPrice());
         listing.setMinPurchaseQuantity(command.minPurchaseQuantity());
         listing.setMaxPurchaseQuantity(command.maxPurchaseQuantity());
-        marketListingRepository.saveEditable(listing);
+        if (marketListingRepository.saveEditable(listing) != 1) {
+            throw listingTransitionConflict(command.listingId());
+        }
         return MarketListingResult.from(requireOwnedListing(command.listingId(), command.sellerUserId()));
     }
 
     @Transactional
     public MarketListingResult pauseListing(UUID sellerUserId, UUID listingId) {
-        return transitionStatus(sellerUserId, listingId, MarketListingStatus.PAUSED.code());
+        MarketListing listing = requireOwnedListingForUpdate(listingId, sellerUserId);
+        MarketListingStatus currentStatus = listingStatus(listing);
+        if (currentStatus != MarketListingStatus.ACTIVE && currentStatus != MarketListingStatus.SOLD_OUT) {
+            throw listingTransitionConflict(listingId);
+        }
+        return applyStatusTransition(listing, MarketListingStatus.PAUSED);
     }
 
     @Transactional
     public MarketListingResult resumeListing(UUID sellerUserId, UUID listingId) {
-        MarketListing listing = requireOwnedListing(listingId, sellerUserId);
-        String nextStatus = listing.isFiniteStock() && listing.getStockAvailable() <= 0
-                ? MarketListingStatus.SOLD_OUT.code()
-                : MarketListingStatus.ACTIVE.code();
-        marketListingRepository.changeStatus(listingId, sellerUserId, nextStatus);
-        return MarketListingResult.from(requireOwnedListing(listingId, sellerUserId));
+        MarketListing listing = requireOwnedListingForUpdate(listingId, sellerUserId);
+        if (listingStatus(listing) != MarketListingStatus.PAUSED) {
+            throw listingTransitionConflict(listingId);
+        }
+        MarketListingStatus nextStatus = listing.isFiniteStock() && listing.getStockAvailable() <= 0
+                ? MarketListingStatus.SOLD_OUT
+                : MarketListingStatus.ACTIVE;
+        return applyStatusTransition(listing, nextStatus);
     }
 
     @Transactional
     public MarketListingResult closeListing(UUID sellerUserId, UUID listingId) {
-        return transitionStatus(sellerUserId, listingId, MarketListingStatus.CLOSED.code());
+        MarketListing listing = requireOwnedListingForUpdate(listingId, sellerUserId);
+        if (listingStatus(listing) == MarketListingStatus.CLOSED) {
+            throw listingTransitionConflict(listingId);
+        }
+        return applyStatusTransition(listing, MarketListingStatus.CLOSED);
     }
 
-    private MarketListingResult transitionStatus(UUID sellerUserId, UUID listingId, String nextStatus) {
-        validateSellerUserId(sellerUserId);
-        requireOwnedListing(listingId, sellerUserId);
-        marketListingRepository.changeStatus(listingId, sellerUserId, nextStatus);
-        return MarketListingResult.from(requireOwnedListing(listingId, sellerUserId));
+    private MarketListingResult applyStatusTransition(MarketListing listing, MarketListingStatus nextStatus) {
+        UUID listingId = listing.getListingId();
+        MarketListingRepository.StatusTransitionResult result = marketListingRepository.transitionStatus(
+                listingId,
+                listing.getSellerUserId(),
+                listing.getStatus(),
+                nextStatus.code()
+        );
+        if (result != MarketListingRepository.StatusTransitionResult.APPLIED) {
+            throw listingTransitionConflict(listingId);
+        }
+        return MarketListingResult.from(requireOwnedListing(listingId, listing.getSellerUserId()));
     }
 
     private void validateCreateRequest(CreateMarketListingCommand command) {
@@ -266,6 +290,7 @@ public class MarketListingApplicationService {
     }
 
     private MarketListing requireOwnedListing(UUID listingId, UUID sellerUserId) {
+        validateSellerUserId(sellerUserId);
         MarketListing listing = marketListingRepository.findById(listingId);
         if (listing == null) {
             throw new BusinessException(NOT_FOUND, "market listing not found: listingId=" + listingId);
@@ -274,6 +299,33 @@ public class MarketListingApplicationService {
             throw new BusinessException(FORBIDDEN, "market listing does not belong to seller: listingId=" + listingId);
         }
         return listing;
+    }
+
+    private MarketListing requireOwnedListingForUpdate(UUID listingId, UUID sellerUserId) {
+        validateSellerUserId(sellerUserId);
+        MarketListing listing = marketListingRepository.lockById(listingId);
+        if (listing == null) {
+            throw new BusinessException(NOT_FOUND, "market listing not found: listingId=" + listingId);
+        }
+        if (!Objects.equals(listing.getSellerUserId(), sellerUserId)) {
+            throw new BusinessException(FORBIDDEN, "market listing does not belong to seller: listingId=" + listingId);
+        }
+        return listing;
+    }
+
+    private MarketListingStatus listingStatus(MarketListing listing) {
+        try {
+            return MarketListingStatus.fromCode(listing.getStatus());
+        } catch (IllegalArgumentException exception) {
+            throw listingTransitionConflict(listing.getListingId());
+        }
+    }
+
+    private BusinessException listingTransitionConflict(UUID listingId) {
+        return new BusinessException(
+                MarketErrorCode.LISTING_TRANSITION_CONFLICT,
+                "market listing transition conflict: listingId=" + listingId
+        );
     }
 
     private void validateSellerUserId(UUID sellerUserId) {

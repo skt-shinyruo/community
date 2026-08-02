@@ -8,6 +8,7 @@ import com.nowcoder.community.market.domain.model.MarketInventoryUnit;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
+import com.nowcoder.community.market.exception.MarketErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,7 +66,7 @@ public class MarketInventoryApplicationService {
 
         int delta = command.payloads().size();
         String nextStatus = listing.statusAfterStockRestoredBy(delta);
-        marketListingRepository.adjustStock(command.listingId(), command.sellerUserId(), delta, delta, nextStatus);
+        requireStockAdjusted(listing, delta, delta, nextStatus);
     }
 
     public List<MarketInventoryUnitResult> listInventory(UUID listingId, UUID sellerUserId) {
@@ -94,7 +95,7 @@ public class MarketInventoryApplicationService {
         }
 
         String nextStatus = listing.statusAfterStockDecreasedBy(1);
-        marketListingRepository.adjustStock(listing.getListingId(), sellerUserId, -1, -1, nextStatus);
+        requireStockAdjusted(listing, -1, -1, nextStatus);
     }
 
     private void validateInventoryRequest(AddMarketInventoryBatchCommand command) {
@@ -136,5 +137,31 @@ public class MarketInventoryApplicationService {
         if (!listing.goodsType().isVirtual() || !listing.isPreloadedDelivery()) {
             throw new BusinessException(INVALID_ARGUMENT, "market listing is not PRELOADED virtual: listingId=" + listing.getListingId());
         }
+    }
+
+    private void requireStockAdjusted(
+            MarketListing listing,
+            int deltaTotal,
+            int deltaAvailable,
+            String nextStatus
+    ) {
+        int updated = marketListingRepository.adjustStock(
+                listing.getListingId(),
+                listing.getSellerUserId(),
+                deltaTotal,
+                deltaAvailable,
+                listing.getStatus(),
+                nextStatus
+        );
+        if (updated != 1) {
+            throw listingTransitionConflict(listing.getListingId());
+        }
+    }
+
+    private BusinessException listingTransitionConflict(UUID listingId) {
+        return new BusinessException(
+                MarketErrorCode.LISTING_TRANSITION_CONFLICT,
+                "market listing stock transition conflict: listingId=" + listingId
+        );
     }
 }

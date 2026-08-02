@@ -26,11 +26,13 @@ public interface MarketListingMapper {
 
     int updateStatus(@Param("listingId") UUID listingId,
                      @Param("sellerUserId") UUID sellerUserId,
-                     @Param("status") String status);
+                     @Param("expectedStatus") String expectedStatus,
+                     @Param("nextStatus") String nextStatus);
 
     int adjustStock(@Param("listingId") UUID listingId,
                     @Param("sellerUserId") UUID sellerUserId,
                     @Param("deltaTotal") int deltaTotal,
                     @Param("deltaAvailable") int deltaAvailable,
+                    @Param("expectedStatus") String expectedStatus,
                     @Param("nextStatus") String nextStatus);
 }

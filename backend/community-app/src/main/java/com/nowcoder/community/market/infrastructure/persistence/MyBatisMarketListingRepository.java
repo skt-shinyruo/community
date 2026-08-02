@@ -49,12 +49,33 @@ public class MyBatisMarketListingRepository implements MarketListingRepository {
     }
 
     @Override
-    public int changeStatus(UUID listingId, UUID sellerUserId, String status) {
-        return mapper.updateStatus(listingId, sellerUserId, status);
+    public StatusTransitionResult transitionStatus(
+            UUID listingId,
+            UUID sellerUserId,
+            String expectedStatus,
+            String nextStatus
+    ) {
+        return mapper.updateStatus(listingId, sellerUserId, expectedStatus, nextStatus) == 1
+                ? StatusTransitionResult.APPLIED
+                : StatusTransitionResult.STALE;
     }
 
     @Override
-    public int adjustStock(UUID listingId, UUID sellerUserId, int deltaTotal, int deltaAvailable, String nextStatus) {
-        return mapper.adjustStock(listingId, sellerUserId, deltaTotal, deltaAvailable, nextStatus);
+    public int adjustStock(
+            UUID listingId,
+            UUID sellerUserId,
+            int deltaTotal,
+            int deltaAvailable,
+            String expectedStatus,
+            String nextStatus
+    ) {
+        return mapper.adjustStock(
+                listingId,
+                sellerUserId,
+                deltaTotal,
+                deltaAvailable,
+                expectedStatus,
+                nextStatus
+        );
     }
 }

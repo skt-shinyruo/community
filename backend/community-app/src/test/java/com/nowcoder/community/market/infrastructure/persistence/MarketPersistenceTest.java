@@ -15,11 +15,14 @@ import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketAdd
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketListingMapper;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketOrderMapper;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketShipmentMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
 import java.util.UUID;
@@ -33,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @ActiveProfiles("test")
+@Transactional
 class MarketPersistenceTest {
 
     private static final UuidV7Generator ID_GENERATOR = new UuidV7Generator();
@@ -49,8 +53,16 @@ class MarketPersistenceTest {
     @Autowired
     private MarketShipmentMapper marketShipmentMapper;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockBean
     private ClientIpResolver clientIpResolver;
+
+    @BeforeEach
+    void removeAddressesVisibleToThisRollbackOnlyTest() {
+        jdbcTemplate.update("delete from market_address");
+    }
 
     @Test
     void insertListingsAndPhysicalShipmentShouldPersistUnifiedGoodsTypeFacts() throws Exception {

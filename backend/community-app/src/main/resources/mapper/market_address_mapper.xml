@@ -60,6 +60,7 @@
             update_time = current_timestamp
         where address_id = #{addressId, jdbcType=BINARY}
           and user_id = #{userId, jdbcType=BINARY}
+          and status = 'ACTIVE'
     </update>
 
     <update id="clearDefaultByUserId">

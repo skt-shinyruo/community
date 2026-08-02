@@ -7,6 +7,11 @@ import java.util.UUID;
 
 public interface MarketListingRepository {
 
+    enum StatusTransitionResult {
+        APPLIED,
+        STALE
+    }
+
     int save(MarketListing listing);
 
     MarketListing findById(UUID listingId);
@@ -19,7 +24,19 @@ public interface MarketListingRepository {
 
     int saveEditable(MarketListing listing);
 
-    int changeStatus(UUID listingId, UUID sellerUserId, String status);
+    StatusTransitionResult transitionStatus(
+            UUID listingId,
+            UUID sellerUserId,
+            String expectedStatus,
+            String nextStatus
+    );
 
-    int adjustStock(UUID listingId, UUID sellerUserId, int deltaTotal, int deltaAvailable, String nextStatus);
+    int adjustStock(
+            UUID listingId,
+            UUID sellerUserId,
+            int deltaTotal,
+            int deltaAvailable,
+            String expectedStatus,
+            String nextStatus
+    );
 }

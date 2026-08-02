@@ -11,7 +11,9 @@ import com.nowcoder.community.common.exception.ErrorKind;
 public enum MarketErrorCode implements ErrorCode {
 
     REQUEST_REPLAY_CONFLICT(18001, "请求号与已有市场订单不一致", ErrorKind.CONFLICT),
-    ORDER_TRANSITION_CONFLICT(18002, "市场订单状态已发生变化", ErrorKind.CONFLICT);
+    ORDER_TRANSITION_CONFLICT(18002, "市场订单状态已发生变化", ErrorKind.CONFLICT),
+    LISTING_TRANSITION_CONFLICT(18003, "市场商品状态已发生变化", ErrorKind.CONFLICT),
+    DEFAULT_ADDRESS_CONFLICT(18004, "默认地址已发生变化", ErrorKind.CONFLICT);
 
     private final int code;
     private final String message;

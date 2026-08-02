@@ -7,6 +7,7 @@ import com.nowcoder.community.market.application.command.UpdateMarketAddressComm
 import com.nowcoder.community.market.application.result.MarketAddressResult;
 import com.nowcoder.community.market.domain.model.MarketAddress;
 import com.nowcoder.community.market.domain.repository.MarketAddressRepository;
+import com.nowcoder.community.market.exception.MarketErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,7 +59,7 @@ public class MarketAddressApplicationService {
         address.setPostalCode(StringUtils.hasText(command.postalCode()) ? command.postalCode().trim() : null);
         address.setDefault(command.defaultAddress());
         address.setStatus(STATUS_ACTIVE);
-        marketAddressRepository.save(address);
+        requireAddressWrite(marketAddressRepository.save(address), address.getAddressId());
         return MarketAddressResult.from(marketAddressRepository.findById(address.getAddressId()));
     }
 
@@ -91,9 +92,7 @@ public class MarketAddressApplicationService {
         address.setPostalCode(StringUtils.hasText(command.postalCode()) ? command.postalCode().trim() : null);
         address.setDefault(command.defaultAddress());
         address.setStatus(STATUS_ACTIVE);
-        if (marketAddressRepository.saveChanges(address) != 1) {
-            throw new BusinessException(INVALID_ARGUMENT, "market address update failed: addressId=" + command.addressId());
-        }
+        requireAddressWrite(marketAddressRepository.saveChanges(address), command.addressId());
         return MarketAddressResult.from(requireOwnedAddress(command.addressId(), command.userId()));
     }
 
@@ -146,5 +145,18 @@ public class MarketAddressApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "market address does not belong to user: addressId=" + addressId);
         }
         return address;
+    }
+
+    private void requireAddressWrite(MarketAddressRepository.WriteResult result, UUID addressId) {
+        if (result == MarketAddressRepository.WriteResult.APPLIED) {
+            return;
+        }
+        if (result == MarketAddressRepository.WriteResult.DEFAULT_CONFLICT) {
+            throw new BusinessException(
+                    MarketErrorCode.DEFAULT_ADDRESS_CONFLICT,
+                    "market default address conflict: addressId=" + addressId
+            );
+        }
+        throw new BusinessException(INVALID_ARGUMENT, "market address update failed: addressId=" + addressId);
     }
 }

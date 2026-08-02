@@ -59,6 +59,7 @@ import static org.mockito.Mockito.when;
 class PostPublishingMediaDesiredStateTest {
 
     private static final Instant NOW = Instant.parse("2026-07-15T09:00:00Z");
+    private static final long POST_VERSION = 7L;
 
     private final Map<Class<?>, Object> collaborators = new HashMap<>();
     private ContentSanitizer sanitizer;
@@ -192,6 +193,9 @@ class PostPublishingMediaDesiredStateTest {
 
         service.updatePost(userId, postId, "title", categoryId, List.of(), blocks);
 
+        verify(postRepository).updatePostMeta(
+                eq(postId), eq("title"), eq(categoryId), any(Date.class), eq(POST_VERSION)
+        );
         verify(mediaRepository, never()).requestRelease(eq(keptAssetId), any(Date.class));
         verify(mediaRepository).requestRelease(eq(removedAssetId), any(Date.class));
         ArgumentCaptor<PostMediaReferenceCommand> command =
@@ -249,6 +253,9 @@ class PostPublishingMediaDesiredStateTest {
         service.updatePost(userId, postId, "title", categoryId, List.of(), blocks);
         service.updatePost(userId, postId, "title", categoryId, List.of(), blocks);
 
+        verify(postRepository, times(2)).updatePostMeta(
+                eq(postId), eq("title"), eq(categoryId), any(Date.class), eq(POST_VERSION)
+        );
         verify(mediaRepository, times(1)).requestBind(
                 eq(assetId),
                 eq(postId),
@@ -326,7 +333,8 @@ class PostPublishingMediaDesiredStateTest {
     }
 
     private PostSnapshot activePost(UUID postId, UUID userId) {
-        return new PostSnapshot(postId, userId, 0, Date.from(NOW));
+        Date timestamp = Date.from(NOW);
+        return new PostSnapshot(postId, userId, 0, 0, timestamp, timestamp, POST_VERSION);
     }
 
     private PostMediaAsset boundAsset(UUID assetId, UUID ownerId, UUID postId, long version) {

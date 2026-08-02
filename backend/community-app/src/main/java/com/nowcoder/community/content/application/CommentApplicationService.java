@@ -100,10 +100,11 @@ public class CommentApplicationService {
                 ContentErrorCode.REQUEST_REPLAY_CONFLICT,
                 UUID.class,
                 () -> {
-                    UUID createdCommentId = createInsideTransaction(command);
+                    CommentMutationResult created = createInsideTransaction(command);
                     commentCacheAfterCommit.incrementCommentCount(postId, 1L);
                     commentCacheAfterCommit.evictCommentPages(postId);
-                    return createdCommentId;
+                    commentCacheAfterCommit.evictPostReadModels(postId, created.postAggregateVersion());
+                    return created.commentId();
                 }
         );
         return new CommentCreateResult(commentId);
@@ -122,7 +123,11 @@ public class CommentApplicationService {
                 .editByAuthor(userId, postId, sanitize(content), now);
         CommentTransitionStatus status = commentRepository.apply(edit);
         switch (status) {
-            case APPLIED -> commentCacheAfterCommit.evictCommentPages(postId);
+            case APPLIED -> {
+                long postAggregateVersion = mutateActivePost(postId, 0);
+                commentCacheAfterCommit.evictCommentPages(postId);
+                commentCacheAfterCommit.evictPostSummaryAndDetail(postId, postAggregateVersion);
+            }
             case NO_OP, NOT_FOUND -> throw new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND);
             case STALE -> throw staleTransition();
         }
@@ -150,7 +155,7 @@ public class CommentApplicationService {
         deleteActiveThread(aggregate, deletion, resolvePostId(existing));
     }
 
-    private UUID createInsideTransaction(CreateCommentCommand command) {
+    private CommentMutationResult createInsideTransaction(CreateCommentCommand command) {
         UUID userId = command.userId();
         UUID postId = command.postId();
 
@@ -180,8 +185,8 @@ public class CommentApplicationService {
                 safeContent,
                 createTime
         );
+        long postAggregateVersion = mutateActivePost(postId, 1);
         UUID commentId = commentRepository.create(draft);
-        postContentPort.incrementCommentCount(postId, 1);
 
         String decodedContent = textCodec.decodeOnRead(safeContent);
         var createdAt = createTime.toInstant();
@@ -194,8 +199,9 @@ public class CommentApplicationService {
         payload.setTargetUserId(target.targetUserId());
         payload.setContent(decodedContent);
         payload.setCreateTime(createdAt);
+        payload.setPostAggregateVersion(postAggregateVersion);
         eventPublisher.publishCommentCreated(payload);
-        return commentId;
+        return new CommentMutationResult(commentId, postAggregateVersion);
     }
 
     private String createCommentRequestHash(CreateCommentCommand command) {
@@ -232,7 +238,7 @@ public class CommentApplicationService {
             }
         }
 
-        postContentPort.incrementCommentCount(postId, -result.deletedCount());
+        long postAggregateVersion = mutateActivePost(postId, -result.deletedCount());
         for (CommentSnapshot deletedComment : result.deletedComments()) {
             CommentPayload payload = new CommentPayload();
             payload.setCommentId(deletedComment.id());
@@ -241,10 +247,20 @@ public class CommentApplicationService {
             payload.setEntityType(deletedComment.rootComment() ? EntityTypes.POST : EntityTypes.COMMENT);
             payload.setEntityId(deletedComment.rootComment() ? postId : deletedComment.parentCommentId());
             payload.setCreateTime(transition.deletedTime().toInstant());
+            payload.setPostAggregateVersion(postAggregateVersion);
             eventPublisher.publishCommentDeleted(payload);
         }
         commentCacheAfterCommit.incrementCommentCount(postId, -result.deletedCount());
         commentCacheAfterCommit.evictCommentPages(postId);
+        commentCacheAfterCommit.evictPostReadModels(postId, postAggregateVersion);
+    }
+
+    private long mutateActivePost(UUID postId, int commentCountDelta) {
+        long aggregateVersion = postContentPort.incrementActiveCommentCount(postId, commentCountDelta);
+        if (aggregateVersion <= 0L) {
+            throw new BusinessException(ContentErrorCode.POST_NOT_FOUND);
+        }
+        return aggregateVersion;
     }
 
     private static IllegalStateException staleTransition() {
@@ -264,5 +280,8 @@ public class CommentApplicationService {
     }
 
     public record CommentCreateResult(UUID commentId) {
+    }
+
+    private record CommentMutationResult(UUID commentId, long postAggregateVersion) {
     }
 }

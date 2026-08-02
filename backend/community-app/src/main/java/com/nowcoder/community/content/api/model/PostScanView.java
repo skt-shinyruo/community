@@ -23,6 +23,8 @@ public record PostScanView(
             String content,
             int type,
             int status,
+            long aggregateVersion,
+            long scoreVersion,
             Instant createTime,
             Double score
     ) {

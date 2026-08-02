@@ -140,8 +140,8 @@ public class PostPublishingApplicationService {
         domainService.assertEditableByAuthor(post, userId, now);
         List<PostContentBlockCommand> normalizedBlocks = sanitizeBlocks(blockPolicy.validateAndNormalize(blocks));
         List<UUID> keepAssetIds = mediaAssetIds(normalizedBlocks);
+        postRepository.updatePostMeta(postId, sanitize(title), categoryId, now, post.aggregateVersion());
         bindMediaAssets(userId, postId, normalizedBlocks, now);
-        postRepository.updatePostMeta(postId, sanitize(title), categoryId, now);
         postContentBlockRepository.replaceBlocks(postId, toDomainBlocks(postId, normalizedBlocks));
         releaseRemovedMediaAssets(userId, postId, keepAssetIds, now);
         postTagRepository.replaceTagsForPost(postId, tags);
@@ -153,7 +153,7 @@ public class PostPublishingApplicationService {
     public void deleteByAuthor(UUID userId, UUID postId) {
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
         domainService.assertDeletableByAuthor(post, userId);
-        boolean changed = postRepository.markDeletedByAuthor(postId, userId, now());
+        boolean changed = postRepository.markDeletedByAuthor(postId, userId, now(), post.aggregateVersion());
         if (!changed) {
             return;
         }

@@ -28,13 +28,19 @@ class CommentCacheAfterCommitTest {
 
     private PostCounterCache postCounterCache;
     private CommentPageCache commentPageCache;
+    private PostCacheAfterCommit postCacheAfterCommit;
     private CommentCacheAfterCommit cacheAfterCommit;
 
     @BeforeEach
     void setUp() {
         postCounterCache = mock(PostCounterCache.class);
         commentPageCache = mock(CommentPageCache.class);
-        cacheAfterCommit = new CommentCacheAfterCommit(postCounterCache, commentPageCache);
+        postCacheAfterCommit = mock(PostCacheAfterCommit.class);
+        cacheAfterCommit = new CommentCacheAfterCommit(
+                postCounterCache,
+                commentPageCache,
+                postCacheAfterCommit
+        );
     }
 
     @AfterEach
@@ -71,6 +77,35 @@ class CommentCacheAfterCommitTest {
         rollbackTransactionSynchronization();
 
         verifyNoInteractions(postCounterCache, commentPageCache);
+    }
+
+    @Test
+    void postReadModelEvictionDelegatesAggregateVersionToPostCacheCoordinator() {
+        cacheAfterCommit.evictPostReadModels(POST_ID, 17L);
+
+        verify(postCacheAfterCommit).evict(POST_ID, 17L);
+    }
+
+    @Test
+    void commentEditEvictsSummaryAndDetailWithoutRemovingFeedMembership() {
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        CommentCacheAfterCommit editCacheAfterCommit = new CommentCacheAfterCommit(
+                postCounterCache,
+                commentPageCache,
+                new PostCacheAfterCommit(postFeedCache, postSummaryCache, postDetailCache)
+        );
+        beginTransactionSynchronization();
+
+        editCacheAfterCommit.evictPostSummaryAndDetail(POST_ID, 18L);
+
+        verifyNoInteractions(postFeedCache, postSummaryCache, postDetailCache);
+        commitTransactionSynchronization();
+
+        verify(postSummaryCache).evictAll(List.of(POST_ID), 18L);
+        verify(postDetailCache).evict(POST_ID, 18L);
+        verifyNoInteractions(postFeedCache);
     }
 
     @Test

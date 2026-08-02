@@ -42,31 +42,43 @@ public interface DiscussPostMapper {
 
     DiscussPost selectDiscussPostById(UUID id);
 
-    int updateCommentCount(UUID id, int commentCount);
+    int incrementActiveCommentCount(@Param("id") UUID id, @Param("delta") int delta);
 
-    /**
-     * 原子增量更新 comment_count，避免并发覆盖。
-     */
-    int incrementCommentCount(@Param("id") UUID id, @Param("delta") int delta);
+    int updateScoreIfVersion(
+            @Param("id") UUID id,
+            @Param("score") double score,
+            @Param("expectedVersion") long expectedVersion
+    );
 
-    int updateType(@Param("id") UUID id, @Param("type") int type);
-
-    int updateStatus(@Param("id") UUID id, @Param("status") int status);
-
-    int updateScore(UUID id, double score);
-
-    int updatePostMeta(
+    int updatePostMetaIfVersion(
             @Param("id") UUID id,
             @Param("title") String title,
             @Param("categoryId") UUID categoryId,
-            @Param("updateTime") java.util.Date updateTime
+            @Param("updateTime") java.util.Date updateTime,
+            @Param("expectedVersion") long expectedVersion
     );
 
-    int updateModerationDeleteMeta(
+    int updateTypeIfVersion(
+            @Param("id") UUID id,
+            @Param("type") int type,
+            @Param("updateTime") java.util.Date updateTime,
+            @Param("expectedVersion") long expectedVersion
+    );
+
+    int updateStatusIfVersion(
+            @Param("id") UUID id,
+            @Param("status") int status,
+            @Param("updateTime") java.util.Date updateTime,
+            @Param("expectedVersion") long expectedVersion
+    );
+
+    int updateModerationDeleteMetaIfVersion(
             @Param("id") UUID id,
             @Param("status") int status,
             @Param("deletedBy") UUID deletedBy,
             @Param("deletedReason") String deletedReason,
-            @Param("deletedTime") java.util.Date deletedTime
+            @Param("deletedTime") java.util.Date deletedTime,
+            @Param("expectedVersion") long expectedVersion,
+            @Param("expectedAuthorUserId") UUID expectedAuthorUserId
     );
 }

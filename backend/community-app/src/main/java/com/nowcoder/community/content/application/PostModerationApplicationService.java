@@ -36,7 +36,7 @@ public class PostModerationApplicationService {
     public void top(UUID actorUserId, UUID postId) {
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
         domainService.assertCanModeratePost(actorUserId, post);
-        postRepository.markTop(postId);
+        postRepository.markTop(postId, new Date(), post.aggregateVersion());
         integrationEventPublisher.postUpdated(postId);
         postBusinessEventLogger.postTop(actorUserId, postId);
     }
@@ -45,7 +45,7 @@ public class PostModerationApplicationService {
     public void wonderful(UUID actorUserId, UUID postId) {
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
         domainService.assertCanModeratePost(actorUserId, post);
-        postRepository.markWonderful(postId);
+        postRepository.markWonderful(postId, new Date(), post.aggregateVersion());
         integrationEventPublisher.postUpdated(postId);
         postBusinessEventLogger.postWonderful(actorUserId, postId);
     }
@@ -56,7 +56,12 @@ public class PostModerationApplicationService {
         if (!domainService.shouldAdminDelete(actorUserId, post)) {
             return;
         }
-        boolean changed = postRepository.markDeletedByAdmin(postId, actorUserId, new Date());
+        boolean changed = postRepository.markDeletedByAdmin(
+                postId,
+                actorUserId,
+                new Date(),
+                post.aggregateVersion()
+        );
         if (!changed) {
             return;
         }
@@ -66,7 +71,13 @@ public class PostModerationApplicationService {
 
     @Transactional
     public void deleteByModeration(UUID actorUserId, UUID postId) {
-        boolean changed = postRepository.markDeletedByAdmin(postId, actorUserId, new Date());
+        PostSnapshot post = postRepository.getRequiredSnapshot(postId);
+        boolean changed = postRepository.markDeletedByAdmin(
+                postId,
+                actorUserId,
+                new Date(),
+                post.aggregateVersion()
+        );
         if (!changed) {
             return;
         }

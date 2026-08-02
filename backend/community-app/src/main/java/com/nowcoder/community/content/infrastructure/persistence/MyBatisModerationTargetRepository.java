@@ -33,7 +33,7 @@ public class MyBatisModerationTargetRepository implements ModerationTargetReposi
         }
         if (report.targetType() == EntityTypes.POST) {
             DiscussPost post = discussPostMapper.selectDiscussPostById(report.targetId());
-            if (post == null || post.getStatus() == 2) {
+            if (post == null || post.isDeleted()) {
                 throw new BusinessException(POST_NOT_FOUND);
             }
             return new ModerationTarget(report.targetType(), report.targetId(), post.getUserId());

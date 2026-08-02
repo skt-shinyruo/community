@@ -14,6 +14,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
+import static com.nowcoder.community.content.exception.ContentErrorCode.POST_CONCURRENT_MODIFICATION;
 
 @Repository
 public class MyBatisPostRepository implements PostRepository {
@@ -39,10 +40,11 @@ public class MyBatisPostRepository implements PostRepository {
         post.setCategoryId(draft.categoryId());
         post.setTitle(draft.title());
         post.setType(0);
-        post.setStatus(0);
+        post.setStatus(DiscussPost.STATUS_NORMAL);
         post.setCreateTime(draft.createTime());
         post.setCommentCount(0);
         post.setScore(0.0);
+        post.setAggregateVersion(1L);
         discussPostMapper.insertDiscussPost(post);
         return post.getId();
     }
@@ -53,31 +55,87 @@ public class MyBatisPostRepository implements PostRepository {
         if (post == null) {
             throw new BusinessException(POST_NOT_FOUND);
         }
-        return new PostSnapshot(post.getId(), post.getUserId(), post.getStatus(), post.getCreateTime());
+        return snapshot(post);
     }
 
     @Override
-    public void updatePostMeta(UUID postId, String title, UUID categoryId, Date updateTime) {
-        discussPostMapper.updatePostMeta(postId, title, categoryId, updateTime);
+    public void updatePostMeta(UUID postId, String title, UUID categoryId, Date updateTime, long expectedVersion) {
+        requireUpdated(discussPostMapper.updatePostMetaIfVersion(
+                postId,
+                title,
+                categoryId,
+                updateTime,
+                expectedVersion
+        ));
     }
 
     @Override
-    public boolean markDeletedByAuthor(UUID postId, UUID authorUserId, Date deletedTime) {
-        return discussPostMapper.updateModerationDeleteMeta(postId, 2, authorUserId, "author_delete", deletedTime) > 0;
+    public boolean markDeletedByAuthor(UUID postId, UUID authorUserId, Date deletedTime, long expectedVersion) {
+        return deleteIfVersion(postId, authorUserId, "author_delete", deletedTime, expectedVersion, authorUserId);
     }
 
     @Override
-    public void markTop(UUID postId) {
-        discussPostMapper.updateType(postId, 1);
+    public void markTop(UUID postId, Date updateTime, long expectedVersion) {
+        requireUpdated(discussPostMapper.updateTypeIfVersion(postId, 1, updateTime, expectedVersion));
     }
 
     @Override
-    public void markWonderful(UUID postId) {
-        discussPostMapper.updateStatus(postId, 1);
+    public void markWonderful(UUID postId, Date updateTime, long expectedVersion) {
+        requireUpdated(discussPostMapper.updateStatusIfVersion(
+                postId,
+                DiscussPost.STATUS_WONDERFUL,
+                updateTime,
+                expectedVersion
+        ));
     }
 
     @Override
-    public boolean markDeletedByAdmin(UUID postId, UUID actorUserId, Date deletedTime) {
-        return discussPostMapper.updateModerationDeleteMeta(postId, 2, actorUserId, "admin_delete", deletedTime) > 0;
+    public boolean markDeletedByAdmin(UUID postId, UUID actorUserId, Date deletedTime, long expectedVersion) {
+        return deleteIfVersion(postId, actorUserId, "admin_delete", deletedTime, expectedVersion, null);
+    }
+
+    private boolean deleteIfVersion(
+            UUID postId,
+            UUID actorUserId,
+            String reason,
+            Date deletedTime,
+            long expectedVersion,
+            UUID expectedAuthorUserId
+    ) {
+        int updated = discussPostMapper.updateModerationDeleteMetaIfVersion(
+                postId,
+                DiscussPost.STATUS_DELETED,
+                actorUserId,
+                reason,
+                deletedTime,
+                expectedVersion,
+                expectedAuthorUserId
+        );
+        if (updated == 1) {
+            return true;
+        }
+        DiscussPost current = discussPostMapper.selectDiscussPostById(postId);
+        if (current == null || current.isDeleted()) {
+            return false;
+        }
+        throw new BusinessException(POST_CONCURRENT_MODIFICATION);
+    }
+
+    private void requireUpdated(int updated) {
+        if (updated != 1) {
+            throw new BusinessException(POST_CONCURRENT_MODIFICATION);
+        }
+    }
+
+    private PostSnapshot snapshot(DiscussPost post) {
+        return new PostSnapshot(
+                post.getId(),
+                post.getUserId(),
+                post.getType(),
+                post.getStatus(),
+                post.getCreateTime(),
+                post.getUpdateTime(),
+                post.getAggregateVersion()
+        );
     }
 }

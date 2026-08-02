@@ -10,7 +10,19 @@ public interface PostDetailCache {
 
     void put(UUID postId, PostDetailResult detail);
 
+    default void put(UUID postId, PostDetailResult detail, long sourceVersion) {
+        put(postId, detail);
+    }
+
     void evict(UUID postId);
 
+    default void evict(UUID postId, long minimumVersion) {
+        evict(postId);
+    }
+
     void terminalEvict(UUID postId);
+
+    default void terminalEvict(UUID postId, long minimumVersion) {
+        terminalEvict(postId);
+    }
 }

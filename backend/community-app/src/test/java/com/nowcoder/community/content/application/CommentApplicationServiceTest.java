@@ -50,6 +50,7 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
@@ -69,6 +70,7 @@ class CommentApplicationServiceTest {
     private PostContentRepository postContentPort;
     private PostCounterCache postCounterCache;
     private CommentPageCache commentPageCache;
+    private PostCacheAfterCommit postCacheAfterCommit;
     private SocialBlockQueryApi blockQueryApi;
     private ContentEventPublisher eventPublisher;
     private CommentApplicationService service;
@@ -86,8 +88,10 @@ class CommentApplicationServiceTest {
         postContentPort = mock(PostContentRepository.class);
         postCounterCache = mock(PostCounterCache.class);
         commentPageCache = mock(CommentPageCache.class);
+        postCacheAfterCommit = mock(PostCacheAfterCommit.class);
         blockQueryApi = mock(SocialBlockQueryApi.class);
         eventPublisher = mock(ContentEventPublisher.class);
+        when(postContentPort.incrementActiveCommentCount(any(UUID.class), anyInt())).thenReturn(2L);
         service = new CommentApplicationService(
                 sensitiveFilter,
                 idempotencyGuard,
@@ -96,7 +100,7 @@ class CommentApplicationServiceTest {
                 new CommentDomainService(),
                 commentRepository,
                 postContentPort,
-                new CommentCacheAfterCommit(postCounterCache, commentPageCache),
+                new CommentCacheAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
                 blockQueryApi,
                 eventPublisher
         );
@@ -160,8 +164,8 @@ class CommentApplicationServiceTest {
         inOrder.verify(postContentPort).getById(postId);
         inOrder.verify(blockQueryApi).isEitherBlocked(userId, postAuthorId);
         ArgumentCaptor<CommentDraft> draftCaptor = ArgumentCaptor.forClass(CommentDraft.class);
+        inOrder.verify(postContentPort).incrementActiveCommentCount(postId, 1);
         inOrder.verify(commentRepository).create(draftCaptor.capture());
-        inOrder.verify(postContentPort).incrementCommentCount(postId, 1);
         ArgumentCaptor<CommentPayload> eventCaptor = ArgumentCaptor.forClass(CommentPayload.class);
         inOrder.verify(eventPublisher).publishCommentCreated(eventCaptor.capture());
         inOrder.verify(postCounterCache).incrementCommentCount(postId, 1L);
@@ -184,6 +188,7 @@ class CommentApplicationServiceTest {
         assertThat(event.getTargetUserId()).isEqualTo(postAuthorId);
         assertThat(event.getContent()).isEqualTo("clean & body");
         assertThat(event.getCreateTime()).isEqualTo(draft.createTime().toInstant());
+        assertThat(event.getPostAggregateVersion()).isEqualTo(2L);
     }
 
     @Test
@@ -261,7 +266,7 @@ class CommentApplicationServiceTest {
                 new CommentDomainService(),
                 commentRepository,
                 postContentPort,
-                new CommentCacheAfterCommit(postCounterCache, commentPageCache),
+                new CommentCacheAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
                 blockQueryApi,
                 eventPublisher
         );
@@ -308,9 +313,10 @@ class CommentApplicationServiceTest {
         assertThat(first.commentId()).isEqualTo(commentId);
         assertThat(replay.commentId()).isEqualTo(commentId);
         verify(commentRepository, times(1)).create(any(CommentDraft.class));
-        verify(postContentPort, times(1)).incrementCommentCount(postId, 1);
+        verify(postContentPort, times(1)).incrementActiveCommentCount(postId, 1);
         verify(postCounterCache, times(1)).incrementCommentCount(postId, 1L);
         verify(commentPageCache, times(1)).evictPost(postId);
+        verify(postCacheAfterCommit, times(1)).evict(postId, 2L);
         verify(eventPublisher, times(1)).publishCommentCreated(any(CommentPayload.class));
     }
 
@@ -475,7 +481,7 @@ class CommentApplicationServiceTest {
         verify(blockQueryApi, never()).isEitherBlocked(any(), any());
         verify(sensitiveFilter, never()).filter(anyString());
         verify(commentRepository, never()).create(any(CommentDraft.class));
-        verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
+        verify(postContentPort, never()).incrementActiveCommentCount(any(UUID.class), anyInt());
         verify(eventPublisher, never()).publishCommentCreated(any(CommentPayload.class));
     }
 
@@ -505,7 +511,7 @@ class CommentApplicationServiceTest {
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
 
         verify(commentRepository, never()).create(any(CommentDraft.class));
-        verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
+        verify(postContentPort, never()).incrementActiveCommentCount(any(UUID.class), anyInt());
         verify(eventPublisher, never()).publishCommentCreated(any(CommentPayload.class));
     }
 
@@ -530,6 +536,7 @@ class CommentApplicationServiceTest {
         inOrder.verify(commentRepository).getRequiredSnapshot(commentId);
         ArgumentCaptor<CommentEdit> edit = ArgumentCaptor.forClass(CommentEdit.class);
         inOrder.verify(commentRepository).apply(edit.capture());
+        inOrder.verify(postContentPort).incrementActiveCommentCount(postId, 0);
         assertThat(edit.getValue().commentId()).isEqualTo(commentId);
         assertThat(edit.getValue().expectedVersion()).isEqualTo(existing.version());
         assertThat(edit.getValue().content()).isEqualTo("clean");
@@ -538,6 +545,7 @@ class CommentApplicationServiceTest {
         commitTransactionSynchronization();
 
         verify(commentPageCache).evictPost(postId);
+        verify(postCacheAfterCommit).evictSummaryAndDetail(postId, 2L);
         verifyNoInteractions(postCounterCache);
     }
 
@@ -566,13 +574,14 @@ class CommentApplicationServiceTest {
         inOrder.verify(commentRepository).getRequiredSnapshot(commentId);
         inOrder.verify(commentRepository).getActiveThreadSnapshots(commentId);
         inOrder.verify(commentRepository).apply(any(CommentThreadDeletion.class));
-        inOrder.verify(postContentPort).incrementCommentCount(postId, -3);
+        inOrder.verify(postContentPort).incrementActiveCommentCount(postId, -3);
         verifyNoInteractions(postCounterCache, commentPageCache);
 
         commitTransactionSynchronization();
 
         verify(postCounterCache).incrementCommentCount(postId, -3L);
         verify(commentPageCache).evictPost(postId);
+        verify(postCacheAfterCommit).evict(postId, 2L);
     }
 
     @Test
@@ -610,6 +619,8 @@ class CommentApplicationServiceTest {
                 .containsExactly(EntityTypes.POST, EntityTypes.COMMENT, EntityTypes.COMMENT);
         assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::getEntityId)
                 .containsExactly(postId, commentId, commentId);
+        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::getPostAggregateVersion)
+                .containsOnly(2L);
         assertThat(eventCaptor.getAllValues()).allSatisfy(event -> assertThat(event.getCreateTime()).isNotNull());
     }
 
@@ -629,7 +640,7 @@ class CommentApplicationServiceTest {
 
         verify(commentRepository, never()).apply(any(CommentDeletion.class));
         verify(commentRepository, never()).apply(any(CommentThreadDeletion.class));
-        verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
+        verify(postContentPort, never()).incrementActiveCommentCount(any(UUID.class), anyInt());
     }
 
     @Test
@@ -651,7 +662,7 @@ class CommentApplicationServiceTest {
 
         service.deleteByAuthor(userId, postId, commentId);
 
-        verify(postContentPort).incrementCommentCount(postId, -2);
+        verify(postContentPort).incrementActiveCommentCount(postId, -2);
         ArgumentCaptor<CommentPayload> events = ArgumentCaptor.forClass(CommentPayload.class);
         verify(eventPublisher, times(2)).publishCommentDeleted(events.capture());
         assertThat(events.getAllValues())
@@ -672,7 +683,7 @@ class CommentApplicationServiceTest {
 
         service.deleteByAuthor(userId, postId, commentId);
 
-        verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
+        verify(postContentPort, never()).incrementActiveCommentCount(any(UUID.class), anyInt());
         verify(eventPublisher, never()).publishCommentDeleted(any());
     }
 
@@ -739,7 +750,7 @@ class CommentApplicationServiceTest {
                 new CommentDomainService(),
                 commentRepository,
                 postContentPort,
-                new CommentCacheAfterCommit(postCounterCache, commentPageCache),
+                new CommentCacheAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
                 blockQueryApi,
                 eventPublisher
         );

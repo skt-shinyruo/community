@@ -10,18 +10,16 @@ import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT
 
 public class PostModerationDomainService {
 
-    private static final int STATUS_DELETED = 2;
-
     public void assertCanModeratePost(UUID actorUserId, PostSnapshot post) {
         assertValidActorAndPost(actorUserId, post);
-        if (post.status() == STATUS_DELETED) {
+        if (post.isDeleted()) {
             throw new BusinessException(POST_NOT_FOUND);
         }
     }
 
     public boolean shouldAdminDelete(UUID actorUserId, PostSnapshot post) {
         assertValidActorAndPost(actorUserId, post);
-        return post.status() != STATUS_DELETED;
+        return post.isActive();
     }
 
     private void assertValidActorAndPost(UUID actorUserId, PostSnapshot post) {

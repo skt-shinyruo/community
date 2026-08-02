@@ -13,6 +13,7 @@ public class CommentPayload {
     private UUID targetUserId;
     private String content;
     private Instant createTime;
+    private long postAggregateVersion;
 
     public UUID getCommentId() {
         return commentId;
@@ -76,5 +77,13 @@ public class CommentPayload {
 
     public void setCreateTime(Instant createTime) {
         this.createTime = createTime;
+    }
+
+    public long getPostAggregateVersion() {
+        return postAggregateVersion;
+    }
+
+    public void setPostAggregateVersion(long postAggregateVersion) {
+        this.postAggregateVersion = postAggregateVersion;
     }
 }

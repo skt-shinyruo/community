@@ -14,7 +14,36 @@ public interface PostFeedCache {
 
     void upsertGlobalHot(UUID postId, double score, String rankVersion);
 
+    default void upsertGlobalHot(UUID postId, double score, String rankVersion, long sourceVersion) {
+        upsertGlobalHot(postId, score, rankVersion);
+    }
+
+    default void upsertGlobalHot(
+            UUID postId,
+            double score,
+            String rankVersion,
+            long aggregateVersion,
+            long scoreVersion
+    ) {
+        upsertGlobalHot(postId, score, rankVersion, aggregateVersion);
+    }
+
     void upsertBoardHot(UUID boardId, UUID postId, double score, String rankVersion);
+
+    default void upsertBoardHot(UUID boardId, UUID postId, double score, String rankVersion, long sourceVersion) {
+        upsertBoardHot(boardId, postId, score, rankVersion);
+    }
+
+    default void upsertBoardHot(
+            UUID boardId,
+            UUID postId,
+            double score,
+            String rankVersion,
+            long aggregateVersion,
+            long scoreVersion
+    ) {
+        upsertBoardHot(boardId, postId, score, rankVersion, aggregateVersion);
+    }
 
     void writeRankVersion(String rankVersion);
 
@@ -38,8 +67,16 @@ public interface PostFeedCache {
      */
     void remove(UUID postId, UUID boardId);
 
+    default void remove(UUID postId, UUID boardId, long minimumVersion) {
+        remove(postId, boardId);
+    }
+
     /**
-     * Permanently fences the deleted post from global, payload-board, and all current board feeds.
+     * Fences the deleted post from global, payload-board, and current board feeds for the replay window.
      */
     void terminalRemove(UUID postId, UUID boardId);
+
+    default void terminalRemove(UUID postId, UUID boardId, long minimumVersion) {
+        terminalRemove(postId, boardId);
+    }
 }

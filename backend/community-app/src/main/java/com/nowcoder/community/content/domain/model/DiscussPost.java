@@ -5,7 +5,9 @@ import java.util.UUID;
 
 public class DiscussPost {
 
-    private static final int STATUS_DELETED = 2;
+    public static final int STATUS_NORMAL = 0;
+    public static final int STATUS_WONDERFUL = 1;
+    public static final int STATUS_DELETED = 2;
 
     private UUID id;
     private UUID userId;
@@ -21,6 +23,8 @@ public class DiscussPost {
     private Date deletedTime;
     private int commentCount;
     private double score;
+    private long scoreVersion;
+    private long aggregateVersion;
 
     public UUID getId() {
         return id;
@@ -31,11 +35,19 @@ public class DiscussPost {
     }
 
     public boolean isDeleted() {
-        return status == STATUS_DELETED;
+        return isDeletedStatus(status);
     }
 
     public boolean isActive() {
         return !isDeleted();
+    }
+
+    public boolean isWonderful() {
+        return status == STATUS_WONDERFUL;
+    }
+
+    public static boolean isDeletedStatus(int status) {
+        return status == STATUS_DELETED;
     }
 
     public UUID getUserId() {
@@ -140,5 +152,21 @@ public class DiscussPost {
 
     public void setScore(double score) {
         this.score = score;
+    }
+
+    public long getScoreVersion() {
+        return scoreVersion;
+    }
+
+    public void setScoreVersion(long scoreVersion) {
+        this.scoreVersion = scoreVersion;
+    }
+
+    public long getAggregateVersion() {
+        return aggregateVersion;
+    }
+
+    public void setAggregateVersion(long aggregateVersion) {
+        this.aggregateVersion = aggregateVersion;
     }
 }

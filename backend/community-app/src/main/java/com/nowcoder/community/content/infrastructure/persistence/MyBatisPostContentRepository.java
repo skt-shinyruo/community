@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
+import static com.nowcoder.community.content.exception.ContentErrorCode.POST_CONCURRENT_MODIFICATION;
 
 @Service
 public class MyBatisPostContentRepository implements PostContentRepository {
@@ -199,42 +200,40 @@ public class MyBatisPostContentRepository implements PostContentRepository {
         if (post.getId() == null) {
             post.setId(idGenerator.next());
         }
+        if (post.getAggregateVersion() <= 0L) {
+            post.setAggregateVersion(1L);
+        }
+        if (post.getScoreVersion() <= 0L) {
+            post.setScoreVersion(1L);
+        }
         discussPostMapper.insertDiscussPost(post);
         return post.getId();
     }
 
     @Override
-    public void updateCommentCount(UUID postId, int commentCount) {
-        discussPostMapper.updateCommentCount(postId, commentCount);
+    public long incrementActiveCommentCount(UUID postId, int delta) {
+        if (discussPostMapper.incrementActiveCommentCount(postId, delta) != 1) {
+            return 0L;
+        }
+        DiscussPost updated = discussPostMapper.selectDiscussPostById(postId);
+        if (updated == null || updated.isDeleted() || updated.getAggregateVersion() <= 0L) {
+            throw new IllegalStateException("active post mutation did not expose its aggregate version: postId=" + postId);
+        }
+        return updated.getAggregateVersion();
     }
 
     @Override
-    public void incrementCommentCount(UUID postId, int delta) {
-        discussPostMapper.incrementCommentCount(postId, delta);
-    }
-
-    @Override
-    public void updateType(UUID postId, int type) {
-        discussPostMapper.updateType(postId, type);
-    }
-
-    @Override
-    public void updateStatus(UUID postId, int status) {
-        discussPostMapper.updateStatus(postId, status);
-    }
-
-    @Override
-    public void updateScore(UUID postId, double score) {
-        discussPostMapper.updateScore(postId, score);
-    }
-
-    @Override
-    public void updatePostMeta(UUID postId, String title, UUID categoryId, Date updateTime) {
-        discussPostMapper.updatePostMeta(postId, title, categoryId, updateTime);
-    }
-
-    @Override
-    public void updateModerationDeleteMeta(UUID postId, int status, UUID deletedBy, String deletedReason, Date deletedTime) {
-        discussPostMapper.updateModerationDeleteMeta(postId, status, deletedBy, deletedReason, deletedTime);
+    public long updateScore(UUID postId, double score, long expectedVersion) {
+        if (discussPostMapper.updateScoreIfVersion(postId, score, expectedVersion) != 1) {
+            throw new BusinessException(POST_CONCURRENT_MODIFICATION);
+        }
+        DiscussPost updated = discussPostMapper.selectDiscussPostById(postId);
+        if (updated == null
+                || updated.isDeleted()
+                || updated.getAggregateVersion() != expectedVersion
+                || updated.getScoreVersion() <= 0L) {
+            throw new IllegalStateException("score mutation did not expose its version: postId=" + postId);
+        }
+        return updated.getScoreVersion();
     }
 }

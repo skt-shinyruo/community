@@ -60,6 +60,7 @@ class PostPublishingMediaMainTransactionIntegrationTest {
     private static final UUID VERSION_ID = UUID.fromString("00000000-0000-7000-8000-000000006206");
     private static final UUID LEGACY_REFERENCE_ID = UUID.fromString("00000000-0000-7000-8000-000000006207");
     private static final Instant NOW = Instant.parse("2026-07-15T10:30:00Z");
+    private static final long POST_VERSION = 7L;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -161,7 +162,10 @@ class PostPublishingMediaMainTransactionIntegrationTest {
                         POST_ID,
                         USER_ID,
                         0,
-                        Timestamp.from(NOW)
+                        0,
+                        Timestamp.from(NOW),
+                        Timestamp.from(NOW),
+                        POST_VERSION
                 ));
         when(blockPolicy.validateAndNormalize(List.<PostContentBlockCommand>of())).thenReturn(List.of());
         doNothing().when(blockRepository).replaceBlocks(eq(POST_ID), any());
@@ -185,6 +189,9 @@ class PostPublishingMediaMainTransactionIntegrationTest {
                 6L,
                 USER_ID
         ));
+        verify(postRepository).updatePostMeta(
+                eq(POST_ID), eq("title"), eq(CATEGORY_ID), any(java.util.Date.class), eq(POST_VERSION)
+        );
         assertThat(referenceStatus()).isEqualTo("BOUND");
         assertThat(referenceOperationVersion()).isEqualTo(5L);
         assertThat(mediaOutboxCount()).isZero();

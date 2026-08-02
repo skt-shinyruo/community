@@ -17,6 +17,10 @@ import com.nowcoder.community.content.application.result.RecentUserCommentResult
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
+import com.nowcoder.community.content.application.PostReadTransactionOperations.DetailSnapshot;
+import com.nowcoder.community.content.application.PostReadTransactionOperations.ProjectionBatchSnapshot;
+import com.nowcoder.community.content.application.PostReadTransactionOperations.ProjectionSnapshot;
+import com.nowcoder.community.content.application.PostReadTransactionOperations.SummarySnapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -46,8 +50,49 @@ public class PostReadApplicationService implements PostScanQueryApi {
     private final RecentUserCommentAssembler recentUserCommentAssembler;
     private final ContentHotPathProperties hotPathProperties;
     private final HotPathSingleFlight hotPathSingleFlight;
+    private final PostReadTransactionOperations readTransactionOperations;
 
     @Autowired
+    public PostReadApplicationService(
+            PostContentRepository postContentPort,
+            CommentContentRepository commentContentPort,
+            LikeQueryPort likeQueryService,
+            TagContentRepository tagContentPort,
+            BookmarkRepository bookmarkContentPort,
+            SubscriptionRepository subscriptionContentPort,
+            PostCounterApplicationService postCounterApplicationService,
+            PostContentBlockRepository postContentBlockRepository,
+            PostMediaAssetRepository postMediaAssetRepository,
+            PostDetailCache postDetailCache,
+            PostContentBlockTextProjector postContentBlockTextProjector,
+            ContentTextCodec textCodec,
+            PostSummaryAssembler postSummaryAssembler,
+            PostDetailAssembler postDetailAssembler,
+            RecentUserCommentAssembler recentUserCommentAssembler,
+            PostReadTransactionOperations readTransactionOperations,
+            ContentHotPathProperties hotPathProperties,
+            HotPathSingleFlight hotPathSingleFlight
+    ) {
+        this.postContentPort = postContentPort;
+        this.commentContentPort = commentContentPort;
+        this.likeQueryService = likeQueryService;
+        this.tagContentPort = tagContentPort;
+        this.bookmarkContentPort = bookmarkContentPort;
+        this.subscriptionContentPort = subscriptionContentPort;
+        this.postCounterApplicationService = postCounterApplicationService;
+        this.postContentBlockRepository = postContentBlockRepository;
+        this.postMediaAssetRepository = postMediaAssetRepository;
+        this.postDetailCache = postDetailCache;
+        this.postContentBlockTextProjector = postContentBlockTextProjector;
+        this.textCodec = textCodec;
+        this.postSummaryAssembler = postSummaryAssembler;
+        this.postDetailAssembler = postDetailAssembler;
+        this.recentUserCommentAssembler = recentUserCommentAssembler;
+        this.readTransactionOperations = readTransactionOperations;
+        this.hotPathProperties = hotPathProperties == null ? new ContentHotPathProperties() : hotPathProperties;
+        this.hotPathSingleFlight = hotPathSingleFlight == null ? loaderSingleFlight() : hotPathSingleFlight;
+    }
+
     public PostReadApplicationService(
             PostContentRepository postContentPort,
             CommentContentRepository commentContentPort,
@@ -67,23 +112,32 @@ public class PostReadApplicationService implements PostScanQueryApi {
             ContentHotPathProperties hotPathProperties,
             HotPathSingleFlight hotPathSingleFlight
     ) {
-        this.postContentPort = postContentPort;
-        this.commentContentPort = commentContentPort;
-        this.likeQueryService = likeQueryService;
-        this.tagContentPort = tagContentPort;
-        this.bookmarkContentPort = bookmarkContentPort;
-        this.subscriptionContentPort = subscriptionContentPort;
-        this.postCounterApplicationService = postCounterApplicationService;
-        this.postContentBlockRepository = postContentBlockRepository;
-        this.postMediaAssetRepository = postMediaAssetRepository;
-        this.postDetailCache = postDetailCache;
-        this.postContentBlockTextProjector = postContentBlockTextProjector;
-        this.textCodec = textCodec;
-        this.postSummaryAssembler = postSummaryAssembler;
-        this.postDetailAssembler = postDetailAssembler;
-        this.recentUserCommentAssembler = recentUserCommentAssembler;
-        this.hotPathProperties = hotPathProperties == null ? new ContentHotPathProperties() : hotPathProperties;
-        this.hotPathSingleFlight = hotPathSingleFlight == null ? loaderSingleFlight() : hotPathSingleFlight;
+        this(
+                postContentPort,
+                commentContentPort,
+                likeQueryService,
+                tagContentPort,
+                bookmarkContentPort,
+                subscriptionContentPort,
+                postCounterApplicationService,
+                postContentBlockRepository,
+                postMediaAssetRepository,
+                postDetailCache,
+                postContentBlockTextProjector,
+                textCodec,
+                postSummaryAssembler,
+                postDetailAssembler,
+                recentUserCommentAssembler,
+                new PostReadTransactionOperations(
+                        postContentPort,
+                        commentContentPort,
+                        tagContentPort,
+                        postContentBlockRepository,
+                        postMediaAssetRepository
+                ),
+                hotPathProperties,
+                hotPathSingleFlight
+        );
     }
 
     public PostReadApplicationService(
@@ -119,6 +173,13 @@ public class PostReadApplicationService implements PostScanQueryApi {
                 postSummaryAssembler,
                 postDetailAssembler,
                 recentUserCommentAssembler,
+                new PostReadTransactionOperations(
+                        postContentPort,
+                        commentContentPort,
+                        tagContentPort,
+                        postContentBlockRepository,
+                        postMediaAssetRepository
+                ),
                 new ContentHotPathProperties(),
                 loaderSingleFlight()
         );
@@ -129,28 +190,36 @@ public class PostReadApplicationService implements PostScanQueryApi {
         int s = size == null ? 10 : size;
         int orderMode = "hot".equalsIgnoreCase(order) ? PostContentRepository.ORDER_HOT : PostContentRepository.ORDER_LATEST;
 
-        List<DiscussPost> posts;
+        SummarySnapshot snapshot;
         if (Boolean.TRUE.equals(subscribed)) {
             if (currentUserId == null) {
                 throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
             }
             List<UUID> subscribedCategoryIds = subscriptionContentPort.listSubscribedCategoryIds(currentUserId);
-            posts = postContentPort.listSubscribedPosts(currentUserId, subscribedCategoryIds, p, s, orderMode, categoryId, tag);
+            snapshot = readTransactionOperations.listSubscribedPosts(
+                    currentUserId,
+                    subscribedCategoryIds,
+                    p,
+                    s,
+                    orderMode,
+                    categoryId,
+                    tag
+            );
         } else {
-            posts = postContentPort.listPosts(p, s, orderMode, categoryId, tag);
+            snapshot = readTransactionOperations.listPosts(p, s, orderMode, categoryId, tag);
         }
 
-        return assembleSummaries(posts);
+        return assembleSummaries(snapshot);
     }
 
     public List<PostSummaryResult> listPostsByUser(UUID userId, Integer page, Integer size) {
         int p = page == null ? 0 : page;
         int s = size == null ? 3 : size;
-        return assembleSummaries(postContentPort.listPostsByUser(userId, p, s));
+        return assembleSummaries(readTransactionOperations.listPostsByUser(userId, p, s));
     }
 
     public List<PostSummaryResult> listPostsByIds(List<UUID> postIds) {
-        return assembleSummaries(postContentPort.listPostsByIds(postIds));
+        return assembleSummaries(readTransactionOperations.listPostsByIds(postIds));
     }
 
     public PostDetailResult getPostDetail(UUID currentUserId, UUID postId) {
@@ -158,15 +227,15 @@ public class PostReadApplicationService implements PostScanQueryApi {
         if (cached != null) {
             return applyViewerOverlay(currentUserId, applyCounterOverlay(cached));
         }
-        PostDetailResult loaded = hotPathSingleFlight.execute(
+        VersionedPostDetail loaded = hotPathSingleFlight.execute(
                 "post_detail",
                 postId.toString(),
                 hotPathProperties.getSingleFlight().ttl(),
                 () -> loadPostDetailShell(postId),
                 () -> loadPostDetailShell(postId)
         );
-        safePutDetailCache(postId, loaded);
-        return applyViewerOverlay(currentUserId, applyCounterOverlay(loaded));
+        safePutDetailCache(postId, loaded.detail(), loaded.aggregateVersion());
+        return applyViewerOverlay(currentUserId, applyCounterOverlay(loaded.detail()));
     }
 
     private PostDetailResult safeGetDetailCache(UUID postId) {
@@ -177,24 +246,27 @@ public class PostReadApplicationService implements PostScanQueryApi {
         }
     }
 
-    private void safePutDetailCache(UUID postId, PostDetailResult detail) {
+    private void safePutDetailCache(UUID postId, PostDetailResult detail, long aggregateVersion) {
         try {
-            postDetailCache.put(postId, detail);
+            postDetailCache.put(postId, detail, aggregateVersion);
         } catch (RuntimeException ignored) {
             // Detail cache writes are best-effort for read responses.
         }
     }
 
-    private PostDetailResult loadPostDetailShell(UUID postId) {
-        DiscussPost post = postContentPort.getById(postId);
-        List<PostContentBlock> blocks = postContentBlockRepository.listByPostId(postId);
-        List<String> tags = tagContentPort.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
-        List<UUID> assetIds = blocks.stream()
-                .map(PostContentBlock::mediaAssetId)
-                .filter(id -> id != null)
-                .distinct()
-                .toList();
-        return postDetailAssembler.assemble(post, blocks, postMediaAssetRepository.listByIds(assetIds), tags, 0L, false, false);
+    private VersionedPostDetail loadPostDetailShell(UUID postId) {
+        DetailSnapshot snapshot = readTransactionOperations.getDetail(postId);
+        DiscussPost post = snapshot.post();
+        PostDetailResult detail = postDetailAssembler.assemble(
+                post,
+                snapshot.blocks(),
+                snapshot.mediaAssets(),
+                snapshot.tags(),
+                0L,
+                false,
+                false
+        );
+        return new VersionedPostDetail(detail, post.getAggregateVersion());
     }
 
     private PostDetailResult applyCounterOverlay(PostDetailResult detail) {
@@ -264,8 +336,9 @@ public class PostReadApplicationService implements PostScanQueryApi {
     @Override
     public PostScanView scanPosts(UUID afterId, int limit) {
         int safeLimit = limit <= 0 ? 500 : Math.min(1000, Math.max(1, limit));
-        List<DiscussPost> posts = postContentPort.scanAfterId(afterId, safeLimit);
-        List<PostScanView.PostProjectionView> items = toPostProjectionResults(posts);
+        ProjectionBatchSnapshot snapshot = readTransactionOperations.scanPosts(afterId, safeLimit);
+        List<DiscussPost> posts = snapshot.posts();
+        List<PostScanView.PostProjectionView> items = toPostProjectionResults(snapshot);
         UUID nextAfterId = posts.isEmpty() ? afterId : posts.get(posts.size() - 1).getId();
         return new PostScanView(items, nextAfterId, posts.size() == safeLimit);
     }
@@ -275,50 +348,40 @@ public class PostReadApplicationService implements PostScanQueryApi {
         if (postId == null) {
             return null;
         }
-        DiscussPost post = postContentPort.getByIdAllowDeleted(postId);
-        return toPostProjectionResult(post);
+        return toPostProjectionResult(readTransactionOperations.getProjectionAllowDeleted(postId));
     }
 
-    private List<PostSummaryResult> assembleSummaries(List<DiscussPost> posts) {
+    private List<PostSummaryResult> assembleSummaries(SummarySnapshot snapshot) {
+        List<DiscussPost> posts = snapshot.posts();
         if (posts == null || posts.isEmpty()) {
             return List.of();
         }
-        List<UUID> postIds = posts.stream().map(DiscussPost::getId).toList();
-        Map<UUID, Comment> lastActivities = commentContentPort.getLatestPostActivitiesByPostIds(postIds);
-        Map<UUID, List<String>> tagsByPostId = tagContentPort.getTagsByPostIds(postIds);
-        Map<UUID, List<PostContentBlock>> blocksByPostId = postContentBlockRepository.listByPostIds(postIds);
         return posts.stream()
                 .map(post -> postSummaryAssembler.assemble(
                         post,
-                        lastActivities.get(post.getId()),
-                        tagsByPostId.get(post.getId()),
-                        postContentBlockTextProjector.preview(blocksByPostId.get(post.getId()), 240)
+                        snapshot.lastActivities().get(post.getId()),
+                        snapshot.tagsByPostId().get(post.getId()),
+                        postContentBlockTextProjector.preview(snapshot.blocksByPostId().get(post.getId()), 240)
                 ))
                 .toList();
     }
 
-    private List<PostScanView.PostProjectionView> toPostProjectionResults(List<DiscussPost> posts) {
+    private List<PostScanView.PostProjectionView> toPostProjectionResults(ProjectionBatchSnapshot snapshot) {
+        List<DiscussPost> posts = snapshot.posts();
         if (posts == null || posts.isEmpty()) {
             return List.of();
         }
-        List<UUID> postIds = posts.stream().map(DiscussPost::getId).toList();
-        Map<UUID, List<String>> tagsByPostId = tagContentPort.getTagsByPostIds(postIds);
-        Map<UUID, List<PostContentBlock>> blocksByPostId = postContentBlockRepository.listByPostIds(postIds);
-        Map<UUID, List<String>> safeTagsByPostId = tagsByPostId == null ? Map.of() : tagsByPostId;
-        Map<UUID, List<PostContentBlock>> safeBlocksByPostId = blocksByPostId == null ? Map.of() : blocksByPostId;
         return posts.stream()
                 .map(post -> toPostProjectionResult(
                         post,
-                        safeTagsByPostId.getOrDefault(post.getId(), List.of()),
-                        safeBlocksByPostId.getOrDefault(post.getId(), List.of())
+                        snapshot.tagsByPostId().getOrDefault(post.getId(), List.of()),
+                        snapshot.blocksByPostId().getOrDefault(post.getId(), List.of())
                 ))
                 .toList();
     }
 
-    private PostScanView.PostProjectionView toPostProjectionResult(DiscussPost post) {
-        List<String> tags = tagContentPort.getTagsByPostIds(List.of(post.getId())).getOrDefault(post.getId(), List.of());
-        List<PostContentBlock> blocks = postContentBlockRepository.listByPostId(post.getId());
-        return toPostProjectionResult(post, tags, blocks);
+    private PostScanView.PostProjectionView toPostProjectionResult(ProjectionSnapshot snapshot) {
+        return toPostProjectionResult(snapshot.post(), snapshot.tags(), snapshot.blocks());
     }
 
     private PostScanView.PostProjectionView toPostProjectionResult(
@@ -335,6 +398,8 @@ public class PostReadApplicationService implements PostScanQueryApi {
                 textCodec.decodeOnRead(postContentBlockTextProjector.fullText(blocks)),
                 post.getType(),
                 post.getStatus(),
+                post.getAggregateVersion(),
+                post.getScoreVersion(),
                 post.getCreateTime() == null ? null : post.getCreateTime().toInstant(),
                 post.getScore()
         );
@@ -367,5 +432,8 @@ public class PostReadApplicationService implements PostScanQueryApi {
                 return loader.get();
             }
         };
+    }
+
+    private record VersionedPostDetail(PostDetailResult detail, long aggregateVersion) {
     }
 }

@@ -56,6 +56,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ExtendWith(OutputCaptureExtension.class)
 class PostPublishingApplicationServiceTest {
 
+    private static final long POST_VERSION = 7L;
+
     private ContentSanitizer sensitiveFilter;
     private IdempotencyGuard idempotencyGuard;
     private UserModerationGuard moderationGuard;
@@ -242,7 +244,7 @@ class PostPublishingApplicationServiceTest {
         UUID userId = uuid(7);
         UUID postId = uuid(101);
         UUID categoryId = uuid(2);
-        PostSnapshot post = new PostSnapshot(postId, userId, 0, Date.from(Instant.parse("2026-04-27T08:00:00Z")));
+        PostSnapshot post = postSnapshot(postId, userId, 0);
         List<PostContentBlockCommand> blocks = List.of(new PostContentBlockCommand("paragraph", "<content>", null, null, "", "", null));
         List<PostContentBlockCommand> normalizedBlocks = List.of(new PostContentBlockCommand("paragraph", "<content>", null, "", "", "", null));
 
@@ -250,7 +252,9 @@ class PostPublishingApplicationServiceTest {
         when(sensitiveFilter.filter("&lt;content&gt;")).thenReturn("content");
         when(blockPolicy.validateAndNormalize(blocks)).thenReturn(normalizedBlocks);
         when(postRepository.getRequiredSnapshot(postId)).thenReturn(post);
-        when(postRepository.markDeletedByAuthor(eq(postId), eq(userId), any(Date.class))).thenReturn(true);
+        when(postRepository.markDeletedByAuthor(
+                eq(postId), eq(userId), any(Date.class), eq(POST_VERSION)
+        )).thenReturn(true);
 
         service.updatePost(userId, postId, "<title>", categoryId, List.of("spring"), blocks);
         service.deleteByAuthor(userId, postId);
@@ -258,12 +262,16 @@ class PostPublishingApplicationServiceTest {
         verify(moderationGuard).assertCanSpeak(userId);
         verify(categoryRepository).assertExists(categoryId);
         verify(domainService).assertEditableByAuthor(eq(post), eq(userId), any(Date.class));
-        verify(postRepository).updatePostMeta(eq(postId), eq("title"), eq(categoryId), any(Date.class));
+        verify(postRepository).updatePostMeta(
+                eq(postId), eq("title"), eq(categoryId), any(Date.class), eq(POST_VERSION)
+        );
         verify(postContentBlockRepository).replaceBlocks(eq(postId), any());
         verify(postTagRepository).replaceTagsForPost(postId, List.of("spring"));
         verify(integrationEventPublisher).postUpdated(postId);
         verify(domainService).assertDeletableByAuthor(post, userId);
-        verify(postRepository).markDeletedByAuthor(eq(postId), eq(userId), any(Date.class));
+        verify(postRepository).markDeletedByAuthor(
+                eq(postId), eq(userId), any(Date.class), eq(POST_VERSION)
+        );
         verify(mediaReferenceScheduler).scheduleReleaseForDeletedPost(postId);
         verify(integrationEventPublisher).postDeleted(postId);
         assertThat(output.getAll())
@@ -276,9 +284,11 @@ class PostPublishingApplicationServiceTest {
     void deleteByAuthorShouldSkipSideEffectsWhenDeleteDidNotChangePostState(CapturedOutput output) {
         UUID userId = uuid(7);
         UUID postId = uuid(101);
-        PostSnapshot post = new PostSnapshot(postId, userId, 0, Date.from(Instant.parse("2026-04-27T08:00:00Z")));
+        PostSnapshot post = postSnapshot(postId, userId, 0);
         when(postRepository.getRequiredSnapshot(postId)).thenReturn(post);
-        when(postRepository.markDeletedByAuthor(eq(postId), eq(userId), any(Date.class))).thenReturn(false);
+        when(postRepository.markDeletedByAuthor(
+                eq(postId), eq(userId), any(Date.class), eq(POST_VERSION)
+        )).thenReturn(false);
 
         service.deleteByAuthor(userId, postId);
 
@@ -315,6 +325,11 @@ class PostPublishingApplicationServiceTest {
                 mediaReferenceScheduler,
                 Clock.systemUTC()
         );
+    }
+
+    private PostSnapshot postSnapshot(UUID postId, UUID userId, int status) {
+        Date timestamp = Date.from(Instant.parse("2026-04-27T08:00:00Z"));
+        return new PostSnapshot(postId, userId, 0, status, timestamp, timestamp, POST_VERSION);
     }
 
     private static final class InMemoryIdempotencyStore implements TransactionalIdempotencyStore {

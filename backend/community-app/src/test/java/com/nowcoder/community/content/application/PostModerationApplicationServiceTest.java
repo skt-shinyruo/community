@@ -28,6 +28,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(OutputCaptureExtension.class)
 class PostModerationApplicationServiceTest {
 
+    private static final long POST_VERSION = 7L;
+
     private PostModerationDomainService domainService;
     private PostRepository postRepository;
     private PostIntegrationEventPublisher integrationEventPublisher;
@@ -53,10 +55,12 @@ class PostModerationApplicationServiceTest {
     void topWonderfulAndDeleteShouldOwnPostModerationOrchestration(CapturedOutput output) {
         UUID actorUserId = uuid(9);
         UUID postId = uuid(101);
-        PostSnapshot post = new PostSnapshot(postId, uuid(7), 0, new Date());
+        PostSnapshot post = postSnapshot(postId, 0);
         when(postRepository.getRequiredSnapshot(postId)).thenReturn(post);
         when(domainService.shouldAdminDelete(actorUserId, post)).thenReturn(true);
-        when(postRepository.markDeletedByAdmin(eq(postId), eq(actorUserId), any(Date.class))).thenReturn(true);
+        when(postRepository.markDeletedByAdmin(
+                eq(postId), eq(actorUserId), any(Date.class), eq(POST_VERSION)
+        )).thenReturn(true);
 
         service.top(actorUserId, postId);
         service.wonderful(actorUserId, postId);
@@ -70,15 +74,17 @@ class PostModerationApplicationServiceTest {
         );
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).assertCanModeratePost(actorUserId, post);
-        inOrder.verify(postRepository).markTop(postId);
+        inOrder.verify(postRepository).markTop(eq(postId), any(Date.class), eq(POST_VERSION));
         inOrder.verify(integrationEventPublisher).postUpdated(postId);
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).assertCanModeratePost(actorUserId, post);
-        inOrder.verify(postRepository).markWonderful(postId);
+        inOrder.verify(postRepository).markWonderful(eq(postId), any(Date.class), eq(POST_VERSION));
         inOrder.verify(integrationEventPublisher).postUpdated(postId);
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).shouldAdminDelete(actorUserId, post);
-        inOrder.verify(postRepository).markDeletedByAdmin(eq(postId), eq(actorUserId), any(Date.class));
+        inOrder.verify(postRepository).markDeletedByAdmin(
+                eq(postId), eq(actorUserId), any(Date.class), eq(POST_VERSION)
+        );
         inOrder.verify(mediaReferenceScheduler).scheduleReleaseForDeletedPost(postId);
         inOrder.verify(integrationEventPublisher).postDeleted(postId);
 
@@ -93,7 +99,7 @@ class PostModerationApplicationServiceTest {
     void deleteShouldReturnWithoutSideEffectsWhenDomainDeclinesAdminDelete(CapturedOutput output) {
         UUID actorUserId = uuid(9);
         UUID postId = uuid(101);
-        PostSnapshot post = new PostSnapshot(postId, uuid(7), 2, new Date());
+        PostSnapshot post = postSnapshot(postId, 2);
         when(postRepository.getRequiredSnapshot(postId)).thenReturn(post);
         when(domainService.shouldAdminDelete(actorUserId, post)).thenReturn(false);
 
@@ -110,10 +116,12 @@ class PostModerationApplicationServiceTest {
     void deleteShouldSkipSideEffectsWhenDeleteDidNotChangePostState(CapturedOutput output) {
         UUID actorUserId = uuid(9);
         UUID postId = uuid(101);
-        PostSnapshot post = new PostSnapshot(postId, uuid(7), 0, new Date());
+        PostSnapshot post = postSnapshot(postId, 0);
         when(postRepository.getRequiredSnapshot(postId)).thenReturn(post);
         when(domainService.shouldAdminDelete(actorUserId, post)).thenReturn(true);
-        when(postRepository.markDeletedByAdmin(eq(postId), eq(actorUserId), any(Date.class))).thenReturn(false);
+        when(postRepository.markDeletedByAdmin(
+                eq(postId), eq(actorUserId), any(Date.class), eq(POST_VERSION)
+        )).thenReturn(false);
 
         service.delete(actorUserId, postId);
 
@@ -126,7 +134,10 @@ class PostModerationApplicationServiceTest {
     void deleteByModerationShouldSkipSideEffectsWhenDeleteDidNotChangePostState(CapturedOutput output) {
         UUID actorUserId = uuid(9);
         UUID postId = uuid(101);
-        when(postRepository.markDeletedByAdmin(eq(postId), eq(actorUserId), any(Date.class))).thenReturn(false);
+        when(postRepository.getRequiredSnapshot(postId)).thenReturn(postSnapshot(postId, 0));
+        when(postRepository.markDeletedByAdmin(
+                eq(postId), eq(actorUserId), any(Date.class), eq(POST_VERSION)
+        )).thenReturn(false);
 
         service.deleteByModeration(actorUserId, postId);
 
@@ -139,7 +150,10 @@ class PostModerationApplicationServiceTest {
     void deleteByModerationShouldPublishDeletionOnlyForTheStateChangingCall() {
         UUID actorUserId = uuid(9);
         UUID postId = uuid(101);
-        when(postRepository.markDeletedByAdmin(eq(postId), eq(actorUserId), any(Date.class)))
+        when(postRepository.getRequiredSnapshot(postId)).thenReturn(postSnapshot(postId, 0));
+        when(postRepository.markDeletedByAdmin(
+                eq(postId), eq(actorUserId), any(Date.class), eq(POST_VERSION)
+        ))
                 .thenReturn(true, false);
 
         service.deleteByModeration(actorUserId, postId);
@@ -154,5 +168,10 @@ class PostModerationApplicationServiceTest {
         assertThat(java.util.Arrays.stream(PostModerationApplicationService.class.getDeclaredFields())
                 .map(field -> field.getType().getName()))
                 .doesNotContain("com.nowcoder.community.content.application.PostWriteSideEffectScheduler");
+    }
+
+    private PostSnapshot postSnapshot(UUID postId, int status) {
+        Date timestamp = new Date();
+        return new PostSnapshot(postId, uuid(7), 0, status, timestamp, timestamp, POST_VERSION);
     }
 }

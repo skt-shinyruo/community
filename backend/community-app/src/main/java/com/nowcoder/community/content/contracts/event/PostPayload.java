@@ -1,5 +1,7 @@
 package com.nowcoder.community.content.contracts.event;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.List;
@@ -18,6 +20,10 @@ public class PostPayload implements Serializable {
     private Instant createTime;
     private Instant updateTime;
     private Double score;
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    private long scoreVersion;
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    private long aggregateVersion;
 
     public UUID getPostId() {
         return postId;
@@ -105,5 +111,21 @@ public class PostPayload implements Serializable {
 
     public void setScore(Double score) {
         this.score = score;
+    }
+
+    public long getScoreVersion() {
+        return scoreVersion;
+    }
+
+    public void setScoreVersion(long scoreVersion) {
+        this.scoreVersion = scoreVersion;
+    }
+
+    public long getAggregateVersion() {
+        return aggregateVersion;
+    }
+
+    public void setAggregateVersion(long aggregateVersion) {
+        this.aggregateVersion = aggregateVersion;
     }
 }

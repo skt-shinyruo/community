@@ -14,10 +14,16 @@ public class CommentCacheAfterCommit {
 
     private final PostCounterCache postCounterCache;
     private final CommentPageCache commentPageCache;
+    private final PostCacheAfterCommit postCacheAfterCommit;
 
-    public CommentCacheAfterCommit(PostCounterCache postCounterCache, CommentPageCache commentPageCache) {
+    public CommentCacheAfterCommit(
+            PostCounterCache postCounterCache,
+            CommentPageCache commentPageCache,
+            PostCacheAfterCommit postCacheAfterCommit
+    ) {
         this.postCounterCache = postCounterCache;
         this.commentPageCache = commentPageCache;
+        this.postCacheAfterCommit = postCacheAfterCommit;
     }
 
     public void incrementCommentCount(UUID postId, long delta) {
@@ -36,6 +42,14 @@ public class CommentCacheAfterCommit {
                 0L,
                 () -> commentPageCache.evictPost(postId)
         );
+    }
+
+    public void evictPostReadModels(UUID postId, long aggregateVersion) {
+        postCacheAfterCommit.evict(postId, aggregateVersion);
+    }
+
+    public void evictPostSummaryAndDetail(UUID postId, long aggregateVersion) {
+        postCacheAfterCommit.evictSummaryAndDetail(postId, aggregateVersion);
     }
 
     private void runBestEffortAfterCommit(String operation, UUID postId, long delta, Runnable action) {

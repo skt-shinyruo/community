@@ -44,6 +44,8 @@ class ContentPostPayloadAssemblerTest {
         post.setStatus(0);
         post.setCreateTime(Date.from(Instant.parse("2026-04-29T09:30:00Z")));
         post.setScore(2.5);
+        post.setScoreVersion(4L);
+        post.setAggregateVersion(7L);
 
         when(postRepository.getByIdAllowDeleted(uuid(11))).thenReturn(post);
         when(tagRepository.getTagsByPostIds(List.of(uuid(11)))).thenReturn(Map.of(uuid(11), List.of("java", "ddd")));
@@ -63,5 +65,7 @@ class ContentPostPayloadAssemblerTest {
         assertThat(payload.getStatus()).isEqualTo(0);
         assertThat(payload.getCreateTime()).isEqualTo(Instant.parse("2026-04-29T09:30:00Z"));
         assertThat(payload.getScore()).isEqualTo(2.5);
+        assertThat(payload.getScoreVersion()).isEqualTo(4L);
+        assertThat(payload.getAggregateVersion()).isEqualTo(7L);
     }
 }

@@ -50,6 +50,7 @@ class CommentDeletionCardinalityContractTest {
     private PostContentRepository postRepository;
     private PostCounterCache counterCache;
     private CommentPageCache pageCache;
+    private PostCacheAfterCommit postCacheAfterCommit;
     private ContentEventPublisher eventPublisher;
     private CommentApplicationService service;
 
@@ -59,7 +60,9 @@ class CommentDeletionCardinalityContractTest {
         postRepository = mock(PostContentRepository.class);
         counterCache = mock(PostCounterCache.class);
         pageCache = mock(CommentPageCache.class);
+        postCacheAfterCommit = mock(PostCacheAfterCommit.class);
         eventPublisher = mock(ContentEventPublisher.class);
+        when(postRepository.incrementActiveCommentCount(any(UUID.class), anyInt())).thenReturn(2L);
         service = new CommentApplicationService(
                 mock(ContentSanitizer.class),
                 mock(IdempotencyGuard.class),
@@ -68,7 +71,7 @@ class CommentDeletionCardinalityContractTest {
                 new CommentDomainService(),
                 repository,
                 postRepository,
-                new CommentCacheAfterCommit(counterCache, pageCache),
+                new CommentCacheAfterCommit(counterCache, pageCache, postCacheAfterCommit),
                 mock(SocialBlockQueryApi.class),
                 eventPublisher
         );
@@ -92,8 +95,9 @@ class CommentDeletionCardinalityContractTest {
                 .containsExactly(ROOT_ID, FIRST_REPLY_ID, SECOND_REPLY_ID);
         assertThat(events.getAllValues()).extracting(CommentPayload::getEntityType)
                 .containsExactly(POST, COMMENT, COMMENT);
-        verify(postRepository).incrementCommentCount(POST_ID, -3);
+        verify(postRepository).incrementActiveCommentCount(POST_ID, -3);
         verify(counterCache).incrementCommentCount(POST_ID, -3L);
+        verify(postCacheAfterCommit).evict(POST_ID, 2L);
     }
 
     @Test
@@ -107,7 +111,7 @@ class CommentDeletionCardinalityContractTest {
                 .hasMessage("comment transition stale");
 
         verifyNoInteractions(eventPublisher);
-        verify(postRepository, never()).incrementCommentCount(any(UUID.class), anyInt());
+        verify(postRepository, never()).incrementActiveCommentCount(any(UUID.class), anyInt());
         verify(counterCache, never()).incrementCommentCount(any(UUID.class), anyLong());
         verify(pageCache, never()).evictPost(any(UUID.class));
     }
@@ -122,7 +126,7 @@ class CommentDeletionCardinalityContractTest {
         service.deleteByAuthor(AUTHOR_ID, POST_ID, ROOT_ID);
 
         verifyNoInteractions(eventPublisher);
-        verify(postRepository, never()).incrementCommentCount(any(UUID.class), anyInt());
+        verify(postRepository, never()).incrementActiveCommentCount(any(UUID.class), anyInt());
         verify(counterCache, never()).incrementCommentCount(any(UUID.class), anyLong());
     }
 

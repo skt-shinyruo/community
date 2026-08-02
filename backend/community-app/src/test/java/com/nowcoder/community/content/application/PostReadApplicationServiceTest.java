@@ -126,6 +126,7 @@ class PostReadApplicationServiceTest {
         post.setCommentCount(5);
         post.setScore(12.5);
         post.setCategoryId(categoryId);
+        post.setAggregateVersion(7L);
 
         when(postService.getById(postId)).thenReturn(post);
         when(blockRepository.listByPostId(postId)).thenReturn(List.of(paragraphBlock(postId, "&lt;body&gt;")));
@@ -302,6 +303,7 @@ class PostReadApplicationServiceTest {
         post.setCommentCount(5);
         post.setScore(12.5);
         post.setCategoryId(categoryId);
+        post.setAggregateVersion(7L);
 
         when(postService.getById(postId)).thenReturn(post);
         when(blockRepository.listByPostId(postId)).thenReturn(List.of(paragraphBlock(postId, "&lt;body&gt;")));
@@ -330,7 +332,7 @@ class PostReadApplicationServiceTest {
                 detail != null
                         && detail.id().equals(postId)
                         && !detail.liked()
-                        && !detail.bookmarked()));
+                        && !detail.bookmarked()), eq(7L));
     }
 
     @Test

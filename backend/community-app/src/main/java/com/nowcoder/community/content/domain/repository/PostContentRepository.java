@@ -41,17 +41,14 @@ public interface PostContentRepository {
 
     UUID create(DiscussPost post);
 
-    void updateCommentCount(UUID postId, int commentCount);
+    /**
+     * Applies a comment-derived mutation only while the post is active and returns the new aggregate version.
+     * A non-positive result means the post no longer accepted the mutation.
+     */
+    long incrementActiveCommentCount(UUID postId, int delta);
 
-    void incrementCommentCount(UUID postId, int delta);
-
-    void updateType(UUID postId, int type);
-
-    void updateStatus(UUID postId, int status);
-
-    void updateScore(UUID postId, double score);
-
-    void updatePostMeta(UUID postId, String title, UUID categoryId, Date updateTime);
-
-    void updateModerationDeleteMeta(UUID postId, int status, UUID deletedBy, String deletedReason, Date deletedTime);
+    /**
+     * Updates the derived score while the owning Post aggregate version is unchanged and returns the new score version.
+     */
+    long updateScore(UUID postId, double score, long expectedVersion);
 }

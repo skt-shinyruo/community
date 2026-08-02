@@ -11,6 +11,8 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class PostIntegrationEventPublisherTest {
@@ -29,8 +31,9 @@ class PostIntegrationEventPublisherTest {
     void publishPostPublishedShouldAssembleAndPublishPayload() {
         ContentPostPayloadAssembler assembler = mock(ContentPostPayloadAssembler.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
+        PostCacheAfterCommit cacheAfterCommit = mock(PostCacheAfterCommit.class);
         PostIntegrationEventPublisher publisher =
-                new PostIntegrationEventPublisher(assembler, eventPublisher);
+                new PostIntegrationEventPublisher(assembler, eventPublisher, cacheAfterCommit);
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(11));
         when(assembler.assemble(uuid(11))).thenReturn(payload);
@@ -40,16 +43,19 @@ class PostIntegrationEventPublisherTest {
         var inOrder = inOrder(assembler, eventPublisher);
         inOrder.verify(assembler).assemble(uuid(11));
         inOrder.verify(eventPublisher).publishPostPublished(payload);
+        verifyNoInteractions(cacheAfterCommit);
     }
 
     @Test
     void publishPostUpdatedShouldAssembleAndPublishPayload() {
         ContentPostPayloadAssembler assembler = mock(ContentPostPayloadAssembler.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
+        PostCacheAfterCommit cacheAfterCommit = mock(PostCacheAfterCommit.class);
         PostIntegrationEventPublisher publisher =
-                new PostIntegrationEventPublisher(assembler, eventPublisher);
+                new PostIntegrationEventPublisher(assembler, eventPublisher, cacheAfterCommit);
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(12));
+        payload.setAggregateVersion(7L);
         when(assembler.assemble(uuid(12))).thenReturn(payload);
 
         publisher.postUpdated(uuid(12));
@@ -57,16 +63,20 @@ class PostIntegrationEventPublisherTest {
         var inOrder = inOrder(assembler, eventPublisher);
         inOrder.verify(assembler).assemble(uuid(12));
         inOrder.verify(eventPublisher).publishPostUpdated(payload);
+        verify(cacheAfterCommit).evict(uuid(12), 7L);
     }
 
     @Test
     void publishPostDeletedShouldAssembleAndPublishPayload() {
         ContentPostPayloadAssembler assembler = mock(ContentPostPayloadAssembler.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
+        PostCacheAfterCommit cacheAfterCommit = mock(PostCacheAfterCommit.class);
         PostIntegrationEventPublisher publisher =
-                new PostIntegrationEventPublisher(assembler, eventPublisher);
+                new PostIntegrationEventPublisher(assembler, eventPublisher, cacheAfterCommit);
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(13));
+        payload.setCategoryId(uuid(14));
+        payload.setAggregateVersion(8L);
         when(assembler.assemble(uuid(13))).thenReturn(payload);
 
         publisher.postDeleted(uuid(13));
@@ -74,6 +84,7 @@ class PostIntegrationEventPublisherTest {
         var inOrder = inOrder(assembler, eventPublisher);
         inOrder.verify(assembler).assemble(uuid(13));
         inOrder.verify(eventPublisher).publishPostDeleted(payload);
+        verify(cacheAfterCommit).terminalEvict(uuid(13), uuid(14), 8L);
     }
 
     private Method requiredMethod(String name) {

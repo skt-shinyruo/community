@@ -83,7 +83,7 @@ class PostMediaReferenceReconciliationApplicationServiceTest {
         when(fixture.mediaRepository.scanReferenceStatesAfter(ZERO_UUID, 10))
                 .thenReturn(List.of(bound));
         when(fixture.postRepository.getRequiredSnapshot(bound.postId()))
-                .thenReturn(new PostSnapshot(bound.postId(), bound.ownerUserId(), 2, Date.from(NOW)));
+                .thenReturn(postSnapshot(bound.postId(), bound.ownerUserId(), 2));
         when(fixture.mediaRepository.requestRelease(eq(bound.id()), any(Date.class))).thenReturn(7L);
 
         PostMediaReferenceReconciliationResult result = fixture.service.reconcile(command(10));
@@ -131,7 +131,7 @@ class PostMediaReferenceReconciliationApplicationServiceTest {
         when(fixture.mediaRepository.scanReferenceStatesAfter(ZERO_UUID, 10))
                 .thenReturn(List.of(bound));
         when(fixture.postRepository.getRequiredSnapshot(bound.postId()))
-                .thenReturn(new PostSnapshot(bound.postId(), bound.ownerUserId(), 0, Date.from(NOW)));
+                .thenReturn(postSnapshot(bound.postId(), bound.ownerUserId(), 0));
         when(fixture.queryPort.findReferenceStatus(bound.ossObjectId(), bound.ossReferenceId()))
                 .thenReturn(RemoteReferenceStatus.MISSING);
         when(fixture.mediaRepository.requestBindRepair(eq(bound.id()), any(Date.class))).thenReturn(11L);
@@ -157,7 +157,7 @@ class PostMediaReferenceReconciliationApplicationServiceTest {
         when(fixture.mediaRepository.scanReferenceStatesAfter(ZERO_UUID, 2))
                 .thenReturn(List.of(failed, pending));
         when(fixture.postRepository.getRequiredSnapshot(failed.postId()))
-                .thenReturn(new PostSnapshot(failed.postId(), failed.ownerUserId(), 0, Date.from(NOW)));
+                .thenReturn(postSnapshot(failed.postId(), failed.ownerUserId(), 0));
         when(fixture.queryPort.findReferenceStatus(failed.ossObjectId(), failed.ossReferenceId()))
                 .thenThrow(new IllegalStateException("OSS query unavailable"));
 
@@ -177,6 +177,11 @@ class PostMediaReferenceReconciliationApplicationServiceTest {
 
     private ReconcilePostMediaReferencesCommand command(int batchSize) {
         return new ReconcilePostMediaReferencesCommand(ZERO_UUID, batchSize);
+    }
+
+    private PostSnapshot postSnapshot(UUID postId, UUID userId, int status) {
+        Date timestamp = Date.from(NOW);
+        return new PostSnapshot(postId, userId, 0, status, timestamp, timestamp, 7L);
     }
 
     private Fixture fixture() {

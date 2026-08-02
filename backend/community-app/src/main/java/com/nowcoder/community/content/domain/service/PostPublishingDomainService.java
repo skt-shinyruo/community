@@ -14,8 +14,6 @@ import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT
 public class PostPublishingDomainService {
 
     private static final long EDIT_WINDOW_MILLIS = 24L * 3600 * 1000;
-    private static final int STATUS_DELETED = 2;
-
     public PostDraft createDraft(UUID userId, String title, UUID categoryId) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
@@ -45,7 +43,7 @@ public class PostPublishingDomainService {
         if (actorUserId == null || post == null || post.id() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
         }
-        if (post.status() == STATUS_DELETED) {
+        if (post.isDeleted()) {
             throw new BusinessException(POST_NOT_FOUND);
         }
         if (!actorUserId.equals(post.userId())) {

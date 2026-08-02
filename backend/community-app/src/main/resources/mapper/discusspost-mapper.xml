@@ -5,11 +5,11 @@
 <mapper namespace="com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper">
 
     <sql id="selectFields">
-        id, user_id, category_id, title, type, status, create_time, update_time, edit_count, deleted_by, deleted_reason, deleted_time, comment_count, score
+        id, user_id, category_id, title, type, status, create_time, update_time, edit_count, deleted_by, deleted_reason, deleted_time, comment_count, score, score_version, aggregate_version
     </sql>
 
     <sql id="insertFields">
-        id, user_id, category_id, title, type, status, create_time, comment_count, score
+        id, user_id, category_id, title, type, status, create_time, comment_count, score, score_version, aggregate_version
     </sql>
 
     <select id="selectDiscussPosts" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
@@ -70,7 +70,7 @@
     <select id="selectRecentVisiblePostsByAuthorIds" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
         select <include refid="selectFields"></include>
         from discuss_post
-        where status = 0
+        where status != 2
           and user_id in
           <foreach collection="authorIds" item="authorId" open="(" separator="," close=")">
               #{authorId, jdbcType=BINARY}
@@ -82,7 +82,7 @@
     <select id="selectRecentVisiblePostsByAuthorIdsBefore" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
         select <include refid="selectFields"></include>
         from discuss_post
-        where status = 0
+        where status != 2
           and user_id in
           <foreach collection="authorIds" item="authorId" open="(" separator="," close=")">
               #{authorId, jdbcType=BINARY}
@@ -97,7 +97,7 @@
 
     <insert id="insertDiscussPost" parameterType="com.nowcoder.community.content.domain.model.DiscussPost">
         insert into discuss_post(<include refid="insertFields"></include>)
-        values(#{id, jdbcType=BINARY},#{userId, jdbcType=BINARY},#{categoryId, jdbcType=BINARY},#{title},#{type},#{status},#{createTime},#{commentCount},#{score})
+        values(#{id, jdbcType=BINARY},#{userId, jdbcType=BINARY},#{categoryId, jdbcType=BINARY},#{title},#{type},#{status},#{createTime},#{commentCount},#{score},#{scoreVersion},#{aggregateVersion})
     </insert>
 
     <select id="selectDiscussPostById" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
@@ -106,46 +106,70 @@
         where id = #{id, jdbcType=BINARY}
     </select>
 
-    <update id="updateCommentCount">
-        update discuss_post set comment_count = #{commentCount} where id = #{id, jdbcType=BINARY}
-    </update>
-
-    <update id="incrementCommentCount">
+    <update id="incrementActiveCommentCount">
         update discuss_post
-        set comment_count = coalesce(comment_count, 0) + #{delta}
+        set comment_count = greatest(0, coalesce(comment_count, 0) + #{delta}),
+            aggregate_version = aggregate_version + 1
         where id = #{id, jdbcType=BINARY}
+          and status != 2
     </update>
 
-    <update id="updateType">
-        update discuss_post set type = #{type} where id = #{id, jdbcType=BINARY}
+    <update id="updateScoreIfVersion">
+        update discuss_post
+        set score = #{score},
+            score_version = score_version + 1
+        where id = #{id, jdbcType=BINARY}
+          and status != 2
+          and aggregate_version = #{expectedVersion}
     </update>
 
-    <update id="updateStatus">
-        update discuss_post set status = #{status} where id = #{id, jdbcType=BINARY}
-    </update>
 
-    <update id="updateScore">
-        update discuss_post set score = #{score} where id = #{id, jdbcType=BINARY}
-    </update>
-
-    <update id="updatePostMeta">
+    <update id="updatePostMetaIfVersion">
         update discuss_post
         set title = #{title},
             category_id = #{categoryId, jdbcType=BINARY},
             update_time = #{updateTime},
-            edit_count = edit_count + 1
+            edit_count = edit_count + 1,
+            aggregate_version = aggregate_version + 1
         where id = #{id, jdbcType=BINARY}
+          and status != 2
+          and aggregate_version = #{expectedVersion}
     </update>
 
-    <update id="updateModerationDeleteMeta">
+    <update id="updateTypeIfVersion">
+        update discuss_post
+        set type = #{type},
+            update_time = #{updateTime},
+            aggregate_version = aggregate_version + 1
+        where id = #{id, jdbcType=BINARY}
+          and status != 2
+          and aggregate_version = #{expectedVersion}
+    </update>
+
+    <update id="updateStatusIfVersion">
+        update discuss_post
+        set status = #{status},
+            update_time = #{updateTime},
+            aggregate_version = aggregate_version + 1
+        where id = #{id, jdbcType=BINARY}
+          and status != 2
+          and aggregate_version = #{expectedVersion}
+    </update>
+
+    <update id="updateModerationDeleteMetaIfVersion">
         update discuss_post
         set status = #{status},
             deleted_by = #{deletedBy, jdbcType=BINARY},
             deleted_reason = #{deletedReason},
             deleted_time = #{deletedTime},
-            update_time = #{deletedTime}
+            update_time = #{deletedTime},
+            aggregate_version = aggregate_version + 1
         where id = #{id, jdbcType=BINARY}
           and status != #{status}
+          and aggregate_version = #{expectedVersion}
+          <if test="expectedAuthorUserId != null">
+              and user_id = #{expectedAuthorUserId, jdbcType=BINARY}
+          </if>
     </update>
 
 </mapper>

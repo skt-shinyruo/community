@@ -75,6 +75,8 @@
 - 恢复商品。
 - 关闭商品。
 
+更新、暂停、恢复和关闭都会锁定 listing 当前行；状态迁移 SQL 仍携带读取到的 `expectedStatus` 做 CAS，受影响行不是 1 时返回 `LISTING_TRANSITION_CONFLICT`。`CLOSED` 是终态，关闭后的 listing 不能再编辑、暂停或恢复。
+
 创建商品的基础规则：
 
 - sellerUserId 必须存在。
@@ -92,6 +94,7 @@
 - 追加库存会增加 listing `stock_total` 和 `stock_available`。
 - 如果 listing 因售罄处于 `SOLD_OUT`，追加可用库存后可恢复 `ACTIVE`。
 - 失效库存只允许卖家操作，且只能失效 `AVAILABLE` unit。
+- 库存增减先锁定 listing，并在更新 SQL 中携带锁定时的 `expectedStatus`；只有 `ACTIVE -> SOLD_OUT` 和 `SOLD_OUT -> ACTIVE` 可由库存变化触发，`PAUSED` 与终态 `CLOSED` 始终保持不变。
 
 ## 地址
 
@@ -110,7 +113,7 @@
 - postalCode 可空；非空时 trim。
 - 地址状态写入为 `ACTIVE`。
 - 创建地址使用 UUIDv7 addressId。
-- 创建或更新时如果 `defaultAddress=true`，会先清除该用户已有默认地址，再保存当前地址为默认。
+- 创建或更新时如果 `defaultAddress=true`，会先清除该用户已有默认地址，再保存当前地址为默认。数据库通过仅对 `ACTIVE + is_default` 生成 user ID 的唯一索引保证每个用户至多一个活动默认地址；并发竞争失败返回 `DEFAULT_ADDRESS_CONFLICT`。
 - 查询只返回 repository 中该用户地址列表。
 - 更新和删除前都必须通过 `requireOwnedAddress(...)` 校验地址存在、状态 active 且属于当前用户。
 - 地址不存在或不是 active 返回 NOT_FOUND；地址不属于当前用户返回参数错误。

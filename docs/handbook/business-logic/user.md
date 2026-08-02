@@ -6,7 +6,7 @@
 
 - `user` owns `user` 表中的账号、邮箱、密码 hash、头像业务投影、角色、状态、禁言和封禁时间；头像对象本身在 `community-oss`。
 - 钱包余额和奖励账本由 `wallet` owner 拥有；`user` 不再持有 profile score 字段。
-- refresh token 策略和 session 存储事实都属于 `auth`；user 只发布当前 `securityVersion` 供登录、refresh 和高风险请求校验。
+- refresh token 策略和 session 存储事实都属于 `auth`；user 只发布当前 `securityVersion` 供登录、refresh 和所有 `/api/**` access-token freshness 校验。
 - 用户最近帖子/评论不是 user 主事实，来自 content owner 查询聚合。
 - IM 的本地 policy projection 不是用户处罚主事实；user owner 通过 snapshot 和事件向 IM 投影。
 
@@ -66,7 +66,7 @@ HTTP：
 
 1. `createUploadSession(actorUserId, userId, command)`：只能本人操作，校验文件名、MIME 和大小，并向 OSS prepare upload。
 2. 前端按返回的 URL、method、fields、headers 直接提交到 OSS 上传入口。
-3. `updateAvatar(actorUserId, userId, objectId)`：只能本人确认，回源 OSS metadata 校验 `usage/owner/visibility/status` 后，把 canonical OSS public URL 写回 `user.header_url`。
+3. `updateAvatar(actorUserId, userId, objectId)`：只能本人确认，先在数据库事务外回源 OSS metadata 校验 `usage/owner/visibility/status` 并解析 canonical public URL，再用一个短数据库事务写回 `user.header_url`。
 
 规则：
 
@@ -117,7 +117,7 @@ HTTP：
 
 写入后：
 
-1. 更新 user 表中的 `muteUntil` / `banUntil`。
+1. 以读取时的 `policyVersion` 为前提 CAS 更新 user 表中的 `muteUntil` / `banUntil` 和新版本；并发处罚已推进版本时整个事务返回冲突，不发布基于旧快照的事件。
 2. 发布 `UserPolicyChanged`。
 3. IM outbox 把变化投递给 realtime。
 4. content 写路径同步回源 user owner 判断是否可发言。
@@ -135,7 +135,7 @@ HTTP：
 5. 同角色更新直接返回，不重复写库。
 6. 变更成功写 `user.type`，并通过 audit port 记录审计日志。
 
-角色决定 JWT authorities，但已签发的 access token 不会立即变化，需要重新签发后体现。角色调整会同时提升 `securityVersion`；高风险入口立即按 freshness 拒绝旧 access token，旧 refresh family 在下次续期时被 auth 拒绝。
+角色决定 JWT authorities，但已签发的 access token claims 不会立即变化，需要重新签发后体现。角色调整会同时提升 `securityVersion`；所有带旧 access token 的 `/api/**` 请求立即按 freshness 拒绝，旧 refresh family 在下次续期时被 auth 拒绝。
 
 ## 用户事件发布
 

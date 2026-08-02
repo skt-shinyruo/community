@@ -99,10 +99,11 @@ HTTP：
 ### 投影流程
 
 1. content 主事务写 `eventbus.content`，owner handler 发布 `content.events`。
-2. `SearchPostProjectionKafkaListener` 识别 post published/updated/deleted 并校验 source metadata。
+2. `SearchPostProjectionKafkaListener` 识别 post published/updated/deleted 和 `PostScoreUpdated`，并校验 source metadata；score 事件的 envelope version 必须等于 payload `scoreVersion`。
 3. listener 进入 `SearchPostProjectionApplicationService`。
 4. application 把 event 当作触发信号，回源 content owner 当前帖子状态。
 5. `PostSearchDomainService.shouldIndex(...)` 判断是否应索引。
+6. ES 以 `aggregateVersion` 单调替换全文档；相同聚合版本只按更大的 `scoreVersion` 更新 score，避免两个消费组并发留下旧排序分。
 6. 应索引则 upsert ES；不应索引则 delete ES。
 
 ## Analytics 分析

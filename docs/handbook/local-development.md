@@ -178,7 +178,7 @@ Local services import config with optional `nacos:` imports so IDE startup can s
 fall back to packaged defaults. Production-like runs set required imports through
 `NACOS_CONFIG_IMPORT_SHARED` and `NACOS_CONFIG_IMPORT_SERVICE`.
 
-Secrets do not live in Nacos Config. Keep JWT HMAC secrets, database passwords,
+Secrets do not live in Nacos Config. Keep access JWT RSA private keys, service JWT HMAC secrets, database passwords,
 object-store access keys, XXL-JOB tokens, and Nacos credentials in `.env` or a
 secret manager.
 

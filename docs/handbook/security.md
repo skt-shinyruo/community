@@ -24,12 +24,21 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 
 ### Access Token
 
-- auth 模块签发 HS256 JWT。
+- auth 模块使用 RS256 签发 access JWT；JOSE header `typ=at+jwt`，payload `aud=community-api`。
+- 只有 `community-app` 注入 `security.jwt.access-private-key`；gateway、OSS 和 IM 资源服务只持有 `access-public-key`，验签端泄露不能获得 access token 签发能力。
+- access decoder 同时强制 RS256、configured issuer、`typ=at+jwt` 和 `aud=community-api`，service token 或缺少 typ/aud 的 JWT 不能混入浏览器 API chain。
 - 登录响应体返回 `accessToken`。
 - 前端保存在内存状态中，每次请求带 `Authorization: Bearer <token>`。
 - JWT subject 是用户 UUID。
 - authorities / scope 从 token claim 解析，供 Spring Security 判定。
 - Servlet / WebFlux 认证失败都返回统一 `Result` 错误包体并带 trace。
+
+### Service Token
+
+- 服务间 `/internal/**` 调用使用独立的 `security.jwt.service-hmac-secret` 签发 HS256 JWT，不复用 access RSA 私钥或 IM session-ticket secret。
+- JOSE header 必须是 `typ=service+jwt`，payload 必须匹配 configured issuer 和目标服务 audience，例如 `community-app`、`im-core` 或 `community-oss`，并携带入口要求的 scope。
+- internal endpoint 使用独立 SecurityFilterChain 和 service decoder；`at+jwt` 不会被当成 service token，`service+jwt` 也不会被普通 `/api/**` access decoder 接受。
+- service HMAC secret 的持有者仍属于同一内部信任域；这次拆分保证其泄露不能伪造浏览器 access token，不等同于为每个内部调用方建立独立签名身份。
 
 ### Refresh Token
 
@@ -42,7 +51,7 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 - refresh 支持 recoverable rotation：刷新时先把旧 session 转入 `PENDING_ROTATION`，再回源校验用户仍允许 refresh，成功后 finish rotation 使旧 session 变为 `CONSUMED` tombstone、同 family replacement 变为 `ACTIVE`；临时失败会 rollback，无法安全恢复或用户不存在、账号被禁用、`refreshAllowed=false` 时撤销 family 并清 cookie。session 保存 `securityVersionAtIssue`；与 user 当前版本不一致时 auth 拒绝续期、撤销 family 并清 cookie。
 - token family 支持族撤销，复用旧 token 可触发 family revoke。
 
-`GET /api/auth/me` 直接读取已验证 JWT claim，不实时查库；高风险 admin/ops/wallet admin URI prefix 会额外校验 JWT 中的 `security_version`，版本落后时要求刷新或重新登录。普通前端权限展示可能仍滞后到下一次 access token 重新签发。具体 prefix、401/403 映射和失败语义见 [Token Freshness 与高风险请求安全](core-logic/security-token-freshness.md)。
+`GET /api/auth/me` 直接读取已验证 JWT claim，不单独组装数据库用户视图；`community-app` 对所有携带已认证 access JWT 的 `/api/**` 请求校验 `security_version`，版本落后时返回 `401` 并要求 refresh 或重新登录。匿名访问 permitAll 路径时没有 JWT，不执行 freshness 查询。具体 401/403 映射和失败语义见 [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md)。
 
 `security_version` 是 user owner 的认证授权版本。角色、密码以及新增或延长活跃账号级封禁会递增该版本；user 不反向调用 auth 删除 refresh rows。账号状态和当前活跃封禁会在 login / refresh 校验中被拒绝，安全版本变化还会让旧 refresh family 在下一次续期时失效。`muteUntil` 只影响发言能力，不影响登录或 refresh。
 
@@ -114,10 +123,11 @@ Compose environment。`application.yml` 中的 `GATEWAY_CORS_ALLOWED_ORIGINS`、
 - `ApiSecurityRules`
 - 各业务域 `*SecurityRules`
 
-当前主站业务面通常有两条 Servlet filter chain：
+当前主站业务面通常有三条 Servlet filter chain：
 
 1. Actuator / metrics chain：由基础设施安全配置保护。
-2. API chain：由 `CommunitySecurityConfig` 组装主业务授权矩阵。
+2. Internal chain：只接受 `service+jwt`，按目标 audience 和 scope 保护 `/internal/**`。
+3. API chain：只接受 `at+jwt`，由 `CommunitySecurityConfig` 组装主业务授权矩阵并执行 token freshness。
 
 `ApiSecurityRules` 按 `@Order` 注入并在 `CommunitySecurityConfig` 中注册。最后会统一兜底为 authenticated，避免未声明路径静默匿名开放。
 
@@ -140,7 +150,7 @@ Compose environment。`application.yml` 中的 `GATEWAY_CORS_ALLOWED_ORIGINS`、
 `community-oss` 作为独立资源服务器保护对象管理面：
 
 - `/api/oss/**`：需登录，调用方通过 `community-oss-client` 转发当前 bearer token。
-- `/internal/oss/**`：需登录，用于对象引用绑定/释放等服务内协作入口。
+- `/internal/oss/**`：要求 `service+jwt`、`aud=community-oss` 和配置的 internal scope，用于对象引用绑定/释放等服务内协作入口。
 - `GET /files/**`：匿名开放，只返回 OSS 判定可公开读取的文件内容。
 
 路径级授权只是第一层。业务内仍要做资源级校验，例如用户只能修改自己的资料、钱包只能操作自己的账户、管理员不能误降权自己等。
@@ -155,7 +165,7 @@ Compose environment。`application.yml` 中的 `GATEWAY_CORS_ALLOWED_ORIGINS`、
 - `community-app`：`/internal/im/realtime/projections/block-relations`
 - `im-core`：`/internal/im/realtime/projections/room-memberships`
 
-这些接口只允许具备内部 scope 的 JWT 访问，不面向浏览器业务流量。
+这些接口只允许具备内部 scope、`typ=service+jwt`、正确 issuer 和目标 audience 的 service token 访问，不面向浏览器业务流量。普通 access token 的 `aud=community-api`，不能进入 internal chain。
 
 `im-realtime` 启动时：
 
@@ -277,7 +287,8 @@ prod 下约束：
 - 禁止回传注册验证码。
 - `AuthStartupValidator` 会在 `auth.registration.code.expose-code=true` 时阻断启动。
 - 必须启用 SMTP。
-- JWT secret 必须显式配置且长度满足要求。
+- access RSA 公私钥必须显式配置、至少 2048 bit 且匹配；私钥只注入 `community-app`。
+- service HMAC secret 必须显式配置、至少 32 bytes，并与 IM session-ticket secret 分离。
 - 真实密钥必须通过 Secrets / 配置中心注入。
 
 ## Prod Fail-closed
@@ -286,7 +297,7 @@ prod 下约束：
 
 - `StartupValidation` 聚合各模块 `StartupValidator`。
 - `AuthStartupValidator` 校验 refresh cookie、找回密码、注册邮件、固定验证码和 OriginGuard fail-closed allowlist。
-- 共享安全基础设施校验 JWT secret。
+- 共享安全基础设施校验 access 公钥、issuer、audience；签发端额外校验 access 私钥和公钥匹配，service token 使用方校验独立 HMAC secret。
 - trusted proxy 校验 CIDR。
 - actuator / metrics basic auth 如果启用但缺凭据，会失败。
 - outbox 启用但缺 JDBC store，会失败。

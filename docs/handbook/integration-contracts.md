@@ -88,6 +88,7 @@ owner ApplicationService
 典型消费：
 
 - notice、search、growth、wallet reward、hot feed 和 social deletion cleanup listener 直接消费 `content.events` / `social.events`，再进入各自同域 ApplicationService。
+- content 的 `PostScoreUpdated` 是派生 score owner fact：payload 同时携带 Post `aggregateVersion`、独立 `scoreVersion` 和 score；envelope version 等于 `scoreVersion`。search 消费该事件，hot-feed 必须忽略它以避免反馈循环。
 - `WalletRewardKafkaListener` 把标准内容/点赞奖励事件交给 `WalletRewardProjectionApplicationService`；user 不拥有奖励 projection。
 - IM policy listener 直接消费 `user.events` / `social.events`，再进入唯一保留的内部 projection outbox。
 
@@ -102,7 +103,7 @@ Outbox topic 是内部可靠投递键，不是对外业务 API。
 - topic handler 必须幂等。
 - payload schema 变化要显式进入失败路径，避免静默丢弃坏 payload。
 - handler 遇到未知/坏 payload 不应 silent drop，应失败、重试或进入 `DEAD`。
-- `DEAD` 需要人工排查口径。
+- `DEAD` 需要人工排查口径；若 producer 支持自动恢复，必须明确限定 topic、条件状态和“实际重排成功”语义，当前仅 content media reference command 实现该例外。
 
 IM policy 的 `projection.im.policy` 是 `community-app` 内部 outbox topic：
 

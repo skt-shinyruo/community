@@ -285,7 +285,10 @@ OutboxWorkerScheduler
 - handler 必须幂等，因为至少一次投递。
 - worker 崩溃时，lease 到期后由 `recoverExpiredLeases` 回收。
 - handler 抛异常时，事件回到 `PENDING` 并设置 `next_retry_at`。
+- worker claim 必须在条件更新中再次校验 `next_retry_at <= pollNow`，不能让另一实例持有的旧 poll 结果绕过 backoff。
+- claim 成功后必须按 lease token 回读当前 row，再用新鲜的 payload / retry count 派发；不得继续使用 claim 前的候选快照，否则 `DEAD -> PENDING` 复活会产生 ABA 误判。
 - 超过最大重试次数进入 `DEAD`。
+- 当前 content media command 的确定性 event ID 再次 enqueue 冲突时，可按 event ID 原位执行 `DEAD -> PENDING`；该更新清空 retry、lease 和旧错误，且绝不覆盖 `PENDING`、`PROCESSING` 或 `SUCCEEDED`。其他 producer 需要显式选择并实现同类恢复，不能仅凭确定性 ID 假定会自动重排。
 
 `DEAD` 不是业务终点，只是自动重试终点。人工仍需确认副作用、修复 handler 或执行重放。
 
@@ -333,9 +336,9 @@ worker 不保证 exactly-once，handler 必须自己保证幂等。
 
 当前做法：
 
-- 搜索 Kafka listener 进入 application 后回源 content owner 当前状态，再 upsert/delete ES；乱序事件不会让已删除帖子复活。
+- 搜索 Kafka listener 进入 application 后回源 content owner 当前状态，再 upsert/delete ES；全文档按 `aggregateVersion` 单调覆盖，同版本 score 只按更大的 `scoreVersion` 更新。score CAS 与 `PostScoreUpdated` outbox 原子提交，乱序事件既不会永久保留旧分数，也不会让已删除帖子复活。
 - content eventbus payload 使用稳定 source event id、aggregate metadata 和 owner fact fields。Search / notice / growth projection 以 source event id 或回源当前状态处理重复和乱序重放。
-- social eventbus payload 使用稳定 source event id、relation key、actor、target 和 state change 语义。Notice / growth / hot-feed projection 以 source event id、relation key 或 source version 处理重复和乱序重放。
+- social eventbus payload 使用稳定 source event id、relation key、actor、target 和 state change 语义。Notice / growth 以 source event id、relation key 或 owner version 处理重复和乱序；hot-feed 把 social 事件视为当前事实重算信号，不把节点时间戳当作单调水位。
 - IM policy projection 先写 `projection.im.policy` outbox，再由 handler 发布 Kafka 增量事件。`USER_POLICY` 使用 user owner 持久版本覆盖 userId 的消息权限；`BLOCK` 使用 social owner 持久版本覆盖 blocker / blocked 拉黑关系，重复或乱序投递不会产生累计副作用。
 - IM 私信持久化不信任 realtime 本地 projection；`im-core` 在写权威消息表前回源 `community-app` owner decision。业务拒绝发布 `im.event.private-rejected` 并提交 offset，不进入 DLQ；owner API 不可用等系统失败仍按 Kafka retry / DLQ 处理。
 - IM 消息事实 event 和发送结果 event 使用不同 outbox event id 空间。重复 `clientMsgId` 不会重复创建或发布消息事实；不同 `requestId` 的发送尝试会生成各自的 committed / rejected 回执事件。
@@ -374,7 +377,7 @@ UNBOUND -> BIND_PENDING -> BOUND -> RELEASE_PENDING -> RELEASED
 - 主事务只写 desired state、递增 `referenceOperationVersion` 并 enqueue `command.content.post-media-reference`。
 - outbox event ID 固定为 `content-media-reference:<assetId>:<operationVersion>:<operation>`。
 - handler 在事务外调用 OSS bind/release，再以相同 version 在新事务内标记完成；command version 已落后时直接 no-op。
-- reconciliation 重发 `BIND_PENDING/RELEASE_PENDING`，并修复 `deleted_post`、`remote_missing`、`remote_active` 三类漂移。
+- reconciliation 重发 `BIND_PENDING/RELEASE_PENDING`，并修复 `deleted_post`、`remote_missing`、`remote_active` 三类漂移。相同确定性 ID 已存在时，publisher 只会原位重排 `DEAD` row；只有新建或重排成功，reconciler 才记录 `scheduled`。
 - Nacos seed：enabled `true`、batch `50`、delay `300s`。
 
 这两条状态线都不承诺 exactly-once remote call；正确性来自幂等 OSS reference ID、确定性 outbox ID、单调 operation version 和周期对账。
@@ -394,6 +397,7 @@ content.events
 
 - listener 只接受完整的帖子/评论删除事件；缺少 event ID、发生时间、正数 owner version 或实体 ID 时抛错进入 retry / `.dlq`。
 - `LikeTargetState` 只接受更大的 `sourceVersion`，重复和乱序删除事件不会重复推进 fence；deleted target 也会阻止新的点赞写入。
+- deletion fence 和每页最多 200 条关系清理分别使用独立 `REQUIRES_NEW` 短事务；已提交页不会因后续页失败而回滚，reconciliation 从剩余关系继续，不从头制造一个无界事务。
 - 每条实际删除的关系继续发布 like-removed event，使 wallet、growth、notice 和 hot-feed 走正常消费路径。
 - `SocialLikeCleanupReconciliationJob` 扫描仍有点赞的 deleted target 并重跑 owner cleanup。代码默认 disabled，batch `50`、delay `300s`。
 
@@ -550,7 +554,7 @@ Hot-feed 缓存治理入口位于 `/api/ops/hot-cache/**`，由 ops 应用层调
 
 默认规则：
 
-- 认证、授权、OriginGuard、JWT secret、trusted proxy、prod SMTP、固定验证码：fail-closed。
+- 认证、授权、OriginGuard、access JWT RSA / service JWT HMAC 凭据、trusted proxy、prod SMTP、固定验证码：fail-closed。
 - 必须幂等的写入口：幂等存储异常时 fail-closed。
 - Outbox 开启但缺 store：fail-closed。
 - 搜索投影失败：不阻断已提交的 owner 主写路径，交给 `content.events` consumer retry / `.dlq`，必要时 reindex。

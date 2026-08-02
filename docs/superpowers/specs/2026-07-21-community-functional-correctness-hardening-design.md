@@ -35,7 +35,7 @@
 
 - 不重写现有 IM、Drive、Market、Content 或 Notice 领域。
 - 不引入分布式事务、工作流引擎或新的通用 credential/lease/cursor 框架。
-- 不改变普通 access token 的现有登录会话兼容性。
+- access token 切换为显式的 RS256、`typ` 和 `aud` 契约；旧 HS256 access token 在发布后失效。
 - 不承诺旧 IM session ticket 兼容；发布后旧 ticket 立即失效。
 - 不修改任何已执行的 Flyway migration 或冻结的 version-one schema manifest。
 - 不把本次修复扩展为所有列表接口的分页重构。
@@ -69,11 +69,19 @@ Controller / Listener / Handler / Bridge / Enqueuer / Job
 
 ### 5.1 两类凭证
 
-普通 access token 继续使用：
+普通 access token 使用非对称签名：
 
-- `security.jwt.hmac-secret`
+- `security.jwt.access-private-key`（仅签发进程持有）
+- `security.jwt.access-public-key`（Gateway 和各资源服务持有）
 - `security.jwt.issuer`
-- 现有 access-token TTL 和 claims
+- `security.jwt.audience=community-api`
+- `typ=at+jwt`
+
+内部服务调用使用独立 HS256 凭证：
+
+- `security.jwt.service-hmac-secret`
+- `typ=service+jwt`
+- 每个目标服务独立校验 audience
 
 IM session ticket 使用独立配置：
 
@@ -86,7 +94,7 @@ im.session-ticket.audience    = IM_SESSION_TICKET_AUDIENCE (default: im-realtime
 Gateway 和 Realtime 的启动校验要求：
 
 - ticket secret 至少 32 字节；
-- ticket secret 不得等于全局 JWT secret；
+- ticket secret 不得等于内部 service-token secret；
 - issuer 和 audience 必须为非空规范值；
 - 缺少配置时 fail closed。
 
@@ -96,8 +104,8 @@ Gateway 和 Realtime 的启动校验要求：
 
 ```text
 Bearer access token
-  -> Gateway access JwtDecoder
-  -> JwtVerifier verifies user subject and rejects typ=im-session-ticket
+  -> Gateway RS256 access JwtDecoder
+  -> JwtVerifier verifies user subject, typ=at+jwt and aud=community-api
   -> select realtime worker
   -> dedicated SessionTicketCodec signs ticket
 ```
@@ -112,9 +120,9 @@ ticket 至少包含：
 - `wid=<worker ID>`
 - `iat` 和 `exp`
 
-Gateway WebSocket bridge 和 Realtime worker 都使用专用 decoder 校验 signature、issuer、audience、type 和有效期，不回退到全局 access-token decoder，也不接受旧密钥。
+Gateway WebSocket bridge 和 Realtime worker 都使用专用 decoder 校验 signature、issuer、audience、type 和有效期，不回退到 access-token 或 service-token decoder，也不接受旧密钥。
 
-共享 access-token decoder 增加 credential-confusion guard：即使 token 仍由旧全局密钥正确签名，只要 `typ=im-session-ticket` 就拒绝。普通旧 access token 当前没有 `typ`，仍保持兼容。
+三类凭证分别约束算法、密钥、`typ` 和 audience：access token 只接受 RS256 `at+jwt`，内部服务令牌只接受 HS256 `service+jwt`，IM session ticket 只接受专用 HS256 `im-session-ticket`。缺少或错误的 `typ`、audience 和算法一律拒绝，防止跨凭证重放。
 
 ### 5.3 错误语义
 
@@ -362,10 +370,10 @@ Notice projection 在构造 `NoticeProjectionContent.Comment` 时把 comment con
 
 ## 13. 发布顺序
 
-1. 生成 `IM_SESSION_TICKET_HMAC_SECRET`，同步配置给 Gateway 与 Realtime，并确认它不同于 `JWT_HMAC_SECRET`。
+1. 生成 access-token RSA 密钥对、内部 service-token secret 和 `IM_SESSION_TICKET_HMAC_SECRET`；只向签发进程分发私钥，并确认两套 HMAC secret 不复用。
 2. 暂停 `marketWalletActionProcessor` 和 `marketWalletActionRecovery`，并短暂停止签发新 IM session。
 3. 执行 Community `V012-V014`。
-4. 部署带 credential-confusion guard 的所有资源服务；普通 access token 保持有效。
+4. 在同一认证维护窗口部署带算法、`typ` 和 audience guard 的签发端与所有资源服务；旧 HS256 access token 失效，客户端重新登录。
 5. 在同一维护窗口重启 Realtime 和 IM Gateway，使两端同时切换到新 ticket 密钥、issuer 和 audience。
 6. 恢复钱包 worker 和 IM 流量。
 7. 观察 lost-lease、ticket rejection、Drive legacy checksum fallback 和 after-commit cache failure 信号。

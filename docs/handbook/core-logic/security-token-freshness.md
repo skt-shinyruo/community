@@ -1,6 +1,6 @@
-# Token Freshness 与高风险请求安全
+# Token Freshness 与 API 请求安全
 
-本文只描述当前已实现的 token freshness 行为。它在普通 JWT 验签之后，为少量高风险 URI 追加一次 `security_version` 校验，避免旧 access token 在账号凭证或授权版本变化后继续访问敏感入口。
+本文只描述当前已实现的 token freshness 行为。它在普通 access JWT 验签之后，为所有带已认证 JWT 的 `/api/**` 请求追加一次 `security_version` 校验，避免旧 access token 在账号凭证或授权版本变化后继续访问业务入口。
 
 ## JWT 签发
 
@@ -10,20 +10,13 @@
 
 ## 过滤器位置与生效范围
 
-`CommunitySecurityConfig.apiSecurityFilterChain(...)` 的 security chain 匹配 `/api/**` 和 `/internal/**`，并把 `TokenFreshnessFilter` 加在 `BearerTokenAuthenticationFilter` 之后。
+`CommunitySecurityConfig.apiSecurityFilterChain(...)` 只匹配 `/api/**`，并把 `TokenFreshnessFilter` 加在 `BearerTokenAuthenticationFilter` 之后。`/internal/**` 使用独立 service-token chain，不执行 user token freshness。
 
-`TokenFreshnessFilter` 并不校验该 chain 内的全部请求。当前 freshness enforcement 只按请求 URI 前缀生效：
-
-- `/api/users/admin/`
-- `/api/ops/`
-- `/api/admin/market/`
-- `/api/wallet/admin/`
-
-不匹配这些前缀的路径会直接继续 filter chain，跳过 freshness verification。当前代码按路径前缀门禁，不按 HTTP method 区分读写请求。
+`TokenFreshnessFilter` 对当前认证主体是 `Jwt` 的请求执行校验；没有 bearer JWT 的匿名 permitAll 请求直接继续 filter chain。它不维护 URI 前缀白名单，也不按 HTTP method 区分读写请求，因此内容治理、moderation、analytics、ops、market admin 和 wallet admin 等路径不会漏出 freshness 例外。
 
 ## 请求校验流程
 
-命中高风险前缀时，`TokenFreshnessFilter` 执行以下只读流程：
+请求携带已认证 access JWT 时，`TokenFreshnessFilter` 执行以下只读流程：
 
 1. 从 `SecurityContextHolder` 当前认证主体读取 `Jwt`。
 2. 从 JWT subject 解析用户 UUID；缺失或格式非法会得到 `null`。
@@ -46,7 +39,7 @@ filter 响应映射：
 
 该机制是 read-only 且幂等的：它只读取当前 JWT、认证上下文和 user owner 暴露的凭证视图，不修改用户、access token 或 refresh session。
 
-密码更新、角色调整以及新增或延长活跃账号级封禁由 user owner 递增 `securityVersion`。同一个版本同时约束两类 token：高风险 URI 上的旧 access token 由本 filter 立即拒绝；auth refresh session 的 `securityVersionAtIssue` 在续期时由 `LoginApplicationService.refresh(...)` 比对，不一致会撤销整个 family。user 不需要也不允许跨域直接操作 auth refresh repository。
+密码更新、角色调整以及新增或延长活跃账号级封禁由 user owner 递增 `securityVersion`。同一个版本同时约束两类 token：所有 `/api/**` 请求上的旧 access token 由本 filter 立即拒绝；auth refresh session 的 `securityVersionAtIssue` 在续期时由 `LoginApplicationService.refresh(...)` 比对，不一致会撤销整个 family。user 不需要也不允许跨域直接操作 auth refresh repository。
 
 `TokenFreshnessApplicationService.verify(...)` 不捕获 `UserCredentialQueryApi` 的异常；`TokenFreshnessFilter` 也没有把应用服务或运行时异常转成本地放行。除 subject UUID 解析失败会转换成 stale 外，意外的 user API / runtime failure 会继续向外传播。
 

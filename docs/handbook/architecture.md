@@ -94,6 +94,8 @@ com.nowcoder.community.<domain>
 
 - 是同域 use case 入口，命名为 `*ApplicationService`。
 - 负责事务边界、幂等、actor/viewer 转换、command/result 装配、领域调用、领域事件发布和 foreign-domain `api.*` 调用。
+- 领域校验依赖已读取快照时，必须把 `expectedVersion` / `expectedStatus` 等前提传到 repository，并由数据库 CAS、行锁或唯一约束裁决；不能把 application/domain 的 read-check-write 当作并发互斥。
+- 数据库事务必须有界，不得覆盖无界分页循环或 OSS / HTTP / MQ 等远程 I/O。大规模清理按固定 batch 使用独立短事务提交进度；远程调用在事务外完成，再用短事务 CAS 提交结果。
 - 单用例 command/result 优先作为 ApplicationService 或 owner API 的嵌套 record；只有复用、独立语义或可读性需要时才建立顶层文件。`CommentApplicationService.CommentCreateResult` 和 `HotPathPrewarmApplicationService.HotPathPrewarmResult` 是当前的局部结果示例。
 - Application values and application-owned ports only express application semantics. They must not expose HTTP transport types such as `ResponseEntity`, `ResponseCookie`, `Resource`, `MediaType`, Servlet request/response types, or Spring Web upload types such as `MultipartFile`.
 - 不直接依赖 MyBatis mapper 或 dataobject；持久化只通过 domain repository interface 或明确的 infrastructure port。
@@ -191,6 +193,8 @@ Domain event 和本地 Spring bridge 不是发布 integration event 的必经层
 - `Controller / Listener / Handler / Bridge / Enqueuer / Job -> mapper/dataobject/persistence`
 - `ApplicationService -> MyBatis mapper`
 - `ApplicationService -> HTTP transport type`
+- 一个数据库事务内循环处理全部未定数量的数据
+- 数据库事务包含 OSS / HTTP / MQ 等远程 I/O
 - `Domain -> infrastructure`
 - `Domain -> api.*`
 - `api.* -> contracts.event`
@@ -224,7 +228,7 @@ Domain event 和本地 Spring bridge 不是发布 integration event 的必经层
 
 - `common-core`：统一错误协议、事件 envelope、基础工具。
 - `common-web` / `common-webflux`：Servlet / WebFlux trace、错误响应、审计日志。
-- `common-security`：JWT properties、decoder、subject / authority 解析。
+- `common-security`：RS256 access-token codec、公钥验签、独立 HS256 service-token codec、subject / authority 解析。
 - `common-idempotency`：HTTP 写接口幂等 guard 和存储抽象。
 - `common-outbox`：DB outbox store、worker、scheduler、handler 分发。
 - `com.nowcoder.community.infra.*`：`community-app` 内部安全、scheduler、startup validation、idempotency wiring 等应用级基础设施。

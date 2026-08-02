@@ -109,7 +109,7 @@ IM：
 
 认证：
 
-- 角色变化通常要等待 access token 重新签发后在前端权限中体现；高风险入口会额外校验 `security_version`。
+- 角色变化通常要等待 access token 重新签发后在前端权限中体现；所有带 access JWT 的 `/api/**` 请求都会校验 `security_version`，旧版本返回 `401`。
 - refresh 失败后应清理本地 session 并跳登录。
 
 ## 关键文件

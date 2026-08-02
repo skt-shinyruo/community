@@ -98,8 +98,8 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 
 | 候选 | 分类 | Handbook 落点 |
 | --- | --- | --- |
-| `auth.application.TokenFreshnessApplicationService` | `Covered` | [Token Freshness 与高风险请求安全](core-logic/security-token-freshness.md) |
-| `auth.infrastructure.web.TokenFreshnessFilter` | `Covered` | [Token Freshness 与高风险请求安全](core-logic/security-token-freshness.md) |
+| `auth.application.TokenFreshnessApplicationService` | `Covered` | [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md) |
+| `auth.infrastructure.web.TokenFreshnessFilter` | `Covered` | [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md) |
 | `auth.domain.repository.RefreshTokenRepository` | `Covered` | [登录与会话链路](auth-login-session-flow.md) |
 | `auth.infrastructure.persistence.MyBatisRefreshTokenRepository` | `Covered` | [登录与会话链路](auth-login-session-flow.md) |
 | `profile.controller.UserProfileController` | `IndexOnly` | [Profile 用户主页聚合逻辑](business-logic/profile.md) |

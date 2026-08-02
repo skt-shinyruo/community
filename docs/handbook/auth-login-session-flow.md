@@ -8,7 +8,7 @@
 
 | 凭证 | 载体 | 服务端状态 | 用途 |
 | --- | --- | --- | --- |
-| access token | `LoginResponse.accessToken`，由前端放入 `Authorization: Bearer ...` | 不保存在线 session，只验证 JWT 签名、issuer 和过期时间 | 访问 `/api/**` 受保护接口 |
+| access token | `LoginResponse.accessToken`，由前端放入 `Authorization: Bearer ...` | 不保存在线 session；resource service 用 RSA 公钥校验 `RS256`、issuer、audience 和 JOSE type | 访问 `/api/**` 受保护接口 |
 | refresh token | `refresh_token` HttpOnly cookie | 默认 DB store 保存 SHA-256 hash、family 状态和签发安全版本 | access token 过期后续期；logout 主动撤销，凭据/授权变化后续期时失效 |
 
 默认运行路径是：
@@ -32,17 +32,20 @@ AuthController
 
 ## Token 内容
 
-access token 是短期 JWT，由 `JwtTokenService.createAccessToken(...)` 签发，使用 HS256 和 `security.jwt.hmac-secret` 签名。客户端可以解码看到 payload，但不能伪造或修改。当前 claims：
+access token 是短期 JWT，由 `JwtTokenService.createAccessToken(...)` 签发，使用 `RS256` 签名。只有 `community-app` 持有 `security.jwt.access-private-key`；gateway、OSS 和 IM resource service 只配置 `security.jwt.access-public-key`。客户端可以解码看到 payload，但不能伪造或修改。当前 JOSE header 和 claims：
 
 | Claim | 内容 |
 | --- | --- |
+| `typ` (JOSE header) | `at+jwt` |
+| `alg` (JOSE header) | `RS256` |
 | `iss` | `security.jwt.issuer`，默认 `community-auth` |
+| `aud` | `security.jwt.access-token-audience`，默认 `community-api` |
 | `iat` | 签发时间 |
 | `exp` | 过期时间，默认 `iat + 900s` |
 | `sub` | `userId` 字符串 |
 | `username` | 用户名 |
 | `authorities` | 当前用户权限 / 角色列表 |
-| `security_version` | user owner 当前认证授权版本，用于高风险入口 freshness 校验 |
+| `security_version` | user owner 当前认证授权版本；带 JWT 的 `/api/**` 请求都会执行 freshness 校验 |
 
 refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`username` 或权限。它是 opaque token：`AuthSecretGenerator.opaqueToken()` 生成 32 字节 `SecureRandom` 随机数，再使用 base64url 无填充编码，通常约 43 个字符。服务端把明文 refresh token 写入 `refresh_token` HttpOnly cookie；默认 DB store 只保存该明文的 SHA-256 hex hash。
 
@@ -61,7 +64,7 @@ refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`us
 
 ## HTTP 入口
 
-`CommunitySecurityConfig` 对 `/api/**` 和 `/internal/**` 使用 stateless session，禁用 CSRF，并通过 Spring Security resource server 验证 JWT。`AuthSecurityRules` 放行 auth 公开入口，其余接口默认要求认证。
+`CommunitySecurityConfig` 对 `/api/**` 和 `/internal/**` 使用独立 stateless filter chain，禁用 CSRF。`/api/**` 只接受 `typ=at+jwt`、`alg=RS256`、匹配 issuer/audience 的 access JWT，并在认证后对所有带 JWT 的请求执行 token freshness；`/internal/**` 只接受 `typ=service+jwt` 的 audience-bound service JWT，不执行 user `security_version` freshness。`AuthSecurityRules` 放行 auth 公开入口，其余接口默认要求认证。
 
 | Endpoint | 认证要求 | 主要效果 |
 | --- | --- | --- |
@@ -168,14 +171,17 @@ access token 由 `JwtTokenService.createAccessToken(...)` 签发：
 
 | Claim / 属性 | 来源 |
 | --- | --- |
-| `alg` | HS256 |
+| `typ` (JOSE header) | `at+jwt` |
+| `alg` (JOSE header) | RS256 |
 | `iss` | `security.jwt.issuer` |
+| `aud` | `security.jwt.access-token-audience` |
 | `sub` | `UserCredentialView.userId()` |
 | `username` | `UserCredentialView.username()` |
 | `authorities` | `UserCredentialQueryApi.authoritiesOf(user)` |
 | `iat`, `exp` | 当前时间和 `security.jwt.access-token-ttl-seconds` |
+| `security_version` | `UserCredentialView.securityVersion()` |
 
-JWT 编解码由 `JwtCodecs` 创建，要求 `security.jwt.hmac-secret` 满足 HS256 secret 要求，并使用 configured issuer 做默认校验。`CommunitySecurityConfig` 的 resource server 验证 Bearer JWT 后，`AuthoritiesConverterFactory` 将 `authorities` claim 转为 Spring Security authority。
+JWT 编解码由 `JwtCodecs` 创建。access decoder 固定 `RS256`，并严格校验 issuer、audience 和 `typ=at+jwt`；service decoder 使用独立 `security.jwt.service-hmac-secret` 的 `HS256`，严格校验 `typ=service+jwt`、issuer 和目标 audience。`CommunitySecurityConfig` 的 resource server 验证 Bearer JWT 后，`AuthoritiesConverterFactory` 将 `authorities` claim 转为 Spring Security authority。
 
 `GET /api/auth/me` 不回源查库，只读取已验证 JWT：
 
@@ -186,7 +192,7 @@ CurrentUser.requireJwt(authentication)
   -> authorities claim
 ```
 
-因此用户角色或账号状态变化不会立刻反映到已签出的 access token；通常要等下一次 refresh 或重新登录后重新签发。高风险入口会额外校验 `security_version`，版本落后时拒绝进入。
+因此用户角色或账号状态变化不会改变已签出的 token claims；通常要等下一次 refresh 或重新登录后重新签发。角色、密码或活跃账号级封禁提升 `security_version` 后，所有带该 access JWT 的 `/api/**` 请求都会被 freshness filter 立即拒绝；匿名 permitAll 请求不执行查询，`/internal/**` 由 service-token chain 独立保护。
 
 ## Refresh 续期
 
@@ -241,7 +247,7 @@ PasswordResetApplicationService.confirmReset(...)
       -> UserRepository.updatePassword(...)
 ```
 
-角色变化以及新增或延长活跃账号级封禁也会递增 `securityVersion`。user 不同步调用 auth repository 删除 refresh rows；旧 refresh session 在下一次续期时因 `securityVersionAtIssue` 不匹配而被 auth 拒绝并撤销 family。已签出的 access token 不会被集中删除：高风险 URI 会由 `TokenFreshnessFilter` 立即拒绝旧版本，其他入口仍依赖短 TTL 过期。
+角色变化以及新增或延长活跃账号级封禁也会递增 `securityVersion`。user 不同步调用 auth repository 删除 refresh rows；旧 refresh session 在下一次续期时因 `securityVersionAtIssue` 不匹配而被 auth 拒绝并撤销 family。已签出的 access token 不会被集中删除：`/api/**` 上的旧版本由 `TokenFreshnessFilter` 立即拒绝，其他 token 只能等待短 TTL 过期；internal service token 使用独立的签名和 audience 边界。
 
 密码重置请求会先校验验证码，再先按客户端 IP 计数限流，再查询 user owner；邮箱 quota 只对存在且可用的账号计数。reset token 使用 256-bit base64url 明文，只存储在 Redis key 和邮件链接中。如果 reset token 已写入但邮件发送失败，auth 会 best-effort 删除该 token。如果 reset token 已被消费但 user owner 更新密码失败，auth 会用消费时捕获的剩余 TTL 恢复该 reset token，允许用户在原有效期内重试；不会把 token 延长回完整 TTL。
 
@@ -331,8 +337,11 @@ auth:
 ```yaml
 security:
   jwt:
-    hmac-secret: ${JWT_HMAC_SECRET:}
+    access-public-key: ${JWT_ACCESS_PUBLIC_KEY:}
+    access-private-key: ${JWT_ACCESS_PRIVATE_KEY:}
+    service-hmac-secret: ${JWT_SERVICE_HMAC_SECRET:}
     issuer: ${JWT_ISSUER:community-auth}
+    access-token-audience: ${JWT_ACCESS_TOKEN_AUDIENCE:community-api}
     access-token-ttl-seconds: 900
     refresh-token-ttl-seconds: 604800
     refresh-reuse-grace-seconds: 10

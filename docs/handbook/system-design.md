@@ -48,6 +48,20 @@ Client + Authorization + Idempotency-Key
 
 同域 controller 进入 `ApplicationService`；其他 inbound adapter 进入一个公开的同域 application entry，不为固定类名增加转发层。跨域同步协作发生在 application 层，通过 foreign owner-domain `api.query` / `api.action` 完成；inbound adapter 不在 application 边界之前直接调用 foreign owner `api.*`、foreign `application.*`、domain model/service/repository 或 persistence 实现。
 
+## 并发写入边界
+
+领域对象负责表达状态迁移规则，但内存中的 read-check-write 不是并发控制。凡是校验依赖已读取状态，repository 必须把这个前提带到数据库，并检查 CAS、行锁或唯一约束的裁决结果；失败统一按并发冲突处理，不能继续写出部分新状态。
+
+当前关键边界：
+
+- `discuss_post.aggregate_version` 是 Post 聚合的单调版本。编辑、置顶、加精和删除都以快照版本做 CAS，成功后递增一次；正文 blocks、tags、media desired state 与元数据处于同一事务，CAS 失败会整体回滚。热榜派生 `score` 不推进聚合版本，但写入必须匹配当前活跃 Post 的版本，并原子递增独立的 `score_version`。
+- score CAS 与 `PostScoreUpdated` outbox 在同一个 `REQUIRES_NEW` 短事务提交。搜索投影以 `aggregateVersion` 保护全文档，以 `scoreVersion` 只保护 score 字段，避免 content/search 与 hot-feed 两个消费组并发时把同一聚合版本的旧分数永久留在 ES。
+- Post 状态只有 `0=普通`、`1=加精`、`2=删除`；`type=1` 表示置顶。只有删除会把帖子从 hot feed 驱逐，加精仍参与热度计算和 feed 投影。
+- 帖子 contract event 使用成功写入后的 `aggregate_version`，不再用 `update_time` 充当事件版本。评论创建、编辑和删除通过 `status != 2` 的条件更新确认帖子仍可写，同时推进 Post 版本；创建/删除事件在 `postAggregateVersion` 中携带成功写入后的版本，条件失败时整个评论事务回滚。
+- 用户处罚更新携带 `expectedPolicyVersion`；market listing 状态迁移在锁定当前行后仍以期望状态 CAS；活动默认地址由数据库唯一约束保证每个用户至多一个。
+
+事务边界同时受资源规模约束：一个事务只覆盖有界 DB 工作，不包住未定数量的分页循环，也不包住 OSS / HTTP / MQ 调用。批量任务按固定页提交独立短事务，远程调用在事务外完成后再由短事务提交结果。
+
 ## 错误协议
 
 对外 HTTP 使用统一 `Result<T>` 包体，并让 HTTP status 表达错误类别：
@@ -128,6 +142,10 @@ owner 跨域事件统一先走 owner outbox 到 Kafka；consumer 从 Kafka liste
 
 social 严格互动链当前只支持 `social.storage=db`；其 contract event 固定通过 `eventbus.social -> social.events` 发布，Redis-backed social storage 不在支持矩阵内。
 
+hot-feed guard 让新 Post event 与携带 `postAggregateVersion` 的 comment event 共享 `post` lane，从而按同一个 Post 单调时钟判旧；legacy Post、缺少该字段的 legacy comment 和 social 信号只按 event ID 去重，不把 epoch timestamp 当作水位。所有普通事件都在每帖锁内回源当前 Post/like 事实重算，因此跨 topic 到达顺序和节点时钟回拨不会改变最终 score。`PostDeleted` 另外建立有界 tombstone，普通投影在保护窗口内不能把已删除内容写回；Redis feed 以 `(aggregateVersion, scoreVersion)` 字典序拒绝旧预热快照覆盖新排名。
+
+帖子更新和删除在 owner 事务提交后立即执行本域 feed / summary / detail 失效，不等待 outbox 经 Kafka 回环；Kafka 投影仍负责跨实例最终追平和失败后的重试。更新执行普通失效，删除执行带保护窗口的 terminal eviction。
+
 因此“HTTP 成功”不等于“所有投影完成”。业务读模型若可能延迟，应提供补偿或明确 best-effort 语义。
 
 ## Outbox 设计
@@ -148,6 +166,7 @@ owner transaction
 - worker 标记 `SUCCEEDED` 之前，副作用必须已经成功提交。
 - handler 必须幂等，因为 outbox 是至少一次投递。
 - handler 失败时进入重试；超过最大次数进入 `DEAD`，`DEAD` 是自动重试终点，不是业务终点。
+- content media command 的确定性 event ID 再次 enqueue 发生唯一键冲突时，只允许把同一条 `DEAD` row 原位重排为 `PENDING`；其他状态不得伪装成已重新调度。
 - lease 过期要能恢复，避免 worker 崩溃造成永久卡住。
 
 完整细节见 [reliability.md](reliability.md)。
@@ -218,6 +237,7 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - 查询入口：`GET /api/search/posts`。
 - 投影入口：`content.events -> SearchPostProjectionKafkaListener -> SearchPostProjectionApplicationService`。
 - search application 回源 content owner 当前状态，再 upsert/delete ES，避免乱序事件把已删除内容复活。
+- Post 全文档只接受更大的 `aggregateVersion`；相同聚合版本只允许更大的 `scoreVersion` 更新 `score`，不能覆盖标题、正文、标签或删除状态。
 - ES 使用固定 alias `community_posts_alias`，运行时由 `PostIndexManager` 负责 alias 初始化和版本化索引准备。
 
 ## Scheduler / Ops 设计
@@ -256,8 +276,8 @@ Nacos 同时承担服务注册中心和非密钥配置中心职责。所有 runt
 - `NACOS_CONFIG_IMPORT_SERVICE`
 
 `deploy/nacos/config/*.yaml` 是可发布到 Nacos 的 seed 配置，只放动态策略、路由、
-降级、限流、前端 runtime、IM worker 元数据等非密钥配置。JWT HMAC secret、数据库
-密码、对象存储 access key、XXL-JOB token 和 Nacos 凭据必须来自 `.env`、Secret
+降级、限流、前端 runtime、IM worker 元数据等非密钥配置。access JWT RSA 私钥、service JWT
+HMAC secret、数据库密码、对象存储 access key、XXL-JOB token 和 Nacos 凭据必须来自 `.env`、Secret
 manager 或部署平台 Secret，不进入 Nacos Config dataId。
 
 服务注册 metadata 只放低基数运行态标签，例如 role、release track、draining、
@@ -278,7 +298,7 @@ workerId、wsPath、wsPort、capacity 和 shardGroup。metadata 不承载用户�
 
 关键安全与一致性能力默认 fail-closed：
 
-- prod 下 JWT HMAC secret 缺失、过短或为占位值会阻断启动。
+- access verifier 缺少至少 2048-bit RSA public key 会阻断启动；`community-app` 作为签发端还要求匹配的 private key。service JWT HMAC secret 缺失、过短或为占位值同样 fail-closed。
 - prod 且 `community.nacos.config.required=true` 时，缺失 `NACOS_CONFIG_IMPORT_SHARED` 或 `NACOS_CONFIG_IMPORT_SERVICE` 会阻断启动。
 - prod 下 trusted proxy 开启但 CIDR 为空或全信任会阻断启动。
 - prod 下固定验证码、注册验证码/重置链接回传、SMTP 缺失等认证误配会阻断启动。

@@ -89,7 +89,7 @@ Both paths
   -> mark BOUND/RELEASED in a new transaction
 ```
 
-event ID 固定为 `content-media-reference:<assetId>:<operationVersion>:<operation>`。handler 先比较 `referenceOperationVersion`，因此重复 command 幂等，旧 bind/release 不会覆盖更新后的 desired state。outbox retry/DEAD 之外，`PostMediaReferenceReconciliationJob` 还会重发 pending command 并修复本地/远端漂移。
+event ID 固定为 `content-media-reference:<assetId>:<operationVersion>:<operation>`。handler 先比较 `referenceOperationVersion`，因此重复 command 幂等，旧 bind/release 不会覆盖更新后的 desired state。outbox retry/DEAD 之外，`PostMediaReferenceReconciliationJob` 还会重发 pending command 并修复本地/远端漂移；publisher 遇到相同 ID 时只会把已有 `DEAD` row 原位重排为 `PENDING`，实际新建或重排成功才算 scheduled。worker claim 会原子复核到期时间，并在认领后按 lease token 回读当前 row，因此并发 worker 不会使用复活前的旧 retry count。
 
 ## Analytics request capture
 

@@ -94,25 +94,25 @@ feed HTTP 列表使用 opaque cursor：`FeedReadApplicationService` 读全局/�
 
 ### 热度、预热与 Counter
 
-`PostHotFeedProjectionKafkaListener` 识别 post publish/update/delete、comment create/delete 和 post like create/remove。已识别事件必须有 event ID、发生时间和正数 owner version；事件信号权重分别为 `+1/+1/0/+1/-1/+1/-1`。listener 只把 `PostDeleted` 标记为 terminal deletion，其他 post/comment/like 事件均为普通投影。`PostHotFeedProjectionApplicationService` 使用 source event ID/version guard 拒绝重复或旧投影；普通事件回源当前帖子和点赞事实后再更新：
+`PostHotFeedProjectionKafkaListener` 识别 post publish/update/delete、comment create/delete 和 post like create/remove。已识别事件必须有 event ID、发生时间和正数 owner version；这些事件只表示“当前热度可能变化”，不携带可累加的 score 权重。listener 只把 `PostDeleted` 标记为 terminal deletion，其他 post/comment/like 事件均为普通重算信号；它明确忽略派生的 `PostScoreUpdated`，避免 score 投影回吃自身事件。`PostHotFeedProjectionApplicationService` 按 source event ID 去重并用每帖锁串行化。新 Post event 与携带 `postAggregateVersion` 的 comment event 共享 `post` lane，并按 Post aggregate version 判旧；legacy Post、legacy comment 和 social lane 不把时间戳版本当作水位，以免时钟回拨误杀后续信号。普通事件始终回源当前帖子和点赞事实后再更新：
 
 ```text
 weight = (wonderful ? 75 : 0)
        + max(commentCount, 0) * 10
        + max(likeCount, 0) * 2
-       + signalWeight
 score  = log10(max(weight, 1)) + daysSince(2014-08-01 UTC)
+       + (top ? 1_000_000 : 0)
 ```
 
-terminal deletion 不等待帖子删除状态对当前数据库读取可见，也不读取帖子、点赞数或重算 score；guard 接受后直接从 feed、summary 和 detail projection 移除帖子。feed 删除覆盖 global、事件 payload board 与删除时全部 category board，并按 board ID 去重。每个 sink 在删除时同时写永久 fence；此后即使一个旧普通投影已通过 guard `CURRENT`、lease 随后过期，它的 feed upsert、summary put 和 detail put 仍会在 sink 内被原子拒绝。普通 cache 淘汰不会创建或清除 terminal fence。
+terminal deletion 不等待帖子删除状态对当前数据库读取可见，也不读取帖子、点赞数或重算 score；guard 接受后直接从 feed、summary 和 detail projection 移除帖子。feed 删除覆盖 global、事件 payload board 与删除时全部 category board，并按 board ID 去重。每个 sink 在删除时同时写 7 天 fence；保护窗口内，即使一个旧普通投影已通过 guard `CURRENT`、lease 随后过期，它的 feed upsert、summary put 和 detail put 仍会在 sink 内被原子拒绝。普通 cache 淘汰不会创建或清除 terminal fence。
 
-即使删除事件 version 小于已提交的普通事件 version，它仍可提交 tombstone，同时 version 保持两者最大值；永久 tombstone 随后压制所有普通版本，重复删除按 event/tombstone 幂等返回。任一 sink fence 写入异常都会传播，application 在 `finally` abort guard attempt，且不会注册 after-transaction commit；只有全部 sink fence 成功后才允许提交 guard tombstone。非 Redis guard 至少在当前进程生命周期内保留同样的终态压制。
+即使删除事件 version 小于 post lane 已提交 version，它仍可提交 tombstone，同时 version 保持两者最大值；7 天 tombstone 随后压制保护窗口内的普通投影，重复删除按 event/tombstone 幂等返回。任一 sink fence 写入异常都会传播，application 在 `finally` abort guard attempt，且不会注册 after-transaction commit；只有全部 sink fence 成功后才允许提交 guard tombstone。超过 7 天的 replay 必须先回源 owner 当前事实并重建投影，不能直接恢复旧 cache writer。
 
-普通事件读到删除、下线或非正常状态的帖子时也会从 feed、summary 和 detail cache 移除。正常帖子更新 DB score、counter cache、global/board hot feed，并淘汰旧 summary/detail。projection guard 只在业务事务提交后 commit，回滚或异常时 abort；commit 若失去 lease 会抛错，交给 Kafka retry / `.dlq`，不能在 tombstone 未落盘时静默确认事件。Redis key 的 Cluster hash tag、TTL 和旧 key 升级约束见 [数据与存储](../data-and-storage.md#redis)。
+普通事件读到已删除帖子时也会从 feed、summary 和 detail cache 移除；普通帖和加精帖都会以当前活跃 Post aggregate version 做 CAS 更新 DB score。成功写入原子递增 `score_version`，并在同一个短事务写 `PostScoreUpdated` outbox；随后才在事务外更新 counter cache、global/board hot feed，并淘汰旧 summary/detail。版本已变化或帖子已删除时，score CAS 失败并让事件重试，不会继续写旧缓存。projection guard 只在业务事务提交后 commit，回滚或异常时 abort；commit 若失去 lease 会抛错，交给 Kafka retry / `.dlq`，不能在 tombstone 未落盘时静默确认事件。Redis key 的 Cluster hash tag、TTL 和升级约束见 [数据与存储](../data-and-storage.md#redis)。
 
 `HotPathPrewarmApplicationService` 在 single-flight 锁内从 content 当前事实预热全局及前 N 个版块的 hot feed、summary 和 detail。代码默认每次 `2` 页、每页 `20`、最多 `20` 个版块、锁 TTL `30s`；`HotPathPrewarmJob` 默认每 `60s` 调用一次，重复节点由 single-flight 收敛。
 
-`PostCounterApplicationService` 把浏览、点赞、评论、收藏和 score 作为派生 counter 读取模型：同一 `postId + viewerKey` 默认 `86400s` 内只增加一次浏览；脏 post ID 进入 Redis 有序集合。读取时以 cache view/bookmark 为基础，并回源 social 点赞数、content 评论数和持久 score；flush 每批限制在 `1..500`，upsert `post_counter_snapshot` 成功后才移除 dirty marker。`PostCounterSnapshotFlushJob` 默认启用、每 `30s` 运行，默认 batch `200`；失败只记录并留待下轮重试。
+`PostCounterApplicationService` 把浏览、点赞、评论、收藏和 score 作为派生 counter 读取模型：同一 `postId + viewerKey` 默认 `86400s` 内只增加一次浏览；脏 post ID 连同严格递增 revision 进入 Redis 有序集合。读取时以 cache view/bookmark 为基础，并回源 social 点赞数、content 评论数和持久 score；flush 每批限制在 `1..500`，upsert `post_counter_snapshot` 成功后只条件确认读取时的 revision，期间出现的新写入会保留 dirty marker。`PostCounterSnapshotFlushJob` 默认启用、每 `30s` 运行，默认 batch `200`；失败只记录并留待下轮重试。
 
 ## 发帖
 
@@ -178,7 +178,7 @@ Complete upload：
 6. 完整引用状态机为 `UNBOUND -> BIND_PENDING -> BOUND -> RELEASE_PENDING -> RELEASED`；新的 release 可以覆盖尚未完成的 bind，版本 fencing 防止迟到 bind 回写。
 7. 帖子详情读取 blocks 时，把媒体 asset 投影为展示视图；视频允许展示处理中状态。
 
-`PostMediaReferenceReconciliationJob` 分页扫描引用状态：pending command 会重新发布；`BOUND` 但帖子已删除时按 `deleted_post` 调度 release，远端引用缺失时按 `remote_missing` 调度 bind repair，`RELEASED` 但远端仍 active 时按 `remote_active` 调度 release repair。Nacos seed 默认启用，batch `50`、delay `300s`。
+`PostMediaReferenceReconciliationJob` 分页扫描引用状态：pending command 会重新发布；`BOUND` 但帖子已删除时按 `deleted_post` 调度 release，远端引用缺失时按 `remote_missing` 调度 bind repair，`RELEASED` 但远端仍 active 时按 `remote_active` 调度 release repair。相同确定性 event ID 已存在时，publisher 只会把 `DEAD` row 原位重排为 `PENDING`；新建或重排真正成功后才记录 `scheduled`。Nacos seed 默认启用，batch `50`、delay `300s`。
 
 ## 改帖和删帖
 
@@ -189,23 +189,23 @@ Complete upload：
 3. 读取帖子快照。
 4. `PostPublishingDomainService.assertEditableByAuthor(...)` 校验作者和状态。
 5. 校验并清洗新的正文 blocks。
-6. 绑定新增媒体资源。
-7. 更新标题、分类和 `update_time`。
+6. 以快照中的 `aggregate_version` CAS 更新标题、分类和 `update_time`，成功后聚合版本递增一次；冲突时整个事务回滚。
+7. 绑定新增媒体资源。
 8. 替换正文 blocks。
 9. 释放已从正文移除的媒体资源引用。
 10. 替换标签。
-11. `PostIntegrationEventPublisher` 在当前事务写 `PostUpdated` contract event outbox。
-12. `PostUpdated` 事件经 `content.events` 触发 hot-feed 投影重算。
+11. `PostIntegrationEventPublisher` 以成功写入后的聚合版本在当前事务写 `PostUpdated` contract event outbox。
+12. 事务提交后在请求线程立即淘汰本域 feed / summary / detail cache；`PostUpdated` 事件仍经 `content.events` 触发 hot-feed 投影重算和失败追平。
 
 作者删除：
 
 1. 读取帖子快照。
 2. 校验作者和可删除状态。
-3. 软删除帖子。
+3. 以快照中的 `aggregate_version` CAS 软删除帖子并递增聚合版本；并发编辑或治理获胜时返回冲突。
 4. `PostMediaReferenceScheduler` 在当前事务把未完成媒体引用推进到 `RELEASE_PENDING` 并写 durable command。
 5. `PostIntegrationEventPublisher` 在当前事务写 `PostDeleted` contract event outbox。
 6. `PostDeleted` owner event 经 `content.events` 触发 social deletion cleanup。
-7. `PostDeleted` 事件经 `content.events` 从 hot feed 和读缓存移除该帖子，并提交永久 projection tombstone；该路径不依赖删除行先对异步 consumer 可见。
+7. 事务提交后立即从本域 hot feed 和读缓存移除帖子并写 7 天 sink fence；`PostDeleted` 事件随后经 `content.events` 追平投影并提交 7 天 projection tombstone，不依赖 Kafka 回环才开始本域失效。
 
 治理删除由 `PostModerationApplicationService.deleteByModeration(...)` 处理，面向管理员/版主，并走同样的内容下线和事件扩散语义。
 
@@ -223,8 +223,8 @@ Complete upload：
    - 对评论回复：目标评论必须 active，且归属当前帖子。
 7. 如果评论者和目标用户存在拉黑关系，拒绝评论。
 8. 文本清洗和敏感词处理。
-9. 写入评论。
-10. 增加帖子评论数。
+9. 以 `status != 2` 条件增加帖子评论数；条件失败时立即终止，封住评论创建与删帖竞态。
+10. 写入评论；计数或评论写入任一步失败都会回滚整个事务。
 11. `ContentEventPublisher` 将 `CommentCreated` contract event 与评论主事实同事务写入 `eventbus.content`。
 12. owner outbox handler 发布 `content.events`，Notice、Growth 和 Wallet reward listener 进入各自 ApplicationService；失败走 Kafka retry / `.dlq`。
 13. 评论事件经 `content.events` 触发 hot-feed 投影重算。
@@ -318,7 +318,7 @@ contract events：
 帖子 hot-feed 和社交派生刷新：
 
 - `PostHotFeedProjectionKafkaListener` 消费 `content.events` / `social.events`，只把已识别目标事件交给 `PostHotFeedProjectionApplicationService`。
-- `PostHotFeedProjectionApplicationService` 按 source event ID/version 保护投影顺序，并回源当前 post / like 状态。
+- `PostHotFeedProjectionApplicationService` 按 source event ID 去重并以每帖锁串行化；只有 Post aggregate lane 使用单调版本，legacy/comment/social lane 回源当前 post / like 状态重算。
 - 只有 `entityType=POST` 时才会提取 postId；优先用 payload.postId，缺失时回退到 payload.entityId。
 - 提取到 postId 后更新 score、summary/detail cache 和 global/board hot feed；失败进入 Kafka retry / `.dlq`，不回滚已提交的 owner 事务。
 

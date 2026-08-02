@@ -24,7 +24,7 @@
 | `auth.application.PasswordResetApplicationService` | 找回密码 token、邮件和 user 凭据更新编排 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.CaptchaApplicationService` | 验证码发放和校验 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.application.LoginRateLimitApplicationService` | 登录失败计数和验证码触发 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
-| `auth.application.TokenFreshnessApplicationService` | 高风险入口 access token `security_version` 新鲜度校验 | [Token Freshness 与高风险请求安全](core-logic/security-token-freshness.md) | Covered |
+| `auth.application.TokenFreshnessApplicationService` | 带 access JWT 的 `/api/**` 请求 `security_version` 新鲜度校验 | [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md) | Covered |
 | `auth.domain.service.AuthDomainService` | token / credential 基础规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.service.AuthSecretGenerator` | 256-bit opaque token 和安全随机数字验证码生成 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.service.CaptchaDomainService` | 验证码规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
@@ -34,9 +34,9 @@
 | `auth.domain.repository.RefreshTokenRepository` | auth refresh session、rotation、family 撤销和 cleanup 持久化契约 | [登录与会话链路](auth-login-session-flow.md) | Covered |
 | `auth.domain.service.RegistrationDomainService` | registration input and Verify-First draft/code rules | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.repository.RegistrationDraftRepository` | opaque `registrationToken` to prepared registration draft store with TTL | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
-| `auth.infrastructure.jwt.JwtTokenService` | HS256 access token 签发和 claim 组装 | [安全模型](security.md#jwt-和-refresh-cookie) | Covered |
+| `auth.infrastructure.jwt.JwtTokenService` | RS256 access token 签发、JOSE type/audience 和 claim 组装 | [安全模型](security.md#jwt-和-refresh-cookie) | Covered |
 | `auth.infrastructure.web.AuthOriginGuardFilter` | `community-app` unsafe HTTP method OriginGuard | [安全模型](security.md#cors-和-originguard) | Covered |
-| `auth.infrastructure.web.TokenFreshnessFilter` | 高风险 URI prefix 的 token freshness enforcement | [Token Freshness 与高风险请求安全](core-logic/security-token-freshness.md) | Covered |
+| `auth.infrastructure.web.TokenFreshnessFilter` | `/api/**` 中带 access JWT 请求的 token freshness enforcement | [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md) | Covered |
 | `auth.infrastructure.job.RefreshTokenCleanupJob` | refresh session 清理 job | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.infrastructure.persistence.MyBatisRefreshTokenRepository` | 默认 DB refresh session 与 `securityVersionAtIssue` adapter | [登录与会话链路](auth-login-session-flow.md) | Covered |
 | `auth.infrastructure.persistence.RedisRefreshTokenRepository` | 可选 Redis refresh session adapter | [登录与会话链路](auth-login-session-flow.md) | Covered |
@@ -147,7 +147,7 @@
 | `content.domain.service.CommentDomainService` | 评论目标解析、编辑和删除规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.domain.service.ModerationDecisionDomainService` | 内容治理决策规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.domain.service.PostModerationDomainService` | 帖子治理状态规则 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
-| `content.domain.service.PostHotnessDomainService` | epoch、加精、评论、点赞与 signal weight 热度公式 | [Content 内容业务逻辑](business-logic/content.md#热度预热与-counter) | Covered |
+| `content.domain.service.PostHotnessDomainService` | 回源当前帖子、评论与点赞事实重算 epoch 热度和加精增益 | [Content 内容业务逻辑](business-logic/content.md#热度预热与-counter) | Covered |
 | `content.infrastructure.api.PostReadQueryApiAdapter` | content read result 到 profile author activity view 的转换 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
 | `content.infrastructure.text.SensitiveFilter` | sensitive word trie sanitizer and fail-fast dictionary loading | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
 | `content.infrastructure.event.OutboxContentEventPublisher` | content contract event 写 `eventbus.content` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |

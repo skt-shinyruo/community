@@ -32,11 +32,11 @@
 
 ## 搜索投影
 
-1. content 帖子主事实变化。
+1. content 帖子主事实变化，或 hot-feed score CAS 成功并在同一短事务写 `PostScoreUpdated` outbox。
 2. content event 经 `eventbus.content` 发布到 `content.events`。
 3. `SearchPostProjectionKafkaListener` 进入 `SearchPostProjectionApplicationService`。
 4. application 回源 content owner 当前状态。
-5. search 根据当前状态决定 ES upsert 还是 delete。
+5. search 根据当前状态决定 ES upsert 还是 delete；全文档使用 Post `aggregateVersion`，score 使用独立 `scoreVersion` 合并。
 6. 搜索接口读取 ES alias 指向的索引。
 
 重建索引时：

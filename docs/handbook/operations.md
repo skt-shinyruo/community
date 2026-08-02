@@ -423,6 +423,8 @@ Outbox worker 是共享可靠投递底座，当前主要承担：
 4. `PROCESSING` 长时间不动时，确认 lease TTL 和恢复任务是否运行。
 5. `DEAD` 事件需要人工确认业务副作用是否已落地，再决定重放、修数据或忽略。
 
+content media reference command 是当前自动恢复特例：reconciler 以相同确定性 event ID 重新调度时，publisher 可把对应 row 原位从 `DEAD` 重排为 `PENDING`。只有该条件更新成功才记录 `scheduled`；其他 topic 的 `DEAD` 仍按下方治理 API 和人工 triage 处理。
+
 完整语义见 [reliability.md](reliability.md)。
 
 ## Outbox DEAD Triage
@@ -556,7 +558,7 @@ http://localhost:12887/xxl-job-admin
 
 典型校验：
 
-- JWT HMAC secret 为空、过短或为已知占位值会阻断 prod 启动。
+- access verifier 缺少至少 2048-bit RSA public key 会阻断启动；`community-app` 还要求匹配的 private key。service JWT HMAC secret 为空、过短或为已知占位值也会阻断启动。
 - trusted proxy 开启但 CIDR 为空或全信任会阻断 prod 启动。
 - refresh cookie 在 prod 下必须满足安全属性。
 - 找回密码和注册邮件在 prod 下必须可用，禁止泄漏 reset link / registration code。

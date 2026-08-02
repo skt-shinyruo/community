@@ -41,7 +41,7 @@
 4. 上传完成后，OSS 激活 object/version。
 5. 发帖或改帖时，content 校验 asset 属于当前用户、类型匹配、仍可绑定。
 6. content 主事务把引用写成 `BIND_PENDING/RELEASE_PENDING`，递增 `referenceOperationVersion`，并写 `command.content.post-media-reference` outbox。
-7. handler 在事务外执行 OSS bind/release，再在新事务内标记 `BOUND/RELEASED`；reconciliation 重发 pending command 并修复漂移。
+7. handler 在事务外执行 OSS bind/release，再在新事务内标记 `BOUND/RELEASED`；reconciliation 重发 pending command 并修复漂移。相同确定性 event ID 已存在时，只有新建或把原 row 从 `DEAD` 重排为 `PENDING` 成功才计为 scheduled。
 
 这样 content 拥有“帖子引用了哪些媒体”的业务事实，OSS 拥有“文件对象和版本”的技术事实。
 
@@ -52,9 +52,10 @@
 3. 如果是回复，校验目标评论存在且归属正确。
 4. content 回源 user owner 校验作者发言资格。
 5. content 可通过 social owner 判断双方拉黑关系。
-6. content 写 `comment`，同步更新帖子评论数或活动状态。
-7. content 发布评论事件，domain bridge 进入 content application，将 contract event 与主事实同事务写入 `eventbus.content`。
-8. owner handler 发布 `content.events`，Notice、Growth 和 Wallet reward listener 分别进入同域 ApplicationService；奖励最终在 wallet owner 幂等入账。
+6. content 先以 `status != 2` 条件增加帖子评论数，确认删帖尚未提交；条件失败即终止。
+7. content 再写 `comment`；计数、评论或后续 event 写入失败都会回滚同一事务。
+8. content 发布评论事件，domain bridge 进入 content application，将 contract event 与主事实同事务写入 `eventbus.content`。
+9. owner handler 发布 `content.events`，Notice、Growth 和 Wallet reward listener 分别进入同域 ApplicationService；奖励最终在 wallet owner 幂等入账。
 
 ## 删除和治理
 

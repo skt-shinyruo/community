@@ -65,7 +65,7 @@
 | `content.domain.service.CommentDomainService` | 评论目标解析、编辑和删除规则。 |
 | `content.domain.service.ModerationDecisionDomainService` | 内容治理决策规则。 |
 | `content.domain.service.PostModerationDomainService` | 帖子治理状态规则。 |
-| `content.domain.service.PostHotnessDomainService` | 固定 epoch 时间项、加精、评论、点赞和事件信号权重的热度重算。 |
+| `content.domain.service.PostHotnessDomainService` | 固定 epoch 时间项、置顶、加精、评论和点赞当前事实的确定性热度重算。 |
 
 ## 基础设施
 
@@ -79,7 +79,7 @@
 | `content.infrastructure.event.ContentEventKafkaOutboxHandler` | owner outbox 进入 dispatch application。 |
 | `content.infrastructure.event.ContentEventKafkaSenderAdapter` | 发布 `content.events`。 |
 | `content.infrastructure.event.PostHotFeedProjectionKafkaListener` | 从 `content.events` / `social.events` 进入 hot-feed application。 |
-| `content.infrastructure.event.OutboxPostMediaReferenceCommandPublisher` | 以确定性 event ID 写 `command.content.post-media-reference`。 |
+| `content.infrastructure.event.OutboxPostMediaReferenceCommandPublisher` | 以确定性 event ID 写 media command；重复 ID 只原位重排 `DEAD` row。 |
 | `content.infrastructure.event.PostMediaReferenceOutboxHandler` | outbox command 进入同域 reference application。 |
 | `content.infrastructure.job.PostMediaUploadRecoveryJob` | stale media upload recovery 调度入口。 |
 | `content.infrastructure.job.PostMediaReferenceReconciliationJob` | media reference 对账调度入口。 |

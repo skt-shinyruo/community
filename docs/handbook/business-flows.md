@@ -90,7 +90,7 @@ Security：
 - `AuthSecurityRules` 决定 `/api/auth/**` 哪些入口允许匿名。
 - `AuthOriginGuardFilter` 覆盖所有 public 且会改变认证状态的 auth POST 入口：login、refresh、logout、register、register code resend / verify、password reset request / confirm。
 - prod 下 `AuthStartupValidator` 禁止固定验证码、注册验证码回传和 reset link 回传，SMTP 必须可用；OriginGuard 启用且 fail-closed 时必须配置可信 Origin allowlist。
-- `/api/auth/me` 直接读 JWT claim；高风险写入口会额外校验 `security_version`，版本落后时拒绝进入。普通前端权限展示仍可能要等 token 重签后体现。
+- `/api/auth/me` 直接读已验证 JWT claim；所有带 access JWT 的 `/api/**` 请求都会校验 `security_version`，版本落后时返回 `401`。普通前端权限展示仍可能要等 token 重签后体现；`/internal/**` 使用独立 service token chain。
 
 Key code：
 
@@ -324,7 +324,7 @@ Media reliability：
 - upload 使用 `PREPARED -> COMPLETING -> OBJECT_COMPLETED -> COMPLETED` 与 `uploadOperationVersion`；recovery 修复 stale 状态。
 - reference 使用 `UNBOUND -> BIND_PENDING -> BOUND -> RELEASE_PENDING -> RELEASED` 与 `referenceOperationVersion`。
 - 发帖/改帖/删帖事务只写引用 desired state 和 `command.content.post-media-reference`；handler 在事务外调用 OSS，再在新事务内完成状态。
-- reference reconciliation 重发 pending command，并修复 deleted post、remote missing、remote active 漂移。
+- reference reconciliation 重发 pending command，并修复 deleted post、remote missing、remote active 漂移；相同 event ID 只有新建或 `DEAD -> PENDING` 原位重排成功才计为 scheduled。
 
 Bookmarks / subscription：
 
@@ -1076,7 +1076,7 @@ Search reindex：
 Failure：
 
 - outbox 失败不打爆 HTTP 主写路径。
-- `DEAD` 事件需要人工排查。
+- `DEAD` 事件通常需要人工排查；content media reference command 的 reconciler 是当前自动恢复例外，只在确定性 ID 对应 row 仍为 `DEAD` 时原位重排。
 - single-flight lock 异常要看 Redis 和 heartbeat。
 - 本地 cleanup / prewarm / counter flush job 捕获异常并记录日志，不回滚其他业务事务。
 - XXL handler 捕获异常后通过 `XxlJobHelper.handleFail(...)` 标记失败；成功或 skipped 会写 job log 并 `handleSuccess(...)`。

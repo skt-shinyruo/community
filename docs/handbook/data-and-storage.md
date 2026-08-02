@@ -53,7 +53,7 @@ MySQL entrypoint 按文件名顺序先执行 `001_create_databases.sh`，再执�
 | `user` | 用户基础信息、角色、处罚状态、`security_version` 等用户事实 |
 | `user_security_version_counter` | user 认证授权版本计数器，用于分配 `user.security_version` |
 | `auth_refresh_token` | refresh token 状态，仅存 token hash |
-| `discuss_post` | 帖子 |
+| `discuss_post` | 帖子主事实；`aggregate_version` 是编辑、治理和删除共用的 CAS / 事件版本，`score_version` 是派生热度的独立单调版本 |
 | `comment` | 评论 / 回复 |
 | `post_counter_snapshot` | 帖子计数快照，承载 comment / like / view / score 聚合读模型 |
 | `post_score_snapshot` | 帖子热度分数快照，支撑 durable hot feed ranking |
@@ -75,12 +75,12 @@ MySQL entrypoint 按文件名顺序先执行 `001_create_databases.sh`，再执�
 | `wallet_admin_action` | 钱包管理员冻结、冲正等操作记录 |
 | `post_media_asset` | 帖子媒体资源 draft/uploaded/bound 状态和 OSS object/version/reference 投影 |
 | `post_content_block` | 帖子正文 block，承载 paragraph/code/media block 顺序 |
-| `market_listing` | 市场商品 listing |
+| `market_listing` | 市场商品 listing；状态迁移使用行锁和 expected-status CAS |
 | `market_inventory_unit` | 市场预加载库存单元 |
 | `market_order` | 市场订单，保存价格、标题、地址等下单快照 |
 | `market_wallet_action` | market 到 wallet 的 durable saga command，承载 escrow / release / refund 状态 |
 | `market_dispute` | 市场订单争议 |
-| `market_address` | 市场收货地址簿 |
+| `market_address` | 市场收货地址簿；generated active-default user key 的唯一索引约束每用户至多一个活动默认地址 |
 | `market_delivery` | 虚拟商品交付记录 |
 | `market_shipment` | 实物商品发货记录 |
 | `drive_space` | 用户网盘空间 quota、used 和更新时间 |
@@ -135,6 +135,8 @@ deploy/mysql/community/090_seed_identity.sql
 
 `community-dev-seed` 使用 `mysql:8.0` 客户端执行该文件。它只有在 `COMMUNITY_DEV_SEED_ENABLED=true` 且 `DEPLOYMENT_ENVIRONMENT=development` 时运行；其他环境即使误开 seed 开关也会失败关闭。`demo_*` / `ai_config` 表定义属于当前态快照，`tools/mock-data-studio/src/db/bootstrap.mjs` 只幂等写入 `Default` AI 配置，不执行 DDL。
 
+seed 会为每个示例账号显式写入正 `policy_version` 和 `security_version`，并用 `greatest(current_version, seed_version)` 保留用户已有版本、推进两个全局版本计数器。重复执行不会让版本倒退，也不会生成 freshness 永久判 stale 的 `security_version=0` 账号。
+
 ## Redis
 
 Redis 用于 session / 验证码 / 风控 / 缓存 / analytics / single-flight 等快速状态。
@@ -158,22 +160,91 @@ Redis 用于 session / 验证码 / 风控 / 缓存 / analytics / single-flight �
 | 板块热门流 | `post:feed:board:hot:<boardId>` |
 | 帖子摘要缓存 | `post:summary:<postId>` |
 | 帖子详情缓存 | `post:detail:<postId>` |
-| 帖子计数缓存 | `post:counter:<postId>` |
-| 全站/板块 hot-feed 删除成员集 | `post:feed:terminal-members:{<完整 feed zset key>}`（永久，无 TTL） |
-| 帖子摘要删除 fence | `post:summary:terminal:{post:summary:<postId>}`（永久，无 TTL） |
-| 帖子详情删除 fence | `post:detail:terminal:{post:detail:<postId>}`（永久，无 TTL） |
+| 帖子计数 legacy 基线（升级期只读） | `post:counter:<postId>` |
+| 帖子计数 Cluster-safe overlay | `post:counter:{post:counter:dirty}:<postId>` |
+| 帖子计数 dirty revision | `post:counter:dirty` + `post:counter:{post:counter:dirty}:sequence` |
+| 全站/板块 hot-feed 删除 fence | `post:feed:terminal-members:{<完整 feed zset key>}:<postId>`（TTL 7 天） |
+| 全站/板块 hot-feed aggregate-version floor | `post:feed:version-members:{<完整 feed zset key>}:<postId>`（TTL 7 天） |
+| 全站/板块 hot-feed score-version floor | `post:feed:score-version-members:{<完整 feed zset key>}:<postId>`（TTL 7 天） |
+| 帖子摘要删除 fence | `post:summary:terminal:{post:summary:<postId>}`（TTL 7 天） |
+| 帖子摘要 aggregate-version floor | `post:summary:version:{post:summary:<postId>}`（TTL 7 天） |
+| 帖子摘要 score-version floor | `post:summary:score-version:{post:summary:<postId>}`（TTL 7 天） |
+| 帖子详情删除 fence | `post:detail:terminal:{post:detail:<postId>}`（TTL 7 天） |
+| 帖子详情 aggregate-version floor | `post:detail:version:{post:detail:<postId>}`（TTL 7 天） |
 | Hot-feed 投影 event | `post:feed:hot:projection:event:{<postId>}:<sourceEventId>`（TTL 7 天） |
-| Hot-feed 投影 version | `post:feed:hot:projection:version:{<postId>}` |
+| Hot-feed 投影 Post version | `post:feed:hot:projection:version:post:{<postId>}`（TTL 7 天，随最近提交刷新） |
 | Hot-feed 投影 lock | `post:feed:hot:projection:lock:{<postId>}`（lease 30 秒） |
-| Hot-feed 删除 tombstone | `post:feed:hot:projection:tombstone:{<postId>}`（永久，无 TTL） |
+| Hot-feed 删除 tombstone | `post:feed:hot:projection:tombstone:{<postId>}`（TTL 7 天） |
 
-Hot-feed projection 的 BEGIN/CURRENT/COMMIT/ABORT Lua 对同一帖子使用 `{<postId>}` Redis Cluster hash tag；event key 也按帖子分区，并把 hash tag 放在 source event ID 前，因此任意 event ID 都不能把同一脚本的 key 分散到不同 slot。terminal `PostDeleted` commit 会保留 `max(currentVersion, deletionVersion)` 并写永久 tombstone；此后任何普通版本都不能恢复该帖子。event identity 仍只保留 7 天，tombstone 不设过期时间。
+Hot-feed projection 的 BEGIN/CURRENT/COMMIT/ABORT Lua 对同一帖子使用 `{<postId>}` Redis Cluster hash tag；event key 也按帖子分区，并把 hash tag 放在 source event ID 前，因此任意 event ID 都不能把同一脚本的 key 分散到不同 slot。新 Post event 与携带 `postAggregateVersion` 的 comment event 共享 `post` lane，并以 Post aggregate version 单调判旧。切换前已排队且 payload 没有正 `aggregateVersion` 的 Post event 进入 `legacy-post` lane；缺少 `postAggregateVersion` 的 legacy comment 进入 `comment` lane，social 进入 `social` lane。这三类事件的时间戳版本只做元数据校验，不充当水位；它们按 event ID 去重并在每帖锁内回源当前事实重算，避免节点时钟回拨永久丢失有效重算。terminal `PostDeleted` commit 会保留 Post lane 的 `max(currentVersion, deletionVersion)`，并写 7 天 tombstone；event identity 同样保留 7 天。
 
-guard tombstone 之外，每个 Redis sink 也保留永久 fence，用于压制已经通过 `CURRENT`、随后丢失 lease 的旧 writer。feed 的普通 upsert 以 Lua 原子检查 scope member set 后再 `ZADD`，terminal deletion 以 Lua 原子 `SADD + ZREM`；删除覆盖全站 feed、事件 payload board 以及删除当时 category repository 返回的所有 board，并按 board ID 去重。summary/detail 的普通 put 以 Lua 原子检查独立 post fence 后再执行带 TTL 的 `SET`，terminal deletion 则原子写永久 fence 并删除 cache。普通 `remove/evict` 不创建、清除或缩短这些 fence。每对 feed zset/member set 以及每对 summary/detail cache/fence 都通过把完整 sink key 放入 fence key 的第一组 `{...}` 来共享 Redis Cluster slot。
+guard tombstone 之外，每个 Redis sink 同时保留 terminal fence 和 aggregate-version floor，两者 TTL 都是 7 天。terminal fence 无条件拒绝普通回填，aggregate floor 保存该 sink 最小可接受的 Post `aggregateVersion`。hot-feed 和 summary 另外保存 `scoreVersion`：更大的 aggregate version 可替换当前值，同一 aggregate version 只有不小于当前 score version 的写入可更新；较小 aggregate version 即使携带更大 score version 也会被拒绝。feed upsert 与 summary put/evict 分别在同一个 Lua 中写 payload 并刷新各自的二元版本 marker，避免旧 score 在同一 aggregate version 下回填；detail 不缓存最终 score，只按 aggregate version 保护。帖子普通变更的 `remove/evict` 会删除当前 sink，将版本 floor 提升到当前值与传入值的字典序最大值并刷新 TTL；终态删除还会写 terminal fence。
 
-这是从旧 `event:<sourceEventId>` / `version:<postId>` / `lock:<postId>` key 到 cluster-safe namespace，并从无 sink fence 到永久 sink fence 的格式切换，不做双读：把旧 guard key 加入同一 Lua 会重新引入跨 slot 操作。升级时必须先暂停并排空 hot-feed consumer，再把所有 `RedisPostFeedCache`、`RedisPostSummaryCache`、`RedisPostDetailCache` writer 实例统一停机升级，禁止新旧 guard 或新旧 cache writer 滚动混跑。环境如有删除历史，必须在恢复普通事件消费和 cache 写入前重放全部 `PostDeleted`，或执行等价投影重建，同时建立 guard tombstone、所有当前 feed scope member fence、summary fence 和 detail fence；只重建 guard tombstone 仍会留下旧 writer 复活 sink 的窗口。旧 event key 可在 7 天窗口后自然过期，旧 lock 最长约 30 秒；旧 version key 无 TTL，只能在确认没有旧实例后按旧精确前缀清理。
+feed 的删除覆盖全站 feed、事件 payload board 以及当时 category repository 返回的所有 board，并按 board ID 去重。每组 feed zset/terminal fence/version floor 都把完整 feed key 放入第一组 `{...}`；summary/detail 也把完整 cache key 放入对应 fence/floor 的第一组 `{...}`。因此每个 sink 的检查、删除和写入共享 Redis Cluster slot。
 
-guard tombstone、summary fence 和 detail fence 的容量均与 deleted post 数量线性增长；feed member fence 的成员总量约为 `deleted posts x 删除时覆盖的当前 feed scopes`，其中 scopes 包含 global、payload board 和当时全部 category board（去重后）。这些 key/member 属于长期正确性状态，不得按普通缓存 TTL 或容量淘汰；category 新增后如需补齐历史删除，必须重放或重建该新 board scope 的删除成员。
+counter 写入使用 `post:counter:{post:counter:dirty}:<postId>` overlay；花括号中的 tag 与原有全局 dirty zset `post:counter:dirty` 的完整 key 相同，因此 HINCR/HSET、全局 sequence 自增和 ZADD 可在一个 Cluster Lua 中原子执行。升级期间读取把旧 `post:counter:<postId>` 当作只读基线，对 view/like/comment/bookmark 叠加 overlay，score 则优先取 overlay。dirty zset 的 score 是全局严格递增 revision；flush 只在当前 revision 仍等于读取值时用 Lua ZREM，批次读取后发生的新计数不会被旧批次误确认。该设计保留单一 dirty slot 的既有吞吐边界，但不再产生 CROSSSLOT。
+
+帖子编辑/治理/删除事务除了写 owner outbox，还注册本域 after-commit callback：更新立即删除 feed / summary / detail cache，删除立即执行 terminal eviction，不依赖 Kafka 回环才开始失效。评论创建、编辑和删除也在同一事务内通过 `incrementActiveCommentCount` 推进 `discuss_post.aggregate_version`，提交后按该版本失效同一组读模型；因此评论变更不会与删帖产生可提交的混合版本。callback 失败按缓存 fail-open 记录日志，后续 Kafka 投影继续追平；因此 Redis 仍是派生状态，不是删除事实的唯一存储。
+
+所有删除 tombstone/fence 和版本 floor 都是有界保护，不是永久正确性数据库；容量与最近 7 天的变更、删除、摘要回源量及覆盖 feed scope 数近似线性相关。运行约束是 Kafka/outbox 重放延迟和可能恢复执行的旧 writer 都必须小于 7 天。超过窗口的历史事件不得直接恢复 cache writer，必须先回源 Post owner 当前事实并重建投影，或重放当前删除事实建立新 fence。
+
+### 历史永久 key 迁移
+
+旧版本使用无 TTL 的 feed 删除成员 Set `post:feed:terminal-members:{<完整 feed zset key>}`，每个 Set member 是一个 `postId`；summary/detail terminal fence 和 projection tombstone 与新版本同名，但也是永久 string。旧的单 lane projection version `post:feed:hot:projection:version:{<postId>}` 同样无 TTL，新版本不再读取它。新 writer 不双读旧 feed Set，因此不得直接删除这些 Set。
+
+升级按以下顺序执行：
+
+1. 暂停入口流量并停止全部 `community-app` 实例，确认 Kafka listener、outbox handler、预热任务和请求回源都不再写上述 key。不允许新旧 guard/cache writer 滚动混跑。
+2. 保留 Redis 快照，并确认待恢复的 Kafka/outbox 积压能在 7 天内处理完。如果不能满足该上限，先从 Post owner 当前事实重建投影，不得直接恢复历史 cache writer。
+3. 在 standalone Redis 执行一次下面脚本；Redis Cluster 要把 `COMMUNITY_REDIS_URL` 依次指向每个 primary 并各执行一次，因为 `SCAN` 只遍历当前节点。脚本先把旧 feed Set 的每个 member 展开为新的 per-post string fence，成功后才给旧 Set 设置 7 天 TTL；同名的历史 string 也从迁移时刻起保留 7 天。
+
+```bash
+export COMMUNITY_REDIS_URL='redis://<host>:<port>/<db>'
+
+redis_cmd() {
+  redis-cli -c --no-auth-warning -u "${COMMUNITY_REDIS_URL:?COMMUNITY_REDIS_URL is required}" --raw "$@"
+}
+
+fence_ttl_seconds=604800
+
+while IFS= read -r legacy_feed_key; do
+  legacy_feed_type="$(redis_cmd TYPE "$legacy_feed_key")"
+  if [[ "$legacy_feed_type" == "set" ]]; then
+    while IFS= read -r post_id; do
+      [[ -n "$post_id" ]] || continue
+      redis_cmd SET "${legacy_feed_key}:${post_id}" 1 EX "$fence_ttl_seconds" >/dev/null
+    done < <(redis_cmd SMEMBERS "$legacy_feed_key")
+    redis_cmd EXPIRE "$legacy_feed_key" "$fence_ttl_seconds" >/dev/null
+  elif [[ "$legacy_feed_type" == "string" ]]; then
+    redis_cmd EXPIRE "$legacy_feed_key" "$fence_ttl_seconds" >/dev/null
+  elif [[ "$legacy_feed_type" != "none" ]]; then
+    echo "unexpected Redis type: key=$legacy_feed_key type=$legacy_feed_type" >&2
+    exit 1
+  fi
+done < <(redis_cmd --scan --pattern 'post:feed:terminal-members:*')
+
+for key_pattern in \
+  'post:summary:terminal:*' \
+  'post:detail:terminal:*' \
+  'post:feed:hot:projection:tombstone:*' \
+  'post:feed:hot:projection:version:{*}'
+do
+  while IFS= read -r bounded_key; do
+    bounded_type="$(redis_cmd TYPE "$bounded_key")"
+    if [[ "$bounded_type" == "string" ]]; then
+      redis_cmd EXPIRE "$bounded_key" "$fence_ttl_seconds" >/dev/null
+    elif [[ "$bounded_type" != "none" ]]; then
+      echo "unexpected Redis type: key=$bounded_key type=$bounded_type" >&2
+      exit 1
+    fi
+  done < <(redis_cmd --scan --pattern "$key_pattern")
+done
+```
+
+4. 在每个 primary 上用 `SCAN`（不要用生产环境 `KEYS`）重新遍历上述五个前缀：旧 feed Set、新 feed per-post fence、summary/detail fence、projection tombstone 和旧单 lane version 的 `TTL` 都必须在 `1..604800` 秒内，不得再出现 `TTL=-1`；每个旧 feed Set member 都必须存在对应的 `${legacyFeedKey}:${postId}` string fence。不满足时不得启动新 writer。
+5. 统一启动新版本实例并恢复消费。受控执行一次帖子变更并等待热度投影后，确认 global/board feed、summary 和 detail 的 aggregate floor 等于本次提交后的 `discuss_post.aggregate_version`，hot-feed 与 summary 的 score floor 等于投影使用的 `score_version`，且 TTL 都在 `1..604800` 秒内；用字典序更小的 `(aggregateVersion, scoreVersion)` 受控回放不得恢复已删除的 zset member 或 summary payload，更小 aggregate version 的回放不得恢复 detail payload。
+
+旧 feed Set 和旧单 lane version 在 7 天后自然过期，无需在切换窗口内手工 `DEL`。
 
 analytics 主要用 Redis HyperLogLog / Bitmap：
 
@@ -263,8 +334,12 @@ ES 文档 `EsPostDocument` 字段：
 | `content` | 分词检索 |
 | `type` | 帖子类型 |
 | `status` | 状态标记 |
+| `aggregateVersion` | Post 内容/治理全文档版本 |
+| `scoreVersion` | 派生 score 版本；同一 aggregateVersion 下只允许更高版本更新 score |
 | `createTime` | 毫秒时间戳，避免日期序列化不一致 |
 | `score` | 热度排序分 |
+
+ES upsert 使用原子 Painless CAS：缺失文档的 `create` 分支先写入完整 upsert source；已有文档由更大的 `aggregateVersion` 替换全文档，聚合版本相等时只有更大的 `scoreVersion` 可以更新 `score` 和 `scoreVersion`，其余字段保持不变。更小的任一版本都 noop。`PostDeleted` 写版本化 tombstone 并保留在索引中，查询排除 `status=2`，因此迟到 score 事件不能复活删除文档。
 
 ## Outbox 表
 
@@ -279,6 +354,10 @@ ES 文档 `EsPostDocument` 字段：
 - `PROCESSING`
 - `SUCCEEDED`
 - `DEAD`
+
+worker 先查询 due candidate，再以 `id + PENDING + next_retry_at <= pollNow` 条件更新原子认领；认领成功后按 `id + PROCESSING + lease_token` 回读当前 row，handler 和重试决策只使用该新鲜快照。多实例同时轮询时，旧 candidate 因此不能绕过新的 backoff，也不能在 `DEAD -> PENDING` 原位恢复后沿用恢复前的 retry count。
+
+content media command publisher 使用确定性 event ID；若 enqueue 遇到唯一键冲突，会尝试把原 row 从 `DEAD` 原位重排为 `PENDING`，并清空 retry、lease 和旧错误。只有实际 insert 或 `DEAD -> PENDING` 成功才算重新调度；`PENDING`、`PROCESSING`、`SUCCEEDED` 不会被这种自动恢复覆盖。其他 outbox producer 不自动获得该语义。
 
 完整投递语义见 [reliability.md](reliability.md)。
 

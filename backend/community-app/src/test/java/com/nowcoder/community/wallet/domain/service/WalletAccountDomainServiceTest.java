@@ -31,6 +31,7 @@ class WalletAccountDomainServiceTest {
         assertThat(service.deltaOf("DEBIT", "CREDIT", 100)).isEqualTo(-100);
         assertThat(service.deltaOf("CREDIT", "CREDIT", 100)).isEqualTo(100);
         assertThat(service.deltaOf("CREDIT", "DEBIT", 100)).isEqualTo(-100);
+        assertThat(service.normalDirectionOf("PLATFORM_TEST_CREDIT_EXPENSE")).isEqualTo("DEBIT");
     }
 
     @Test

@@ -86,30 +86,58 @@ set @job_group_id := (
   limit 1
 );
 
-update xxl_job_info
-set job_desc = 'Search Reindex',
-    update_time = now(),
-    author = @job_author,
-    alarm_email = @alarm_email,
-    schedule_type = 'NONE',
-    schedule_conf = '',
-    misfire_strategy = 'DO_NOTHING',
-    executor_route_strategy = 'FIRST',
-    executor_handler = 'searchReindex',
-    executor_param = '',
-    executor_block_strategy = 'SERIAL_EXECUTION',
-    executor_timeout = 0,
-    executor_fail_retry_count = 0,
-    glue_type = 'BEAN',
-    glue_source = '',
-    glue_remark = 'seeded by deploy',
-    glue_updatetime = now(),
-    child_jobid = '',
-    trigger_status = 0,
-    trigger_last_time = 0,
-    trigger_next_time = 0
-where job_group = @job_group_id
-  and executor_handler = 'searchReindex';
+create temporary table community_seed_xxl_job (
+  executor_handler varchar(255) not null primary key,
+  job_desc varchar(255) not null,
+  schedule_type varchar(50) not null,
+  schedule_conf varchar(128) not null,
+  trigger_status tinyint not null,
+  executor_route_strategy varchar(50) not null,
+  executor_block_strategy varchar(50) not null
+);
+
+-- Keep one row per @XxlJob handler; deploy/tests/xxl_job_seed_contract.sh guards the set.
+-- XXL_JOB_HANDLER_SEED_BEGIN
+insert into community_seed_xxl_job(
+  executor_handler,
+  job_desc,
+  schedule_type,
+  schedule_conf,
+  trigger_status,
+  executor_route_strategy,
+  executor_block_strategy
+)
+values
+  ('searchReindex', 'Search Reindex', 'NONE', '', 0, 'FIRST', 'SERIAL_EXECUTION'),
+  ('marketWalletActionProcessor', 'Market Wallet Action Processor', 'CRON', '0/5 * * * * ?', 1, 'FIRST', 'SERIAL_EXECUTION'),
+  ('marketWalletActionRecovery', 'Market Wallet Action Recovery', 'CRON', '15 0/1 * * * ?', 1, 'FIRST', 'SERIAL_EXECUTION'),
+  ('marketOrderAutoConfirm', 'Market Order Auto Confirm', 'CRON', '30 0/1 * * * ?', 1, 'FIRST', 'SERIAL_EXECUTION');
+-- XXL_JOB_HANDLER_SEED_END
+
+update xxl_job_info existing_job
+inner join community_seed_xxl_job seeded_job
+  on binary seeded_job.executor_handler = binary existing_job.executor_handler
+set existing_job.job_desc = seeded_job.job_desc,
+    existing_job.update_time = now(),
+    existing_job.author = @job_author,
+    existing_job.alarm_email = @alarm_email,
+    existing_job.schedule_type = seeded_job.schedule_type,
+    existing_job.schedule_conf = seeded_job.schedule_conf,
+    existing_job.misfire_strategy = 'DO_NOTHING',
+    existing_job.executor_route_strategy = seeded_job.executor_route_strategy,
+    existing_job.executor_param = '',
+    existing_job.executor_block_strategy = seeded_job.executor_block_strategy,
+    existing_job.executor_timeout = 0,
+    existing_job.executor_fail_retry_count = 0,
+    existing_job.glue_type = 'BEAN',
+    existing_job.glue_source = '',
+    existing_job.glue_remark = 'seeded by deploy',
+    existing_job.glue_updatetime = now(),
+    existing_job.child_jobid = '',
+    existing_job.trigger_status = seeded_job.trigger_status,
+    existing_job.trigger_last_time = 0,
+    existing_job.trigger_next_time = 0
+where existing_job.job_group = @job_group_id;
 
 insert into xxl_job_info(
   job_group,
@@ -138,18 +166,18 @@ insert into xxl_job_info(
 )
 select
   @job_group_id,
-  'Search Reindex',
+  seeded_job.job_desc,
   now(),
   now(),
   @job_author,
   @alarm_email,
-  'NONE',
-  '',
+  seeded_job.schedule_type,
+  seeded_job.schedule_conf,
   'DO_NOTHING',
-  'FIRST',
-  'searchReindex',
+  seeded_job.executor_route_strategy,
+  seeded_job.executor_handler,
   '',
-  'SERIAL_EXECUTION',
+  seeded_job.executor_block_strategy,
   0,
   0,
   'BEAN',
@@ -157,16 +185,16 @@ select
   'seeded by deploy',
   now(),
   '',
-  0,
+  seeded_job.trigger_status,
   0,
   0
-from dual
+from community_seed_xxl_job seeded_job
 where @job_group_id is not null
   and not exists (
     select 1
     from xxl_job_info
     where job_group = @job_group_id
-      and executor_handler = 'searchReindex'
+      and binary executor_handler = binary seeded_job.executor_handler
   );
 SQL
 

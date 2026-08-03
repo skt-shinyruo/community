@@ -215,7 +215,7 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	const loading = ref(false)
 	const error = ref('')
 	const items = ref([])
-	const hasNext = computed(() => items.value.length === Number(size.value))
+	const hasNext = ref(false)
 	const searchRequestTracker = createLatestRequestTracker()
 
 	const taxonomy = useTaxonomyStore()
@@ -280,9 +280,8 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	function commitTag() {
 	  const next = normalizeTag(tagDraft.value)
 	  tagDraft.value = next
-	  page.value = 0
 	  replaceQuery({ tag: next })
-	  run()
+	  run(0)
 	}
 
 	async function resolveSearchItems(data) {
@@ -316,8 +315,9 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	  return applySearchHydration(merged, { users, likeCounts })
 	}
 
-	async function run() {
+	async function run(targetPage = page.value) {
 	  const token = searchRequestTracker.begin()
+	  const requestedPage = Math.max(0, Number(targetPage || 0))
 	  error.value = ''
 	  loading.value = true
 	  try {
@@ -325,12 +325,19 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	      keyword: keyword.value,
 	      categoryId: normalizeCategoryId(categoryId.value),
 	      tag: normalizeTag(tagDraft.value),
-	      page: page.value,
+	      page: requestedPage,
 	      size: size.value
 	    })
 	    if (!searchRequestTracker.isCurrent(token)) return
-	    const nextItems = await resolveSearchItems(data)
+	    const rawItems = Array.isArray(data) ? data : []
+	    const nextItems = await resolveSearchItems(rawItems)
 	    if (!searchRequestTracker.isCurrent(token)) return
+	    hasNext.value = rawItems.length >= Number(size.value)
+	    if (requestedPage > page.value && rawItems.length === 0) {
+	      emit('trace', traceId || '')
+	      return
+	    }
+	    page.value = requestedPage
 	    items.value = nextItems
 	    emit('trace', traceId || '')
 	  } catch (e) {
@@ -344,17 +351,15 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	}
 
 	async function onSearch() {
-	  page.value = 0
 	  replaceQuery({ q: keyword.value, categoryId: categoryId.value, tag: tagDraft.value })
-	  await run()
+	  await run(0)
 	}
 
 	function clearFilters() {
 	  categoryId.value = ''
 	  tagDraft.value = ''
-	  page.value = 0
 	  replaceQuery({ categoryId: '', tag: '' })
-	  run()
+	  run(0)
 	}
 
 	function clearSearch() {
@@ -362,6 +367,7 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	  keyword.value = ''
 	  page.value = 0
 	  items.value = []
+	  hasNext.value = false
 	  error.value = ''
 	  loading.value = false
 	  categoryId.value = ''
@@ -372,15 +378,15 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 
 async function nextPage() {
   if (!hasNext.value) return
-  page.value += 1
-  await run()
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  const previousPage = page.value
+  await run(previousPage + 1)
+  if (page.value !== previousPage) window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 	async function prevPage() {
-	  page.value = Math.max(0, page.value - 1)
-	  await run()
-	  window.scrollTo({ top: 0, behavior: 'smooth' })
+	  const previousPage = page.value
+	  await run(Math.max(0, previousPage - 1))
+	  if (page.value !== previousPage) window.scrollTo({ top: 0, behavior: 'smooth' })
 	}
 
 function searchActivity(item) {
@@ -399,6 +405,7 @@ function searchActivity(item) {
 	    categoryId.value = ''
 	    tagDraft.value = ''
 	    items.value = []
+	    hasNext.value = false
 	    error.value = ''
 	    loading.value = false
 	    page.value = 0
@@ -421,8 +428,7 @@ function searchActivity(item) {
 	  }
 	
 	  if (changed) {
-	    page.value = 0
-	    run()
+	    run(0)
 	  }
 	}
 

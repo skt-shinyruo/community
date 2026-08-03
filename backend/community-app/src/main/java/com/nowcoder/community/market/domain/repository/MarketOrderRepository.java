@@ -37,13 +37,15 @@ public interface MarketOrderRepository {
 
     MarketOrder lockByBuyerUserIdAndRequestId(UUID buyerUserId, String requestId);
 
-    List<MarketOrder> findByBuyerUserId(UUID buyerUserId);
+    List<MarketOrder> findByBuyerUserId(UUID buyerUserId, long offset, int limit);
 
-    List<MarketOrder> findBySellerUserId(UUID sellerUserId);
+    List<MarketOrder> findBySellerUserId(UUID sellerUserId, long offset, int limit);
 
     ApplyStatus apply(MarketOrderTransition transition);
 
-    List<MarketOrder> findDueForAutoConfirm(Date asOf);
+    List<MarketOrder> findDueForAutoConfirm(Date asOf, int limit);
+
+    int deferAutoConfirm(UUID orderId, Date asOf, Date nextAttemptAt);
 
     List<MarketOrder> findWalletPendingOrders(int limit);
 }

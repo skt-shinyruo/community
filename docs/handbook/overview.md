@@ -81,9 +81,9 @@ HTTP write
 
 当前 Content、Social、User 只使用 owner outbox -> owner Kafka 骨干。Search、Notice、Growth、Wallet reward、Hot feed、Social deletion cleanup 和 IM policy 都从 owner Kafka listener 进入同域 ApplicationService；只有 IM policy 消费后再写入内部 `projection.im.policy` outbox。
 
-### 资金写路径可能先进入 pending
+### 市场资金写路径可能先进入 pending
 
-钱包充值、提现、转账是 wallet owner 的同步写能力；市场下单、确认、取消和争议裁决则先写 market 主事实和 `market_wallet_action` durable command，再由后台 processor 调 wallet owner API 完成 escrow / release / refund。
+钱包测试积分发放/销毁（生产默认关闭）和转账是 wallet owner 的同步写能力；市场下单、确认、取消和争议裁决则先写 market 主事实和 `market_wallet_action` durable command，再由后台 processor 调 wallet owner API 完成 escrow / release / refund。
 
 这意味着市场订单返回成功时，可能只是“订单请求已接受并进入资金处理中”，例如 `ESCROW_PENDING`、`RELEASE_PENDING`、`REFUND_PENDING`。客户端和后台页面应把这些状态显示为处理中，不能把 HTTP 200 当成资金已经落账。
 

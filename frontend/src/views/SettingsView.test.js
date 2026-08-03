@@ -9,6 +9,10 @@ import { useAuthStore } from '../stores/auth'
 import UiButton from '../components/ui/UiButton.vue'
 import UiFileInput from '../components/ui/UiFileInput.vue'
 
+const { apiMe } = vi.hoisted(() => ({
+  apiMe: vi.fn()
+}))
+
 vi.mock('../api/http', () => ({
   default: {
     defaults: { baseURL: '' },
@@ -19,15 +23,7 @@ vi.mock('../api/http', () => ({
 }))
 
 vi.mock('../api/services/authService', () => ({
-  me: vi.fn().mockResolvedValue({
-    data: {
-      userId: 7,
-      username: 'aaa',
-      headerUrl: '/files/avatar-updated.png',
-      authorities: []
-    },
-    traceId: 'trace-me'
-  })
+  me: apiMe
 }))
 
 import SettingsView from './SettingsView.vue'
@@ -42,6 +38,14 @@ function okResult(data, traceId = 'trace-ok') {
       traceId
     }
   }
+}
+
+function deferred() {
+  let resolve
+  const promise = new Promise((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
 }
 
 describe('SettingsView', () => {
@@ -101,6 +105,17 @@ describe('SettingsView', () => {
     http.get.mockReset()
     http.post.mockReset()
     http.put.mockReset()
+    window.localStorage.clear()
+    apiMe.mockReset()
+    apiMe.mockResolvedValue({
+      data: {
+        userId: 7,
+        username: 'aaa',
+        headerUrl: '/files/avatar-updated.png',
+        authorities: []
+      },
+      traceId: 'trace-me'
+    })
 
     http.post.mockImplementation((url) => {
       if (url === '/api/users/7/avatar/upload-sessions') {
@@ -166,6 +181,62 @@ describe('SettingsView', () => {
     const wrapper = mountView()
 
     expect(wrapper.text()).not.toContain('排行榜')
+  })
+
+  it('stops an old upload session before uploading or updating the new identity', async () => {
+    const pendingSession = deferred()
+    http.post.mockImplementation((url) => {
+      if (url === '/api/users/7/avatar/upload-sessions') return pendingSession.promise
+      return Promise.resolve(okResult({}, 'unexpected-upload'))
+    })
+    const wrapper = mountView()
+    const file = new File(['avatar'], 'old-identity.png', { type: 'image/png' })
+    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await nextTick()
+    await findUiButton(wrapper, '上传并保存').trigger('click')
+
+    const auth = useAuthStore()
+    auth.installSession({
+      accessToken: 'new-token',
+      me: { userId: 8, username: 'bbb', headerUrl: '/files/new-user.png', authorities: [] }
+    })
+    await nextTick()
+    pendingSession.resolve(okResult(uploadSession(), 'trace-old-session'))
+    await flushPromises()
+
+    expect(http.post).toHaveBeenCalledTimes(1)
+    expect(http.put).not.toHaveBeenCalled()
+    expect(findUiButton(wrapper, '上传并保存').get('button').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).not.toContain('头像已更新。')
+    expect(wrapper.text()).not.toContain('已获取上传参数')
+  })
+
+  it('does not let an old me response overwrite the newly installed identity', async () => {
+    const pendingMe = deferred()
+    apiMe.mockReturnValue(pendingMe.promise)
+    const wrapper = mountView()
+    const file = new File(['avatar'], 'old-identity.png', { type: 'image/png' })
+    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await nextTick()
+    await findUiButton(wrapper, '上传并保存').trigger('click')
+    await flushPromises()
+    expect(apiMe).toHaveBeenCalledTimes(1)
+
+    const auth = useAuthStore()
+    auth.installSession({
+      accessToken: 'new-token',
+      me: { userId: 8, username: 'bbb', headerUrl: '/files/new-user.png', authorities: [] }
+    })
+    pendingMe.resolve({
+      data: { userId: 7, username: 'aaa', headerUrl: '/files/old-user-updated.png', authorities: [] },
+      traceId: 'trace-old-me'
+    })
+    await flushPromises()
+
+    expect(auth.userId).toBe(8)
+    expect(auth.username).toBe('bbb')
+    expect(auth.me.headerUrl).toBe('/files/new-user.png')
+    expect(wrapper.text()).not.toContain('头像已更新。')
   })
 
 })

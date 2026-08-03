@@ -205,9 +205,11 @@
 | `search.controller.SearchController` | search HTTP binding | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | IndexOnly |
 | `search.application.SearchApplicationService` | 搜索查询 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.application.SearchPostProjectionApplicationService` | Kafka event 触发后回源 content 并 upsert/delete ES | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
+| `search.application.SearchReindexApplicationService` | content 游标扫描、single-flight 和隔离索引发布编排 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.domain.service.PostSearchDomainService` | 搜索 query 规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.domain.service.KeywordHighlightSupport` | 搜索关键词高亮 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.infrastructure.event.SearchPostProjectionKafkaListener` | content Kafka event 到 search projection listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
+| `search.infrastructure.job.SearchReindexHandler` | XXL 全量重建入口 | [Operations](operations.md) | IndexOnly |
 
 ## Analytics
 
@@ -268,6 +270,7 @@
 | `market.application.MarketOrderSagaApplicationService` | wallet action 后的订单 / 争议条件状态推进 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketOrderAutoConfirmApplicationService` | 自动确认批任务入口 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.application.MarketOrderAutoConfirmer` | 单订单锁定和自动确认 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
+| `market.application.MarketOrderAutoConfirmRetryScheduler` | 自动确认失败项独立事务退避 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.domain.service.MarketListingDomainService` | listing 发布和库存规则 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.domain.service.MarketOrderDomainService` | 订单状态、购买数量和金额规则 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.domain.service.MarketDisputeDomainService` | 争议发起和裁决规则 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
@@ -281,8 +284,8 @@
 | `wallet.controller.AdminWalletController` | wallet admin HTTP binding | [Wallet 钱包业务逻辑](business-logic/wallet.md) | IndexOnly |
 | `wallet.application.WalletAccountApplicationService` | 钱包账户创建、余额、状态、version 条件更新 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.application.WalletLedgerApplicationService` | 总账交易、双分录、requestId replay 校验 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
-| `wallet.application.WalletRechargeApplicationService` | 充值订单和 RECHARGE 总账 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
-| `wallet.application.WalletWithdrawApplicationService` | 提现订单、两段 WITHDRAW 总账 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
+| `wallet.application.WalletRechargeApplicationService` | 兼容路径下的测试积分发放、配额和 TEST_CREDIT_GRANT 总账 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
+| `wallet.application.WalletWithdrawApplicationService` | 兼容路径下的测试积分销毁、配额和 TEST_CREDIT_DISCARD 总账 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.application.WalletTransferApplicationService` | 转账订单和 TRANSFER 总账 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.application.WalletMarketApplicationService` | market escrow / release / refund owner action | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.application.WalletRewardApplicationService` | growth / reward 入账 owner action | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
@@ -291,7 +294,7 @@
 | `wallet.application.WalletAdminOpsApplicationService` | freeze / reverse 管理操作和审计 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletAccountDomainService` | 账户类型、冻结状态和分录方向规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletLedgerDomainService` | 双分录平衡、金额上限和交易创建规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
-| `wallet.domain.service.WalletOrderDomainService` | 充值 / 提现 / 转账订单金额和转账规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
+| `wallet.domain.service.WalletOrderDomainService` | 测试积分发放 / 销毁 / 转账订单金额和转账规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletAdminDomainService` | 管理员钱包操作 actor / reason 规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletAmountPolicy` | 单次资金动作金额上限 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 

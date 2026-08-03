@@ -104,7 +104,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { me as apiMe } from '../api/services/authService'
 import http from '../api/http'
@@ -114,6 +114,7 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiFileInput from '../components/ui/UiFileInput.vue'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 
 const emit = defineEmits(['trace'])
 const auth = useAuthStore()
@@ -125,6 +126,13 @@ const uploadSession = reactive(normalizeUploadSession())
 
 const pickedFile = ref(null)
 const selectedPreviewUrl = ref('')
+let uploadGeneration = 0
+
+const sessionScope = computed(() => [
+  auth.tokenGeneration,
+  normalizeOpaqueId(auth.userId),
+  auth.authed ? 'authenticated' : 'anonymous'
+].join(':'))
 
 const currentAvatarUrl = computed(() => String(auth?.me?.headerUrl || '').trim())
 
@@ -149,63 +157,92 @@ watch(pickedFile, (file, _previousFile, onCleanup) => {
   })
 })
 
-async function createUploadSession(file) {
-  error.value = ''
-  successMsg.value = ''
-  if (!auth.userId) return
-  const resp = await http.post(`/api/users/${auth.userId}/avatar/upload-sessions`, {
+async function createUploadSession(file, userId) {
+  const resp = await http.post(`/api/users/${userId}/avatar/upload-sessions`, {
     fileName: file?.name || 'avatar',
     contentType: file?.type || 'application/octet-stream',
     contentLength: file?.size || 0,
     checksumSha256: ''
   })
   const { data, traceId } = unwrapResultBody(resp.data, 'Create Avatar Upload Session')
-  emit('trace', traceId || '')
-  Object.assign(uploadSession, normalizeUploadSession(data || {}))
-  return uploadSession
+  return {
+    session: normalizeUploadSession(data || {}),
+    traceId
+  }
 }
 
-async function updateAvatar(objectId) {
-  const resp = await http.put(`/api/users/${auth.userId}/avatar`, { objectId })
+async function updateAvatar(objectId, userId) {
+  const resp = await http.put(`/api/users/${userId}/avatar`, { objectId })
   const { traceId } = unwrapResultBody(resp.data, 'Update Avatar')
-  emit('trace', traceId || '')
+  return traceId
+}
+
+function isCurrentUpload(generation, scope) {
+  return generation === uploadGeneration && scope === sessionScope.value
 }
 
 async function uploadAndUpdate() {
   error.value = ''
   successMsg.value = ''
-  if (!pickedFile.value) return
+  const file = pickedFile.value
+  const userId = normalizeOpaqueId(auth.userId)
+  if (!file || !userId) return
 
+  const generation = ++uploadGeneration
+  const scope = sessionScope.value
   loading.value = true
   try {
-    const session = await createUploadSession(pickedFile.value)
+    const created = await createUploadSession(file, userId)
+    if (!isCurrentUpload(generation, scope)) return
+    emit('trace', created.traceId || '')
+    Object.assign(uploadSession, created.session)
+
     const { data, traceId } = await executeUploadSession({
       http,
-      session,
-      file: pickedFile.value,
+      session: created.session,
+      file,
       operation: 'Upload Avatar'
     })
+    if (!isCurrentUpload(generation, scope)) return
     emit('trace', traceId || '')
 
-    const objectId = String(data?.objectId || session.objectId || '').trim()
+    const objectId = String(data?.objectId || created.session.objectId || '').trim()
     if (!objectId) {
       throw new Error('头像对象缺失，请重新上传')
     }
-    await updateAvatar(objectId)
+    const updateTraceId = await updateAvatar(objectId, userId)
+    if (!isCurrentUpload(generation, scope)) return
+    emit('trace', updateTraceId || '')
     try {
       const { data, traceId } = await apiMe()
+      if (!isCurrentUpload(generation, scope)) return
       emit('trace', traceId || '')
       auth.setMe(data)
     } catch {
+      if (!isCurrentUpload(generation, scope)) return
       // ignore: 头像已更新，页面可通过刷新/重新进入触发 me 拉取。
     }
+    if (!isCurrentUpload(generation, scope)) return
     successMsg.value = '头像已更新。'
   } catch (e) {
+    if (!isCurrentUpload(generation, scope)) return
     error.value = e?.message || '更新失败'
   } finally {
-    loading.value = false
+    if (isCurrentUpload(generation, scope)) loading.value = false
   }
 }
+
+watch(sessionScope, () => {
+  uploadGeneration += 1
+  loading.value = false
+  error.value = ''
+  successMsg.value = ''
+  pickedFile.value = null
+  Object.assign(uploadSession, normalizeUploadSession())
+})
+onBeforeUnmount(() => {
+  uploadGeneration += 1
+})
 </script>
 
 <style scoped>

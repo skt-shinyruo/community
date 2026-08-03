@@ -85,17 +85,25 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useAuthStore } from '../stores/auth'
 import { topicSummary } from '../api/services/noticeService'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
 
 const emit = defineEmits(['trace'])
+const auth = useAuthStore()
 const loading = ref(false)
 const error = ref('')
 const items = ref([])
+const loadRequestTracker = createLatestRequestTracker()
+
+function currentIdentityScope() {
+  return `${auth.tokenGeneration}:${String(auth.userId || '')}`
+}
 
 function getTopicTitle(topic) {
   const map = {
@@ -108,20 +116,38 @@ function getTopicTitle(topic) {
 }
 
 async function load() {
+  const token = loadRequestTracker.begin()
+  const identityScope = currentIdentityScope()
   error.value = ''
   loading.value = true
   try {
     const { data, traceId } = await topicSummary()
-    items.value = data
+    if (!loadRequestTracker.isCurrent(token) || currentIdentityScope() !== identityScope) return
+    items.value = Array.isArray(data) ? data : []
     emit('trace', traceId || '')
   } catch (e) {
+    if (!loadRequestTracker.isCurrent(token) || currentIdentityScope() !== identityScope) return
     error.value = e?.message || '加载通知失败'
   } finally {
-    loading.value = false
+    if (loadRequestTracker.isCurrent(token) && currentIdentityScope() === identityScope) {
+      loading.value = false
+    }
   }
 }
 
-onMounted(load)
+function resetForIdentity() {
+  loadRequestTracker.invalidate()
+  loading.value = false
+  error.value = ''
+  items.value = []
+  if (auth.authed) load()
+}
+
+watch(currentIdentityScope, resetForIdentity)
+onMounted(() => {
+  if (auth.authed) load()
+})
+onBeforeUnmount(() => loadRequestTracker.invalidate())
 </script>
 
 <style scoped>

@@ -35,6 +35,7 @@ import {
   createDriveUploadSession,
   getDriveSpace,
   getPublicDriveShare,
+  listDriveShares,
   listDriveShareEntries,
   listDriveEntries,
   listDriveTrash,
@@ -147,6 +148,21 @@ describe('driveService', () => {
 
     expect(http.get).toHaveBeenCalledWith('/api/drive/shares/token-a')
     expect(result.data).toEqual({ shareToken: 'token-a', requiresPassword: true })
+  })
+
+  it('listDriveShares should return the authenticated management page', async () => {
+    http.get.mockResolvedValue({
+      data: {
+        code: 0,
+        data: { items: [{ shareId: 'share-1' }], hasNext: true, page: 0, size: 20 },
+        traceId: 'trace-own-shares'
+      }
+    })
+
+    const result = await listDriveShares({ page: 0, size: 20 })
+
+    expect(http.get).toHaveBeenCalledWith('/api/drive/shares', { params: { page: 0, size: 20 } })
+    expect(result.data).toEqual({ items: [{ shareId: 'share-1' }], hasNext: true, page: 0, size: 20 })
   })
 
   it('verifyDriveShare should post extraction code to public endpoint', async () => {

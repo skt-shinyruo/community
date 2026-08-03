@@ -18,9 +18,12 @@ public interface MarketListingMapper {
 
     MarketListingDataObject selectByIdForUpdate(@Param("listingId") UUID listingId);
 
-    List<MarketListingDataObject> selectBySellerUserId(@Param("sellerUserId") UUID sellerUserId);
+    List<MarketListingDataObject> selectBySellerUserId(@Param("sellerUserId") UUID sellerUserId,
+                                                       @Param("offset") long offset,
+                                                       @Param("limit") int limit);
 
-    List<MarketListingDataObject> selectPublicListings();
+    List<MarketListingDataObject> selectPublicListings(@Param("offset") long offset,
+                                                       @Param("limit") int limit);
 
     int updateEditable(MarketListingDataObject listing);
 

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { batchUserSummary } from '../api/services/userService'
 import { getLikeCounts, getLikeStatuses } from '../api/services/socialService'
+import { useAuthStore } from './auth'
 import { normalizeOpaqueId, normalizeOpaqueIds } from '../utils/opaqueId'
 
 // TTL 约定：
@@ -29,9 +30,19 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
   state: () => ({
     users: {}, // id -> { value, expiresAt }
     likeCounts: {}, // "entityType:entityId" -> { value, expiresAt }
-    likeStatuses: {} // "entityType:entityId" -> { value, expiresAt } (与登录态相关，建议在 auth 变化时清理)
+    likeStatuses: {}, // "entityType:entityId" -> { value, expiresAt }
+    likeStatusScope: ''
   }),
   actions: {
+    syncLikeStatusScope() {
+      const auth = useAuthStore()
+      const scope = `${auth.tokenGeneration}:${normalizeOpaqueId(auth.userId)}`
+      if (this.likeStatusScope !== scope) {
+        this.likeStatuses = {}
+        this.likeStatusScope = scope
+      }
+      return scope
+    },
     clearLikeStatuses() {
       this.likeStatuses = {}
     },
@@ -39,6 +50,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
       this.users = {}
       this.likeCounts = {}
       this.likeStatuses = {}
+      this.likeStatusScope = ''
     },
 
     getUser(id) {
@@ -55,6 +67,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
       return null
     },
     getLikeStatus(entityType, entityId) {
+      this.syncLikeStatusScope()
       const k = likeKey(entityType, entityId)
       const entry = this.likeStatuses[k]
       if (isFresh(entry)) return !!entry.value
@@ -65,6 +78,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
       this.likeCounts[k] = { value: Number(value || 0), expiresAt: nowMs() + LIKE_TTL_MS }
     },
     setLikeStatus(entityType, entityId, value) {
+      this.syncLikeStatusScope()
       const k = likeKey(entityType, entityId)
       this.likeStatuses[k] = { value: !!value, expiresAt: nowMs() + LIKE_TTL_MS }
     },
@@ -134,6 +148,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
     async ensureLikeStatuses(entityType, entityIds) {
       const ids = normalizeIds(entityIds)
       if (ids.length === 0) return {}
+      const requestScope = this.syncLikeStatusScope()
 
       const missing = []
       for (const id of ids) {
@@ -143,6 +158,9 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
 
       if (missing.length > 0) {
         const { data } = await getLikeStatuses(entityType, missing)
+        if (this.syncLikeStatusScope() !== requestScope) {
+          return this.ensureLikeStatuses(entityType, ids)
+        }
         const t = nowMs()
         for (const id of missing) {
           if (!Object.prototype.hasOwnProperty.call(data || {}, String(id))) {

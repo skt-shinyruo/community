@@ -29,6 +29,7 @@
         from market_listing
         where seller_user_id = #{sellerUserId, jdbcType=BINARY}
         order by create_time desc, listing_id desc
+        limit #{limit} offset #{offset}
     </select>
 
     <select id="selectPublicListings" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject">
@@ -38,6 +39,7 @@
         from market_listing
         where status in ('ACTIVE', 'SOLD_OUT')
         order by create_time desc, listing_id desc
+        limit #{limit} offset #{offset}
     </select>
 
     <insert id="insert" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject">

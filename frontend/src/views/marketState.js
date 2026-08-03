@@ -215,6 +215,30 @@ function addressLine(item) {
   return parts.join(' ')
 }
 
+export function mergeMarketPage(currentItems, nextItems, idField) {
+  const merged = []
+  const positions = new Map()
+  for (const item of [
+    ...(Array.isArray(currentItems) ? currentItems : []),
+    ...(Array.isArray(nextItems) ? nextItems : [])
+  ]) {
+    const id = item?.[idField]
+    if (id == null || id === '') {
+      merged.push(item)
+      continue
+    }
+    const key = String(id)
+    const existingPosition = positions.get(key)
+    if (existingPosition == null) {
+      positions.set(key, merged.length)
+      merged.push(item)
+    } else {
+      merged[existingPosition] = item
+    }
+  }
+  return merged
+}
+
 export function buildMarketState({ listings, orders, disputes, addresses, inventory } = {}) {
   const safeListings = Array.isArray(listings) ? listings : []
   const safeOrders = Array.isArray(orders) ? orders : []

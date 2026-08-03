@@ -221,7 +221,7 @@ Domain event 和本地 Spring bridge 不是发布 integration event 的必经层
 - `analytics`：UV / DAU / 请求采集与查询。
 - `growth`：任务模板、任务进度、等级规则、奖励发放协作。
 - `market`：listing、库存、订单、交付/发货、争议和自动确认。
-- `wallet`：钱包账户、充值、提现、转账、冻结、总账双分录、冲正。
+- `wallet`：钱包账户、测试积分发放/销毁、转账、冻结、总账双分录、冲正；未接入真实支付或外部出款。
 - `im.projection`：主站提供给 IM realtime 的用户处罚/拉黑 policy snapshot。
 
 ## 共享基础设施

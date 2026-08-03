@@ -134,7 +134,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
@@ -148,27 +148,36 @@ import {
   listMarketAddresses,
   updateMarketAddress
 } from '../api/services/marketService'
+import { useAuthStore } from '../stores/auth'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildMarketState } from './marketState'
 
+const auth = useAuthStore()
 const loading = ref(false)
 const submitting = ref(false)
 const error = ref('')
 const message = ref('地址簿会在实物商品详情页直接复用。')
 const addresses = ref([])
 const editingAddressId = ref(null)
-const form = ref({
-  receiverName: '',
-  receiverPhone: '',
-  province: '',
-  city: '',
-  district: '',
-  detailAddress: '',
-  postalCode: '',
-  defaultAddress: true
-})
+const form = ref(emptyAddressForm())
 const editForm = ref(emptyAddressForm())
+let requestGeneration = 0
+let actionGeneration = 0
 
 const state = computed(() => buildMarketState({ addresses: addresses.value }))
+const sessionScope = computed(() => [
+  auth.tokenGeneration,
+  normalizeOpaqueId(auth.userId),
+  auth.authed ? 'authenticated' : 'anonymous'
+].join(':'))
+
+function isCurrentRequest(generation, scope) {
+  return generation === requestGeneration && scope === sessionScope.value
+}
+
+function isCurrentAction(generation, scope) {
+  return generation === actionGeneration && scope === sessionScope.value
+}
 
 function emptyAddressForm() {
   return {
@@ -225,68 +234,107 @@ function startEdit(item) {
 }
 
 async function reload() {
+  const generation = ++requestGeneration
+  const scope = sessionScope.value
   loading.value = true
   error.value = ''
   try {
     const { data } = await listMarketAddresses()
+    if (!isCurrentRequest(generation, scope)) return
     addresses.value = Array.isArray(data) ? data : []
     if (editingAddressId.value && !addresses.value.some((item) => item?.addressId === editingAddressId.value)) {
       cancelEdit()
     }
   } catch (e) {
+    if (!isCurrentRequest(generation, scope)) return
     error.value = e?.message || '加载地址簿失败'
   } finally {
-    loading.value = false
+    if (isCurrentRequest(generation, scope)) loading.value = false
   }
 }
 
 async function submitCreate() {
+  if (!auth.authed || submitting.value) return
+  const generation = ++actionGeneration
+  const scope = sessionScope.value
   submitting.value = true
   message.value = ''
   try {
     await createMarketAddress(buildPayload(form.value))
+    if (!isCurrentAction(generation, scope)) return
     message.value = '地址已创建。'
     resetForm()
     await reload()
   } catch (e) {
+    if (!isCurrentAction(generation, scope)) return
     message.value = e?.message || '创建地址失败'
   } finally {
-    submitting.value = false
+    if (isCurrentAction(generation, scope)) submitting.value = false
   }
 }
 
 async function submitUpdate() {
-  if (!editingAddressId.value) return
+  if (!auth.authed || submitting.value || !editingAddressId.value) return
+  const generation = ++actionGeneration
+  const scope = sessionScope.value
+  const addressId = editingAddressId.value
   submitting.value = true
   message.value = ''
   try {
-    await updateMarketAddress(editingAddressId.value, buildPayload(editForm.value))
+    await updateMarketAddress(addressId, buildPayload(editForm.value))
+    if (!isCurrentAction(generation, scope)) return
     message.value = '地址已更新。'
     cancelEdit()
     await reload()
   } catch (e) {
+    if (!isCurrentAction(generation, scope)) return
     message.value = e?.message || '更新地址失败'
   } finally {
-    submitting.value = false
+    if (isCurrentAction(generation, scope)) submitting.value = false
   }
 }
 
 async function submitDelete(addressId) {
+  if (!auth.authed || submitting.value) return
+  const generation = ++actionGeneration
+  const scope = sessionScope.value
   submitting.value = true
   message.value = ''
   try {
     await deleteMarketAddress(addressId)
+    if (!isCurrentAction(generation, scope)) return
     message.value = '地址已删除。'
     if (editingAddressId.value === addressId) {
       cancelEdit()
     }
     await reload()
   } catch (e) {
+    if (!isCurrentAction(generation, scope)) return
     message.value = e?.message || '删除地址失败'
   } finally {
-    submitting.value = false
+    if (isCurrentAction(generation, scope)) submitting.value = false
   }
 }
 
-onMounted(reload)
+watch(
+  sessionScope,
+  () => {
+    requestGeneration += 1
+    actionGeneration += 1
+    addresses.value = []
+    loading.value = false
+    submitting.value = false
+    error.value = ''
+    message.value = '地址簿会在实物商品详情页直接复用。'
+    resetForm()
+    cancelEdit()
+    if (auth.authed) reload()
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  requestGeneration += 1
+  actionGeneration += 1
+})
 </script>

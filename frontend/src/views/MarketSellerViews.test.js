@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils'
-import { reactive } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { nextTick, reactive } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAuthStore } from '../stores/auth'
 
 const routeState = reactive({
   params: { listingId: '21' },
@@ -10,6 +12,7 @@ const routeState = reactive({
   path: '/market/my-listings/21/inventory',
   fullPath: '/market/my-listings/21/inventory'
 })
+let pinia
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual('vue-router')
@@ -38,6 +41,7 @@ import {
 function mountOptions() {
   return {
     global: {
+      plugins: [pinia],
       stubs: {
         RouterLink: {
           props: ['to'],
@@ -73,6 +77,9 @@ function mountOptions() {
 
 describe('Unified market seller views', () => {
   beforeEach(() => {
+    pinia = createPinia()
+    setActivePinia(pinia)
+    authenticate('seller-a', 'token-a')
     routeState.params = { listingId: '21' }
     routeState.path = '/market/my-listings/21/inventory'
     routeState.fullPath = '/market/my-listings/21/inventory'
@@ -121,6 +128,35 @@ describe('Unified market seller views', () => {
     expect(wrapper.findAll('a').some((link) => link.text().includes('库存管理'))).toBe(true)
   })
 
+  it('discards seller listings returned for a previous authenticated identity', async () => {
+    const oldListings = deferred()
+    listMyMarketListings
+      .mockReturnValueOnce(oldListings.promise)
+      .mockResolvedValueOnce({
+        data: [{ listingId: 22, goodsType: 'PHYSICAL', title: 'B 的商品', status: 'ACTIVE' }],
+        hasNext: false,
+        page: 0,
+        size: 20
+      })
+
+    const wrapper = mount(MarketMyListingsView, mountOptions())
+    await vi.waitFor(() => expect(listMyMarketListings).toHaveBeenCalledTimes(1))
+    authenticate('seller-b', 'token-b')
+    await vi.waitFor(() => expect(listMyMarketListings).toHaveBeenCalledTimes(2))
+    await flushPromises()
+
+    oldListings.resolve({
+      data: [{ listingId: 21, goodsType: 'VIRTUAL', title: 'A 的私有商品', status: 'ACTIVE' }],
+      hasNext: false,
+      page: 0,
+      size: 20
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('B 的商品')
+    expect(wrapper.text()).not.toContain('A 的私有商品')
+  })
+
   it('loads inventory on mount and renders payload rows', async () => {
     listMarketInventory.mockResolvedValue({
       data: [
@@ -138,11 +174,71 @@ describe('Unified market seller views', () => {
     const wrapper = mount(MarketInventoryView, mountOptions())
     await flushPromises()
 
-    expect(listMarketInventory).toHaveBeenCalledWith('21')
+    expect(listMarketInventory).toHaveBeenCalledWith('21', { page: 0, size: 20 })
     expect(wrapper.findAll('.market-order-row')).toHaveLength(1)
     expect(wrapper.text()).toContain('CODE-001')
     expect(wrapper.text()).toContain('可售')
     expect(wrapper.text()).not.toContain('AVAILABLE')
+  })
+
+  it('does not let an old listing response replace inventory after navigation', async () => {
+    let resolveOldRequest
+    listMarketInventory
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveOldRequest = resolve
+      }))
+      .mockResolvedValueOnce({
+        data: [{ inventoryUnitId: 302, payloadContent: 'NEW-LISTING', status: 'AVAILABLE' }],
+        hasNext: false,
+        page: 0,
+        size: 20
+      })
+
+    const wrapper = mount(MarketInventoryView, mountOptions())
+    await nextTick()
+    routeState.params = { listingId: '22' }
+    await flushPromises()
+
+    resolveOldRequest({
+      data: [{ inventoryUnitId: 301, payloadContent: 'OLD-LISTING', status: 'AVAILABLE' }],
+      hasNext: false,
+      page: 0,
+      size: 20
+    })
+    await flushPromises()
+
+    expect(listMarketInventory).toHaveBeenNthCalledWith(2, '22', { page: 0, size: 20 })
+    expect(wrapper.text()).toContain('NEW-LISTING')
+    expect(wrapper.text()).not.toContain('OLD-LISTING')
+  })
+
+  it('discards inventory returned for a previous authenticated identity', async () => {
+    const oldInventory = deferred()
+    listMarketInventory
+      .mockReturnValueOnce(oldInventory.promise)
+      .mockResolvedValueOnce({
+        data: [{ inventoryUnitId: 302, payloadContent: 'B-SECRET', status: 'AVAILABLE' }],
+        hasNext: false,
+        page: 0,
+        size: 20
+      })
+
+    const wrapper = mount(MarketInventoryView, mountOptions())
+    await vi.waitFor(() => expect(listMarketInventory).toHaveBeenCalledTimes(1))
+    authenticate('seller-b', 'token-b')
+    await vi.waitFor(() => expect(listMarketInventory).toHaveBeenCalledTimes(2))
+    await flushPromises()
+
+    oldInventory.resolve({
+      data: [{ inventoryUnitId: 301, payloadContent: 'A-SECRET', status: 'AVAILABLE' }],
+      hasNext: false,
+      page: 0,
+      size: 20
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('B-SECRET')
+    expect(wrapper.text()).not.toContain('A-SECRET')
   })
 
   it('submits new inventory batches and invalidates available units', async () => {
@@ -179,3 +275,20 @@ describe('Unified market seller views', () => {
     expect(invalidateMarketInventory).toHaveBeenCalledWith(301)
   })
 })
+
+function authenticate(userId, accessToken) {
+  useAuthStore().installSession({
+    accessToken,
+    me: { userId, username: userId }
+  })
+}
+
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}

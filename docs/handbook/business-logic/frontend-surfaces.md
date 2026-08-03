@@ -52,7 +52,7 @@
 | `SettingsView.vue` | user 头像上传/更新。 |
 | `ModerationView.vue` | content 举报和审核、user 处罚联动。 |
 | `AnalyticsView.vue` | analytics UV/DAU 查询。 |
-| `WalletView.vue` | wallet 余额、充值、提现、转账。 |
+| `WalletView.vue` | wallet 余额、测试积分领取/销毁能力、转账。 |
 | `DriveView.vue` | drive 网盘空间、目录、文件、上传、下载、回收站、分享管理。 |
 | `DriveShareView.vue` | drive 公开分享访问、提取码校验、短时下载入口。 |
 | `WalletAdminView.vue` | wallet 管理员冻结和冲正。 |

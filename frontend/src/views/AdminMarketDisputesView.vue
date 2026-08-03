@@ -24,10 +24,10 @@
           <p v-if="item.buyerNote || item.sellerNote">买家说明：{{ item.buyerNote || '未填写' }} · 卖家说明：{{ item.sellerNote || '未填写' }}</p>
         </div>
         <div class="market-inline-actions">
-          <UiButton variant="secondary" :disabled="submittingId === item.disputeId" @click="resolve(item.disputeId, 'refund')">
+          <UiButton variant="secondary" :disabled="submittingId !== ''" @click="resolve(item.disputeId, 'refund')">
             退回买家
           </UiButton>
-          <UiButton :disabled="submittingId === item.disputeId" @click="resolve(item.disputeId, 'release')">
+          <UiButton :disabled="submittingId !== ''" @click="resolve(item.disputeId, 'release')">
             放款卖家
           </UiButton>
         </div>
@@ -37,45 +37,95 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { adminResolveMarketDispute, listAdminMarketDisputes } from '../api/services/marketService'
+import { useAuthStore } from '../stores/auth'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildMarketState } from './marketState'
 
+const auth = useAuthStore()
 const loading = ref(false)
 const error = ref('')
-const submittingId = ref(0)
+const submittingId = ref('')
 const disputes = ref([])
+let loadGeneration = 0
+let actionGeneration = 0
 
 const state = computed(() => buildMarketState({ disputes: disputes.value }))
+const sessionScope = computed(() => [
+  auth.tokenGeneration,
+  normalizeOpaqueId(auth.userId),
+  [...auth.authorities].sort().join(',')
+].join(':'))
+
+function isCurrentLoad(generation, scope) {
+  return generation === loadGeneration && scope === sessionScope.value && auth.authed && auth.isAdmin
+}
+
+function isCurrentAction(generation, scope, disputeId) {
+  return generation === actionGeneration &&
+    scope === sessionScope.value &&
+    submittingId.value === disputeId &&
+    auth.authed &&
+    auth.isAdmin
+}
 
 async function reload() {
+  if (!auth.authed || !auth.isAdmin) return
+  const generation = ++loadGeneration
+  const scope = sessionScope.value
   loading.value = true
   error.value = ''
   try {
     const { data } = await listAdminMarketDisputes()
+    if (!isCurrentLoad(generation, scope)) return
     disputes.value = Array.isArray(data) ? data : []
   } catch (e) {
+    if (!isCurrentLoad(generation, scope)) return
     error.value = e?.message || '加载争议失败'
   } finally {
-    loading.value = false
+    if (isCurrentLoad(generation, scope)) loading.value = false
   }
 }
 
 async function resolve(disputeId, action) {
-  submittingId.value = disputeId
+  const normalizedDisputeId = normalizeOpaqueId(disputeId)
+  if (!normalizedDisputeId || !auth.authed || !auth.isAdmin || submittingId.value !== '') return
+  const generation = ++actionGeneration
+  const scope = sessionScope.value
+  submittingId.value = normalizedDisputeId
   try {
     await adminResolveMarketDispute(disputeId, action, { note: action === 'refund' ? 'refund' : 'release' })
+    if (!isCurrentAction(generation, scope, normalizedDisputeId)) return
     await reload()
   } catch (e) {
+    if (!isCurrentAction(generation, scope, normalizedDisputeId)) return
     error.value = e?.message || '处理争议失败'
   } finally {
-    submittingId.value = 0
+    if (isCurrentAction(generation, scope, normalizedDisputeId)) submittingId.value = ''
   }
 }
 
-onMounted(reload)
+function resetForSession() {
+  loadGeneration += 1
+  actionGeneration += 1
+  loading.value = false
+  error.value = ''
+  submittingId.value = ''
+  disputes.value = []
+  if (auth.authed && auth.isAdmin) reload()
+}
+
+watch(sessionScope, resetForSession)
+onMounted(() => {
+  if (auth.authed && auth.isAdmin) reload()
+})
+onBeforeUnmount(() => {
+  loadGeneration += 1
+  actionGeneration += 1
+})
 </script>

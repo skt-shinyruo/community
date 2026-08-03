@@ -67,13 +67,13 @@ public class MyBatisMarketOrderRepository implements MarketOrderRepository {
     }
 
     @Override
-    public List<MarketOrder> findByBuyerUserId(UUID buyerUserId) {
-        return toDomainList(mapper.selectByBuyerUserId(buyerUserId));
+    public List<MarketOrder> findByBuyerUserId(UUID buyerUserId, long offset, int limit) {
+        return toDomainList(mapper.selectByBuyerUserId(buyerUserId, offset, limit));
     }
 
     @Override
-    public List<MarketOrder> findBySellerUserId(UUID sellerUserId) {
-        return toDomainList(mapper.selectBySellerUserId(sellerUserId));
+    public List<MarketOrder> findBySellerUserId(UUID sellerUserId, long offset, int limit) {
+        return toDomainList(mapper.selectBySellerUserId(sellerUserId, offset, limit));
     }
 
     @Override
@@ -89,8 +89,13 @@ public class MyBatisMarketOrderRepository implements MarketOrderRepository {
     }
 
     @Override
-    public List<MarketOrder> findDueForAutoConfirm(Date asOf) {
-        return toDomainList(mapper.selectDueForAutoConfirm(asOf));
+    public List<MarketOrder> findDueForAutoConfirm(Date asOf, int limit) {
+        return toDomainList(mapper.selectDueForAutoConfirm(asOf, limit));
+    }
+
+    @Override
+    public int deferAutoConfirm(UUID orderId, Date asOf, Date nextAttemptAt) {
+        return mapper.deferAutoConfirm(orderId, asOf, nextAttemptAt);
     }
 
     @Override

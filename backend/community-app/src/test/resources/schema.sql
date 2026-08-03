@@ -48,6 +48,16 @@ create table if not exists wallet_account (
   constraint uk_wallet_account_owner unique (owner_type, owner_id, account_type)
 );
 
+create table if not exists wallet_test_credit_quota (
+  user_id binary(16) primary key,
+  granted_amount bigint not null default 0,
+  discarded_amount bigint not null default 0,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint ck_wallet_test_credit_granted_nonnegative check (granted_amount >= 0),
+  constraint ck_wallet_test_credit_discarded_nonnegative check (discarded_amount >= 0)
+);
+
 create table if not exists wallet_txn (
   txn_id binary(16) primary key,
   request_id varchar(128) not null,
@@ -154,7 +164,8 @@ create table if not exists market_listing (
   update_time timestamp null default current_timestamp on update current_timestamp
 );
 
-create index if not exists idx_market_listing_seller_time on market_listing(seller_user_id, create_time);
+create index if not exists idx_market_listing_seller_time on market_listing(seller_user_id, create_time, listing_id);
+create index if not exists idx_market_listing_public_page on market_listing(create_time, listing_id, status);
 
 create table if not exists market_inventory_unit (
   inventory_unit_id binary(16) primary key,
@@ -169,6 +180,7 @@ create table if not exists market_inventory_unit (
 );
 
 create index if not exists idx_market_inventory_listing_status on market_inventory_unit(listing_id, status, inventory_unit_id);
+create index if not exists idx_market_inventory_listing_page on market_inventory_unit(listing_id, inventory_unit_id);
 
 create table if not exists market_delivery (
   delivery_id binary(16) primary key,
@@ -200,6 +212,7 @@ create table if not exists market_order (
   release_txn_id binary(16) default null,
   refund_txn_id binary(16) default null,
   auto_confirm_at timestamp null default null,
+  auto_confirm_next_attempt_at timestamp null default null,
   address_id_snapshot binary(16) default null,
   receiver_name_snapshot varchar(64) default null,
   receiver_phone_snapshot varchar(32) default null,
@@ -213,10 +226,10 @@ create table if not exists market_order (
   constraint uk_market_order_buyer_request unique (buyer_user_id, request_id)
 );
 
-create index if not exists idx_market_order_buyer_time on market_order(buyer_user_id, create_time);
-create index if not exists idx_market_order_seller_time on market_order(seller_user_id, create_time);
+create index if not exists idx_market_order_buyer_time on market_order(buyer_user_id, create_time, order_id);
+create index if not exists idx_market_order_seller_time on market_order(seller_user_id, create_time, order_id);
 create index if not exists idx_market_order_listing_status on market_order(listing_id, status);
-create index if not exists idx_market_order_auto_confirm on market_order(status, auto_confirm_at);
+create index if not exists idx_market_order_auto_confirm on market_order(auto_confirm_next_attempt_at, order_id, status, auto_confirm_at);
 
 create table if not exists market_wallet_action (
   action_id binary(16) primary key,
@@ -744,6 +757,7 @@ create table if not exists drive_share (
 
 create index if not exists idx_drive_share_entry_status on drive_share(entry_id, status);
 create index if not exists idx_drive_share_expiry on drive_share(status, expires_at);
+create index if not exists idx_drive_share_owner_time on drive_share(created_by, created_at, share_id);
 
 create table if not exists drive_share_access (
   access_id binary(16) primary key,

@@ -46,6 +46,7 @@
         from market_inventory_unit
         where listing_id = #{listingId, jdbcType=BINARY}
         order by inventory_unit_id asc
+        limit #{limit} offset #{offset}
     </select>
 
     <select id="selectById" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketInventoryUnitDataObject">

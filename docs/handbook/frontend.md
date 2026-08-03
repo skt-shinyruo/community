@@ -114,7 +114,7 @@ IM HTTP 客户端是 `frontend/src/api/imCoreHttp.js`：
 | --- | --- |
 | 发帖 | `http.js` 根据 `POST /api/posts` 自动生成并短期复用 `Idempotency-Key`。 |
 | 评论 | `http.js` 根据 `POST /api/posts/{postId}/comments` 自动生成并短期复用 `Idempotency-Key`。 |
-| 钱包充值 / 提现 / 转账 | `http.js` 根据钱包写接口自动生成并短期复用 `Idempotency-Key`。 |
+| 测试积分领取 / 销毁、钱包转账 | `http.js` 根据对应钱包写接口自动生成并短期复用 `Idempotency-Key`。 |
 | 市场下单 | `http.js` 根据 `POST /api/market/orders` 自动生成并短期复用 `Idempotency-Key`。 |
 
 `frontend/src/api/idempotencyKeyCache.js` 按请求指纹短期复用 key，默认窗口是 10 秒。修改重试、按钮防重复或自动保存逻辑时，必须保证同一次业务尝试复用同一个 key；新业务尝试才生成新值。

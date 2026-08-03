@@ -8,6 +8,7 @@ import com.nowcoder.community.search.domain.repository.PostSearchRepository;
 import com.nowcoder.community.search.domain.service.KeywordHighlightSupport;
 import com.nowcoder.community.search.infrastructure.persistence.dataobject.EsPostDocument;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
@@ -26,6 +27,8 @@ import org.springframework.util.StringUtils;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -53,23 +56,48 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
             """;
 
     private final ElasticsearchOperations operations;
+    private final SearchReindexTargetRegistry reindexTargetRegistry;
 
     public ElasticsearchPostSearchRepository(ElasticsearchOperations operations) {
+        this(operations, null);
+    }
+
+    @Autowired
+    public ElasticsearchPostSearchRepository(
+            ElasticsearchOperations operations,
+            SearchReindexTargetRegistry reindexTargetRegistry
+    ) {
         this.operations = operations;
+        this.reindexTargetRegistry = reindexTargetRegistry;
     }
 
     @Override
     public void save(PostSearchDocument post) {
+        // Resolve before the alias write: if publication races this write, either the captured
+        // rebuild target or the already-switched alias receives the projection.
+        Optional<String> rebuildTarget = reindexTargetRegistry == null
+                ? Optional.empty()
+                : reindexTargetRegistry.currentIndex();
         saveMonotonically(post, IndexCoordinates.of(EsPostDocument.INDEX_ALIAS));
+        rebuildTarget
+                .filter(StringUtils::hasText)
+                .filter(indexName -> !EsPostDocument.INDEX_ALIAS.equals(indexName))
+                .ifPresent(indexName -> saveMonotonically(post, IndexCoordinates.of(indexName)));
     }
 
-    @Override
-    public void saveToIndex(PostSearchDocument post, String indexName) {
+    void saveAllToIndex(List<PostSearchDocument> posts, String indexName) {
         if (!StringUtils.hasText(indexName)) {
-            save(post);
-            return;
+            throw new IllegalArgumentException("target index name must not be blank");
         }
-        saveMonotonically(post, IndexCoordinates.of(indexName));
+        List<UpdateQuery> updates = Objects.requireNonNull(posts, "posts must not be null").stream()
+                .map(post -> Objects.requireNonNull(
+                        monotonicUpdate(Objects.requireNonNull(post, "post must not be null")),
+                        "postId must not be null"
+                ))
+                .toList();
+        if (!updates.isEmpty()) {
+            operations.bulkUpdate(updates, IndexCoordinates.of(indexName));
+        }
     }
 
     @Override
@@ -114,29 +142,6 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
 
         SearchHits<EsPostDocument> hits = operations.search(criteriaQuery, EsPostDocument.class);
         return hits.getSearchHits().stream().map(hit -> toItem(hit, k)).toList();
-    }
-
-    @Override
-    public void clear() {
-        var indexOps = operations.indexOps(EsPostDocument.class);
-        if (indexOps.exists()) {
-            indexOps.delete();
-        }
-        indexOps.createWithMapping();
-    }
-
-    @Override
-    public void clearIndex(String indexName) {
-        if (!StringUtils.hasText(indexName)) {
-            clear();
-            return;
-        }
-        var indexOps = operations.indexOps(IndexCoordinates.of(indexName));
-        if (indexOps.exists()) {
-            indexOps.delete();
-        }
-        indexOps.create();
-        indexOps.putMapping(operations.indexOps(EsPostDocument.class).createMapping());
     }
 
     private PostSearchHit toItem(SearchHit<EsPostDocument> hit, String keyword) {
@@ -184,12 +189,19 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
     }
 
     private void saveMonotonically(PostSearchDocument post, IndexCoordinates index) {
+        UpdateQuery update = monotonicUpdate(post);
+        if (update != null) {
+            operations.update(update, index);
+        }
+    }
+
+    private UpdateQuery monotonicUpdate(PostSearchDocument post) {
         EsPostDocument doc = toDocument(post);
         if (doc == null) {
-            return;
+            return null;
         }
         Document source = toSource(doc);
-        UpdateQuery update = UpdateQuery.builder(doc.getPostId())
+        return UpdateQuery.builder(doc.getPostId())
                 .withScript(MONOTONIC_PROJECTION_SCRIPT)
                 .withScriptType(ScriptType.INLINE)
                 .withLang("painless")
@@ -202,7 +214,6 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
                 .withScriptedUpsert(true)
                 .withRetryOnConflict(VERSION_CONFLICT_RETRIES)
                 .build();
-        operations.update(update, index);
     }
 
     private Document toSource(EsPostDocument doc) {

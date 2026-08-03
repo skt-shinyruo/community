@@ -8,8 +8,7 @@ import { suggestTags as apiSuggestTags } from '../../api/services/taxonomyServic
 import {
   canJumpToLastSeenDivider,
   findLastSeenDividerIndex,
-  hasLastSeenDivider,
-  resolveAppendPageAfterLoad
+  hasLastSeenDivider
 } from '../postsFeedState'
 import {
   collectPostsHydrationIds,
@@ -34,6 +33,7 @@ export function usePostsFeed(emit) {
   const router = useRouter()
   const authed = computed(() => !!auth.accessToken)
   const me = computed(() => auth.me || {})
+  const readIdentityId = computed(() => normalizeOpaqueId(auth.userId) || 'anonymous')
   const postMetaCache = usePostMetaCacheStore()
 
   const boardId = computed(() => normalizePostsBoardId(route.query?.boardId))
@@ -104,7 +104,7 @@ export function usePostsFeed(emit) {
   const createError = ref('')
 
   const seenBaselineAt = ref(0)
-  let touchedLatestOnce = false
+  let touchedLatestIdentity = ''
 
   let lastLoadToken = 0
 
@@ -303,14 +303,14 @@ export function usePostsFeed(emit) {
     if (!authed.value || !p) return false
     const last = toMs(activityTime(p))
     if (!last) return false
-    const readAt = getPostReadAt(p?.id)
+    const readAt = getPostReadAt(p?.id, { identityId: readIdentityId.value })
     const baseline = readAt > 0 ? readAt : seenBaselineAt.value
     return last > Number(baseline || 0)
   }
 
   function openPost(p) {
     if (!p) return
-    if (authed.value) markPostRead(p?.id)
+    if (authed.value) markPostRead(p?.id, { identityId: readIdentityId.value })
     router.push({ name: 'postDetail', params: { postId: String(p.id) } })
   }
 
@@ -436,27 +436,23 @@ export function usePostsFeed(emit) {
   }
 
   async function loadMore() {
-    const previousPage = page.value
-    const didLoadSucceed = await load(true)
-    if (!didLoadSucceed) {
-      page.value = resolveAppendPageAfterLoad({ previousPage, didLoadSucceed })
-    }
+    await load(true)
   }
 
   async function reload() {
-    page.value = ''
-    hasNext.value = true
     await load(false)
   }
 
   async function togglePostLike(p) {
     if (!authed.value || !p) return showToast({ type: 'warning', text: '请先登录' })
+    const authGeneration = auth.tokenGeneration
     try {
        const resp = await setLike({
         entityType: 1,
         entityId: p.id,
         liked: null
       })
+       if (auth.tokenGeneration !== authGeneration) return
        emit('trace', resp?.traceId || '')
        if (typeof resp?.data?.likeCount === 'number') {
          p.likeCount = resp.data.likeCount
@@ -467,6 +463,7 @@ export function usePostsFeed(emit) {
          postMetaCache.setLikeStatus(1, p.id, p.liked)
        }
     } catch (e) {
+      if (auth.tokenGeneration !== authGeneration) return
       showToast({ type: 'error', text: e?.message || '点赞失败' })
     }
   }
@@ -489,6 +486,7 @@ export function usePostsFeed(emit) {
       return
     }
     creating.value = true
+    const authGeneration = auth.tokenGeneration
     try {
       const cid = normalizeOpaqueId(newCategoryId.value)
       const resp = await apiCreatePost({
@@ -497,6 +495,7 @@ export function usePostsFeed(emit) {
         categoryId: cid || undefined,
         tags: newTags.value
       })
+      if (auth.tokenGeneration !== authGeneration) return
       emit('trace', resp?.traceId || '')
 
       const createdPostId = normalizeOpaqueId(resp?.data?.postId)
@@ -514,23 +513,37 @@ export function usePostsFeed(emit) {
       isPublishFocused.value = false 
       await reload()
     } catch (e) {
+      if (auth.tokenGeneration !== authGeneration) return
       createError.value = e?.message || '发布失败'
     } finally {
-      creating.value = false
+      if (auth.tokenGeneration === authGeneration) {
+        creating.value = false
+      }
     }
   }
 
   watch(
-    () => auth.accessToken,
+    () => auth.tokenGeneration,
     () => {
-      // 点赞状态与登录态相关：切换账号/退出登录时清理缓存并刷新 UI。
+      // Feed filtering and interaction overlays are identity-bound.
+      lastLoadToken += 1
+      loading.value = false
+      creating.value = false
       postMetaCache.clearLikeStatuses()
-      if (!authed.value) {
-        for (const p of Array.isArray(items.value) ? items.value : []) {
-          if (p) p.liked = false
-        }
+      for (const p of Array.isArray(items.value) ? items.value : []) {
+        if (p) p.liked = false
       }
-      scheduleHydrate(items.value, lastLoadToken)
+      suggestToken += 1
+      if (suggestTimer) window.clearTimeout(suggestTimer)
+      composerTagSuggest.value = []
+      closeComposer()
+      if (!authed.value) socialPrefs.clear()
+      seenBaselineAt.value = getPostsListBaselineAt({ identityId: readIdentityId.value })
+      if (isDefaultLatestFeed.value && touchedLatestIdentity !== readIdentityId.value) {
+        touchedLatestIdentity = readIdentityId.value
+        seenBaselineAt.value = touchPostsListSeen({ identityId: readIdentityId.value })
+      }
+      reload()
     }
   )
 
@@ -542,18 +555,18 @@ export function usePostsFeed(emit) {
   onMounted(() => {
     taxonomy.ensureCategories()
     taxonomy.ensureHotTags(12)
-    seenBaselineAt.value = getPostsListBaselineAt()
-    if (isDefaultLatestFeed.value && !touchedLatestOnce) {
-      touchedLatestOnce = true
-      seenBaselineAt.value = touchPostsListSeen()
+    seenBaselineAt.value = getPostsListBaselineAt({ identityId: readIdentityId.value })
+    if (isDefaultLatestFeed.value && touchedLatestIdentity !== readIdentityId.value) {
+      touchedLatestIdentity = readIdentityId.value
+      seenBaselineAt.value = touchPostsListSeen({ identityId: readIdentityId.value })
     }
     reload()
   })
 
   watch(isDefaultLatestFeed, (v) => {
-    if (v && !touchedLatestOnce) {
-      touchedLatestOnce = true
-      seenBaselineAt.value = touchPostsListSeen()
+    if (v && touchedLatestIdentity !== readIdentityId.value) {
+      touchedLatestIdentity = readIdentityId.value
+      seenBaselineAt.value = touchPostsListSeen({ identityId: readIdentityId.value })
     }
   })
 

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletTestCreditQuotaMapper">
+
+    <select id="selectByUserId" resultType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletTestCreditQuotaDataObject">
+        select user_id, granted_amount, discarded_amount
+        from wallet_test_credit_quota
+        where user_id = #{userId, jdbcType=BINARY}
+    </select>
+
+    <insert id="insertEmpty">
+        insert into wallet_test_credit_quota(user_id, granted_amount, discarded_amount)
+        values(#{userId, jdbcType=BINARY}, 0, 0)
+    </insert>
+
+    <update id="incrementGranted">
+        update wallet_test_credit_quota
+        set granted_amount = granted_amount + #{amount},
+            update_time = current_timestamp
+        where user_id = #{userId, jdbcType=BINARY}
+          and granted_amount &lt;= #{quota} - #{amount}
+    </update>
+
+    <update id="incrementDiscarded">
+        update wallet_test_credit_quota
+        set discarded_amount = discarded_amount + #{amount},
+            update_time = current_timestamp
+        where user_id = #{userId, jdbcType=BINARY}
+          and discarded_amount &lt;= #{quota} - #{amount}
+          and discarded_amount &lt;= granted_amount - #{amount}
+    </update>
+
+</mapper>

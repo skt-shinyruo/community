@@ -34,14 +34,14 @@
           </template>
           <template #actions>
             <UiButton variant="secondary" @click="markAllRead" :disabled="loading || items.length === 0">标记本页已读</UiButton>
-            <UiButton variant="secondary" @click="load" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
+            <UiButton variant="secondary" @click="refresh" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
             <RouterLink class="btn ghost" to="/notices">返回通知汇总</RouterLink>
           </template>
         </UiPageHeader>
       </div>
 
       <div class="notice-detail-toolbar">
-        <UiPagination :page="page" :has-next="hasNext" @prev="prevPage" @next="nextPage" />
+        <UiPagination :page="page" :has-next="hasNext" :disabled="loading" @prev="prevPage" @next="nextPage" />
       </div>
 
       <UiState v-if="error && items.length === 0" variant="error" class="notice-detail-state">{{ error }}</UiState>
@@ -119,11 +119,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useAuthStore } from '../stores/auth'
 import { listNotices, markRead } from '../api/services/noticeService'
 import { safeJsonParse } from '../utils/safeJson'
 import { formatTime } from '../utils/time'
 import { normalizeOpaqueId, normalizeOpaqueIds } from '../utils/opaqueId'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -132,6 +134,7 @@ import UiState from '../components/ui/UiState.vue'
 
 const emit = defineEmits(['trace'])
 const props = defineProps({ topic: String })
+const auth = useAuthStore()
 
 const topic = computed(() => String(props.topic || ''))
 const page = ref(0)
@@ -141,7 +144,17 @@ const loading = ref(false)
 const error = ref('')
 const items = ref([])
 
-const hasNext = computed(() => items.value.length === Number(size.value || 10))
+const hasNext = ref(true)
+const loadRequestTracker = createLatestRequestTracker()
+const markReadRequestTracker = createLatestRequestTracker()
+
+function currentViewScope() {
+  return `${auth.tokenGeneration}:${String(auth.userId || '')}:${topic.value}`
+}
+
+function isCurrentRequest(tracker, token, viewScope) {
+  return tracker.isCurrent(token) && currentViewScope() === viewScope
+}
 
 function formatNotice(msg) {
   const raw = safeJsonParse(msg?.content, null)
@@ -186,48 +199,90 @@ function shortMemberLabel(value) {
   return `社区成员 ${raw.slice(0, 8)}`
 }
 
-async function load() {
+async function load(targetPage = page.value) {
+  const token = loadRequestTracker.begin()
+  const viewScope = currentViewScope()
+  const requestedTopic = topic.value
   error.value = ''
   loading.value = true
   try {
-    const { data, traceId } = await listNotices(topic.value, { page: page.value, size: size.value })
-    items.value = data
+    const { data, traceId } = await listNotices(requestedTopic, { page: targetPage, size: size.value })
+    if (!isCurrentRequest(loadRequestTracker, token, viewScope)) return
+    const nextItems = Array.isArray(data) ? data : []
+    hasNext.value = nextItems.length >= Number(size.value || 10)
+    if (targetPage > page.value && nextItems.length === 0) {
+      emit('trace', traceId || '')
+      return
+    }
+    page.value = targetPage
+    items.value = nextItems
     emit('trace', traceId || '')
   } catch (e) {
+    if (!isCurrentRequest(loadRequestTracker, token, viewScope)) return
     error.value = e?.message || '加载失败'
   } finally {
-    loading.value = false
+    if (isCurrentRequest(loadRequestTracker, token, viewScope)) {
+      loading.value = false
+    }
   }
 }
 
 async function markAllRead() {
-  if (items.value.length === 0) return
+  if (loading.value || items.value.length === 0) return
+  const token = markReadRequestTracker.begin()
+  const viewScope = currentViewScope()
+  const requestedPage = page.value
   error.value = ''
   loading.value = true
   try {
     const ids = normalizeOpaqueIds(items.value.map((x) => x?.id))
     const { traceId } = await markRead(ids)
+    if (!isCurrentRequest(markReadRequestTracker, token, viewScope)) return
     emit('trace', traceId || '')
-    await load()
+    await load(requestedPage)
   } catch (e) {
+    if (!isCurrentRequest(markReadRequestTracker, token, viewScope)) return
     error.value = e?.message || '标记已读失败'
   } finally {
-    loading.value = false
+    if (isCurrentRequest(markReadRequestTracker, token, viewScope)) {
+      loading.value = false
+    }
   }
 }
 
 async function nextPage() {
-  if (!hasNext.value) return
-  page.value += 1
-  await load()
+  if (loading.value || !hasNext.value) return
+  await load(page.value + 1)
 }
 
 async function prevPage() {
-  page.value = Math.max(0, page.value - 1)
-  await load()
+  if (loading.value) return
+  await load(Math.max(0, page.value - 1))
 }
 
-onMounted(load)
+async function refresh() {
+  await load(page.value)
+}
+
+function resetForViewScope() {
+  loadRequestTracker.invalidate()
+  markReadRequestTracker.invalidate()
+  page.value = 0
+  hasNext.value = true
+  loading.value = false
+  error.value = ''
+  items.value = []
+  if (auth.authed && topic.value) load(0)
+}
+
+watch(currentViewScope, resetForViewScope)
+onMounted(() => {
+  if (auth.authed && topic.value) load(0)
+})
+onBeforeUnmount(() => {
+  loadRequestTracker.invalidate()
+  markReadRequestTracker.invalidate()
+})
 </script>
 
 <style scoped>

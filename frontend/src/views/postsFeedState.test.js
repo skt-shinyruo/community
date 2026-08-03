@@ -4,8 +4,7 @@ import {
   canJumpToLastSeenDivider,
   findLastSeenDividerIndex,
   hasLastSeenDivider,
-  isDefaultLatestFeedView,
-  resolveAppendPageAfterLoad
+  isDefaultLatestFeedView
 } from './postsFeedState'
 
 describe('postsFeedState', () => {
@@ -106,10 +105,5 @@ describe('postsFeedState', () => {
         itemsLength: 3
       })
     ).toBe(false)
-  })
-
-  it('restores the current page when append loading fails', () => {
-    expect(resolveAppendPageAfterLoad({ previousPage: 2, didLoadSucceed: true })).toBe(3)
-    expect(resolveAppendPageAfterLoad({ previousPage: 2, didLoadSucceed: false })).toBe(2)
   })
 })

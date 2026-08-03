@@ -17,9 +17,9 @@
       <div class="muted user-card-note">输入 `userId`、`username` 或 `email` 任意一个即可定位目标用户。</div>
 
       <div class="user-search-grid">
-          <UiInput v-model.trim="qUserId" name="user-search-id" placeholder="userId" autocomplete="off" class="user-input user-input--id" />
-          <UiInput v-model.trim="qUsername" name="user-search-username" placeholder="username" autocomplete="off" class="user-input user-input--name" />
-          <UiInput v-model.trim="qEmail" name="user-search-email" placeholder="email" autocomplete="off" class="user-input user-input--email" />
+          <UiInput v-model.trim="qUserId" name="user-search-id" placeholder="userId" autocomplete="off" class="user-input user-input--id" :disabled="loading" />
+          <UiInput v-model.trim="qUsername" name="user-search-username" placeholder="username" autocomplete="off" class="user-input user-input--name" :disabled="loading" />
+          <UiInput v-model.trim="qEmail" name="user-search-email" placeholder="email" autocomplete="off" class="user-input user-input--email" :disabled="loading" />
           <UiButton variant="secondary" :disabled="loading" @click="onSearch">
             {{ loading ? '搜索中…' : '搜索' }}
           </UiButton>
@@ -61,7 +61,7 @@
 
         <div class="user-field">
           <div class="user-field-label">审计原因（必填）</div>
-          <UiInput v-model.trim="reason" name="user-role-reason" placeholder="例如：自托管初始管理员 / 运营团队授予版主权限" autocomplete="off" />
+          <UiInput v-model.trim="reason" name="user-role-reason" placeholder="例如：自托管初始管理员 / 运营团队授予版主权限" autocomplete="off" :disabled="loading" />
         </div>
       </div>
 
@@ -83,7 +83,7 @@
 </template>
 
 <script setup>
-import { computed, inject, ref } from 'vue'
+import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiInput from '../components/ui/UiInput.vue'
@@ -91,9 +91,12 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
 import UiSelect from '../components/ui/UiSelect.vue'
 import { adminSearchUser, adminUpdateUserRole } from '../api/services/adminUserService'
+import { useAuthStore } from '../stores/auth'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 
 const emit = defineEmits(['trace'])
 const showToast = inject('showToast', () => {})
+const auth = useAuthStore()
 
 const qUserId = ref('')
 const qUsername = ref('')
@@ -107,6 +110,13 @@ const user = ref(null)
 const nextType = ref(0)
 const reason = ref('')
 const confirmOpen = ref(false)
+let searchGeneration = 0
+let actionGeneration = 0
+const sessionScope = computed(() => [
+  auth.tokenGeneration,
+  normalizeOpaqueId(auth.userId),
+  [...auth.authorities].sort().join(',')
+].join(':'))
 const roleOptions = [
   { label: 'USER（普通用户）', value: 0 },
   { label: 'MODERATOR（版主）', value: 2 },
@@ -137,10 +147,17 @@ async function onSearch() {
     error.value = '请至少输入 userId / username / email 之一'
     return
   }
+  if (!auth.authed || !auth.isAdmin) return
 
+  const generation = ++searchGeneration
+  const scope = sessionScope.value
+  const query = { userId: qUserId.value, username: qUsername.value, email: qEmail.value }
+  actionGeneration += 1
+  confirmOpen.value = false
   loading.value = true
   try {
-    const { data, traceId } = await adminSearchUser({ userId: qUserId.value, username: qUsername.value, email: qEmail.value })
+    const { data, traceId } = await adminSearchUser(query)
+    if (!isCurrentSearch(generation, scope)) return
     emit('trace', traceId || '')
     if (!data) {
       successMsg.value = '未找到用户'
@@ -150,10 +167,15 @@ async function onSearch() {
     nextType.value = Number(data.type || 0)
     reason.value = ''
   } catch (e) {
+    if (!isCurrentSearch(generation, scope)) return
     error.value = e?.message || '搜索失败'
   } finally {
-    loading.value = false
+    if (isCurrentSearch(generation, scope)) loading.value = false
   }
+}
+
+function isCurrentSearch(generation, scope) {
+  return generation === searchGeneration && scope === sessionScope.value && auth.authed && auth.isAdmin
 }
 
 function openConfirm() {
@@ -171,28 +193,64 @@ async function onConfirmUpdate() {
   confirmOpen.value = false
   error.value = ''
   successMsg.value = ''
-  if (!user.value) return
+  if (!user.value || !auth.authed || !auth.isAdmin) return
 
+  const generation = ++actionGeneration
+  const scope = sessionScope.value
+  const targetUserId = normalizeOpaqueId(user.value.id)
+  const type = Number(nextType.value || 0)
+  const auditReason = String(reason.value || '').trim()
   loading.value = true
   try {
     const { traceId } = await adminUpdateUserRole({
-      targetUserId: user.value.id,
-      type: nextType.value,
-      reason: reason.value,
+      targetUserId,
+      type,
+      reason: auditReason,
       confirm: true
     })
+    if (!isCurrentAction(generation, scope, targetUserId)) return
     emit('trace', traceId || '')
 
-    user.value = { ...user.value, type: Number(nextType.value || 0) }
+    user.value = { ...user.value, type }
     successMsg.value = '角色已更新（用户需重新登录/刷新 token 后生效）。'
     showToast({ type: 'success', title: '已更新', text: successMsg.value })
   } catch (e) {
+    if (!isCurrentAction(generation, scope, targetUserId)) return
     error.value = e?.message || '更新失败'
     showToast({ type: 'error', title: '更新失败', text: error.value })
   } finally {
-    loading.value = false
+    if (isCurrentAction(generation, scope, targetUserId)) loading.value = false
   }
 }
+
+function isCurrentAction(generation, scope, targetUserId) {
+  return generation === actionGeneration &&
+    scope === sessionScope.value &&
+    normalizeOpaqueId(user.value?.id) === targetUserId &&
+    auth.authed &&
+    auth.isAdmin
+}
+
+function resetForSession() {
+  searchGeneration += 1
+  actionGeneration += 1
+  loading.value = false
+  error.value = ''
+  successMsg.value = ''
+  user.value = null
+  nextType.value = 0
+  reason.value = ''
+  confirmOpen.value = false
+  qUserId.value = ''
+  qUsername.value = ''
+  qEmail.value = ''
+}
+
+watch(sessionScope, resetForSession)
+onBeforeUnmount(() => {
+  searchGeneration += 1
+  actionGeneration += 1
+})
 </script>
 
 <style scoped>

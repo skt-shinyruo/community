@@ -4,6 +4,7 @@ import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
 import com.nowcoder.community.market.application.result.MarketInventoryUnitResult;
+import com.nowcoder.community.market.application.result.MarketPageResult;
 import com.nowcoder.community.market.domain.model.MarketInventoryUnit;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
@@ -69,11 +70,23 @@ public class MarketInventoryApplicationService {
         requireStockAdjusted(listing, delta, delta, nextStatus);
     }
 
-    public List<MarketInventoryUnitResult> listInventory(UUID listingId, UUID sellerUserId) {
+    public MarketPageResult<MarketInventoryUnitResult> listInventory(
+            UUID listingId,
+            UUID sellerUserId,
+            Integer page,
+            Integer size
+    ) {
         requireOwnedListing(listingId, sellerUserId);
-        return marketInventoryRepository.findByListingId(listingId).stream()
+        MarketPagination.Window window = MarketPagination.window(page, size);
+        List<MarketInventoryUnitResult> candidates = marketInventoryRepository
+                .findByListingId(listingId, window.offset(), window.queryLimit()).stream()
                 .map(MarketInventoryUnitResult::from)
                 .toList();
+        return MarketPagination.result(candidates, window);
+    }
+
+    public List<MarketInventoryUnitResult> listInventory(UUID listingId, UUID sellerUserId) {
+        return listInventory(listingId, sellerUserId, null, null).items();
     }
 
     @Transactional

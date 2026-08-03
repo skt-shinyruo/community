@@ -16,6 +16,8 @@ import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletTxnMapper;
 import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
 import com.nowcoder.community.wallet.application.result.TransferOrderResult;
+import com.nowcoder.community.wallet.application.command.CreateRechargeCommand;
+import com.nowcoder.community.wallet.application.command.CreateWithdrawCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,12 +76,14 @@ class WalletAdminOpsApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
+        jdbcTemplate.update("delete from http_idempotency");
         jdbcTemplate.update("delete from wallet_admin_action");
         jdbcTemplate.update("delete from wallet_entry");
         jdbcTemplate.update("delete from wallet_txn");
         jdbcTemplate.update("delete from recharge_order");
         jdbcTemplate.update("delete from withdraw_order");
         jdbcTemplate.update("delete from transfer_order");
+        jdbcTemplate.update("delete from wallet_test_credit_quota");
         jdbcTemplate.update("delete from wallet_account");
         when(userReadApplicationService.getSummaryById(any(UUID.class)))
                 .thenAnswer(invocation -> summary(invocation.getArgument(0)));
@@ -90,8 +94,7 @@ class WalletAdminOpsApplicationServiceTest {
         UUID actorUserId = uuid(1);
         UUID sourceUserId = uuid(101);
         UUID targetUserId = uuid(202);
-        seedUserBalance(sourceUserId, 500);
-        seedSystemBalance("PLATFORM_CASH", 800);
+        rechargeService.recharge(new CreateRechargeCommand(sourceUserId, 500L, "freeze-test-grant"));
 
         adminWalletOpsService.freezeWallet(actorUserId, sourceUserId, "risk review");
 
@@ -99,7 +102,9 @@ class WalletAdminOpsApplicationServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.ACCOUNT_FROZEN))
                 .hasMessageContaining("frozen");
-        assertThatThrownBy(() -> withdrawService.request("withdraw:req-2", sourceUserId, 100))
+        assertThatThrownBy(() -> withdrawService.withdraw(
+                new CreateWithdrawCommand(sourceUserId, 100L, "withdraw:req-2")
+        ))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.ACCOUNT_FROZEN))
                 .hasMessageContaining("frozen");
@@ -217,10 +222,12 @@ class WalletAdminOpsApplicationServiceTest {
     void reverseShouldRejectUnsupportedTxnType() {
         UUID actorUserId = uuid(1);
         UUID userId = uuid(101);
-        seedSystemBalance("PLATFORM_CASH", 900);
-        RechargeOrderResult order = rechargeService.complete("recharge:req-unsupported", userId, 200);
+        RechargeOrderResult order = rechargeService.recharge(
+                new CreateRechargeCommand(userId, 200L, "recharge:req-unsupported")
+        );
 
-        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(actorUserId, "wallet:recharge:" + order.orderId(), "fraud report"))
+        String txnRef = "wallet:test-credit:grant:" + order.orderId();
+        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(actorUserId, txnRef, "fraud report"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_REQUEST))
                 .hasMessageContaining("not reversible");
@@ -228,7 +235,7 @@ class WalletAdminOpsApplicationServiceTest {
         assertThat(countRows("wallet_txn")).isEqualTo(1);
         assertThat(countRows("wallet_entry")).isEqualTo(2);
         assertThat(countRows("wallet_admin_action")).isZero();
-        assertThat(walletTxnMapper.selectByRequestId("wallet:recharge:" + order.orderId())).isNotNull();
+        assertThat(walletTxnMapper.selectByRequestId(txnRef)).isNotNull();
     }
 
     @Test

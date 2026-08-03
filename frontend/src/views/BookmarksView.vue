@@ -17,6 +17,7 @@
       </div>
 
       <div class="bookmarks-list">
+        <UiState v-if="pageError" variant="error" class="bookmarks-page-error">{{ pageError }}</UiState>
         <UiState v-if="items.length === 0" class="bookmarks-empty">
           暂无收藏
           <template #description>你收藏过的帖子会出现在这里，适合作为稍后继续阅读的个人清单。</template>
@@ -77,7 +78,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import UiBadge from '../components/ui/UiBadge.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
@@ -101,10 +102,18 @@ const items = ref([])
 const loading = ref(false)
 const loadingMore = ref(false)
 const error = ref('')
+const pageError = ref('')
 
 const page = ref(0)
 const size = 10
 const hasNext = ref(true)
+let requestGeneration = 0
+
+const sessionScope = computed(() => [
+  auth.tokenGeneration,
+  normalizeOpaqueId(auth.userId),
+  auth.authed ? 'authenticated' : 'anonymous'
+].join(':'))
 
 function categoryLabel(id) {
   const cid = normalizeOpaqueId(id)
@@ -118,53 +127,74 @@ function openPost(p) {
   router.push({ name: 'postDetail', params: { postId: String(p.id) } })
 }
 
-async function load(append = false) {
+async function load(append = false, targetPage = page.value) {
   if (!auth.authed) return
+  const generation = ++requestGeneration
+  const scope = sessionScope.value
   if (append) loadingMore.value = true
-  else loading.value = true
+  else {
+    loading.value = true
+    loadingMore.value = false
+  }
 
-  if (!append) error.value = ''
+  if (append) pageError.value = ''
+  else error.value = ''
   try {
     await taxonomy.ensureCategories()
     await prefs.ensureBlocked()
 
-    const resp = await listBookmarks({ page: page.value, size })
+    if (generation !== requestGeneration || scope !== sessionScope.value) return
+
+    const resp = await listBookmarks({ page: targetPage, size })
+    if (generation !== requestGeneration || scope !== sessionScope.value) return
+
     const raw = Array.isArray(resp?.data) ? resp.data : []
     const filtered = prefs.blockedSet.size > 0 ? raw.filter((p) => !prefs.blockedSet.has(normalizeOpaqueId(p?.userId))) : raw
 
     hasNext.value = raw.length >= size
+    if (append && raw.length === 0) return
+    page.value = targetPage
     items.value = append ? [...items.value, ...filtered] : filtered
   } catch (e) {
-    if (!append) error.value = e?.message || '加载失败'
+    if (generation !== requestGeneration || scope !== sessionScope.value) return
+    if (append) pageError.value = e?.message || '加载更多失败'
+    else error.value = e?.message || '加载失败'
   } finally {
-    loading.value = false
-    loadingMore.value = false
+    if (generation === requestGeneration) {
+      loading.value = false
+      loadingMore.value = false
+    }
   }
 }
 
 async function reload() {
-  page.value = 0
-  hasNext.value = true
-  await load(false)
+  pageError.value = ''
+  await load(false, 0)
 }
 
 async function loadMore() {
-  if (!hasNext.value) return
-  page.value += 1
-  await load(true)
+  if (loading.value || loadingMore.value || !hasNext.value) return
+  await load(true, page.value + 1)
 }
 
 onMounted(reload)
 watch(
-  () => auth.authed,
-  (v) => {
-    if (v) reload()
-    else {
-      items.value = []
-      error.value = ''
-    }
+  sessionScope,
+  () => {
+    requestGeneration += 1
+    items.value = []
+    page.value = 0
+    hasNext.value = true
+    loading.value = false
+    loadingMore.value = false
+    error.value = ''
+    pageError.value = ''
+    if (auth.authed) reload()
   }
 )
+onBeforeUnmount(() => {
+  requestGeneration += 1
+})
 </script>
 
 <style scoped>
@@ -216,6 +246,10 @@ watch(
 
 .bookmarks-empty {
   padding: 48px 24px;
+}
+
+.bookmarks-page-error {
+  margin: 16px 24px 0;
 }
 
 .bookmark-item {

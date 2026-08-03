@@ -6,6 +6,8 @@ import com.nowcoder.community.content.domain.model.Report;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.repository.ReportContentRepository;
+import com.nowcoder.community.user.api.model.UserSummaryView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -27,6 +29,7 @@ class ReportApplicationServiceTest {
     private ReportContentRepository reportContentRepository;
     private PostContentRepository postContentRepository;
     private CommentRepository commentRepository;
+    private UserLookupQueryApi userLookupQueryApi;
     private ReportApplicationService service;
 
     @BeforeEach
@@ -34,7 +37,13 @@ class ReportApplicationServiceTest {
         reportContentRepository = mock(ReportContentRepository.class);
         postContentRepository = mock(PostContentRepository.class);
         commentRepository = mock(CommentRepository.class);
-        service = new ReportApplicationService(reportContentRepository, postContentRepository, commentRepository);
+        userLookupQueryApi = mock(UserLookupQueryApi.class);
+        service = new ReportApplicationService(
+                reportContentRepository,
+                postContentRepository,
+                commentRepository,
+                userLookupQueryApi
+        );
     }
 
     @Test
@@ -76,6 +85,8 @@ class ReportApplicationServiceTest {
         UUID reporterId = uuid(1);
         UUID targetId = uuid(2);
         UUID existingReportId = uuid(3);
+        when(userLookupQueryApi.getSummaryById(targetId))
+                .thenReturn(new UserSummaryView(targetId, "target", "", 0));
         when(reportContentRepository.createReport(any(Report.class))).thenThrow(new RuntimeException("duplicate"));
         when(reportContentRepository.findExistingReportId(eq(reporterId), eq(ReportContentRepository.TARGET_TYPE_USER), eq(targetId)))
                 .thenReturn(existingReportId);
@@ -83,5 +94,16 @@ class ReportApplicationServiceTest {
         UUID createdId = service.create(reporterId, "user", targetId, "spam", "");
 
         assertThat(createdId).isEqualTo(existingReportId);
+    }
+
+    @Test
+    void createShouldRejectMissingUserTarget() {
+        UUID reporterId = uuid(1);
+        UUID targetId = uuid(2);
+        when(userLookupQueryApi.getSummaryById(targetId)).thenReturn(null);
+
+        assertThatThrownBy(() -> service.create(reporterId, "user", targetId, "spam", ""))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
     }
 }

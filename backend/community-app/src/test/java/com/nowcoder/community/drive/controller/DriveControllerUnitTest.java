@@ -13,6 +13,7 @@ import com.nowcoder.community.drive.application.command.DriveUploadContent;
 import com.nowcoder.community.drive.application.command.PrepareDriveUploadCommand;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.application.result.DriveShareResult;
+import com.nowcoder.community.drive.application.result.DriveSharePageResult;
 import com.nowcoder.community.drive.application.result.DriveUploadSessionResult;
 import com.nowcoder.community.drive.security.DriveSecurityRules;
 import com.nowcoder.community.support.WebMvcSliceJsonCodecTestConfig;
@@ -192,5 +193,37 @@ class DriveControllerUnitTest {
                 .andExpect(jsonPath("$.data.shareId").value(shareId.toString()))
                 .andExpect(jsonPath("$.data.shareToken").value("token-a"))
                 .andExpect(jsonPath("$.data.entryName").value("report.pdf"));
+    }
+
+    @Test
+    void listOwnSharesShouldReturnPageMetadata() throws Exception {
+        UUID userId = uuid(7);
+        UUID entryId = uuid(30);
+        UUID shareId = uuid(40);
+        when(shareApplicationService.listOwnShares(userId, 0, 20)).thenReturn(new DriveSharePageResult(
+                List.of(new DriveShareResult(
+                        shareId,
+                        entryId,
+                        "token-a",
+                        "report.pdf",
+                        "FILE",
+                        Instant.parse("2026-05-10T00:00:00Z"),
+                        "ACTIVE",
+                        null,
+                        null
+                )),
+                false,
+                0,
+                20
+        ));
+
+        mockMvc.perform(get("/api/drive/shares")
+                        .param("page", "0")
+                        .param("size", "20")
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].shareId").value(shareId.toString()))
+                .andExpect(jsonPath("$.data.hasNext").value(false))
+                .andExpect(jsonPath("$.data.page").value(0));
     }
 }

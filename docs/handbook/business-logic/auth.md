@@ -46,7 +46,7 @@ HTTP 入口位于 `AuthController`：
 
 1. 注册：`AuthController` 接收请求后进入 `RegistrationApplicationService`，auth 先校验验证码、请求字段和邮件配置，再通过 `UserRegistrationActionApi.prepareRegistrationUser(...)` 让 user owner 检查用户名/邮箱冲突并准备用户名、邮箱、密码 hash 和默认头像。auth application 生成 registration token，draft 仓储只负责按 token 存储上下文；验证码通过后先进入 pending 消费态，再调用 `createVerifiedRegistrationUser(...)` 插入 active 用户，并复用登录签发链路返回 access token 和 refresh cookie。
 2. 登录：`LoginApplicationService.login(...)` 先经过登录风控和 captcha 判断，再用 `UserCredentialQueryApi.authenticate(...)` 回源 user owner 校验凭据。认证成功后签发 access token，写 refresh session，并异步/同步触发安全日志和 analytics 登录采集。
-3. refresh / logout：浏览器只把 refresh token 放在 HttpOnly cookie 中。refresh 时 auth 先把旧 session 转入 `PENDING_ROTATION`，再回源 user 校验用户仍允许登录和 refresh，并读取当前 `securityVersion`；校验通过后才生成 replacement token 并 finish rotation，把旧 session 标为 `CONSUMED`、新 session 标为 `ACTIVE`。失败时先尝试 rollback 旧 session；若无法安全恢复则撤销 family 并由 controller 清 cookie。logout 可从 active session 或 terminal tombstone 识别 family，并由 controller 写 clear cookie。
+3. refresh / logout：浏览器只把 refresh token 放在 HttpOnly cookie 中。refresh 时 auth 先把旧 session 转入 `PENDING_ROTATION`，再回源 user 校验用户仍允许登录和 refresh，并读取当前 `securityVersion`；校验通过后才生成 replacement token 并 finish rotation，把旧 session 标为 `CONSUMED`、新 session 标为 `ACTIVE`。失败时先尝试 rollback 旧 session；若无法安全恢复则撤销 family，但失败响应不写 `Set-Cookie`，避免旧请求清掉并发请求刚轮换的新 cookie。logout 可从 active session 或 terminal tombstone 识别 family，并由 controller 写 clear cookie。
 4. 密码重置：auth 校验邮箱、captcha、请求限流和 reset token，user owner 校验新密码策略、更新 BCrypt hash 并递增 `securityVersion`。user 不同步调用 auth 撤销会话；旧 refresh token 下次续期时因 `securityVersionAtIssue` 不匹配而被拒绝，并撤销所在 family。
 
 auth 不直接写 user 表；refresh session 则通过 auth 自己的 `RefreshTokenRepository` 进入 MyBatis 或 Redis infrastructure。
@@ -101,10 +101,10 @@ refresh 使用 refresh token rotation：
 2. `LoginApplicationService.refresh(...)` 调 `RefreshTokenApplicationService.beginRotation(...)`，把旧 refresh session 转入 `PENDING_ROTATION`，lease 为 30 秒。
 3. token hash 找不到、已撤销、过期或 family 被撤销都会失败；已撤销 token 复用会触发 family reuse 检测。
 4. 旧 session 处于 pending 后，通过 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在、允许登录且允许 refresh，并读取当前 `securityVersion`。
-5. 用户不存在、`loginAllowed=false` 或 `refreshAllowed=false` 时撤销该 family 并返回 `USER_DISABLED`，controller 清 cookie。
-6. `securityVersionAtIssue` 与 user 当前 `securityVersion` 不一致时拒绝续期、撤销整个 family，并清 cookie；这使密码、角色或活跃封禁变更无需反向同步调用 auth。
+5. 用户不存在、`loginAllowed=false` 或 `refreshAllowed=false` 时撤销该 family 并返回 `USER_DISABLED`；失败响应不改写 cookie。
+6. `securityVersionAtIssue` 与 user 当前 `securityVersion` 不一致时拒绝续期并撤销整个 family；这使密码、角色或活跃封禁变更无需反向同步调用 auth。
 7. 用户校验通过后签发新的 access token，生成同 family 的 256-bit base64url replacement refresh token，再调用 `finishRotation(...)` 持久化 replacement session，同时记录当前安全版本。
-8. begin 后遇到临时失败时先 `rollbackPendingRotation(...)`，让旧 token 恢复 active；如果 rollback 失败，auth 撤销 family 并要求 controller 清 cookie。
+8. begin 后遇到临时失败时先 `rollbackPendingRotation(...)`，让旧 token 恢复 active；如果 rollback 失败，auth 撤销 family。所有 refresh 失败响应都不写 `Set-Cookie`。
 
 logout：
 

@@ -27,10 +27,17 @@ public class MarketOrderAutoConfirmHandler {
         TraceJobRunner.run(JOB_NAME, () -> {
             try {
                 MarketOrderAutoConfirmResult result = applicationService.autoConfirmDueOrders();
-                String message = "[market] auto-confirm completed=" + result.completedCount() + " skipped=" + result.skippedCount();
+                String message = "[market] auto-confirm completed=" + result.completedCount()
+                        + " skipped=" + result.skippedCount()
+                        + " failed=" + result.failedCount();
                 XxlJobHelper.log(message);
-                XxlJobHelper.handleSuccess(message);
-                log.info(message);
+                if (result.failedCount() > 0) {
+                    XxlJobHelper.handleFail(message);
+                    log.warn(message);
+                } else {
+                    XxlJobHelper.handleSuccess(message);
+                    log.info(message);
+                }
             } catch (RuntimeException e) {
                 String message = "[market] auto-confirm failed: " + e;
                 XxlJobHelper.log(e);

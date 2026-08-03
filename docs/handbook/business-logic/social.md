@@ -25,6 +25,7 @@
 - `POST /api/follows`
 - `DELETE /api/follows`
 - `GET /api/follows/status`
+- `GET /api/follows/statuses`
 - `GET /api/follows/{userId}/followees`
 - `GET /api/follows/{userId}/followers`
 - `GET /api/follows/{userId}/followees/count`
@@ -97,6 +98,8 @@
 关键语义：
 
 - 关注只支持 `USER` 关系；写入、状态、列表和计数查询对非 `USER` `entityType` 都返回参数错误。
+- 批量关注状态一次最多接收 200 个 ID，应用层去重后由 repository 单查询返回完整 true/false 映射；关注和粉丝页再与 user batch summary 并行装配，避免逐行 N+1。
+- 前端关注状态缓存按 auth store 与 token generation 隔离，切换账号或刷新会话后不会复用前一身份的私有关系结果。
 - Controller 只做 HTTP 绑定、认证提取和 DTO 转换，是否支持某个 `entityType` 由 `FollowApplicationService` / `FollowDomainService` 决定。
 
 查询能力：
@@ -106,6 +109,7 @@
 - 关注数。
 - 粉丝数。
 - 当前用户是否已关注。
+- 当前用户对一批用户的关注状态。
 
 ## 拉黑
 

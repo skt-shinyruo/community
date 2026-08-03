@@ -88,7 +88,7 @@ refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`us
 | HTTP request | `LoginRequest` | `username`, `password`, `captchaId`, `captchaCode` | `AuthController.login(...)` |
 | HTTP request | cookie `refresh_token` | refresh token 明文 | `refresh(...)` / `logout(...)` 读取 |
 | HTTP response | `LoginResponse` | `accessToken` | 登录、注册验证、refresh 返回给客户端 |
-| HTTP response | `Set-Cookie` | `refresh_token` | 登录、注册验证、refresh 写入；logout / refresh 失败清理 |
+| HTTP response | `Set-Cookie` | `refresh_token` | 登录、注册验证、refresh 成功写入；logout 清理；refresh 失败不写该响应头 |
 | application command | `LoginCommand` | 登录凭证、验证码、`clientIp`, `clientIpSource` | controller 组装后进入 auth application |
 | application command | `RefreshCommand`, `LogoutCommand` | `refreshToken` | 从 cookie 读取后传入 application |
 | application result | `LoginResult`, `RefreshResult` | `accessToken`, `RefreshCookieSpec` | application 返回 controller |
@@ -206,8 +206,8 @@ CurrentUser.requireJwt(authentication)
 2. `RefreshTokenApplicationService.beginRotation(...)` 把旧 refresh session 转入 `PENDING_ROTATION`，lease 为 30 秒。
 3. 旧 token 找不到、已撤销、已过期或 family 已撤销时返回 invalid；被撤销 token 复用仍会走 family reuse 检测。
 4. 使用 pending session 中的 `userId` 回源 `UserCredentialQueryApi.getByUserId(...)` 校验用户仍存在、允许登录且允许 refresh，并读取当前 `securityVersion`。
-5. 用户不存在、`loginAllowed=false` 或 `refreshAllowed=false` 时撤销该 `familyId`，抛 `USER_DISABLED`，controller 会清 refresh cookie。
-6. pending session 的 `securityVersionAtIssue` 与 user 当前 `securityVersion` 不一致时，auth 拒绝 refresh、撤销该 family，并要求 controller 清 cookie。
+5. 用户不存在、`loginAllowed=false` 或 `refreshAllowed=false` 时撤销该 `familyId` 并抛 `USER_DISABLED`；失败响应不改写 refresh cookie。
+6. pending session 的 `securityVersionAtIssue` 与 user 当前 `securityVersion` 不一致时，auth 拒绝 refresh 并撤销该 family。
 7. 重新计算 authorities，签发新的 access token。
 8. 生成同 family 的 replacement refresh token，并调用 `RefreshTokenApplicationService.finishRotation(...)`；finish 成功后旧 session 变为 `CONSUMED`，replacement session 变为 `ACTIVE`，并保存当前安全版本。
 
@@ -217,10 +217,10 @@ rotation 语义：
 - 新 refresh token 复用同一个 `familyId`。
 - finish 成功后旧 token 不再 active，只作为 `CONSUMED` tombstone 用于复用检测和 logout family 识别。
 - 新 refresh token 不会在用户存在性和状态校验前提前签发。
-- begin 后若发生临时失败，auth 先 `rollbackPendingRotation(...)` 把旧 session 恢复为 `ACTIVE`；如果 rollback 不安全或失败，auth 撤销整个 family，并要求 controller 清 refresh cookie。
+- begin 后若发生临时失败，auth 先 `rollbackPendingRotation(...)` 把旧 session 恢复为 `ACTIVE`；如果 rollback 不安全或失败，auth 撤销整个 family。
 - pending lease 过期后再次 begin rotation 时，store 会先恢复过期 pending，再重新进入 pending 状态。
 - 如果旧 token 已被撤销但又被复用，`maybeRevokeFamilyForReusedToken(...)` 会检查 `security.jwt.refresh-reuse-grace-seconds`；超过 grace window 且未过期时撤销整个 family。
-- refresh 失败时由 application 抛出的 `RefreshFailure.clearRefreshCookie()` 决定 controller 是否额外写入 `Max-Age=0` 的 clear cookie；invalid、user disabled 和 fail-closed family revocation 都会清 cookie。
+- refresh 失败响应不写 `Set-Cookie`。服务端依靠 session/family 状态拒绝无效 token；浏览器端只在显式 logout 时清 cookie。这避免并发 refresh 中较晚到达的旧 token 失败响应清除较早成功响应刚轮换的新 cookie。
 
 ## Logout
 

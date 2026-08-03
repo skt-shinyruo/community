@@ -508,6 +508,17 @@ Market scheduler jobs：
 - `marketWalletActionRecovery`：恢复过期 processing lease，补齐缺失 action，并把已有 `wallet_txn_id` 重新应用到订单 / 争议状态。
 - 这些 job 都可以重跑；重复执行依赖 `market_wallet_action.request_id`、`wallet_txn.request_id` 和订单条件更新保证幂等。
 
+默认控制面由 `deploy/mysql/xxl-job/020_seed_local.sh` 幂等维护：
+
+| Handler | 调度 | 默认状态 | 路由 / 阻塞策略 |
+| --- | --- | --- | --- |
+| `searchReindex` | 手动 | 停止 | `FIRST` / `SERIAL_EXECUTION` |
+| `marketWalletActionProcessor` | 每 5 秒 | 启用 | `FIRST` / `SERIAL_EXECUTION` |
+| `marketWalletActionRecovery` | 每分钟第 15 秒 | 启用 | `FIRST` / `SERIAL_EXECUTION` |
+| `marketOrderAutoConfirm` | 每分钟第 30 秒 | 启用 | `FIRST` / `SERIAL_EXECUTION` |
+
+市场资金动作使用自身的 request id、处理 lease 和恢复任务控制重试，因此 XXL 层不额外重试，错过调度时使用 `DO_NOTHING`，避免控制面重放与业务层重试叠加。新增或删除 `@XxlJob` handler 时必须同步 seed；运行 `./deploy/tests/xxl_job_seed_contract.sh` 检查源码与部署控制面是否一致。
+
 XXL-JOB Admin 本地入口：
 
 ```text
@@ -639,6 +650,8 @@ fail startup before serving traffic. Check `NACOS_CONFIG_IMPORT_SHARED`,
 - `content.events` 的 search consumer lag 和 `content.events.dlq`。
 - `SearchPostProjectionKafkaListener` / `SearchPostProjectionApplicationService` 是否报错。
 - ES alias `community_posts_alias` 指向哪个真实索引。
+
+确认 content 当前事实和投影消费问题已恢复、`search.projection-enabled=true` 后，可在 XXL-JOB Admin 手动执行停用状态的 `searchReindex`。任务使用 Redis single-flight、content owner 游标扫描和隔离版本索引；成功后才切换 alias，失败不会覆盖当前可查询索引。观察日志中的 `executionId`、`indexedCount` 或 `already running`；执行 lease 和重建目标都由心跳续租，`search.reindex.lock-ttl` 最小为 3 秒。`search.index.keep-history` 控制 active index 之外保留的历史索引数。
 
 ### 市场订单资金状态卡住
 

@@ -2,7 +2,9 @@ package com.nowcoder.community.social.domain.repository;
 
 import com.nowcoder.community.social.domain.model.FollowRelation;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public interface FollowRepository {
@@ -12,6 +14,19 @@ public interface FollowRepository {
     boolean unfollow(UUID userId, int entityType, UUID entityId);
 
     boolean hasFollowed(UUID userId, int entityType, UUID entityId);
+
+    default Map<UUID, Boolean> followedStatusesBatch(UUID userId, int entityType, List<UUID> entityIds) {
+        Map<UUID, Boolean> statuses = new HashMap<>();
+        if (entityIds == null || entityIds.isEmpty()) {
+            return statuses;
+        }
+        for (UUID entityId : entityIds) {
+            if (entityId != null) {
+                statuses.put(entityId, hasFollowed(userId, entityType, entityId));
+            }
+        }
+        return statuses;
+    }
 
     long countFollowees(UUID userId, int entityType);
 

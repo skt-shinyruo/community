@@ -97,6 +97,7 @@ class MarketOrderAutoConfirmHandlerTest {
 
         assertThat(result.completedCount()).isEqualTo(2);
         assertThat(result.skippedCount()).isEqualTo(0);
+        assertThat(result.failedCount()).isEqualTo(0);
         assertThat(orderStatus(virtualOrderId)).isEqualTo("RELEASE_PENDING");
         assertThat(orderStatus(physicalOrderId)).isEqualTo("RELEASE_PENDING");
         assertThat(jdbcTemplate.queryForObject(
@@ -157,7 +158,12 @@ class MarketOrderAutoConfirmHandlerTest {
         marketWalletActionProcessor.processDue(10);
         marketOrderService.deliverVirtualOrder(orderId, sellerUserId, "邀请码-A");
         jdbcTemplate.update(
-                "update market_order set auto_confirm_at = timestampadd('HOUR', -1, current_timestamp) where order_id = ?",
+                """
+                        update market_order
+                        set auto_confirm_at = timestampadd('HOUR', -1, current_timestamp),
+                            auto_confirm_next_attempt_at = timestampadd('HOUR', -1, current_timestamp)
+                        where order_id = ?
+                        """,
                 orderId
         );
         return orderId;
@@ -189,7 +195,12 @@ class MarketOrderAutoConfirmHandlerTest {
         marketWalletActionProcessor.processDue(10);
         marketOrderService.shipPhysicalOrder(orderId, sellerUserId, "顺丰", "SF1234567890", "工作日派送");
         jdbcTemplate.update(
-                "update market_order set auto_confirm_at = timestampadd('DAY', -1, current_timestamp) where order_id = ?",
+                """
+                        update market_order
+                        set auto_confirm_at = timestampadd('DAY', -1, current_timestamp),
+                            auto_confirm_next_attempt_at = timestampadd('DAY', -1, current_timestamp)
+                        where order_id = ?
+                        """,
                 orderId
         );
         return orderId;

@@ -57,6 +57,13 @@
           </div>
         </RouterLink>
       </div>
+
+      <div v-if="hasNext" class="market-inline-actions">
+        <UiButton variant="secondary" :disabled="loadingMore" @click="loadMore">
+          {{ loadingMore ? '加载中…' : '加载更多' }}
+        </UiButton>
+      </div>
+      <UiState v-if="pageError" variant="error">{{ pageError }}</UiState>
     </section>
   </div>
 </template>
@@ -64,27 +71,56 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
+import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { listMarketListings } from '../api/services/marketService'
-import { buildMarketState } from './marketState'
+import { buildMarketState, mergeMarketPage } from './marketState'
 
 const loading = ref(false)
+const loadingMore = ref(false)
 const error = ref('')
+const pageError = ref('')
 const listings = ref([])
+const page = ref(0)
+const hasNext = ref(false)
+const pageSize = 20
 
 const state = computed(() => buildMarketState({ listings: listings.value }))
 
 async function reload() {
   loading.value = true
   error.value = ''
+  pageError.value = ''
   try {
-    const { data } = await listMarketListings()
+    const { data, hasNext: nextAvailable, page: loadedPage } = await listMarketListings({ page: 0, size: pageSize })
     listings.value = Array.isArray(data) ? data : []
+    page.value = loadedPage
+    hasNext.value = nextAvailable
   } catch (e) {
     error.value = e?.message || '加载市场失败'
   } finally {
     loading.value = false
+  }
+}
+
+async function loadMore() {
+  if (loadingMore.value || !hasNext.value) return
+  loadingMore.value = true
+  pageError.value = ''
+  const targetPage = page.value + 1
+  try {
+    const { data, hasNext: nextAvailable, page: loadedPage } = await listMarketListings({
+      page: targetPage,
+      size: pageSize
+    })
+    listings.value = mergeMarketPage(listings.value, data, 'listingId')
+    page.value = loadedPage
+    hasNext.value = nextAvailable
+  } catch (e) {
+    pageError.value = e?.message || '加载更多商品失败'
+  } finally {
+    loadingMore.value = false
   }
 }
 

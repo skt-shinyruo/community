@@ -8,13 +8,14 @@ test.describe.serial('wallet product flow @regression', () => {
     await loginViaUi(page, accounts.aaa)
   })
 
-  test('wallet page loads, recharge succeeds, and transfer succeeds @regression', async ({ page }) => {
+  test('wallet page loads, test-credit grant succeeds, and transfer succeeds @regression', async ({ page }) => {
     await gotoHash(page, '/wallet')
     await expect(page.getByText('积分钱包').first()).toBeVisible()
-    const rechargeCard = page.locator('.wallet-action-card').filter({ has: page.getByRole('heading', { name: '充值' }) })
-    await rechargeCard.getByRole('spinbutton').fill('1')
-    await rechargeCard.getByRole('button', { name: '确认充值' }).click()
-    await expect(page.getByText(/充值/).first()).toBeVisible()
+    const grantCard = page.locator('.wallet-action-card').filter({ has: page.getByRole('heading', { name: '领取测试积分' }) })
+    await expect(grantCard).toBeVisible()
+    await grantCard.getByRole('spinbutton').fill('1')
+    await grantCard.getByRole('button', { name: '领取测试积分' }).click()
+    await expect(page.getByText('积分发放').first()).toBeVisible()
     const transferCard = page.locator('.wallet-action-card').filter({ has: page.getByRole('heading', { name: '转账' }) })
     await transferCard.getByRole('textbox', { name: '目标用户 ID' }).fill(accounts.bbb.userId)
     await transferCard.getByRole('spinbutton').fill('1')

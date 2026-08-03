@@ -21,7 +21,9 @@ public interface MarketInventoryUnitMapper {
 
     List<MarketInventoryUnitDataObject> selectByReservedOrderId(@Param("reservedOrderId") UUID reservedOrderId);
 
-    List<MarketInventoryUnitDataObject> selectByListingId(@Param("listingId") UUID listingId);
+    List<MarketInventoryUnitDataObject> selectByListingId(@Param("listingId") UUID listingId,
+                                                          @Param("offset") long offset,
+                                                          @Param("limit") int limit);
 
     MarketInventoryUnitDataObject selectById(@Param("inventoryUnitId") UUID inventoryUnitId);
 

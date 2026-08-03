@@ -27,19 +27,34 @@ import java.util.UUID;
 @Service
 public class WalletWithdrawApplicationService {
 
+    private static final String TEST_CREDIT_EXPENSE_ACCOUNT = "PLATFORM_TEST_CREDIT_EXPENSE";
+
     private final WithdrawOrderRepository withdrawOrderRepository;
     private final WalletAccountApplicationService accountService;
     private final WalletLedgerApplicationService ledgerService;
     private final IdempotencyGuard idempotencyGuard;
     private final WalletOrderDomainService orderDomainService;
     private final UuidV7Generator idGenerator;
+    private final WalletTestCreditPolicy testCreditPolicy;
+    private final WalletTestCreditQuotaPort testCreditQuotaPort;
 
     @Autowired
     public WalletWithdrawApplicationService(WithdrawOrderRepository withdrawOrderRepository,
                                             WalletAccountApplicationService accountService,
                                             WalletLedgerApplicationService ledgerService,
-                                            IdempotencyGuard idempotencyGuard) {
-        this(withdrawOrderRepository, accountService, ledgerService, idempotencyGuard, new WalletOrderDomainService(), new UuidV7Generator());
+                                            IdempotencyGuard idempotencyGuard,
+                                            WalletTestCreditPolicy testCreditPolicy,
+                                            WalletTestCreditQuotaPort testCreditQuotaPort) {
+        this(
+                withdrawOrderRepository,
+                accountService,
+                ledgerService,
+                idempotencyGuard,
+                new WalletOrderDomainService(),
+                new UuidV7Generator(),
+                testCreditPolicy,
+                testCreditQuotaPort
+        );
     }
 
     WalletWithdrawApplicationService(WithdrawOrderRepository withdrawOrderRepository,
@@ -47,24 +62,24 @@ public class WalletWithdrawApplicationService {
                                      WalletLedgerApplicationService ledgerService,
                                      IdempotencyGuard idempotencyGuard,
                                      WalletOrderDomainService orderDomainService,
-                                     UuidV7Generator idGenerator) {
+                                     UuidV7Generator idGenerator,
+                                     WalletTestCreditPolicy testCreditPolicy,
+                                     WalletTestCreditQuotaPort testCreditQuotaPort) {
         this.withdrawOrderRepository = withdrawOrderRepository;
         this.accountService = accountService;
         this.ledgerService = ledgerService;
         this.idempotencyGuard = idempotencyGuard;
         this.orderDomainService = orderDomainService;
         this.idGenerator = idGenerator;
-    }
-
-    WalletWithdrawApplicationService(WithdrawOrderRepository withdrawOrderRepository,
-                                     WalletAccountApplicationService accountService,
-                                     WalletLedgerApplicationService ledgerService) {
-        this(withdrawOrderRepository, accountService, ledgerService, null, new WalletOrderDomainService(), new UuidV7Generator());
+        this.testCreditPolicy = testCreditPolicy;
+        this.testCreditQuotaPort = testCreditQuotaPort;
     }
 
     @Transactional
     public WithdrawOrderResult withdraw(CreateWithdrawCommand command) {
         Objects.requireNonNull(command, "command must not be null");
+        orderDomainService.validatePositiveAmount(command.amount());
+        testCreditPolicy.assertDiscardAllowed(command.amount());
         EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         return idempotencyGuard.executeRequired(
                 "wallet:withdraw",
@@ -73,16 +88,11 @@ public class WalletWithdrawApplicationService {
                 RequestFingerprint.sha256("wallet:withdraw|amount=" + command.amount()),
                 WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                 WithdrawOrderResult.class,
-                () -> requestInternal(effective.value(), command.userId(), command.amount())
+                () -> discardTestCredits(effective.value(), command.userId(), command.amount())
         );
     }
 
-    @Transactional
-    public WithdrawOrderResult request(String requestId, UUID userId, long amount) {
-        return requestInternal(requestId, userId, amount);
-    }
-
-    private WithdrawOrderResult requestInternal(String requestId, UUID userId, long amount) {
+    private WithdrawOrderResult discardTestCreditsInternal(String requestId, UUID userId, long amount) {
         validate(requestId, amount);
         WithdrawOrder order = withdrawOrderRepository.findByUserIdAndRequestId(userId, requestId);
         if (order != null) {
@@ -93,49 +103,47 @@ public class WalletWithdrawApplicationService {
         }
 
         accountService.requireUserWalletActive(userId);
-
-        if (order == null && accountService.balanceOfSystem("PLATFORM_CASH") < amount) {
-            order = withdrawOrderRepository.findByUserIdAndRequestId(userId, requestId);
-            if (order == null) {
-                throw new BusinessException(WalletErrorCode.PLATFORM_CASH_INSUFFICIENT, "platform cash insufficient");
-            }
-        }
-
         order = order == null ? createOrLoad(requestId, userId, amount) : order;
         ensureReplayMatches(order, requestId, userId, amount);
-        if ("SUCCEEDED".equals(order.getStatus())) {
-            return WithdrawOrderResult.from(order);
-        }
 
-        if ("REQUESTED".equals(order.getStatus())) {
+        if ("REQUESTED".equals(order.getStatus()) || "PROCESSING".equals(order.getStatus())) {
             ledgerService.post(new WalletLedgerCommand(
-                    "wallet:withdraw:" + order.getOrderId() + ":request",
-                    WalletTxnType.WITHDRAW,
-                    WalletTxnType.WITHDRAW.name(),
+                    "wallet:test-credit:discard:" + order.getOrderId(),
+                    WalletTxnType.TEST_CREDIT_DISCARD,
+                    WalletTxnType.TEST_CREDIT_DISCARD.name(),
                     order.getOrderId().toString(),
                     List.of(
                             WalletPosting.debit(accountService.ensureUserWallet(userId), amount),
-                            WalletPosting.credit(accountService.ensureSystemAccount("WITHDRAW_PENDING"), amount)
+                            WalletPosting.credit(accountService.ensureSystemAccount(TEST_CREDIT_EXPENSE_ACCOUNT), amount)
                     )
             ));
+        }
+        if ("REQUESTED".equals(order.getStatus())) {
             withdrawOrderRepository.updateStatus(userId, requestId, "REQUESTED", "PROCESSING");
             order = requireOrder(userId, requestId);
         }
-
         if ("PROCESSING".equals(order.getStatus())) {
-            ledgerService.post(new WalletLedgerCommand(
-                    "wallet:withdraw:" + order.getOrderId() + ":settle",
-                    WalletTxnType.WITHDRAW,
-                    WalletTxnType.WITHDRAW.name(),
-                    order.getOrderId().toString(),
-                    List.of(
-                            WalletPosting.debit(accountService.ensureSystemAccount("WITHDRAW_PENDING"), amount),
-                            WalletPosting.credit(accountService.ensureSystemAccount("PLATFORM_CASH"), amount)
-                    )
-            ));
             withdrawOrderRepository.updateStatus(userId, requestId, "PROCESSING", "SUCCEEDED");
         }
         return WithdrawOrderResult.from(requireOrder(userId, requestId));
+    }
+
+    private WithdrawOrderResult discardTestCredits(String requestId, UUID userId, long amount) {
+        WithdrawOrder existing = withdrawOrderRepository.findByUserIdAndRequestId(userId, requestId);
+        if (existing != null) {
+            ensureReplayMatches(existing, requestId, userId, amount);
+            if ("SUCCEEDED".equals(existing.getStatus())) {
+                return WithdrawOrderResult.from(existing);
+            }
+        }
+        if (!testCreditQuotaPort.tryReserveDiscard(
+                userId,
+                amount,
+                testCreditPolicy.properties().getDiscardQuotaPerUser()
+        )) {
+            throw new BusinessException(WalletErrorCode.TEST_CREDIT_QUOTA_EXCEEDED);
+        }
+        return discardTestCreditsInternal(requestId, userId, amount);
     }
 
     private void validate(String requestId, long amount) {

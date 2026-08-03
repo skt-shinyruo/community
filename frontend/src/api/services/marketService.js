@@ -1,10 +1,22 @@
 import http from '../http'
 import { unwrapResultBody } from '../result'
 
+function marketPage(data) {
+  if (Array.isArray(data)) {
+    return { data, hasNext: false, page: 0, size: data.length }
+  }
+  return {
+    data: Array.isArray(data?.items) ? data.items : [],
+    hasNext: data?.hasNext === true,
+    page: Number.isInteger(data?.page) ? data.page : 0,
+    size: Number.isInteger(data?.size) ? data.size : 20
+  }
+}
+
 export async function listMarketListings(params = {}) {
   const resp = await http.get('/api/market/listings', { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询市场商品列表')
-  return { data: Array.isArray(data) ? data : [], traceId }
+  return { ...marketPage(data), traceId }
 }
 
 export async function getMarketListingDetail(listingId) {
@@ -25,16 +37,16 @@ export async function createMarketOrder(payload) {
   return { data: data || {}, traceId }
 }
 
-export async function listMyMarketListings() {
-  const resp = await http.get('/api/market/my-listings')
+export async function listMyMarketListings(params = {}) {
+  const resp = await http.get('/api/market/my-listings', { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询我的出售商品')
-  return { data: Array.isArray(data) ? data : [], traceId }
+  return { ...marketPage(data), traceId }
 }
 
-export async function listMarketInventory(listingId) {
-  const resp = await http.get(`/api/market/listings/${encodeURIComponent(listingId)}/inventory`)
+export async function listMarketInventory(listingId, params = {}) {
+  const resp = await http.get(`/api/market/listings/${encodeURIComponent(listingId)}/inventory`, { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询库存列表')
-  return { data: Array.isArray(data) ? data : [], traceId }
+  return { ...marketPage(data), traceId }
 }
 
 export async function addMarketInventory(listingId, payload) {
@@ -49,16 +61,16 @@ export async function invalidateMarketInventory(inventoryUnitId) {
   return { data: data || {}, traceId }
 }
 
-export async function listBuyingMarketOrders() {
-  const resp = await http.get('/api/market/orders/buying')
+export async function listBuyingMarketOrders(params = {}) {
+  const resp = await http.get('/api/market/orders/buying', { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询我的购买订单')
-  return { data: Array.isArray(data) ? data : [], traceId }
+  return { ...marketPage(data), traceId }
 }
 
-export async function listSellingMarketOrders() {
-  const resp = await http.get('/api/market/orders/selling')
+export async function listSellingMarketOrders(params = {}) {
+  const resp = await http.get('/api/market/orders/selling', { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询我的出售订单')
-  return { data: Array.isArray(data) ? data : [], traceId }
+  return { ...marketPage(data), traceId }
 }
 
 export async function getMarketOrderDetail(orderId) {

@@ -246,6 +246,11 @@ class DriveEntryApplicationServiceTest {
             }
 
             @Override
+            public List<DriveEntry> findByIds(UUID spaceId, List<UUID> entryIds) {
+                return List.of();
+            }
+
+            @Override
             public Optional<DriveEntry> findActiveChildByName(UUID spaceId, UUID parentId, String name) {
                 return Optional.empty();
             }

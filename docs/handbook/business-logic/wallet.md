@@ -4,7 +4,7 @@
 
 ## Owner / SSOT
 
-- wallet owns `wallet_account`、`wallet_txn`、`wallet_entry`、充值订单、提现订单、转账订单和管理员钱包动作。
+- wallet owns `wallet_account`、`wallet_txn`、`wallet_entry`、测试积分发放/销毁订单、转账订单和管理员钱包动作。
 - market owns 市场订单和资金动作请求状态，但不 owns 钱包余额。
 - content/social owns 奖励来源事件事实，growth owns 任务奖励触发；wallet owns 标准内容/点赞奖励投影规则和最终入账事实。
 
@@ -14,8 +14,9 @@ HTTP：
 
 - `GET /api/wallet/summary`
 - `GET /api/wallet/transactions`
-- `POST /api/wallet/recharges`
-- `POST /api/wallet/withdrawals`
+- `GET /api/wallet/capabilities`
+- `POST /api/wallet/recharges`：兼容路径，语义是受配置和累计配额约束的测试积分发放。
+- `POST /api/wallet/withdrawals`：兼容路径，语义是测试积分销毁，不代表外部出款。
 - `POST /api/wallet/transfers`
 - `POST /api/wallet/admin/freeze`
 - `POST /api/wallet/admin/reverse`
@@ -30,7 +31,7 @@ owner API：
 
 钱包域的数据流全部收敛到总账和账户两个层面：
 
-1. 充值 / 提现 / 转账：HTTP 写入口先做 `Idempotency-Key` 归一化，再进入对应的 application service。每个业务先按 `userId + requestId` 查找或创建订单，订单领域模型负责重放校验和自身状态流转意图，再调用 `WalletLedgerApplicationService.post(...)` 写双分录总账，最后通过仓储条件更新订单状态。
+1. 测试积分发放 / 销毁 / 转账：HTTP 写入口先做 `Idempotency-Key` 归一化，再进入对应的 application service。测试积分入口还必须通过 feature flag、单次上限和持久化累计配额校验；每个业务再按 `userId + requestId` 查找或创建订单，最后通过总账和仓储条件更新状态。
 2. 余额事实：`wallet_account` 不是随意读写的缓存，而是由总账分录和条件更新共同维护。所有借贷动作都要先锁定账户，再按 transaction 指纹保证幂等。
 3. 市场协作：market 只通过 `WalletMarketActionApi` 提交 escrow / release / refund，不直接写余额。钱包返回 `wallet_txn_id` 后，market 再推进自己的 saga 状态。
 4. 奖励协作：growth 的任务奖励通过 `WalletRewardActionApi` 提交稳定 requestId；标准内容/点赞奖励由 wallet 自己的 Kafka listener 和 projection application 从 owner event 映射。两条路径最终都以 wallet requestId 作为总账幂等键。
@@ -89,31 +90,28 @@ HTTP `GET /api/wallet/transactions` 返回当前登录用户钱包账户的最�
 
 钱包查询接口不得使用 `ensureUserWallet(...)` 或 `loadUserWallet(...)` 作为读路径入口，避免 GET 请求产生账户创建副作用。
 
-## 充值
+## 测试积分发放
 
 HTTP `WalletRechargeApplicationService.recharge(...)`：
 
-1. 从 `Idempotency-Key` 解析 HTTP 幂等键；body `requestId` 按未知字段返回参数错误。
-2. 用 `wallet:recharge + userId + key + amount fingerprint` 做 HTTP 幂等。
-3. `WalletRechargeApplicationService.complete(...)` 加载已有订单，或通过 `RechargeOrder.create(...)` 创建充值订单。
-4. `RechargeOrder` 负责重放参数校验和 `CREATED -> PAID` 状态流转意图。
-5. application service 确保用户钱包和系统账户，并写 RECHARGE 总账。
-6. 仓储按领域 transition 条件更新订单状态；已支付订单重放直接返回订单结果。
+1. `wallet.test-credits.enabled` 和 `grant-enabled` 必须同时开启；默认配置均关闭。
+2. 校验单次领取上限，并在 `wallet_test_credit_quota` 原子预占用户累计配额。
+3. 从 `Idempotency-Key` 解析 HTTP 幂等键，用 `wallet:recharge + userId + key + amount fingerprint` 去重。
+4. 加载或创建 `recharge_order`，写 `TEST_CREDIT_GRANT` 双分录：借记 `PLATFORM_TEST_CREDIT_EXPENSE`、贷记用户钱包，再推进到 `PAID`。该路径不触碰 `PLATFORM_CASH`。
+5. 同一事务失败会回滚配额预占；已完成请求重放不会再次占用配额。
 
-当前实现是同步完成型充值，不包含真实第三方支付回调。
+该入口只发放内部测试积分，不接收真实资金，也没有第三方支付回调。生产环境必须保持开关关闭。
 
-## 提现
+## 测试积分销毁
 
-提现流程：
+HTTP `WalletWithdrawApplicationService.withdraw(...)`：
 
-1. HTTP 幂等 fingerprint 包含 amount。
-2. `WalletWithdrawApplicationService.request(...)` 校验金额和用户。
-3. 要求用户钱包 active。
-4. 创建提现订单。
-5. 写 WITHDRAW 总账，把用户余额转出到系统/冻结类账户。
-6. 返回提现订单结果。
+1. `wallet.test-credits.enabled` 和 `discard-enabled` 必须同时开启，并校验单次及累计配额；原子预占还要求用户累计销毁量不超过其累计领取量。
+2. HTTP 幂等 fingerprint 包含 amount，重放不会重复销毁或重复占用配额。
+3. 要求用户钱包 active，创建 `withdraw_order`，再以单笔 `TEST_CREDIT_DISCARD` 双分录借记用户钱包、贷记 `PLATFORM_TEST_CREDIT_EXPENSE`，不创建提现待处理账目。
+4. `GET /api/wallet/capabilities` 的可销毁余额取“销毁配额余量”和“该用户尚未销毁的领取量”两者较小值，并明确返回 `realPaymentsSupported=false` 和 `realPayoutsSupported=false`。
 
-当前提现是请求即写账模型，不包含真实银行出款回调。
+该入口不产生银行、支付机构或其他外部出款。
 
 ## 转账
 

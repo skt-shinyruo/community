@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { listImConversationPage } = vi.hoisted(() => ({
@@ -12,10 +13,18 @@ vi.mock('../api/services/imCoreChatService', () => ({
 }))
 
 import ConversationsView from './ConversationsView.vue'
+import { useAuthStore } from '../stores/auth'
 
 function mountView() {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  useAuthStore().installSession({
+    accessToken: 'token-user-a',
+    me: { userId: '11111111-1111-7111-8111-111111111111', username: 'user-a', authorities: [] }
+  })
   return mount(ConversationsView, {
     global: {
+      plugins: [pinia],
       stubs: {
         RouterLink: {
           props: ['to'],
@@ -196,5 +205,40 @@ describe('ConversationsView', () => {
     expect(wrapper.find('a').attributes('href')).toBe('/messages/conv-new')
     expect(wrapper.text()).not.toContain('旧请求失败')
     expect(wrapper.find('[data-testid="load-more-conversations"]').exists()).toBe(false)
+  })
+
+  it('clears rows and ignores the previous identity response after account switching', async () => {
+    let resolveUserA
+    let resolveUserB
+    listImConversationPage
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveUserA = resolve }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveUserB = resolve }))
+
+    const wrapper = mountView()
+    const auth = useAuthStore()
+    auth.installSession({
+      accessToken: 'token-user-b',
+      me: { userId: '22222222-2222-7222-8222-222222222222', username: 'user-b', authorities: [] }
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('a')).toHaveLength(0)
+    expect(listImConversationPage).toHaveBeenCalledTimes(2)
+
+    resolveUserB({
+      items: [{ conversationId: 'conv-user-b', otherUserId: '33333333-3333-7333-8333-333333333333', unreadCount: 0, lastMessage: null }],
+      nextCursor: null,
+      hasMore: false
+    })
+    await flushPromises()
+    resolveUserA({
+      items: [{ conversationId: 'conv-user-a', otherUserId: '44444444-4444-7444-8444-444444444444', unreadCount: 0, lastMessage: null }],
+      nextCursor: null,
+      hasMore: false
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('a')).toHaveLength(1)
+    expect(wrapper.find('a').attributes('href')).toBe('/messages/conv-user-b')
   })
 })

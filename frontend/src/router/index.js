@@ -100,7 +100,7 @@ const router = createRouter({
       path: '/wallet',
       name: 'wallet',
       component: WalletView,
-      meta: { title: '积分钱包', subtitle: '查看余额、充值、提现与转账记录。', navGroup: 'me', requiresAuth: true }
+      meta: { title: '积分钱包', subtitle: '查看站内积分余额、账务流水与转账记录。', navGroup: 'me', requiresAuth: true }
     },
     {
       path: '/market/publish',

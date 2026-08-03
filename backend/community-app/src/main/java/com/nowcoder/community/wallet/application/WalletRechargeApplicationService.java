@@ -27,19 +27,34 @@ import java.util.UUID;
 @Service
 public class WalletRechargeApplicationService {
 
+    private static final String TEST_CREDIT_EXPENSE_ACCOUNT = "PLATFORM_TEST_CREDIT_EXPENSE";
+
     private final RechargeOrderRepository rechargeOrderRepository;
     private final WalletAccountApplicationService accountService;
     private final WalletLedgerApplicationService ledgerService;
     private final IdempotencyGuard idempotencyGuard;
     private final WalletOrderDomainService orderDomainService;
     private final UuidV7Generator idGenerator;
+    private final WalletTestCreditPolicy testCreditPolicy;
+    private final WalletTestCreditQuotaPort testCreditQuotaPort;
 
     @Autowired
     public WalletRechargeApplicationService(RechargeOrderRepository rechargeOrderRepository,
                                             WalletAccountApplicationService accountService,
                                             WalletLedgerApplicationService ledgerService,
-                                            IdempotencyGuard idempotencyGuard) {
-        this(rechargeOrderRepository, accountService, ledgerService, idempotencyGuard, new WalletOrderDomainService(), new UuidV7Generator());
+                                            IdempotencyGuard idempotencyGuard,
+                                            WalletTestCreditPolicy testCreditPolicy,
+                                            WalletTestCreditQuotaPort testCreditQuotaPort) {
+        this(
+                rechargeOrderRepository,
+                accountService,
+                ledgerService,
+                idempotencyGuard,
+                new WalletOrderDomainService(),
+                new UuidV7Generator(),
+                testCreditPolicy,
+                testCreditQuotaPort
+        );
     }
 
     WalletRechargeApplicationService(RechargeOrderRepository rechargeOrderRepository,
@@ -47,24 +62,24 @@ public class WalletRechargeApplicationService {
                                      WalletLedgerApplicationService ledgerService,
                                      IdempotencyGuard idempotencyGuard,
                                      WalletOrderDomainService orderDomainService,
-                                     UuidV7Generator idGenerator) {
+                                     UuidV7Generator idGenerator,
+                                     WalletTestCreditPolicy testCreditPolicy,
+                                     WalletTestCreditQuotaPort testCreditQuotaPort) {
         this.rechargeOrderRepository = rechargeOrderRepository;
         this.accountService = accountService;
         this.ledgerService = ledgerService;
         this.idempotencyGuard = idempotencyGuard;
         this.orderDomainService = orderDomainService;
         this.idGenerator = idGenerator;
-    }
-
-    WalletRechargeApplicationService(RechargeOrderRepository rechargeOrderRepository,
-                                     WalletAccountApplicationService accountService,
-                                     WalletLedgerApplicationService ledgerService) {
-        this(rechargeOrderRepository, accountService, ledgerService, null, new WalletOrderDomainService(), new UuidV7Generator());
+        this.testCreditPolicy = testCreditPolicy;
+        this.testCreditQuotaPort = testCreditQuotaPort;
     }
 
     @Transactional
     public RechargeOrderResult recharge(CreateRechargeCommand command) {
         Objects.requireNonNull(command, "command must not be null");
+        orderDomainService.validatePositiveAmount(command.amount());
+        testCreditPolicy.assertGrantAllowed(command.amount());
         EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         return idempotencyGuard.executeRequired(
                 "wallet:recharge",
@@ -73,13 +88,30 @@ public class WalletRechargeApplicationService {
                 RequestFingerprint.sha256("wallet:recharge|amount=" + command.amount()),
                 WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                 RechargeOrderResult.class,
-                () -> completeInternal(effective.value(), command.userId(), command.amount())
+                () -> grantTestCredits(effective.value(), command.userId(), command.amount())
         );
     }
 
-    @Transactional
-    public RechargeOrderResult complete(String requestId, UUID userId, long amount) {
-        return completeInternal(requestId, userId, amount);
+    private RechargeOrderResult grantTestCredits(String requestId, UUID userId, long amount) {
+        RechargeOrder existing = rechargeOrderRepository.findByUserIdAndRequestId(userId, requestId);
+        if (existing != null) {
+            existing.assertReplayMatches(userId, amount);
+            if (existing.isPaid()) {
+                return RechargeOrderResult.from(existing);
+            }
+        }
+        if (!testCreditQuotaPort.tryReserveGrant(
+                userId,
+                amount,
+                testCreditPolicy.properties().getGrantQuotaPerUser()
+        )) {
+            throw new BusinessException(WalletErrorCode.TEST_CREDIT_QUOTA_EXCEEDED);
+        }
+        return completeInternal(
+                requestId,
+                userId,
+                amount
+        );
     }
 
     private RechargeOrderResult completeInternal(String requestId, UUID userId, long amount) {
@@ -100,12 +132,12 @@ public class WalletRechargeApplicationService {
         }
 
         ledgerService.post(new WalletLedgerCommand(
-                "wallet:recharge:" + order.getOrderId(),
-                WalletTxnType.RECHARGE,
-                WalletTxnType.RECHARGE.name(),
+                "wallet:test-credit:grant:" + order.getOrderId(),
+                WalletTxnType.TEST_CREDIT_GRANT,
+                WalletTxnType.TEST_CREDIT_GRANT.name(),
                 order.getOrderId().toString(),
                 List.of(
-                        WalletPosting.debit(accountService.ensureSystemAccount("PLATFORM_CASH"), amount),
+                        WalletPosting.debit(accountService.ensureSystemAccount(TEST_CREDIT_EXPENSE_ACCOUNT), amount),
                         WalletPosting.credit(accountService.ensureUserWallet(userId), amount)
                 )
         ));

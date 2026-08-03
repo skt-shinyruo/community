@@ -63,4 +63,23 @@ describe('walletState', () => {
 
     expect(state.feed[0].key).toBe('11111111-1111-7111-8111-111111111111')
   })
+
+  it('distinguishes test-credit entries from real recharge and withdrawal entries', () => {
+    const state = buildWalletState({
+      summary: { balance: 10, status: 'ACTIVE' },
+      txns: [
+        { txnId: '1', txnType: 'TEST_CREDIT_GRANT', amount: 10 },
+        { txnId: '2', txnType: 'TEST_CREDIT_DISCARD', amount: -5 },
+        { txnId: '3', txnType: 'RECHARGE', amount: 20 },
+        { txnId: '4', txnType: 'WITHDRAW', amount: -10 }
+      ]
+    })
+
+    expect(state.feed.map((item) => item.label)).toEqual([
+      '测试积分发放',
+      '测试积分销毁',
+      '充值入账',
+      '提现'
+    ])
+  })
 })

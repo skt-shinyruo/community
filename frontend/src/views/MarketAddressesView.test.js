@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAuthStore } from '../stores/auth'
 
 vi.mock('../api/services/marketService', () => ({
   listMarketAddresses: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-list' }),
@@ -18,9 +20,12 @@ import {
   updateMarketAddress
 } from '../api/services/marketService'
 
+let pinia
+
 function mountOptions() {
   return {
     global: {
+      plugins: [pinia],
       stubs: {
         UiBreadcrumb: {
           template: '<div><slot /></div>'
@@ -52,6 +57,9 @@ function mountOptions() {
 
 describe('MarketAddressesView', () => {
   beforeEach(() => {
+    pinia = createPinia()
+    setActivePinia(pinia)
+    authenticate('buyer-a', 'token-a')
     vi.clearAllMocks()
     listMarketAddresses.mockResolvedValue({ data: [], traceId: 'trace-list' })
     createMarketAddress.mockResolvedValue({ data: {}, traceId: 'trace-create' })
@@ -179,4 +187,64 @@ describe('MarketAddressesView', () => {
       defaultAddress: true
     }))
   })
+
+  it('discards address rows returned for a previous authenticated identity', async () => {
+    const oldAddresses = deferred()
+    listMarketAddresses
+      .mockReturnValueOnce(oldAddresses.promise)
+      .mockResolvedValueOnce({
+        data: [{ addressId: 52, receiverName: 'B 用户', city: '北京', detailAddress: 'B 地址' }]
+      })
+
+    const wrapper = mount(MarketAddressesView, mountOptions())
+    await vi.waitFor(() => expect(listMarketAddresses).toHaveBeenCalledTimes(1))
+    authenticate('buyer-b', 'token-b')
+    await vi.waitFor(() => expect(listMarketAddresses).toHaveBeenCalledTimes(2))
+    await flushPromises()
+
+    oldAddresses.resolve({
+      data: [{ addressId: 41, receiverName: 'A 用户', city: '上海', detailAddress: 'A 地址' }]
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('B 用户')
+    expect(wrapper.text()).not.toContain('A 用户')
+  })
+
+  it('does not let an old create completion reset the new identity draft', async () => {
+    const oldCreate = deferred()
+    createMarketAddress.mockReturnValueOnce(oldCreate.promise)
+
+    const wrapper = mount(MarketAddressesView, mountOptions())
+    await flushPromises()
+    await wrapper.findAll('input')[0].setValue('A 草稿')
+    await wrapper.findAll('button')[0].trigger('click')
+    await vi.waitFor(() => expect(createMarketAddress).toHaveBeenCalledTimes(1))
+
+    authenticate('buyer-b', 'token-b')
+    await flushPromises()
+    await wrapper.findAll('input')[0].setValue('B 草稿')
+    oldCreate.resolve({ data: {}, traceId: 'old-create' })
+    await flushPromises()
+
+    expect(wrapper.findAll('input')[0].element.value).toBe('B 草稿')
+    expect(listMarketAddresses).toHaveBeenCalledTimes(2)
+  })
 })
+
+function authenticate(userId, accessToken) {
+  useAuthStore().installSession({
+    accessToken,
+    me: { userId, username: userId }
+  })
+}
+
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}

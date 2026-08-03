@@ -19,34 +19,41 @@ describe('api/services/marketService', () => {
 
   it('listMarketListings should read the unified listings endpoint', async () => {
     mock = new MockAdapter(http)
-    mock.onGet('/api/market/listings').reply(200, {
+    mock.onGet('/api/market/listings').reply((config) => [200, {
       code: 0,
       message: 'OK',
       httpStatus: 200,
-      data: [
-        {
-          listingId: 11,
-          goodsType: 'VIRTUAL',
-          title: 'Netflix 卡密',
-          status: 'ACTIVE'
-        },
-        {
-          listingId: 21,
-          goodsType: 'PHYSICAL',
-          title: '二手键盘',
-          status: 'ACTIVE'
-        }
-      ],
+      data: {
+        items: [
+          {
+            listingId: 11,
+            goodsType: 'VIRTUAL',
+            title: 'Netflix 卡密',
+            status: 'ACTIVE'
+          },
+          {
+            listingId: 21,
+            goodsType: 'PHYSICAL',
+            title: '二手键盘',
+            status: 'ACTIVE'
+          }
+        ],
+        hasNext: true,
+        page: 2,
+        size: 10
+      },
       traceId: 'trace-market-list',
       timestamp: 1774060182920
-    })
+    }])
 
-    const resp = await marketService.listMarketListings()
+    const resp = await marketService.listMarketListings({ page: 2, size: 10 })
 
     expect(resp.traceId).toBe('trace-market-list')
     expect(resp.data).toHaveLength(2)
     expect(resp.data[0].goodsType).toBe('VIRTUAL')
     expect(resp.data[1].goodsType).toBe('PHYSICAL')
+    expect(resp).toMatchObject({ hasNext: true, page: 2, size: 10 })
+    expect(mock.history.get[0].params).toEqual({ page: 2, size: 10 })
   })
 
   it('createMarketOrder should write the unified orders endpoint', async () => {

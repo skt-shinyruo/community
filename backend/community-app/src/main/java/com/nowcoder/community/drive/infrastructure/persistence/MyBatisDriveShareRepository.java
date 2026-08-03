@@ -7,6 +7,7 @@ import com.nowcoder.community.drive.infrastructure.persistence.mapper.DriveShare
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 @Repository
@@ -31,6 +32,13 @@ public class MyBatisDriveShareRepository implements DriveShareRepository {
     @Override
     public Optional<DriveShare> findActiveByEntryId(UUID entryId) {
         return Optional.ofNullable(mapper.selectActiveByEntryId(entryId)).map(DriveShareDataObject::toDomain);
+    }
+
+    @Override
+    public List<DriveShare> findByCreatedBy(UUID createdBy, int offset, int limit) {
+        return mapper.selectByCreatedBy(createdBy, Math.max(0, offset), Math.max(1, limit)).stream()
+                .map(DriveShareDataObject::toDomain)
+                .toList();
     }
 
     @Override

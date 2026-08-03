@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -53,6 +54,16 @@ public class FollowController {
     public Result<Boolean> status(Authentication authentication, @RequestParam int entityType, @RequestParam UUID entityId) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(followApplicationService.hasFollowed(userId, entityType, entityId));
+    }
+
+    @GetMapping("/statuses")
+    public Result<Map<UUID, Boolean>> statuses(
+            Authentication authentication,
+            @RequestParam int entityType,
+            @RequestParam(required = false) List<UUID> entityIds
+    ) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
+        return Result.ok(followApplicationService.statuses(userId, entityType, entityIds));
     }
 
     @GetMapping("/{userId}/followees")

@@ -11,9 +11,9 @@ function normalizeStatus(status, fallback = 'UNKNOWN') {
 function statusText(status) {
   if (status === 'FROZEN') return '钱包已冻结，当前仅保留查询能力。'
   if (status === 'CLOSED') return '钱包已关闭，如需恢复请联系管理员。'
-  if (status === 'ACTIVE') return '钱包状态正常，可继续消费、转账与提现。'
+  if (status === 'ACTIVE') return '钱包状态正常，可继续进行站内消费与转账。'
   if (status === 'UNKNOWN') return '钱包状态暂不可用，余额以当前可见数据为准。'
-  return '钱包状态正常，可继续消费、转账与提现。'
+  return '钱包状态正常，可继续进行站内消费与转账。'
 }
 
 function txnLabel(txnType, amount) {
@@ -22,8 +22,10 @@ function txnLabel(txnType, amount) {
   if (type === 'TRANSFER') {
     return amount < 0 ? '转账转出' : '转账转入'
   }
-  if (type === 'RECHARGE') return '充值到账'
-  if (type === 'WITHDRAW') return '提现申请'
+  if (type === 'TEST_CREDIT_GRANT') return '测试积分发放'
+  if (type === 'TEST_CREDIT_DISCARD') return '测试积分销毁'
+  if (type === 'RECHARGE') return '充值入账'
+  if (type === 'WITHDRAW') return '提现'
   if (type === 'REWARD_ISSUE') return '活动补贴'
   if (type === 'OPENING_BALANCE') return '初始入账'
   if (type === 'REVERSAL') return '交易回滚'

@@ -74,6 +74,7 @@ HTTP：
 后台：
 
 - `content.events -> SearchPostProjectionKafkaListener -> SearchPostProjectionApplicationService`。
+- XXL-JOB `searchReindex -> SearchReindexHandler -> SearchReindexApplicationService`，仅在 `search.storage=es` 时装配。
 
 ### 查询流程
 
@@ -104,7 +105,17 @@ HTTP：
 4. application 把 event 当作触发信号，回源 content owner 当前帖子状态。
 5. `PostSearchDomainService.shouldIndex(...)` 判断是否应索引。
 6. ES 以 `aggregateVersion` 单调替换全文档；相同聚合版本只按更大的 `scoreVersion` 更新 score，避免两个消费组并发留下旧排序分。
-6. 应索引则 upsert ES；不应索引则 delete ES。
+7. 应索引则 upsert ES；不应索引则 delete ES。
+
+### 全量重建
+
+1. `SearchReindexApplicationService` 先通过 Redis single-flight lease 保证集群内只有一个重建执行，并在长任务期间续租。
+2. application 通过 content owner 的 `PostScanQueryApi` 做游标分页，不能直接读取 content mapper 或表。
+3. `ElasticsearchSearchIndexRebuildAdapter` 创建隔离的版本化索引，并把当前重建目标登记到 Redis；独立心跳续租该目标，在线增量投影同时写 alias 和该目标，覆盖扫描期间的并发变化。目标登记读取失败时增量投影失败并交给 Kafka 重试，不能按“无重建”降级成单写。
+4. 扫描期间持续校验执行 lease 与目标 lease；扫描、续租或写入失败时只删除确定已从 Redis 注销且未发布的索引，现有 alias 保持不变。目标登记、注销或 alias 切换的响应结果不明确时保留目标索引；Redis target TTL 失效后，孤立索引由后续历史清理回收。
+5. 完整扫描后 refresh 新索引，再原子切换 `community_posts_alias`；随后只清理超过 `search.index.keep-history` 的旧版本。
+
+分页大小由 `search.reindex.page-size` 控制，执行 lease 由 `search.reindex.lock-ttl` 控制（最小 3 秒）。重建期间必须保持 `search.projection-enabled=true`。默认 XXL 任务为手动且停止状态，适用于投影丢失、DLQ 修复后或索引映射重建，不应当作日常增量同步机制。`search.index.keep-history` 表示 active index 之外保留的历史索引数。
 
 ## Analytics 分析
 
@@ -188,9 +199,11 @@ Search：
 - `search.controller.SearchController`
 - `search.application.SearchApplicationService`
 - `search.application.SearchPostProjectionApplicationService`
+- `search.application.SearchReindexApplicationService`
 - `search.domain.service.PostSearchDomainService`
 - `search.domain.service.KeywordHighlightSupport`
 - `search.infrastructure.event.SearchPostProjectionKafkaListener`
+- `search.infrastructure.job.SearchReindexHandler`
 - `search.infrastructure.persistence.PostIndexManager`
 
 Analytics：

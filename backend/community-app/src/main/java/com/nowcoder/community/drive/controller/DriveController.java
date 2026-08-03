@@ -19,6 +19,7 @@ import com.nowcoder.community.drive.controller.dto.CreateDriveShareRequest;
 import com.nowcoder.community.drive.controller.dto.DriveDownloadUrlResponse;
 import com.nowcoder.community.drive.controller.dto.DriveEntryResponse;
 import com.nowcoder.community.drive.controller.dto.DriveShareResponse;
+import com.nowcoder.community.drive.controller.dto.DriveSharePageResponse;
 import com.nowcoder.community.drive.controller.dto.DriveSpaceResponse;
 import com.nowcoder.community.drive.controller.dto.DriveUploadSessionResponse;
 import com.nowcoder.community.drive.controller.dto.MoveDriveEntryRequest;
@@ -206,6 +207,16 @@ public class DriveController {
         return Result.ok(DriveShareResponse.from(shareApplicationService.createShare(
                 new CreateDriveShareCommand(userId, entryId, request.getPassword(), request.getExpiresAt())
         )));
+    }
+
+    @GetMapping("/shares")
+    public Result<DriveSharePageResponse> listOwnShares(
+            Authentication authentication,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
+        return Result.ok(DriveSharePageResponse.from(shareApplicationService.listOwnShares(userId, page, size)));
     }
 
     @DeleteMapping("/shares/{shareId}")

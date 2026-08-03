@@ -243,6 +243,20 @@ xxl:
       appname: ${XXL_JOB_EXECUTOR_APPNAME:}
       address: ${XXL_JOB_EXECUTOR_ADDRESS:}
 
+market:
+  order:
+    auto-confirm-batch-size: ${MARKET_ORDER_AUTO_CONFIRM_BATCH_SIZE:100}
+
+wallet:
+  test-credits:
+    enabled: ${WALLET_TEST_CREDITS_ENABLED:false}
+    grant-enabled: ${WALLET_TEST_CREDIT_GRANT_ENABLED:false}
+    discard-enabled: ${WALLET_TEST_CREDIT_DISCARD_ENABLED:false}
+    max-grant-per-request: ${WALLET_TEST_CREDIT_MAX_GRANT_PER_REQUEST:1000}
+    max-discard-per-request: ${WALLET_TEST_CREDIT_MAX_DISCARD_PER_REQUEST:1000}
+    grant-quota-per-user: ${WALLET_TEST_CREDIT_GRANT_QUOTA_PER_USER:5000}
+    discard-quota-per-user: ${WALLET_TEST_CREDIT_DISCARD_QUOTA_PER_USER:5000}
+
 content:
   storage: redis
   comments:
@@ -302,6 +316,9 @@ oss:
 search:
   storage: es
   projection-enabled: ${SEARCH_PROJECTION_ENABLED:true}
+  reindex:
+    page-size: ${SEARCH_REINDEX_PAGE_SIZE:500}
+    lock-ttl: ${SEARCH_REINDEX_LOCK_TTL:PT30M}
   kafka:
     consumer:
       group-id: ${SEARCH_KAFKA_CONSUMER_GROUP_ID:search-post-projection}
@@ -312,6 +329,7 @@ search:
     cleanup-interval-ms: 21600000
   index:
     prefix: community_posts_v
+    keep-history: ${SEARCH_INDEX_KEEP_HISTORY:2}
 
 analytics:
   max-days-range: 31

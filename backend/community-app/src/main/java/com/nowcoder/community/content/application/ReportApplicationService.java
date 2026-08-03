@@ -5,6 +5,8 @@ import com.nowcoder.community.content.domain.model.Report;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.repository.ReportContentRepository;
+import com.nowcoder.community.user.api.model.UserSummaryView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Service;
@@ -26,13 +28,16 @@ public class ReportApplicationService {
     private final ReportContentRepository reportContentPort;
     private final PostContentRepository postContentRepository;
     private final CommentRepository commentRepository;
+    private final UserLookupQueryApi userLookupQueryApi;
 
     public ReportApplicationService(ReportContentRepository reportContentPort,
                                     PostContentRepository postContentRepository,
-                                    CommentRepository commentRepository) {
+                                    CommentRepository commentRepository,
+                                    UserLookupQueryApi userLookupQueryApi) {
         this.reportContentPort = reportContentPort;
         this.postContentRepository = postContentRepository;
         this.commentRepository = commentRepository;
+        this.userLookupQueryApi = userLookupQueryApi;
     }
 
     @Transactional
@@ -95,6 +100,13 @@ public class ReportApplicationService {
         }
         if (targetType == ReportContentRepository.TARGET_TYPE_COMMENT) {
             if (commentRepository.findActiveSnapshot(targetId).isEmpty()) {
+                throw new BusinessException(NOT_FOUND, "资源不存在");
+            }
+            return;
+        }
+        if (targetType == ReportContentRepository.TARGET_TYPE_USER) {
+            UserSummaryView targetUser = userLookupQueryApi.getSummaryById(targetId);
+            if (targetUser == null || targetUser.id() == null || !targetId.equals(targetUser.id())) {
                 throw new BusinessException(NOT_FOUND, "资源不存在");
             }
         }

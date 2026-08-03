@@ -21,7 +21,7 @@
 | Content | [content.md](content.md) | 帖子、评论、媒体、治理、事件和投影。 |
 | Social | [social.md](social.md) | 点赞、关注、拉黑和 IM policy 联动。 |
 | Growth | [growth.md](growth.md) | 任务、奖励、等级和事件去重。 |
-| Wallet | [wallet.md](wallet.md) | 账户、总账、充值、提现、转账、奖励、管理员操作。 |
+| Wallet | [wallet.md](wallet.md) | 账户、总账、测试积分发放/销毁、转账、奖励、管理员操作。 |
 | Market | [market.md](market.md) | listing、库存、订单、纠纷和 wallet saga。 |
 | Notice / Search / Analytics / Ops | [notice-search-analytics-ops.md](notice-search-analytics-ops.md) | 这组支撑域共享读模型、投影和采集底座。 |
 | IM | [im.md](im.md) | gateway、realtime、core、policy projection。 |

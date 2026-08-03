@@ -115,8 +115,12 @@ user:
 
 search:
   storage: es
+  reindex:
+    page-size: 50
+    lock-ttl: PT5M
   index:
     initialize: false
+    keep-history: 2
   kafka:
     consumer:
       group-id: ${SEARCH_KAFKA_CONSUMER_GROUP_ID:search-post-projection}
@@ -156,6 +160,16 @@ http:
 xxl:
   job:
     enabled: false
+
+wallet:
+  test-credits:
+    enabled: true
+    grant-enabled: true
+    discard-enabled: true
+    max-grant-per-request: 5000
+    max-discard-per-request: 5000
+    grant-quota-per-user: 10000
+    discard-quota-per-user: 10000
 
 drive:
   share:

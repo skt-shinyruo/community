@@ -43,7 +43,7 @@ Main path：
 6. 登录先经过登录风控、验证码要求和密码校验。
 7. 密码只接受 BCrypt hash。
 8. 登录成功后签发 access token，并通过 HttpOnly cookie 下发 256-bit base64url refresh token；registration token 和 reset token 也由 auth application 使用同一安全随机生成策略。
-9. refresh 先把旧 session 转入 `PENDING_ROTATION`，回源 user 校验用户仍允许 refresh，并比较 `securityVersionAtIssue`；版本不一致撤销 family，版本一致才 finish rotation。临时失败会 rollback，无法安全恢复时撤销 family 并清 cookie。
+9. refresh 先把旧 session 转入 `PENDING_ROTATION`，回源 user 校验用户仍允许 refresh，并比较 `securityVersionAtIssue`；版本不一致撤销 family，版本一致才 finish rotation。临时失败会 rollback，无法安全恢复时撤销 family；refresh 失败响应不写 `Set-Cookie`。
 10. logout 可从 active session 或 terminal tombstone 识别 family，撤销 refresh family 并清 cookie。
 11. cleanup job 清理过期 refresh session；registration draft 和验证码依赖各自 store TTL 自然过期。
 
@@ -69,9 +69,9 @@ Refresh session DB state：
 - `auth_refresh_token` 保存 refresh token hash、用户、family、`security_version_at_issue`、过期时间、rotation 状态、pending lease 和 terminal 撤销时间。
 - `MyBatisRefreshTokenRepository.store(...)` 在签发 refresh token 时写入 auth DB session 状态。
 - `/api/auth/refresh` 通过 `beginRotation(...)` 把当前 active token 转入 `PENDING_ROTATION`；找不到、已过期、已撤销或 family 已撤销都会视为不可刷新。
-- begin 成功后先回源 user owner 校验用户状态和当前安全版本；用户不存在、已禁用或版本不匹配时撤销该 refresh family，并清浏览器 cookie。
+- begin 成功后先回源 user owner 校验用户状态和当前安全版本；用户不存在、已禁用或版本不匹配时撤销该 refresh family，失败响应不改写浏览器 cookie。
 - 刷新成功会 `finishRotation(...)`：旧 token 变成 `CONSUMED` tombstone，新 token 成为同 family 的 active session；不会在用户状态校验前提前持久化新 token。
-- begin 后出现临时失败时会 `rollbackPendingRotation(...)`；rollback 不安全时 fail-closed 撤销 family 并清 cookie。
+- begin 后出现临时失败时会 `rollbackPendingRotation(...)`；rollback 不安全时 fail-closed 撤销 family。失败响应不写 `Set-Cookie`，避免并发旧请求清除新 cookie。
 - `revoke(...)` 用于单 token 撤销；`revokeFamily(...)` 用于 logout、family reuse、安全版本失配或整族撤销。
 - `deleteExpiredBefore(...)` 由 cleanup job 调用，只清理已过期 refresh session，不影响已经签出的 access token。
 
@@ -805,7 +805,7 @@ Listing / inventory：
 
 Market query：
 
-- `GET /api/market/listings` 只返回公开 listing，口径由 `MarketListingRepository.findPublicListings()` 决定。
+- `GET /api/market/listings` 只返回公开 listing，口径由 `MarketListingRepository.findPublicListings()` 决定；listing、买卖订单和库存列表都返回 `{items, hasNext, page, size}`，默认 20、单页最大 100，并以 `size + 1` 有界读取判断下一页。
 - `GET /api/market/listings/{listingId}` 找不到 listing 返回 `404`。
 - `GET /api/market/my-listings` 按当前登录卖家列出自己的 listing。
 - 买家订单列表按 buyer 过滤，卖家订单列表按 seller 过滤。
@@ -926,36 +926,32 @@ Core concepts：
 - `wallet_account`：账户余额视图。
 - `wallet_txn`：交易事实。
 - `wallet_entry`：双分录明细。
+- `wallet_test_credit_quota`：开发/验收环境中每个用户的累计测试积分发放与销毁用量。
 - `requestId`：总账幂等键，保持全局唯一。
 - `WalletAmountPolicy.MAX_AMOUNT = 100_000_000`：单次资金动作最大金额。
 
 HTTP writes：
 
-- 充值、提现、转账使用 `Idempotency-Key`。
+- 测试积分发放、测试积分销毁、转账使用 `Idempotency-Key`。
 - body `requestId` 按未知字段返回 `400`。
 - HTTP 幂等 key 与总账 requestId 解耦。
-- 充值请求指纹只包含 `amount`。
-- 提现请求指纹只包含 `amount`。
+- 测试积分发放请求指纹只包含 `amount`。
+- 测试积分销毁请求指纹只包含 `amount`。
 - 转账请求指纹包含 `toUserId` 和 `amount`。
 
-Recharge：
+Test-credit grant（保留 `/recharges` 兼容路径）：
 
 1. `POST /api/wallet/recharges` 进入 `WalletRechargeApplicationService.recharge(...)`。
-2. 应用层解析 effective idempotency key，包裹 `wallet:recharge` HTTP 幂等。
-3. `WalletRechargeApplicationService.complete(...)` 加载已有订单，或通过 `RechargeOrder.create(...)` 创建 `recharge_order`。
-4. `RechargeOrder` 校验重放必须匹配 `userId` 和 `amount`，否则返回 `REQUEST_REPLAY_CONFLICT`。
-5. 未支付订单通过总账写入 `RECHARGE`：借记系统 `PLATFORM_CASH`，贷记用户钱包。
-6. 账本成功后，仓储按 `RechargeOrder.pay(...)` 给出的 transition 条件把订单从 `CREATED` 更新为 `PAID`。
+2. feature flag、单次上限和 `wallet_test_credit_quota` 累计配额全部通过后，应用层才执行 `wallet:recharge` HTTP 幂等流程。
+3. 未支付订单通过总账写入 `TEST_CREDIT_GRANT`：借记 `PLATFORM_TEST_CREDIT_EXPENSE`，贷记用户钱包；该路径不会虚增 `PLATFORM_CASH`。
+4. 这不是支付回调；生产默认关闭。
 
-Withdraw：
+Test-credit discard（保留 `/withdrawals` 兼容路径）：
 
 1. `POST /api/wallet/withdrawals` 进入 `WalletWithdrawApplicationService.withdraw(...)`。
-2. 只有 active 用户钱包可主动提现。
-3. 按 `userId + requestId` 查找或创建 `withdraw_order`，重放必须匹配 `userId` 和 `amount`。
-4. 新请求会先检查系统 `PLATFORM_CASH` 余额，余额不足且没有既有订单时返回 `PLATFORM_CASH_INSUFFICIENT`。
-5. `REQUESTED` 阶段先写 `WITHDRAW` 账本：借记用户钱包，贷记系统 `WITHDRAW_PENDING`，订单转 `PROCESSING`。
-6. `PROCESSING` 阶段再写 settlement 账本：借记 `WITHDRAW_PENDING`，贷记 `PLATFORM_CASH`，订单转 `SUCCEEDED`。
-7. 两段账本都使用服务端派生 requestId，重跑会由总账幂等吸收。
+2. 只有测试积分销毁开关开启、配额可用且累计销毁量不超过该用户累计领取量时，active 用户钱包才能执行该动作。
+3. 账本以单笔 `TEST_CREDIT_DISCARD` 借记用户钱包、贷记 `PLATFORM_TEST_CREDIT_EXPENSE`，不生成 `WITHDRAW_PENDING` 或外部出款语义。
+4. `GET /api/wallet/capabilities` 固定声明真实支付和真实出款均未接入。
 
 Transfer：
 
@@ -979,7 +975,7 @@ Market / reward integration：
 - market 托管、放款、退款由 market wallet action processor 调用 wallet market action API。
 - growth 任务奖励通过 wallet action 写入；标准内容/点赞奖励走 `WalletRewardKafkaListener -> WalletRewardProjectionApplicationService -> WalletRewardApplicationService`。
 - 标准 delta 为发帖 `+10`、评论 `+2`、点赞创建 `+1`、点赞移除 `-1`；自点赞不产生奖励，requestId 为 `wallet-reward:<sourceId>`。
-- 冻结钱包不能发起用户主动转账、提现或市场购买。
+- 冻结钱包不能发起用户主动转账、测试积分销毁或市场购买。
 - 冻结钱包仍可接收系统必须完成的入账或补偿动作，例如退款、放款、奖励和管理员调整。
 
 Admin operations：

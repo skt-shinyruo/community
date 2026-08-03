@@ -13,7 +13,7 @@
       <div class="wallet-admin-grid">
         <section class="wallet-admin-card">
           <h2>冻结钱包</h2>
-          <p>对风险用户做人工止损，避免继续转账、提现或消费。</p>
+          <p>对风险用户做人工止损，避免继续转账、测试积分销毁或消费。</p>
           <UiInput v-model.trim="freezeForm.userId" placeholder="目标用户 ID" />
           <UiInput v-model.trim="freezeForm.reason" placeholder="冻结原因" />
           <UiButton :disabled="submittingKey !== ''" @click="submitFreeze">
@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { freezeWallet, reverseWalletTxn } from '../api/services/walletService'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -63,11 +63,20 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import { useAuthStore } from '../stores/auth'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 
+const auth = useAuthStore()
 const error = ref('')
 const submittingKey = ref('')
 const actions = ref([])
+let actionGeneration = 0
+
+const sessionScope = computed(() => [
+  auth.tokenGeneration,
+  normalizeOpaqueId(auth.userId),
+  auth.authed ? 'authenticated' : 'anonymous'
+].join(':'))
 
 const freezeForm = ref({
   userId: '',
@@ -90,6 +99,10 @@ function pushAction(label, text) {
   ].slice(0, 10)
 }
 
+function isCurrentAction(generation, scope) {
+  return generation === actionGeneration && scope === sessionScope.value
+}
+
 async function submitFreeze() {
   const userId = normalizeOpaqueId(freezeForm.value.userId)
   const reason = String(freezeForm.value.reason || '').trim()
@@ -102,17 +115,21 @@ async function submitFreeze() {
     return
   }
 
+  const generation = ++actionGeneration
+  const scope = sessionScope.value
   submittingKey.value = 'freeze'
   error.value = ''
   try {
     await freezeWallet({ userId, reason })
+    if (!isCurrentAction(generation, scope)) return
     pushAction('已冻结钱包', `用户 ${userId} · ${reason}`)
     freezeForm.value.userId = ''
     freezeForm.value.reason = ''
   } catch (e) {
+    if (!isCurrentAction(generation, scope)) return
     error.value = e?.message || '冻结失败'
   } finally {
-    submittingKey.value = ''
+    if (isCurrentAction(generation, scope)) submittingKey.value = ''
   }
 }
 
@@ -128,19 +145,35 @@ async function submitReverse() {
     return
   }
 
+  const generation = ++actionGeneration
+  const scope = sessionScope.value
   submittingKey.value = 'reverse'
   error.value = ''
   try {
     await reverseWalletTxn({ txnRef, reason })
+    if (!isCurrentAction(generation, scope)) return
     pushAction('已提交回滚', `${txnRef} · ${reason}`)
     reverseForm.value.txnRef = ''
     reverseForm.value.reason = ''
   } catch (e) {
+    if (!isCurrentAction(generation, scope)) return
     error.value = e?.message || '回滚失败'
   } finally {
-    submittingKey.value = ''
+    if (isCurrentAction(generation, scope)) submittingKey.value = ''
   }
 }
+
+watch(sessionScope, () => {
+  actionGeneration += 1
+  error.value = ''
+  submittingKey.value = ''
+  actions.value = []
+  freezeForm.value = { userId: '', reason: '' }
+  reverseForm.value = { txnRef: '', reason: '' }
+})
+onBeforeUnmount(() => {
+  actionGeneration += 1
+})
 </script>
 
 <style scoped>

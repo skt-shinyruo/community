@@ -16,6 +16,7 @@ vi.mock('../api/services/socialService', () => ({
   getLikeStatuses
 }))
 
+import { useAuthStore } from './auth'
 import { usePostMetaCacheStore } from './postMetaCache'
 
 describe('stores/postMetaCache', () => {
@@ -99,5 +100,33 @@ describe('stores/postMetaCache', () => {
     const store = usePostMetaCacheStore()
 
     await expect(store.ensureLikeStatuses(1, [entityId])).rejects.toThrow(`点赞状态缺少实体 ${entityId}`)
+  })
+
+  it('should discard an old identity response and reload statuses for the current user', async () => {
+    const entityId = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
+    let resolveOldRequest
+    getLikeStatuses
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveOldRequest = resolve
+      }))
+      .mockResolvedValueOnce({ data: { [entityId]: false }, traceId: 'user-b' })
+
+    const auth = useAuthStore()
+    auth.installSession({
+      accessToken: 'token-a',
+      me: { userId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa' }
+    })
+    const store = usePostMetaCacheStore()
+    const pending = store.ensureLikeStatuses(1, [entityId])
+
+    auth.installSession({
+      accessToken: 'token-b',
+      me: { userId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb' }
+    })
+    resolveOldRequest({ data: { [entityId]: true }, traceId: 'user-a' })
+
+    await expect(pending).resolves.toEqual({ [entityId]: false })
+    expect(getLikeStatuses).toHaveBeenCalledTimes(2)
+    expect(store.getLikeStatus(1, entityId)).toBe(false)
   })
 })

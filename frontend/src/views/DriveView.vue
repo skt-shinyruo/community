@@ -244,15 +244,19 @@
             <article v-for="item in createdShares" :key="item.shareId" class="drive-share-item">
               <div class="drive-share-item-main">
                 <strong>{{ item.entryName }}</strong>
-                <span>{{ item.expiresAt }}</span>
+                <span>{{ shareStatusLabel(item.status) }} · {{ item.expiresAt }}</span>
                 <code class="drive-share-link">{{ item.shareUrl }}</code>
               </div>
               <div class="drive-share-item-actions">
-                <UiButton variant="secondary" :disabled="isBusy" @click="copyShareLink(item)">复制链接</UiButton>
-                <UiButton variant="dangerSecondary" :disabled="isBusy" @click="revokeCreatedShare(item)">撤销</UiButton>
+                <UiButton v-if="item.status === 'ACTIVE'" variant="secondary" :disabled="isBusy" @click="copyShareLink(item)">复制链接</UiButton>
+                <UiButton v-if="item.status === 'ACTIVE'" variant="dangerSecondary" :disabled="isBusy" @click="revokeCreatedShare(item)">撤销</UiButton>
               </div>
             </article>
           </div>
+          <UiState v-else>暂无分享记录</UiState>
+          <UiButton v-if="sharesHasNext" variant="secondary" :disabled="isBusy" @click="loadMoreShares">
+            加载更多
+          </UiButton>
         </section>
       </UiCard>
     </div>
@@ -260,7 +264,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
@@ -275,6 +279,7 @@ import {
   getDriveDownloadUrl,
   getDriveSpace,
   listDriveEntries,
+  listDriveShares,
   listDriveTrash,
   moveDriveEntry,
   renameDriveEntry,
@@ -284,9 +289,18 @@ import {
   trashDriveEntry,
   uploadDriveFile
 } from '../api/services/driveService'
+import { useAuthStore } from '../stores/auth'
+import { createLatestRequestTracker } from '../utils/latestRequest'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildDriveBreadcrumb, formatDriveBytes, normalizeCreatedDriveShare, normalizeDriveEntry, normalizeDriveQuota, reduceDriveSelection, validateShareForm } from './driveState'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
+const DEFAULT_QUOTA_BYTES = 10 * 1024 * 1024 * 1024
+
+const auth = useAuthStore()
+const reloadRequestTracker = createLatestRequestTracker()
+const shareRequestTracker = createLatestRequestTracker()
+const actionRequestTracker = createLatestRequestTracker()
 
 const loading = ref(false)
 const busyAction = ref('')
@@ -297,7 +311,7 @@ const mode = ref('files')
 const entries = ref([])
 const trashEntries = ref([])
 const selectedEntryId = ref('')
-const space = ref({ quotaBytes: 10 * 1024 * 1024 * 1024, usedBytes: 0, remainingBytes: 10 * 1024 * 1024 * 1024 })
+const space = ref(defaultDriveSpace())
 const folderTrail = ref([{ entryId: '', name: '我的文件' }])
 const folderNameDraft = ref('')
 const creatingFolder = ref(false)
@@ -306,6 +320,9 @@ const renameDraft = ref('')
 const sharePassword = ref('')
 const shareExpiresAt = ref(toDatetimeLocalValue(new Date(Date.now() + ONE_DAY_MS)))
 const createdShares = ref([])
+const sharePage = ref(0)
+const shareSize = 20
+const sharesHasNext = ref(false)
 
 const quota = computed(() => normalizeDriveQuota(space.value))
 const currentFolderLabel = computed(() => folderTrail.value.map((item) => item.name).join(' / '))
@@ -313,6 +330,48 @@ const breadcrumbItems = computed(() => buildDriveBreadcrumb(folderTrail.value.sl
 const visibleEntries = computed(() => (mode.value === 'trash' ? trashEntries.value : entries.value))
 const selectedEntry = computed(() => visibleEntries.value.find((item) => item.entryId === selectedEntryId.value) || null)
 const isBusy = computed(() => loading.value || busyAction.value !== '')
+
+function defaultDriveSpace() {
+  return { quotaBytes: DEFAULT_QUOTA_BYTES, usedBytes: 0, remainingBytes: DEFAULT_QUOTA_BYTES }
+}
+
+function captureAuthScope() {
+  return {
+    tokenGeneration: auth.tokenGeneration,
+    userId: normalizeOpaqueId(auth.userId)
+  }
+}
+
+function isCurrentAuthScope(scope) {
+  return auth.authed &&
+    auth.tokenGeneration === scope.tokenGeneration &&
+    normalizeOpaqueId(auth.userId) === scope.userId
+}
+
+function isCurrentRequest(tracker, token, scope) {
+  return tracker.isCurrent(token) && isCurrentAuthScope(scope)
+}
+
+function resetOwnerState() {
+  error.value = ''
+  statusMessage.value = ''
+  shareError.value = ''
+  mode.value = 'files'
+  entries.value = []
+  trashEntries.value = []
+  selectedEntryId.value = ''
+  space.value = defaultDriveSpace()
+  folderTrail.value = [{ entryId: '', name: '我的文件' }]
+  folderNameDraft.value = ''
+  creatingFolder.value = false
+  searchKeyword.value = ''
+  renameDraft.value = ''
+  sharePassword.value = ''
+  shareExpiresAt.value = toDatetimeLocalValue(new Date(Date.now() + ONE_DAY_MS))
+  createdShares.value = []
+  sharePage.value = 0
+  sharesHasNext.value = false
+}
 
 function toDatetimeLocalValue(date) {
   const safe = date instanceof Date ? date : new Date(date)
@@ -332,18 +391,27 @@ function buildShareUrl(shareToken) {
 }
 
 function setBusy(label, fn) {
+  const token = actionRequestTracker.begin()
+  const scope = captureAuthScope()
+  const request = {
+    isCurrent: () => isCurrentRequest(actionRequestTracker, token, scope)
+  }
   busyAction.value = label
   error.value = ''
   shareError.value = ''
   statusMessage.value = ''
   return Promise.resolve()
-    .then(fn)
+    .then(() => fn(request))
     .catch((e) => {
-      error.value = e?.message || '操作失败'
+      if (request.isCurrent()) {
+        error.value = e?.message || '操作失败'
+      }
       throw e
     })
     .finally(() => {
-      busyAction.value = ''
+      if (request.isCurrent()) {
+        busyAction.value = ''
+      }
     })
 }
 
@@ -352,44 +420,53 @@ function selectEntry(entry) {
   renameDraft.value = String(entry?.name || '')
 }
 
-async function loadSpace() {
-  const { data } = await getDriveSpace()
-  space.value = data || {}
-}
-
-async function loadFiles() {
-  const keyword = String(searchKeyword.value || '').trim()
-  const { data } = keyword
-    ? await searchDriveEntries({ keyword })
-    : await listDriveEntries({ parentId: currentFolderId.value })
-  const list = Array.isArray(data) ? data.map(normalizeDriveEntry) : []
-  entries.value = list
-  selectedEntryId.value = reduceDriveSelection(selectedEntryId.value, list) || (list[0]?.entryId || '')
-  renameDraft.value = selectedEntryId.value ? String(list.find((item) => item.entryId === selectedEntryId.value)?.name || '') : ''
-}
-
-async function loadTrash() {
-  const { data } = await listDriveTrash()
-  const list = Array.isArray(data) ? data.map(normalizeDriveEntry) : []
-  trashEntries.value = list
+function commitEntries(target, list) {
+  target.value = list
   selectedEntryId.value = reduceDriveSelection(selectedEntryId.value, list) || (list[0]?.entryId || '')
   renameDraft.value = selectedEntryId.value ? String(list.find((item) => item.entryId === selectedEntryId.value)?.name || '') : ''
 }
 
 async function reload() {
+  const token = reloadRequestTracker.begin()
+  const scope = captureAuthScope()
+  const requestedMode = mode.value
+  const requestedFolderId = currentFolderId.value
+  const requestedKeyword = String(searchKeyword.value || '').trim()
+  shareRequestTracker.invalidate()
   loading.value = true
   error.value = ''
   try {
-    await loadSpace()
-    if (mode.value === 'trash') {
-      await loadTrash()
-    } else {
-      await loadFiles()
+    const entryRequest = requestedMode === 'trash'
+      ? listDriveTrash()
+      : requestedKeyword
+        ? searchDriveEntries({ keyword: requestedKeyword })
+        : listDriveEntries({ parentId: requestedFolderId })
+    const shareRequest = requestedMode === 'shares'
+      ? listDriveShares({ page: 0, size: shareSize })
+      : Promise.resolve(null)
+    const [spaceResponse, entryResponse, shareResponse] = await Promise.all([
+      getDriveSpace(),
+      entryRequest,
+      shareRequest
+    ])
+    if (!isCurrentRequest(reloadRequestTracker, token, scope)) return
+
+    space.value = spaceResponse?.data || {}
+    const list = Array.isArray(entryResponse?.data) ? entryResponse.data.map(normalizeDriveEntry) : []
+    commitEntries(requestedMode === 'trash' ? trashEntries : entries, list)
+    if (requestedMode === 'shares') {
+      createdShares.value = (Array.isArray(shareResponse?.data?.items) ? shareResponse.data.items : []).map(normalizeCreatedShare)
+      sharePage.value = 0
+      sharesHasNext.value = shareResponse?.data?.hasNext === true
     }
   } catch (e) {
-    error.value = e?.message || '加载网盘失败'
+    if (isCurrentRequest(reloadRequestTracker, token, scope)) {
+      error.value = e?.message || '加载网盘失败'
+    }
   } finally {
-    loading.value = false
+    if (isCurrentRequest(reloadRequestTracker, token, scope)) {
+      loading.value = false
+    }
   }
 }
 
@@ -459,8 +536,9 @@ async function createFolder() {
     error.value = '请输入文件夹名称'
     return
   }
-  await setBusy('folder', async () => {
+  await setBusy('folder', async (request) => {
     await createDriveFolder({ parentId: currentFolderId.value, name })
+    if (!request.isCurrent()) return
     folderNameDraft.value = ''
     creatingFolder.value = false
     statusMessage.value = '文件夹已创建'
@@ -471,10 +549,12 @@ async function createFolder() {
 async function handleUploadChange(event) {
   const files = Array.from(event?.target?.files || [])
   if (files.length === 0) return
-  await setBusy('upload', async () => {
+  await setBusy('upload', async (request) => {
     for (const file of files) {
       const session = await createDriveUploadSession({ parentId: currentFolderId.value, file })
+      if (!request.isCurrent()) return
       await uploadDriveFile({ session: session.data, file })
+      if (!request.isCurrent()) return
     }
     statusMessage.value = `已上传 ${files.length} 个文件`
     await reload()
@@ -492,8 +572,9 @@ async function renameSelected() {
     error.value = '请输入新名称'
     return
   }
-  await setBusy('rename', async () => {
+  await setBusy('rename', async (request) => {
     await renameDriveEntry(entry.entryId, { newName })
+    if (!request.isCurrent()) return
     statusMessage.value = '名称已更新'
     await reload()
   }).catch(() => {})
@@ -502,8 +583,9 @@ async function renameSelected() {
 async function moveSelectedHere() {
   const entry = selectedEntry.value
   if (!entry) return
-  await setBusy('move', async () => {
+  await setBusy('move', async (request) => {
     await moveDriveEntry(entry.entryId, { targetParentId: currentFolderId.value })
+    if (!request.isCurrent()) return
     statusMessage.value = '条目已移动'
     await reload()
   }).catch(() => {})
@@ -512,8 +594,9 @@ async function moveSelectedHere() {
 async function downloadSelected() {
   const entry = selectedEntry.value
   if (!entry?.canDownload) return
-  await setBusy('download', async () => {
+  await setBusy('download', async (request) => {
     const { data } = await getDriveDownloadUrl(entry.entryId)
+    if (!request.isCurrent()) return
     if (data?.url && typeof window !== 'undefined') {
       window.open(data.url, '_blank', 'noopener,noreferrer')
     }
@@ -523,8 +606,9 @@ async function downloadSelected() {
 async function trashSelected() {
   const entry = selectedEntry.value
   if (!entry?.canTrash) return
-  await setBusy('trash', async () => {
+  await setBusy('trash', async (request) => {
     await trashDriveEntry(entry.entryId)
+    if (!request.isCurrent()) return
     statusMessage.value = '条目已移至回收站'
     await reload()
   }).catch(() => {})
@@ -532,8 +616,9 @@ async function trashSelected() {
 
 async function restoreEntry(entry) {
   if (!entry?.canRestore) return
-  await setBusy('restore', async () => {
+  await setBusy('restore', async (request) => {
     await restoreDriveEntry(entry.entryId, { targetParentId: currentFolderId.value })
+    if (!request.isCurrent()) return
     statusMessage.value = '条目已恢复'
     await reload()
   }).catch(() => {})
@@ -546,16 +631,18 @@ async function restoreSelected() {
 async function deleteSelectedPermanently() {
   const entry = selectedEntry.value
   if (!entry?.canDeletePermanently) return
-  await setBusy('delete', async () => {
+  await setBusy('delete', async (request) => {
     await deleteDriveEntryPermanently(entry.entryId)
+    if (!request.isCurrent()) return
     statusMessage.value = '条目已彻底删除'
     await reload()
   }).catch(() => {})
 }
 
-function switchToShares() {
+async function switchToShares() {
   mode.value = 'shares'
   shareError.value = ''
+  await reload()
 }
 
 function normalizeCreatedShare(data) {
@@ -564,6 +651,38 @@ function normalizeCreatedShare(data) {
     ...share,
     shareUrl: buildShareUrl(share.shareToken)
   }
+}
+
+function shareStatusLabel(status) {
+  const normalized = String(status || '').trim().toUpperCase()
+  if (normalized === 'ACTIVE') return '有效'
+  if (normalized === 'EXPIRED') return '已过期'
+  if (normalized === 'REVOKED') return '已撤销'
+  return '状态待确认'
+}
+
+async function loadShares({ reset = false } = {}) {
+  const token = shareRequestTracker.begin()
+  const scope = captureAuthScope()
+  const targetPage = reset ? 0 : sharePage.value + 1
+  let data
+  try {
+    const response = await listDriveShares({ page: targetPage, size: shareSize })
+    data = response?.data
+  } catch (e) {
+    if (!isCurrentRequest(shareRequestTracker, token, scope) || mode.value !== 'shares') return
+    throw e
+  }
+  if (!isCurrentRequest(shareRequestTracker, token, scope) || mode.value !== 'shares') return
+  const nextItems = (Array.isArray(data?.items) ? data.items : []).map(normalizeCreatedShare)
+  createdShares.value = reset ? nextItems : [...createdShares.value, ...nextItems]
+  sharePage.value = targetPage
+  sharesHasNext.value = data?.hasNext === true
+}
+
+async function loadMoreShares() {
+  if (!sharesHasNext.value) return
+  await setBusy('shares', () => loadShares()).catch(() => {})
 }
 
 async function createShareForSelected() {
@@ -580,39 +699,71 @@ async function createShareForSelected() {
     shareError.value = validation.message
     return
   }
-  await setBusy('share', async () => {
-    const { data } = await createDriveShare(entry.entryId, {
+  await setBusy('share', async (request) => {
+    await createDriveShare(entry.entryId, {
       password: String(sharePassword.value || '').trim(),
       expiresAt: new Date(shareExpiresAt.value).toISOString()
     })
-    createdShares.value = [normalizeCreatedShare(data), ...createdShares.value].slice(0, 10)
+    if (!request.isCurrent()) return
     sharePassword.value = ''
     shareExpiresAt.value = toDatetimeLocalValue(new Date(Date.now() + ONE_DAY_MS))
     statusMessage.value = '分享链接已生成'
     mode.value = 'shares'
+    await loadShares({ reset: true })
   }).catch(() => {})
 }
 
 async function revokeCreatedShare(item) {
   if (!item?.shareId) return
-  await setBusy('revoke', async () => {
+  await setBusy('revoke', async (request) => {
     await revokeDriveShare(item.shareId)
-    createdShares.value = createdShares.value.filter((share) => share.shareId !== item.shareId)
+    if (!request.isCurrent()) return
+    await loadShares({ reset: true })
+    if (!request.isCurrent()) return
     statusMessage.value = '分享已撤销'
   }).catch(() => {})
 }
 
 async function copyShareLink(item) {
   if (!item?.shareUrl) return
+  const scope = captureAuthScope()
   if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(item.shareUrl)
+    if (!isCurrentAuthScope(scope)) return
     statusMessage.value = '分享链接已复制'
     return
   }
+  if (!isCurrentAuthScope(scope)) return
   statusMessage.value = item.shareUrl
 }
 
-onMounted(reload)
+watch(
+  () => [auth.tokenGeneration, normalizeOpaqueId(auth.userId), auth.authed],
+  ([, userId, authed], previous = []) => {
+    const previousUserId = previous[1]
+    reloadRequestTracker.invalidate()
+    shareRequestTracker.invalidate()
+    actionRequestTracker.invalidate()
+    loading.value = false
+    busyAction.value = ''
+
+    if (!previous.length || userId !== previousUserId) {
+      resetOwnerState()
+    }
+    if (authed) {
+      reload()
+    } else {
+      resetOwnerState()
+    }
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  reloadRequestTracker.invalidate()
+  shareRequestTracker.invalidate()
+  actionRequestTracker.invalidate()
+})
 </script>
 
 <style scoped>

@@ -65,5 +65,17 @@ test.describe.serial('drive product flow @regression', () => {
     expect(Array.isArray(entriesBody.data)).toBe(true)
     await expect(page.getByText('验证成功')).toBeVisible()
     await expect(page.getByText('此文件夹为空')).toBeVisible()
+
+    await gotoHash(page, '/drive')
+    await page.getByRole('button', { name: '分享管理' }).click()
+    await expect(page.locator('.drive-share-item').filter({ hasText: data.retainedShareFolder })).toBeVisible()
+
+    await page.reload()
+    await page.getByRole('button', { name: '分享管理' }).click()
+    const persistedShare = page.locator('.drive-share-item').filter({ hasText: data.retainedShareFolder })
+    await expect(persistedShare).toBeVisible()
+    await persistedShare.getByRole('button', { name: '撤销' }).click()
+    await expect(page.getByText('分享已撤销')).toBeVisible()
+    await expect(persistedShare).toContainText('已撤销')
   })
 })

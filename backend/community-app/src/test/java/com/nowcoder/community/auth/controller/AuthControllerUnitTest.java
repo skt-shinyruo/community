@@ -189,9 +189,9 @@ class AuthControllerUnitTest {
     }
 
     @Test
-    void refreshShouldPreserveRefreshCookieWhenFailureRequestsClearing() {
+    void refreshShouldPreserveRefreshCookieWhenApplicationFails() {
         when(loginApplicationService.refresh(any(RefreshCommand.class)))
-                .thenThrow(new RefreshFailure(CommonErrorCode.SERVICE_UNAVAILABLE, true));
+                .thenThrow(new RefreshFailure(CommonErrorCode.SERVICE_UNAVAILABLE));
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();

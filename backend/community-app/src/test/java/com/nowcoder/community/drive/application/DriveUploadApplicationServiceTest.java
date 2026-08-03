@@ -1017,6 +1017,11 @@ class DriveUploadApplicationServiceTest {
         }
 
         @Override
+        public List<DriveEntry> findByIds(UUID spaceId, List<UUID> entryIds) {
+            return List.of();
+        }
+
+        @Override
         public Optional<DriveEntry> findActiveChildByName(UUID spaceId, UUID parentId, String name) {
             return rows.values().stream()
                     .filter(entry -> entry.spaceId().equals(spaceId))

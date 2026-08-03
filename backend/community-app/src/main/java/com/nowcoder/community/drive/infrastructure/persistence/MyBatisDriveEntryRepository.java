@@ -27,6 +27,14 @@ public class MyBatisDriveEntryRepository implements DriveEntryRepository {
     }
 
     @Override
+    public List<DriveEntry> findByIds(UUID spaceId, List<UUID> entryIds) {
+        if (entryIds == null || entryIds.isEmpty()) {
+            return List.of();
+        }
+        return toDomainList(mapper.selectByIds(spaceId, entryIds));
+    }
+
+    @Override
     public Optional<DriveEntry> findActiveChildByName(UUID spaceId, UUID parentId, String name) {
         return Optional.ofNullable(mapper.selectActiveChildByName(spaceId, parentId, DriveEntryDataObject.parentKey(parentId), name))
                 .map(DriveEntryDataObject::toDomain);

@@ -46,10 +46,13 @@ function mountView(conversationId) {
   setActivePinia(pinia)
 
   const auth = useAuthStore()
-  auth.setMe({
-    userId: '11111111-1111-7111-8111-111111111111',
-    username: 'me',
-    authorities: []
+  auth.installSession({
+    accessToken: 'token-user-a',
+    me: {
+      userId: '11111111-1111-7111-8111-111111111111',
+      username: 'me',
+      authorities: []
+    }
   })
 
   return mount(ConversationDetailView, {
@@ -410,5 +413,101 @@ describe('ConversationDetailView', () => {
       toUserId: '11111111-1111-7111-8111-111111111111',
       content: '缺少时间'
     })).rejects.toThrow('createdAtEpochMs 非法')
+  })
+
+  it('ignores an old history response after the route switches conversations', async () => {
+    const conversationA = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const conversationB = '11111111-1111-7111-8111-111111111111_33333333-3333-7333-8333-333333333333'
+    let resolveConversationA
+    let resolveConversationB
+    listImConversationHistory
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveConversationA = resolve }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveConversationB = resolve }))
+
+    const wrapper = mountView(conversationA)
+    await wrapper.setProps({ conversationId: conversationB })
+    await flushPromises()
+
+    resolveConversationB({
+      items: [{
+        messageId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+        seq: 4,
+        fromUserId: '33333333-3333-7333-8333-333333333333',
+        toUserId: '11111111-1111-7111-8111-111111111111',
+        content: '会话 B 的消息',
+        clientMsgId: 'client-b-route',
+        createdAtEpochMs: 1774060184920
+      }],
+      nextBeforeSeq: null,
+      hasMore: false
+    })
+    await flushPromises()
+    resolveConversationA({
+      items: [{
+        messageId: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+        seq: 5,
+        fromUserId: '22222222-2222-7222-8222-222222222222',
+        toUserId: '11111111-1111-7111-8111-111111111111',
+        content: '会话 A 的迟到消息',
+        clientMsgId: 'client-a-route',
+        createdAtEpochMs: 1774060185920
+      }],
+      nextBeforeSeq: null,
+      hasMore: false
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('会话 B 的消息')
+    expect(wrapper.text()).not.toContain('会话 A 的迟到消息')
+    expect(markImConversationRead).toHaveBeenCalledTimes(1)
+    expect(markImConversationRead).toHaveBeenCalledWith(conversationB, 4)
+  })
+
+  it('clears messages and ignores stale HTTP and realtime data after account switching', async () => {
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    let resolveHistory
+    listImConversationHistory.mockImplementationOnce(() => new Promise((resolve) => { resolveHistory = resolve }))
+
+    const wrapper = mountView(conversationId)
+    const auth = useAuthStore()
+    auth.installSession({
+      accessToken: 'token-user-b',
+      me: {
+        userId: '33333333-3333-7333-8333-333333333333',
+        username: 'user-b',
+        authorities: []
+      }
+    })
+    await flushPromises()
+
+    await listeners.privateMessage({
+      conversationId,
+      messageId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      seq: 7,
+      fromUserId: '22222222-2222-7222-8222-222222222222',
+      toUserId: '11111111-1111-7111-8111-111111111111',
+      content: '旧身份实时消息',
+      clientMsgId: 'client-old-live',
+      createdAtEpochMs: 1774060186920
+    })
+    resolveHistory({
+      items: [{
+        messageId: 'ffffffff-ffff-7fff-8fff-ffffffffffff',
+        seq: 6,
+        fromUserId: '22222222-2222-7222-8222-222222222222',
+        toUserId: '11111111-1111-7111-8111-111111111111',
+        content: '旧身份历史消息',
+        clientMsgId: 'client-old-history',
+        createdAtEpochMs: 1774060185920
+      }],
+      nextBeforeSeq: null,
+      hasMore: false
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('.message-row')).toHaveLength(0)
+    expect(wrapper.text()).not.toContain('旧身份实时消息')
+    expect(wrapper.text()).not.toContain('旧身份历史消息')
+    expect(markImConversationRead).not.toHaveBeenCalled()
   })
 })

@@ -80,30 +80,51 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { createMarketListing } from '../api/services/marketService'
+import { useAuthStore } from '../stores/auth'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 
-const form = ref({
-  goodsType: 'VIRTUAL',
-  title: '',
-  description: '',
-  unitPrice: 1999,
-  deliveryMode: 'PRELOADED',
-  stockTotal: 1,
-  minPurchaseQuantity: 1,
-  maxPurchaseQuantity: 1
-})
+const DEFAULT_MESSAGE = '发布后可从“我的出售”继续管理库存和订单。'
+const auth = useAuthStore()
+const form = ref(emptyListingForm())
 const inventoryText = ref('')
 const submitting = ref(false)
-const message = ref('发布后可从“我的出售”继续管理库存和订单。')
+const message = ref(DEFAULT_MESSAGE)
+let submitGeneration = 0
+
 const isVirtual = computed(() => form.value.goodsType === 'VIRTUAL')
+const sessionScope = computed(() => [
+  auth.tokenGeneration,
+  normalizeOpaqueId(auth.userId),
+  auth.authed ? 'authenticated' : 'anonymous'
+].join(':'))
+
+function emptyListingForm() {
+  return {
+    goodsType: 'VIRTUAL',
+    title: '',
+    description: '',
+    unitPrice: 1999,
+    deliveryMode: 'PRELOADED',
+    stockTotal: 1,
+    minPurchaseQuantity: 1,
+    maxPurchaseQuantity: 1
+  }
+}
+
+function isCurrentSubmit(generation, scope) {
+  return generation === submitGeneration && scope === sessionScope.value && auth.authed
+}
 
 async function submit() {
+  if (submitting.value || !auth.authed) return
+
   const payloads = inventoryText.value
     .split('\n')
     .map((item) => item.trim())
@@ -114,34 +135,51 @@ async function submit() {
     return
   }
 
+  const generation = ++submitGeneration
+  const scope = sessionScope.value
+  const currentForm = { ...form.value }
   submitting.value = true
   message.value = ''
   try {
     const payload = {
-      goodsType: form.value.goodsType,
-      title: form.value.title,
-      description: form.value.description,
-      unitPrice: Number(form.value.unitPrice || 0),
-      stockTotal: Number(form.value.stockTotal || 0),
-      minPurchaseQuantity: Number(form.value.minPurchaseQuantity || 1),
-      maxPurchaseQuantity: Number(form.value.maxPurchaseQuantity || 1)
+      goodsType: currentForm.goodsType,
+      title: currentForm.title,
+      description: currentForm.description,
+      unitPrice: Number(currentForm.unitPrice || 0),
+      stockTotal: Number(currentForm.stockTotal || 0),
+      minPurchaseQuantity: Number(currentForm.minPurchaseQuantity || 1),
+      maxPurchaseQuantity: Number(currentForm.maxPurchaseQuantity || 1)
     }
 
-    if (isVirtual.value) {
-      payload.deliveryMode = form.value.deliveryMode
+    if (currentForm.goodsType === 'VIRTUAL') {
+      payload.deliveryMode = currentForm.deliveryMode
       payload.stockMode = 'FINITE'
-      if (form.value.deliveryMode === 'PRELOADED') {
+      if (currentForm.deliveryMode === 'PRELOADED') {
         payload.inventory = { payloadType: 'CODE', payloads }
       }
     }
 
     await createMarketListing(payload)
+    if (!isCurrentSubmit(generation, scope)) return
     message.value = '发布成功，继续前往我的出售查看商品状态。'
     inventoryText.value = ''
   } catch (e) {
+    if (!isCurrentSubmit(generation, scope)) return
     message.value = e?.message || '发布失败'
   } finally {
-    submitting.value = false
+    if (isCurrentSubmit(generation, scope)) submitting.value = false
   }
 }
+
+watch(sessionScope, () => {
+  submitGeneration += 1
+  form.value = emptyListingForm()
+  inventoryText.value = ''
+  submitting.value = false
+  message.value = DEFAULT_MESSAGE
+})
+
+onBeforeUnmount(() => {
+  submitGeneration += 1
+})
 </script>

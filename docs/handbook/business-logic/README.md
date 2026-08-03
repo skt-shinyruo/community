@@ -60,7 +60,7 @@
 | 内容 | [content.md](content.md) | 帖子、评论、分类、标签、收藏、订阅、举报、审核、内容事件。 |
 | 社交 | [social.md](social.md) | 点赞、关注、拉黑、社交事件、互动限制、IM policy 联动。 |
 | 成长 | [growth.md](growth.md) | 任务模板、任务进度、事件去重、奖励、用户等级。 |
-| 钱包 | [wallet.md](wallet.md) | 账户、复式账本、充值、提现、转账、奖励、市场资金、管理员操作。 |
+| 钱包 | [wallet.md](wallet.md) | 账户、复式账本、测试积分发放/销毁、转账、奖励、市场资金、管理员操作。 |
 | 市场 | [market.md](market.md) | 商品、库存、地址、订单、纠纷、钱包动作 saga、自动确认、恢复任务。 |
 | 通知/搜索/分析/运维 | [notice-search-analytics-ops.md](notice-search-analytics-ops.md) | 通知读模型、搜索投影与重建、UV/DAU、ops 入口。 |
 | IM | [im.md](im.md) | IM session、WebSocket、私信、群聊、成员、未读、policy projection。 |

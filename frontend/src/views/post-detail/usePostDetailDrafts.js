@@ -1,6 +1,6 @@
 import { normalizeOpaqueId } from '../../utils/opaqueId'
 
-export function usePostDetailDrafts(postId, newComment) {
+export function usePostDetailDrafts(postId, newComment, identityId) {
   function safeStorageGet(key) {
     if (typeof window === 'undefined') return ''
     try {
@@ -22,11 +22,11 @@ export function usePostDetailDrafts(postId, newComment) {
   }
 
   function commentDraftKey() {
-    return `community.draft.posts.${String(postId.value || '')}.comment`
+    return `community.draft.posts.${String(identityId?.value || 'anonymous')}.${String(postId.value || '')}.comment`
   }
 
   function replyDraftKey(commentId) {
-    return `community.draft.posts.${String(postId.value || '')}.reply.${normalizeOpaqueId(commentId)}`
+    return `community.draft.posts.${String(identityId?.value || 'anonymous')}.${String(postId.value || '')}.reply.${normalizeOpaqueId(commentId)}`
   }
 
   function setNewComment(v) {

@@ -10,9 +10,11 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
-import java.util.UUID;
+import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * MySQL 持久化实现：以 DB 为 SSOT（source of truth）。
@@ -45,6 +47,32 @@ public class MyBatisFollowRepository implements FollowRepository {
     @Override
     public boolean hasFollowed(UUID userId, int entityType, UUID entityId) {
         return mapper.countFollow(userId, entityType, entityId) > 0;
+    }
+
+    @Override
+    public Map<UUID, Boolean> followedStatusesBatch(UUID userId, int entityType, List<UUID> entityIds) {
+        Map<UUID, Boolean> statuses = new HashMap<>();
+        if (entityIds == null || entityIds.isEmpty()) {
+            return statuses;
+        }
+        for (UUID entityId : entityIds) {
+            if (entityId != null) {
+                statuses.put(entityId, Boolean.FALSE);
+            }
+        }
+        if (statuses.isEmpty()) {
+            return statuses;
+        }
+        List<UUID> followedIds = mapper.selectFollowedEntityIds(userId, entityType, List.copyOf(statuses.keySet()));
+        if (followedIds == null) {
+            return statuses;
+        }
+        for (UUID followedId : followedIds) {
+            if (followedId != null && statuses.containsKey(followedId)) {
+                statuses.put(followedId, Boolean.TRUE);
+            }
+        }
+        return statuses;
     }
 
     @Override

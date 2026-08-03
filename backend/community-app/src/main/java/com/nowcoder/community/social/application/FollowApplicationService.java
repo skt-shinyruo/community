@@ -18,7 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -29,6 +32,8 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service("socialFollowApplicationService")
 public class FollowApplicationService implements SocialFollowQueryApi {
+
+    private static final int MAX_BATCH_ENTITY_IDS = 200;
 
     private final FollowRepository followRepository;
     private final BlockRepository blockRepository;
@@ -97,6 +102,18 @@ public class FollowApplicationService implements SocialFollowQueryApi {
         return followRepository.hasFollowed(actorUserId, entityType, entityId);
     }
 
+    public Map<UUID, Boolean> statuses(UUID actorUserId, int entityType, List<UUID> entityIds) {
+        if (actorUserId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
+        }
+        validateUserOnlyEntityType(entityType);
+        List<UUID> normalizedIds = normalizeBatchEntityIds(entityIds);
+        if (normalizedIds.isEmpty()) {
+            return Map.of();
+        }
+        return followRepository.followedStatusesBatch(actorUserId, entityType, normalizedIds);
+    }
+
     @Override
     public long followeeCount(UUID userId, int entityType) {
         validateFollowUserQuery(userId, entityType);
@@ -161,6 +178,23 @@ public class FollowApplicationService implements SocialFollowQueryApi {
         if (entityType != USER) {
             throw new BusinessException(INVALID_ARGUMENT, "follow 仅支持 USER");
         }
+    }
+
+    private List<UUID> normalizeBatchEntityIds(List<UUID> entityIds) {
+        if (entityIds == null || entityIds.isEmpty()) {
+            return List.of();
+        }
+        if (entityIds.size() > MAX_BATCH_ENTITY_IDS) {
+            throw new BusinessException(INVALID_ARGUMENT, "entityIds 不能超过200");
+        }
+        LinkedHashSet<UUID> uniqueIds = new LinkedHashSet<>();
+        for (UUID entityId : entityIds) {
+            if (entityId == null) {
+                throw new BusinessException(INVALID_ARGUMENT, "entityIds 非法");
+            }
+            uniqueIds.add(entityId);
+        }
+        return new ArrayList<>(uniqueIds);
     }
 
     private void requireFollowTargetUserExists(UUID entityId) {

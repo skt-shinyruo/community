@@ -198,6 +198,18 @@ final class TestDriveFixture {
         }
 
         @Override
+        public List<DriveEntry> findByIds(UUID spaceId, List<UUID> entryIds) {
+            if (entryIds == null || entryIds.isEmpty()) {
+                return List.of();
+            }
+            return entryIds.stream()
+                    .map(rows::get)
+                    .filter(Objects::nonNull)
+                    .filter(entry -> entry.spaceId().equals(spaceId))
+                    .toList();
+        }
+
+        @Override
         public Optional<DriveEntry> findActiveChildByName(UUID spaceId, UUID parentId, String name) {
             return rows.values().stream()
                     .filter(entry -> entry.spaceId().equals(spaceId))
@@ -366,6 +378,17 @@ final class TestDriveFixture {
                     .filter(share -> share.entryId().equals(entryId))
                     .filter(share -> share.status().name().equals("ACTIVE"))
                     .findFirst();
+        }
+
+        @Override
+        public List<DriveShare> findByCreatedBy(UUID createdBy, int offset, int limit) {
+            return rows.values().stream()
+                    .filter(share -> share.createdBy().equals(createdBy))
+                    .sorted(Comparator.comparing(DriveShare::createdAt).reversed()
+                            .thenComparing(DriveShare::shareId, Comparator.reverseOrder()))
+                    .skip(Math.max(0, offset))
+                    .limit(Math.max(1, limit))
+                    .toList();
         }
 
         @Override

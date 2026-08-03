@@ -68,7 +68,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { uv, dau } from '../api/services/analyticsService'
 import UiCard from '../components/ui/UiCard.vue'
@@ -76,6 +76,7 @@ import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiState from '../components/ui/UiState.vue'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 
 const emit = defineEmits(['trace'])
 const auth = useAuthStore()
@@ -88,27 +89,61 @@ const loading = ref(false)
 const error = ref('')
 const uResult = ref('-')
 const dResult = ref('-')
+let requestGeneration = 0
 
 const uvResult = computed(() => uResult.value)
 const dauResult = computed(() => dResult.value)
+const sessionScope = computed(() => [
+  auth.tokenGeneration,
+  normalizeOpaqueId(auth.userId),
+  [...auth.authorities].sort().join(',')
+].join(':'))
+
+function isCurrentQuery(generation, scope, range) {
+  return generation === requestGeneration &&
+    scope === sessionScope.value &&
+    range === `${start.value}:${end.value}` &&
+    auth.authed &&
+    auth.isAdminOrModerator
+}
 
 async function query() {
-  if (!auth.isAdminOrModerator) return
+  if (!auth.authed || !auth.isAdminOrModerator) return
+  const generation = ++requestGeneration
+  const scope = sessionScope.value
+  const range = `${start.value}:${end.value}`
+  const request = { start: start.value, end: end.value }
   error.value = ''
   loading.value = true
   try {
-    const [uvResp, dauResp] = await Promise.all([uv({ start: start.value, end: end.value }), dau({ start: start.value, end: end.value })])
+    const [uvResp, dauResp] = await Promise.all([uv(request), dau(request)])
+    if (!isCurrentQuery(generation, scope, range)) return
     uResult.value = uvResp?.data ?? 0
     dResult.value = dauResp?.data ?? 0
     emit('trace', uvResp?.traceId || dauResp?.traceId || '')
   } catch (e) {
+    if (!isCurrentQuery(generation, scope, range)) return
     error.value = e?.message || '加载统计失败'
     uResult.value = '—'
     dResult.value = '—'
   } finally {
-    loading.value = false
+    if (isCurrentQuery(generation, scope, range)) loading.value = false
   }
 }
+
+function invalidateResults() {
+  requestGeneration += 1
+  loading.value = false
+  error.value = ''
+  uResult.value = '-'
+  dResult.value = '-'
+}
+
+watch([start, end], invalidateResults)
+watch(sessionScope, invalidateResults)
+onBeforeUnmount(() => {
+  requestGeneration += 1
+})
 </script>
 
 <style scoped>

@@ -67,7 +67,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { blockUser, unblockUser } from '../../api/services/blockService'
@@ -106,6 +106,23 @@ let timer = null
 
 const reportOpen = ref(false)
 const actionLoading = ref(false)
+let profileRequestId = 0
+let actionRequestId = 0
+let disposed = false
+
+function isCurrentScope(requestId, uid, authGeneration) {
+  return !disposed
+    && requestId === profileRequestId
+    && uid === resolvedUserId.value
+    && auth.tokenGeneration === authGeneration
+}
+
+function isCurrentAction(requestId, uid, authGeneration) {
+  return !disposed
+    && requestId === actionRequestId
+    && uid === resolvedUserId.value
+    && auth.tokenGeneration === authGeneration
+}
 
 function shouldFetchProfile(user) {
   if (!user) return true
@@ -118,19 +135,21 @@ function shouldFetchProfile(user) {
 async function ensureProfile() {
   const uid = resolvedUserId.value
   if (!uid) return
-  if (profileLoading.value) return
+  const requestId = ++profileRequestId
+  const authGeneration = auth.tokenGeneration
   if (profile.value && !shouldFetchProfile(profile.value)) return
   if (!shouldFetchProfile(props.user)) {
     // props already has a rich profile
-    profile.value = props.user
+    if (isCurrentScope(requestId, uid, authGeneration)) profile.value = props.user
     return
   }
 
   profileLoading.value = true
   try {
-    profile.value = await getUserProfile(uid).catch(() => null)
+    const nextProfile = await getUserProfile(uid).catch(() => null)
+    if (isCurrentScope(requestId, uid, authGeneration)) profile.value = nextProfile
   } finally {
-    profileLoading.value = false
+    if (isCurrentScope(requestId, uid, authGeneration)) profileLoading.value = false
   }
 }
 
@@ -153,7 +172,20 @@ function hide() {
 }
 
 watch(resolvedUserId, () => {
+  profileRequestId += 1
+  actionRequestId += 1
+  profileLoading.value = false
   profile.value = null
+  reportOpen.value = false
+})
+
+watch(() => auth.tokenGeneration, () => {
+  profileRequestId += 1
+  actionRequestId += 1
+  profileLoading.value = false
+  profile.value = null
+  reportOpen.value = false
+  actionLoading.value = false
 })
 
 function openReport() {
@@ -166,22 +198,34 @@ function openReport() {
 
 async function toggleBlock() {
   if (!canInteract.value) return
+  const targetId = resolvedUserId.value
+  const authGeneration = auth.tokenGeneration
+  const requestId = ++actionRequestId
   actionLoading.value = true
   try {
     if (isBlocked.value) {
-      await unblockUser(resolvedUserId.value)
+      await unblockUser(targetId)
+      if (!isCurrentAction(requestId, targetId, authGeneration)) return
       showToast({ type: 'success', text: '已解除屏蔽' })
     } else {
-      await blockUser(resolvedUserId.value)
+      await blockUser(targetId)
+      if (!isCurrentAction(requestId, targetId, authGeneration)) return
       showToast({ type: 'success', text: '已屏蔽该用户' })
     }
     await prefs.ensureBlocked(true)
   } catch (e) {
+    if (!isCurrentAction(requestId, targetId, authGeneration)) return
     showToast({ type: 'error', title: '操作失败', text: e?.message || '请稍后重试' })
   } finally {
-    actionLoading.value = false
+    if (isCurrentAction(requestId, targetId, authGeneration)) actionLoading.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  disposed = true
+  profileRequestId += 1
+  actionRequestId += 1
+})
 </script>
 
 <style scoped>

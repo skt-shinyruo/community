@@ -1,11 +1,13 @@
 package com.nowcoder.community.search.infrastructure.persistence;
 
-// ES 索引管理器：负责 alias 初始化。
+// ES 索引管理器：负责 alias 初始化、蓝绿切换与历史索引清理。
+import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import com.nowcoder.community.search.infrastructure.persistence.dataobject.EsPostDocument;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.elasticsearch.ResourceNotFoundException;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.data.elasticsearch.core.IndexInformation;
 import org.springframework.data.elasticsearch.core.index.AliasAction;
 import org.springframework.data.elasticsearch.core.index.AliasActionParameters;
 import org.springframework.data.elasticsearch.core.index.AliasActions;
@@ -13,17 +15,24 @@ import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 @Component
 @ConditionalOnProperty(name = "search.storage", havingValue = "es")
 public class PostIndexManager {
 
     private static final DateTimeFormatter VERSION_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final int MAX_INDEX_NAME_ATTEMPTS = 100;
     private static final String AGGREGATE_VERSION_FIELD = "aggregateVersion";
     private static final String SCORE_VERSION_FIELD = "scoreVersion";
     private static final Set<String> ADDITIVE_VERSION_FIELDS = Set.of(
@@ -45,13 +54,20 @@ public class PostIndexManager {
 
     private final ElasticsearchOperations operations;
     private final String indexPrefix;
+    private final Pattern managedIndexPattern;
+    private final int keepHistory;
 
     public PostIndexManager(
             ElasticsearchOperations operations,
-            @Value("${search.index.prefix:community_posts_v}") String indexPrefix
+            @Value("${search.index.prefix:community_posts_v}") String indexPrefix,
+            @Value("${search.index.keep-history:2}") int keepHistory
     ) {
         this.operations = operations;
         this.indexPrefix = StringUtils.hasText(indexPrefix) ? indexPrefix.trim() : EsPostDocument.INDEX_PREFIX;
+        this.managedIndexPattern = Pattern.compile(
+                "^" + Pattern.quote(this.indexPrefix) + "\\d{14}(?:_\\d+)?$"
+        );
+        this.keepHistory = Math.max(0, keepHistory);
     }
 
     public void ensureAliasReady() {
@@ -73,31 +89,23 @@ public class PostIndexManager {
         switchAliasTo(indexName);
     }
 
-    private String createNewIndex() {
+    public String createNewIndex() {
         String base = indexPrefix + VERSION_FORMAT.format(Instant.now().atZone(ZoneOffset.UTC));
-        String indexName = base;
-        int attempt = 0;
-        while (operations.indexOps(IndexCoordinates.of(indexName)).exists()) {
-            attempt++;
-            indexName = base + "_" + attempt;
+        for (int attempt = 0; attempt < MAX_INDEX_NAME_ATTEMPTS; attempt++) {
+            String indexName = attempt == 0 ? base : base + "_" + attempt;
+            if (createIndexWithMapping(indexName)) {
+                return indexName;
+            }
         }
-        createIndexWithMapping(indexName);
-        return indexName;
+        throw new IllegalStateException("could not allocate a unique search index name for " + base);
     }
 
-    private void switchAliasTo(String newIndex) {
+    public void switchAliasTo(String newIndex) {
         if (!StringUtils.hasText(newIndex)) {
             return;
         }
         Set<String> current = resolveAliasIndices();
         AliasActions actions = new AliasActions();
-
-        AliasActionParameters addParams = AliasActionParameters.builder()
-                .withIndices(newIndex)
-                .withAliases(EsPostDocument.INDEX_ALIAS)
-                .withIsWriteIndex(true)
-                .build();
-        actions.add(new AliasAction.Add(addParams));
 
         for (String oldIndex : current) {
             if (newIndex.equals(oldIndex)) {
@@ -110,7 +118,56 @@ public class PostIndexManager {
             actions.add(new AliasAction.Remove(removeParams));
         }
 
-        operations.indexOps(IndexCoordinates.of(newIndex)).alias(actions);
+        AliasActionParameters addParams = AliasActionParameters.builder()
+                .withIndices(newIndex)
+                .withAliases(EsPostDocument.INDEX_ALIAS)
+                .withIsWriteIndex(true)
+                .build();
+        actions.add(new AliasAction.Add(addParams));
+
+        if (!operations.indexOps(IndexCoordinates.of(newIndex)).alias(actions)) {
+            throw new IllegalStateException("search alias switch was not acknowledged for " + newIndex);
+        }
+    }
+
+    public void refreshIndex(String indexName) {
+        if (StringUtils.hasText(indexName)) {
+            operations.indexOps(IndexCoordinates.of(indexName)).refresh();
+        }
+    }
+
+    public void deleteIndex(String indexName) {
+        if (!StringUtils.hasText(indexName)) {
+            return;
+        }
+        var indexOps = operations.indexOps(IndexCoordinates.of(indexName));
+        if (indexOps.exists() && !indexOps.delete()) {
+            throw new IllegalStateException("search index deletion was not acknowledged for " + indexName);
+        }
+    }
+
+    public void cleanupOldIndices() {
+        List<String> managed = listManagedIndices();
+        if (managed.isEmpty()) {
+            return;
+        }
+        Comparator<String> newestFirst = Comparator
+                .comparing(this::managedIndexTimestamp)
+                .thenComparing(this::managedIndexSuffix)
+                .reversed();
+        managed.sort(newestFirst);
+
+        Set<String> keep = new HashSet<>(resolveAliasIndices());
+        managed.stream()
+                .filter(indexName -> !keep.contains(indexName))
+                .limit(keepHistory)
+                .forEach(keep::add);
+
+        for (String indexName : managed) {
+            if (!keep.contains(indexName)) {
+                deleteIndex(indexName);
+            }
+        }
     }
 
     private Set<String> resolveAliasIndices() {
@@ -123,12 +180,86 @@ public class PostIndexManager {
         }
     }
 
-    private void createIndexWithMapping(String indexName) {
-        var indexOps = operations.indexOps(IndexCoordinates.of(indexName));
-        if (!indexOps.exists()) {
-            indexOps.create();
-            indexOps.putMapping(operations.indexOps(EsPostDocument.class).createMapping());
+    private List<String> listManagedIndices() {
+        List<IndexInformation> information = operations
+                .indexOps(IndexCoordinates.of(indexPrefix + "*"))
+                .getInformation();
+        List<String> names = new ArrayList<>();
+        if (information == null) {
+            return names;
         }
+        for (IndexInformation index : information) {
+            if (index != null
+                    && StringUtils.hasText(index.getName())
+                    && managedIndexPattern.matcher(index.getName()).matches()) {
+                names.add(index.getName());
+            }
+        }
+        return names;
+    }
+
+    private boolean createIndexWithMapping(String indexName) {
+        var indexOps = operations.indexOps(IndexCoordinates.of(indexName));
+        if (indexOps.exists()) {
+            return false;
+        }
+        try {
+            if (!indexOps.create()) {
+                if (indexOps.exists()) {
+                    return false;
+                }
+                throw new IllegalStateException("search index creation was not acknowledged for " + indexName);
+            }
+        } catch (RuntimeException creationFailure) {
+            if (isIndexNameConflict(creationFailure)) {
+                return false;
+            }
+            throw creationFailure;
+        }
+        try {
+            if (!indexOps.putMapping(operations.indexOps(EsPostDocument.class).createMapping())) {
+                throw new IllegalStateException("search index mapping was not acknowledged for " + indexName);
+            }
+        } catch (RuntimeException mappingFailure) {
+            try {
+                if (!indexOps.delete()) {
+                    mappingFailure.addSuppressed(new IllegalStateException(
+                            "search index cleanup was not acknowledged for " + indexName
+                    ));
+                }
+            } catch (RuntimeException cleanupFailure) {
+                mappingFailure.addSuppressed(cleanupFailure);
+            }
+            throw mappingFailure;
+        }
+        return true;
+    }
+
+    private boolean isIndexNameConflict(RuntimeException failure) {
+        Throwable current = failure;
+        while (current != null) {
+            if (current instanceof ElasticsearchException elasticsearchFailure
+                    && elasticsearchFailure.error() != null
+                    && "resource_already_exists_exception".equals(elasticsearchFailure.error().type())) {
+                return true;
+            }
+            Throwable cause = current.getCause();
+            current = cause == current ? null : cause;
+        }
+        return false;
+    }
+
+    private String managedIndexTimestamp(String indexName) {
+        int versionStart = indexPrefix.length();
+        return indexName.substring(versionStart, versionStart + 14);
+    }
+
+    private BigInteger managedIndexSuffix(String indexName) {
+        int suffixSeparator = indexPrefix.length() + 14;
+        if (indexName.length() == suffixSeparator) {
+            return BigInteger.ZERO;
+        }
+        return new BigInteger(indexName.substring(suffixSeparator + 1));
     }
 
     private Set<String> missingRequiredSearchFields(Map<String, Object> mapping) {

@@ -55,10 +55,10 @@ refresh token 明文只出现在浏览器 HttpOnly cookie 和当前请求/响应
 1. 浏览器业务请求遇到 401 后，前端调用 `/api/auth/refresh`。
 2. auth 校验旧 refresh token，把旧 session 转入 `PENDING_ROTATION` 30 秒 lease。
 3. auth 回源 user owner 校验用户仍允许登录和 refresh，并比较 session 的 `securityVersionAtIssue` 与当前 `securityVersion`。
-4. 版本不一致时 auth 撤销 family 并清 cookie；一致时生成 replacement token。
+4. 版本不一致时 auth 撤销 family；一致时生成 replacement token。
 5. auth repository finish rotation：旧 session 变为 `CONSUMED`，replacement session 变为 `ACTIVE` 并记录当前安全版本。
 6. 返回新 access token 和新 refresh cookie。
-7. begin 后遇到临时失败时 rollback 旧 session；无法安全 rollback 时撤销 family 并清 cookie。
+7. begin 后遇到临时失败时 rollback 旧 session；无法安全 rollback 时撤销 family。refresh 失败响应不写 `Set-Cookie`，避免清除并发成功请求的新 cookie。
 8. logout 可从 active session 或 terminal tombstone 识别 family，并由 controller 写 clear cookie。
 
 重要语义：

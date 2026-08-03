@@ -17,7 +17,7 @@
 | `postMediaService.js` | 帖子媒体上传会话创建、文件上传执行、`mediaKind` 推断；上传结果以会话返回的 `assetId` / `uploadId` 为关联点。 |
 | `driveService.js` | 网盘空间、目录、回收站、文件夹、搜索、上传会话、重命名 / 移动 / 删除 / 恢复 / 彻删、下载链接、分享创建 / 撤销、公有分享校验和下载。 |
 | `marketService.js` | 商品列表 / 详情 / 发布、我的出售、库存、买卖订单、交付 / 发货 / 确认 / 取消 / 申诉、管理员争议裁定、收货地址。 |
-| `walletService.js` | 钱包概览、流水、充值、提现、转账、管理员冻结和交易回滚。 |
+| `walletService.js` | 钱包概览、流水、测试积分领取/销毁兼容路径、转账、管理员冻结和交易回滚。 |
 | `imCoreChatService.js` | IM core 会话列表、按 `afterSeq` 拉取会话消息、标记已读；使用 `imCoreHttp` 而不是主应用 `http`。 |
 
 以下文件当前只是薄 endpoint mapping、参数整理或响应拆包，保持 `IndexOnly`：`adminUserService.js`、`moderationService.js`、`noticeService.js`、`reportService.js`、`blockService.js`、`taxonomyService.js`、`subscriptionService.js`、`bookmarkService.js`、`searchService.js`、`analyticsService.js`。

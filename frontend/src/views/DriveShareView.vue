@@ -102,7 +102,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiState from '../components/ui/UiState.vue'
@@ -114,6 +114,7 @@ import {
   listDriveShareEntries,
   verifyDriveShare
 } from '../api/services/driveService'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { formatDriveBytes, normalizeDriveEntry } from './driveState'
 
 const props = defineProps({
@@ -135,6 +136,10 @@ const shareEntries = ref([])
 const folderTrail = ref([])
 const entriesLoading = ref(false)
 const entriesError = ref('')
+const shareRequestTracker = createLatestRequestTracker()
+const submissionRequestTracker = createLatestRequestTracker()
+const entriesRequestTracker = createLatestRequestTracker()
+let shareContextGeneration = 0
 
 const shareName = computed(() => {
   if (!ticket.value) return '访问分享'
@@ -144,111 +149,174 @@ const shareType = computed(() => ticket.value ? String(share.value?.entryType ||
 const isFolderShare = computed(() => shareType.value === 'FOLDER')
 const isFileShare = computed(() => Boolean(ticket.value) && shareType.value === 'FILE')
 
-async function loadShare() {
+function isCurrentShareContext(contextGeneration, shareToken) {
+  return contextGeneration === shareContextGeneration && String(props.shareToken || '') === shareToken
+}
+
+function isCurrentShareRequest(tracker, requestToken, contextGeneration, shareToken) {
+  return tracker.isCurrent(requestToken) && isCurrentShareContext(contextGeneration, shareToken)
+}
+
+async function loadShare(shareToken, contextGeneration) {
+  const requestToken = shareRequestTracker.begin()
   loading.value = true
   error.value = ''
   message.value = ''
   try {
-    const { data } = await getPublicDriveShare(props.shareToken)
+    const { data } = await getPublicDriveShare(shareToken)
+    if (!isCurrentShareRequest(shareRequestTracker, requestToken, contextGeneration, shareToken)) return
     share.value = {
       shareToken: String(data?.shareToken || ''),
       requiresPassword: data?.requiresPassword !== false
     }
   } catch (e) {
-    error.value = e?.message || '加载分享失败'
+    if (isCurrentShareRequest(shareRequestTracker, requestToken, contextGeneration, shareToken)) {
+      error.value = e?.message || '加载分享失败'
+    }
   } finally {
-    loading.value = false
+    if (isCurrentShareRequest(shareRequestTracker, requestToken, contextGeneration, shareToken)) {
+      loading.value = false
+    }
   }
 }
 
 async function verify() {
+  if (submitting.value) return
   const safePassword = String(password.value || '').trim()
   if (!safePassword) {
     message.value = '请输入提取码'
     return
   }
+  const contextGeneration = shareContextGeneration
+  const shareToken = String(props.shareToken || '')
+  const requestToken = submissionRequestTracker.begin()
+  entriesRequestTracker.invalidate()
+  entriesLoading.value = false
   submitting.value = true
   error.value = ''
   try {
-    const { data } = await verifyDriveShare(props.shareToken, safePassword)
+    const { data } = await verifyDriveShare(shareToken, safePassword)
+    if (!isCurrentShareRequest(submissionRequestTracker, requestToken, contextGeneration, shareToken)) return
     share.value = { ...share.value, ...(data || {}) }
     ticket.value = String(data?.ticket || '')
     message.value = ticket.value ? '验证成功' : '验证失败'
     downloadUrl.value = ''
     if (ticket.value && isFolderShare.value) {
+      shareEntries.value = []
+      await loadShareEntries('', [])
+    } else {
+      shareEntries.value = []
       folderTrail.value = []
-      await loadShareEntries('')
     }
   } catch (e) {
-    message.value = e?.message || '验证失败'
+    if (isCurrentShareRequest(submissionRequestTracker, requestToken, contextGeneration, shareToken)) {
+      message.value = e?.message || '验证失败'
+    }
   } finally {
-    submitting.value = false
+    if (isCurrentShareRequest(submissionRequestTracker, requestToken, contextGeneration, shareToken)) {
+      submitting.value = false
+    }
   }
 }
 
-async function loadShareEntries(parentId = '') {
+async function loadShareEntries(parentId = '', nextTrail = folderTrail.value) {
   if (!ticket.value) return
+  const contextGeneration = shareContextGeneration
+  const shareToken = String(props.shareToken || '')
+  const requestTicket = ticket.value
+  const requestToken = entriesRequestTracker.begin()
   entriesLoading.value = true
   entriesError.value = ''
   try {
-    const { data } = await listDriveShareEntries(props.shareToken, ticket.value, parentId)
+    const { data } = await listDriveShareEntries(shareToken, requestTicket, parentId)
+    if (!isCurrentShareRequest(entriesRequestTracker, requestToken, contextGeneration, shareToken) || ticket.value !== requestTicket) return
     shareEntries.value = Array.isArray(data) ? data.map(normalizeDriveEntry) : []
+    folderTrail.value = nextTrail
   } catch (e) {
-    entriesError.value = e?.message || '加载分享文件失败'
+    if (isCurrentShareRequest(entriesRequestTracker, requestToken, contextGeneration, shareToken) && ticket.value === requestTicket) {
+      entriesError.value = e?.message || '加载分享文件失败'
+    }
   } finally {
-    entriesLoading.value = false
+    if (isCurrentShareRequest(entriesRequestTracker, requestToken, contextGeneration, shareToken) && ticket.value === requestTicket) {
+      entriesLoading.value = false
+    }
   }
 }
 
 async function enterFolder(entry) {
   if (!entry?.isFolder) return
-  folderTrail.value = [...folderTrail.value, { entryId: String(entry.entryId || ''), name: String(entry.name || '') }]
-  await loadShareEntries(entry.entryId)
+  const nextTrail = [...folderTrail.value, { entryId: String(entry.entryId || ''), name: String(entry.name || '') }]
+  await loadShareEntries(entry.entryId, nextTrail)
 }
 
 async function goFolderTrail(index) {
   if (index < 0) {
-    folderTrail.value = []
-    await loadShareEntries('')
+    await loadShareEntries('', [])
     return
   }
   const nextTrail = folderTrail.value.slice(0, index + 1)
-  folderTrail.value = nextTrail
-  await loadShareEntries(nextTrail[nextTrail.length - 1]?.entryId || '')
+  await loadShareEntries(nextTrail[nextTrail.length - 1]?.entryId || '', nextTrail)
 }
 
 async function download(entry = share.value) {
-  if (!ticket.value) return
+  if (!ticket.value || submitting.value) return
   const entryId = String(entry?.entryId || '')
   if (!entryId) return
+  const contextGeneration = shareContextGeneration
+  const shareToken = String(props.shareToken || '')
+  const requestTicket = ticket.value
+  const requestToken = submissionRequestTracker.begin()
   submitting.value = true
   error.value = ''
   try {
-    const { data } = await getDriveShareDownloadUrl(props.shareToken, ticket.value, entryId)
+    const { data } = await getDriveShareDownloadUrl(shareToken, requestTicket, entryId)
+    if (!isCurrentShareRequest(submissionRequestTracker, requestToken, contextGeneration, shareToken) || ticket.value !== requestTicket) return
     downloadUrl.value = String(data?.url || '')
     if (downloadUrl.value && typeof window !== 'undefined') {
       window.open(downloadUrl.value, '_blank', 'noopener,noreferrer')
     }
   } catch (e) {
-    message.value = e?.message || '获取下载链接失败'
+    if (isCurrentShareRequest(submissionRequestTracker, requestToken, contextGeneration, shareToken) && ticket.value === requestTicket) {
+      message.value = e?.message || '获取下载链接失败'
+    }
   } finally {
-    submitting.value = false
+    if (isCurrentShareRequest(submissionRequestTracker, requestToken, contextGeneration, shareToken) && ticket.value === requestTicket) {
+      submitting.value = false
+    }
   }
 }
 
 watch(
   () => props.shareToken,
-  () => {
+  (nextShareToken) => {
+    const contextGeneration = ++shareContextGeneration
+    const shareToken = String(nextShareToken || '')
+    shareRequestTracker.invalidate()
+    submissionRequestTracker.invalidate()
+    entriesRequestTracker.invalidate()
+    loading.value = false
+    submitting.value = false
+    entriesLoading.value = false
+    error.value = ''
+    message.value = ''
+    share.value = {}
     ticket.value = ''
     downloadUrl.value = ''
     shareEntries.value = []
     folderTrail.value = []
     entriesError.value = ''
     password.value = ''
-    loadShare()
+    loadShare(shareToken, contextGeneration)
   },
   { immediate: true }
 )
+
+onBeforeUnmount(() => {
+  shareContextGeneration += 1
+  shareRequestTracker.invalidate()
+  submissionRequestTracker.invalidate()
+  entriesRequestTracker.invalidate()
+})
 </script>
 
 <style scoped>

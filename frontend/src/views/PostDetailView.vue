@@ -29,9 +29,6 @@
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
                   </UiIconButton>
                   <span class="vote-count-d">{{ post.likeCount || 0 }}</span>
-                  <UiIconButton class="vote-btn-d down" aria-label="点踩（占位）">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
-                  </UiIconButton>
                 </div>
               </div>
 
@@ -138,7 +135,13 @@
           </div>
 
           <div class="post-comments-toolbar">
-            <UiPagination :page="commentsPage" :has-next="commentsHasNext" @prev="prevCommentsPage" @next="nextCommentsPage" />
+            <UiPagination
+              :page="commentsPage"
+              :has-next="commentsHasNext"
+              :disabled="commentsLoading"
+              @prev="prevCommentsPage"
+              @next="nextCommentsPage"
+            />
           </div>
 
           <div v-if="commentsError" class="error post-comments-error">{{ commentsError }}</div>
@@ -291,6 +294,7 @@
                       class="reply-pagination"
                       :page="c._repliesPage"
                       :has-next="repliesHasNext(c)"
+                      :disabled="c._repliesLoading"
                       @prev="prevRepliesPage(c)"
                       @next="nextRepliesPage(c)"
                     />

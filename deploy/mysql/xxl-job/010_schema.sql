@@ -6,7 +6,7 @@
 # https://raw.githubusercontent.com/xuxueli/xxl-job/master/doc/db/tables_xxl_job.sql
 #
 # Keep only schema/table DDL here. Secure local seed data lives in
-# `021_seed_xxl_job.sh` so we do not inherit upstream weak defaults.
+# `020_seed_local.sh` so we do not inherit upstream weak defaults.
 
 CREATE database if NOT EXISTS `xxl_job` default character set utf8mb4 collate utf8mb4_unicode_ci;
 use `xxl_job`;

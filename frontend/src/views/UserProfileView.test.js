@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils'
+import { reactive } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../api/http', () => ({
@@ -12,33 +13,51 @@ vi.mock('../api/http', () => ({
   }
 }))
 
-const { authState } = vi.hoisted(() => ({
-  authState: {
+const {
+  authData,
+  authStoreHolder,
+  blockUser,
+  ensureUserSummaries,
+  followUser,
+  getFollowStatus,
+  showToast,
+  unblockUser,
+  unfollowUser
+} = vi.hoisted(() => ({
+  authData: {
     accessToken: '',
     userId: 0,
-    authed: false
-  }
+    authed: false,
+    tokenGeneration: 0
+  },
+  authStoreHolder: { current: null },
+  blockUser: vi.fn(),
+  ensureUserSummaries: vi.fn(),
+  followUser: vi.fn(),
+  getFollowStatus: vi.fn(),
+  showToast: vi.fn(),
+  unblockUser: vi.fn(),
+  unfollowUser: vi.fn()
 }))
 
+const authState = reactive(authData)
+authStoreHolder.current = authState
+
 vi.mock('../stores/auth', () => ({
-  useAuthStore: () => ({
-    accessToken: authState.accessToken,
-    userId: authState.userId,
-    authed: authState.authed
-  })
+  useAuthStore: () => authStoreHolder.current
 }))
 
 vi.mock('../stores/postMetaCache', () => ({
   usePostMetaCacheStore: () => ({
-    ensureUserSummaries: vi.fn().mockResolvedValue({})
+    ensureUserSummaries
   })
 }))
 
-const socialPrefsState = {
+const socialPrefsState = reactive({
   blockedSet: new Set(),
   ensureBlocked: vi.fn().mockResolvedValue(undefined),
   clear: vi.fn()
-}
+})
 vi.mock('../stores/socialPrefs', () => ({
   useSocialPrefsStore: () => socialPrefsState
 }))
@@ -51,15 +70,17 @@ vi.mock('../stores/taxonomy', () => ({
 }))
 
 vi.mock('../api/services/socialService', () => ({
-  followUser: vi.fn(),
-  unfollowUser: vi.fn(),
-  getFollowStatus: vi.fn()
+  followUser,
+  unfollowUser,
+  getFollowStatus
 }))
 
 vi.mock('../api/services/blockService', () => ({
-  blockUser: vi.fn(),
-  unblockUser: vi.fn()
+  blockUser,
+  unblockUser
 }))
+
+vi.mock('../ui/toastService', () => ({ showToast }))
 
 vi.mock('../utils/time', () => ({
   formatTime: vi.fn(() => ''),
@@ -80,14 +101,59 @@ function okResult(data, traceId = 'trace-user') {
   }
 }
 
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+function mountProfile(userId) {
+  return mount(UserProfileView, {
+    props: { userId },
+    global: {
+      stubs: {
+        RouterLink: {
+          props: ['to'],
+          template: '<a :data-to="typeof to === \'string\' ? to : JSON.stringify(to)"><slot /></a>'
+        },
+        UiBreadcrumb: true,
+        ReportModal: true
+      }
+    }
+  })
+}
+
 describe('UserProfileView route contract', () => {
   const userId = '11111111-1111-7111-8111-111111111111'
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    http.get.mockReset()
+    http.post.mockReset()
+    blockUser.mockReset()
+    ensureUserSummaries.mockReset()
+    followUser.mockReset()
+    getFollowStatus.mockReset()
+    showToast.mockReset()
+    unblockUser.mockReset()
+    unfollowUser.mockReset()
+    socialPrefsState.ensureBlocked.mockReset()
+    socialPrefsState.clear.mockReset()
     authState.accessToken = ''
     authState.userId = 0
     authState.authed = false
+    authState.tokenGeneration = 0
+    socialPrefsState.blockedSet = new Set()
+    ensureUserSummaries.mockResolvedValue({})
+    getFollowStatus.mockResolvedValue({ data: false, traceId: 'trace-follow-status' })
+    followUser.mockResolvedValue({ traceId: 'trace-follow' })
+    unfollowUser.mockResolvedValue({ traceId: 'trace-unfollow' })
+    blockUser.mockResolvedValue({ traceId: 'trace-block' })
+    unblockUser.mockResolvedValue({ traceId: 'trace-unblock' })
+    socialPrefsState.ensureBlocked.mockResolvedValue(undefined)
     http.get.mockImplementation((url) => {
       if (url === `/api/users/${userId}`) {
         return Promise.resolve(
@@ -227,5 +293,189 @@ describe('UserProfileView route contract', () => {
 
     const messageLink = wrapper.find('.profile-message-link')
     expect(messageLink.attributes('data-to')).toBe(`/messages/${me}_${profileUserId}`)
+  })
+
+  it('commits profile, recent activity and follow status from one route snapshot', async () => {
+    const previousUserId = '22222222-2222-7222-8222-222222222222'
+    const currentUserId = '33333333-3333-7333-8333-333333333333'
+    const viewerId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    const previousProfileRequest = deferred()
+    const previousFollowRequest = deferred()
+    authState.accessToken = 'viewer-token'
+    authState.userId = viewerId
+    authState.authed = true
+    authState.tokenGeneration = 1
+
+    http.get.mockImplementation((url) => {
+      if (url === `/api/users/${previousUserId}`) return previousProfileRequest.promise
+      if (url === `/api/users/${previousUserId}/recent-posts`) {
+        return Promise.resolve(okResult([{ id: 'aaaaaaaa-1111-7111-8111-111111111111', title: 'previous post' }], 'trace-previous-posts'))
+      }
+      if (url === `/api/users/${previousUserId}/recent-comments`) {
+        return Promise.resolve(okResult([], 'trace-previous-comments'))
+      }
+      if (url === `/api/users/${currentUserId}`) {
+        return Promise.resolve(okResult({ id: currentUserId, username: 'current profile' }, 'trace-current-profile'))
+      }
+      if (url === `/api/users/${currentUserId}/recent-posts`) {
+        return Promise.resolve(okResult([{ id: 'bbbbbbbb-2222-7222-8222-222222222222', title: 'current post' }], 'trace-current-posts'))
+      }
+      if (url === `/api/users/${currentUserId}/recent-comments`) {
+        return Promise.resolve(okResult([], 'trace-current-comments'))
+      }
+      return Promise.resolve(okResult({}))
+    })
+    getFollowStatus.mockImplementation((_entityType, targetId) => {
+      if (targetId === previousUserId) return previousFollowRequest.promise
+      return Promise.resolve({ data: true, traceId: 'trace-current-follow' })
+    })
+
+    const wrapper = mountProfile(previousUserId)
+    await flushPromises()
+    const requestedBeforeRouteChange = http.get.mock.calls.map(([url]) => url)
+    expect(requestedBeforeRouteChange).toContain(`/api/users/${previousUserId}/recent-posts`)
+    expect(requestedBeforeRouteChange).toContain(`/api/users/${previousUserId}/recent-comments`)
+
+    await wrapper.setProps({ userId: currentUserId })
+    await flushPromises()
+    expect(wrapper.vm.profile).toMatchObject({ id: currentUserId, username: 'current profile' })
+    expect(wrapper.vm.recentPosts.map((post) => post.title)).toEqual(['current post'])
+    expect(wrapper.vm.followStatus).toBe(true)
+
+    previousProfileRequest.resolve(okResult({ id: previousUserId, username: 'previous profile' }, 'trace-previous-profile'))
+    previousFollowRequest.resolve({ data: false, traceId: 'trace-previous-follow' })
+    await flushPromises()
+
+    expect(wrapper.vm.profile).toMatchObject({ id: currentUserId, username: 'current profile' })
+    expect(wrapper.vm.recentPosts.map((post) => post.title)).toEqual(['current post'])
+    expect(wrapper.vm.followStatus).toBe(true)
+    const traces = (wrapper.emitted('trace') || []).flat()
+    expect(traces).not.toContain('trace-previous-profile')
+    expect(traces).not.toContain('trace-previous-follow')
+  })
+
+  it('discards an old viewer follow-status response after the account changes', async () => {
+    const profileUserId = '44444444-4444-7444-8444-444444444444'
+    const previousViewerId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    const currentViewerId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    const previousFollowRequest = deferred()
+    authState.accessToken = 'previous-token'
+    authState.userId = previousViewerId
+    authState.authed = true
+    authState.tokenGeneration = 1
+    http.get.mockImplementation((url) => {
+      if (url === `/api/users/${profileUserId}`) {
+        return Promise.resolve(okResult({ id: profileUserId, username: 'profile' }, 'trace-profile'))
+      }
+      if (url === `/api/users/${profileUserId}/recent-posts`) return Promise.resolve(okResult([]))
+      if (url === `/api/users/${profileUserId}/recent-comments`) return Promise.resolve(okResult([]))
+      return Promise.resolve(okResult({}))
+    })
+    getFollowStatus
+      .mockImplementationOnce(() => previousFollowRequest.promise)
+      .mockResolvedValue({ data: true, traceId: 'trace-current-viewer-follow' })
+
+    const wrapper = mountProfile(profileUserId)
+    await flushPromises()
+
+    authState.accessToken = 'current-token'
+    authState.userId = currentViewerId
+    authState.authed = true
+    authState.tokenGeneration = 2
+    await flushPromises()
+    expect(wrapper.vm.followStatus).toBe(true)
+
+    previousFollowRequest.resolve({ data: false, traceId: 'trace-previous-viewer-follow' })
+    await flushPromises()
+    expect(wrapper.vm.followStatus).toBe(true)
+    expect((wrapper.emitted('trace') || []).flat()).not.toContain('trace-previous-viewer-follow')
+  })
+
+  it('does not refresh a new route with an old follow mutation result', async () => {
+    const previousUserId = '55555555-5555-7555-8555-555555555555'
+    const currentUserId = '66666666-6666-7666-8666-666666666666'
+    const viewerId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    const followRequest = deferred()
+    authState.accessToken = 'viewer-token'
+    authState.userId = viewerId
+    authState.authed = true
+    authState.tokenGeneration = 1
+    http.get.mockImplementation((url) => {
+      if (url === `/api/users/${previousUserId}`) {
+        return Promise.resolve(okResult({ id: previousUserId, username: 'previous profile' }, 'trace-previous-profile'))
+      }
+      if (url === `/api/users/${currentUserId}`) {
+        return Promise.resolve(okResult({ id: currentUserId, username: 'current profile' }, 'trace-current-profile'))
+      }
+      if (url.includes('/recent-posts') || url.includes('/recent-comments')) return Promise.resolve(okResult([]))
+      return Promise.resolve(okResult({}))
+    })
+    getFollowStatus.mockImplementation((_entityType, targetId) => Promise.resolve({
+      data: targetId === currentUserId,
+      traceId: `trace-status-${targetId}`
+    }))
+    followUser.mockImplementation(() => followRequest.promise)
+
+    const wrapper = mountProfile(previousUserId)
+    await flushPromises()
+    const pendingFollow = wrapper.vm.doFollow(true)
+    await wrapper.vm.doFollow(true)
+    expect(followUser).toHaveBeenCalledTimes(1)
+    expect(followUser).toHaveBeenCalledWith(3, previousUserId)
+
+    await wrapper.setProps({ userId: currentUserId })
+    await flushPromises()
+    followRequest.resolve({ traceId: 'trace-stale-follow-mutation' })
+    await pendingFollow
+    await flushPromises()
+
+    expect(wrapper.vm.profile).toMatchObject({ id: currentUserId, username: 'current profile' })
+    expect(wrapper.vm.followStatus).toBe(true)
+    expect(wrapper.vm.actionLoading).toBe(false)
+    expect((wrapper.emitted('trace') || []).flat()).not.toContain('trace-stale-follow-mutation')
+    const profileRequests = http.get.mock.calls
+      .map(([url]) => url)
+      .filter((url) => url === `/api/users/${previousUserId}` || url === `/api/users/${currentUserId}`)
+    expect(profileRequests).toEqual([`/api/users/${previousUserId}`, `/api/users/${currentUserId}`])
+  })
+
+  it('does not apply an old block mutation to a replacement account', async () => {
+    const profileUserId = '77777777-7777-7777-8777-777777777777'
+    const previousViewerId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    const currentViewerId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    const blockRequest = deferred()
+    authState.accessToken = 'previous-token'
+    authState.userId = previousViewerId
+    authState.authed = true
+    authState.tokenGeneration = 1
+    http.get.mockImplementation((url) => {
+      if (url === `/api/users/${profileUserId}`) {
+        return Promise.resolve(okResult({ id: profileUserId, username: 'profile' }))
+      }
+      if (url.includes('/recent-posts') || url.includes('/recent-comments')) return Promise.resolve(okResult([]))
+      return Promise.resolve(okResult({}))
+    })
+    blockUser.mockImplementation(() => blockRequest.promise)
+
+    const wrapper = mountProfile(profileUserId)
+    await flushPromises()
+    const blockedLoadsBeforeSwitch = socialPrefsState.ensureBlocked.mock.calls.length
+    const pendingBlock = wrapper.vm.toggleBlock()
+    expect(blockUser).toHaveBeenCalledWith(profileUserId)
+
+    authState.accessToken = 'current-token'
+    authState.userId = currentViewerId
+    authState.authed = true
+    authState.tokenGeneration = 2
+    await flushPromises()
+    expect(socialPrefsState.ensureBlocked).toHaveBeenCalledTimes(blockedLoadsBeforeSwitch + 1)
+
+    blockRequest.resolve({ traceId: 'trace-stale-block' })
+    await pendingBlock
+    await flushPromises()
+    expect(socialPrefsState.ensureBlocked).toHaveBeenCalledTimes(blockedLoadsBeforeSwitch + 1)
+    expect(showToast).not.toHaveBeenCalled()
+    expect(wrapper.vm.actionLoading).toBe(false)
+    expect(wrapper.vm.error).toBe('')
   })
 })

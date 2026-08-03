@@ -104,6 +104,9 @@ class FollowApplicationServiceTest {
         assertThatThrownBy(() -> service.hasFollowed(actorUserId, POST, targetUserId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> service.statuses(actorUserId, POST, List.of(targetUserId)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
         assertThatThrownBy(() -> service.followeeCount(actorUserId, POST))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
@@ -327,6 +330,39 @@ class FollowApplicationServiceTest {
 
         verify(followRepository).listFolloweeIdsExcludingBlocked(viewerUserId, USER, blockRepository, 50);
         verify(followRepository, never()).listFolloweeIds(viewerUserId, USER, 50);
+    }
+
+    @Test
+    void statusesShouldDeduplicateTargetsAndUseOneRepositoryBatchQuery() {
+        FollowRepository followRepository = mock(FollowRepository.class);
+        UUID actorUserId = uuid(1);
+        UUID followedUserId = uuid(2);
+        UUID otherUserId = uuid(3);
+        FollowApplicationService service = newService(
+                followRepository,
+                new StatefulBlockRepository(),
+                new RecordingSocialDomainEventPublisher()
+        );
+        when(followRepository.followedStatusesBatch(
+                actorUserId,
+                USER,
+                List.of(followedUserId, otherUserId)
+        )).thenReturn(Map.of(followedUserId, true, otherUserId, false));
+
+        assertThat(service.statuses(
+                actorUserId,
+                USER,
+                List.of(followedUserId, otherUserId, followedUserId)
+        )).containsEntry(followedUserId, true)
+                .containsEntry(otherUserId, false);
+
+        verify(followRepository).followedStatusesBatch(
+                actorUserId,
+                USER,
+                List.of(followedUserId, otherUserId)
+        );
+        verify(followRepository, never()).hasFollowed(actorUserId, USER, followedUserId);
+        verify(followRepository, never()).hasFollowed(actorUserId, USER, otherUserId);
     }
 
     private FollowApplicationService newService(

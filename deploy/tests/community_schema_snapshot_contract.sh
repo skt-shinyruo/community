@@ -26,7 +26,15 @@ DEPLOYMENT_ENVIRONMENT=production \
 
 grep -Fq 'CREATE DATABASE IF NOT EXISTS `community`' "${schema}"
 grep -Fq 'CREATE TABLE `drive_upload`' "${schema}"
+grep -Fq 'KEY `idx_drive_share_owner_time` (`created_by`,`created_at`,`share_id`)' "${schema}"
+grep -Fq '`auto_confirm_next_attempt_at` timestamp NULL DEFAULT NULL' "${schema}"
+grep -Fq 'KEY `idx_market_listing_public_page` (`create_time`,`listing_id`,`status`)' "${schema}"
+grep -Fq 'KEY `idx_market_inventory_listing_page` (`listing_id`,`inventory_unit_id`)' "${schema}"
+grep -Fq 'KEY `idx_market_order_auto_confirm` (`auto_confirm_next_attempt_at`,`order_id`,`status`,`auto_confirm_at`)' "${schema}"
 grep -Fq 'CREATE TABLE `social_like_target_state`' "${schema}"
+grep -Fq 'CREATE TABLE `wallet_test_credit_quota`' "${schema}"
+grep -Fq 'CONSTRAINT `ck_wallet_test_credit_granted_nonnegative` CHECK ((`granted_amount` >= 0))' "${schema}"
+grep -Fq 'CONSTRAINT `ck_wallet_test_credit_discarded_nonnegative` CHECK ((`discarded_amount` >= 0))' "${schema}"
 grep -Fq 'INSERT INTO `category` VALUES' "${schema}"
 grep -Fq 'INSERT INTO `task_template` VALUES' "${schema}"
 

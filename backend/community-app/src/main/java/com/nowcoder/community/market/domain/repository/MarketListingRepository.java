@@ -18,9 +18,9 @@ public interface MarketListingRepository {
 
     MarketListing lockById(UUID listingId);
 
-    List<MarketListing> findBySellerUserId(UUID sellerUserId);
+    List<MarketListing> findBySellerUserId(UUID sellerUserId, long offset, int limit);
 
-    List<MarketListing> findPublicListings();
+    List<MarketListing> findPublicListings(long offset, int limit);
 
     int saveEditable(MarketListing listing);
 

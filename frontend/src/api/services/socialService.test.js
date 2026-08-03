@@ -3,7 +3,8 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
-import { followUser, getLikeCounts, getLikeStatuses, setLike } from './socialService'
+import { followUser, getFollowStatuses, getLikeCounts, getLikeStatuses, setLike } from './socialService'
+import { useAuthStore } from '../../stores/auth'
 
 describe('api/services/socialService', () => {
   let mock
@@ -90,5 +91,110 @@ describe('api/services/socialService', () => {
     })
 
     await expect(getLikeStatuses(2, [entityA])).rejects.toThrow('批量查询点赞状态响应非法')
+  })
+
+  it('getFollowStatuses should preserve UUID ids and return a complete status map', async () => {
+    const entityA = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
+    const entityB = 'dddddddd-dddd-7ddd-8ddd-dddddddddddd'
+    mock = new MockAdapter(http)
+    mock.onGet('/api/follows/statuses').reply((config) => {
+      expect(config.params).toMatchObject({
+        entityType: 3,
+        entityIds: `${entityA},${entityB}`
+      })
+      return [200, {
+        code: 0,
+        message: '',
+        data: {
+          [entityA]: true,
+          [entityB]: false
+        },
+        traceId: 'trace-follow-statuses'
+      }]
+    })
+
+    const response = await getFollowStatuses(3, [entityA, entityB, entityA])
+
+    expect(response).toEqual({
+      data: {
+        [entityA]: true,
+        [entityB]: false
+      },
+      traceId: 'trace-follow-statuses'
+    })
+    expect(mock.history.get).toHaveLength(1)
+  })
+
+  it('does not reuse private follow statuses after the authenticated identity changes', async () => {
+    const entityId = 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee'
+    const auth = useAuthStore()
+    auth.installSession({
+      accessToken: 'token-user-a',
+      me: { userId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa' }
+    })
+    mock = new MockAdapter(http)
+    mock.onGet('/api/follows/statuses').replyOnce(200, {
+      code: 0,
+      message: '',
+      data: { [entityId]: true },
+      traceId: 'trace-user-a'
+    })
+
+    expect((await getFollowStatuses(3, [entityId])).data[entityId]).toBe(true)
+
+    auth.installSession({
+      accessToken: 'token-user-b',
+      me: { userId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb' }
+    })
+    mock.onGet('/api/follows/statuses').replyOnce(200, {
+      code: 0,
+      message: '',
+      data: { [entityId]: false },
+      traceId: 'trace-user-b'
+    })
+
+    expect((await getFollowStatuses(3, [entityId])).data[entityId]).toBe(false)
+    expect(mock.history.get).toHaveLength(2)
+  })
+
+  it('reissues an in-flight follow-status query when the authenticated identity changes', async () => {
+    const entityId = 'ffffffff-ffff-7fff-8fff-ffffffffffff'
+    const auth = useAuthStore()
+    auth.installSession({
+      accessToken: 'token-user-a',
+      me: { userId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa' }
+    })
+
+    let resolveOldIdentity
+    mock = new MockAdapter(http)
+    mock.onGet('/api/follows/statuses').replyOnce(() => new Promise((resolve) => {
+      resolveOldIdentity = () => resolve([200, {
+        code: 0,
+        message: '',
+        data: { [entityId]: true },
+        traceId: 'trace-user-a'
+      }])
+    }))
+
+    const pending = getFollowStatuses(3, [entityId])
+    while (!resolveOldIdentity) await Promise.resolve()
+
+    auth.installSession({
+      accessToken: 'token-user-b',
+      me: { userId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb' }
+    })
+    mock.onGet('/api/follows/statuses').replyOnce(200, {
+      code: 0,
+      message: '',
+      data: { [entityId]: false },
+      traceId: 'trace-user-b'
+    })
+    resolveOldIdentity()
+
+    await expect(pending).resolves.toEqual({
+      data: { [entityId]: false },
+      traceId: 'trace-user-b'
+    })
+    expect(mock.history.get).toHaveLength(2)
   })
 })

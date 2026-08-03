@@ -14,14 +14,4 @@ public interface PostSearchRepository {
     void tombstone(UUID postId, long aggregateVersion);
 
     List<PostSearchHit> search(PostSearchQuery query);
-
-    void clear();
-
-    default void saveToIndex(PostSearchDocument post, String indexName) {
-        save(post);
-    }
-
-    default void clearIndex(String indexName) {
-        clear();
-    }
 }

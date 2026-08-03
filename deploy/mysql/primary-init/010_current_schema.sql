@@ -239,6 +239,7 @@ CREATE TABLE `drive_share` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`share_id`),
   UNIQUE KEY `uk_drive_share_token` (`share_token`),
+  KEY `idx_drive_share_owner_time` (`created_by`,`created_at`,`share_id`),
   KEY `idx_drive_share_entry_status` (`entry_id`,`status`),
   KEY `idx_drive_share_expiry` (`status`,`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -396,7 +397,8 @@ CREATE TABLE `market_inventory_unit` (
   `delivered_at` timestamp NULL DEFAULT NULL,
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`inventory_unit_id`),
-  KEY `idx_market_inventory_listing_status` (`listing_id`,`status`,`inventory_unit_id`)
+  KEY `idx_market_inventory_listing_status` (`listing_id`,`status`,`inventory_unit_id`),
+  KEY `idx_market_inventory_listing_page` (`listing_id`,`inventory_unit_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -419,7 +421,8 @@ CREATE TABLE `market_listing` (
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`listing_id`),
-  KEY `idx_market_listing_seller_time` (`seller_user_id`,`create_time`)
+  KEY `idx_market_listing_seller_time` (`seller_user_id`,`create_time`,`listing_id`),
+  KEY `idx_market_listing_public_page` (`create_time`,`listing_id`,`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -442,6 +445,7 @@ CREATE TABLE `market_order` (
   `release_txn_id` binary(16) DEFAULT NULL,
   `refund_txn_id` binary(16) DEFAULT NULL,
   `auto_confirm_at` timestamp NULL DEFAULT NULL,
+  `auto_confirm_next_attempt_at` timestamp NULL DEFAULT NULL,
   `address_id_snapshot` binary(16) DEFAULT NULL,
   `receiver_name_snapshot` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `receiver_phone_snapshot` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -454,10 +458,10 @@ CREATE TABLE `market_order` (
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`order_id`),
   UNIQUE KEY `uk_market_order_buyer_request` (`buyer_user_id`,`request_id`),
-  KEY `idx_market_order_buyer_time` (`buyer_user_id`,`create_time`),
-  KEY `idx_market_order_seller_time` (`seller_user_id`,`create_time`),
+  KEY `idx_market_order_buyer_time` (`buyer_user_id`,`create_time`,`order_id`),
+  KEY `idx_market_order_seller_time` (`seller_user_id`,`create_time`,`order_id`),
   KEY `idx_market_order_listing_status` (`listing_id`,`status`),
-  KEY `idx_market_order_auto_confirm` (`status`,`auto_confirm_at`)
+  KEY `idx_market_order_auto_confirm` (`auto_confirm_next_attempt_at`,`order_id`,`status`,`auto_confirm_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -1019,6 +1023,20 @@ CREATE TABLE `wallet_account` (
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`account_id`),
   UNIQUE KEY `uk_wallet_account_owner` (`owner_type`,`owner_id`,`account_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `wallet_test_credit_quota` (
+  `user_id` binary(16) NOT NULL,
+  `granted_amount` bigint NOT NULL DEFAULT '0',
+  `discarded_amount` bigint NOT NULL DEFAULT '0',
+  `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`),
+  CONSTRAINT `ck_wallet_test_credit_granted_nonnegative` CHECK ((`granted_amount` >= 0)),
+  CONSTRAINT `ck_wallet_test_credit_discarded_nonnegative` CHECK ((`discarded_amount` >= 0))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

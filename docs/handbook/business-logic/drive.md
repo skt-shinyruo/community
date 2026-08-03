@@ -26,6 +26,7 @@ HTTP：
 - `DELETE /api/drive/trash/{entryId}`
 - `GET /api/drive/entries/{entryId}/download-url`
 - `POST /api/drive/entries/{entryId}/shares`
+- `GET /api/drive/shares`（当前用户创建的分享，`page/size` 分页）
 - `DELETE /api/drive/shares/{shareId}`
 
 Public share HTTP：
@@ -47,7 +48,7 @@ Front-end：
 2. 上传：`DriveUploadApplicationService.prepareUpload(...)` 先校验父目录、文件名、大小和剩余空间，再通过 OSS prepare upload 创建对象会话。`completeUpload(...)` 先用短事务 claim 上传并预留容量，事务外完成 OSS，再把 OSS object/version 落成新的 file entry。
 3. 目录树：`DriveEntryApplicationService` 负责 create folder、rename、move 和 search。所有条目状态都围绕 `ACTIVE/TRASHED/DELETED` 转换，不直接修改 OSS blob。
 4. 回收站：`DriveTrashApplicationService` 先把条目标记为 trashed，恢复时按 trashRootId 恢复整棵子树，彻底删除时先收敛数据库和 quota，再调用 OSS 清理 blob。
-5. 分享：`DriveShareApplicationService` 创建分享 token 和提取码 hash，校验成功后发放短时 ticket，再由 OSS 签发 download URL。访问日志写 `drive_share_access`，分享是否可下载以 drive 的条目和 share 状态为准。
+5. 分享：`DriveShareApplicationService` 创建分享 token 和提取码 hash，并从 `drive_share` 持久化分页读取当前用户的分享管理列表；校验成功后发放短时 ticket，再由 OSS 签发 download URL。访问日志写 `drive_share_access`，分享是否可下载以 drive 的条目和 share 状态为准。
 
 ## 详细链路
 
@@ -99,11 +100,12 @@ Front-end：
 1. `createShare(...)` 只允许 owner 对 active file 或 folder 创建分享。
 2. 分享必须设置非空提取码和未来过期时间。
 3. 分享 token 使用 18 字节随机数做 URL-safe base64；提取码只保存 hash。
-4. `loadPublicShareGate(...)` 只返回提取码门禁信息，不返回目标 entry 的名称、类型、ID、状态或 ticket。
-5. `verifyShare(...)` 对过期、撤销、密码错误、目标 entry 不可用都记录 `drive_share_access`；密码错误返回提取码错误。
-6. 校验成功后返回目标 entry 元数据，记录成功访问，签发 600 秒短时 ticket。
-7. `createShareDownloadUrl(...)` 必须带合法 ticket；分享 file 时只能下载该 file，分享 folder 时只能下载其 active file 子孙。
-8. 分享下载 URL 由 OSS 签发，TTL 也是 600 秒。
+4. `listOwnShares(...)` 按创建时间分页读取 owner 的持久记录，批量装配 entry 名称；条目已删除时仍保留分享审计记录，active 但已过期的记录按 `EXPIRED` 展示。
+5. `loadPublicShareGate(...)` 只返回提取码门禁信息，不返回目标 entry 的名称、类型、ID、状态或 ticket。
+6. `verifyShare(...)` 对过期、撤销、密码错误、目标 entry 不可用都记录 `drive_share_access`；密码错误返回提取码错误。
+7. 校验成功后返回目标 entry 元数据，记录成功访问，签发 600 秒短时 ticket。
+8. `createShareDownloadUrl(...)` 必须带合法 ticket；分享 file 时只能下载该 file，分享 folder 时只能下载其 active file 子孙。
+9. 分享下载 URL 由 OSS 签发，TTL 也是 600 秒。
 
 ## Failure
 
@@ -131,7 +133,7 @@ Front-end：
 
 - `frontend/src/api/services/driveService.js` 是前端 API service。
 - `frontend/src/views/driveState.js` 负责 quota 展示、entry capability、breadcrumb、分享表单校验和选择收敛。
-- `DriveView.vue` 的上传流程先创建 drive upload session，再按服务端返回的 upload instruction 执行 multipart upload。
+- `DriveView.vue` 的上传流程先创建 drive upload session，再按服务端返回的 upload instruction 执行 multipart upload；分享管理每次进入或刷新都从 `GET /api/drive/shares` 恢复，不依赖页面内存。
 - `DriveShareView.vue` 不持久保存提取码；校验成功后只使用后端返回的短时 ticket 拉下载 URL。
 
 ## Key Code

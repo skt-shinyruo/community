@@ -40,8 +40,8 @@ public class MyBatisMarketInventoryRepository implements MarketInventoryReposito
     }
 
     @Override
-    public List<MarketInventoryUnit> findByListingId(UUID listingId) {
-        return DomainRowAdapter.asDomainList(mapper.selectByListingId(listingId));
+    public List<MarketInventoryUnit> findByListingId(UUID listingId, long offset, int limit) {
+        return DomainRowAdapter.asDomainList(mapper.selectByListingId(listingId, offset, limit));
     }
 
     @Override

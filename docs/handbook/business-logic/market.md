@@ -134,6 +134,8 @@ replay 时只比较请求 `addressId` 与订单已持久化的 `addressIdSnapsho
 - 卖家订单列表。
 - 订单详情。
 
+列表接口 `GET /api/market/listings`、`GET /api/market/my-listings`、买卖订单列表和卖家库存列表统一接受 `page/size`，返回 `{items, hasNext, page, size}`。默认每页 20，单页最大 100，page 最大 10000；repository 只读取 `size + 1` 行判断 `hasNext`，不再把整张 listing、order 或 inventory 表加载进内存。所有 SQL 都使用稳定的时间/ID 或 ID 次序，前端只在下一页成功后提交页码，失败可原页重试。
+
 订单详情访问规则：
 
 - 只有订单买家或卖家可查看。
@@ -252,11 +254,13 @@ saga 状态推进：
 
 `MarketOrderAutoConfirmApplicationService.autoConfirmDueOrders()`：
 
-1. 查找达到自动确认时间的订单。
+1. 按 `market.order.auto-confirm-batch-size`（默认 100，强制限制在 1..1000）和 `auto_confirm_next_attempt_at` 查找最早到期订单，避免一次调度无界扫描。
 2. 每个订单由 `MarketOrderAutoConfirmer.confirmOneDueOrder(...)` 单独锁定。
 3. 状态仍符合条件时，标记 `RELEASE_PENDING`。
 4. 写 release wallet action。
 5. 批任务重跑应幂等。
+
+单订单因并发状态变化或运行时异常未完成时，会在独立事务中把下一次尝试时间顺延一分钟。业务承诺时间 `auto_confirm_at` 保持不变，失败订单会移出当前最早批次，避免同一批坏数据永久阻塞后续到期订单。运行时异常单独计入 `failedCount` 并把 XXL 执行标为失败，避免永久坏数据只表现为成功任务中的普通跳过。
 
 自动确认不直接调 wallet。
 

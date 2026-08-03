@@ -50,8 +50,3 @@ export function canJumpToLastSeenDivider({
     hasLastSeenDivider({ isLatestFeedView, dividerIndex, itemsLength })
   )
 }
-
-export function resolveAppendPageAfterLoad({ previousPage, didLoadSucceed } = {}) {
-  const page = Number(previousPage || 0)
-  return didLoadSucceed ? page + 1 : page
-}

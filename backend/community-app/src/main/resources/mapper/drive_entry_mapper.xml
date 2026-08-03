@@ -17,6 +17,16 @@
           and entry_id = #{entryId, jdbcType=BINARY}
     </select>
 
+    <select id="selectByIds" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
+        select <include refid="fields"/>
+        from drive_entry
+        where space_id = #{spaceId, jdbcType=BINARY}
+          and entry_id in
+        <foreach collection="entryIds" item="entryId" open="(" separator="," close=")">
+            #{entryId, jdbcType=BINARY}
+        </foreach>
+    </select>
+
     <select id="selectActiveChildByName" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
         select <include refid="fields"/>
         from drive_entry

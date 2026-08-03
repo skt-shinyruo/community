@@ -214,6 +214,47 @@ describe('SearchView', () => {
     await Promise.allSettled([firstRun, secondRun])
   })
 
+  it('keeps the current page and retries the same page after a pagination failure', async () => {
+    routerState.route.query = { q: 'paging' }
+    const firstPage = Array.from({ length: 10 }, (_, index) => ({
+      postId: `00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`,
+      userId: '11111111-1111-7111-8111-111111111111',
+      title: `First page ${index + 1}`,
+      highlightedTitle: `First page ${index + 1}`,
+      createTime: Date.now(),
+      lastActivityTime: Date.now()
+    }))
+    const secondPage = [{
+      postId: '22222222-2222-7222-8222-222222222222',
+      userId: '11111111-1111-7111-8111-111111111111',
+      title: 'Second page result',
+      highlightedTitle: 'Second page result',
+      createTime: Date.now(),
+      lastActivityTime: Date.now()
+    }]
+    searchPosts
+      .mockResolvedValueOnce({ data: firstPage, traceId: 'trace-page-0' })
+      .mockRejectedValueOnce(new Error('temporary search failure'))
+      .mockResolvedValueOnce({ data: secondPage, traceId: 'trace-page-1' })
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+
+    const wrapper = mountView()
+    await flushPromises()
+    const next = () => wrapper.findAll('button').find((button) => button.text() === '下一页')
+
+    await next().trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('First page 1')
+    expect(wrapper.text()).toContain('temporary search failure')
+
+    await next().trigger('click')
+    await flushPromises()
+
+    expect(searchPosts.mock.calls.map(([request]) => request.page)).toEqual([0, 1, 1])
+    expect(wrapper.text()).toContain('Second page result')
+    expect(wrapper.text()).not.toContain('First page 1')
+  })
+
   it('does not render the retired admin reindex action', () => {
     const wrapper = mountView({ admin: true })
 

@@ -192,7 +192,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { usePostMetaCacheStore } from '../stores/postMetaCache'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
@@ -238,9 +238,17 @@ const actionLoading = ref(false)
 const followStatus = ref(null)
 const followStatusState = ref('idle')
 const reportOpen = ref(false)
+let reloadGeneration = 0
+let actionGeneration = 0
 
 const prefs = useSocialPrefsStore()
 const isBlocked = computed(() => prefs.blockedSet.has(userId.value))
+const authScope = computed(() => [
+  auth.tokenGeneration,
+  meUserId.value,
+  authed.value ? 'authenticated' : 'anonymous'
+].join(':'))
+const viewScope = computed(() => `${userId.value}:${authScope.value}`)
 
 const joinedYear = computed(() => {
   const ts = profile.value?.createTime
@@ -302,137 +310,208 @@ function categoryLabel(id) {
   return category?.name || `分类#${cid}`
 }
 
-async function loadProfile() {
+function settle(promise) {
+  return Promise.resolve(promise).then(
+    (value) => ({ value, error: null }),
+    (requestError) => ({ value: null, error: requestError })
+  )
+}
+
+function reloadIsCurrent(generation, scope) {
+  return generation === reloadGeneration && scope === viewScope.value
+}
+
+function clearViewState() {
+  profile.value = null
+  recentPosts.value = []
+  recentComments.value = []
+  timelineUsers.value = {}
+  followStatus.value = null
+  followStatusState.value = 'idle'
+  loading.value = false
   error.value = ''
-  loading.value = true
-  try {
-    profile.value = await getUserProfile(userId.value, { force: true })
-    emit('trace', profile.value?._traceId || '')
-  } catch (e) {
-    error.value = e?.message || '加载失败'
-  } finally {
-    loading.value = false
-  }
-}
-
-async function loadRecentPosts() {
-  try {
-    const { data, traceId } = await listUserRecentPosts(userId.value, { page: 0, size: 3 })
-    recentPosts.value = Array.isArray(data) ? data : []
-    emit('trace', traceId || '')
-  } catch {
-    recentPosts.value = []
-  }
-}
-
-async function loadRecentComments() {
-  try {
-    const { data, traceId } = await listUserRecentComments(userId.value, { page: 0, size: 3 })
-    recentComments.value = Array.isArray(data) ? data : []
-    emit('trace', traceId || '')
-  } catch {
-    recentComments.value = []
-  }
-}
-
-async function loadTimelineUsers() {
-  const ids = collectTimelineUserIds({
-    posts: recentPosts.value,
-    comments: recentComments.value
-  })
-
-  if (ids.length === 0) {
-    timelineUsers.value = {}
-    return
-  }
-
-  try {
-    timelineUsers.value = await postMetaCache.ensureUserSummaries(ids)
-  } catch {
-    timelineUsers.value = {}
-  }
-}
-
-async function loadFollowStatus() {
-  if (!authed.value || !meUserId.value || isSelfProfile.value) {
-    followStatus.value = null
-    followStatusState.value = 'idle'
-    return
-  }
-  followStatusState.value = 'loading'
-  try {
-    const resp = await getFollowStatus(3, userId.value, { force: true })
-    emit('trace', resp?.traceId || '')
-    followStatus.value = resp?.data ?? null
-    followStatusState.value = typeof resp?.data === 'boolean' ? 'ready' : 'error'
-  } catch {
-    followStatus.value = null
-    followStatusState.value = 'error'
-  }
-}
-
-async function doFollow(follow) {
-  actionLoading.value = true
-  try {
-    if (follow) {
-      const resp = await followUser(3, userId.value)
-      emit('trace', resp?.traceId || '')
-    } else {
-      const resp = await unfollowUser(3, userId.value)
-      emit('trace', resp?.traceId || '')
-    }
-    await loadFollowStatus()
-    await loadProfile()
-  } catch (e) {
-    error.value = e?.message || '关注操作失败'
-  } finally {
-    actionLoading.value = false
-  }
+  reportOpen.value = false
 }
 
 async function reload() {
-  await loadProfile()
-  await loadFollowStatus()
-  await loadRecentPosts()
-  await loadRecentComments()
-  await loadTimelineUsers()
+  const targetId = userId.value
+  if (!targetId) {
+    reloadGeneration += 1
+    clearViewState()
+    return
+  }
+
+  const scope = viewScope.value
+  const generation = ++reloadGeneration
+  const shouldLoadFollowStatus = authed.value
+    && Boolean(meUserId.value)
+    && !sameOpaqueId(meUserId.value, targetId)
+
+  error.value = ''
+  loading.value = true
+  followStatus.value = null
+  followStatusState.value = shouldLoadFollowStatus ? 'loading' : 'idle'
+
+  const profileRequest = settle(getUserProfile(targetId, { force: true }))
+  const recentPostsRequest = settle(listUserRecentPosts(targetId, { page: 0, size: 3 }))
+  const recentCommentsRequest = settle(listUserRecentComments(targetId, { page: 0, size: 3 }))
+  const followStatusRequest = shouldLoadFollowStatus
+    ? settle(getFollowStatus(3, targetId, { force: true }))
+    : Promise.resolve({ value: null, error: null })
+
+  try {
+    const [profileResult, postsResult, commentsResult, nextFollowResult] = await Promise.all([
+      profileRequest,
+      recentPostsRequest,
+      recentCommentsRequest,
+      followStatusRequest
+    ])
+    if (!reloadIsCurrent(generation, scope)) return
+    if (profileResult.error) throw profileResult.error
+
+    const nextPosts = postsResult.error || !Array.isArray(postsResult.value?.data)
+      ? []
+      : postsResult.value.data
+    const nextComments = commentsResult.error || !Array.isArray(commentsResult.value?.data)
+      ? []
+      : commentsResult.value.data
+    const timelineUserIds = collectTimelineUserIds({ posts: nextPosts, comments: nextComments })
+    let nextTimelineUsers = {}
+    if (timelineUserIds.length > 0) {
+      try {
+        nextTimelineUsers = await postMetaCache.ensureUserSummaries(timelineUserIds)
+      } catch {
+        nextTimelineUsers = {}
+      }
+    }
+    if (!reloadIsCurrent(generation, scope)) return
+
+    profile.value = profileResult.value
+    recentPosts.value = nextPosts
+    recentComments.value = nextComments
+    timelineUsers.value = nextTimelineUsers
+    if (shouldLoadFollowStatus) {
+      const nextFollowStatus = nextFollowResult.error ? null : nextFollowResult.value?.data
+      followStatus.value = typeof nextFollowStatus === 'boolean' ? nextFollowStatus : null
+      followStatusState.value = typeof nextFollowStatus === 'boolean' ? 'ready' : 'error'
+    } else {
+      followStatus.value = null
+      followStatusState.value = 'idle'
+    }
+
+    emit('trace', profileResult.value?._traceId || '')
+    if (!postsResult.error) emit('trace', postsResult.value?.traceId || '')
+    if (!commentsResult.error) emit('trace', commentsResult.value?.traceId || '')
+    if (shouldLoadFollowStatus && !nextFollowResult.error) {
+      emit('trace', nextFollowResult.value?.traceId || '')
+    }
+  } catch (e) {
+    if (!reloadIsCurrent(generation, scope)) return
+    error.value = e?.message || '加载失败'
+  } finally {
+    if (reloadIsCurrent(generation, scope)) loading.value = false
+  }
+}
+
+function beginAction() {
+  const targetId = userId.value
+  if (
+    actionLoading.value
+    || !targetId
+    || !authed.value
+    || !meUserId.value
+    || sameOpaqueId(meUserId.value, targetId)
+  ) {
+    return null
+  }
+
+  const action = {
+    generation: ++actionGeneration,
+    targetId,
+    authScope: authScope.value,
+    viewScope: viewScope.value
+  }
+  actionLoading.value = true
+  return action
+}
+
+function actionIsCurrent(action) {
+  return action.generation === actionGeneration && action.viewScope === viewScope.value
+}
+
+function finishAction(action) {
+  if (action.generation === actionGeneration) actionLoading.value = false
+}
+
+async function doFollow(follow) {
+  const action = beginAction()
+  if (!action) return
+  try {
+    const resp = follow
+      ? await followUser(3, action.targetId)
+      : await unfollowUser(3, action.targetId)
+    if (!actionIsCurrent(action)) return
+    emit('trace', resp?.traceId || '')
+    await reload()
+  } catch (e) {
+    if (!actionIsCurrent(action)) return
+    error.value = e?.message || '关注操作失败'
+  } finally {
+    finishAction(action)
+  }
 }
 
 onMounted(reload)
-watch(userId, reload)
+watch(viewScope, () => {
+  reloadGeneration += 1
+  actionGeneration += 1
+  actionLoading.value = false
+  clearViewState()
+  if (userId.value) reload()
+})
 onMounted(() => {
   taxonomy.ensureCategories()
 })
 
 watch(
-  () => auth.authed,
-  (v) => {
-    if (v) prefs.ensureBlocked(true)
-    else prefs.clear()
+  authScope,
+  () => {
+    if (authed.value) {
+      Promise.resolve(prefs.ensureBlocked(true)).catch(() => {})
+    } else {
+      prefs.clear()
+    }
   },
   { immediate: true }
 )
 
 async function toggleBlock() {
-  const targetId = userId.value
-  if (!targetId || !authed.value || !meUserId.value || isSelfProfile.value) return
-
-  actionLoading.value = true
+  const action = beginAction()
+  if (!action) return
+  const wasBlocked = prefs.blockedSet.has(action.targetId)
   try {
-    if (isBlocked.value) {
-      await unblockUser(targetId)
-      showToast({ type: 'success', text: '已解除屏蔽' })
+    if (wasBlocked) {
+      await unblockUser(action.targetId)
     } else {
-      await blockUser(targetId)
-      showToast({ type: 'success', text: '已屏蔽该用户' })
+      await blockUser(action.targetId)
     }
-    await prefs.ensureBlocked(true)
+    if (action.authScope === authScope.value) {
+      await prefs.ensureBlocked(true)
+    }
+    if (!actionIsCurrent(action)) return
+    showToast({ type: 'success', text: wasBlocked ? '已解除屏蔽' : '已屏蔽该用户' })
   } catch (e) {
+    if (!actionIsCurrent(action)) return
     error.value = e?.message || '操作失败'
   } finally {
-    actionLoading.value = false
+    finishAction(action)
   }
 }
+
+onBeforeUnmount(() => {
+  reloadGeneration += 1
+  actionGeneration += 1
+})
 </script>
 
 <style scoped>

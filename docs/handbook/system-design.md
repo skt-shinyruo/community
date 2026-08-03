@@ -239,6 +239,7 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - search application 回源 content owner 当前状态，再 upsert/delete ES，避免乱序事件把已删除内容复活。
 - Post 全文档只接受更大的 `aggregateVersion`；相同聚合版本只允许更大的 `scoreVersion` 更新 `score`，不能覆盖标题、正文、标签或删除状态。
 - ES 使用固定 alias `community_posts_alias`，运行时由 `PostIndexManager` 负责 alias 初始化和版本化索引准备。
+- 全量重建由 XXL `searchReindex` 进入 search application，通过 content owner 游标 API 扫描；Redis single-flight 防止集群并发执行，在线投影双写隔离目标，完整成功后才原子切换 alias。
 
 ## Scheduler / Ops 设计
 

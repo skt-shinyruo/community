@@ -92,6 +92,21 @@ export async function createDriveShare(entryId, payload) {
   return { data: data || {}, traceId }
 }
 
+export async function listDriveShares({ page = 0, size = 20 } = {}) {
+  const resp = await http.get('/api/drive/shares', { params: { page, size } })
+  const { data, traceId } = unwrapResultBody(resp.data, '加载网盘分享')
+  const pageData = data || {}
+  return {
+    data: {
+      items: Array.isArray(pageData.items) ? pageData.items : [],
+      hasNext: pageData.hasNext === true,
+      page: Number(pageData.page || 0),
+      size: Number(pageData.size || size)
+    },
+    traceId
+  }
+}
+
 export async function revokeDriveShare(shareId) {
   const resp = await http.delete(`/api/drive/shares/${encodeURIComponent(shareId)}`)
   const { data, traceId } = unwrapResultBody(resp.data, '撤销网盘分享')

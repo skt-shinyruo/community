@@ -144,6 +144,45 @@ describe('Unified market views', () => {
     expect(wrapper.findAll('.market-row')).toHaveLength(2)
   })
 
+  it('appends listing pages and retries the same page after a failure', async () => {
+    listMarketListings
+      .mockResolvedValueOnce({
+        data: [{ listingId: 11, goodsType: 'VIRTUAL', title: '第一页', status: 'ACTIVE' }],
+        hasNext: true,
+        page: 0,
+        size: 20
+      })
+      .mockRejectedValueOnce(new Error('下一页暂不可用'))
+      .mockResolvedValueOnce({
+        data: [
+          { listingId: 11, goodsType: 'VIRTUAL', title: '第一页（更新）', status: 'ACTIVE' },
+          { listingId: 12, goodsType: 'PHYSICAL', title: '第二页', status: 'ACTIVE' }
+        ],
+        hasNext: false,
+        page: 1,
+        size: 20
+      })
+
+    const wrapper = mount(MarketListView, mountOptions())
+    await flushPromises()
+
+    expect(listMarketListings).toHaveBeenNthCalledWith(1, { page: 0, size: 20 })
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('下一页暂不可用')
+    expect(listMarketListings).toHaveBeenNthCalledWith(2, { page: 1, size: 20 })
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(listMarketListings).toHaveBeenNthCalledWith(3, { page: 1, size: 20 })
+    expect(wrapper.findAll('.market-row')).toHaveLength(2)
+    expect(wrapper.text()).toContain('第一页（更新）')
+    expect(wrapper.text()).toContain('第二页')
+    expect(wrapper.text()).not.toContain('加载更多')
+  })
+
   it('renders trust-oriented empty market copy', async () => {
     listMarketListings.mockResolvedValue({ data: [], traceId: 'trace-market-list' })
 
@@ -424,7 +463,34 @@ describe('Unified market views', () => {
     })
   })
 
+  it('ignores an order creation response after the authenticated identity changes', async () => {
+    authenticate('token-a')
+    getMarketListingDetail.mockResolvedValue({
+      data: marketListing(LISTING_A, 'VIRTUAL', 'Shared public listing')
+    })
+    const oldOrder = deferred()
+    createMarketOrder.mockReturnValueOnce(oldOrder.promise)
+
+    const wrapper = mount(MarketDetailView, mountOptions())
+    await flushPromises()
+    await findOrderButton(wrapper).trigger('click')
+    await vi.waitFor(() => expect(createMarketOrder).toHaveBeenCalledTimes(1))
+
+    authenticate('token-b', '88888888-8888-7888-8888-888888888888')
+    await nextTick()
+    oldOrder.resolve({
+      data: { orderId: '99999999-9999-7999-8999-999999999999', status: 'ESCROWED' }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Shared public listing')
+    expect(wrapper.text()).not.toContain('99999999-9999-7999-8999-999999999999')
+    expect(routerPush).not.toHaveBeenCalled()
+    expect(findOrderButton(wrapper).attributes('disabled')).toBeUndefined()
+  })
+
   it('publishes a physical listing with goodsType-aware payload', async () => {
+    authenticate('token-a')
     const wrapper = mount(MarketPublishView, mountOptions())
 
     expect(wrapper.text()).toContain('发布流程')
@@ -448,7 +514,35 @@ describe('Unified market views', () => {
     }))
   })
 
+  it('clears the publish draft and ignores an old submission after the authenticated identity changes', async () => {
+    authenticate('token-a')
+    const oldSubmission = deferred()
+    createMarketListing.mockReturnValueOnce(oldSubmission.promise)
+    const wrapper = mount(MarketPublishView, mountOptions())
+
+    await wrapper.findAll('input')[0].setValue('A 的私有草稿')
+    await wrapper.findAll('textarea')[1].setValue('CODE-A')
+    await wrapper.find('button').trigger('click')
+    await vi.waitFor(() => expect(createMarketListing).toHaveBeenCalledTimes(1))
+
+    authenticate('token-b', '88888888-8888-7888-8888-888888888888')
+    await nextTick()
+
+    expect(wrapper.vm.form.title).toBe('')
+    expect(wrapper.vm.inventoryText).toBe('')
+    expect(wrapper.vm.submitting).toBe(false)
+    expect(wrapper.text()).toContain('发布后可从“我的出售”继续管理库存和订单。')
+
+    oldSubmission.resolve({ data: { listingId: LISTING_A } })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('发布成功')
+    expect(wrapper.vm.form.title).toBe('')
+    expect(wrapper.vm.inventoryText).toBe('')
+  })
+
   it('loads disputes and delegates admin resolution through the unified service', async () => {
+    authenticateAdmin()
     listAdminMarketDisputes.mockResolvedValue({
       data: [
         {
@@ -476,10 +570,24 @@ describe('Unified market views', () => {
   })
 })
 
-function authenticate(accessToken = 'access-token') {
+function authenticate(
+  accessToken = 'access-token',
+  userId = '77777777-7777-7777-8777-777777777777'
+) {
   useAuthStore().installSession({
     accessToken,
-    me: { userId: '77777777-7777-7777-8777-777777777777', username: 'buyer' }
+    me: { userId, username: 'buyer' }
+  })
+}
+
+function authenticateAdmin(accessToken = 'admin-access-token') {
+  useAuthStore().installSession({
+    accessToken,
+    me: {
+      userId: '88888888-8888-7888-8888-888888888888',
+      username: 'market-admin',
+      authorities: ['ROLE_ADMIN']
+    }
   })
 }
 

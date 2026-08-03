@@ -166,7 +166,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -184,7 +184,7 @@ import {
   shipMarketOrder
 } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
-import { sameOpaqueId } from '../utils/opaqueId'
+import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 import { buildMarketState } from './marketState'
 
 const route = useRoute()
@@ -207,6 +207,7 @@ const disputeForm = reactive({
   buyerNote: ''
 })
 let activeRequestToken = 0
+let actionGeneration = 0
 
 const detail = computed(() => {
   const orders = order.value?.orderId ? [order.value] : []
@@ -235,6 +236,12 @@ const canCancel = computed(() => isBuyer.value && ['ESCROW_PENDING', 'ESCROWED']
 const canDispute = computed(() => isBuyer.value && ['DELIVERED', 'SHIPPED'].includes(normalizedStatus.value))
 const hasAvailableActions = computed(() => canDeliver.value || canShip.value || canConfirm.value || canCancel.value || canDispute.value)
 const confirmButtonText = computed(() => (normalizedStatus.value === 'SHIPPED' ? '确认收货' : '确认完成'))
+const viewScope = computed(() => [
+  normalizeOpaqueId(route.params.orderId),
+  auth.tokenGeneration,
+  normalizeOpaqueId(auth.userId),
+  auth.authed ? 'authenticated' : 'anonymous'
+].join(':'))
 const addressSnapshot = computed(() => {
   const parts = [
     order.value?.provinceSnapshot,
@@ -255,18 +262,33 @@ function resetActionForms() {
   disputeForm.buyerNote = ''
 }
 
-async function runOrderAction(action, fallbackMessage) {
-  if (actionSubmitting.value) return
+function isCurrentDetailRequest(requestToken, scope) {
+  return requestToken === activeRequestToken && scope === viewScope.value
+}
+
+function isCurrentAction(generation, scope, orderId) {
+  return generation === actionGeneration &&
+    scope === viewScope.value &&
+    normalizeOpaqueId(route.params.orderId) === orderId
+}
+
+async function runOrderAction(orderId, action, fallbackMessage) {
+  if (actionSubmitting.value || !auth.authed || !orderId || !sameOpaqueId(order.value?.orderId, orderId)) return
+  const generation = ++actionGeneration
+  const scope = viewScope.value
   actionSubmitting.value = true
   actionError.value = ''
   try {
-    await action()
+    await action(orderId)
+    if (!isCurrentAction(generation, scope, orderId)) return
     await loadDetail()
+    if (!isCurrentAction(generation, scope, orderId)) return
     resetActionForms()
   } catch (e) {
+    if (!isCurrentAction(generation, scope, orderId)) return
     actionError.value = e?.message || fallbackMessage
   } finally {
-    actionSubmitting.value = false
+    if (isCurrentAction(generation, scope, orderId)) actionSubmitting.value = false
   }
 }
 
@@ -276,8 +298,10 @@ async function submitDelivery() {
     actionError.value = '请输入交付内容'
     return
   }
+  const orderId = normalizeOpaqueId(route.params.orderId)
   await runOrderAction(
-    () => deliverMarketOrder(route.params.orderId, { deliveryContent }),
+    orderId,
+    (targetOrderId) => deliverMarketOrder(targetOrderId, { deliveryContent }),
     '提交交付失败'
   )
 }
@@ -290,8 +314,10 @@ async function submitShipment() {
     actionError.value = '请输入承运商和运单号'
     return
   }
+  const orderId = normalizeOpaqueId(route.params.orderId)
   await runOrderAction(
-    () => shipMarketOrder(route.params.orderId, {
+    orderId,
+    (targetOrderId) => shipMarketOrder(targetOrderId, {
       carrierName,
       trackingNo,
       shippingRemark
@@ -301,15 +327,19 @@ async function submitShipment() {
 }
 
 async function submitConfirm() {
+  const orderId = normalizeOpaqueId(route.params.orderId)
   await runOrderAction(
-    () => confirmMarketOrder(route.params.orderId),
+    orderId,
+    (targetOrderId) => confirmMarketOrder(targetOrderId),
     '确认订单失败'
   )
 }
 
 async function submitCancel() {
+  const orderId = normalizeOpaqueId(route.params.orderId)
   await runOrderAction(
-    () => cancelMarketOrder(route.params.orderId),
+    orderId,
+    (targetOrderId) => cancelMarketOrder(targetOrderId),
     '取消订单失败'
   )
 }
@@ -321,35 +351,50 @@ async function submitDispute() {
     actionError.value = '请输入申诉原因和说明'
     return
   }
+  const orderId = normalizeOpaqueId(route.params.orderId)
   await runOrderAction(
-    () => openMarketOrderDispute(route.params.orderId, { reason, buyerNote }),
+    orderId,
+    (targetOrderId) => openMarketOrderDispute(targetOrderId, { reason, buyerNote }),
     '发起申诉失败'
   )
 }
 
 async function loadDetail() {
   const requestToken = ++activeRequestToken
+  const scope = viewScope.value
+  const orderId = normalizeOpaqueId(route.params.orderId)
   loading.value = true
   error.value = ''
   order.value = null
   try {
-    const { data } = await getMarketOrderDetail(route.params.orderId)
-    if (requestToken !== activeRequestToken) return
+    const { data } = await getMarketOrderDetail(orderId)
+    if (!isCurrentDetailRequest(requestToken, scope)) return
     order.value = data?.orderId ? data : null
   } catch (e) {
-    if (requestToken !== activeRequestToken) return
+    if (!isCurrentDetailRequest(requestToken, scope)) return
     error.value = e?.message || '加载订单详情失败'
   } finally {
-    if (requestToken !== activeRequestToken) return
-    loading.value = false
+    if (isCurrentDetailRequest(requestToken, scope)) loading.value = false
   }
 }
 
 watch(
-  () => route.params.orderId,
+  viewScope,
   () => {
-    loadDetail()
+    activeRequestToken += 1
+    actionGeneration += 1
+    loading.value = false
+    actionSubmitting.value = false
+    error.value = ''
+    order.value = null
+    resetActionForms()
+    if (auth.authed && normalizeOpaqueId(route.params.orderId)) loadDetail()
   },
   { immediate: true }
 )
+
+onBeforeUnmount(() => {
+  activeRequestToken += 1
+  actionGeneration += 1
+})
 </script>

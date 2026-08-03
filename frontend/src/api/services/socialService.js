@@ -2,46 +2,66 @@
 
 import http from '../http'
 import { unwrapResultBody } from '../result'
-import { normalizeOpaqueIds } from '../../utils/opaqueId'
+import { normalizeOpaqueId, normalizeOpaqueIds } from '../../utils/opaqueId'
+import { useAuthStore } from '../../stores/auth'
 
-const likeCountCache = new Map()
-const likeStatusCache = new Map()
 const followStatusCache = new Map()
 
 const followStatusInflight = new Map()
+let followCacheAuthStore = null
+let followCacheScope = ''
 
 function likeKey(entityType, entityId) {
   return `${entityType}:${entityId}`
 }
 
+function syncFollowCacheScope() {
+  const auth = useAuthStore()
+  const scope = `${auth.tokenGeneration}:${normalizeOpaqueId(auth.userId)}`
+  if (followCacheAuthStore !== auth || followCacheScope !== scope) {
+    followStatusCache.clear()
+    followStatusInflight.clear()
+    followCacheAuthStore = auth
+    followCacheScope = scope
+  }
+  return scope
+}
+
+function scopedFollowKey(scope, entityType, entityId) {
+  return `${scope}:${likeKey(entityType, entityId)}`
+}
+
 export async function setLike({ entityType, entityId, liked }) {
   const resp = await http.post('/api/likes', { entityType, entityId, liked })
   const { data, traceId } = unwrapResultBody(resp.data, '点赞')
-  if (typeof data?.likeCount === 'number') {
-    likeCountCache.set(likeKey(entityType, entityId), data.likeCount)
-  }
-  if (typeof data?.liked === 'boolean') {
-    likeStatusCache.set(likeKey(entityType, entityId), data.liked)
-  }
   return { data, traceId }
 }
 
 export async function followUser(entityType, entityId) {
+  const cacheScope = syncFollowCacheScope()
+  const cacheKey = scopedFollowKey(cacheScope, entityType, entityId)
   const resp = await http.post('/api/follows', { entityType, entityId })
   const { traceId } = unwrapResultBody(resp.data, '关注')
-  followStatusCache.set(likeKey(entityType, entityId), true)
+  if (syncFollowCacheScope() === cacheScope) {
+    followStatusCache.set(cacheKey, true)
+  }
   return { traceId }
 }
 
 export async function unfollowUser(entityType, entityId) {
+  const cacheScope = syncFollowCacheScope()
+  const cacheKey = scopedFollowKey(cacheScope, entityType, entityId)
   const resp = await http.delete('/api/follows', { params: { entityType, entityId } })
   const { traceId } = unwrapResultBody(resp.data, '取关')
-  followStatusCache.set(likeKey(entityType, entityId), false)
+  if (syncFollowCacheScope() === cacheScope) {
+    followStatusCache.set(cacheKey, false)
+  }
   return { traceId }
 }
 
 export async function getFollowStatus(entityType, entityId, { force = false } = {}) {
-  const k = likeKey(entityType, entityId)
+  const cacheScope = syncFollowCacheScope()
+  const k = scopedFollowKey(cacheScope, entityType, entityId)
   if (!force && followStatusCache.has(k)) {
     return { data: !!followStatusCache.get(k), traceId: '' }
   }
@@ -53,6 +73,9 @@ export async function getFollowStatus(entityType, entityId, { force = false } = 
   const p = (async () => {
     const resp = await http.get('/api/follows/status', { params: { entityType, entityId } })
     const { data, traceId } = unwrapResultBody(resp.data, '查询关注状态')
+    if (syncFollowCacheScope() !== cacheScope) {
+      return getFollowStatus(entityType, entityId, { force: true })
+    }
     followStatusCache.set(k, !!data)
     return { data: !!data, traceId }
   })()
@@ -62,6 +85,41 @@ export async function getFollowStatus(entityType, entityId, { force = false } = 
     return await p
   } finally {
     if (followStatusInflight.get(k) === p) followStatusInflight.delete(k)
+  }
+}
+
+export async function getFollowStatuses(entityType, entityIds, { force = false } = {}) {
+  const ids = normalizeEntityIds(entityIds)
+  if (ids.length === 0) return { data: {}, traceId: '' }
+  const cacheScope = syncFollowCacheScope()
+
+  const requestedIds = force
+    ? ids
+    : ids.filter((entityId) => !followStatusCache.has(scopedFollowKey(cacheScope, entityType, entityId)))
+  let traceId = ''
+  if (requestedIds.length > 0) {
+    const resp = await http.get('/api/follows/statuses', {
+      params: { entityType, entityIds: requestedIds.join(',') }
+    })
+    const result = unwrapResultBody(resp.data, '批量查询关注状态')
+    if (!result.data || typeof result.data !== 'object' || Array.isArray(result.data)) {
+      throw new Error('批量查询关注状态响应非法')
+    }
+    if (syncFollowCacheScope() !== cacheScope) {
+      return getFollowStatuses(entityType, ids, { force: true })
+    }
+    traceId = result.traceId
+    for (const entityId of requestedIds) {
+      followStatusCache.set(scopedFollowKey(cacheScope, entityType, entityId), result.data[entityId] === true)
+    }
+  }
+
+  return {
+    data: Object.fromEntries(ids.map((entityId) => [
+      entityId,
+      followStatusCache.get(scopedFollowKey(cacheScope, entityType, entityId)) === true
+    ])),
+    traceId
   }
 }
 

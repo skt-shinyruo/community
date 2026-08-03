@@ -71,9 +71,20 @@ vi.mock('../utils/scrollToAnchor', () => ({
 }))
 
 import { addComment, getPostDetail, listComments, listReplies } from '../api/services/postService'
+import { getFollowStatus } from '../api/services/socialService'
 import PostDetailView from './PostDetailView.vue'
 
 describe('PostDetailView', () => {
+  function deferred() {
+    let resolve
+    let reject
+    const promise = new Promise((res, rej) => {
+      resolve = res
+      reject = rej
+    })
+    return { promise, resolve, reject }
+  }
+
   function mountLoader() {
     const pinia = createPinia()
     setActivePinia(pinia)
@@ -145,6 +156,95 @@ describe('PostDetailView', () => {
       data: { commentId: 'ffffffff-ffff-7fff-8fff-ffffffffffff' },
       traceId: 'trace-add-comment'
     })
+    getFollowStatus.mockResolvedValue({ data: false, traceId: 'trace-follow-status' })
+  })
+
+  it('does not commit post state loaded for the previous account', async () => {
+    const oldDetail = deferred()
+    getPostDetail
+      .mockReturnValueOnce(oldDetail.promise)
+      .mockResolvedValueOnce({
+        data: {
+          id: routeState.params.postId,
+          userId: 'author-b',
+          title: 'account B detail',
+          blocks: [],
+          commentCount: 0,
+          liked: false,
+          bookmarked: false
+        },
+        traceId: 'trace-detail-b'
+      })
+
+    const wrapper = mountLoader()
+    await vi.waitFor(() => expect(getPostDetail).toHaveBeenCalledTimes(1))
+
+    useAuthStore().installSession({
+      accessToken: 'token-b',
+      me: { userId: 'viewer-b', username: 'viewer-b', authorities: [] }
+    })
+    await vi.waitFor(() => expect(getPostDetail).toHaveBeenCalledTimes(2))
+    await flushPromises()
+
+    expect(wrapper.vm.post?.title).toBe('account B detail')
+
+    oldDetail.resolve({
+      data: {
+        id: routeState.params.postId,
+        userId: 'author-a',
+        title: 'account A detail',
+        blocks: [],
+        commentCount: 0,
+        liked: true,
+        bookmarked: true
+      },
+      traceId: 'trace-detail-a'
+    })
+    await flushPromises()
+
+    expect(wrapper.vm.post?.title).toBe('account B detail')
+    expect(wrapper.vm.post?.liked).toBe(false)
+    expect(wrapper.vm.post?.bookmarked).toBe(false)
+  })
+
+  it('keeps comment drafts isolated between accounts', async () => {
+    const wrapper = mountLoader()
+    await flushPromises()
+    wrapper.vm.setNewComment('draft from account A')
+    expect(window.localStorage.getItem(
+      'community.draft.posts.user-me.aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa.comment'
+    )).toBe('draft from account A')
+
+    useAuthStore().installSession({
+      accessToken: 'token-b',
+      me: { userId: 'user-b', username: 'viewer-b', authorities: [] }
+    })
+    await flushPromises()
+
+    expect(wrapper.vm.newComment).toBe('')
+    expect(wrapper.vm.newComment).not.toBe('draft from account A')
+  })
+
+  it('does not clear the new account draft when the previous account comment completes', async () => {
+    const oldComment = deferred()
+    addComment.mockReturnValueOnce(oldComment.promise)
+    const wrapper = mountLoader()
+    await flushPromises()
+    wrapper.vm.setNewComment('comment from account A')
+    const staleSubmit = wrapper.vm.addComment()
+    await vi.waitFor(() => expect(addComment).toHaveBeenCalledTimes(1))
+
+    useAuthStore().installSession({
+      accessToken: 'token-b',
+      me: { userId: 'user-b', username: 'viewer-b', authorities: [] }
+    })
+    await flushPromises()
+    wrapper.vm.setNewComment('draft from account B')
+
+    oldComment.resolve({ data: { commentId: 'comment-a' }, traceId: 'trace-comment-a' })
+    await staleSubmit
+
+    expect(wrapper.vm.newComment).toBe('draft from account B')
   })
 
   it('loads comments and replies with cursor params', async () => {
@@ -168,6 +268,120 @@ describe('PostDetailView', () => {
       'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
       { cursor: '', size: 5 }
     )
+  })
+
+  it('keeps the current comment page and retries the same cursor after failure', async () => {
+    const firstComment = {
+      id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+      userId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      content: 'first page comment'
+    }
+    const secondComment = {
+      id: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      userId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      content: 'second page comment'
+    }
+    listComments
+      .mockResolvedValueOnce({ data: { items: [firstComment], nextCursor: 'cursor-page-2' } })
+      .mockRejectedValueOnce(new Error('temporary comment failure'))
+      .mockResolvedValueOnce({ data: { items: [secondComment], nextCursor: '' } })
+
+    const wrapper = mountLoader()
+    await flushPromises()
+    await flushPromises()
+
+    await wrapper.vm.nextCommentsPage()
+    expect(wrapper.vm.commentsPage).toBe(0)
+    expect(wrapper.vm.comments[0].content).toBe('first page comment')
+    expect(wrapper.vm.commentsError).toBe('temporary comment failure')
+
+    await wrapper.vm.nextCommentsPage()
+
+    expect(listComments.mock.calls.map(([, request]) => request.cursor))
+      .toEqual(['', 'cursor-page-2', 'cursor-page-2'])
+    expect(wrapper.vm.commentsPage).toBe(1)
+    expect(wrapper.vm.comments[0].content).toBe('second page comment')
+  })
+
+  it('keeps the current comment page when resetting to the first page fails', async () => {
+    const firstComment = {
+      id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+      userId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      content: 'first page comment'
+    }
+    const secondComment = {
+      id: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      userId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      content: 'second page comment'
+    }
+    const refreshedComment = {
+      ...firstComment,
+      content: 'refreshed first page comment'
+    }
+    listComments
+      .mockResolvedValueOnce({ data: { items: [firstComment], nextCursor: 'cursor-page-2' } })
+      .mockResolvedValueOnce({ data: { items: [secondComment], nextCursor: '' } })
+      .mockRejectedValueOnce(new Error('temporary refresh failure'))
+      .mockResolvedValueOnce({ data: { items: [refreshedComment], nextCursor: '' } })
+
+    const wrapper = mountLoader()
+    await flushPromises()
+    await flushPromises()
+    await wrapper.vm.nextCommentsPage()
+
+    await wrapper.vm.reloadComments()
+    expect(wrapper.vm.commentsPage).toBe(1)
+    expect(wrapper.vm.comments[0].content).toBe('second page comment')
+    expect(wrapper.vm.commentsError).toBe('temporary refresh failure')
+
+    await wrapper.vm.reloadComments()
+    expect(listComments.mock.calls.map(([, request]) => request.cursor)).toEqual([
+      '',
+      'cursor-page-2',
+      '',
+      ''
+    ])
+    expect(wrapper.vm.commentsPage).toBe(0)
+    expect(wrapper.vm.comments[0].content).toBe('refreshed first page comment')
+  })
+
+  it('keeps the current reply page when resetting replies fails', async () => {
+    const firstReply = {
+      id: '11111111-1111-7111-8111-111111111111',
+      userId: '22222222-2222-7222-8222-222222222222',
+      content: 'first page reply'
+    }
+    const secondReply = {
+      id: '33333333-3333-7333-8333-333333333333',
+      userId: '44444444-4444-7444-8444-444444444444',
+      content: 'second page reply'
+    }
+    listReplies
+      .mockResolvedValueOnce({ data: { items: [firstReply], nextCursor: 'reply-cursor-2' } })
+      .mockResolvedValueOnce({ data: { items: [secondReply], nextCursor: '' } })
+      .mockRejectedValueOnce(new Error('temporary reply refresh failure'))
+      .mockResolvedValueOnce({ data: { items: [firstReply], nextCursor: '' } })
+
+    const wrapper = mountLoader()
+    await flushPromises()
+    const root = replyableRootComment()
+    await wrapper.vm.loadReplies(root)
+    await wrapper.vm.nextRepliesPage(root)
+
+    await wrapper.vm.reloadReplies(root)
+    expect(root._repliesPage).toBe(1)
+    expect(root._replies[0].content).toBe('second page reply')
+    expect(root._repliesError).toBe('temporary reply refresh failure')
+
+    await wrapper.vm.reloadReplies(root)
+    expect(listReplies.mock.calls.map(([, , request]) => request.cursor)).toEqual([
+      '',
+      'reply-cursor-2',
+      '',
+      ''
+    ])
+    expect(root._repliesPage).toBe(0)
+    expect(root._replies[0].content).toBe('first page reply')
   })
 
   it('submits the selected root or nested reply as the direct parent only', async () => {

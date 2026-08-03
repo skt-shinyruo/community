@@ -8,6 +8,7 @@ import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.application.result.DrivePublicShareGateResult;
 import com.nowcoder.community.drive.application.result.DriveShareResult;
+import com.nowcoder.community.drive.application.result.DriveSharePageResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import com.nowcoder.community.drive.infrastructure.security.BCryptDrivePasswordHasher;
@@ -65,6 +66,42 @@ class DriveShareApplicationServiceTest {
                 Instant.parse("2026-05-08T23:59:59Z")
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("分享链接不可用");
+    }
+
+    @Test
+    void listOwnSharesShouldBeBoundedAndKeepRevokedSharesManageable() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveShareApplicationService service = fixture.shareService();
+        UUID userId = uuid(7);
+        UUID otherUserId = uuid(8);
+        UUID firstEntryId = fixture.createFile(userId, "first.txt", 8);
+        UUID secondEntryId = fixture.createFile(userId, "second.txt", 8);
+        UUID otherEntryId = fixture.createFile(otherUserId, "other.txt", 8);
+        DriveShareResult first = service.createShare(new CreateDriveShareCommand(
+                userId, firstEntryId, "1234", Instant.parse("2026-05-10T00:00:00Z")
+        ));
+        DriveShareResult second = service.createShare(new CreateDriveShareCommand(
+                userId, secondEntryId, "1234", Instant.parse("2026-05-11T00:00:00Z")
+        ));
+        service.createShare(new CreateDriveShareCommand(
+                otherUserId, otherEntryId, "1234", Instant.parse("2026-05-11T00:00:00Z")
+        ));
+        service.revokeShare(userId, first.shareId());
+
+        DriveSharePageResult firstPage = service.listOwnShares(userId, 0, 1);
+        DriveSharePageResult secondPage = service.listOwnShares(userId, 1, 1);
+
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(secondPage.hasNext()).isFalse();
+        List<DriveShareResult> listed = List.of(firstPage.items().get(0), secondPage.items().get(0));
+        assertThat(listed).extracting(DriveShareResult::shareId)
+                .containsExactlyInAnyOrder(first.shareId(), second.shareId());
+        assertThat(listed).filteredOn(item -> item.shareId().equals(first.shareId()))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.entryName()).isEqualTo("first.txt");
+                    assertThat(item.status()).isEqualTo("REVOKED");
+                });
     }
 
     @Test

@@ -10,6 +10,7 @@ import com.nowcoder.community.market.domain.model.MarketShipment;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketAddressDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject;
+import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderTransitionDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketShipmentDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketAddressMapper;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketListingMapper;
@@ -25,6 +26,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
+import java.util.Date;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -138,6 +140,43 @@ class MarketPersistenceTest {
         assertUuidProperty(MarketAddress.class.getMethod("getAddressId").invoke(address));
         assertUuidProperty(MarketOrder.class.getMethod("getOrderId").invoke(order));
         assertUuidProperty(MarketShipment.class.getMethod("getShipmentId").invoke(shipment));
+    }
+
+    @Test
+    void autoConfirmRetryScheduleShouldMoveAFailedOrderOutOfTheCurrentDueBatch() {
+        UUID orderId = ID_GENERATOR.next();
+        MarketOrder order = order(orderId)
+                .status("ESCROWED")
+                .build();
+        marketOrderMapper.insert(MarketOrderDataObject.from(order));
+        Date dueAt = new Date(((System.currentTimeMillis() - 60_000L) / 1_000L) * 1_000L);
+        assertThat(marketOrderMapper.apply(MarketOrderTransitionDataObject.from(order.markShipped(dueAt))))
+                .isEqualTo(1);
+
+        Date asOf = new Date();
+        assertThat(marketOrderMapper.selectDueForAutoConfirm(asOf, 100))
+                .extracting(MarketOrderDataObject::getOrderId)
+                .contains(orderId);
+
+        Date nextAttemptAt = new Date(asOf.getTime() + 60_000L);
+        assertThat(marketOrderMapper.deferAutoConfirm(orderId, asOf, nextAttemptAt)).isEqualTo(1);
+        assertThat(marketOrderMapper.selectDueForAutoConfirm(asOf, 100))
+                .extracting(MarketOrderDataObject::getOrderId)
+                .doesNotContain(orderId);
+        assertThat(jdbcTemplate.queryForObject(
+                "select auto_confirm_at from market_order where order_id = ?",
+                Date.class,
+                orderId
+        ).getTime()).isEqualTo(dueAt.getTime());
+
+        MarketOrder dueOrder = marketOrderMapper.selectById(orderId).toDomain();
+        assertThat(marketOrderMapper.apply(MarketOrderTransitionDataObject.from(dueOrder.requestRelease())))
+                .isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "select auto_confirm_next_attempt_at from market_order where order_id = ?",
+                Date.class,
+                orderId
+        )).isNull();
     }
 
     private void assertUuidProperty(Object value) {

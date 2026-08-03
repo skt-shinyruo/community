@@ -4,10 +4,7 @@ import { nextTick } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const authState = vi.hoisted(() => ({
-  userId: '11111111-1111-7111-8111-111111111111',
-  accessToken: 'token'
-}))
+const authState = vi.hoisted(() => ({ state: null }))
 
 const routeState = vi.hoisted(() => ({
   route: null
@@ -41,13 +38,18 @@ vi.mock('../api/services/marketService', () => ({
   getMarketOrderDetail: vi.fn().mockResolvedValue({ data: {}, traceId: 'trace-detail' })
 }))
 
-vi.mock('../stores/auth', () => ({
-  useAuthStore: () => ({
-    accessToken: authState.accessToken,
-    authed: !!authState.accessToken,
-    userId: authState.userId
-  })
-}))
+vi.mock('../stores/auth', async () => {
+  const { reactive } = await vi.importActual('vue')
+  if (!authState.state) {
+    authState.state = reactive({
+      accessToken: 'token',
+      authed: true,
+      tokenGeneration: 1,
+      userId: '11111111-1111-7111-8111-111111111111'
+    })
+  }
+  return { useAuthStore: () => authState.state }
+})
 
 import MarketBuyingOrdersView from './MarketBuyingOrdersView.vue'
 import MarketSellingOrdersView from './MarketSellingOrdersView.vue'
@@ -106,8 +108,7 @@ describe('Unified market order views', () => {
     routeState.route.params.orderId = '31'
     routeState.route.path = '/market/orders/31'
     routeState.route.fullPath = '/market/orders/31'
-    authState.userId = '11111111-1111-7111-8111-111111111111'
-    authState.accessToken = 'token'
+    installIdentity('11111111-1111-7111-8111-111111111111', 'token')
     vi.clearAllMocks()
     cancelMarketOrder.mockResolvedValue({ data: {}, traceId: 'trace-cancel' })
     confirmMarketOrder.mockResolvedValue({ data: {}, traceId: 'trace-confirm' })
@@ -171,6 +172,38 @@ describe('Unified market order views', () => {
     expect(wrapper.text()).toContain('已发货')
     expect(wrapper.text()).toContain('已发货')
     expect(wrapper.text()).toContain('等待买家确认收货')
+  })
+
+  it.each([
+    ['购买', MarketBuyingOrdersView, listBuyingMarketOrders],
+    ['出售', MarketSellingOrdersView, listSellingMarketOrders]
+  ])('discards old %s orders after the authenticated identity changes', async (_label, component, listOrders) => {
+    const oldOrders = deferred()
+    listOrders
+      .mockReturnValueOnce(oldOrders.promise)
+      .mockResolvedValueOnce({
+        data: [{ orderId: 42, goodsType: 'PHYSICAL', listingTitleSnapshot: 'B 的私有订单', status: 'ESCROWED' }],
+        hasNext: false,
+        page: 0,
+        size: 20
+      })
+
+    const wrapper = mount(component, mountOptions())
+    await vi.waitFor(() => expect(listOrders).toHaveBeenCalledTimes(1))
+    installIdentity('22222222-2222-7222-8222-222222222222', 'token-b')
+    await vi.waitFor(() => expect(listOrders).toHaveBeenCalledTimes(2))
+    await flushPromises()
+
+    oldOrders.resolve({
+      data: [{ orderId: 31, goodsType: 'VIRTUAL', listingTitleSnapshot: 'A 的私有订单', status: 'DELIVERED' }],
+      hasNext: false,
+      page: 0,
+      size: 20
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('B 的私有订单')
+    expect(wrapper.text()).not.toContain('A 的私有订单')
   })
 
   it('loads physical order detail and renders shipment information', async () => {
@@ -266,8 +299,46 @@ describe('Unified market order views', () => {
     expect(wrapper.text()).not.toContain('buying:req-1')
   })
 
+  it('discards private order detail returned for a previous identity', async () => {
+    const oldDetail = deferred()
+    getMarketOrderDetail
+      .mockReturnValueOnce(oldDetail.promise)
+      .mockResolvedValueOnce({
+        data: {
+          orderId: 31,
+          requestId: 'user-b-request',
+          goodsType: 'VIRTUAL',
+          listingTitleSnapshot: 'B 的订单',
+          status: 'DELIVERED',
+          deliveryContents: ['B-SECRET']
+        }
+      })
+
+    const wrapper = mount(MarketOrderDetailView, mountOptions())
+    await vi.waitFor(() => expect(getMarketOrderDetail).toHaveBeenCalledTimes(1))
+    installIdentity('22222222-2222-7222-8222-222222222222', 'token-b')
+    await vi.waitFor(() => expect(getMarketOrderDetail).toHaveBeenCalledTimes(2))
+    await flushPromises()
+
+    oldDetail.resolve({
+      data: {
+        orderId: 31,
+        requestId: 'user-a-request',
+        goodsType: 'VIRTUAL',
+        listingTitleSnapshot: 'A 的订单',
+        status: 'DELIVERED',
+        deliveryContents: ['A-SECRET']
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('B-SECRET')
+    expect(wrapper.text()).not.toContain('A-SECRET')
+    expect(wrapper.text()).not.toContain('user-a-request')
+  })
+
   it('lets a seller deliver a manual virtual order and reloads detail', async () => {
-    authState.userId = '22222222-2222-7222-8222-222222222222'
+    authState.state.userId = '22222222-2222-7222-8222-222222222222'
     getMarketOrderDetail.mockResolvedValue({
       data: {
         orderId: 31,
@@ -296,7 +367,7 @@ describe('Unified market order views', () => {
   })
 
   it('lets a seller ship a physical order and reloads detail', async () => {
-    authState.userId = '22222222-2222-7222-8222-222222222222'
+    authState.state.userId = '22222222-2222-7222-8222-222222222222'
     routeState.route.params.orderId = '32'
     routeState.route.path = '/market/orders/32'
     routeState.route.fullPath = '/market/orders/32'
@@ -331,6 +402,38 @@ describe('Unified market order views', () => {
       shippingRemark: '工作日派送'
     })
     expect(getMarketOrderDetail).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not let an old order action reload or clear a newly routed order', async () => {
+    authState.state.userId = '22222222-2222-7222-8222-222222222222'
+    const oldDelivery = deferred()
+    deliverMarketOrder.mockReturnValueOnce(oldDelivery.promise)
+    getMarketOrderDetail
+      .mockResolvedValueOnce({
+        data: sellerManualOrder(31, 'A order')
+      })
+      .mockResolvedValueOnce({
+        data: sellerManualOrder(32, 'B order')
+      })
+
+    const wrapper = mount(MarketOrderDetailView, mountOptions())
+    await flushPromises()
+    await wrapper.find('textarea').setValue('A-DELIVERY')
+    await wrapper.findAll('button').find((button) => button.text() === '提交交付').trigger('click')
+    await vi.waitFor(() => expect(deliverMarketOrder).toHaveBeenCalledWith('31', { deliveryContent: 'A-DELIVERY' }))
+
+    routeState.route.params = { orderId: '32' }
+    routeState.route.path = '/market/orders/32'
+    routeState.route.fullPath = '/market/orders/32'
+    await flushPromises()
+    await wrapper.find('textarea').setValue('B-DRAFT')
+
+    oldDelivery.resolve({ data: {}, traceId: 'old-action' })
+    await flushPromises()
+
+    expect(getMarketOrderDetail).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('B order')
+    expect(wrapper.find('textarea').element.value).toBe('B-DRAFT')
   })
 
   it('lets a buyer confirm and cancel eligible orders', async () => {
@@ -423,3 +526,34 @@ describe('Unified market order views', () => {
     expect(getMarketOrderDetail).toHaveBeenCalledTimes(2)
   })
 })
+
+function installIdentity(userId, accessToken) {
+  authState.state.userId = userId
+  authState.state.accessToken = accessToken
+  authState.state.authed = !!accessToken
+  authState.state.tokenGeneration += 1
+}
+
+function sellerManualOrder(orderId, title) {
+  return {
+    orderId,
+    requestId: `selling:${orderId}`,
+    goodsType: 'VIRTUAL',
+    deliveryModeSnapshot: 'MANUAL',
+    sellerUserId: '22222222-2222-7222-8222-222222222222',
+    buyerUserId: '11111111-1111-7111-8111-111111111111',
+    listingTitleSnapshot: title,
+    status: 'ESCROWED',
+    totalAmount: 1500
+  }
+}
+
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}

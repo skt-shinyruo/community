@@ -20,6 +20,8 @@ public interface DriveEntryRepository {
 
     Optional<DriveEntry> findById(UUID spaceId, UUID entryId);
 
+    List<DriveEntry> findByIds(UUID spaceId, List<UUID> entryIds);
+
     Optional<DriveEntry> findActiveChildByName(UUID spaceId, UUID parentId, String name);
 
     List<DriveEntry> listActiveChildren(UUID spaceId, UUID parentId);

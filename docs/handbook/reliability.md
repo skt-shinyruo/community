@@ -57,8 +57,8 @@ operation + userId + Idempotency-Key
 | --- | --- | --- | --- |
 | 发帖 | `POST /api/posts` | `content:create_post` | `title`, `categoryId`, `tags`, `blocks` |
 | 发表评论 | `POST /api/posts/{postId}/comments` | `content:create_comment` | `postId`, `parentCommentId`, `content` |
-| 钱包充值 | `POST /api/wallet/recharges` | `wallet:recharge` | `amount` |
-| 钱包提现 | `POST /api/wallet/withdrawals` | `wallet:withdraw` | `amount` |
+| 测试积分发放 | `POST /api/wallet/recharges` | `wallet:recharge` | `amount` |
+| 测试积分销毁 | `POST /api/wallet/withdrawals` | `wallet:withdraw` | `amount` |
 | 钱包转账 | `POST /api/wallet/transfers` | `wallet:transfer` | `toUserId`, `amount` |
 | 市场下单 | `POST /api/market/orders` | `market:create_order` | `listingId`, `quantity`, `addressId` |
 
@@ -71,7 +71,7 @@ operation + userId + Idempotency-Key
 - 不要每次 HTTP 发送都生成新 key。
 - 建议使用 UUID、ULID、雪花 ID 等高碰撞安全随机 key。
 - 服务端 trim key，长度不能超过 128。
-- 钱包充值、提现、转账和市场下单不接收 body `requestId`，幂等键只来自 header。
+- 测试积分发放/销毁、钱包转账和市场下单不接收 body `requestId`，幂等键只来自 header。
 
 当前仓库前端状态：
 
@@ -80,7 +80,7 @@ operation + userId + Idempotency-Key
 
 ## 请求指纹
 
-部分接口需要防止同 key 被不同参数复用。例如同一个 key 第一次充值 100，第二次充值 200，不能返回第一次响应。
+部分接口需要防止同 key 被不同参数复用。例如同一个 key 第一次领取测试积分 100，第二次领取 200，不能返回第一次响应。
 
 请求指纹规则：
 

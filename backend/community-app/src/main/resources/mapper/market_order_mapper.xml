@@ -59,6 +59,7 @@
         from market_order
         where buyer_user_id = #{buyerUserId, jdbcType=BINARY}
         order by create_time desc, order_id desc
+        limit #{limit} offset #{offset}
     </select>
 
     <select id="selectBySellerUserId" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
@@ -66,6 +67,7 @@
         from market_order
         where seller_user_id = #{sellerUserId, jdbcType=BINARY}
         order by create_time desc, order_id desc
+        limit #{limit} offset #{offset}
     </select>
 
     <insert id="insert" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
@@ -99,11 +101,16 @@
             <choose>
                 <when test="autoConfirmPolicy == 'SET'">
                     auto_confirm_at = #{autoConfirmAt},
+                    auto_confirm_next_attempt_at = #{autoConfirmAt},
                 </when>
                 <when test="autoConfirmPolicy == 'CLEAR'">
                     auto_confirm_at = null,
+                    auto_confirm_next_attempt_at = null,
                 </when>
             </choose>
+            <if test="autoConfirmPolicy == 'KEEP' and nextStatus != 'DELIVERED' and nextStatus != 'SHIPPED'">
+                auto_confirm_next_attempt_at = null,
+            </if>
             update_time = current_timestamp
         </set>
         where order_id = #{orderId, jdbcType=BINARY}
@@ -119,8 +126,23 @@
         where status in ('DELIVERED', 'SHIPPED')
           and auto_confirm_at is not null
           and auto_confirm_at &lt;= #{asOf}
-        order by auto_confirm_at asc, order_id asc
+          and auto_confirm_next_attempt_at is not null
+          and auto_confirm_next_attempt_at &lt;= #{asOf}
+        order by auto_confirm_next_attempt_at asc, order_id asc
+        limit #{limit}
     </select>
+
+    <update id="deferAutoConfirm">
+        update market_order
+        set auto_confirm_next_attempt_at = #{nextAttemptAt},
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status in ('DELIVERED', 'SHIPPED')
+          and auto_confirm_at is not null
+          and auto_confirm_at &lt;= #{asOf}
+          and auto_confirm_next_attempt_at is not null
+          and auto_confirm_next_attempt_at &lt;= #{asOf}
+    </update>
 
     <select id="selectWalletPendingOrders" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
         select <include refid="BaseColumns"/>

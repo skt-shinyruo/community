@@ -56,7 +56,8 @@
 </template>
 
 <script setup>
-import { computed, ref, useId } from 'vue'
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { useAuthStore } from '../../stores/auth'
 import UiButton from '../ui/UiButton.vue'
 import UiIconButton from '../ui/UiIconButton.vue'
 import UiSelect from '../ui/UiSelect.vue'
@@ -71,6 +72,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'submitted'])
+const auth = useAuthStore()
 const uid = useId()
 const titleId = `report-modal-title-${uid}`
 const descriptionId = `report-modal-description-${uid}`
@@ -88,6 +90,16 @@ const reason = ref(reasonOptions[0]?.value || '')
 const detail = ref('')
 const submitting = ref(false)
 const error = ref('')
+let operationId = 0
+let disposed = false
+
+function isCurrentOperation(id, authGeneration, targetType, targetId) {
+  return !disposed
+    && id === operationId
+    && auth.tokenGeneration === authGeneration
+    && String(props.targetType || '') === targetType
+    && normalizeOpaqueId(props.targetId) === targetId
+}
 
 const targetTypeLabel = computed(() => {
   const t = String(props.targetType || '').toLowerCase()
@@ -98,27 +110,59 @@ const targetTypeLabel = computed(() => {
 })
 
 async function submit() {
+  const id = ++operationId
+  const authGeneration = auth.tokenGeneration
+  const targetType = String(props.targetType || '')
+  const targetId = normalizeOpaqueId(props.targetId)
   error.value = ''
   submitting.value = true
   try {
     await createReport({
-      targetType: props.targetType,
-      targetId: normalizeOpaqueId(props.targetId),
+      targetType,
+      targetId,
       reason: reason.value,
       detail: detail.value
     })
+    if (!isCurrentOperation(id, authGeneration, targetType, targetId)) return
     showToast({ type: 'success', title: '已提交', text: '感谢反馈，我们会尽快处理。' })
     detail.value = ''
   } catch (e) {
+    if (!isCurrentOperation(id, authGeneration, targetType, targetId)) return
     error.value = e?.message || '提交失败'
     return
   } finally {
-    submitting.value = false
+    if (isCurrentOperation(id, authGeneration, targetType, targetId)) submitting.value = false
   }
 
   emit('submitted')
   emit('close')
 }
+
+watch(
+  () => auth.tokenGeneration,
+  () => {
+    operationId += 1
+    submitting.value = false
+    error.value = ''
+    detail.value = ''
+    emit('close')
+  }
+)
+
+watch(
+  () => [String(props.targetType || ''), normalizeOpaqueId(props.targetId)],
+  () => {
+    operationId += 1
+    submitting.value = false
+    error.value = ''
+    detail.value = ''
+  }
+)
+
+onBeforeUnmount(() => {
+  disposed = true
+  operationId += 1
+})
 </script>
 
 <style scoped>

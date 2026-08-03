@@ -10,13 +10,13 @@
           <template #title>关注</template>
           <template #subtitle>查看这位成员正在持续关注的公开身份与关系变化。</template>
           <template #actions>
-            <UiButton variant="secondary" @click="load" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
+            <UiButton variant="secondary" @click="refresh" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
           </template>
         </UiPageHeader>
       </div>
 
       <div class="relations-toolbar">
-        <UiPagination :page="page" :has-next="hasNext" @prev="prevPage" @next="nextPage" />
+        <UiPagination :page="page" :has-next="hasNext" :disabled="loading" @prev="prevPage" @next="nextPage" />
       </div>
 
       <UiState v-if="error && items.length === 0" variant="error" class="relations-state">{{ error }}</UiState>
@@ -43,8 +43,8 @@
           </div>
 
           <div class="relation-actions" v-if="authed && meId !== it.targetId">
-            <UiButton v-if="!it.hasFollowed" @click="doFollow(it)">关注</UiButton>
-            <UiButton variant="secondary" v-else @click="doUnfollow(it)">取关</UiButton>
+            <UiButton v-if="!it.hasFollowed" :disabled="isMutating(it.targetId)" @click="doFollow(it)">关注</UiButton>
+            <UiButton variant="secondary" v-else :disabled="isMutating(it.targetId)" @click="doUnfollow(it)">取关</UiButton>
           </div>
         </article>
       </div>
@@ -53,12 +53,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { listFollowees, getFollowStatus, followUser, unfollowUser } from '../api/services/socialService'
-import { getUserProfile } from '../api/services/userService'
+import { listFollowees, followUser, unfollowUser } from '../api/services/socialService'
 import { formatTime } from '../utils/time'
-import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
+import { normalizeOpaqueId } from '../utils/opaqueId'
+import { hydrateFollowRelations } from './followRelationHydration'
 import UiCard from '../components/ui/UiCard.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
@@ -81,81 +81,142 @@ const size = ref(10)
 const loading = ref(false)
 const error = ref('')
 const items = ref([])
-const hasNext = computed(() => items.value.length === Number(size.value || 10))
+const hasNext = ref(true)
+const mutatingTargetIds = ref(new Set())
+let requestGeneration = 0
+let mutationGeneration = 0
+const activeMutations = new Map()
 
-async function hydrate(list) {
-  const out = []
-  for (const it of list) {
-    const targetId = normalizeOpaqueId(it?.targetId)
-    let user = null
-    try {
-      user = await getUserProfile(targetId)
-    } catch {}
+const viewScope = computed(() => [
+  userId.value,
+  auth.tokenGeneration,
+  meId.value,
+  authed.value ? 'authenticated' : 'anonymous'
+].join(':'))
 
-    let hasFollowed = false
-    if (authed.value && targetId && !sameOpaqueId(targetId, meId.value)) {
-      try {
-        const r = await getFollowStatus(3, targetId)
-        hasFollowed = !!r?.data
-      } catch {}
-    } else if (authed.value && meId.value && sameOpaqueId(meId.value, userId.value)) {
-      // 查看“我自己的关注列表”，默认我已关注这些人
-      hasFollowed = true
-    }
-
-    out.push({ ...it, user, hasFollowed })
-  }
-  return out
-}
-
-async function load() {
+async function load(targetPage = page.value) {
+  const profileUserId = userId.value
+  if (!profileUserId) return
+  const scope = viewScope.value
+  const generation = ++requestGeneration
+  const viewer = { authed: authed.value, viewerUserId: meId.value }
   error.value = ''
   loading.value = true
   try {
-    const { data, traceId } = await listFollowees(userId.value, { page: page.value, size: size.value })
+    const { data, traceId } = await listFollowees(profileUserId, { page: targetPage, size: size.value })
+    if (generation !== requestGeneration || scope !== viewScope.value) return
+
+    const nextItems = Array.isArray(data) ? data : []
+    const hydrated = await hydrateFollowRelations(nextItems, viewer)
+    if (generation !== requestGeneration || scope !== viewScope.value) return
+
+    hasNext.value = nextItems.length >= Number(size.value || 10)
     emit('trace', traceId || '')
-    items.value = await hydrate(data)
+    if (targetPage > page.value && nextItems.length === 0) return
+    page.value = targetPage
+    items.value = hydrated
   } catch (e) {
+    if (generation !== requestGeneration || scope !== viewScope.value) return
     error.value = e?.message || '加载失败'
   } finally {
-    loading.value = false
+    if (generation === requestGeneration) loading.value = false
   }
+}
+
+function isMutating(targetId) {
+  return mutatingTargetIds.value.has(normalizeOpaqueId(targetId))
+}
+
+function beginMutation(targetId) {
+  const normalizedTargetId = normalizeOpaqueId(targetId)
+  if (!normalizedTargetId || mutatingTargetIds.value.has(normalizedTargetId)) return null
+  const token = ++mutationGeneration
+  activeMutations.set(normalizedTargetId, token)
+  mutatingTargetIds.value = new Set([...mutatingTargetIds.value, normalizedTargetId])
+  return { normalizedTargetId, token, scope: viewScope.value }
+}
+
+function currentMutationItem(mutation) {
+  if (mutation.scope !== viewScope.value || activeMutations.get(mutation.normalizedTargetId) !== mutation.token) {
+    return null
+  }
+  return items.value.find((item) => normalizeOpaqueId(item?.targetId) === mutation.normalizedTargetId) || null
+}
+
+function finishMutation(mutation) {
+  if (activeMutations.get(mutation.normalizedTargetId) !== mutation.token) return
+  activeMutations.delete(mutation.normalizedTargetId)
+  const next = new Set(mutatingTargetIds.value)
+  next.delete(mutation.normalizedTargetId)
+  mutatingTargetIds.value = next
 }
 
 async function doFollow(it) {
   if (!authed.value) return
+  const mutation = beginMutation(it?.targetId)
+  if (!mutation) return
   try {
-    const r = await followUser(3, it.targetId)
+    const r = await followUser(3, mutation.normalizedTargetId)
+    const currentItem = currentMutationItem(mutation)
+    if (!currentItem) return
     emit('trace', r?.traceId || '')
-    it.hasFollowed = true
+    currentItem.hasFollowed = true
   } catch (e) {
+    if (!currentMutationItem(mutation)) return
     error.value = e?.message || '关注失败'
+  } finally {
+    finishMutation(mutation)
   }
 }
 
 async function doUnfollow(it) {
   if (!authed.value) return
+  const mutation = beginMutation(it?.targetId)
+  if (!mutation) return
   try {
-    const r = await unfollowUser(3, it.targetId)
+    const r = await unfollowUser(3, mutation.normalizedTargetId)
+    const currentItem = currentMutationItem(mutation)
+    if (!currentItem) return
     emit('trace', r?.traceId || '')
-    it.hasFollowed = false
+    currentItem.hasFollowed = false
   } catch (e) {
+    if (!currentMutationItem(mutation)) return
     error.value = e?.message || '取关失败'
+  } finally {
+    finishMutation(mutation)
   }
 }
 
 async function nextPage() {
-  if (!hasNext.value) return
-  page.value += 1
-  await load()
+  if (loading.value || !hasNext.value) return
+  await load(page.value + 1)
 }
 
 async function prevPage() {
-  page.value = Math.max(0, page.value - 1)
-  await load()
+  if (loading.value) return
+  await load(Math.max(0, page.value - 1))
 }
 
-onMounted(load)
+async function refresh() {
+  await load(page.value)
+}
+
+onMounted(() => load(0))
+watch(viewScope, () => {
+  requestGeneration += 1
+  activeMutations.clear()
+  mutatingTargetIds.value = new Set()
+  page.value = 0
+  items.value = []
+  hasNext.value = true
+  loading.value = false
+  error.value = ''
+  if (userId.value) load(0)
+})
+onBeforeUnmount(() => {
+  requestGeneration += 1
+  activeMutations.clear()
+})
 </script>
 
 <style scoped>

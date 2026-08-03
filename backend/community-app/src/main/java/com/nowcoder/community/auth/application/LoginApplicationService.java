@@ -139,12 +139,12 @@ public class LoginApplicationService {
         Objects.requireNonNull(command, "command must not be null");
         String refreshToken = command.refreshToken();
         if (!StringUtils.hasText(refreshToken)) {
-            throw new RefreshFailure(AuthErrorCode.REFRESH_TOKEN_INVALID, true);
+            throw new RefreshFailure(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
 
         RefreshTokenRepository.StoredRefreshToken pending = refreshTokenService.beginRotation(refreshToken);
         if (pending == null) {
-            throw new RefreshFailure(AuthErrorCode.REFRESH_TOKEN_INVALID, true);
+            throw new RefreshFailure(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
 
         UserCredentialView credentialView;
@@ -152,11 +152,11 @@ public class LoginApplicationService {
             credentialView = getCredential(pending.userId());
             if (credentialView == null || !credentialView.loginAllowed() || !credentialView.refreshAllowed()) {
                 refreshTokenService.revokeFamily(pending.familyId());
-                throw new RefreshFailure(AuthErrorCode.USER_DISABLED, true);
+                throw new RefreshFailure(AuthErrorCode.USER_DISABLED);
             }
             if (pending.securityVersionAtIssue() != credentialView.securityVersion()) {
                 refreshTokenService.revokeFamily(pending.familyId());
-                throw new RefreshFailure(AuthErrorCode.REFRESH_TOKEN_INVALID, true);
+                throw new RefreshFailure(AuthErrorCode.REFRESH_TOKEN_INVALID);
             }
             String accessToken = loginTokenIssuer.issueAccessToken(credentialView);
             RefreshTokenApplicationService.IssuedRefreshToken replacement = refreshTokenService.generateReplacementToken(
@@ -201,10 +201,10 @@ public class LoginApplicationService {
     ) {
         boolean rolledBack = refreshTokenService.rollbackPendingRotation(refreshToken);
         if (rolledBack) {
-            return new RefreshFailure(CommonErrorCode.SERVICE_UNAVAILABLE, CommonErrorCode.SERVICE_UNAVAILABLE.getMessage(), cause, false);
+            return new RefreshFailure(CommonErrorCode.SERVICE_UNAVAILABLE, CommonErrorCode.SERVICE_UNAVAILABLE.getMessage(), cause);
         }
         refreshTokenService.revokeFamily(pending.familyId());
-        return new RefreshFailure(CommonErrorCode.SERVICE_UNAVAILABLE, CommonErrorCode.SERVICE_UNAVAILABLE.getMessage(), cause, true);
+        return new RefreshFailure(CommonErrorCode.SERVICE_UNAVAILABLE, CommonErrorCode.SERVICE_UNAVAILABLE.getMessage(), cause);
     }
 
     public RefreshCookieSpec clearRefreshCookie() {

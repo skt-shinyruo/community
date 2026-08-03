@@ -14,6 +14,9 @@ public interface DriveEntryMapper {
 
     DriveEntryDataObject selectById(@Param("spaceId") UUID spaceId, @Param("entryId") UUID entryId);
 
+    List<DriveEntryDataObject> selectByIds(@Param("spaceId") UUID spaceId,
+                                           @Param("entryIds") List<UUID> entryIds);
+
     DriveEntryDataObject selectActiveChildByName(@Param("spaceId") UUID spaceId,
                                                  @Param("parentId") UUID parentId,
                                                  @Param("parentKey") String parentKey,

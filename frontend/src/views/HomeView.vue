@@ -71,10 +71,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useAppStore } from '../stores/app'
 import http from '../api/http'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { showToast } from '../ui/toastService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
@@ -88,6 +89,15 @@ const unreadCount = ref(0)
 const followingCount = ref(0)
 const followerCount = ref(0)
 const loading = ref(false)
+const loadRequestTracker = createLatestRequestTracker()
+
+function currentIdentityScope() {
+  return `${auth.tokenGeneration}:${String(auth.userId || '')}`
+}
+
+function isCurrentRequest(token, identityScope) {
+  return loadRequestTracker.isCurrent(token) && currentIdentityScope() === identityScope
+}
 
 const greeting = computed(() => {
   const name = auth.username || 'Explorer'
@@ -98,34 +108,56 @@ const greeting = computed(() => {
 })
 
 async function loadCounts() {
-  if (!auth.authed) return
+  if (!auth.authed) return false
+
+  const token = loadRequestTracker.begin()
+  const identityScope = currentIdentityScope()
+  const userId = auth.userId
   loading.value = true
   try {
-    const unreadResp = await http.get('/api/notices/unread-count')
-    unreadCount.value = unreadResp?.data?.data ?? 0
+    const [unreadResp, followingResp, followerResp] = await Promise.all([
+      http.get('/api/notices/unread-count'),
+      userId ? http.get(`/api/follows/${userId}/followees/count`) : Promise.resolve(null),
+      userId ? http.get(`/api/follows/${userId}/followers/count`) : Promise.resolve(null)
+    ])
+    if (!isCurrentRequest(token, identityScope)) return false
 
-    if (auth.userId) {
-      const [followingResp, followerResp] = await Promise.all([
-        http.get(`/api/follows/${auth.userId}/followees/count`),
-        http.get(`/api/follows/${auth.userId}/followers/count`)
-      ])
-      followingCount.value = followingResp?.data?.data ?? 0
-      followerCount.value = followerResp?.data?.data ?? 0
-    }
+    unreadCount.value = unreadResp?.data?.data ?? 0
+    followingCount.value = followingResp?.data?.data ?? 0
+    followerCount.value = followerResp?.data?.data ?? 0
+    return true
   } catch (e) {
+    if (!isCurrentRequest(token, identityScope)) return false
     console.error('Failed to load dev stats', e)
     showToast({ type: 'error', text: '加载开发检查项失败' })
+    return false
   } finally {
-    loading.value = false
+    if (isCurrentRequest(token, identityScope)) {
+      loading.value = false
+    }
   }
 }
 
 async function refreshAll() {
-  await loadCounts()
-  showToast({ type: 'success', text: '已刷新开发检查项' })
+  if (await loadCounts()) {
+    showToast({ type: 'success', text: '已刷新开发检查项' })
+  }
 }
 
-onMounted(loadCounts)
+function resetForIdentity() {
+  loadRequestTracker.invalidate()
+  loading.value = false
+  unreadCount.value = 0
+  followingCount.value = 0
+  followerCount.value = 0
+  if (auth.authed) loadCounts()
+}
+
+watch(currentIdentityScope, resetForIdentity)
+onMounted(() => {
+  if (auth.authed) loadCounts()
+})
+onBeforeUnmount(() => loadRequestTracker.invalidate())
 </script>
 
 <style scoped>

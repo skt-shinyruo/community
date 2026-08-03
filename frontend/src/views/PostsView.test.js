@@ -49,6 +49,16 @@ import FeedToolbar from '../components/posts/FeedToolbar.vue'
 import { createPost, listBoardFeed, listGlobalFeed } from '../api/services/postService'
 
 describe('PostsView', () => {
+  function deferred() {
+    let resolve
+    let reject
+    const promise = new Promise((res, rej) => {
+      resolve = res
+      reject = rej
+    })
+    return { promise, resolve, reject }
+  }
+
   function mountView() {
     const pinia = createPinia()
     setActivePinia(pinia)
@@ -109,6 +119,125 @@ describe('PostsView', () => {
 
     expect(listGlobalFeed).toHaveBeenCalledWith({ cursor: '', size: 10 })
     expect(listBoardFeed).not.toHaveBeenCalled()
+  })
+
+  it('keeps the current feed cursor when refresh fails and retries load-more from it', async () => {
+    listGlobalFeed
+      .mockResolvedValueOnce({
+        data: { items: [{ id: 'post-1', title: 'current page' }], nextCursor: 'cursor-2' },
+        traceId: 'trace-page-1'
+      })
+      .mockRejectedValueOnce(new Error('temporary feed refresh failure'))
+      .mockResolvedValueOnce({
+        data: { items: [{ id: 'post-2', title: 'next page' }], nextCursor: '' },
+        traceId: 'trace-page-2'
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.vm.reload()
+
+    expect(wrapper.text()).toContain('current page')
+    expect(wrapper.text()).toContain('temporary feed refresh failure')
+
+    await wrapper.vm.loadMore()
+
+    expect(listGlobalFeed.mock.calls.map(([request]) => request.cursor)).toEqual(['', '', 'cursor-2'])
+    expect(wrapper.text()).toContain('current page')
+    expect(wrapper.text()).toContain('next page')
+  })
+
+  it('does not let a stale load-more completion restore an obsolete cursor', async () => {
+    let resolveStalePage
+    listGlobalFeed
+      .mockResolvedValueOnce({
+        data: { items: [{ id: 'post-old', title: 'old page' }], nextCursor: 'cursor-old' },
+        traceId: 'trace-old-page'
+      })
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveStalePage = resolve
+      }))
+      .mockResolvedValueOnce({
+        data: { items: [{ id: 'post-current', title: 'current page' }], nextCursor: 'cursor-current' },
+        traceId: 'trace-current-page'
+      })
+      .mockResolvedValueOnce({
+        data: { items: [{ id: 'post-next', title: 'current next page' }], nextCursor: '' },
+        traceId: 'trace-current-next-page'
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+    const staleLoad = wrapper.vm.loadMore()
+    while (!resolveStalePage) await Promise.resolve()
+
+    await wrapper.vm.reload()
+    resolveStalePage({
+      data: { items: [{ id: 'post-stale', title: 'stale page' }], nextCursor: 'cursor-stale' },
+      traceId: 'trace-stale-page'
+    })
+    await staleLoad
+    await wrapper.vm.loadMore()
+
+    expect(listGlobalFeed.mock.calls.map(([request]) => request.cursor)).toEqual([
+      '',
+      'cursor-old',
+      '',
+      'cursor-current'
+    ])
+    expect(wrapper.text()).toContain('current page')
+    expect(wrapper.text()).toContain('current next page')
+    expect(wrapper.text()).not.toContain('stale page')
+  })
+
+  it('does not commit the previous account feed after the session changes', async () => {
+    const oldFeed = deferred()
+    listGlobalFeed
+      .mockReturnValueOnce(oldFeed.promise)
+      .mockResolvedValueOnce({
+        data: { items: [{ id: 'post-b', title: 'account B feed' }], nextCursor: '' },
+        traceId: 'trace-b'
+      })
+
+    const wrapper = mountView()
+    await vi.waitFor(() => expect(listGlobalFeed).toHaveBeenCalledTimes(1))
+
+    useAuthStore().installSession({
+      accessToken: 'token-b',
+      me: { userId: 8, username: 'bbb', headerUrl: '', authorities: [] }
+    })
+    await vi.waitFor(() => expect(listGlobalFeed).toHaveBeenCalledTimes(2))
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('account B feed')
+
+    oldFeed.resolve({
+      data: { items: [{ id: 'post-a', title: 'account A feed' }], nextCursor: '' },
+      traceId: 'trace-a'
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('account B feed')
+    expect(wrapper.text()).not.toContain('account A feed')
+  })
+
+  it('clears the previous account composer draft when the session changes', async () => {
+    const wrapper = mountView()
+    await openComposer(wrapper)
+    await wrapper.get('input[name="post-title"]').setValue('private draft from A')
+    await wrapper.get('[data-test="block-text-0"]').setValue('private body from A')
+
+    useAuthStore().installSession({
+      accessToken: 'token-b',
+      me: { userId: 8, username: 'bbb', headerUrl: '', authorities: [] }
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.posts-composer').exists()).toBe(false)
+    await wrapper.get('.posts-feed-compose-strip').trigger('click')
+    await nextTick()
+    expect(wrapper.get('input[name="post-title"]').element.value).toBe('')
+    expect(wrapper.get('[data-test="block-text-0"]').element.value).toBe('')
   })
 
   it('passes the simplified feed toolbar contract to the posts shell', async () => {

@@ -29,6 +29,24 @@ public interface FollowMapper {
     @Select("select count(1) from social_follow where user_id = #{userId, jdbcType=BINARY} and entity_type = #{entityType} and entity_id = #{entityId, jdbcType=BINARY}")
     int countFollow(@Param("userId") UUID userId, @Param("entityType") int entityType, @Param("entityId") UUID entityId);
 
+    @Select("""
+            <script>
+            select entity_id
+            from social_follow
+            where user_id = #{userId, jdbcType=BINARY}
+              and entity_type = #{entityType}
+              and entity_id in
+              <foreach collection="entityIds" item="entityId" open="(" separator="," close=")">
+                #{entityId, jdbcType=BINARY}
+              </foreach>
+            </script>
+            """)
+    List<UUID> selectFollowedEntityIds(
+            @Param("userId") UUID userId,
+            @Param("entityType") int entityType,
+            @Param("entityIds") List<UUID> entityIds
+    );
+
     @Select("select count(1) from social_follow where user_id = #{userId, jdbcType=BINARY} and entity_type = #{entityType}")
     long countFollowees(@Param("userId") UUID userId, @Param("entityType") int entityType);
 

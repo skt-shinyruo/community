@@ -17,14 +17,18 @@ import org.springframework.data.elasticsearch.core.query.UpdateQuery;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ElasticsearchPostSearchRepositoryTest {
@@ -85,6 +89,62 @@ class ElasticsearchPostSearchRepositoryTest {
                 .containsEntry("status", 2)
                 .containsEntry("tags", List.of());
         assertThat(tombstone.get("title")).isNull();
+    }
+
+    @Test
+    void saveShouldWriteTheAliasAndTheCapturedRebuildTarget() {
+        ElasticsearchOperations operations = mock(ElasticsearchOperations.class);
+        SearchReindexTargetRegistry targetRegistry = mock(SearchReindexTargetRegistry.class);
+        when(targetRegistry.currentIndex()).thenReturn(Optional.of("community_posts_v20260803010101"));
+        ElasticsearchPostSearchRepository repository = new ElasticsearchPostSearchRepository(
+                operations, targetRegistry
+        );
+
+        repository.save(activeDocument(uuid(103), 4L));
+
+        ArgumentCaptor<IndexCoordinates> indexCaptor = ArgumentCaptor.forClass(IndexCoordinates.class);
+        verify(operations, times(2)).update(any(UpdateQuery.class), indexCaptor.capture());
+        assertThat(indexCaptor.getAllValues())
+                .extracting(coordinates -> List.of(coordinates.getIndexNames()))
+                .containsExactly(
+                        List.of(EsPostDocument.INDEX_ALIAS),
+                        List.of("community_posts_v20260803010101")
+                );
+    }
+
+    @Test
+    void saveShouldFailBeforeWritingWhenTheRebuildRegistryCannotBeRead() {
+        ElasticsearchOperations operations = mock(ElasticsearchOperations.class);
+        SearchReindexTargetRegistry targetRegistry = mock(SearchReindexTargetRegistry.class);
+        IllegalStateException failure = new IllegalStateException("redis unavailable");
+        when(targetRegistry.currentIndex()).thenThrow(failure);
+        ElasticsearchPostSearchRepository repository = new ElasticsearchPostSearchRepository(
+                operations, targetRegistry
+        );
+
+        assertThatThrownBy(() -> repository.save(activeDocument(uuid(104), 4L)))
+                .isSameAs(failure);
+        verifyNoInteractions(operations);
+    }
+
+    @Test
+    void saveAllToIndexShouldUseOneBoundedBulkUpdateForAReindexPage() {
+        ElasticsearchOperations operations = mock(ElasticsearchOperations.class);
+        ElasticsearchPostSearchRepository repository = new ElasticsearchPostSearchRepository(operations);
+        PostSearchDocument first = activeDocument(uuid(105), 4L);
+        PostSearchDocument second = activeDocument(uuid(106), 5L);
+        String target = "community_posts_v20260803010101";
+
+        repository.saveAllToIndex(List.of(first, second), target);
+
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        ArgumentCaptor<List<UpdateQuery>> updatesCaptor = ArgumentCaptor.forClass((Class) List.class);
+        verify(operations).bulkUpdate(updatesCaptor.capture(), eq(IndexCoordinates.of(target)));
+        assertThat(updatesCaptor.getValue())
+                .extracting(UpdateQuery::getId)
+                .containsExactly(uuid(105).toString(), uuid(106).toString());
+        assertThat(updatesCaptor.getValue())
+                .allSatisfy(update -> assertThat(update.getScript()).contains("aggregateVersion"));
     }
 
     @Test

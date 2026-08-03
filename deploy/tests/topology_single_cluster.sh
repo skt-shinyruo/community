@@ -209,6 +209,34 @@ assert_nacos_auth_environment() {
   done
 }
 
+assert_community_app_runtime_environment() {
+  local rendered_config="$1"
+  local env_file="$2"
+  shift 2
+
+  local variable
+  local expected
+  local variables=(
+    MARKET_ORDER_AUTO_CONFIRM_BATCH_SIZE
+    SEARCH_REINDEX_PAGE_SIZE
+    SEARCH_REINDEX_LOCK_TTL
+    SEARCH_INDEX_KEEP_HISTORY
+    WALLET_TEST_CREDITS_ENABLED
+    WALLET_TEST_CREDIT_GRANT_ENABLED
+    WALLET_TEST_CREDIT_DISCARD_ENABLED
+    WALLET_TEST_CREDIT_MAX_GRANT_PER_REQUEST
+    WALLET_TEST_CREDIT_MAX_DISCARD_PER_REQUEST
+    WALLET_TEST_CREDIT_GRANT_QUOTA_PER_USER
+    WALLET_TEST_CREDIT_DISCARD_QUOTA_PER_USER
+  )
+
+  for variable in "${variables[@]}"; do
+    expected="$(environment_file_value "${env_file}" "${variable}")"
+    assert_environment_value_for_services \
+      "${rendered_config}" "${variable}" "${expected}" "${env_file}" "$@"
+  done
+}
+
 assert_required_nacos_auth_values() {
   local topology="$1"
   local source_env_file="$2"
@@ -350,6 +378,13 @@ assert_distinct_ticket_secret deploy/.env.single.example
 assert_distinct_ticket_secret deploy/.env.cluster.example
 assert_nacos_auth_environment "${single_infra}" deploy/.env.single.example nacos
 assert_nacos_auth_environment "${cluster_infra}" deploy/.env.cluster.example nacos-1 nacos-2 nacos-3
+assert_community_app_runtime_environment "${single_full}" deploy/.env.single.example community-app
+assert_community_app_runtime_environment "${cluster_full}" deploy/.env.cluster.example \
+  community-app-1 community-app-2 community-app-3
+for variable in WALLET_TEST_CREDITS_ENABLED WALLET_TEST_CREDIT_GRANT_ENABLED WALLET_TEST_CREDIT_DISCARD_ENABLED; do
+  test "$(environment_file_value deploy/.env.single.example "${variable}")" = "true"
+  test "$(environment_file_value deploy/.env.cluster.example "${variable}")" = "false"
+done
 assert_required_nacos_auth_values single deploy/.env.single.example
 assert_required_nacos_auth_values cluster deploy/.env.cluster.example
 assert_required_jwt_values single deploy/.env.single.example

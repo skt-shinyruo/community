@@ -7,6 +7,12 @@ export async function getWalletSummary() {
   return { data: data || {}, traceId }
 }
 
+export async function getWalletCapabilities() {
+  const resp = await http.get('/api/wallet/capabilities')
+  const { data, traceId } = unwrapResultBody(resp.data, '查询钱包能力')
+  return { data: data || {}, traceId }
+}
+
 export async function getWalletTransactions(limit = 12) {
   const resp = await http.get('/api/wallet/transactions', { params: { limit } })
   const { data, traceId } = unwrapResultBody(resp.data, '查询钱包流水')
@@ -15,13 +21,13 @@ export async function getWalletTransactions(limit = 12) {
 
 export async function createRecharge(payload) {
   const resp = await http.post('/api/wallet/recharges', payload)
-  const { data, traceId } = unwrapResultBody(resp.data, '发起充值')
+  const { data, traceId } = unwrapResultBody(resp.data, '领取测试积分')
   return { data: data || {}, traceId }
 }
 
 export async function createWithdrawal(payload) {
   const resp = await http.post('/api/wallet/withdrawals', payload)
-  const { data, traceId } = unwrapResultBody(resp.data, '发起提现')
+  const { data, traceId } = unwrapResultBody(resp.data, '销毁测试积分')
   return { data: data || {}, traceId }
 }
 

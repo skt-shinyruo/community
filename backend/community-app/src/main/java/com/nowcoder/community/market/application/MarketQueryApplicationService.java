@@ -14,6 +14,7 @@ import com.nowcoder.community.market.application.result.MarketListingDetailResul
 import com.nowcoder.community.market.application.result.MarketListingResult;
 import com.nowcoder.community.market.application.result.MarketOrderDetailResult;
 import com.nowcoder.community.market.application.result.MarketOrderResult;
+import com.nowcoder.community.market.application.result.MarketPageResult;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -44,10 +45,17 @@ public class MarketQueryApplicationService {
         this.marketShipmentRepository = marketShipmentRepository;
     }
 
-    public List<MarketListingResult> listPublicListings() {
-        return marketListingRepository.findPublicListings().stream()
+    public MarketPageResult<MarketListingResult> listPublicListings(Integer page, Integer size) {
+        MarketPagination.Window window = MarketPagination.window(page, size);
+        List<MarketListingResult> candidates = marketListingRepository
+                .findPublicListings(window.offset(), window.queryLimit()).stream()
                 .map(MarketListingResult::from)
                 .toList();
+        return MarketPagination.result(candidates, window);
+    }
+
+    public List<MarketListingResult> listPublicListings() {
+        return listPublicListings(null, null).items();
     }
 
     public MarketListingDetailResult getListingDetail(UUID listingId) {
@@ -58,22 +66,43 @@ public class MarketQueryApplicationService {
         return MarketListingDetailResult.from(listing);
     }
 
-    public List<MarketListingResult> listSellerListings(UUID sellerUserId) {
-        return marketListingRepository.findBySellerUserId(sellerUserId).stream()
+    public MarketPageResult<MarketListingResult> listSellerListings(UUID sellerUserId, Integer page, Integer size) {
+        MarketPagination.Window window = MarketPagination.window(page, size);
+        List<MarketListingResult> candidates = marketListingRepository
+                .findBySellerUserId(sellerUserId, window.offset(), window.queryLimit()).stream()
                 .map(MarketListingResult::from)
                 .toList();
+        return MarketPagination.result(candidates, window);
+    }
+
+    public List<MarketListingResult> listSellerListings(UUID sellerUserId) {
+        return listSellerListings(sellerUserId, null, null).items();
+    }
+
+    public MarketPageResult<MarketOrderResult> listBuyingOrders(UUID buyerUserId, Integer page, Integer size) {
+        MarketPagination.Window window = MarketPagination.window(page, size);
+        List<MarketOrderResult> candidates = marketOrderRepository
+                .findByBuyerUserId(buyerUserId, window.offset(), window.queryLimit()).stream()
+                .map(MarketOrderResult::from)
+                .toList();
+        return MarketPagination.result(candidates, window);
     }
 
     public List<MarketOrderResult> listBuyingOrders(UUID buyerUserId) {
-        return marketOrderRepository.findByBuyerUserId(buyerUserId).stream()
+        return listBuyingOrders(buyerUserId, null, null).items();
+    }
+
+    public MarketPageResult<MarketOrderResult> listSellingOrders(UUID sellerUserId, Integer page, Integer size) {
+        MarketPagination.Window window = MarketPagination.window(page, size);
+        List<MarketOrderResult> candidates = marketOrderRepository
+                .findBySellerUserId(sellerUserId, window.offset(), window.queryLimit()).stream()
                 .map(MarketOrderResult::from)
                 .toList();
+        return MarketPagination.result(candidates, window);
     }
 
     public List<MarketOrderResult> listSellingOrders(UUID sellerUserId) {
-        return marketOrderRepository.findBySellerUserId(sellerUserId).stream()
-                .map(MarketOrderResult::from)
-                .toList();
+        return listSellingOrders(sellerUserId, null, null).items();
     }
 
     public MarketOrderDetailResult getOrderDetail(UUID orderId, UUID actorUserId) {

@@ -8,11 +8,13 @@ import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.wallet.application.WalletAccountApplicationService;
 import com.nowcoder.community.wallet.application.WalletLedgerApplicationService;
 import com.nowcoder.community.wallet.application.WalletRechargeApplicationService;
+import com.nowcoder.community.wallet.application.WalletTestCreditCapabilityApplicationService;
 import com.nowcoder.community.wallet.application.WalletTransferApplicationService;
 import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
 import com.nowcoder.community.wallet.application.result.TransferOrderResult;
+import com.nowcoder.community.wallet.application.result.WalletCapabilitiesResult;
 import com.nowcoder.community.wallet.application.result.WalletTransactionResult;
 import com.nowcoder.community.wallet.application.result.WithdrawOrderResult;
 import com.nowcoder.community.support.WebMvcSliceJsonCodecTestConfig;
@@ -68,6 +70,9 @@ class WalletControllerTest {
     private WalletLedgerApplicationService ledgerService;
 
     @MockBean
+    private WalletTestCreditCapabilityApplicationService capabilityService;
+
+    @MockBean
     private JwtDecoder jwtDecoder;
 
     @SpringBootConfiguration
@@ -82,6 +87,10 @@ class WalletControllerTest {
                 .andExpect(jsonPath("$.code").value(401));
 
         mockMvc.perform(get("/api/wallet/transactions"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+
+        mockMvc.perform(get("/api/wallet/capabilities"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
 
@@ -133,6 +142,32 @@ class WalletControllerTest {
                 .andExpect(jsonPath("$.data.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.data.balance").value(2300))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+    }
+
+    @Test
+    void walletCapabilitiesShouldExposeTestCreditLimitsWithoutClaimingPaymentSupport() throws Exception {
+        UUID userId = uuid(1);
+        when(capabilityService.capabilities(userId)).thenReturn(new WalletCapabilitiesResult(
+                "INTERNAL_TEST_CREDIT",
+                false,
+                false,
+                new WalletCapabilitiesResult.TestCredits(
+                        true,
+                        new WalletCapabilitiesResult.Action(true, 1000L, 5000L, 1200L, 3800L),
+                        new WalletCapabilitiesResult.Action(false, 1000L, 5000L, 0L, 5000L)
+                )
+        ));
+
+        mockMvc.perform(get("/api/wallet/capabilities")
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.balanceUnit").value("INTERNAL_TEST_CREDIT"))
+                .andExpect(jsonPath("$.data.realPaymentsSupported").value(false))
+                .andExpect(jsonPath("$.data.realPayoutsSupported").value(false))
+                .andExpect(jsonPath("$.data.testCredits.enabled").value(true))
+                .andExpect(jsonPath("$.data.testCredits.grant.maxAmountPerRequest").value(1000))
+                .andExpect(jsonPath("$.data.testCredits.grant.remainingAmount").value(3800))
+                .andExpect(jsonPath("$.data.testCredits.discard.enabled").value(false));
     }
 
     @Test

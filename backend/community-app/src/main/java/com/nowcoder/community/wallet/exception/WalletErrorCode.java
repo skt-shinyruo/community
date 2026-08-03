@@ -13,7 +13,10 @@ public enum WalletErrorCode implements ErrorCode {
     PLATFORM_CASH_INSUFFICIENT(17006, "平台可提现现金不足", ErrorKind.CONFLICT),
     REQUEST_REPLAY_CONFLICT(17007, "请求号与已有钱包请求不一致", ErrorKind.CONFLICT),
     INVALID_TRANSFER(17008, "转账请求不合法", ErrorKind.INVALID_INPUT),
-    ACCOUNT_FROZEN(17009, "钱包账户已冻结", ErrorKind.CONFLICT);
+    ACCOUNT_FROZEN(17009, "钱包账户已冻结", ErrorKind.CONFLICT),
+    TEST_CREDITS_DISABLED(17010, "测试积分工具未启用", ErrorKind.FORBIDDEN),
+    TEST_CREDIT_LIMIT_EXCEEDED(17011, "测试积分单次操作超过上限", ErrorKind.INVALID_INPUT),
+    TEST_CREDIT_QUOTA_EXCEEDED(17012, "测试积分累计配额已用尽", ErrorKind.CONFLICT);
 
     private final int code;
     private final String message;

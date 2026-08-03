@@ -16,13 +16,13 @@
       <div class="wallet-summary-main">
         <span class="wallet-label">可用余额</span>
         <strong>{{ state.hero.balance }}</strong>
-        <p>当前可用于消费、转账和提现的站内积分。</p>
+        <p>当前可用于站内消费和转账的积分，不代表法定货币或可兑付余额。</p>
       </div>
       <div class="wallet-summary-side">
         <div class="wallet-summary-metric">
           <span class="wallet-label">最近流水</span>
           <strong>{{ state.feed.length }}</strong>
-          <p>充值、提现、转账和交易相关流水会显示在这里。</p>
+          <p>积分发放、销毁、转账和交易相关流水会显示在这里。</p>
         </div>
       </div>
     </div>
@@ -34,25 +34,30 @@
       <UiCard class="wallet-panel">
         <UiPageHeader>
           <template #title>钱包动作</template>
-          <template #subtitle>充值、提现和转账会进入钱包账务流程，请确认金额和对象后提交。</template>
+          <template #subtitle>钱包仅处理站内积分账务；真实支付与外部出款当前未接入。</template>
         </UiPageHeader>
 
+        <UiState v-if="testCredits.enabled" class="wallet-test-notice">
+          测试积分工具
+          <template #description>仅用于开发和验收，不涉及真实充值、支付或银行出款。</template>
+        </UiState>
+
         <div class="wallet-action-grid">
-          <section class="wallet-action-card">
-            <h2>充值</h2>
-            <p>向钱包补充可立即使用的站内积分。</p>
-            <UiInput v-model.number="rechargeForm.amount" type="number" placeholder="输入充值金额" />
-            <UiButton :disabled="submittingKey !== ''" @click="submitRecharge">
-              {{ submittingKey === 'recharge' ? '充值中…' : '确认充值' }}
+          <section v-if="testCredits.grant.enabled" class="wallet-action-card">
+            <h2>领取测试积分</h2>
+            <p>本账号剩余 {{ testCredits.grant.remainingAmount }}，单次最多 {{ testCredits.grant.maxAmountPerRequest }}。</p>
+            <UiInput v-model.number="rechargeForm.amount" type="number" placeholder="输入测试积分数量" />
+            <UiButton :disabled="submittingKey !== '' || testCredits.grant.remainingAmount <= 0" @click="submitRecharge">
+              {{ submittingKey === 'recharge' ? '领取中…' : '领取测试积分' }}
             </UiButton>
           </section>
 
-          <section class="wallet-action-card">
-            <h2>提现</h2>
-            <p>发起提现申请，保留钱包里的真实余额语义。</p>
-            <UiInput v-model.number="withdrawForm.amount" type="number" placeholder="输入提现金额" />
-            <UiButton :disabled="submittingKey !== ''" @click="submitWithdrawal">
-              {{ submittingKey === 'withdraw' ? '提交中…' : '申请提现' }}
+          <section v-if="testCredits.discard.enabled" class="wallet-action-card">
+            <h2>销毁测试积分</h2>
+            <p>本账号剩余配额 {{ testCredits.discard.remainingAmount }}；该操作不会产生外部出款。</p>
+            <UiInput v-model.number="withdrawForm.amount" type="number" placeholder="输入销毁数量" />
+            <UiButton :disabled="submittingKey !== '' || testCredits.discard.remainingAmount <= 0" @click="submitWithdrawal">
+              {{ submittingKey === 'withdraw' ? '销毁中…' : '销毁测试积分' }}
             </UiButton>
           </section>
 
@@ -76,7 +81,7 @@
 
         <UiState v-if="state.feed.length === 0">
           暂无交易记录
-          <template #description>产生充值、提现、转账或交易托管后，这里会显示流水摘要。</template>
+          <template #description>产生积分发放、销毁、转账或交易托管后，这里会显示流水摘要。</template>
         </UiState>
 
         <div v-else class="wallet-feed">
@@ -96,11 +101,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   createRecharge,
   createTransfer,
   createWithdrawal,
+  getWalletCapabilities,
   getWalletSummary,
   getWalletTransactions
 } from '../api/services/walletService'
@@ -110,19 +116,30 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import { useAuthStore } from '../stores/auth'
 import { isUuid, normalizeOpaqueId } from '../utils/opaqueId'
 import { buildWalletState } from './walletState'
 
+const auth = useAuthStore()
 const loading = ref(false)
 const ready = ref(false)
 const error = ref('')
 const submittingKey = ref('')
 const summary = ref({ balance: 0 })
 const txns = ref([])
+const capabilities = ref({})
 
 const rechargeForm = ref({ amount: '' })
 const withdrawForm = ref({ amount: '' })
 const transferForm = ref({ toUserId: '', amount: '' })
+let reloadGeneration = 0
+let actionGeneration = 0
+
+const sessionScope = computed(() => [
+  auth.tokenGeneration,
+  normalizeOpaqueId(auth.userId),
+  auth.authed ? 'authenticated' : 'anonymous'
+].join(':'))
 
 const state = computed(() =>
   buildWalletState({
@@ -130,6 +147,8 @@ const state = computed(() =>
     txns: txns.value
   })
 )
+
+const testCredits = computed(() => normalizeCapabilities(capabilities.value).testCredits)
 
 function normalizeSummary(data) {
   const safe = data && typeof data === 'object' ? data : {}
@@ -142,6 +161,32 @@ function normalizeTxns(data) {
   return Array.isArray(data) ? data.map((item) => ({ ...item })) : []
 }
 
+function normalizeAction(action) {
+  const safe = action && typeof action === 'object' ? action : {}
+  return {
+    enabled: safe.enabled === true,
+    maxAmountPerRequest: Math.max(0, Number(safe.maxAmountPerRequest || 0)),
+    totalQuota: Math.max(0, Number(safe.totalQuota || 0)),
+    usedAmount: Math.max(0, Number(safe.usedAmount || 0)),
+    remainingAmount: Math.max(0, Number(safe.remainingAmount || 0))
+  }
+}
+
+function normalizeCapabilities(data) {
+  const safe = data && typeof data === 'object' ? data : {}
+  const credits = safe.testCredits && typeof safe.testCredits === 'object' ? safe.testCredits : {}
+  return {
+    balanceUnit: String(safe.balanceUnit || 'INTERNAL_TEST_CREDIT'),
+    realPaymentsSupported: safe.realPaymentsSupported === true,
+    realPayoutsSupported: safe.realPayoutsSupported === true,
+    testCredits: {
+      enabled: credits.enabled === true,
+      grant: normalizeAction(credits.grant),
+      discard: normalizeAction(credits.discard)
+    }
+  }
+}
+
 function requirePositiveAmount(amount, fallbackMessage) {
   const value = Number(amount || 0)
   if (!Number.isFinite(value) || value <= 0) {
@@ -151,64 +196,84 @@ function requirePositiveAmount(amount, fallbackMessage) {
 }
 
 async function reload() {
+  const generation = ++reloadGeneration
+  const scope = sessionScope.value
   loading.value = true
   error.value = ''
   try {
-    const [summaryResp, txnsResp] = await Promise.all([
+    const [summaryResp, txnsResp, capabilitiesResp] = await Promise.all([
       getWalletSummary(),
-      getWalletTransactions(12)
+      getWalletTransactions(12),
+      getWalletCapabilities()
     ])
+    if (generation !== reloadGeneration || scope !== sessionScope.value) return
     summary.value = normalizeSummary(summaryResp.data)
     txns.value = normalizeTxns(txnsResp.data)
+    capabilities.value = normalizeCapabilities(capabilitiesResp.data)
     ready.value = true
   } catch (e) {
+    if (generation !== reloadGeneration || scope !== sessionScope.value) return
     error.value = e?.message || '加载钱包失败'
   } finally {
-    loading.value = false
+    if (generation === reloadGeneration && scope === sessionScope.value) {
+      loading.value = false
+    }
   }
+}
+
+function isCurrentAction(generation, scope) {
+  return generation === actionGeneration && scope === sessionScope.value
 }
 
 async function submitRecharge() {
   let amount = 0
   try {
-    amount = requirePositiveAmount(rechargeForm.value.amount, '请输入有效的充值金额')
+    amount = requirePositiveAmount(rechargeForm.value.amount, '请输入有效的测试积分数量')
   } catch (e) {
     error.value = e.message
     return
   }
 
+  const generation = ++actionGeneration
+  const scope = sessionScope.value
   submittingKey.value = 'recharge'
   error.value = ''
   try {
     await createRecharge({ amount })
+    if (!isCurrentAction(generation, scope)) return
     rechargeForm.value.amount = ''
     await reload()
   } catch (e) {
-    error.value = e?.message || '充值失败'
+    if (!isCurrentAction(generation, scope)) return
+    error.value = e?.message || '领取测试积分失败'
   } finally {
-    submittingKey.value = ''
+    if (isCurrentAction(generation, scope)) submittingKey.value = ''
   }
 }
 
 async function submitWithdrawal() {
   let amount = 0
   try {
-    amount = requirePositiveAmount(withdrawForm.value.amount, '请输入有效的提现金额')
+    amount = requirePositiveAmount(withdrawForm.value.amount, '请输入有效的测试积分数量')
   } catch (e) {
     error.value = e.message
     return
   }
 
+  const generation = ++actionGeneration
+  const scope = sessionScope.value
   submittingKey.value = 'withdraw'
   error.value = ''
   try {
     await createWithdrawal({ amount })
+    if (!isCurrentAction(generation, scope)) return
     withdrawForm.value.amount = ''
     await reload()
   } catch (e) {
-    error.value = e?.message || '提现失败'
+    if (!isCurrentAction(generation, scope)) return
+    error.value = e?.message || '销毁测试积分失败'
   } finally {
-    submittingKey.value = ''
+    if (isCurrentAction(generation, scope)) submittingKey.value = ''
   }
 }
 
@@ -225,21 +290,50 @@ async function submitTransfer() {
     return
   }
 
+  const generation = ++actionGeneration
+  const scope = sessionScope.value
   submittingKey.value = 'transfer'
   error.value = ''
   try {
     await createTransfer({ toUserId, amount })
+    if (!isCurrentAction(generation, scope)) return
     transferForm.value.toUserId = ''
     transferForm.value.amount = ''
     await reload()
   } catch (e) {
+    if (!isCurrentAction(generation, scope)) return
     error.value = e?.message || '转账失败'
   } finally {
-    submittingKey.value = ''
+    if (isCurrentAction(generation, scope)) submittingKey.value = ''
   }
 }
 
-onMounted(reload)
+function resetPrivateState() {
+  summary.value = { balance: 0 }
+  txns.value = []
+  capabilities.value = {}
+  rechargeForm.value = { amount: '' }
+  withdrawForm.value = { amount: '' }
+  transferForm.value = { toUserId: '', amount: '' }
+  loading.value = false
+  ready.value = false
+  error.value = ''
+  submittingKey.value = ''
+}
+
+onMounted(() => {
+  if (auth.authed) reload()
+})
+watch(sessionScope, () => {
+  reloadGeneration += 1
+  actionGeneration += 1
+  resetPrivateState()
+  if (auth.authed) reload()
+})
+onBeforeUnmount(() => {
+  reloadGeneration += 1
+  actionGeneration += 1
+})
 </script>
 
 <style scoped>
@@ -298,6 +392,10 @@ onMounted(reload)
 
 .wallet-state {
   padding: 24px 0;
+}
+
+.wallet-test-notice {
+  margin-bottom: 14px;
 }
 
 .wallet-layout {

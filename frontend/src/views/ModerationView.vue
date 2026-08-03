@@ -7,7 +7,7 @@
         <template #title>治理后台</template>
         <template #subtitle>聚焦待处理举报、处置审计和高风险动作的执行上下文。</template>
         <template #actions>
-          <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
+          <UiButton variant="secondary" :disabled="loading" @click="refresh">刷新</UiButton>
         </template>
       </UiPageHeader>
 
@@ -16,7 +16,8 @@
         <UiButton :variant="tab === 'actions' ? 'primary' : 'secondary'" @click="tab = 'actions'">处置审计</UiButton>
       </div>
 
-      <UiState v-if="error" variant="error" class="moderation-state">{{ error }}</UiState>
+      <div v-if="error && currentItems.length > 0" class="error moderation-state">{{ error }}</div>
+      <UiState v-if="error && currentItems.length === 0" variant="error" class="moderation-state">{{ error }}</UiState>
       <div v-else-if="loading" class="muted moderation-loading">加载中…</div>
 
       <div v-else class="moderation-body">
@@ -170,7 +171,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import UiBadge from '../components/ui/UiBadge.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -185,12 +186,15 @@ import { normalizeOpaqueId } from '../utils/opaqueId'
 import { formatTime } from '../utils/time'
 import { showToast } from '../ui/toastService'
 import { listActions, listReports, takeAction } from '../api/services/moderationService'
+import { useAuthStore } from '../stores/auth'
 
+const auth = useAuthStore()
 const tab = ref('reports')
 
 const loading = ref(false)
 const loadingMore = ref(false)
 const error = ref('')
+const currentItems = computed(() => (tab.value === 'reports' ? reports.value : actions.value))
 
 // reports
 const reports = ref([])
@@ -204,6 +208,20 @@ const statusFilterOptions = [
   { label: '已处理', value: '1' },
   { label: '已驳回', value: '2' }
 ]
+let loadGeneration = 0
+let actionGeneration = 0
+
+const hasModerationAccess = computed(() => auth.authed && auth.isAdminOrModerator)
+const sessionScope = computed(() => [
+  auth.tokenGeneration,
+  normalizeOpaqueId(auth.userId),
+  [...auth.authorities].sort().join(',')
+].join(':'))
+const viewScope = computed(() => [
+  sessionScope.value,
+  tab.value,
+  tab.value === 'reports' ? statusFilter.value : ''
+].join(':'))
 
 // actions
 const actions = ref([])
@@ -234,79 +252,97 @@ function targetTypeLabel(t) {
   return '目标'
 }
 
-async function loadReports(append = false) {
+async function loadReports(append = false, targetPage = reportsPage.value) {
+  if (!hasModerationAccess.value) return
+  const generation = ++loadGeneration
+  const scope = viewScope.value
   if (append) loadingMore.value = true
-  else loading.value = true
-  if (!append) error.value = ''
+  else {
+    loading.value = true
+    loadingMore.value = false
+  }
+  error.value = ''
 
   try {
     const resp = await listReports({
       status: statusFilter.value === '' ? undefined : Number(statusFilter.value),
-      page: reportsPage.value,
+      page: targetPage,
       size: reportsSize
     })
+    if (!isCurrentLoad(generation, scope)) return
     const list = Array.isArray(resp?.data) ? resp.data : []
     reportsHasNext.value = list.length >= reportsSize
+    if (append && list.length === 0) return
+    reportsPage.value = targetPage
     reports.value = append ? [...reports.value, ...list] : list
   } catch (e) {
-    if (!append) error.value = e?.message || '加载失败'
+    if (!isCurrentLoad(generation, scope)) return
+    error.value = e?.message || '加载失败'
   } finally {
-    loading.value = false
-    loadingMore.value = false
+    if (isCurrentLoad(generation, scope)) {
+      loading.value = false
+      loadingMore.value = false
+    }
   }
 }
 
-async function loadActions(append = false) {
+async function loadActions(append = false, targetPage = actionsPage.value) {
+  if (!hasModerationAccess.value) return
+  const generation = ++loadGeneration
+  const scope = viewScope.value
   if (append) loadingMore.value = true
-  else loading.value = true
-  if (!append) error.value = ''
-
-  try {
-    const resp = await listActions({ page: actionsPage.value, size: actionsSize })
-    const list = Array.isArray(resp?.data) ? resp.data : []
-    actionsHasNext.value = list.length >= actionsSize
-    actions.value = append ? [...actions.value, ...list] : list
-  } catch (e) {
-    if (!append) error.value = e?.message || '加载失败'
-  } finally {
-    loading.value = false
+  else {
+    loading.value = true
     loadingMore.value = false
   }
+  error.value = ''
+
+  try {
+    const resp = await listActions({ page: targetPage, size: actionsSize })
+    if (!isCurrentLoad(generation, scope)) return
+    const list = Array.isArray(resp?.data) ? resp.data : []
+    actionsHasNext.value = list.length >= actionsSize
+    if (append && list.length === 0) return
+    actionsPage.value = targetPage
+    actions.value = append ? [...actions.value, ...list] : list
+  } catch (e) {
+    if (!isCurrentLoad(generation, scope)) return
+    error.value = e?.message || '加载失败'
+  } finally {
+    if (isCurrentLoad(generation, scope)) {
+      loading.value = false
+      loadingMore.value = false
+    }
+  }
+}
+
+function isCurrentLoad(generation, scope) {
+  return generation === loadGeneration && scope === viewScope.value && hasModerationAccess.value
 }
 
 async function reload() {
+  if (!hasModerationAccess.value) return
   if (tab.value === 'reports') {
-    reportsPage.value = 0
-    await loadReports(false)
+    await loadReports(false, 0)
   } else {
-    actionsPage.value = 0
-    await loadActions(false)
+    await loadActions(false, 0)
   }
 }
 
+async function refresh() {
+  invalidateActionState()
+  await reload()
+}
+
 async function loadMoreReports() {
-  if (!reportsHasNext.value) return
-  reportsPage.value += 1
-  await loadReports(true)
+  if (loading.value || loadingMore.value || !reportsHasNext.value) return
+  await loadReports(true, reportsPage.value + 1)
 }
 
 async function loadMoreActions() {
-  if (!actionsHasNext.value) return
-  actionsPage.value += 1
-  await loadActions(true)
+  if (loading.value || loadingMore.value || !actionsHasNext.value) return
+  await loadActions(true, actionsPage.value + 1)
 }
-
-watch(statusFilter, () => {
-  if (tab.value !== 'reports') return
-  reportsPage.value = 0
-  loadReports(false)
-})
-
-watch(tab, () => {
-  reload()
-})
-
-onMounted(reload)
 
 // action modal
 const actionModalOpen = ref(false)
@@ -323,6 +359,7 @@ const actionForm = ref({
 const actionNeedsDuration = computed(() => actionForm.value.action === 'mute' || actionForm.value.action === 'ban')
 
 function openActionModal(report) {
+  if (!hasModerationAccess.value) return
   selectedReport.value = report || null
   actionForm.value = { action: 'reject', reason: '', durationPreset: '86400', durationSeconds: '' }
   actionError.value = ''
@@ -344,6 +381,7 @@ function resolveDurationSeconds() {
 
 async function submitAction() {
   actionError.value = ''
+  if (!hasModerationAccess.value) return
   const reportId = normalizeOpaqueId(selectedReport.value?.id)
   if (!reportId) return
   const reason = String(actionForm.value.reason || '').trim()
@@ -352,23 +390,73 @@ async function submitAction() {
     return
   }
 
+  const generation = ++actionGeneration
+  const scope = viewScope.value
+  const command = {
+    reportId,
+    action: actionForm.value.action,
+    reason,
+    durationSeconds: resolveDurationSeconds()
+  }
   actionLoading.value = true
   try {
-    await takeAction({
-      reportId,
-      action: actionForm.value.action,
-      reason,
-      durationSeconds: resolveDurationSeconds()
-    })
+    await takeAction(command)
+    if (!isCurrentAction(generation, scope)) return
     showToast({ type: 'success', title: '处置成功', text: '已记录审计并通知相关用户。' })
     closeActionModal()
     await reload()
   } catch (e) {
+    if (!isCurrentAction(generation, scope)) return
     actionError.value = e?.message || '处置失败'
   } finally {
-    actionLoading.value = false
+    if (isCurrentAction(generation, scope)) actionLoading.value = false
   }
 }
+
+function isCurrentAction(generation, scope) {
+  return generation === actionGeneration && scope === viewScope.value && hasModerationAccess.value
+}
+
+function invalidateActionState() {
+  actionGeneration += 1
+  actionLoading.value = false
+  closeActionModal()
+}
+
+function resetForSession() {
+  loadGeneration += 1
+  invalidateActionState()
+  loading.value = false
+  loadingMore.value = false
+  error.value = ''
+  reports.value = []
+  reportsPage.value = 0
+  reportsHasNext.value = true
+  actions.value = []
+  actionsPage.value = 0
+  actionsHasNext.value = true
+  if (hasModerationAccess.value) reload()
+}
+
+watch(statusFilter, () => {
+  if (tab.value !== 'reports') return
+  invalidateActionState()
+  loadReports(false, 0)
+})
+
+watch(tab, () => {
+  invalidateActionState()
+  reload()
+})
+
+watch(sessionScope, resetForSession)
+onMounted(() => {
+  if (hasModerationAccess.value) reload()
+})
+onBeforeUnmount(() => {
+  loadGeneration += 1
+  actionGeneration += 1
+})
 </script>
 
 <style scoped>

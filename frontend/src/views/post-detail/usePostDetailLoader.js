@@ -152,6 +152,18 @@ export function usePostDetailLoader(emit) {
   const commentsRequestTracker = createLatestRequestTracker()
   const followStatusRequestTracker = createLatestRequestTracker()
 
+  function captureViewScope() {
+    return {
+      authGeneration: auth.tokenGeneration,
+      postId: normalizeOpaqueId(postId.value)
+    }
+  }
+
+  function isCurrentViewScope(scope) {
+    return scope?.authGeneration === auth.tokenGeneration
+      && sameOpaqueId(scope?.postId, postId.value)
+  }
+
   const isBlockedAuthor = computed(() => {
     const uid = normalizeOpaqueId(post.value?.userId)
     if (!uid) return false
@@ -175,7 +187,7 @@ export function usePostDetailLoader(emit) {
     replyDraftKey,
     setNewComment,
     setReplyDraft
-  } = usePostDetailDrafts(postId, newComment)
+  } = usePostDetailDrafts(postId, newComment, meUserId)
 
   function commentAnchorId(id) {
     return `c-${normalizeOpaqueId(id)}`
@@ -231,30 +243,37 @@ export function usePostDetailLoader(emit) {
 
   async function runConfirm() {
     const type = confirmAction.value
+    const scope = captureViewScope()
+    const targetPostId = normalizeOpaqueId(post.value?.id)
     closeConfirm()
-    if (!type || !post.value) return
+    if (!type || !targetPostId) return
     actionLoading.value = true
     try {
       if (type === 'top') {
-        const r = await moderationTop(post.value.id)
+        const r = await moderationTop(targetPostId)
+        if (!isCurrentViewScope(scope)) return
         emit('trace', r?.traceId || '')
       } else if (type === 'wonderful') {
-        const r = await moderationWonderful(post.value.id)
+        const r = await moderationWonderful(targetPostId)
+        if (!isCurrentViewScope(scope)) return
         emit('trace', r?.traceId || '')
       } else if (type === 'delete') {
-        const r = await moderationDelete(post.value.id)
+        const r = await moderationDelete(targetPostId)
+        if (!isCurrentViewScope(scope)) return
         emit('trace', r?.traceId || '')
       } else if (type === 'authorDelete') {
-        const r = await apiDeletePostByAuthor(post.value.id)
+        const r = await apiDeletePostByAuthor(targetPostId)
+        if (!isCurrentViewScope(scope)) return
         emit('trace', r?.traceId || '')
         router.push({ name: 'posts' })
         return
       }
       await reload()
     } catch (e) {
+      if (!isCurrentViewScope(scope)) return
       error.value = e?.message || '管理操作失败'
     } finally {
-      actionLoading.value = false
+      if (isCurrentViewScope(scope)) actionLoading.value = false
     }
   }
 
@@ -315,9 +334,11 @@ export function usePostDetailLoader(emit) {
       return
     }
     const token = followStatusRequestTracker.begin()
+    const authGeneration = auth.tokenGeneration
     try {
       const resp = await getFollowStatus(3, expectedUserId, { force: true })
       if (!followStatusRequestTracker.isCurrent(token)) return
+      if (auth.tokenGeneration !== authGeneration) return
       if (!sameOpaqueId(post.value?.userId, expectedUserId)) return
       emit('trace', resp?.traceId || '')
       followStatus.value = resp?.data ?? null
@@ -329,46 +350,55 @@ export function usePostDetailLoader(emit) {
 
   async function togglePostLike() {
     if (!authed.value || !post.value) return
+    const scope = captureViewScope()
+    const targetPostId = normalizeOpaqueId(post.value.id)
     actionLoading.value = true
     try {
       const resp = await setLike({
         entityType: 1,
-        entityId: postId.value,
+        entityId: targetPostId,
         liked: null
       })
+      if (!isCurrentViewScope(scope)) return
       emit('trace', resp?.traceId || '')
       if (typeof resp?.data?.likeCount === 'number') {
         post.value.likeCount = resp.data.likeCount
-        postMetaCache.setLikeCount(1, postId.value, post.value.likeCount)
+        postMetaCache.setLikeCount(1, targetPostId, post.value.likeCount)
       }
       if (typeof resp?.data?.liked === 'boolean') {
         post.value.liked = resp.data.liked
-        postMetaCache.setLikeStatus(1, postId.value, post.value.liked)
+        postMetaCache.setLikeStatus(1, targetPostId, post.value.liked)
       }
     } catch (e) {
+      if (!isCurrentViewScope(scope)) return
       error.value = e?.message || '点赞操作失败'
     } finally {
-      actionLoading.value = false
+      if (isCurrentViewScope(scope)) actionLoading.value = false
     }
   }
 
   async function follow(doFollow) {
     if (!authed.value || !post.value || !post.value.userId || sameOpaqueId(post.value.userId, meUserId.value)) return
+    const scope = captureViewScope()
+    const targetUserId = normalizeOpaqueId(post.value.userId)
     actionLoading.value = true
     try {
       if (doFollow) {
-        const r = await followUser(3, post.value.userId)
+        const r = await followUser(3, targetUserId)
+        if (!isCurrentViewScope(scope)) return
         emit('trace', r?.traceId || '')
         followStatus.value = true
       } else {
-        const r = await unfollowUser(3, post.value.userId)
+        const r = await unfollowUser(3, targetUserId)
+        if (!isCurrentViewScope(scope)) return
         emit('trace', r?.traceId || '')
         followStatus.value = false
       }
     } catch (e) {
+      if (!isCurrentViewScope(scope)) return
       error.value = e?.message || '关注操作失败'
     } finally {
-      actionLoading.value = false
+      if (isCurrentViewScope(scope)) actionLoading.value = false
     }
   }
 
@@ -378,21 +408,27 @@ export function usePostDetailLoader(emit) {
 
   async function toggleBookmark() {
     if (!authed.value || !post.value) return
+    const scope = captureViewScope()
+    const targetPostId = normalizeOpaqueId(post.value.id)
+    const wasBookmarked = !!post.value.bookmarked
     actionLoading.value = true
     try {
-      if (post.value.bookmarked) {
-        const r = await unbookmarkPost(post.value.id)
+      if (wasBookmarked) {
+        const r = await unbookmarkPost(targetPostId)
+        if (!isCurrentViewScope(scope)) return
         emit('trace', r?.traceId || '')
         post.value.bookmarked = false
       } else {
-        const r = await bookmarkPost(post.value.id)
+        const r = await bookmarkPost(targetPostId)
+        if (!isCurrentViewScope(scope)) return
         emit('trace', r?.traceId || '')
         post.value.bookmarked = true
       }
     } catch (e) {
+      if (!isCurrentViewScope(scope)) return
       error.value = e?.message || '收藏操作失败'
     } finally {
-      actionLoading.value = false
+      if (isCurrentViewScope(scope)) actionLoading.value = false
     }
   }
 
@@ -405,20 +441,25 @@ export function usePostDetailLoader(emit) {
     if (!authed.value || !post.value) return
     const uid = normalizeOpaqueId(post.value.userId)
     if (!uid || sameOpaqueId(uid, meUserId.value)) return
+    const scope = captureViewScope()
+    const wasBlocked = isBlockedAuthor.value
     actionLoading.value = true
     try {
-      if (isBlockedAuthor.value) {
+      if (wasBlocked) {
         await unblockUser(uid)
+        if (!isCurrentViewScope(scope)) return
         showToast({ type: 'success', text: '已解除屏蔽' })
       } else {
         await blockUser(uid)
+        if (!isCurrentViewScope(scope)) return
         showToast({ type: 'success', text: '已屏蔽该用户' })
       }
       await prefs.ensureBlocked(true)
     } catch (e) {
+      if (!isCurrentViewScope(scope)) return
       error.value = e?.message || '屏蔽操作失败'
     } finally {
-      actionLoading.value = false
+      if (isCurrentViewScope(scope)) actionLoading.value = false
     }
   }
 
@@ -470,15 +511,20 @@ export function usePostDetailLoader(emit) {
 
   async function submitEdit(payload) {
     if (!post.value) return
+    const scope = captureViewScope()
+    const targetPostId = normalizeOpaqueId(post.value.id)
+    const targetMode = editMode.value
+    const targetCommentId = normalizeOpaqueId(editCommentId.value)
     actionLoading.value = true
     try {
-      if (editMode.value === 'post') {
-        const r = await apiUpdatePost(post.value.id, {
+      if (targetMode === 'post') {
+        const r = await apiUpdatePost(targetPostId, {
           title: String(payload?.title || '').trim(),
           blocks: Array.isArray(payload?.blocks) ? payload.blocks : [],
           categoryId: post.value.categoryId,
           tags: Array.isArray(post.value.tags) ? post.value.tags : []
         })
+        if (!isCurrentViewScope(scope)) return
         emit('trace', r?.traceId || '')
         const q = String(payload?.title || '').trim()
         showToast({
@@ -492,17 +538,18 @@ export function usePostDetailLoader(emit) {
         closeEdit()
         await loadPost()
       } else {
-        const cid = editCommentId.value
-        const r = await apiUpdateComment(post.value.id, cid, { content: String(payload?.content || '').trim() })
+        const r = await apiUpdateComment(targetPostId, targetCommentId, { content: String(payload?.content || '').trim() })
+        if (!isCurrentViewScope(scope)) return
         emit('trace', r?.traceId || '')
         showToast({ type: 'success', text: '已保存' })
         closeEdit()
         await loadComments()
       }
     } catch (e) {
+      if (!isCurrentViewScope(scope)) return
       showToast({ type: 'error', text: e?.message || '保存失败' })
     } finally {
-      actionLoading.value = false
+      if (isCurrentViewScope(scope)) actionLoading.value = false
     }
   }
 
@@ -530,8 +577,7 @@ export function usePostDetailLoader(emit) {
 
     if (!c._repliesExpanded) c._repliesExpanded = true
     if (Array.isArray(c._replies) && c._replies.length === 0) {
-      resetRepliesCursorPaging(c)
-      await loadReplies(c)
+      await loadReplies(c, 0, { reset: true })
     }
 
     await nextTick()
@@ -544,32 +590,32 @@ export function usePostDetailLoader(emit) {
     commentsCursorHistory.value = ['']
   }
 
-  function currentCommentsCursor() {
-    return String(commentsCursorHistory.value[commentsPage.value] || '')
+  function currentCommentsCursor(targetPage = commentsPage.value) {
+    return String(commentsCursorHistory.value[targetPage] || '')
   }
 
-  function resetRepliesCursorPaging(c) {
-    if (!c) return
-    c._repliesPage = 0
-    c._repliesNextCursor = ''
-    c._repliesCursorHistory = ['']
-  }
-
-  function currentRepliesCursor(c) {
+  function currentRepliesCursor(c, targetPage = c?._repliesPage) {
     if (!Array.isArray(c?._repliesCursorHistory)) return ''
-    return String(c._repliesCursorHistory[c._repliesPage] || '')
+    return String(c._repliesCursorHistory[targetPage] || '')
   }
 
-  async function loadComments() {
+  async function loadComments(targetPage = commentsPage.value, { reset = false } = {}) {
     const token = commentsRequestTracker.begin()
+    const requestedPage = Math.max(0, Number(targetPage || 0))
     commentsError.value = ''
     commentsLoading.value = true
     try {
-      const resp = await apiListComments(postId.value, { cursor: currentCommentsCursor(), size: commentsSize.value })
+      const cursor = reset ? '' : currentCommentsCursor(requestedPage)
+      const resp = await apiListComments(postId.value, { cursor, size: commentsSize.value })
       if (!commentsRequestTracker.isCurrent(token)) return
       emit('trace', resp?.traceId || '')
       const page = normalizeCommentCursorPage(resp?.data)
       const raw = page.items
+      if (requestedPage > commentsPage.value && raw.length === 0) {
+        commentsCursorHistory.value = commentsCursorHistory.value.slice(0, commentsPage.value + 1)
+        commentsNextCursor.value = ''
+        return
+      }
       const { userIds, entityIds: commentIds } = collectThreadHydrationIds(raw)
 
       let users = {}
@@ -595,12 +641,13 @@ export function usePostDetailLoader(emit) {
       }
 
       const nextCursor = page.nextCursor
-      const history = commentsCursorHistory.value.slice(0, commentsPage.value + 1)
+      const history = (reset ? [''] : commentsCursorHistory.value).slice(0, requestedPage + 1)
       if (nextCursor) {
-        history[commentsPage.value + 1] = nextCursor
+        history[requestedPage + 1] = nextCursor
       }
       commentsCursorHistory.value = history
       commentsNextCursor.value = nextCursor
+      commentsPage.value = requestedPage
       comments.value = raw.map((c) => hydrateCommentItem(c, { users, counts, statuses }))
       await maybeScrollFromRoute()
     } catch (e) {
@@ -617,15 +664,22 @@ export function usePostDetailLoader(emit) {
     return !!String(c?._repliesNextCursor || '')
   }
 
-  async function loadReplies(c) {
+  async function loadReplies(c, targetPage = c?._repliesPage, { reset = false } = {}) {
     if (!c) return
+    const requestedPage = Math.max(0, Number(targetPage || 0))
     c._repliesError = ''
     c._repliesLoading = true
     try {
-      const resp = await apiListReplies(postId.value, c.id, { cursor: currentRepliesCursor(c), size: c._repliesSize })
+      const cursor = reset ? '' : currentRepliesCursor(c, requestedPage)
+      const resp = await apiListReplies(postId.value, c.id, { cursor, size: c._repliesSize })
       emit('trace', resp?.traceId || '')
       const page = normalizeCommentCursorPage(resp?.data)
       const raw = page.items
+      if (requestedPage > c._repliesPage && raw.length === 0) {
+        c._repliesCursorHistory = c._repliesCursorHistory.slice(0, c._repliesPage + 1)
+        c._repliesNextCursor = ''
+        return
+      }
       const { userIds, entityIds: replyIds } = collectThreadHydrationIds(raw, { includeReplyToUserId: true })
 
       let users = {}
@@ -650,12 +704,14 @@ export function usePostDetailLoader(emit) {
       }
 
       const nextCursor = page.nextCursor
-      const history = Array.isArray(c._repliesCursorHistory) ? c._repliesCursorHistory.slice(0, c._repliesPage + 1) : ['']
+      const currentHistory = reset || !Array.isArray(c._repliesCursorHistory) ? [''] : c._repliesCursorHistory
+      const history = currentHistory.slice(0, requestedPage + 1)
       if (nextCursor) {
-        history[c._repliesPage + 1] = nextCursor
+        history[requestedPage + 1] = nextCursor
       }
       c._repliesCursorHistory = history
       c._repliesNextCursor = nextCursor
+      c._repliesPage = requestedPage
       c._replies = raw.map((r) => hydrateReplyItem(r, { users, counts, statuses }))
     } catch (e) {
       c._repliesError = e?.message || '加载回复失败'
@@ -668,27 +724,23 @@ export function usePostDetailLoader(emit) {
     if (!c) return
     c._repliesExpanded = !c._repliesExpanded
     if (c._repliesExpanded && c._replies.length === 0) {
-      resetRepliesCursorPaging(c)
-      await loadReplies(c)
+      await loadReplies(c, 0, { reset: true })
     }
   }
 
   async function reloadReplies(c) {
     if (!c) return
-    resetRepliesCursorPaging(c)
-    await loadReplies(c)
+    await loadReplies(c, 0, { reset: true })
   }
 
   async function nextRepliesPage(c) {
     if (!c || c._repliesLoading || !repliesHasNext(c)) return
-    c._repliesPage += 1
-    await loadReplies(c)
+    await loadReplies(c, c._repliesPage + 1)
   }
 
   async function prevRepliesPage(c) {
     if (!c || c._repliesLoading) return
-    c._repliesPage = Math.max(0, c._repliesPage - 1)
-    await loadReplies(c)
+    await loadReplies(c, Math.max(0, c._repliesPage - 1))
   }
 
   function startReply(c, reply) {
@@ -738,12 +790,17 @@ export function usePostDetailLoader(emit) {
       c._replyError = '回复内容不能为空'
       return
     }
+    const scope = captureViewScope()
+    const targetCommentId = normalizeOpaqueId(c.id)
+    const content = composeReplyContent(c._replyDraft, c._replyQuote)
+    const parentCommentId = normalizeOpaqueId(c._replyParentCommentId)
     c._replySubmitting = true
     try {
-      const resp = await apiAddComment(postId.value, {
-        content: composeReplyContent(c._replyDraft, c._replyQuote),
-        parentCommentId: c._replyParentCommentId
+      const resp = await apiAddComment(scope.postId, {
+        content,
+        parentCommentId
       })
+      if (!isCurrentViewScope(scope)) return
       emit('trace', resp?.traceId || '')
       c._replyDraft = ''
       safeStorageSet(replyDraftKey(c.id), '')
@@ -756,62 +813,70 @@ export function usePostDetailLoader(emit) {
       if (!c._repliesExpanded) {
         c._repliesExpanded = true
       }
-      resetRepliesCursorPaging(c)
-      await loadReplies(c)
+      await loadReplies(c, 0, { reset: true })
     } catch (e) {
+      if (!isCurrentViewScope(scope)) return
       c._replyError = e?.message || '回复失败'
     } finally {
-      c._replySubmitting = false
+      if (isCurrentViewScope(scope)) c._replySubmitting = false
     }
   }
 
   async function toggleCommentLike(c) {
     if (!authed.value || !c) return
+    const scope = captureViewScope()
+    const targetCommentId = normalizeOpaqueId(c.id)
     c._likeLoading = true
     try {
       const resp = await setLike({
         entityType: 2,
-        entityId: c.id,
+        entityId: targetCommentId,
         liked: null
       })
+      if (!isCurrentViewScope(scope) || !comments.value.includes(c)) return
       emit('trace', resp?.traceId || '')
       if (typeof resp?.data?.likeCount === 'number') {
         c.likeCount = resp.data.likeCount
-        postMetaCache.setLikeCount(2, c.id, c.likeCount)
+        postMetaCache.setLikeCount(2, targetCommentId, c.likeCount)
       }
       if (typeof resp?.data?.liked === 'boolean') {
         c.liked = resp.data.liked
-        postMetaCache.setLikeStatus(2, c.id, c.liked)
+        postMetaCache.setLikeStatus(2, targetCommentId, c.liked)
       }
     } catch (e) {
+      if (!isCurrentViewScope(scope) || !comments.value.includes(c)) return
       commentsError.value = e?.message || '点赞失败'
     } finally {
-      c._likeLoading = false
+      if (isCurrentViewScope(scope) && comments.value.includes(c)) c._likeLoading = false
     }
   }
 
   async function toggleReplyLike(c, r) {
     if (!authed.value || !c || !r) return
+    const scope = captureViewScope()
+    const targetReplyId = normalizeOpaqueId(r.id)
     r._likeLoading = true
     try {
       const resp = await setLike({
         entityType: 2,
-        entityId: r.id,
+        entityId: targetReplyId,
         liked: null
       })
+      if (!isCurrentViewScope(scope) || !comments.value.includes(c) || !c._replies.includes(r)) return
       emit('trace', resp?.traceId || '')
       if (typeof resp?.data?.likeCount === 'number') {
         r.likeCount = resp.data.likeCount
-        postMetaCache.setLikeCount(2, r.id, r.likeCount)
+        postMetaCache.setLikeCount(2, targetReplyId, r.likeCount)
       }
       if (typeof resp?.data?.liked === 'boolean') {
         r.liked = resp.data.liked
-        postMetaCache.setLikeStatus(2, r.id, r.liked)
+        postMetaCache.setLikeStatus(2, targetReplyId, r.liked)
       }
     } catch (e) {
+      if (!isCurrentViewScope(scope) || !comments.value.includes(c) || !c._replies.includes(r)) return
       c._repliesError = e?.message || '点赞失败'
     } finally {
-      r._likeLoading = false
+      if (isCurrentViewScope(scope) && comments.value.includes(c) && c._replies.includes(r)) r._likeLoading = false
     }
   }
 
@@ -821,36 +886,36 @@ export function usePostDetailLoader(emit) {
       commentError.value = '评论不能为空'
       return
     }
+    const scope = captureViewScope()
+    const content = String(newComment.value)
     commenting.value = true
     try {
-      const resp = await apiAddComment(postId.value, { content: newComment.value })
+      const resp = await apiAddComment(scope.postId, { content })
+      if (!isCurrentViewScope(scope)) return
       emit('trace', resp?.traceId || '')
       setNewComment('')
-      resetCommentsCursorPaging()
-      await loadComments()
+      await loadComments(0, { reset: true })
       await loadPost()
     } catch (e) {
+      if (!isCurrentViewScope(scope)) return
       commentError.value = e?.message || '评论失败'
     } finally {
-      commenting.value = false
+      if (isCurrentViewScope(scope)) commenting.value = false
     }
   }
 
   async function nextCommentsPage() {
     if (!commentsHasNext.value || commentsLoading.value) return
-    commentsPage.value += 1
-    await loadComments()
+    await loadComments(commentsPage.value + 1)
   }
 
   async function prevCommentsPage() {
     if (commentsLoading.value) return
-    commentsPage.value = Math.max(0, commentsPage.value - 1)
-    await loadComments()
+    await loadComments(Math.max(0, commentsPage.value - 1))
   }
 
   async function reloadComments() {
-    resetCommentsCursorPaging()
-    await loadComments()
+    await loadComments(0, { reset: true })
   }
 
   async function reload() {
@@ -877,11 +942,36 @@ export function usePostDetailLoader(emit) {
   )
 
   watch(
-    () => auth.accessToken,
+    () => auth.tokenGeneration,
     () => {
-      // 点赞状态与登录态强相关：切换账号/退出登录时清理覆盖，避免误展示。
+      postRequestTracker.invalidate()
+      commentsRequestTracker.invalidate()
+      followStatusRequestTracker.invalidate()
       postMetaCache.clearLikeStatuses()
-      applyPostLikeOverlay()
+      actionLoading.value = false
+      commenting.value = false
+      reportOpen.value = false
+      closeEdit()
+      closeConfirm()
+      followStatus.value = null
+      if (post.value) {
+        post.value.liked = false
+        post.value.bookmarked = false
+      }
+      for (const comment of comments.value) {
+        comment.liked = false
+        comment._replying = false
+        comment._replyDraft = ''
+        comment._replyQuote = null
+        comment._replySubmitting = false
+        comment._likeLoading = false
+        for (const reply of Array.isArray(comment?._replies) ? comment._replies : []) {
+          reply.liked = false
+          reply._likeLoading = false
+        }
+      }
+      newComment.value = safeStorageGet(commentDraftKey())
+      reload()
     }
   )
 
@@ -897,11 +987,13 @@ export function usePostDetailLoader(emit) {
       resetCommentsCursorPaging()
       followStatus.value = null
       reportOpen.value = false
+      actionLoading.value = false
+      commenting.value = false
       closeEdit()
       closeConfirm()
       // 恢复当前帖子草稿（进入新帖子时才触发）
       newComment.value = safeStorageGet(commentDraftKey())
-      if (authed.value) markPostRead(postId.value)
+      if (authed.value) markPostRead(postId.value, { identityId: meUserId.value })
       reload()
     }
   )
@@ -915,7 +1007,7 @@ export function usePostDetailLoader(emit) {
   onMounted(() => {
     taxonomy.ensureCategories()
     newComment.value = safeStorageGet(commentDraftKey())
-    if (authed.value) markPostRead(postId.value)
+    if (authed.value) markPostRead(postId.value, { identityId: meUserId.value })
     reload()
   })
 

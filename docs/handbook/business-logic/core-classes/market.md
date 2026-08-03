@@ -35,6 +35,7 @@
 | `market.application.MarketOrderSagaApplicationService` | wallet action 后的订单 / 争议条件状态推进。 | 看 market 状态如何跟随 wallet 结果收敛。 |
 | `market.application.MarketOrderAutoConfirmApplicationService` | 自动确认批任务入口；直接实现 owner action API。 | 看 due order 的批处理入口。 |
 | `market.application.MarketOrderAutoConfirmer` | 单订单锁定和自动确认。 | 看单订单锁和重复执行幂等。 |
+| `market.application.MarketOrderAutoConfirmRetryScheduler` | 在独立事务中顺延未完成订单的内部重试时间。 | 看坏数据隔离和后续到期订单防饥饿。 |
 
 ## 领域服务
 

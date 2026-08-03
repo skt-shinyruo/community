@@ -69,8 +69,9 @@ MySQL entrypoint 按文件名顺序先执行 `001_create_databases.sh`，再执�
 | `wallet_account` | 钱包账户 |
 | `wallet_txn` | 钱包交易事实 |
 | `wallet_entry` | 钱包双分录流水 |
-| `recharge_order` | 钱包充值订单，按 `user_id + request_id` 幂等 |
-| `withdraw_order` | 钱包提现订单，按 `user_id + request_id` 幂等 |
+| `wallet_test_credit_quota` | 测试积分工具的用户累计发放/销毁配额；销毁量不能超过同一用户的发放量，生产入口默认关闭 |
+| `recharge_order` | 测试积分发放订单（历史兼容表名），按 `user_id + request_id` 幂等 |
+| `withdraw_order` | 测试积分销毁订单（历史兼容表名），按 `user_id + request_id` 幂等 |
 | `transfer_order` | 钱包转账订单，按 `from_user_id + request_id` 幂等 |
 | `wallet_admin_action` | 钱包管理员冻结、冲正等操作记录 |
 | `post_media_asset` | 帖子媒体资源 draft/uploaded/bound 状态和 OSS object/version/reference 投影 |

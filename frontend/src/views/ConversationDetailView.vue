@@ -70,7 +70,7 @@
 
         <div v-if="error && items.length > 0" class="error chat-inline-error">{{ error }}</div>
 
-        <ConversationComposer v-model="content" :disabled="sending" @submit="send" />
+        <ConversationComposer v-model="content" :disabled="sending || !auth.authed || !targetId" @submit="send" />
       </div>
     </UiCard>
   </div>
@@ -132,16 +132,38 @@ function parseTargetId() {
   return parseConversationTargetId(conversationId.value, meId.value)
 }
 
+function currentViewScope() {
+  return `${auth.tokenGeneration}:${meId.value}:${conversationId.value}`
+}
+
+function captureViewContext() {
+  return {
+    scope: currentViewScope(),
+    conversationId: conversationId.value,
+    meId: meId.value,
+    targetId: targetId.value
+  }
+}
+
+function isCurrentRequest(token, context) {
+  return loadRequestTracker.isCurrent(token) && currentViewScope() === context.scope
+}
+
 async function load() {
   const token = loadRequestTracker.begin()
+  const context = captureViewContext()
+  if (!auth.authed || !context.conversationId || !context.meId || !context.targetId) {
+    loading.value = false
+    return
+  }
   const bufferedMessages = []
-  latestLoadBuffer = { token, messages: bufferedMessages }
+  latestLoadBuffer = { token, context, messages: bufferedMessages }
   error.value = ''
   loadingHistory.value = false
   loading.value = true
   try {
-    const resp = await listImConversationHistory(conversationId.value, { limit: 50 })
-    if (!loadRequestTracker.isCurrent(token)) return
+    const resp = await listImConversationHistory(context.conversationId, { limit: 50 })
+    if (!isCurrentRequest(token, context)) return
     const rows = Array.isArray(resp?.items) ? resp.items : []
     const historyMessages = rows.map((m) => mapConversationMessage(m))
     items.value = mergeConversationMessages([], [...historyMessages, ...bufferedMessages])
@@ -151,16 +173,16 @@ async function load() {
 
     const maxSeq = findLatestConversationSeq(items.value)
     if (maxSeq > 0) {
-      try { await markImConversationRead(conversationId.value, maxSeq) } catch {}
+      try { await markImConversationRead(context.conversationId, maxSeq) } catch {}
     }
-    if (!loadRequestTracker.isCurrent(token)) return
-    scrollToBottom()
+    if (!isCurrentRequest(token, context)) return
+    scrollToBottom(context.scope)
   } catch (e) {
-    if (!loadRequestTracker.isCurrent(token)) return
+    if (!isCurrentRequest(token, context)) return
     error.value = e?.message || '加载失败'
   } finally {
     if (latestLoadBuffer?.token === token) latestLoadBuffer = null
-    if (loadRequestTracker.isCurrent(token)) {
+    if (isCurrentRequest(token, context)) {
       loading.value = false
     }
   }
@@ -170,16 +192,19 @@ async function loadEarlier() {
   if (loading.value || loadingHistory.value || !hasMoreHistory.value || nextBeforeSeq.value == null) return
 
   const token = loadRequestTracker.begin()
+  const context = captureViewContext()
+  if (!auth.authed || !context.conversationId || !context.meId || !context.targetId) return
   const previousHeight = chatArea.value?.scrollHeight || 0
   const previousTop = chatArea.value?.scrollTop || 0
+  const beforeSeq = nextBeforeSeq.value
   loadingHistory.value = true
   error.value = ''
   try {
-    const resp = await listImConversationHistory(conversationId.value, {
-      beforeSeq: nextBeforeSeq.value,
+    const resp = await listImConversationHistory(context.conversationId, {
+      beforeSeq,
       limit: 50
     })
-    if (!loadRequestTracker.isCurrent(token)) return
+    if (!isCurrentRequest(token, context)) return
 
     const rows = Array.isArray(resp?.items) ? resp.items : []
     items.value = mergeConversationMessages(items.value, rows.map((m) => mapConversationMessage(m)))
@@ -187,14 +212,14 @@ async function loadEarlier() {
     hasMoreHistory.value = Boolean(resp?.hasMore && nextBeforeSeq.value != null)
 
     await nextTick()
-    if (loadRequestTracker.isCurrent(token) && chatArea.value) {
+    if (isCurrentRequest(token, context) && chatArea.value) {
       chatArea.value.scrollTop = previousTop + (chatArea.value.scrollHeight - previousHeight)
     }
   } catch (e) {
-    if (!loadRequestTracker.isCurrent(token)) return
+    if (!isCurrentRequest(token, context)) return
     error.value = e?.message || '加载更早消息失败'
   } finally {
-    if (loadRequestTracker.isCurrent(token)) {
+    if (isCurrentRequest(token, context)) {
       loadingHistory.value = false
     }
   }
@@ -223,25 +248,32 @@ async function send() {
   }
 }
 
-function scrollToBottom() {
+function scrollToBottom(viewScope = currentViewScope()) {
    nextTick(() => {
-      if (chatArea.value) {
+      if (currentViewScope() === viewScope && chatArea.value) {
          chatArea.value.scrollTop = chatArea.value.scrollHeight
       }
    })
 }
 
-onMounted(load)
-
-watch(conversationId, (nextConversationId, previousConversationId) => {
-  if (!nextConversationId || nextConversationId === previousConversationId) return
+function resetForViewScope() {
   loadRequestTracker.invalidate()
+  latestLoadBuffer = null
+  loading.value = false
+  loadingHistory.value = false
   items.value = []
   nextBeforeSeq.value = null
   hasMoreHistory.value = false
   error.value = ''
+  content.value = ''
+  sending.value = false
   pendingClientMsgIds.clear()
-  load()
+  if (auth.authed && conversationId.value && meId.value && targetId.value) load()
+}
+
+watch(currentViewScope, resetForViewScope)
+onMounted(() => {
+  if (auth.authed && conversationId.value && meId.value && targetId.value) load()
 })
 
 let offPrivate = null
@@ -251,10 +283,16 @@ let offSendError = null
 let offStateChanged = null
 onMounted(() => {
   offPrivate = imRealtimeClient.on('privateMessage', async (msg) => {
-    if (!msg || msg.conversationId !== conversationId.value) return
+    const context = captureViewContext()
+    if (!auth.authed || !context.targetId || !msg || msg.conversationId !== context.conversationId) return
     const seq = Number(msg?.seq || 0)
     const message = mapConversationMessage(msg)
-    if (latestLoadBuffer && loadRequestTracker.isCurrent(latestLoadBuffer.token)) {
+    const belongsToCurrentParticipants =
+      (sameOpaqueId(message.fromId, context.meId) && sameOpaqueId(message.toId, context.targetId)) ||
+      (sameOpaqueId(message.fromId, context.targetId) && sameOpaqueId(message.toId, context.meId))
+    if (!belongsToCurrentParticipants || currentViewScope() !== context.scope) return
+
+    if (latestLoadBuffer && isCurrentRequest(latestLoadBuffer.token, latestLoadBuffer.context)) {
       latestLoadBuffer.messages.push(message)
     }
     const previousMaxSeq = findLatestConversationSeq(items.value)
@@ -267,17 +305,19 @@ onMounted(() => {
     items.value = mergedItems
     const nextMaxSeq = findLatestConversationSeq(mergedItems)
     const isNewTail = mergedItems.length > previousLength && nextMaxSeq > previousMaxSeq
-    if (isNewTail) scrollToBottom()
+    if (isNewTail) scrollToBottom(context.scope)
 
     // When this conversation is open, best-effort mark read to the latest seq.
-    if (isNewTail && seq === nextMaxSeq && sameOpaqueId(message.toId, meId.value)) {
-      try { await markImConversationRead(conversationId.value, seq) } catch {}
+    if (isNewTail && seq === nextMaxSeq && sameOpaqueId(message.toId, context.meId)) {
+      try { await markImConversationRead(context.conversationId, seq) } catch {}
     }
   })
 })
 
 onBeforeUnmount(() => {
   loadRequestTracker.invalidate()
+  latestLoadBuffer = null
+  pendingClientMsgIds.clear()
   try { offPrivate?.() } catch {}
   try { offSendCommitted?.() } catch {}
   try { offSendRejected?.() } catch {}
@@ -300,8 +340,8 @@ onMounted(() => {
   offSendRejected = imRealtimeClient.on('sendRejected', (msg) => {
     if (String(msg?.cmd || '') !== 'sendPrivateText') return
     const cmid = String(msg?.clientMsgId || '')
-    if (cmid && !pendingClientMsgIds.has(cmid)) return
-    if (cmid) pendingClientMsgIds.delete(cmid)
+    if (!cmid || !pendingClientMsgIds.has(cmid)) return
+    pendingClientMsgIds.delete(cmid)
 
     const message = String(msg?.message || '发送失败')
     error.value = message
@@ -315,8 +355,8 @@ onMounted(() => {
   offSendError = imRealtimeClient.on('sendError', (msg) => {
     if (String(msg?.cmd || '') !== 'sendPrivateText') return
     const cmid = String(msg?.clientMsgId || '')
-    if (cmid && !pendingClientMsgIds.has(cmid)) return
-    if (cmid) pendingClientMsgIds.delete(cmid)
+    if (!cmid || !pendingClientMsgIds.has(cmid)) return
+    pendingClientMsgIds.delete(cmid)
 
     const message = String(msg?.message || '发送失败')
     error.value = message

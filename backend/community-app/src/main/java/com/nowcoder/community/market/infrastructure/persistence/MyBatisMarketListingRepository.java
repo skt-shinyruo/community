@@ -34,13 +34,13 @@ public class MyBatisMarketListingRepository implements MarketListingRepository {
     }
 
     @Override
-    public List<MarketListing> findBySellerUserId(UUID sellerUserId) {
-        return DomainRowAdapter.asDomainList(mapper.selectBySellerUserId(sellerUserId));
+    public List<MarketListing> findBySellerUserId(UUID sellerUserId, long offset, int limit) {
+        return DomainRowAdapter.asDomainList(mapper.selectBySellerUserId(sellerUserId, offset, limit));
     }
 
     @Override
-    public List<MarketListing> findPublicListings() {
-        return DomainRowAdapter.asDomainList(mapper.selectPublicListings());
+    public List<MarketListing> findPublicListings(long offset, int limit) {
+        return DomainRowAdapter.asDomainList(mapper.selectPublicListings(offset, limit));
     }
 
     @Override

@@ -89,7 +89,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -122,9 +122,15 @@ const addresses = ref([])
 const selectedAddressId = ref('')
 let listingSequence = 0
 let addressSequence = 0
+let orderSequence = 0
 
 const detail = computed(() => buildMarketState({ listings: [listing.value] }).listings[0] || {})
 const addressOptions = computed(() => (Array.isArray(addresses.value) ? addresses.value : []))
+const authScope = computed(() => [
+  auth.tokenGeneration,
+  normalizeOpaqueId(auth.userId),
+  auth.authed ? 'authenticated' : 'anonymous'
+].join(':'))
 
 function resetAddressState() {
   addressSequence += 1
@@ -138,19 +144,26 @@ function isCurrentListingRequest(sequence, listingId) {
   return sequence === listingSequence && normalizeOpaqueId(route.params.listingId) === listingId
 }
 
-function isCurrentAddressRequest(sequence, listingId, authGeneration) {
+function isCurrentAddressRequest(sequence, listingId, requestedAuthScope) {
   const currentListingId = normalizeOpaqueId(listing.value?.listingId) || normalizeOpaqueId(route.params.listingId)
   return sequence === addressSequence &&
     normalizeOpaqueId(route.params.listingId) === listingId &&
     currentListingId === listingId &&
-    auth.tokenGeneration === authGeneration
+    authScope.value === requestedAuthScope
+}
+
+function isCurrentOrderRequest(sequence, listingId, requestedAuthScope) {
+  return sequence === orderSequence &&
+    normalizeOpaqueId(route.params.listingId) === listingId &&
+    authScope.value === requestedAuthScope &&
+    auth.authed
 }
 
 function signalStaleAddressResponse() {
   console.debug('stale_address_response')
 }
 
-async function loadAddressesFor({ listingId, goodsType, authGeneration }) {
+async function loadAddressesFor({ listingId, goodsType, requestedAuthScope }) {
   const sequence = ++addressSequence
   addressLoading.value = false
   addressError.value = ''
@@ -164,7 +177,7 @@ async function loadAddressesFor({ listingId, goodsType, authGeneration }) {
   addressLoading.value = true
   try {
     const addressResp = await listMarketAddresses()
-    if (!isCurrentAddressRequest(sequence, listingId, authGeneration)) {
+    if (!isCurrentAddressRequest(sequence, listingId, requestedAuthScope)) {
       signalStaleAddressResponse()
       return
     }
@@ -172,13 +185,13 @@ async function loadAddressesFor({ listingId, goodsType, authGeneration }) {
     const defaultAddress = addresses.value.find((item) => item?.defaultAddress) || addresses.value[0] || null
     selectedAddressId.value = defaultAddress ? String(defaultAddress.addressId) : ''
   } catch (e) {
-    if (!isCurrentAddressRequest(sequence, listingId, authGeneration)) {
+    if (!isCurrentAddressRequest(sequence, listingId, requestedAuthScope)) {
       signalStaleAddressResponse()
       return
     }
     addressError.value = e?.message || '加载收货地址失败'
   } finally {
-    if (isCurrentAddressRequest(sequence, listingId, authGeneration)) {
+    if (isCurrentAddressRequest(sequence, listingId, requestedAuthScope)) {
       addressLoading.value = false
     }
   }
@@ -206,7 +219,7 @@ async function loadDetail(requestedListingId = normalizeOpaqueId(route.params.li
     await loadAddressesFor({
       listingId,
       goodsType: String(data?.goodsType || '').trim().toUpperCase(),
-      authGeneration: auth.tokenGeneration
+      requestedAuthScope: authScope.value
     })
   } catch (e) {
     if (!isCurrentListingRequest(sequence, listingId)) {
@@ -239,6 +252,8 @@ async function submitOrder() {
     addressError.value = '请选择收货地址'
     return
   }
+  const sequence = ++orderSequence
+  const requestedAuthScope = authScope.value
   submitting.value = true
   error.value = ''
   addressError.value = ''
@@ -250,6 +265,7 @@ async function submitOrder() {
       quantity: Math.max(1, Number(quantity.value || 1)),
       addressId
     })
+    if (!isCurrentOrderRequest(sequence, listingId, requestedAuthScope)) return
     const orderId = normalizeOpaqueId(data?.orderId)
     createdOrderId.value = orderId
     orderMessage.value = orderId ? `订单已创建：${orderId}` : '订单已创建，请到我的购买中查看。'
@@ -259,9 +275,10 @@ async function submitOrder() {
     }
     await loadDetail()
   } catch (e) {
+    if (!isCurrentOrderRequest(sequence, listingId, requestedAuthScope)) return
     error.value = e?.message || '下单失败'
   } finally {
-    submitting.value = false
+    if (isCurrentOrderRequest(sequence, listingId, requestedAuthScope)) submitting.value = false
   }
 }
 
@@ -275,12 +292,14 @@ async function goCreatedOrder() {
 }
 
 watch(
-  () => [normalizeOpaqueId(route.params.listingId), auth.tokenGeneration],
-  ([listingId, authGeneration], previous = []) => {
+  () => [normalizeOpaqueId(route.params.listingId), authScope.value],
+  ([listingId, requestedAuthScope], previous = []) => {
     const [previousListingId] = previous
+    orderSequence += 1
+    submitting.value = false
+    orderMessage.value = ''
+    createdOrderId.value = ''
     if (listingId !== previousListingId) {
-      orderMessage.value = ''
-      createdOrderId.value = ''
       quantity.value = 1
       loadDetail(listingId)
       return
@@ -288,9 +307,15 @@ watch(
     loadAddressesFor({
       listingId,
       goodsType: String(listing.value?.goodsType || '').trim().toUpperCase(),
-      authGeneration
+      requestedAuthScope
     })
   },
   { immediate: true }
 )
+
+onBeforeUnmount(() => {
+  listingSequence += 1
+  addressSequence += 1
+  orderSequence += 1
+})
 </script>

@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -71,6 +72,28 @@ class FollowControllerTest {
         assertThat(statusResult.getData()).isFalse();
         verify(followApplicationService).unfollow(new UnfollowCommand(userId, EntityTypes.POST, targetId));
         verify(followApplicationService).hasFollowed(userId, EntityTypes.POST, targetId);
+    }
+
+    @Test
+    void statusesShouldDelegateBatchToAuthenticatedApplicationBoundary() {
+        FollowApplicationService followApplicationService = mock(FollowApplicationService.class);
+        FollowController controller = new FollowController(followApplicationService);
+        UUID userId = uuid(7);
+        UUID targetA = uuid(8);
+        UUID targetB = uuid(9);
+        when(followApplicationService.statuses(userId, EntityTypes.USER, List.of(targetA, targetB)))
+                .thenReturn(Map.of(targetA, true, targetB, false));
+
+        Result<Map<UUID, Boolean>> result = controller.statuses(
+                authentication(userId),
+                EntityTypes.USER,
+                List.of(targetA, targetB)
+        );
+
+        assertThat(result.getData())
+                .containsEntry(targetA, true)
+                .containsEntry(targetB, false);
+        verify(followApplicationService).statuses(userId, EntityTypes.USER, List.of(targetA, targetB));
     }
 
     @Test

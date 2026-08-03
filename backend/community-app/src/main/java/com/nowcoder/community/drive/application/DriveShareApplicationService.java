@@ -1,6 +1,7 @@
 package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.pagination.Pagination;
 import com.nowcoder.community.drive.application.command.CreateDriveShareCommand;
 import com.nowcoder.community.drive.application.command.VerifyDriveShareCommand;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
@@ -10,9 +11,11 @@ import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.application.result.DrivePublicShareGateResult;
 import com.nowcoder.community.drive.application.result.DriveShareResult;
+import com.nowcoder.community.drive.application.result.DriveSharePageResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import com.nowcoder.community.drive.domain.model.DriveShare;
+import com.nowcoder.community.drive.domain.model.DriveShareStatus;
 import com.nowcoder.community.drive.domain.model.DriveSpace;
 import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
 import com.nowcoder.community.drive.domain.repository.DriveShareAccessRepository;
@@ -28,8 +31,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -114,6 +120,31 @@ public class DriveShareApplicationService {
         );
         shareRepository.save(share);
         return toShareResult(share, entry, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public DriveSharePageResult listOwnShares(UUID actorUserId, Integer page, Integer size) {
+        UUID userId = requireUser(actorUserId);
+        int normalizedPage = page == null ? 0 : Math.max(0, page);
+        int normalizedSize = size == null ? 20 : Math.min(100, Math.max(1, size));
+        DriveSpace space = loadSpace(userId);
+        List<DriveShare> candidates = shareRepository.findByCreatedBy(
+                userId,
+                Pagination.safeOffset(normalizedPage, normalizedSize),
+                normalizedSize + 1
+        );
+        boolean hasNext = candidates.size() > normalizedSize;
+        List<DriveShare> visible = hasNext ? candidates.subList(0, normalizedSize) : candidates;
+        Map<UUID, DriveEntry> entriesById = entryRepository.findByIds(
+                        space.spaceId(),
+                        visible.stream().map(DriveShare::entryId).distinct().toList()
+                ).stream()
+                .collect(Collectors.toMap(DriveEntry::entryId, Function.identity()));
+        Instant now = clock.instant();
+        List<DriveShareResult> items = visible.stream()
+                .map(share -> toManagementShareResult(share, entriesById.get(share.entryId()), now))
+                .toList();
+        return new DriveSharePageResult(items, hasNext, normalizedPage, normalizedSize);
     }
 
     @Transactional
@@ -298,6 +329,24 @@ public class DriveShareApplicationService {
                 share.status().name(),
                 ticket,
                 ticketExpiresAt
+        );
+    }
+
+    private static DriveShareResult toManagementShareResult(DriveShare share, DriveEntry entry, Instant now) {
+        String effectiveStatus = share.status().name();
+        if (share.status() == DriveShareStatus.ACTIVE && !share.activeAt(now)) {
+            effectiveStatus = "EXPIRED";
+        }
+        return new DriveShareResult(
+                share.shareId(),
+                share.entryId(),
+                share.shareToken(),
+                entry == null ? "已删除条目" : entry.name(),
+                entry == null ? "UNKNOWN" : entry.type().name(),
+                share.expiresAt(),
+                effectiveStatus,
+                null,
+                null
         );
     }
 

@@ -20,6 +20,7 @@ public final class WalletAccountDomainService {
     private static final Set<String> SYSTEM_ACCOUNT_TYPES = Set.of(
             "PLATFORM_CASH",
             "PLATFORM_REWARD_EXPENSE",
+            "PLATFORM_TEST_CREDIT_EXPENSE",
             "WITHDRAW_PENDING",
             "ORDER_ESCROW",
             "RISK_FROZEN"
@@ -41,7 +42,7 @@ public final class WalletAccountDomainService {
 
     public String normalDirectionOf(String accountType) {
         return switch (accountType) {
-            case "PLATFORM_CASH", "PLATFORM_REWARD_EXPENSE" -> DIRECTION_DEBIT;
+            case "PLATFORM_CASH", "PLATFORM_REWARD_EXPENSE", "PLATFORM_TEST_CREDIT_EXPENSE" -> DIRECTION_DEBIT;
             case ACCOUNT_TYPE_USER_WALLET, "WITHDRAW_PENDING", "ORDER_ESCROW", "RISK_FROZEN" -> DIRECTION_CREDIT;
             default -> throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "unsupported accountType=" + accountType);
         };

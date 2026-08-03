@@ -7,7 +7,7 @@
 | 领域 | 职责 |
 | --- | --- |
 | market | 商品、库存、地址快照、订单、纠纷、自动确认和资金动作 saga。 |
-| wallet | 用户账户、平台账户、复式账本、充值、提现、转账、奖励和市场资金入账。 |
+| wallet | 用户账户、平台账户、复式账本、测试积分发放/销毁、转账、奖励和市场资金入账。 |
 | user | 买家、卖家、管理员身份和状态。 |
 
 ![Market order wallet saga workflow](../../assets/workflow-market-wallet.svg)
@@ -58,7 +58,7 @@ release / refund 的可恢复失败会在 market action processor 中按 backoff
 
 ## 钱包账本口径
 
-wallet 的核心事实是账户和 ledger。充值、提现、转账、奖励、管理员调整、市场资金动作都应落到统一账本规则。
+wallet 的核心事实是账户和 ledger。测试积分发放/销毁、转账、奖励、管理员调整、市场资金动作都应落到统一账本规则。
 
 关键语义：
 

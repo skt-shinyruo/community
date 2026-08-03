@@ -20,6 +20,7 @@ import com.nowcoder.community.market.application.result.MarketDisputeResult;
 import com.nowcoder.community.market.application.result.MarketInventoryUnitResult;
 import com.nowcoder.community.market.application.result.MarketListingResult;
 import com.nowcoder.community.market.application.result.MarketOrderResult;
+import com.nowcoder.community.market.application.result.MarketPageResult;
 import com.nowcoder.community.market.controller.dto.AddMarketInventoryBatchRequest;
 import com.nowcoder.community.market.controller.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.controller.dto.CreateMarketDisputeRequest;
@@ -33,6 +34,7 @@ import com.nowcoder.community.market.controller.dto.MarketListingDetailResponse;
 import com.nowcoder.community.market.controller.dto.MarketListingResponse;
 import com.nowcoder.community.market.controller.dto.MarketOrderDetailResponse;
 import com.nowcoder.community.market.controller.dto.MarketOrderResponse;
+import com.nowcoder.community.market.controller.dto.MarketPageResponse;
 import com.nowcoder.community.market.controller.dto.SellerDisputeDecisionRequest;
 import com.nowcoder.community.market.controller.dto.ShipMarketOrderRequest;
 import com.nowcoder.community.market.controller.dto.UpdateMarketAddressRequest;
@@ -47,6 +49,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -97,6 +100,30 @@ public class MarketController {
                 .toList();
     }
 
+    private static MarketPageResponse<MarketListingResponse> toListingPage(
+            MarketPageResult<MarketListingResult> page
+    ) {
+        return new MarketPageResponse<>(
+                toListingResponses(page.items()), page.hasNext(), page.page(), page.size()
+        );
+    }
+
+    private static MarketPageResponse<MarketOrderResponse> toOrderPage(
+            MarketPageResult<MarketOrderResult> page
+    ) {
+        return new MarketPageResponse<>(
+                toOrderResponses(page.items()), page.hasNext(), page.page(), page.size()
+        );
+    }
+
+    private static MarketPageResponse<MarketInventoryUnitResponse> toInventoryPage(
+            MarketPageResult<MarketInventoryUnitResult> page
+    ) {
+        return new MarketPageResponse<>(
+                toInventoryResponses(page.items()), page.hasNext(), page.page(), page.size()
+        );
+    }
+
     private static List<MarketAddressResponse> toAddressResponses(List<MarketAddressResult> addresses) {
         return addresses.stream()
                 .map(MarketAddressResponse::from)
@@ -115,8 +142,11 @@ public class MarketController {
     }
 
     @GetMapping("/listings")
-    public Result<List<MarketListingResponse>> listPublicListings() {
-        return Result.ok(toListingResponses(marketQueryService.listPublicListings()));
+    public Result<MarketPageResponse<MarketListingResponse>> listPublicListings(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
+        return Result.ok(toListingPage(marketQueryService.listPublicListings(page, size)));
     }
 
     @GetMapping("/listings/{listingId}")
@@ -125,9 +155,13 @@ public class MarketController {
     }
 
     @GetMapping("/my-listings")
-    public Result<List<MarketListingResponse>> listSellerListings(Authentication authentication) {
+    public Result<MarketPageResponse<MarketListingResponse>> listSellerListings(
+            Authentication authentication,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toListingResponses(marketQueryService.listSellerListings(sellerUserId)));
+        return Result.ok(toListingPage(marketQueryService.listSellerListings(sellerUserId, page, size)));
     }
 
     @PostMapping("/listings")
@@ -184,9 +218,14 @@ public class MarketController {
     }
 
     @GetMapping("/listings/{listingId}/inventory")
-    public Result<List<MarketInventoryUnitResponse>> listInventory(Authentication authentication, @PathVariable UUID listingId) {
+    public Result<MarketPageResponse<MarketInventoryUnitResponse>> listInventory(
+            Authentication authentication,
+            @PathVariable UUID listingId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toInventoryResponses(marketInventoryService.listInventory(listingId, sellerUserId)));
+        return Result.ok(toInventoryPage(marketInventoryService.listInventory(listingId, sellerUserId, page, size)));
     }
 
     @PostMapping("/listings/{listingId}/inventory")
@@ -269,15 +308,23 @@ public class MarketController {
     }
 
     @GetMapping("/orders/buying")
-    public Result<List<MarketOrderResponse>> listBuyingOrders(Authentication authentication) {
+    public Result<MarketPageResponse<MarketOrderResponse>> listBuyingOrders(
+            Authentication authentication,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
         UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toOrderResponses(marketQueryService.listBuyingOrders(buyerUserId)));
+        return Result.ok(toOrderPage(marketQueryService.listBuyingOrders(buyerUserId, page, size)));
     }
 
     @GetMapping("/orders/selling")
-    public Result<List<MarketOrderResponse>> listSellingOrders(Authentication authentication) {
+    public Result<MarketPageResponse<MarketOrderResponse>> listSellingOrders(
+            Authentication authentication,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toOrderResponses(marketQueryService.listSellingOrders(sellerUserId)));
+        return Result.ok(toOrderPage(marketQueryService.listSellingOrders(sellerUserId, page, size)));
     }
 
     @GetMapping("/orders/{orderId}")

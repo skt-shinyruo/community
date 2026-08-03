@@ -30,6 +30,14 @@
         limit 1
     </select>
 
+    <select id="selectByCreatedBy" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveShareDataObject">
+        select <include refid="fields"/>
+        from drive_share
+        where created_by = #{createdBy, jdbcType=BINARY}
+        order by created_at desc, share_id desc
+        limit #{limit} offset #{offset}
+    </select>
+
     <insert id="insert" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveShareDataObject">
         insert into drive_share(share_id, entry_id, share_token, password_hash, expires_at, status, created_by, created_at, updated_at)
         values(

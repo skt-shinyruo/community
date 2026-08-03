@@ -351,7 +351,6 @@ class LoginApplicationServiceTest {
         assertThat(thrown).isInstanceOf(RefreshFailure.class);
         RefreshFailure failure = (RefreshFailure) thrown;
         assertThat(failure.getErrorCode()).isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID);
-        assertThat(failure.clearRefreshCookie()).isTrue();
         verify(refreshTokenService).revokeFamily("family-security-version");
         verify(refreshTokenService, never()).generateReplacementToken(any(UUID.class), anyString());
         verify(refreshTokenService, never()).finishRotation(
@@ -389,7 +388,7 @@ class LoginApplicationServiceTest {
     }
 
     @Test
-    void refreshShouldReturnServiceUnavailableWithoutClearingCookieWhenRollbackSucceeds() {
+    void refreshShouldReturnServiceUnavailableAndKeepFamilyWhenRollbackSucceeds() {
         UUID userId = uuid(31);
         RefreshTokenRepository.StoredRefreshToken pending =
                 new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-rollback", 0L, Instant.now().plusSeconds(600));
@@ -402,7 +401,6 @@ class LoginApplicationServiceTest {
         assertThat(thrown).isInstanceOf(RefreshFailure.class);
         RefreshFailure failure = (RefreshFailure) thrown;
         assertThat(failure.getErrorCode()).isEqualTo(CommonErrorCode.SERVICE_UNAVAILABLE);
-        assertThat(failure.clearRefreshCookie()).isFalse();
         verify(refreshTokenService, never()).revokeFamily("family-rollback");
     }
 
@@ -421,7 +419,7 @@ class LoginApplicationServiceTest {
     }
 
     @Test
-    void refreshShouldRevokeFamilyAndClearCookieWhenRollbackFails() {
+    void refreshShouldRevokeFamilyWhenRollbackFails() {
         UUID userId = uuid(32);
         RefreshTokenRepository.StoredRefreshToken pending =
                 new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-fail-closed", 0L, Instant.now().plusSeconds(600));
@@ -434,7 +432,6 @@ class LoginApplicationServiceTest {
         assertThat(thrown).isInstanceOf(RefreshFailure.class);
         RefreshFailure failure = (RefreshFailure) thrown;
         assertThat(failure.getErrorCode()).isEqualTo(CommonErrorCode.SERVICE_UNAVAILABLE);
-        assertThat(failure.clearRefreshCookie()).isTrue();
         verify(refreshTokenService).revokeFamily("family-fail-closed");
     }
 

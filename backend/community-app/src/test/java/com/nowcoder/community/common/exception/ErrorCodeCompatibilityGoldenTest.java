@@ -169,7 +169,10 @@ class ErrorCodeCompatibilityGoldenTest {
                 golden(WalletErrorCode.PLATFORM_CASH_INSUFFICIENT, 17006, "平台可提现现金不足", "CONFLICT", 409),
                 golden(WalletErrorCode.REQUEST_REPLAY_CONFLICT, 17007, "请求号与已有钱包请求不一致", "CONFLICT", 409),
                 golden(WalletErrorCode.INVALID_TRANSFER, 17008, "转账请求不合法", "INVALID_INPUT", 400),
-                golden(WalletErrorCode.ACCOUNT_FROZEN, 17009, "钱包账户已冻结", "CONFLICT", 409)
+                golden(WalletErrorCode.ACCOUNT_FROZEN, 17009, "钱包账户已冻结", "CONFLICT", 409),
+                golden(WalletErrorCode.TEST_CREDITS_DISABLED, 17010, "测试积分工具未启用", "FORBIDDEN", 403),
+                golden(WalletErrorCode.TEST_CREDIT_LIMIT_EXCEEDED, 17011, "测试积分单次操作超过上限", "INVALID_INPUT", 400),
+                golden(WalletErrorCode.TEST_CREDIT_QUOTA_EXCEEDED, 17012, "测试积分累计配额已用尽", "CONFLICT", 409)
         ).map(Arguments::of);
     }
 

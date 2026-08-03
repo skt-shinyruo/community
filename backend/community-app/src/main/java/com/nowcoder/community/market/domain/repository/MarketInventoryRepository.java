@@ -16,7 +16,7 @@ public interface MarketInventoryRepository {
 
     List<MarketInventoryUnit> findByReservedOrderId(UUID reservedOrderId);
 
-    List<MarketInventoryUnit> findByListingId(UUID listingId);
+    List<MarketInventoryUnit> findByListingId(UUID listingId, long offset, int limit);
 
     MarketInventoryUnit findById(UUID inventoryUnitId);
 

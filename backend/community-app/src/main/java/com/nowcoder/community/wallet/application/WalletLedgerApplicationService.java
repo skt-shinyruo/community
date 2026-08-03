@@ -223,6 +223,12 @@ public class WalletLedgerApplicationService {
         if (WalletTxnType.WITHDRAW.name().equals(txnType)) {
             return "提现申请";
         }
+        if (WalletTxnType.TEST_CREDIT_GRANT.name().equals(txnType)) {
+            return "测试积分发放";
+        }
+        if (WalletTxnType.TEST_CREDIT_DISCARD.name().equals(txnType)) {
+            return "测试积分销毁";
+        }
         if (WalletTxnType.TRANSFER.name().equals(txnType)) {
             return item.counterpartUserId() == null ? "钱包转账" : "用户 " + item.counterpartUserId();
         }

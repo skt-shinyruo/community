@@ -6,12 +6,14 @@ import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.wallet.application.WalletAccountApplicationService;
 import com.nowcoder.community.wallet.application.WalletLedgerApplicationService;
 import com.nowcoder.community.wallet.application.WalletRechargeApplicationService;
+import com.nowcoder.community.wallet.application.WalletTestCreditCapabilityApplicationService;
 import com.nowcoder.community.wallet.application.WalletTransferApplicationService;
 import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService;
 import com.nowcoder.community.wallet.application.command.CreateRechargeCommand;
 import com.nowcoder.community.wallet.application.command.CreateTransferCommand;
 import com.nowcoder.community.wallet.application.command.CreateWithdrawCommand;
 import com.nowcoder.community.wallet.application.command.ListWalletTransactionsCommand;
+import com.nowcoder.community.wallet.application.result.WalletCapabilitiesResult;
 import com.nowcoder.community.wallet.controller.dto.CreateRechargeRequest;
 import com.nowcoder.community.wallet.controller.dto.CreateRechargeResponse;
 import com.nowcoder.community.wallet.controller.dto.CreateTransferRequest;
@@ -42,25 +44,34 @@ public class WalletController {
     private final WalletRechargeApplicationService rechargeService;
     private final WalletWithdrawApplicationService withdrawService;
     private final WalletTransferApplicationService transferService;
+    private final WalletTestCreditCapabilityApplicationService capabilityService;
 
     public WalletController(
             WalletAccountApplicationService accountService,
             WalletLedgerApplicationService ledgerService,
             WalletRechargeApplicationService rechargeService,
             WalletWithdrawApplicationService withdrawService,
-            WalletTransferApplicationService transferService
+            WalletTransferApplicationService transferService,
+            WalletTestCreditCapabilityApplicationService capabilityService
     ) {
         this.accountService = accountService;
         this.ledgerService = ledgerService;
         this.rechargeService = rechargeService;
         this.withdrawService = withdrawService;
         this.transferService = transferService;
+        this.capabilityService = capabilityService;
     }
 
     @GetMapping("/summary")
     public Result<WalletSummaryResponse> summary(Authentication authentication) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(WalletSummaryResponse.from(accountService.summary(userId)));
+    }
+
+    @GetMapping("/capabilities")
+    public Result<WalletCapabilitiesResult> capabilities(Authentication authentication) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
+        return Result.ok(capabilityService.capabilities(userId));
     }
 
     @GetMapping("/transactions")

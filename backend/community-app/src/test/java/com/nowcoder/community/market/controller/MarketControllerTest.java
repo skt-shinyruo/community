@@ -12,6 +12,7 @@ import com.nowcoder.community.market.application.result.MarketListingResult;
 import com.nowcoder.community.market.exception.MarketErrorCode;
 import com.nowcoder.community.market.application.result.MarketOrderDetailResult;
 import com.nowcoder.community.market.application.result.MarketOrderResult;
+import com.nowcoder.community.market.application.result.MarketPageResult;
 import com.nowcoder.community.market.security.MarketSecurityRules;
 import com.nowcoder.community.market.application.MarketAddressApplicationService;
 import com.nowcoder.community.market.application.MarketDisputeApplicationService;
@@ -106,7 +107,8 @@ class MarketControllerTest {
                 2,
                 "ACTIVE"
         );
-        when(marketQueryService.listPublicListings()).thenReturn(List.of(listing));
+        when(marketQueryService.listPublicListings(2, 1))
+                .thenReturn(new MarketPageResult<>(List.of(listing), true, 2, 1));
         when(marketQueryService.getListingDetail(listingId)).thenReturn(new MarketListingDetailResult(
                 listingId,
                 sellerUserId,
@@ -125,10 +127,13 @@ class MarketControllerTest {
                 new Date()
         ));
 
-        mockMvc.perform(get("/api/market/listings"))
+        mockMvc.perform(get("/api/market/listings").param("page", "2").param("size", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data[0].goodsType").value("VIRTUAL"));
+                .andExpect(jsonPath("$.data.items[0].goodsType").value("VIRTUAL"))
+                .andExpect(jsonPath("$.data.hasNext").value(true))
+                .andExpect(jsonPath("$.data.page").value(2))
+                .andExpect(jsonPath("$.data.size").value(1));
 
         mockMvc.perform(get("/api/market/listings/" + listingId))
                 .andExpect(status().isOk())
@@ -250,9 +255,12 @@ class MarketControllerTest {
                 now,
                 now
         );
-        when(marketQueryService.listSellerListings(sellerUserId)).thenReturn(List.of(sellerListing));
-        when(marketQueryService.listBuyingOrders(buyerUserId)).thenReturn(List.of(buyingOrder));
-        when(marketQueryService.listSellingOrders(sellerUserId)).thenReturn(List.of(sellingOrder));
+        when(marketQueryService.listSellerListings(sellerUserId, null, null))
+                .thenReturn(new MarketPageResult<>(List.of(sellerListing), false, 0, 20));
+        when(marketQueryService.listBuyingOrders(buyerUserId, null, null))
+                .thenReturn(new MarketPageResult<>(List.of(buyingOrder), false, 0, 20));
+        when(marketQueryService.listSellingOrders(sellerUserId, null, null))
+                .thenReturn(new MarketPageResult<>(List.of(sellingOrder), false, 0, 20));
         when(marketQueryService.getOrderDetail(buyingOrderId, buyerUserId)).thenReturn(detail);
         when(marketAddressService.listAddresses(buyerUserId)).thenReturn(List.of(address));
 
@@ -263,17 +271,17 @@ class MarketControllerTest {
         mockMvc.perform(get("/api/market/my-listings")
                         .with(jwt().jwt(jwt -> jwt.subject(sellerUserId.toString()).claim("username", "seller7"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].goodsType").value("PHYSICAL"));
+                .andExpect(jsonPath("$.data.items[0].goodsType").value("PHYSICAL"));
 
         mockMvc.perform(get("/api/market/orders/buying")
                         .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].goodsType").value("VIRTUAL"));
+                .andExpect(jsonPath("$.data.items[0].goodsType").value("VIRTUAL"));
 
         mockMvc.perform(get("/api/market/orders/selling")
                         .with(jwt().jwt(jwt -> jwt.subject(sellerUserId.toString()).claim("username", "seller7"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].goodsType").value("PHYSICAL"));
+                .andExpect(jsonPath("$.data.items[0].goodsType").value("PHYSICAL"));
 
         mockMvc.perform(get("/api/market/orders/" + buyingOrderId)
                         .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9"))))

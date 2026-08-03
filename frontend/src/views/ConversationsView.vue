@@ -72,7 +72,8 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useAuthStore } from '../stores/auth'
 import { listImConversationPage } from '../api/services/imCoreChatService'
 import { mergeConversations } from './conversationDetailState'
 import UiCard from '../components/ui/UiCard.vue'
@@ -82,6 +83,7 @@ import UiState from '../components/ui/UiState.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 
 const emit = defineEmits(['trace'])
+const auth = useAuthStore()
 const loading = ref(false)
 const loadingMore = ref(false)
 const error = ref('')
@@ -89,6 +91,14 @@ const items = ref([])
 const nextCursor = ref('')
 const hasMore = ref(false)
 let requestGeneration = 0
+
+function currentIdentityScope() {
+  return `${auth.tokenGeneration}:${String(auth.userId || '')}`
+}
+
+function isCurrentRequest(generation, identityScope) {
+  return generation === requestGeneration && currentIdentityScope() === identityScope
+}
 
 function formatTimeShort(ts) {
   if (!ts) return ''
@@ -111,21 +121,22 @@ function shortParticipant(value) {
 
 async function load() {
   const generation = ++requestGeneration
+  const identityScope = currentIdentityScope()
   error.value = ''
   loadingMore.value = false
   loading.value = true
   try {
     const page = await listImConversationPage({ cursor: '', size: 20 })
-    if (generation !== requestGeneration) return
+    if (!isCurrentRequest(generation, identityScope)) return
     items.value = mergeConversations([], Array.isArray(page?.items) ? page.items : [])
     nextCursor.value = String(page?.nextCursor || '')
     hasMore.value = Boolean(page?.hasMore && nextCursor.value)
     emit('trace', '')
   } catch (e) {
-    if (generation !== requestGeneration) return
+    if (!isCurrentRequest(generation, identityScope)) return
     error.value = e?.message || '加载会话失败'
   } finally {
-    if (generation === requestGeneration) {
+    if (isCurrentRequest(generation, identityScope)) {
       loading.value = false
     }
   }
@@ -135,26 +146,44 @@ async function loadMore() {
   if (loading.value || loadingMore.value || !hasMore.value || !nextCursor.value) return
 
   const generation = ++requestGeneration
+  const identityScope = currentIdentityScope()
   const cursor = nextCursor.value
   loadingMore.value = true
   error.value = ''
   try {
     const page = await listImConversationPage({ cursor, size: 20 })
-    if (generation !== requestGeneration) return
+    if (!isCurrentRequest(generation, identityScope)) return
     items.value = mergeConversations(items.value, Array.isArray(page?.items) ? page.items : [])
     nextCursor.value = String(page?.nextCursor || '')
     hasMore.value = Boolean(page?.hasMore && nextCursor.value)
   } catch (e) {
-    if (generation !== requestGeneration) return
+    if (!isCurrentRequest(generation, identityScope)) return
     error.value = e?.message || '加载会话失败'
   } finally {
-    if (generation === requestGeneration) {
+    if (isCurrentRequest(generation, identityScope)) {
       loadingMore.value = false
     }
   }
 }
 
-onMounted(load)
+function resetForIdentity() {
+  requestGeneration += 1
+  loading.value = false
+  loadingMore.value = false
+  error.value = ''
+  items.value = []
+  nextCursor.value = ''
+  hasMore.value = false
+  if (auth.authed) load()
+}
+
+watch(currentIdentityScope, resetForIdentity)
+onMounted(() => {
+  if (auth.authed) load()
+})
+onBeforeUnmount(() => {
+  requestGeneration += 1
+})
 </script>
 
 <style scoped>

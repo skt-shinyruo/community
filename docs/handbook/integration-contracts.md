@@ -213,7 +213,7 @@ Idempotency-Key: <unique-key>
 
 资金相关写接口补充：
 
-- 钱包充值、提现、转账和市场下单的 HTTP `Idempotency-Key` 只保护对外请求重放。
+- 测试积分发放/销毁兼容路径、钱包转账和市场下单的 HTTP `Idempotency-Key` 只保护对外请求重放。
 - 钱包总账另有 `wallet_txn.request_id`，由应用层派生，例如 `wallet:transfer:<orderId>` 或 `market-order:<orderId>:<action>`。
 - 市场下单成功返回时，订单可能仍处于 `ESCROW_PENDING`，不表示 wallet escrow 已落账。
 - 同一 buyer / requestId 的既有订单是市场业务幂等事实：请求参数一致时，即使 listing 已售罄或并发重试发生，也直接返回既有订单。

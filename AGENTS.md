@@ -2,6 +2,20 @@
 
 These instructions apply to the whole repository.
 
+## Repository Map And Sources Of Truth
+
+- `backend/` is the Java 17 / Spring Boot 3 Maven reactor. Run backend build and test commands from this directory.
+- `frontend/` is the Vue 3 / Vite SPA. Run frontend npm commands from this directory.
+- `deploy/` owns the supported local Compose topologies, schema snapshots, forward migrations, Nacos seeds,
+  observability assets, and deployment contract tests.
+- `tools/mock-data-studio/`, `tests/k6/`, and `tests/playwright-single/` are independently tested Node-based tools or
+  suites; do not assume the frontend dependency installation covers them.
+- `docs/handbook` is the source of truth for current project behavior. Root and subproject READMEs are concise entry
+  points, while `docs/superpowers/specs` and `docs/superpowers/plans` provide design history unless a document is
+  explicitly identified below as an active architecture contract.
+- Before changing behavior, read the owning module, its tests, and the relevant handbook page. Do not use an old spec
+  or plan to override current code and handbook behavior without explicitly reconciling them.
+
 ## Architecture Style
 
 Backend business code in `backend/community-app` uses lightweight domain layering. The goal is to keep ownership,
@@ -130,11 +144,66 @@ Existing legacy packages such as `service`, `entity`, `mapper`, and `app` are mi
 - MyBatis implementation: `MyBatis*Repository` in `infrastructure.persistence`.
 - Persistence row object: `*DataObject` in `infrastructure.persistence.dataobject`.
 
+## Frontend Boundaries
+
+- Browser traffic uses the gateway for `/api`, `/files`, and `/ws/im`; do not make views or stores depend on internal
+  backend service addresses.
+- Route guards are an experience boundary, not an authorization boundary. Backend authorization remains authoritative.
+- Access tokens stay in Pinia memory and refresh tokens stay in HttpOnly cookies. Do not copy either credential into
+  JavaScript-readable persistent storage.
+- Main-site HTTP calls use `frontend/src/api/http.js`; IM HTTP calls use `frontend/src/api/imCoreHttp.js`. Preserve the
+  shared Result, refresh, endpoint-resolution, and error semantics instead of creating page-local clients.
+- Resolve API and WebSocket endpoints through the existing runtime config and endpoint helpers. IM WebSocket clients
+  obtain `wsUrl` and a ticket from `POST /api/im/sessions`; do not hard-code an IM worker address.
+- Keep complex page state in focused `frontend/src/views/*State.js` modules with colocated tests. Components should own
+  rendering and interaction, not duplicate transport or session policy.
+- A retry of the same high-risk write attempt must reuse its `Idempotency-Key`; generating a new key changes the business
+  attempt.
+
+## Data And Deployment Rules
+
+- Use `./deploy/deployment.sh` as the supported Compose entry point. Do not document or automate a partial direct
+  `docker compose` invocation unless the deploy tooling itself requires it.
+- `single` is the normal development topology; `cluster` is for multi-instance and cluster-path validation.
+  Observability is enabled by default and is disabled with `--no-observability`.
+- Never commit real secrets or local `deploy/.env*` files. Nacos config seeds contain non-secret configuration only;
+  credentials and signing keys stay in env files or a secret manager.
+- The fixed business schemas are `community`, `community_oss`, and `im_core`. Empty-volume current state lives in
+  `deploy/mysql/primary-init/010_current_schema.sql`.
+- A `community` schema change updates the current-state snapshot and appends a new
+  `deploy/mysql/community-migrations/VNNN__*.sql` forward migration. It also updates the applicable H2/MyBatis fixtures,
+  schema contracts, and `docs/handbook/data-and-storage.md`. Never rewrite an already released migration.
+- Treat `reset-mysql` and `docker compose down -v` as destructive. Run them only when the task explicitly requires data
+  removal and the exact topology/project has been confirmed.
+
+## Change And Verification Workflow
+
+- Keep changes scoped to the owning module and existing boundaries. Do not mix opportunistic refactors into a focused
+  fix or documentation update.
+- Add regression coverage for behavior changes. Scale verification to the affected surface; do not substitute compilation
+  for behavior tests when a focused test exists.
+- Backend changes: run focused module tests first, then `cd backend && mvn test` when shared contracts, runtime wiring, or
+  multiple modules are affected.
+- Frontend changes: run focused Vitest files when possible, then `cd frontend && npm test && npm run build` for shared
+  routing, session, API, or production-build changes.
+- Architecture or package-boundary changes: run the ArchUnit command in the guardrail section below in addition to the
+  affected backend tests.
+- Deployment, schema, Nacos, observability, k6, Playwright, and Mock Data Studio changes use the matching contract or test
+  suites documented in `docs/handbook/testing.md` and in the owning README.
+- Documentation-only changes must at least pass
+  `git diff --check -- AGENTS.md README.md docs frontend/README.md backend/README.md deploy/README.md tools`.
+- Do not run destructive validation against a developer's local topology. Prefer render, static contract, unit, and
+  disposable-container checks unless destructive behavior is the explicit subject of the task.
+
 ## Documentation And Guardrails
 
-Project-related documentation MUST live under:
+Long-lived project documentation MUST live under:
 
 - `docs/handbook`
+
+Root and subproject READMEs remain navigational and operational entry points; they MUST link to handbook detail instead
+of becoming competing sources of truth. Update `README.md` when top-level modules, prerequisites, canonical startup
+commands, default ports, or primary document entry points change.
 
 Specs and implementation plans MUST live under:
 
@@ -146,6 +215,15 @@ Architecture documentation must stay aligned with this file:
 - `docs/handbook/architecture.md`
 - `docs/handbook/system-design.md`
 - `docs/superpowers/specs/2026-07-27-community-app-lightweight-domain-layering-design.md`
+
+Behavioral documentation must stay aligned with the owning code:
+
+- Business workflows: `docs/handbook/business-logic`, `docs/handbook/business-flows.md`, and
+  `docs/handbook/core-logic-index.md`
+- HTTP, synchronous API, and asynchronous event contracts: `docs/handbook/integration-contracts.md`
+- Frontend routes, session, endpoint, HTTP, realtime, and page-state behavior: `docs/handbook/frontend.md`
+- Security, reliability, storage, observability, operations, local development, and tests: their matching pages under
+  `docs/handbook`
 
 When adding or changing backend architecture rules, update or add ArchUnit tests under:
 

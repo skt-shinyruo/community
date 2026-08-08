@@ -1,40 +1,143 @@
-# community
+# Community
 
-本仓库采用 monorepo 结构：
+一个覆盖社区内容、社交互动、实时 IM、搜索、成长体系、钱包与交易场景的全栈项目。仓库采用
+monorepo，包含 Vue 3 SPA、Java 17 / Spring Boot 3 后端、开发工具、测试套件，以及 single / cluster
+两套 Docker Compose 本地拓扑。
 
-- `frontend/`：Vue3 SPA（Vite）
-- `backend/`：Java 17 + Spring Boot 3 + Maven 多模块
+根 README 只提供项目入口。当前行为与维护约定以 [开发者手册](docs/handbook/readme.md)、代码、部署配置和
+架构守卫测试为准。
+
+## 系统形态
+
+```text
+Browser / Client
+  -> community-gateway
+      -> community-app          主站业务与跨域编排
+      -> community-oss          对象元数据、签名 URL、文件下载
+      -> community-im-gateway   IM session 与稳定 WebSocket edge
+      -> im-core                IM 历史、未读、房间权威状态
+
+owner ApplicationService
+  -> outbox -> Kafka -> consumer ApplicationService
+```
+
+`community-app` 是按业务包治理边界的 package-scoped monolith。域内请求进入同域
+`ApplicationService`；同步跨域协作走 owner-domain `api.*`，异步跨域协作走 owner-domain
+`contracts.event` 与 outbox。IM 独立为 `im-realtime` 和 `im-core` 两个运行时服务。
+
+## 仓库结构
+
+| 路径 | 说明 |
+| --- | --- |
+| `frontend/` | Vue 3、Pinia、Vue Router、Vite、Vitest 构成的 SPA。 |
+| `backend/community-app/` | 主站业务 owner，采用轻量领域分层。 |
+| `backend/community-gateway/` | 浏览器 HTTP / WebSocket 统一入口。 |
+| `backend/community-im-gateway/` | IM session bootstrap 与稳定 `/ws/im` edge。 |
+| `backend/community-im/` | `im-core`、`im-realtime` 与共享 IM contract。 |
+| `backend/community-oss/` | 对象存储 owner；typed client 位于 `backend/community-oss-client/`。 |
+| `backend/community-common/` | 错误协议、安全、Web、幂等、outbox、可观测性等共享基础设施。 |
+| `backend/yierloom/` | 可选的短时 JVM 诊断 Agent 与插件 SDK。 |
+| `deploy/` | 本地拓扑、Nacos seed、schema、迁移、观测配置与部署契约测试。 |
+| `tools/mock-data-studio/` | 仅用于本地开发的测试数据与控制面工具。 |
+| `tests/k6/` | k6 性能测试场景与结构契约。 |
+| `tests/playwright-single/` | 面向已启动 single 拓扑的浏览器验收套件。 |
+| `docs/handbook/` | 当前架构、业务、开发、测试与运维文档的 SSOT。 |
+
+## 环境要求
+
+运行完整本地拓扑需要 Docker Engine 与 Docker Compose plugin。直接开发各工程时还需要：
+
+- JDK 17、Maven 3.8+
+- Node.js 20 与 npm（与 CI 环境一致）
+- k6（仅运行性能场景时需要）
 
 ## 快速开始
 
-推荐先用单机开发拓扑：
+推荐先启动 single 全栈：
 
 ```bash
 cp deploy/.env.single.example deploy/.env.single
 ./deploy/deployment.sh up --topology single
 ```
 
-常用变体：
+observability overlay 默认启用。资源有限或当前不需要 Elasticsearch、Kibana 与 OTel collector 时：
 
-- 单机基础设施：`./deploy/deployment.sh up --topology single --scope infra`
-- 集群全栈：`./deploy/deployment.sh up --topology cluster`
-- 追加观测层：`./deploy/deployment.sh up --topology single --observability`
+```bash
+./deploy/deployment.sh up --topology single --no-observability
+```
 
-默认访问地址：
+常用操作：
 
-- 前端：`http://localhost:12881`
-- 统一入口：`http://localhost:12880`
-- Kibana：`http://localhost:12889`（需 `--observability`）
-- Elasticsearch：`http://localhost:12888`（需 `--observability`）
+```bash
+./deploy/deployment.sh ps --topology single
+./deploy/deployment.sh logs --topology single community-app
+./deploy/deployment.sh down --topology single
+```
+
+如果启动时使用了 `--no-observability`，停止时也要带上相同参数。集群演练使用
+`deploy/.env.cluster.example` 和 `--topology cluster`。完整参数、并行 project 隔离要求与数据清理说明见
+[部署文档](deploy/README.md)。
+
+## 默认入口
+
+| 能力 | 地址 |
+| --- | --- |
+| 前端 | `http://localhost:12881` |
+| API / files / WebSocket gateway | `http://localhost:12880` |
+| IM session bootstrap | `POST http://localhost:12880/api/im/sessions` |
+| Nacos | `http://localhost:18848/nacos` |
+| XXL-JOB Admin | `http://localhost:12887/xxl-job-admin` |
+| MailHog | `http://localhost:8025` |
+| Mock Data Studio | `http://localhost:12890` |
+| Elasticsearch | `http://localhost:12888`（observability 启用时） |
+| Kibana | `http://localhost:12889`（observability 启用时） |
+
+## 本地开发
+
+只启动基础设施，业务服务从 IDE 或命令行运行：
+
+```bash
+./deploy/deployment.sh up --topology single --scope infra
+```
+
+后端构建与测试从 `backend/` 执行：
+
+```bash
+cd backend
+mvn test
+mvn -q -DskipTests -pl :community-app -am package
+```
+
+前端开发与验证从 `frontend/` 执行：
+
+```bash
+cd frontend
+npm ci
+npm run dev
+npm test
+npm run build
+```
+
+修改后端架构规则或包边界时，额外运行：
+
+```bash
+cd backend
+mvn test -pl :community-app -Dtest='*ArchTest'
+```
+
+完整测试分层、数据库契约、Playwright、k6 与 Mock Data Studio 验证命令见
+[测试策略](docs/handbook/testing.md)。
 
 ## 文档入口
 
-- 文档手册：`docs/handbook/readme.md`
-- 前端工程：`frontend/README.md`
-- 后端工程：`backend/README.md`
-- 本地部署：`deploy/README.md`
-- 前端核心逻辑：`docs/handbook/frontend.md`
-- 本地开发：`docs/handbook/local-development.md`
-- 测试策略：`docs/handbook/testing.md`
-- 运行排障：`docs/handbook/operations.md`
-- 架构文档：`docs/handbook/architecture.md`
+- [开发者手册](docs/handbook/readme.md)：所有长期维护文档的索引与同步清单。
+- [项目概览](docs/handbook/overview.md)：运行时边界、主请求路径与推荐源码阅读顺序。
+- [架构规则](docs/handbook/architecture.md)：模块所有权、轻量领域分层与跨域协作。
+- [系统设计](docs/handbook/system-design.md)：同步 API、事件、投影、最终一致与失败语义。
+- [业务逻辑](docs/handbook/business-logic/README.md)：按业务域组织的详细实现说明。
+- [前端核心逻辑](docs/handbook/frontend.md)：路由、会话、HTTP、IM realtime 与页面状态。
+- [本地开发](docs/handbook/local-development.md)：拓扑、端口、环境文件与本地联调。
+- [测试策略](docs/handbook/testing.md)：后端、前端、架构、可靠性与端到端测试。
+- [运行排障](docs/handbook/operations.md)：observability、scheduler、outbox 与故障恢复。
+- [安全模型](docs/handbook/security.md)：JWT、cookie、Origin、internal scope 与 fail-closed。
+- [后端工程](backend/README.md)、[前端工程](frontend/README.md)、[部署入口](deploy/README.md)。

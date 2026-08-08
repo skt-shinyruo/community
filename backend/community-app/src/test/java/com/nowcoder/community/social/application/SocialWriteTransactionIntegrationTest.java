@@ -8,6 +8,7 @@ import com.nowcoder.community.social.application.command.FollowCommand;
 import com.nowcoder.community.social.api.action.SocialLikeActionApi.SetLikeCommand;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.infrastructure.event.OutboxSocialDomainEventPublisher;
+import com.nowcoder.community.social.infrastructure.persistence.MyBatisFollowRepository;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.application.UserReadApplicationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,12 +22,20 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
@@ -56,6 +65,9 @@ class SocialWriteTransactionIntegrationTest {
     @SpyBean
     private OutboxSocialDomainEventPublisher outboxPublisher;
 
+    @SpyBean
+    private MyBatisFollowRepository followRepository;
+
     @MockBean
     private UserReadApplicationService userReadApplicationService;
 
@@ -64,13 +76,14 @@ class SocialWriteTransactionIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        reset(outboxPublisher, userReadApplicationService);
+        reset(outboxPublisher, followRepository, userReadApplicationService);
         jdbcTemplate.update("delete from outbox_event");
         jdbcTemplate.update("delete from social_like");
         jdbcTemplate.update("delete from social_user_like_count");
         jdbcTemplate.update("delete from social_follow");
         jdbcTemplate.update("delete from social_block_version_log");
         jdbcTemplate.update("delete from social_block");
+        jdbcTemplate.update("delete from social_user_pair_lock");
         jdbcTemplate.update("update social_block_version_counter set current_version = 0 where id = 1");
     }
 
@@ -167,6 +180,48 @@ class SocialWriteTransactionIntegrationTest {
         assertThat(outboxCount()).isZero();
     }
 
+    @Test
+    void reverseFollowAndBlockShouldSerializeOnTheSameUserPairAndPreserveTheInvariant() throws Exception {
+        when(userReadApplicationService.getSummaryById(ACTOR_USER_ID))
+                .thenReturn(new UserSummaryView(ACTOR_USER_ID, "actor-user", null, 0));
+        CountDownLatch followReachedInsert = new CountDownLatch(1);
+        CountDownLatch releaseFollowInsert = new CountDownLatch(1);
+        CountDownLatch blockStarted = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            followReachedInsert.countDown();
+            await(releaseFollowInsert);
+            return invocation.callRealMethod();
+        }).when(followRepository).follow(eq(TARGET_USER_ID), eq(USER), eq(ACTOR_USER_ID), anyLong());
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<?> follow = executor.submit(() -> followApplicationService.follow(
+                    new FollowCommand(TARGET_USER_ID, USER, ACTOR_USER_ID)
+            ));
+            assertThat(followReachedInsert.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<?> block = executor.submit(() -> {
+                blockStarted.countDown();
+                blockApplicationService.block(new BlockCommand(ACTOR_USER_ID, TARGET_USER_ID));
+            });
+            assertThat(blockStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> block.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+
+            releaseFollowInsert.countDown();
+            follow.get(5, TimeUnit.SECONDS);
+            block.get(5, TimeUnit.SECONDS);
+
+            assertThat(blockRelationCount()).isOne();
+            assertThat(followRelationCount(ACTOR_USER_ID, TARGET_USER_ID)).isZero();
+            assertThat(followRelationCount(TARGET_USER_ID, ACTOR_USER_ID)).isZero();
+        } finally {
+            releaseFollowInsert.countDown();
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
     private void allowTargetUserLookup() {
         when(userReadApplicationService.getSummaryById(TARGET_USER_ID))
                 .thenReturn(new UserSummaryView(TARGET_USER_ID, "target-user", null, 0));
@@ -253,5 +308,16 @@ class SocialWriteTransactionIntegrationTest {
 
     private IllegalStateException publicationFailure() {
         return new IllegalStateException("publish failed");
+    }
+
+    private void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("timed out waiting for concurrent social write");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted while waiting for concurrent social write", exception);
+        }
     }
 }

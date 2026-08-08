@@ -8,6 +8,8 @@ public class RegistrationProperties {
     private Draft draft = new Draft();
     private Code code = new Code();
     private Mail mail = new Mail();
+    private RequestLimit requestLimit = new RequestLimit();
+    private ResendLimit resendLimit = new ResendLimit();
 
     public Draft getDraft() {
         return draft;
@@ -31,6 +33,100 @@ public class RegistrationProperties {
 
     public void setMail(Mail mail) {
         this.mail = mail;
+    }
+
+    public RequestLimit getRequestLimit() {
+        return requestLimit;
+    }
+
+    public void setRequestLimit(RequestLimit requestLimit) {
+        this.requestLimit = requestLimit == null ? new RequestLimit() : requestLimit;
+    }
+
+    public ResendLimit getResendLimit() {
+        return resendLimit;
+    }
+
+    public void setResendLimit(ResendLimit resendLimit) {
+        this.resendLimit = resendLimit == null ? new ResendLimit() : resendLimit;
+    }
+
+    public static class RequestLimit {
+        private int windowSeconds = 3600;
+        private int maxRequestsPerUsername = 3;
+        private int maxRequestsPerEmail = 3;
+        private int maxRequestsPerIp = 10;
+
+        public int getWindowSeconds() {
+            return windowSeconds;
+        }
+
+        public void setWindowSeconds(int windowSeconds) {
+            this.windowSeconds = windowSeconds;
+        }
+
+        public int getMaxRequestsPerUsername() {
+            return maxRequestsPerUsername;
+        }
+
+        public void setMaxRequestsPerUsername(int maxRequestsPerUsername) {
+            this.maxRequestsPerUsername = maxRequestsPerUsername;
+        }
+
+        public int getMaxRequestsPerEmail() {
+            return maxRequestsPerEmail;
+        }
+
+        public void setMaxRequestsPerEmail(int maxRequestsPerEmail) {
+            this.maxRequestsPerEmail = maxRequestsPerEmail;
+        }
+
+        public int getMaxRequestsPerIp() {
+            return maxRequestsPerIp;
+        }
+
+        public void setMaxRequestsPerIp(int maxRequestsPerIp) {
+            this.maxRequestsPerIp = maxRequestsPerIp;
+        }
+    }
+
+    public static class ResendLimit {
+        private int windowSeconds = 3600;
+        private int maxRequestsPerRegistration = 5;
+        private int maxRequestsPerEmail = 5;
+        private int maxRequestsPerIp = 20;
+
+        public int getWindowSeconds() {
+            return windowSeconds;
+        }
+
+        public void setWindowSeconds(int windowSeconds) {
+            this.windowSeconds = windowSeconds;
+        }
+
+        public int getMaxRequestsPerRegistration() {
+            return maxRequestsPerRegistration;
+        }
+
+        public void setMaxRequestsPerRegistration(int maxRequestsPerRegistration) {
+            this.maxRequestsPerRegistration = maxRequestsPerRegistration;
+        }
+
+        public int getMaxRequestsPerEmail() {
+            return maxRequestsPerEmail;
+        }
+
+        public void setMaxRequestsPerEmail(int maxRequestsPerEmail) {
+            this.maxRequestsPerEmail = maxRequestsPerEmail;
+        }
+
+        public int getMaxRequestsPerIp() {
+            return maxRequestsPerIp;
+        }
+
+        public void setMaxRequestsPerIp(int maxRequestsPerIp) {
+            this.maxRequestsPerIp = maxRequestsPerIp;
+        }
     }
 
     public static class Draft {
@@ -79,6 +175,11 @@ public class RegistrationProperties {
         private int resendCooldownSeconds = 60;
 
         /**
+         * Lease protecting mail delivery and verified-registration completion.
+         */
+        private int operationLeaseSeconds = 120;
+
+        /**
          * 是否在响应中回传调试验证码（仅本地/测试联调建议开启）。
          */
         private boolean exposeCode = false;
@@ -113,6 +214,14 @@ public class RegistrationProperties {
 
         public void setResendCooldownSeconds(int resendCooldownSeconds) {
             this.resendCooldownSeconds = Math.max(0, resendCooldownSeconds);
+        }
+
+        public int getOperationLeaseSeconds() {
+            return operationLeaseSeconds;
+        }
+
+        public void setOperationLeaseSeconds(int operationLeaseSeconds) {
+            this.operationLeaseSeconds = operationLeaseSeconds > 0 ? operationLeaseSeconds : 120;
         }
 
         public boolean isExposeCode() {

@@ -14,6 +14,32 @@ import java.util.UUID;
 @Mapper
 public interface BlockMapper {
 
+    @Insert(
+            """
+                    insert into social_user_pair_lock(first_user_id, second_user_id)
+                    values(#{firstUserId, jdbcType=BINARY}, #{secondUserId, jdbcType=BINARY})
+                    on duplicate key update first_user_id = values(first_user_id)
+                    """
+    )
+    int ensureUserPairLock(
+            @Param("firstUserId") UUID firstUserId,
+            @Param("secondUserId") UUID secondUserId
+    );
+
+    @Select(
+            """
+                    select 1
+                    from social_user_pair_lock
+                    where first_user_id = #{firstUserId, jdbcType=BINARY}
+                      and second_user_id = #{secondUserId, jdbcType=BINARY}
+                    for update
+                    """
+    )
+    Integer lockUserPair(
+            @Param("firstUserId") UUID firstUserId,
+            @Param("secondUserId") UUID secondUserId
+    );
+
     @Insert("insert into social_block(user_id, target_user_id, created_at, version) values(#{userId, jdbcType=BINARY}, #{targetUserId, jdbcType=BINARY}, now(), #{version})")
     int insertBlock(@Param("userId") UUID userId, @Param("targetUserId") UUID targetUserId, @Param("version") long version);
 
@@ -28,15 +54,26 @@ public interface BlockMapper {
 
     @Select(
             """
-                    select user_id as userId, target_user_id as targetUserId, version as version
-                    from social_block
-                    where (user_id > #{afterUserId})
-                       or (user_id = #{afterUserId} and target_user_id > #{afterTargetUserId})
-                    order by user_id asc, target_user_id asc
+                    select history.user_id as userId,
+                           history.target_user_id as targetUserId,
+                           history.version as version
+                    from social_block_version_log history
+                    where ((history.user_id > #{afterUserId})
+                       or (history.user_id = #{afterUserId} and history.target_user_id > #{afterTargetUserId}))
+                      and history.version = (
+                          select max(candidate.version)
+                          from social_block_version_log candidate
+                          where candidate.user_id = history.user_id
+                            and candidate.target_user_id = history.target_user_id
+                            and candidate.version <= #{snapshotVersion}
+                      )
+                      and history.active = true
+                    order by history.user_id asc, history.target_user_id asc
                     limit #{limit}
                     """
     )
-    List<BlockRelationDataObject> scanBlocks(
+    List<BlockRelationDataObject> scanBlocksAtVersion(
+            @Param("snapshotVersion") long snapshotVersion,
             @Param("afterUserId") UUID afterUserId,
             @Param("afterTargetUserId") UUID afterTargetUserId,
             @Param("limit") int limit

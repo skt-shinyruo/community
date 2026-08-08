@@ -111,6 +111,19 @@
             <if test="autoConfirmPolicy == 'KEEP' and nextStatus != 'DELIVERED' and nextStatus != 'SHIPPED'">
                 auto_confirm_next_attempt_at = null,
             </if>
+            <choose>
+                <when test="nextStatus == 'ESCROW_PENDING'
+                        or nextStatus == 'ESCROW_CANCEL_PENDING'
+                        or nextStatus == 'RELEASE_PENDING'
+                        or nextStatus == 'REFUND_PENDING'
+                        or nextStatus == 'DISPUTE_RELEASE_PENDING'
+                        or nextStatus == 'DISPUTE_REFUND_PENDING'">
+                    wallet_recovery_next_attempt_at = current_timestamp,
+                </when>
+                <otherwise>
+                    wallet_recovery_next_attempt_at = null,
+                </otherwise>
+            </choose>
             update_time = current_timestamp
         </set>
         where order_id = #{orderId, jdbcType=BINARY}
@@ -155,8 +168,65 @@
             'DISPUTE_RELEASE_PENDING',
             'DISPUTE_REFUND_PENDING'
         )
-        order by update_time asc, order_id asc
+          and (wallet_recovery_next_attempt_at is null
+            or wallet_recovery_next_attempt_at &lt;= current_timestamp)
+          and (
+            not exists (
+                select 1
+                from market_wallet_action a
+                where a.order_id = market_order.order_id
+                  and a.action_type = case
+                    when market_order.status in ('ESCROW_PENDING', 'ESCROW_CANCEL_PENDING') then 'ESCROW'
+                    when market_order.status in ('RELEASE_PENDING', 'DISPUTE_RELEASE_PENDING') then 'RELEASE'
+                    else 'REFUND'
+                  end
+            )
+            or exists (
+                select 1
+                from market_wallet_action a
+                where a.order_id = market_order.order_id
+                  and a.action_type = case
+                    when market_order.status in ('ESCROW_PENDING', 'ESCROW_CANCEL_PENDING') then 'ESCROW'
+                    when market_order.status in ('RELEASE_PENDING', 'DISPUTE_RELEASE_PENDING') then 'RELEASE'
+                    else 'REFUND'
+                  end
+                  and (a.next_retry_at is null or a.next_retry_at &lt;= current_timestamp)
+                  and (
+                    (a.wallet_txn_id is not null and a.status != 'PROCESSING')
+                    or (
+                        a.wallet_txn_id is null
+                        and a.status = 'FAILED'
+                        and a.action_type in ('RELEASE', 'REFUND')
+                        and a.failure_code in ('17004', '17005')
+                    )
+                    or (
+                        market_order.status = 'ESCROW_CANCEL_PENDING'
+                        and a.action_type = 'ESCROW'
+                        and a.status = 'CANCELLED'
+                        and a.result_type = 'NOOP'
+                    )
+                  )
+            )
+          )
+        order by coalesce(wallet_recovery_next_attempt_at, update_time) asc, order_id asc
         limit #{limit}
     </select>
+
+    <update id="deferWalletRecovery">
+        update market_order
+        set wallet_recovery_next_attempt_at = #{nextAttemptAt},
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status in (
+            'ESCROW_PENDING',
+            'ESCROW_CANCEL_PENDING',
+            'RELEASE_PENDING',
+            'REFUND_PENDING',
+            'DISPUTE_RELEASE_PENDING',
+            'DISPUTE_REFUND_PENDING'
+          )
+          and (wallet_recovery_next_attempt_at is null
+            or wallet_recovery_next_attempt_at &lt;= #{asOf})
+    </update>
 
 </mapper>

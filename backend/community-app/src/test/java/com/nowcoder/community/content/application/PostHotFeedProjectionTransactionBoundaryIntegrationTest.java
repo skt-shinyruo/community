@@ -101,7 +101,7 @@ class PostHotFeedProjectionTransactionBoundaryIntegrationTest {
         doAnswer(ignored -> {
             assertOutsideTransaction();
             return null;
-        }).when(postCounterCache).updateScore(any(), anyDouble());
+        }).when(postCounterCache).markDirty(any());
         doAnswer(ignored -> {
             assertOutsideTransaction();
             return null;

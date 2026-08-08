@@ -42,6 +42,40 @@ class PasswordPolicyDomainServiceTest {
         assertInvalid(" abcdefg1 ");
     }
 
+    @Test
+    void requireValidPasswordShouldAcceptExactlySeventyTwoUtf8Bytes() {
+        String password = "A1" + "\u5bc6".repeat(23) + "a";
+
+        assertThat(password.getBytes(java.nio.charset.StandardCharsets.UTF_8)).hasSize(72);
+        assertThat(service.requireValidPassword(password)).isEqualTo(password);
+    }
+
+    @Test
+    void requireValidPasswordShouldRejectSeventyThreeUtf8Bytes() {
+        String password = "A1" + "\u5bc6".repeat(23) + "ab";
+
+        assertThat(password.getBytes(java.nio.charset.StandardCharsets.UTF_8)).hasSize(73);
+        assertInvalid(password);
+    }
+
+    @Test
+    void requireValidPasswordShouldHandleSupplementaryCodePointsAtBcryptBoundary() {
+        String accepted = "A1" + "\uD83D\uDE00".repeat(17) + "aa";
+        String rejected = accepted + "a";
+
+        assertThat(accepted.getBytes(java.nio.charset.StandardCharsets.UTF_8)).hasSize(72);
+        assertThat(rejected.getBytes(java.nio.charset.StandardCharsets.UTF_8)).hasSize(73);
+        assertThat(service.requireValidPassword(accepted)).isEqualTo(accepted);
+        assertInvalid(rejected);
+    }
+
+    @Test
+    void requireValidPasswordShouldRejectUnicodeBoundarySpacesWithoutChangingInternalSpaces() {
+        assertInvalid("\u00A0abcdefg1");
+        assertInvalid("abcdefg1\u3000");
+        assertThat(service.requireValidPassword("abc\u00A0def1")).isEqualTo("abc\u00A0def1");
+    }
+
     private void assertInvalid(String password) {
         assertThatThrownBy(() -> service.requireValidPassword(password))
                 .isInstanceOf(BusinessException.class)

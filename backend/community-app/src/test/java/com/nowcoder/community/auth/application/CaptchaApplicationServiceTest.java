@@ -17,6 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -24,6 +26,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CaptchaApplicationServiceTest {
+
+    private static final String CAPTCHA_ID = "0123456789abcdef0123456789abcdef";
 
     @Mock
     private CaptchaRepository captchaStore;
@@ -41,40 +45,44 @@ class CaptchaApplicationServiceTest {
 
     @Test
     void verifyShouldReturnTrueWhenCaptchaMatchesAtomically() {
-        when(captchaStore.verifyAndConsume("cid", "AbC1")).thenReturn(CaptchaRepository.VerifyResult.MATCHED);
+        when(captchaStore.verifyAndConsume(CAPTCHA_ID, "AbC1", 3, Duration.ofSeconds(60)))
+                .thenReturn(CaptchaRepository.VerifyResult.MATCHED);
 
-        assertThat(service.verify("cid", "  AbC1  ")).isTrue();
+        assertThat(service.verify(CAPTCHA_ID, "  AbC1  ")).isTrue();
 
-        verify(captchaStore).verifyAndConsume("cid", "AbC1");
+        verify(captchaStore).verifyAndConsume(CAPTCHA_ID, "AbC1", 3, Duration.ofSeconds(60));
         verify(captchaStore, never()).incrementFailures(anyString(), any(Duration.class));
         verify(captchaStore, never()).delete(anyString());
     }
 
     @Test
     void verifyShouldReturnFalseWhenCaptchaNotFound() {
-        when(captchaStore.verifyAndConsume("cid", "AbC1")).thenReturn(CaptchaRepository.VerifyResult.NOT_FOUND);
+        when(captchaStore.verifyAndConsume(CAPTCHA_ID, "AbC1", 3, Duration.ofSeconds(60)))
+                .thenReturn(CaptchaRepository.VerifyResult.NOT_FOUND);
 
-        assertThat(service.verify("cid", "AbC1")).isFalse();
+        assertThat(service.verify(CAPTCHA_ID, "AbC1")).isFalse();
 
         verify(captchaStore, never()).incrementFailures(anyString(), any(Duration.class));
         verify(captchaStore, never()).delete(anyString());
     }
 
     @Test
-    void verifyShouldDeleteCaptchaAfterTooManyFailures() {
-        when(captchaStore.verifyAndConsume("cid", "wrong")).thenReturn(CaptchaRepository.VerifyResult.MISMATCH);
-        when(captchaStore.incrementFailures("cid", Duration.ofSeconds(60))).thenReturn(3);
+    void verifyShouldLeaveFailureExhaustionToTheAtomicRepositoryOperation() {
+        when(captchaStore.verifyAndConsume(CAPTCHA_ID, "wrong", 3, Duration.ofSeconds(60)))
+                .thenReturn(CaptchaRepository.VerifyResult.EXHAUSTED);
 
-        assertThat(service.verify("cid", "wrong")).isFalse();
+        assertThat(service.verify(CAPTCHA_ID, "wrong")).isFalse();
 
-        verify(captchaStore).delete("cid");
+        verify(captchaStore, never()).incrementFailures(eq(CAPTCHA_ID), any(Duration.class));
+        verify(captchaStore, never()).delete(CAPTCHA_ID);
     }
 
     @Test
     void verifyShouldFailClosedWhenStoreUnavailable() {
-        when(captchaStore.verifyAndConsume("cid", "code")).thenThrow(new RuntimeException("redis down"));
+        when(captchaStore.verifyAndConsume(CAPTCHA_ID, "code", 3, Duration.ofSeconds(60)))
+                .thenThrow(new RuntimeException("redis down"));
 
-        assertThatThrownBy(() -> service.verify("cid", "code"))
+        assertThatThrownBy(() -> service.verify(CAPTCHA_ID, "code"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.SERVICE_UNAVAILABLE);
@@ -105,5 +113,14 @@ class CaptchaApplicationServiceTest {
         assertThatThrownBy(() -> service.issue(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
+    }
+
+    @Test
+    void verifyShouldRejectMalformedOrHashTagBreakingCaptchaIdBeforeRedis() {
+        assertThat(service.verify("}x", "AbC1")).isFalse();
+        assertThat(service.verify("0123456789abcdef0123456789abcdeG", "AbC1")).isFalse();
+        assertThat(service.verify(" " + CAPTCHA_ID, "AbC1")).isFalse();
+
+        verify(captchaStore, never()).verifyAndConsume(anyString(), anyString(), anyInt(), any(Duration.class));
     }
 }

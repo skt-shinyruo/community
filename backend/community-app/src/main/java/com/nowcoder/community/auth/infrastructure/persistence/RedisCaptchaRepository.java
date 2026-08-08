@@ -10,13 +10,14 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Component
 @ConditionalOnProperty(name = "auth.captcha.store", havingValue = "redis", matchIfMissing = true)
 public class RedisCaptchaRepository implements CaptchaRepository {
 
     private static final String PREFIX = "captcha:";
-    private static final String PREFIX_FAIL = "captcha:fail:";
+    private static final Pattern CAPTCHA_ID_PATTERN = Pattern.compile("\\A[0-9a-f]{32}\\z");
     private static final RedisScript<String> VERIFY_AND_CONSUME_SCRIPT = script(
             """
                     local value = redis.call('get', KEYS[1])
@@ -27,6 +28,19 @@ public class RedisCaptchaRepository implements CaptchaRepository {
                         redis.call('del', KEYS[1])
                         redis.call('del', KEYS[2])
                         return 'MATCHED'
+                    end
+                    local failures = redis.call('incr', KEYS[2])
+                    if failures == 1 then
+                        local remaining = redis.call('pttl', KEYS[1])
+                        if remaining <= 0 then
+                            remaining = tonumber(ARGV[3])
+                        end
+                        redis.call('pexpire', KEYS[2], remaining)
+                    end
+                    if failures >= tonumber(ARGV[2]) then
+                        redis.call('del', KEYS[1])
+                        redis.call('del', KEYS[2])
+                        return 'EXHAUSTED'
                     end
                     return 'MISMATCH'
                     """,
@@ -58,14 +72,17 @@ public class RedisCaptchaRepository implements CaptchaRepository {
     }
 
     @Override
-    public VerifyResult verifyAndConsume(String owner, String code) {
-        if (!StringUtils.hasText(owner) || !StringUtils.hasText(code)) {
+    public VerifyResult verifyAndConsume(String owner, String code, int maxFailures, Duration failureTtl) {
+        if (!isCaptchaId(owner) || !StringUtils.hasText(code)
+                || maxFailures <= 0 || failureTtl == null || failureTtl.isNegative() || failureTtl.isZero()) {
             return VerifyResult.NOT_FOUND;
         }
         String result = redisTemplate.execute(
                 VERIFY_AND_CONSUME_SCRIPT,
                 List.of(key(owner), failKey(owner)),
-                code.trim()
+                code.trim(),
+                Integer.toString(maxFailures),
+                Long.toString(Math.max(1L, failureTtl.toMillis()))
         );
         if (result == null) {
             throw new IllegalStateException("redis verify captcha returned null");
@@ -73,6 +90,7 @@ public class RedisCaptchaRepository implements CaptchaRepository {
         return switch (result) {
             case "MATCHED" -> VerifyResult.MATCHED;
             case "MISMATCH" -> VerifyResult.MISMATCH;
+            case "EXHAUSTED" -> VerifyResult.EXHAUSTED;
             case "NOT_FOUND" -> VerifyResult.NOT_FOUND;
             default -> throw new IllegalStateException("unknown captcha verify result");
         };
@@ -115,11 +133,15 @@ public class RedisCaptchaRepository implements CaptchaRepository {
     }
 
     private String key(String owner) {
-        return PREFIX + owner;
+        return PREFIX + "{" + owner + "}:value";
     }
 
     private String failKey(String owner) {
-        return PREFIX_FAIL + owner;
+        return PREFIX + "{" + owner + "}:fail";
+    }
+
+    private boolean isCaptchaId(String value) {
+        return value != null && CAPTCHA_ID_PATTERN.matcher(value).matches();
     }
 
     private static <T> RedisScript<T> script(String scriptText, Class<T> resultType) {

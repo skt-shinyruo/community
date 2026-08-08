@@ -64,6 +64,28 @@ class MyBatisModerationTargetRepositoryTest {
     }
 
     @Test
+    void resolveTargetShouldRetainSoftDeletedCommentForLegacyAuditRepair() {
+        DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        MyBatisModerationTargetRepository repository =
+                new MyBatisModerationTargetRepository(discussPostMapper, commentMapper);
+        UUID commentId = uuid(67);
+        UUID commentOwnerId = uuid(8);
+        CommentDataObject comment = aComment()
+                .id(commentId)
+                .userId(commentOwnerId)
+                .status(1)
+                .buildDataObject();
+        when(commentMapper.selectById(commentId)).thenReturn(comment);
+
+        ModerationTarget target =
+                repository.resolveTarget(report(EntityTypes.COMMENT, commentId));
+
+        assertThat(target.targetId()).isEqualTo(commentId);
+        assertThat(target.targetUserId()).isEqualTo(commentOwnerId);
+    }
+
+    @Test
     void resolveTargetShouldTreatUserTargetAsSelfOwned() {
         MyBatisModerationTargetRepository repository = new MyBatisModerationTargetRepository(mock(DiscussPostMapper.class), mock(CommentMapper.class));
         UUID userId = uuid(99);

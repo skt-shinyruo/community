@@ -1,11 +1,14 @@
 package com.nowcoder.community.notice.domain.service;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 public final class NoticeDomainService {
 
     public static final int STATUS_UNREAD = 0;
     public static final int STATUS_READ = 1;
+    public static final int MARK_READ_BATCH_LIMIT = 100;
 
     public int pageOrDefault(Integer page) {
         return page == null ? 0 : Math.max(0, page);
@@ -19,5 +22,16 @@ public final class NoticeDomainService {
         if (toUserId == null || topic == null || topic.isBlank() || contentJson == null || contentJson.isBlank()) {
             throw new IllegalArgumentException("notice recipient, topic and content are required");
         }
+    }
+
+    public List<UUID> normalizeMarkReadIds(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return ids.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .limit(MARK_READ_BATCH_LIMIT)
+                .toList();
     }
 }

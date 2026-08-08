@@ -68,8 +68,24 @@ class NacosPolicyBindingTest {
         assertThat(environment.getProperty("spring.mail.port", Integer.class)).isEqualTo(1025);
         assertThat(environment.getProperty("spring.mail.properties.mail.smtp.auth", Boolean.class)).isFalse();
         assertThat(environment.getProperty("spring.mail.properties.mail.smtp.starttls.enable", Boolean.class)).isFalse();
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.starttls.required", Boolean.class)).isFalse();
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.ssl.enable", Boolean.class)).isFalse();
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.connectiontimeout", Integer.class))
+                .isEqualTo(10_000);
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.timeout", Integer.class))
+                .isEqualTo(10_000);
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.writetimeout", Integer.class))
+                .isEqualTo(10_000);
+        assertThat(environment.getProperty("security.jwt.refresh-cookie-same-site")).isEqualTo("Lax");
+        assertThat(environment.getProperty("auth.captcha.max-issue-requests-per-ip", Integer.class)).isEqualTo(10);
         assertThat(environment.getProperty("http.idempotency.store")).isEqualTo("DB");
         assertThat(environment.getProperty("growth.business-zone-id")).isEqualTo("Asia/Shanghai");
+        assertThat(environment.getProperty(
+                "content.comment-thread-cleanup.enabled", Boolean.class)).isTrue();
+        assertThat(environment.getProperty(
+                "content.comment-thread-cleanup.batch-size", Integer.class)).isEqualTo(100);
+        assertThat(environment.getProperty(
+                "content.comment-thread-cleanup.delay-ms", Long.class)).isEqualTo(60_000L);
         assertThat(environment.containsProperty("content.events.publisher")).isFalse();
         assertThat(environment.containsProperty("social.events.publisher")).isFalse();
         assertThat(environment.containsProperty("user.events.publisher")).isFalse();
@@ -83,6 +99,40 @@ class NacosPolicyBindingTest {
         assertThat(ossClient.audience()).isEqualTo("community-oss");
         assertThat(ossClient.scope()).isEqualTo("oss.internal");
         assertThat(ossClient.tokenTtl()).isEqualTo(Duration.ofMinutes(5));
+    }
+
+    @Test
+    void bindsAuthenticatedSmtpFromRuntimeSecretsAndPolicy() throws Exception {
+        StandardEnvironment environment = environmentFrom(
+                "community-app.yaml",
+                Map.ofEntries(
+                        Map.entry("SPRING_MAIL_HOST", "smtp.community.test"),
+                        Map.entry("SPRING_MAIL_PORT", "587"),
+                        Map.entry("SPRING_MAIL_USERNAME", "mailer"),
+                        Map.entry("SPRING_MAIL_PASSWORD", "runtime-secret"),
+                        Map.entry("SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH", "true"),
+                        Map.entry("SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE", "true"),
+                        Map.entry("SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED", "true"),
+                        Map.entry("SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE", "false"),
+                        Map.entry("SPRING_MAIL_CONNECTION_TIMEOUT_MS", "7000"),
+                        Map.entry("SPRING_MAIL_READ_TIMEOUT_MS", "8000"),
+                        Map.entry("SPRING_MAIL_WRITE_TIMEOUT_MS", "9000")
+                )
+        );
+
+        assertThat(environment.getProperty("spring.mail.host")).isEqualTo("smtp.community.test");
+        assertThat(environment.getProperty("spring.mail.port", Integer.class)).isEqualTo(587);
+        assertThat(environment.getProperty("spring.mail.username")).isEqualTo("mailer");
+        assertThat(environment.getProperty("spring.mail.password")).isEqualTo("runtime-secret");
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.auth", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.starttls.enable", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.starttls.required", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.connectiontimeout", Integer.class))
+                .isEqualTo(7_000);
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.timeout", Integer.class))
+                .isEqualTo(8_000);
+        assertThat(environment.getProperty("spring.mail.properties.mail.smtp.writetimeout", Integer.class))
+                .isEqualTo(9_000);
     }
 
     @Test

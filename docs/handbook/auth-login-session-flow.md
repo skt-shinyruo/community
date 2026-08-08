@@ -60,6 +60,7 @@ refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`us
 | `expires_at` | refresh token 过期时间，默认 7 天 |
 | `state` | `ACTIVE`、`PENDING_ROTATION`、`CONSUMED` 或 `REVOKED` |
 | `pending_expires_at` | `PENDING_ROTATION` lease 截止时间；过期 pending 可恢复后重试 |
+| `rotation_lease_id` | 当前 rotation owner 的 fencing token；finish / rollback 必须携带同一 lease |
 | `revoked_at` | `CONSUMED` / `REVOKED` terminal tombstone 写入时间 |
 
 ## HTTP 入口
@@ -92,15 +93,17 @@ refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`us
 | application command | `LoginCommand` | 登录凭证、验证码、`clientIp`, `clientIpSource` | controller 组装后进入 auth application |
 | application command | `RefreshCommand`, `LogoutCommand` | `refreshToken` | 从 cookie 读取后传入 application |
 | application result | `LoginResult`, `RefreshResult` | `accessToken`, `RefreshCookieSpec` | application 返回 controller |
+| owner API | `UserCredentialQueryApi.AuthenticationSubject` | `utf8mb4_unicode_ci:v1:<digest>` opaque 登录主体 | user owner 用 MySQL `utf8mb4_unicode_ci` 的 `WEIGHT_STRING` scalar 生成，不查询用户表，因此与账号是否存在无关 |
+| owner API | `UserCredentialQueryApi.AuthenticationChallenge` | 稳定 `userId`（未知账号为 null）和一次性密码校验入口 | user owner 按数据库身份等价规则查询账号；`userId` 只约束本次密码校验，不参与风控分桶 |
 | owner API | `UserAuthenticationResultView` | `authenticated`, `failure`, `user` | user owner 认证结果 |
-| owner API | `UserCredentialView` | `userId`, `username`, `status`, `type`, `headerUrl`, `securityVersion`, `loginAllowed`, `refreshAllowed` | 角色计算、refresh 后回源校验 |
+| owner API | `UserCredentialView` | `userId`, `username`, `email`, `status`, `type`, `headerUrl`, `securityVersion`, `loginAllowed`, `refreshAllowed` | 角色计算、refresh 后回源校验和密码重置投递 |
 | auth domain | `RefreshTokenSession` / `RefreshTokenRepository.StoredRefreshToken` | token hash、`userId`、`familyId`、`securityVersionAtIssue`、状态和 lease | auth repository 与 refresh application 之间的 session 状态 |
 
 敏感数据处理：
 
 - `password` 只在当前认证调用内使用，不进入 auth 持久化，也不写日志。
 - refresh token 明文只存在于 cookie、当前请求 / 响应和 hash 计算过程。
-- refresh token、registration token 和 password reset token 明文都由 auth application 使用统一的 256-bit `SecureRandom` 生成器生成，并使用 base64url 无填充编码。
+- refresh token 和 registration token 明文由 auth application 使用统一的 256-bit `SecureRandom` 生成器生成，并使用 base64url 无填充编码；password reset token 则由随机 delivery ID 和独立 HMAC 密钥确定性派生，便于 outbox worker 在不持久化 bearer token 的前提下重建同一链接。
 - 注册邮箱验证码由同一安全随机生成器生成 6 位数字码。
 - 默认 DB store 只保存 refresh token 的 SHA-256 hex hash。
 - 安全日志记录用户名、用户 ID、IP、IP 来源和失败原因，不记录密码或 refresh token 明文。
@@ -121,26 +124,27 @@ controller 职责：
 
 application 主流程：
 
-1. `LoginRateLimitApplicationService.assertNotBlocked(...)` 检查 IP / 用户名失败计数。
-2. `isCaptchaRequired(...)` 判断是否必须提交验证码。
-3. 需要验证码但缺少 `captchaId` / `captchaCode` 时，记录失败并抛 `CAPTCHA_REQUIRED`。
-4. 提交验证码时由 `CaptchaApplicationService.verify(...)` 校验；失败记录风控并抛 `CAPTCHA_INVALID`。
-5. `AuthDomainService.requireCredentials(...)` 校验用户名和密码非空。
-6. `UserCredentialQueryApi.authenticate(...)` 进入 user owner 校验账号状态和 BCrypt 密码。
-7. 认证失败转换为 `INVALID_CREDENTIALS` 或 `USER_DISABLED`，并计入风控失败次数。
-8. 认证成功后 `LoginRateLimitApplicationService.reset(...)` 清除当前用户名 / IP 失败计数。
-9. `issueLoginResult(...)` 签发 access token 和 refresh token。
-10. 写安全日志，并通过 `AnalyticsIngestActionApi.recordLoginSuccess(...)` 记录登录成功。
+1. `AuthDomainService.requireCredentials(...)` 先校验用户名和密码非空，并拒绝控制字符、Unicode format 字符、未配对 surrogate 以及不可见输入；失败只累计 IP 风控。
+2. 在调用 user owner 和 MySQL 前，按 IP、trim 后但不做大小写、重音或兼容字符折叠的原始用户名输入，固定顺序获取 tokenized Redis ZSET permit。IP 使用 `login-ip` HMAC scope，临时输入使用 `login-input` scope；任一维度或 Redis 依赖失败都 fail-closed。
+3. `UserCredentialQueryApi.authenticationSubject(...)` 由 user owner 调用不读取用户表的 MySQL scalar：在 `utf8mb4_unicode_ci` 下取得用户名的 `WEIGHT_STRING`，去除排序规则的尾随空格权重后做 SHA-256，返回 `utf8mb4_unicode_ci:v1:<digest>` opaque 主体。已知、未知和该排序规则下等价的用户名因此得到同一主体，不产生账号存在性分支。
+4. auth 在保留 IP lease 时先获取 `auth:login:fail:subject:v3-<hmac>` 主体 lease；成功后把 permit 持有的租约替换为 IP + authoritative subject，并释放 `input:v3` 临时 lease。主体获取失败、原 lease 丢失或依赖异常都不能继续账号查询；整个流程不使用 `userId` 作为风控 key。
+5. `UserCredentialQueryApi.prepareAuthentication(...)` 随后才按数据库真实身份等价规则查询一次账号，并再次用 user owner 的用户名策略校验查询返回的存量用户名。不存在账号、存量用户名含控制/format/不可见字符或密码 hash 非法时，都只返回无 userId、无真实 hash 的 dummy challenge；安全别名不能借数据库排序规则命中不安全旧账号。
+6. permit 的 Lua 使用 Redis `TIME` 清理过期 token，并仅在 `已提交失败数 + 活跃 lease 数` 仍有余量时准入；后台心跳续租，任一续租或所有权校验失败都会 fail-closed。ZSET key 的 TTL 由所有存活成员的最晚 score 加清理余量决定，短租约节点不会截断其它长租约成员。
+7. 在持有 IP + authoritative subject permit 时按合并后的失败数与活跃 lease 数判断 captcha；缺少验证码或校验失败先向 IP 和 authoritative subject 提交风控失败，再抛 `CAPTCHA_REQUIRED` / `CAPTCHA_INVALID`。
+8. permit 所有权校验通过后，由 challenge 执行 BCrypt；账号不存在或 hash 非法时也执行固定 dummy BCrypt，禁用账号只有在密码正确后才返回禁用状态。完成 hash 后再次确认 lease 所有权。
+9. 认证失败转换为 `INVALID_CREDENTIALS` 或 `USER_DISABLED`，先向 IP 和 authoritative subject 提交失败次数，再释放本次 permit；成功也在离开密码检查后释放。
+10. 认证成功后 `LoginRateLimitApplicationService.resetSubject(...)` 只清除 authoritative subject 失败桶；共享 IP 桶保留到窗口自然过期。
+11. `issueLoginResult(...)` 签发 access token 和 refresh token，写安全日志，并通过 `AnalyticsIngestActionApi.recordLoginSuccess(...)` 记录登录成功。
 
 登录失败语义：
 
 | 场景 | 错误 |
 | --- | --- |
 | 用户名 / 密码为空、用户不存在、密码错误 | `AuthErrorCode.INVALID_CREDENTIALS` |
-| `user.status == 0` | `AuthErrorCode.USER_DISABLED` |
+| `user.status == 0` 或存在活跃封禁，且提交密码正确 | `AuthErrorCode.USER_DISABLED` |
 | 已达到验证码门槛但未提交验证码 | `AuthErrorCode.CAPTCHA_REQUIRED` |
 | 验证码错误、过期或失败过多后被删除 | `AuthErrorCode.CAPTCHA_INVALID` |
-| IP / 用户名达到失败阈值 | `CommonErrorCode.TOO_MANY_REQUESTS` |
+| IP / 数据库排序规则 authoritative subject 达到失败阈值 | `CommonErrorCode.TOO_MANY_REQUESTS` |
 | 登录风控或验证码依赖不可用 | `CommonErrorCode.SERVICE_UNAVAILABLE` |
 
 ## 注册验证后自动登录
@@ -150,18 +154,21 @@ application 主流程：
 ```text
 AuthController.verifyRegisterCode(...)
   -> RegistrationVerificationApplicationService.verifyAndLogin(...)
-      -> RegistrationCodeRepository.verifyAndConsume(...)
+      -> RegistrationCodeRepository.verifyForConsumption(..., leaseId)
       -> UserRegistrationActionApi.createVerifiedRegistrationUser(...)
+      -> RegistrationCodeRepository.consumePending(..., leaseId)
       -> LoginApplicationService.issueLoginResult(...)
 ```
 
 关键语义：
 
 - registration draft 和邮箱验证码校验通过后才创建 active 用户。
+- register 入口在 captcha 和字段校验后、BCrypt 与 draft 创建前，按客户端 IP、规范化用户名和规范化邮箱原子增加 HMAC 伪名配额。
 - prepare registration 阶段会先由 user owner 检查用户名和邮箱是否已存在；验证码通过后的最终插入仍以数据库唯一约束处理竞态冲突。
 - 创建用户成功后不再走用户名密码认证，而是对刚创建的 `UserCredentialView` 调 `issueLoginResult(...)`。
 - 响应体仍是 `LoginResponse(accessToken)`，并写入 refresh cookie。
-- resend 注册验证码时先写 pending replacement code，邮件发送成功后才 promote 为 active code；邮件发送失败会 abort replacement，原 active code 继续有效。
+- 注册码使用 `auth:regcode:v2:{<userId>}` Redis Hash 状态机；初次签发把 delivery ID 与 active code 绑定后写 `auth.registration-code-mail` outbox。resend 先原子消费可信 IP、邮箱、registration identity 三个 HMAC 配额，再让同一 UUID 同时担任 delivery ID 和 `PENDING_REPLACEMENT` lease。worker 发送前核对并续租，SMTP 成功后才 promote；重试只会重复发送同一 code，旧 delivery 无法覆盖新 replacement。失败次数耗尽后保留无 code 的 `EXHAUSTED` 冷却墓碑，立即重发不能绕过 cooldown。真实 legacy key 为 `auth:regcode:<userId>`；旧 writer 完全退出后，单个 legacy-key Lua 原子执行 `GET + PTTL + DEL`，随后以 v2 单 key Lua 条件导入，避免 Redis Cluster 跨 slot Lua。
+- 验证成功先进入带 UUID lease 的 `PENDING_VERIFICATION`。创建用户失败时只有 owner 能 restore；创建成功后只有 owner 能 consume。过期 lease 可被后续请求接管，旧 owner 不能覆盖新状态。
 - `finally` 中 best-effort 删除 registration draft，避免重复使用。
 - 如果 active 用户已经创建但自动登录签发 token 失败，返回 `REGISTRATION_ACTIVATED_LOGIN_REQUIRED`，前端清理注册上下文并提示用户直接登录，避免误导用户重复注册。
 
@@ -217,7 +224,7 @@ rotation 语义：
 - 新 refresh token 复用同一个 `familyId`。
 - finish 成功后旧 token 不再 active，只作为 `CONSUMED` tombstone 用于复用检测和 logout family 识别。
 - 新 refresh token 不会在用户存在性和状态校验前提前签发。
-- begin 后若发生临时失败，auth 先 `rollbackPendingRotation(...)` 把旧 session 恢复为 `ACTIVE`；如果 rollback 不安全或失败，auth 撤销整个 family。
+- begin 后若发生临时失败，auth 携带本次 `rotationLeaseId` 调 `rollbackPendingRotation(...)`；只有 lease owner 能把旧 session 恢复为 `ACTIVE`，否则撤销整个 family。
 - pending lease 过期后再次 begin rotation 时，store 会先恢复过期 pending，再重新进入 pending 状态。
 - 如果旧 token 已被撤销但又被复用，`maybeRevokeFamilyForReusedToken(...)` 会检查 `security.jwt.refresh-reuse-grace-seconds`；超过 grace window 且未过期时撤销整个 family。
 - refresh 失败响应不写 `Set-Cookie`。服务端依靠 session/family 状态拒绝无效 token；浏览器端只在显式 logout 时清 cookie。这避免并发 refresh 中较晚到达的旧 token 失败响应清除较早成功响应刚轮换的新 cookie。
@@ -231,7 +238,7 @@ rotation 语义：
 logout 是 best-effort：
 
 - 请求没有 refresh token 时，不做 repository 操作，但仍清浏览器 cookie。
-- 请求带 refresh token 时，先从 active session 识别 family 并撤销当前 token 和整个 family；如果 active row 不存在，再从 terminal tombstone 识别 family 并撤销整个 family。
+- 请求带 refresh token 时，可从 `ACTIVE`、`PENDING_ROTATION` 或 terminal tombstone 识别 family 并写撤销 marker；因此 logout 与并发 rotation 竞争时，replacement 不能在已撤销 family 中落地。
 - controller 总是写 clear cookie；repository 是否识别 token 只影响服务端 family 撤销范围。
 - logout 不撤销已经签出的 access token；access token 继续依赖短 TTL 自然过期。
 
@@ -241,17 +248,22 @@ logout 是 best-effort：
 
 ```text
 PasswordResetApplicationService.confirmReset(...)
-  -> UserCredentialActionApi.updatePassword(...)
-  -> UserCredentialApplicationService.updatePassword(...)
+  -> PasswordResetTokenRepository.beginConfirmation(..., leaseId)
+  -> UserCredentialActionApi.updatePasswordIfSecurityVersion(...)
+  -> UserCredentialApplicationService.updatePasswordIfSecurityVersion(...)
       -> UserRepository.nextUserSecurityVersion(...)
-      -> UserRepository.updatePassword(...)
+      -> UserRepository.updatePasswordIfSecurityVersion(...)
+  -> PasswordResetTokenRepository.revokeGeneration(...)
+  -> PasswordResetTokenRepository.finishConfirmation(..., leaseId)
 ```
 
 角色变化以及新增或延长活跃账号级封禁也会递增 `securityVersion`。user 不同步调用 auth repository 删除 refresh rows；旧 refresh session 在下一次续期时因 `securityVersionAtIssue` 不匹配而被 auth 拒绝并撤销 family。已签出的 access token 不会被集中删除：`/api/**` 上的旧版本由 `TokenFreshnessFilter` 立即拒绝，其他 token 只能等待短 TTL 过期；internal service token 使用独立的签名和 audience 边界。
 
-密码重置请求会先校验验证码，再先按客户端 IP 计数限流，再查询 user owner；邮箱 quota 只对存在且可用的账号计数。reset token 使用 256-bit base64url 明文，只存储在 Redis key 和邮件链接中。如果 reset token 已写入但邮件发送失败，auth 会 best-effort 删除该 token。如果 reset token 已被消费但 user owner 更新密码失败，auth 会用消费时捕获的剩余 TTL 恢复该 reset token，允许用户在原有效期内重试；不会把 token 延长回完整 TTL。
+密码重置请求会先校验验证码并消耗 IP quota；查询 user owner 后，已存在账号以 user ID、未知账号以规范化邮箱作为 delivery quota 身份，从而让数据库排序规则判定为同一账号的所有输入共享同一桶。Redis key 只包含使用独立 `AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET` 计算的 HMAC 标识，不包含邮箱、user ID 或 IP 明文。不存在、未激活和可用账号都执行同样的 quota、Redis token 和 outbox 写入，并返回相同受理响应；不可投递路径使用 dummy user 和空收件地址，handler 不调用 SMTP。邮件任务使用 `auth.password-reset-mail` 持久化 outbox；payload 携带不可逆 derivation key ID 支持密钥轮换，成功后被原子擦除。
 
-密码策略由 user owner 执行：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符，且拒绝首尾空白字符。前端和后端都不再静默 trim 密码字段。
+reset token 是从随机 delivery ID 与独立密钥确定性派生的 256-bit base64url bearer value，使 worker 可在不持久化明文 token 的前提下重建邮件链接；Redis token key 只保存其 SHA-256 ID。记录携带签发时 `securityVersion`，确认时原子进入带 UUID fencing lease 的 `PENDING`；user owner 只在版本仍匹配时 CAS 改密。下游失败时同一 lease 只能在原剩余 TTL 内 rollback 为 `ACTIVE`；成功或版本已陈旧时撤销该用户的旧 generation 并完成 token，后签发的新 generation 不会被旧请求误删。
+
+密码策略由 user owner 执行：长度 8 到 `ValidationLimits.PASSWORD_MAX`，UTF-8 编码最多 72 字节，至少包含两类字符，并拒绝 Unicode 首尾空白字符。前端和后端都不再静默 trim 密码字段。
 
 ## Refresh Session 存储
 
@@ -262,42 +274,46 @@ RefreshTokenApplicationService
   -> RefreshTokenRepository
   -> MyBatisRefreshTokenRepository
   -> RefreshTokenSessionMapper / RefreshTokenSessionDataObject
-  -> auth_refresh_token / auth_refresh_token_family_revocation
+  -> auth_refresh_token / auth_refresh_token_family_revocation / auth_refresh_token_family_lock
 ```
 
 DB schema 精简视图：
 
 | 表 | 关键字段 | 说明 |
 | --- | --- | --- |
-| `auth_refresh_token` | `token_hash`, `user_id`, `family_id`, `security_version_at_issue`, `expires_at`, `state`, `pending_expires_at`, `revoked_at`, `created_at` | refresh session 主表；`token_hash` 是 SHA-256 hex |
-| `auth_refresh_token_family_revocation` | `family_id`, `revoked_at` | family 撤销标记；防止已撤销 family 写回 active token |
+| `auth_refresh_token` | `token_hash`, `user_id`, `family_id`, `security_version_at_issue`, `expires_at`, `state`, `pending_expires_at`, `rotation_lease_id`, `revoked_at`, `created_at` | refresh session 主表；`token_hash` 是 SHA-256 hex |
+| `auth_refresh_token_family_revocation` | `family_id`, `revoked_at`, `expires_at` | 有界保留的 family 撤销标记；防止已撤销 family 写回 active token |
+| `auth_refresh_token_family_lock` | `family_id`, `retain_until` | family 级持久互斥行；所有多行写入先锁该行，再访问 token 和撤销 marker |
 
 DB store 行为：
 
-- `store(...)` 插入带 `securityVersionAtIssue` 的 active row；如果 family 已撤销，写入失败。
-- `beginRotation(...)` 只把未过期的 `ACTIVE` row 转为 `PENDING_ROTATION` 并写入 `pending_expires_at`；如果发现过期 pending，会先恢复后再重试。
-- `finishRotation(...)` 要求旧 row 仍是未过期 `PENDING_ROTATION`，然后原子地把旧 row 标为 `CONSUMED` 并插入同 family 的 replacement `ACTIVE` row。
-- `rollbackPendingRotation(...)` 只把 `PENDING_ROTATION` row 恢复为 `ACTIVE`，用于 begin 后的临时失败恢复。
+- `store(...)` 插入带 `securityVersionAtIssue` 的 active row；如果 family 已撤销，写入失败。签发应用入口持有事务，保证 family 锁覆盖 marker 检查与 token 写入。
+- `token_hash` 的 owner family 不可变；极低概率的 token hash 冲突会 fail closed，不会通过 upsert 把已有 session 改挂到另一个 family。
+- `beginRotation(...)` 只把未过期的 `ACTIVE` row 转为 `PENDING_ROTATION`，同时写入 `pending_expires_at` 和随机 `rotation_lease_id`；如果发现过期 pending，会先恢复后再由新 lease 接管。
+- `finishRotation(...)` 要求旧 row 仍是未过期 `PENDING_ROTATION`，且用户、family、安全版本和 lease 全部匹配；应用事务原子地插入 replacement 并把旧 row 标为 `CONSUMED`，最终 CAS 失败会回滚 replacement。
+- `rollbackPendingRotation(...)` 只有相同 `rotation_lease_id` 能把 `PENDING_ROTATION` row 恢复为 `ACTIVE`。
 - `find(...)` 返回 active 且未过期的 token；过期时会撤销并返回 null。
 - `findRevoked(...)` 返回 `CONSUMED` / `REVOKED` terminal tombstone，用于 refresh reuse 检测和 logout family 识别。
 - `revoke(...)` 撤销单个 token。
 - `revokeFamily(...)` 写 family marker，并撤销该 family 下所有 active token。
-- `deleteExpiredBefore(...)` 由 cleanup job 删除过期 rows。
+- `deleteExpiredBefore(...)` 由 cleanup job 以每批 500 行、单次最多 200 批的方式排空过期 token、撤销 marker 和 family lock；每批独立提交，避免长事务和无限清理循环。
+
+轮换完成、按 token 注销以及显式 family 注销统一采用 `family lock -> token / revocation marker` 锁序。按 token 操作会先做无锁快照定位 family，取得 family 锁后再以 `FOR UPDATE` 重读并校验 token，因此 logout 与 rotate 并发时只会得到“轮换后整族撤销”或“撤销先完成、轮换失败”两种结果，不会留下 active replacement。
 
 状态机：
 
 ![Refresh session database state machine](assets/auth-refresh-session-state.svg)
 
-`RefreshTokenCleanupJob` 每 `auth.refresh.cleanup.interval-ms` 执行一次；`auth.refresh.cleanup.enabled=false` 时跳过。该 job 只清理过期 refresh session，不影响 access token。
+`RefreshTokenCleanupJob` 每 `auth.refresh.cleanup.interval-ms` 执行一次；`auth.refresh.cleanup.enabled=false` 时跳过。该 job 只清理过期 refresh session 及其 family 辅助行，不影响 access token。
 
-可选 Redis store 由 `RedisRefreshTokenRepository` 提供，只有 `auth.refresh.store=redis` 时启用。核心 key：
+可选 Redis store 由 `RedisRefreshTokenRepository` 提供，只有 `auth.refresh.store=redis` 时启用。它只保留给非生产兼容测试：所有 key 为满足多 key Lua 而集中在 `{auth-refresh}` slot，且历史 key 协议没有滚动双读能力。`prod` / `production` 启动校验强制 `auth.refresh.store=db`；切换 Redis 协议或实现时必须使测试环境的既有 session 失效，不能做新旧 writer 混跑。核心 key：
 
 | Key | 内容 |
 | --- | --- |
-| `auth:refresh:<refreshToken>` | active 或 pending refresh token record，包含 `state` 和 pending lease |
-| `auth:refresh:revoked:<refreshToken>` | `CONSUMED` / `REVOKED` tombstone，用于复用检测和 logout family 识别 |
-| `auth:refresh:family:<familyId>` | family 下 active token set |
-| `auth:refresh:family:revoked:<familyId>` | family 撤销 marker，阻止新 token 写入 |
+| `auth:refresh:{auth-refresh}:token:<sha256>` | active 或 pending refresh token record，包含状态、截止时间和 rotation lease；key 不含 bearer token 明文 |
+| `auth:refresh:{auth-refresh}:revoked:<sha256>` | `CONSUMED` / `REVOKED` tombstone，用于复用检测和 logout family 识别 |
+| `auth:refresh:{auth-refresh}:family:<familyId>` | family 下 active token ID set |
+| `auth:refresh:{auth-refresh}:family-revoked:<familyId>` | authoritative family 撤销 marker，阻止新 token 写入；token record 按自身 TTL 清理 |
 
 ## 登录风控和验证码
 
@@ -305,8 +321,12 @@ DB store 行为：
 
 | Key | 生命周期 |
 | --- | --- |
-| `auth:login:fail:ip:<ip>` | 登录失败自增；TTL 为 `auth.login-rate-limit.window-seconds`；登录成功删除 |
-| `auth:login:fail:user:<username>` | 用户名 trim 后转小写；登录失败自增；登录成功删除 |
+| `auth:login:fail:ip:v2-<hmac>` | IP 使用稳定 abuse-quota HMAC 密钥和 `login-ip` scope 生成伪名；登录失败自增；TTL 为 `auth.login-rate-limit.window-seconds`；成功登录不删除共享 IP 桶 |
+| `auth:login:fail:input:v3-<hmac>` | trim 后的原始用户名输入使用 `login-input` scope 生成伪名，不做 Java Unicode 折叠；只为任何 user owner / MySQL 调用前的临时 permit 提供命名空间，authoritative subject lease 获取后立即释放该输入 lease |
+| `auth:login:fail:subject:v3-<hmac>` | user owner 返回的 `utf8mb4_unicode_ci:v1:<digest>` 使用 `login-subject` scope 再生成 Redis 伪名；账号查询、captcha 和 BCrypt 前持有其 lease，所有登录失败在该桶自增，成功登录删除该桶 |
+| `auth:login:inflight:{<完整 failure key>}:<完整 failure key>` | identity-lookup / password-check UUID token ZSET；failure String 与 lease ZSET 共享完整 hash tag，从而满足 Redis Cluster 单 slot Lua；key TTL 覆盖最晚到期的存活成员 |
+
+登录 IP / 输入 / authoritative subject 伪名复用已经用于注册和密码重置配额的稳定 `auth.password-reset.quota-hmac-secret`，并通过 `login-ip` / `login-input` / `login-subject` 独立 scope 做域分离；它不复用 service JWT 或可轮换的邮件 delivery 密钥。该稳定密钥的轮换会切换整套 quota key，必须按运维手册执行受控停流。
 
 默认阈值：
 
@@ -325,10 +345,10 @@ auth:
 
 | Key | 内容 / 生命周期 |
 | --- | --- |
-| `captcha:<captchaId>` | 验证码值；TTL 为 `auth.captcha.ttl-seconds` |
-| `captcha:fail:<captchaId>` | 验证失败次数；TTL 与验证码对齐 |
+| `captcha:{<captchaId>}:value` | 验证码值；TTL 为 `auth.captcha.ttl-seconds` |
+| `captcha:{<captchaId>}:fail` | 验证失败次数；TTL 与验证码对齐，同一 hash tag 支持单 Lua 原子校验 |
 
-默认验证码 TTL 60 秒，最多失败 3 次。验证码匹配成功后会消费；失败次数达到上限后删除，要求重新获取。验证码依赖异常时返回 `SERVICE_UNAVAILABLE`。
+默认验证码 TTL 60 秒，最多失败 3 次。同一个 Lua 完成取值、匹配、失败递增与达到阈值后的删除，正确请求不能与并发错误请求一起越过失败预算。验证码依赖异常时返回 `SERVICE_UNAVAILABLE`。
 
 ## 配置摘要
 
@@ -348,7 +368,7 @@ security:
     refresh-cookie-name: refresh_token
     refresh-cookie-path: /api/auth
     refresh-cookie-same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
-    refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:false}
+    refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:true}
 
 gateway:
   origin-guard:
@@ -364,11 +384,13 @@ auth:
       interval-ms: ${AUTH_REFRESH_CLEANUP_INTERVAL_MS:3600000}
   captcha:
     store: redis
-    ttl-seconds: 60
-    max-failures: 3
+    ttl-seconds: ${AUTH_CAPTCHA_TTL_SECONDS:60}
+    max-failures: ${AUTH_CAPTCHA_MAX_FAILURES:3}
+    max-issue-requests-per-ip: ${AUTH_CAPTCHA_MAX_ISSUE_REQUESTS_PER_IP:10}
   password-reset:
     reset-base-url: ${AUTH_PASSWORD_RESET_BASE_URL:}
-    ttl-seconds: 600
+    identifier-hmac-secret: ${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET}
+    ttl-seconds: ${AUTH_PASSWORD_RESET_TTL_SECONDS:600}
     request-window-seconds: ${AUTH_PASSWORD_RESET_REQUEST_WINDOW_SECONDS:3600}
     max-requests-per-email: ${AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_EMAIL:3}
     max-requests-per-ip: ${AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_IP:20}

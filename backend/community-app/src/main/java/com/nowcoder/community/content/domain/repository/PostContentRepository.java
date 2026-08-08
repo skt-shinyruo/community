@@ -15,6 +15,27 @@ public interface PostContentRepository {
 
     List<DiscussPost> listPosts(int page, int size, int orderMode, UUID categoryId, String tag);
 
+    /**
+     * Loads one logical page and may fetch one extra row without changing the page offset.
+     */
+    List<DiscussPost> listPosts(
+            int page,
+            int pageSize,
+            int fetchLimit,
+            int orderMode,
+            UUID categoryId,
+            String tag
+    );
+
+    List<DiscussPost> listHotPostsAfter(
+            int beforeType,
+            double beforeScore,
+            Date beforeCreateTime,
+            UUID beforePostId,
+            int limit,
+            UUID categoryId
+    );
+
     List<DiscussPost> listPostsByUser(UUID userId, int page, int size);
 
     List<DiscussPost> listPostsByIds(List<UUID> postIds);

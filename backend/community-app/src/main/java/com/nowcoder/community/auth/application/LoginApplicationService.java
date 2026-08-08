@@ -22,8 +22,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.UUID;
 import java.util.Objects;
+import java.util.UUID;
 
 @Service
 public class LoginApplicationService {
@@ -58,73 +58,88 @@ public class LoginApplicationService {
 
     public LoginResult login(LoginCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        String username = command.username();
+        String suppliedUsername = command.username();
         String password = command.password();
         String captchaId = command.captchaId();
         String captchaCode = command.captchaCode();
         String ip = command.clientIp();
         String ipSource = command.clientIpSource();
 
-        loginRateLimitService.assertNotBlocked(username, ip, ipSource);
-
-        if (loginRateLimitService.isCaptchaRequired(username, ip)) {
-            if (!StringUtils.hasText(captchaId) || !StringUtils.hasText(captchaCode)) {
-                loginRateLimitService.recordFailure(username, ip, ipSource);
-                SecurityEventLogger.info(log, "login", "denied",
-                        "community.reason_code", "captcha_required",
-                        "username", username,
-                        "source.ip", ip,
-                        "ip.source", ipSource);
-                throw new BusinessException(AuthErrorCode.CAPTCHA_REQUIRED);
-            }
-            boolean ok = captchaChallenge.verify(captchaId, captchaCode);
-            if (!ok) {
-                loginRateLimitService.recordFailure(username, ip, ipSource);
-                SecurityEventLogger.info(log, "login", "denied",
-                        "community.reason_code", "captcha_invalid",
-                        "username", username,
-                        "source.ip", ip,
-                        "ip.source", ipSource);
-                throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
-            }
-        }
-
+        String username;
         try {
-            authDomainService.requireCredentials(username, password);
+            username = authDomainService.requireCredentials(suppliedUsername, password);
         } catch (BusinessException e) {
-            loginRateLimitService.recordFailure(username, ip, ipSource);
+            loginRateLimitService.recordFailure(null, ip, ipSource);
             SecurityEventLogger.info(log, "login", "denied",
                     "community.reason_code", "invalid_credentials",
-                    "username", username,
+                    "username", suppliedUsername,
                     "source.ip", ip,
                     "ip.source", ipSource);
             throw e;
         }
 
+        LoginRateLimitApplicationService.PasswordCheckPermit permit =
+                loginRateLimitService.acquirePasswordCheck(username, ip, ipSource);
         UserCredentialView user;
+        String riskSubject;
+        UUID challengeUserId;
         try {
-            UserAuthenticationResultView authenticationResult = authenticateUser(username, password);
-            if (!authenticationResult.authenticated()) {
-                throw authenticationFailure(authenticationResult);
+            UserCredentialQueryApi.AuthenticationSubject authenticationSubject =
+                    userCredentialQueryApi.authenticationSubject(username);
+            if (authenticationSubject == null || !StringUtils.hasText(authenticationSubject.value())) {
+                throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE,
+                        "用户认证服务暂时不可用");
             }
-            user = authenticationResult.user();
-        } catch (BusinessException e) {
-            int code = e.getErrorCode() == null ? 0 : e.getErrorCode().getCode();
-            boolean invalidCredentials = code == AuthErrorCode.INVALID_CREDENTIALS.getCode();
-            boolean userDisabled = code == AuthErrorCode.USER_DISABLED.getCode();
-            if (invalidCredentials || userDisabled) {
-                loginRateLimitService.recordFailure(username, ip, ipSource);
-                String reason = invalidCredentials ? "invalid_credentials" : "user_disabled";
-                SecurityEventLogger.info(log, "login", "denied",
-                        "community.reason_code", reason,
-                        "username", username,
-                        "source.ip", ip,
-                        "ip.source", ipSource);
+            riskSubject = authenticationSubject.value();
+            loginRateLimitService.attachAuthenticationSubject(
+                    permit, username, riskSubject, ipSource);
+
+            UserCredentialQueryApi.AuthenticationChallenge authenticationChallenge =
+                    userCredentialQueryApi.prepareAuthentication(username);
+            if (authenticationChallenge == null) {
+                throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE,
+                        "用户认证服务暂时不可用");
             }
-            throw e;
+            challengeUserId = authenticationChallenge.userId();
+            boolean captchaRequired = loginRateLimitService.isCaptchaRequired(
+                    riskSubject, ip, permit);
+            if (captchaRequired) {
+                if (!StringUtils.hasText(captchaId) || !StringUtils.hasText(captchaCode)) {
+                    loginRateLimitService.recordFailure(riskSubject, ip, ipSource);
+                    SecurityEventLogger.info(log, "login", "denied",
+                            "community.reason_code", "captcha_required",
+                            "username", username,
+                            "source.ip", ip,
+                            "ip.source", ipSource);
+                    throw new BusinessException(AuthErrorCode.CAPTCHA_REQUIRED);
+                }
+                boolean ok = captchaChallenge.verify(captchaId, captchaCode);
+                if (!ok) {
+                    loginRateLimitService.recordFailure(riskSubject, ip, ipSource);
+                    SecurityEventLogger.info(log, "login", "denied",
+                            "community.reason_code", "captcha_invalid",
+                            "username", username,
+                            "source.ip", ip,
+                            "ip.source", ipSource);
+                    throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
+                }
+            }
+            loginRateLimitService.assertPasswordCheckOwned(permit);
+            user = authenticateWithReservedBudget(
+                    authenticationChallenge,
+                    username,
+                    riskSubject,
+                    challengeUserId,
+                    password,
+                    ip,
+                    ipSource,
+                    permit
+            );
+        } finally {
+            loginRateLimitService.releasePasswordCheck(permit);
         }
 
-        loginRateLimitService.reset(username, ip);
+        loginRateLimitService.resetSubject(riskSubject);
         LoginResult loginResult = loginTokenIssuer.issueLoginResult(user);
         SecurityEventLogger.info(log, "login", "success",
                 "user.id", user.userId(),
@@ -171,7 +186,8 @@ public class LoginApplicationService {
                     replacement.refreshToken(),
                     credentialView.userId(),
                     pending.familyId(),
-                    credentialView.securityVersion()
+                    credentialView.securityVersion(),
+                    pending.rotationLeaseId()
             );
             if (!finished) {
                 throw new IllegalStateException("refresh rotation finish failed");
@@ -199,7 +215,10 @@ public class LoginApplicationService {
             RefreshTokenRepository.StoredRefreshToken pending,
             RuntimeException cause
     ) {
-        boolean rolledBack = refreshTokenService.rollbackPendingRotation(refreshToken);
+        boolean rolledBack = refreshTokenService.rollbackPendingRotation(
+                refreshToken,
+                pending.rotationLeaseId()
+        );
         if (rolledBack) {
             return new RefreshFailure(CommonErrorCode.SERVICE_UNAVAILABLE, CommonErrorCode.SERVICE_UNAVAILABLE.getMessage(), cause);
         }
@@ -222,8 +241,44 @@ public class LoginApplicationService {
         return new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
     }
 
-    private UserAuthenticationResultView authenticateUser(String username, String password) {
-        return userCredentialQueryApi.authenticate(username, password);
+    private UserCredentialView authenticateWithReservedBudget(
+            UserCredentialQueryApi.AuthenticationChallenge authenticationChallenge,
+            String username,
+            String riskSubject,
+            UUID challengeUserId,
+            String password,
+            String ip,
+            String ipSource,
+            LoginRateLimitApplicationService.PasswordCheckPermit permit
+    ) {
+        try {
+            UserAuthenticationResultView authenticationResult = authenticationChallenge.authenticate(password);
+            loginRateLimitService.assertPasswordCheckOwned(permit);
+            if (!authenticationResult.authenticated()) {
+                throw authenticationFailure(authenticationResult);
+            }
+            if (challengeUserId != null && !challengeUserId.equals(authenticationResult.user().userId())) {
+                throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE,
+                        "用户认证身份已变化，请稍后重试");
+            }
+            return authenticationResult.user();
+        } catch (BusinessException e) {
+            int code = e.getErrorCode() == null ? 0 : e.getErrorCode().getCode();
+            boolean invalidCredentials = code == AuthErrorCode.INVALID_CREDENTIALS.getCode();
+            boolean userDisabled = code == AuthErrorCode.USER_DISABLED.getCode();
+            if (invalidCredentials || userDisabled) {
+                // Commit the failure before releasing the in-flight slot so
+                // another burst cannot enter between the two controls.
+                loginRateLimitService.recordFailure(riskSubject, ip, ipSource);
+                String reason = invalidCredentials ? "invalid_credentials" : "user_disabled";
+                SecurityEventLogger.info(log, "login", "denied",
+                        "community.reason_code", reason,
+                        "username", username,
+                        "source.ip", ip,
+                        "ip.source", ipSource);
+            }
+            throw e;
+        }
     }
 
     private UserCredentialView getCredential(UUID userId) {

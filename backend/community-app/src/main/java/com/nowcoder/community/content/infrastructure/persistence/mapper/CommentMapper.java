@@ -54,6 +54,13 @@ public interface CommentMapper {
 
     List<CommentDataObject> selectThreadForUpdate(@Param("rootCommentId") UUID rootCommentId);
 
+    List<CommentDataObject> selectActiveReplyBatchForUpdate(
+            @Param("rootCommentId") UUID rootCommentId,
+            @Param("limit") int limit
+    );
+
+    List<UUID> selectDeletedRootIdsWithActiveReplies(@Param("limit") int limit);
+
     int existsRootComment(@Param("postId") UUID postId, @Param("commentId") UUID commentId);
 
     int applyEdit(
@@ -74,6 +81,14 @@ public interface CommentMapper {
     int applyThreadDeletion(
             @Param("rootCommentId") UUID rootCommentId,
             @Param("targets") List<CommentTransitionTargetDataObject> targets,
+            @Param("deletedBy") UUID deletedBy,
+            @Param("deletedReason") String deletedReason,
+            @Param("deletedTime") Date deletedTime
+    );
+
+    int applyReplyBatchDeletion(
+            @Param("rootCommentId") UUID rootCommentId,
+            @Param("commentIds") List<UUID> commentIds,
             @Param("deletedBy") UUID deletedBy,
             @Param("deletedReason") String deletedReason,
             @Param("deletedTime") Date deletedTime

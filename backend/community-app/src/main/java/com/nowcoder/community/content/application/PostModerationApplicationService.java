@@ -3,6 +3,7 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.repository.PostRepository;
 import com.nowcoder.community.content.domain.service.PostModerationDomainService;
+import com.nowcoder.community.user.api.action.UserModerationActionApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,23 +18,27 @@ public class PostModerationApplicationService {
     private final PostIntegrationEventPublisher integrationEventPublisher;
     private final PostMediaReferenceScheduler mediaReferenceScheduler;
     private final PostBusinessEventLogger postBusinessEventLogger;
+    private final UserModerationActionApi userModerationActionApi;
 
     public PostModerationApplicationService(
             PostModerationDomainService domainService,
             PostRepository postRepository,
             PostIntegrationEventPublisher integrationEventPublisher,
             PostMediaReferenceScheduler mediaReferenceScheduler,
-            PostBusinessEventLogger postBusinessEventLogger
+            PostBusinessEventLogger postBusinessEventLogger,
+            UserModerationActionApi userModerationActionApi
     ) {
         this.domainService = domainService;
         this.postRepository = postRepository;
         this.integrationEventPublisher = integrationEventPublisher;
         this.mediaReferenceScheduler = mediaReferenceScheduler;
         this.postBusinessEventLogger = postBusinessEventLogger;
+        this.userModerationActionApi = userModerationActionApi;
     }
 
     @Transactional
     public void top(UUID actorUserId, UUID postId) {
+        userModerationActionApi.assertActiveModerationActor(actorUserId);
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
         domainService.assertCanModeratePost(actorUserId, post);
         postRepository.markTop(postId, new Date(), post.aggregateVersion());
@@ -43,6 +48,7 @@ public class PostModerationApplicationService {
 
     @Transactional
     public void wonderful(UUID actorUserId, UUID postId) {
+        userModerationActionApi.assertActiveModerationActor(actorUserId);
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
         domainService.assertCanModeratePost(actorUserId, post);
         postRepository.markWonderful(postId, new Date(), post.aggregateVersion());
@@ -52,6 +58,7 @@ public class PostModerationApplicationService {
 
     @Transactional
     public void delete(UUID actorUserId, UUID postId) {
+        userModerationActionApi.assertActiveModerationActor(actorUserId);
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
         if (!domainService.shouldAdminDelete(actorUserId, post)) {
             return;
@@ -71,6 +78,7 @@ public class PostModerationApplicationService {
 
     @Transactional
     public void deleteByModeration(UUID actorUserId, UUID postId) {
+        userModerationActionApi.assertActiveModerationActor(actorUserId);
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
         boolean changed = postRepository.markDeletedByAdmin(
                 postId,

@@ -4,6 +4,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
@@ -60,17 +61,42 @@ class UserRoleDomainServiceTest {
 
     @Test
     void validateTargetShouldRejectMissingTargetUser() {
-        Throwable thrown = catchThrowable(() -> domainService.requireRoleUpdateAllowed(uuid(99), uuid(8), 1, null));
+        Throwable thrown = catchThrowable(() -> domainService.requireRoleUpdateAllowed(
+                uuid(99), uuid(8), 1, user(uuid(99), 1, 1, null), null, Instant.now()
+        ));
 
         assertBusinessError(thrown, INVALID_ARGUMENT, "目标用户不存在");
     }
 
     @Test
+    void validateActorShouldRejectWhenActorIsNoLongerAnActiveAdmin() {
+        UUID actorUserId = uuid(99);
+        UserAccount target = user(uuid(8), 0, 1, null);
+
+        assertBusinessError(catchThrowable(() -> domainService.requireRoleUpdateAllowed(
+                actorUserId, target.id(), 2, user(actorUserId, 2, 1, null), target, Instant.now()
+        )), FORBIDDEN, "操作者不再具备有效管理员权限");
+        assertBusinessError(catchThrowable(() -> domainService.requireRoleUpdateAllowed(
+                actorUserId, target.id(), 2, user(actorUserId, 1, 0, null), target, Instant.now()
+        )), FORBIDDEN, "操作者不再具备有效管理员权限");
+        assertBusinessError(catchThrowable(() -> domainService.requireRoleUpdateAllowed(
+                actorUserId,
+                target.id(),
+                2,
+                user(actorUserId, 1, 1, Instant.now().plusSeconds(60)),
+                target,
+                Instant.now()
+        )), FORBIDDEN, "操作者不再具备有效管理员权限");
+    }
+
+    @Test
     void validateTargetShouldRejectAdminSelfDowngrade() {
         UUID targetUserId = uuid(8);
-        UserAccount target = user(targetUserId, 1);
+        UserAccount target = user(targetUserId, 1, 1, null);
 
-        Throwable thrown = catchThrowable(() -> domainService.requireRoleUpdateAllowed(targetUserId, targetUserId, 2, target));
+        Throwable thrown = catchThrowable(() -> domainService.requireRoleUpdateAllowed(
+                targetUserId, targetUserId, 2, target, target, Instant.now()
+        ));
 
         assertBusinessError(thrown, FORBIDDEN, "不允许降级自己的管理员权限");
     }
@@ -88,8 +114,22 @@ class UserRoleDomainServiceTest {
         assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(errorCode);
     }
 
-    private static UserAccount user(UUID userId, int type) {
-        return new UserAccount(userId, "admin", "pw", "salt", "admin@example.com", type, 0, "h", new Date(), null, null, 0L, 0L);
+    private static UserAccount user(UUID userId, int type, int status, Instant banUntil) {
+        return new UserAccount(
+                userId,
+                "admin",
+                "pw",
+                "salt",
+                "admin@example.com",
+                type,
+                status,
+                "h",
+                new Date(),
+                null,
+                banUntil,
+                0L,
+                0L
+        );
     }
 
     private static UUID uuid(long suffix) {

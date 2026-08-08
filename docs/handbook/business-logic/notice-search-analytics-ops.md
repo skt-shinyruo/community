@@ -42,7 +42,7 @@ HTTP：
 - `listNoticeItems(...)` 按用户和 topic 分页查询。
 - `unreadCount(...)` 返回未读数。
 - `topicSummary(...)` 对默认 topic 返回最新通知、总数和未读数。
-- `markRead(...)` 只把当前用户给定 ids 标记为 read。
+- `markRead(...)` 对 ids 去重并限制每批最多 100 个，只允许当前用户的 unread notice 转成 read；revoked notice 不可被重新激活。
 
 `NoticeProjectionApplicationService`：
 
@@ -50,11 +50,12 @@ HTTP：
 2. 根据事件类型解析收件人、topic 和 content JSON。
 3. `NoticeProjectionDomainService.shouldProject(...)` 判断是否应投影。
 4. 先按 source event ID 去重，再写 notice。
+5. 点赞通知额外按稳定 `relationKey` 持久化投影状态。social owner 在关系写入与 outbox 的同一事务内从 `social_like_relation_version` 分配单调版本，notice 只按该版本拒绝乱序事件。`relationInstanceId` 作为不透明生命周期身份随 payload 保留，不比较 UUID 版本或数值，因此历史 UUIDv1 回填也可正常撤销。新持久化版本使用高位协议区间，必然高于旧事件的 epoch-millisecond 版本。
 
 语义：
 
 - 点赞、评论、关注和治理事件可生成通知。
-- `LIKE_REMOVED` 和 `FOLLOW_REMOVED` 当前不撤销通知。
+- `LIKE_REMOVED` 只在持久化状态机接受更新 relation version 后撤销 like notice；旧生命周期的延迟 removal 不会撤销新一轮点赞通知。
 - 通知投影失败按共享 Kafka retry / `.dlq` 恢复，不回滚已经提交的上游主事务。
 
 ## Search 搜索

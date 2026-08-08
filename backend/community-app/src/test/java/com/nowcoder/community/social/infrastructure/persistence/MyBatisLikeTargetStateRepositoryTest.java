@@ -26,6 +26,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static com.nowcoder.community.common.constants.EntityTypes.COMMENT;
 import static com.nowcoder.community.common.constants.EntityTypes.POST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -184,6 +185,30 @@ class MyBatisLikeTargetStateRepositoryTest {
         assertThat(secondPage.get(0).sourceVersion()).isEqualTo(11L);
     }
 
+    @Test
+    void deletedPostShouldRemainReconcilableWhenOnlyChildCommentLikesRemain() {
+        UUID commentId = uuid(647);
+        deleteTarget(TARGET_ID, 13L);
+        jdbcTemplate.update(
+                "insert into social_like(relation_instance_id, user_id, entity_type, entity_id, post_id, entity_user_id) "
+                        + "values (?, ?, ?, ?, ?, ?)",
+                BinaryUuidCodec.toBytes(uuid(7004)),
+                BinaryUuidCodec.toBytes(uuid(4)),
+                COMMENT,
+                BinaryUuidCodec.toBytes(commentId),
+                BinaryUuidCodec.toBytes(TARGET_ID),
+                BinaryUuidCodec.toBytes(uuid(999))
+        );
+
+        assertThat(repository.scanDeletedTargetsWithLikesAfter(
+                POST,
+                new UUID(0L, 0L),
+                10
+        ))
+                .extracting(LikeTargetState::entityId)
+                .containsExactly(TARGET_ID);
+    }
+
     private void deleteTarget(UUID entityId, long sourceVersion) {
         repository.insertActiveIfAbsent(POST, entityId);
         assertThat(repository.saveIfNewer(LikeTargetState.active(POST, entityId).applyDeletion(
@@ -195,11 +220,12 @@ class MyBatisLikeTargetStateRepositoryTest {
 
     private void insertLike(UUID relationInstanceId, UUID actorUserId, UUID entityId) {
         jdbcTemplate.update(
-                "insert into social_like(relation_instance_id, user_id, entity_type, entity_id, entity_user_id) "
-                        + "values (?, ?, ?, ?, ?)",
+                "insert into social_like(relation_instance_id, user_id, entity_type, entity_id, post_id, entity_user_id) "
+                        + "values (?, ?, ?, ?, ?, ?)",
                 BinaryUuidCodec.toBytes(relationInstanceId),
                 BinaryUuidCodec.toBytes(actorUserId),
                 POST,
+                BinaryUuidCodec.toBytes(entityId),
                 BinaryUuidCodec.toBytes(entityId),
                 BinaryUuidCodec.toBytes(uuid(999))
         );

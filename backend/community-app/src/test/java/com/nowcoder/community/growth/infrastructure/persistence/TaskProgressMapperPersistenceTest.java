@@ -13,11 +13,20 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(
         classes = CommunityAppApplication.class,
@@ -29,6 +38,8 @@ class TaskProgressMapperPersistenceTest {
     private static final UUID TASK_PROGRESS_ID = UUID.fromString("00000000-0000-7000-8000-000000000611");
     private static final UUID TASK_EVENT_LOG_ID = UUID.fromString("00000000-0000-7000-8000-000000000621");
     private static final UUID USER_ID = uuid(1);
+    private static final String LIKE_TASK_CODE = "LOCKING_LIKE_TASK";
+    private static final String LIKE_SOURCE_ID = "like-instance:" + TASK_EVENT_LOG_ID;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -38,6 +49,9 @@ class TaskProgressMapperPersistenceTest {
 
     @Autowired
     private UserTaskEventLogMapper userTaskEventLogMapper;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @MockBean
     private ClientIpResolver clientIpResolver;
@@ -130,5 +144,69 @@ class TaskProgressMapperPersistenceTest {
         );
         assertThat(storedId).hasSize(16);
         assertThat(BinaryUuidCodec.fromBytes(storedId)).isEqualTo(TASK_EVENT_LOG_ID);
+    }
+
+    @Test
+    void likeContributionLookupShouldLockRowsBeforeProgressRecalculation() throws Exception {
+        jdbcTemplate.update(
+                "merge into task_template(task_code, task_type, period_type, trigger_event_type, "
+                        + "target_value, reward_growth_delta, reward_balance_delta, claim_required, display_order, status) "
+                        + "key(task_code) values (?, 'SOCIAL', 'DAILY', 'LikeCreated', 3, 0, 0, false, 99, 'ACTIVE')",
+                LIKE_TASK_CODE
+        );
+        userTaskEventLogMapper.insert(
+                TASK_EVENT_LOG_ID,
+                USER_ID,
+                LIKE_TASK_CODE,
+                "2026-03-22",
+                LIKE_SOURCE_ID
+        );
+        CountDownLatch lookupCompleted = new CountDownLatch(1);
+        CountDownLatch releaseLookup = new CountDownLatch(1);
+        CountDownLatch deletionStarted = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        Future<?> lookup = executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            assertThat(userTaskEventLogMapper.selectLikeContributionLogsForUpdate(USER_ID, LIKE_SOURCE_ID)).hasSize(1);
+            lookupCompleted.countDown();
+            await(releaseLookup);
+        }));
+
+        try {
+            assertThat(lookupCompleted.await(5, TimeUnit.SECONDS)).isTrue();
+            Future<Integer> deletion = executor.submit(() -> {
+                deletionStarted.countDown();
+                return new TransactionTemplate(transactionManager).execute(status ->
+                        userTaskEventLogMapper.deleteByUserTaskPeriodAndSourceEventId(
+                                USER_ID,
+                                LIKE_TASK_CODE,
+                                "2026-03-22",
+                                LIKE_SOURCE_ID
+                        ));
+            });
+            assertThat(deletionStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+            assertThatThrownBy(() -> deletion.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+
+            releaseLookup.countDown();
+            lookup.get(5, TimeUnit.SECONDS);
+            assertThat(deletion.get(5, TimeUnit.SECONDS)).isEqualTo(1);
+        } finally {
+            releaseLookup.countDown();
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("timed out waiting for concurrent task progress operation");
+            }
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted while waiting for concurrent task progress operation", error);
+        }
     }
 }

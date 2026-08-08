@@ -4,9 +4,11 @@ import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
+import com.nowcoder.community.notice.domain.model.LikeNoticeProjectionState;
 import com.nowcoder.community.notice.domain.model.NoticeProjection;
 import com.nowcoder.community.notice.domain.model.NoticeProjectionContent;
 import com.nowcoder.community.notice.domain.model.NoticeTopic;
+import com.nowcoder.community.notice.domain.repository.LikeNoticeProjectionStateRepository;
 import com.nowcoder.community.notice.domain.service.NoticeProjectionDomainService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -28,20 +30,23 @@ public class NoticeProjectionApplicationService {
     private final NoticeProjectionDomainService noticeProjectionDomainService;
     private final NoticePolicyProperties noticePolicyProperties;
     private final NoticeProjectionEventRecorder noticeProjectionEventRecorder;
+    private final LikeNoticeProjectionStateRepository likeNoticeProjectionStateRepository;
 
     @Autowired
     public NoticeProjectionApplicationService(
             JsonCodec jsonCodec,
             NoticeApplicationService noticeApplicationService,
             NoticePolicyProperties noticePolicyProperties,
-            ObjectProvider<NoticeProjectionEventRecorder> noticeProjectionEventRecorderProvider
+            ObjectProvider<NoticeProjectionEventRecorder> noticeProjectionEventRecorderProvider,
+            LikeNoticeProjectionStateRepository likeNoticeProjectionStateRepository
     ) {
         this(
                 jsonCodec,
                 noticeApplicationService,
                 new NoticeProjectionDomainService(),
                 noticePolicyProperties,
-                noticeProjectionEventRecorderProvider == null ? null : noticeProjectionEventRecorderProvider.getIfAvailable()
+                noticeProjectionEventRecorderProvider == null ? null : noticeProjectionEventRecorderProvider.getIfAvailable(),
+                likeNoticeProjectionStateRepository
         );
     }
 
@@ -50,11 +55,11 @@ public class NoticeProjectionApplicationService {
             NoticeApplicationService noticeApplicationService,
             NoticePolicyProperties noticePolicyProperties
     ) {
-        this(jsonCodec, noticeApplicationService, new NoticeProjectionDomainService(), noticePolicyProperties, null);
+        this(jsonCodec, noticeApplicationService, new NoticeProjectionDomainService(), noticePolicyProperties, null, null);
     }
 
     public NoticeProjectionApplicationService(JsonCodec jsonCodec, NoticeApplicationService noticeApplicationService) {
-        this(jsonCodec, noticeApplicationService, new NoticeProjectionDomainService(), new NoticePolicyProperties(), null);
+        this(jsonCodec, noticeApplicationService, new NoticeProjectionDomainService(), new NoticePolicyProperties(), null, null);
     }
 
     NoticeProjectionApplicationService(
@@ -63,7 +68,7 @@ public class NoticeProjectionApplicationService {
             NoticeProjectionDomainService noticeProjectionDomainService,
             NoticePolicyProperties noticePolicyProperties
     ) {
-        this(jsonCodec, noticeApplicationService, noticeProjectionDomainService, noticePolicyProperties, null);
+        this(jsonCodec, noticeApplicationService, noticeProjectionDomainService, noticePolicyProperties, null, null);
     }
 
     NoticeProjectionApplicationService(
@@ -73,21 +78,45 @@ public class NoticeProjectionApplicationService {
             NoticePolicyProperties noticePolicyProperties,
             NoticeProjectionEventRecorder noticeProjectionEventRecorder
     ) {
+        this(
+                jsonCodec,
+                noticeApplicationService,
+                noticeProjectionDomainService,
+                noticePolicyProperties,
+                noticeProjectionEventRecorder,
+                null
+        );
+    }
+
+    NoticeProjectionApplicationService(
+            JsonCodec jsonCodec,
+            NoticeApplicationService noticeApplicationService,
+            NoticeProjectionDomainService noticeProjectionDomainService,
+            NoticePolicyProperties noticePolicyProperties,
+            NoticeProjectionEventRecorder noticeProjectionEventRecorder,
+            LikeNoticeProjectionStateRepository likeNoticeProjectionStateRepository
+    ) {
         this.jsonCodec = jsonCodec;
         this.noticeApplicationService = noticeApplicationService;
         this.noticeProjectionDomainService = noticeProjectionDomainService;
         this.noticePolicyProperties = noticePolicyProperties == null ? new NoticePolicyProperties() : noticePolicyProperties;
         this.noticeProjectionEventRecorder = noticeProjectionEventRecorder;
+        this.likeNoticeProjectionStateRepository = likeNoticeProjectionStateRepository;
     }
 
     @Transactional
     public void projectReliably(ProjectNoticeCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         if (!noticePolicyProperties.isProjectionEnabled()) {
+            throw new IllegalStateException("notice projection is paused");
+        }
+        requireSourceMetadata(command);
+        if (command instanceof ProjectNoticeCommand.LikeCreated likeCreated) {
+            projectLikeReliably(likeCreated, true);
             return;
         }
         if (command instanceof ProjectNoticeCommand.LikeRemoved likeRemoved) {
-            revokeLikeNoticeReliably(likeRemoved);
+            projectLikeReliably(likeRemoved, false);
             return;
         }
         projectReliably(toProjection(command));
@@ -147,7 +176,8 @@ public class NoticeProjectionApplicationService {
                             like.entityId(),
                             like.entityUserId(),
                             like.postId(),
-                            like.relationKey()
+                            like.relationKey(),
+                            like.relationInstanceId()
                     )
             );
         }
@@ -174,25 +204,34 @@ public class NoticeProjectionApplicationService {
         if (!shouldProject(projection)) {
             return;
         }
-        requireSourceEventId(projection.sourceEventId());
         if (noticeProjectionEventRecorder != null && !noticeProjectionEventRecorder.tryRecord(projection.sourceEventId())) {
             return;
         }
         createProjectedNotice(projection);
     }
 
-    private void revokeLikeNoticeReliably(ProjectNoticeCommand.LikeRemoved command) {
-        requireSourceEventId(command.sourceEventId());
+    private void projectLikeReliably(ProjectNoticeCommand command, boolean active) {
+        NoticeProjection projection = active ? toProjection(command) : null;
+        if (active && !shouldProject(projection)) {
+            return;
+        }
+        LikeNoticeProjectionState incoming = likeState(command, active);
+        if (likeNoticeProjectionStateRepository == null) {
+            throw new IllegalStateException("like notice projection state repository is required");
+        }
         if (noticeProjectionEventRecorder != null && !noticeProjectionEventRecorder.tryRecord(command.sourceEventId())) {
             return;
         }
-        noticeApplicationService.revokeLikeNotice(command.entityUserId(), command.relationKey());
+        LikeNoticeProjectionState.Transition transition = likeNoticeProjectionStateRepository.advance(incoming);
+        if (transition == LikeNoticeProjectionState.Transition.ACTIVATED) {
+            noticeApplicationService.revokeLikeNotice(incoming.recipientUserId(), incoming.sourceRelationKey());
+            createProjectedNotice(projection);
+        } else if (transition == LikeNoticeProjectionState.Transition.DEACTIVATED) {
+            noticeApplicationService.revokeLikeNotice(incoming.recipientUserId(), incoming.sourceRelationKey());
+        }
     }
 
     private boolean shouldProject(NoticeProjection projection) {
-        if (!noticePolicyProperties.isProjectionEnabled()) {
-            return false;
-        }
         if (!noticePolicyProperties.getChannels().isInAppEnabled()) {
             return false;
         }
@@ -236,6 +275,35 @@ public class NoticeProjectionApplicationService {
         if (!StringUtils.hasText(eventId)) {
             throw new IllegalStateException("notice projection source event id is blank");
         }
+    }
+
+    private void requireSourceMetadata(ProjectNoticeCommand command) {
+        requireSourceEventId(command.sourceEventId());
+        if (command.sourceVersion() <= 0L) {
+            throw new IllegalStateException("notice projection source version must be positive");
+        }
+    }
+
+    private LikeNoticeProjectionState likeState(ProjectNoticeCommand command, boolean active) {
+        if (command instanceof ProjectNoticeCommand.LikeCreated like) {
+            return new LikeNoticeProjectionState(
+                    like.entityUserId(),
+                    like.relationKey(),
+                    like.relationInstanceId(),
+                    like.sourceVersion(),
+                    active,
+                    like.sourceEventId()
+            );
+        }
+        ProjectNoticeCommand.LikeRemoved like = (ProjectNoticeCommand.LikeRemoved) command;
+        return new LikeNoticeProjectionState(
+                like.entityUserId(),
+                like.relationKey(),
+                like.relationInstanceId(),
+                like.sourceVersion(),
+                active,
+                like.sourceEventId()
+        );
     }
 
     private static String commentPreview(String content) {

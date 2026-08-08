@@ -45,13 +45,58 @@ public class MyBatisPostContentRepository implements PostContentRepository {
 
     @Override
     public List<DiscussPost> listPosts(int page, int size, int orderMode, UUID categoryId, String tag) {
+        return listPosts(page, size, size, orderMode, categoryId, tag);
+    }
+
+    @Override
+    public List<DiscussPost> listPosts(
+            int page,
+            int pageSize,
+            int fetchLimit,
+            int orderMode,
+            UUID categoryId,
+            String tag
+    ) {
         int p = Math.max(0, page);
-        int s = Math.min(50, Math.max(1, size));
+        int s = normalizePageSize(pageSize);
+        int boundedFetchLimit = Math.min(s + 1, Math.max(1, fetchLimit));
         String safeTag = tag == null ? null : tag.trim();
         if (safeTag != null && safeTag.isBlank()) {
             safeTag = null;
         }
-        return discussPostMapper.selectDiscussPosts(null, categoryId, null, safeTag, Pagination.safeOffset(p, s), s, orderMode);
+        return discussPostMapper.selectDiscussPosts(
+                null,
+                categoryId,
+                null,
+                safeTag,
+                Pagination.safeOffset(p, s),
+                boundedFetchLimit,
+                orderMode
+        );
+    }
+
+    @Override
+    public List<DiscussPost> listHotPostsAfter(
+            int beforeType,
+            double beforeScore,
+            Date beforeCreateTime,
+            UUID beforePostId,
+            int limit,
+            UUID categoryId
+    ) {
+        if (beforeCreateTime == null || beforePostId == null || !Double.isFinite(beforeScore)) {
+            return List.of();
+        }
+        int safeLimit = Math.min(51, Math.max(1, limit));
+        List<DiscussPost> rows = discussPostMapper.selectHotPostsAfter(
+                beforeType,
+                beforeScore,
+                beforeCreateTime,
+                beforePostId,
+                safeLimit,
+                categoryId
+        );
+        return rows == null ? List.of() : rows;
     }
 
     @Override
@@ -62,6 +107,10 @@ public class MyBatisPostContentRepository implements PostContentRepository {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
         return discussPostMapper.selectDiscussPosts(userId, null, null, null, Pagination.safeOffset(p, s), s, ORDER_LATEST);
+    }
+
+    private static int normalizePageSize(int size) {
+        return Math.min(50, Math.max(1, size));
     }
 
     @Override

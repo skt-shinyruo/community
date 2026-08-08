@@ -111,7 +111,8 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
         UUID entityId = command.entityId();
         likeDomainService.validateLike(actorUserId, entityType, entityId);
         ResolvedSocialEntity resolved = requireResolvedTarget(command);
-        LikeTargetState targetState = lockContentTarget(entityType, entityId);
+        LikeTargetState targetState = lockLikeTarget(
+                actorUserId, entityType, entityId, resolved.postId(), resolved.entityUserId());
         Optional<LikeRelation> existingRelation = Optional.empty();
         boolean existed = false;
         boolean liked;
@@ -147,7 +148,8 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
                     actorUserId,
                     entityType,
                     entityId,
-                    resolved.entityUserId()
+                    resolved.entityUserId(),
+                    resolved.postId()
             );
             changed = likeRepository.addLike(candidate);
             changedRelation = candidate;
@@ -163,10 +165,12 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
             likeRepository.incrementUserLikeCount(changedRelation.entityUserId(), liked ? 1L : -1L);
         }
 
+        long relationVersion = likeRepository.nextRelationEventVersion(actorUserId, entityType, entityId);
         Instant occurredAt = Instant.now();
         LikeChangedDomainEvent event = likeDomainService.likeChangedEvent(
                 changedRelation,
                 resolved,
+                relationVersion,
                 liked,
                 occurredAt
         );
@@ -203,6 +207,9 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
         try {
             cleanupTransactionOperations.persistDeletionFence(command);
             long removed = cleanupDeletedContentLikesInBatches(command.entityType(), command.entityId());
+            if (command.entityType() == POST) {
+                removed += cleanupDeletedPostCommentLikesInBatches(command.entityId());
+            }
             cleanupMetrics.recordCleanup(source, "success");
             cleanupMetrics.recordCleanupLag(Duration.between(command.deletedAt(), Instant.now()));
             return removed;
@@ -233,12 +240,51 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
         }
     }
 
-    private LikeTargetState lockContentTarget(int entityType, UUID entityId) {
+    private long cleanupDeletedPostCommentLikesInBatches(UUID postId) {
+        long removed = 0L;
+        int noProgressBatches = 0;
+        while (true) {
+            LikeCleanupTransactionOperations.CleanupBatchResult batch =
+                    cleanupTransactionOperations.cleanupCommentLikesByPostBatch(postId, CLEANUP_SCAN_LIMIT);
+            removed += batch.removed();
+            if (batch.scanned() == 0) {
+                return removed;
+            }
+            if (batch.removed() == 0L) {
+                noProgressBatches++;
+                if (noProgressBatches >= 3) {
+                    throw new IllegalStateException("post comment like cleanup made no progress");
+                }
+            } else {
+                noProgressBatches = 0;
+            }
+        }
+    }
+
+    private LikeTargetState lockLikeTarget(
+            UUID actorUserId,
+            int entityType,
+            UUID entityId,
+            UUID postId,
+            UUID entityUserId
+    ) {
+        if (entityUserId != null && !actorUserId.equals(entityUserId)) {
+            blockRepository.lockUserPair(actorUserId, entityUserId);
+        }
+        if (entityType == USER) {
+            return null;
+        }
         if (entityType != POST && entityType != COMMENT) {
             return null;
         }
+        LikeTargetState postTarget = null;
+        if (entityType == COMMENT) {
+            targetStateRepository.insertActiveIfAbsent(POST, postId);
+            postTarget = targetStateRepository.findForUpdate(POST, postId);
+        }
         targetStateRepository.insertActiveIfAbsent(entityType, entityId);
-        return targetStateRepository.findForUpdate(entityType, entityId);
+        LikeTargetState entityTarget = targetStateRepository.findForUpdate(entityType, entityId);
+        return postTarget != null && postTarget.isDeleted() ? postTarget : entityTarget;
     }
 
     private String cleanupSource(String sourceEventId) {

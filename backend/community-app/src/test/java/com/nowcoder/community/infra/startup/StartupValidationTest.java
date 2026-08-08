@@ -14,6 +14,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StartupValidationTest {
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "DEPLOYMENT_ENVIRONMENT",
+            "deployment.environment",
+            "spring.cloud.nacos.discovery.metadata.deployment.environment"
+    })
+    void productionDeploymentSignalsShouldRunValidationEvenWithDevProfile(String propertyName) {
+        MockEnvironment environment = secureEnvironment("dev")
+                .withProperty(propertyName, "production")
+                .withProperty("social.storage", "redis");
+
+        assertThatThrownBy(() -> new StartupValidation().validateOrThrow(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("social.storage=db");
+    }
+
     @Test
     void prodShouldRejectMissingRequiredNacosImportsWhenEnabled() {
         MockEnvironment environment = prodEnvironment()
@@ -141,13 +157,17 @@ class StartupValidationTest {
     }
 
     private MockEnvironment prodEnvironment() {
+        return secureEnvironment("prod");
+    }
+
+    private MockEnvironment secureEnvironment(String profile) {
         MockEnvironment environment = new MockEnvironment()
-                .withProperty("spring.profiles.active", "prod")
+                .withProperty("spring.profiles.active", profile)
                 .withProperty("spring.application.name", "community-app")
                 .withProperty("security.jwt.access-public-key", "public-key")
                 .withProperty("security.jwt.access-private-key", "private-key")
                 .withProperty("security.jwt.service-hmac-secret", "01234567890123456789012345678901");
-        environment.setActiveProfiles("prod");
+        environment.setActiveProfiles(profile);
         return environment;
     }
 }

@@ -21,7 +21,7 @@
 3. auth 校验 captcha、用户名、密码、邮箱和邮件配置。
 4. auth 调 `UserRegistrationActionApi.prepareRegistrationUser(...)`，让 user owner 规范化用户名/邮箱、前置检查用户名/邮箱冲突、生成预备 userId、计算 BCrypt 密码 hash 和默认头像。
 5. auth 保存 `PreparedRegistrationDraft`，生成 256-bit base64url opaque `registrationToken`。
-6. auth 发送安全随机生成的 6 位注册验证码；重发时先写 pending replacement code，邮件发送成功后才 promote，发送失败则 abort 并保留原 active code。
+6. auth 生成安全随机的 6 位注册验证码并持久化 `auth.registration-code-mail` outbox。重发先原子消费可信 IP、邮箱和 registration identity 配额，再写带 delivery lease 的 pending replacement；worker 核对/续租后发送，SMTP 成功才 promote，失败由 outbox 重试并保留原 active code。
 7. 用户提交验证码后，auth 先把验证码转入 pending 消费态，再创建用户。
 8. auth 调 `UserRegistrationActionApi.createVerifiedRegistrationUser(...)`，由 user owner 插入 active 用户。
 9. 注册成功后复用登录签发链路，返回 access token 和 refresh cookie。

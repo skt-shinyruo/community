@@ -26,6 +26,18 @@ merge into user_policy_version_counter(id, current_version)
 key(id)
 values (1, 0);
 
+create table if not exists user_policy_version_log (
+  version bigint primary key,
+  user_id binary(16) not null,
+  user_exists boolean not null,
+  mute_until timestamp,
+  ban_until timestamp,
+  occurred_at timestamp null default current_timestamp
+);
+
+create index if not exists idx_user_policy_version_user
+  on user_policy_version_log(user_id, version);
+
 create table if not exists user_security_version_counter (
   id int primary key,
   current_version bigint not null default 0
@@ -213,6 +225,7 @@ create table if not exists market_order (
   refund_txn_id binary(16) default null,
   auto_confirm_at timestamp null default null,
   auto_confirm_next_attempt_at timestamp null default null,
+  wallet_recovery_next_attempt_at timestamp null default null,
   address_id_snapshot binary(16) default null,
   receiver_name_snapshot varchar(64) default null,
   receiver_phone_snapshot varchar(32) default null,
@@ -230,6 +243,7 @@ create index if not exists idx_market_order_buyer_time on market_order(buyer_use
 create index if not exists idx_market_order_seller_time on market_order(seller_user_id, create_time, order_id);
 create index if not exists idx_market_order_listing_status on market_order(listing_id, status);
 create index if not exists idx_market_order_auto_confirm on market_order(auto_confirm_next_attempt_at, order_id, status, auto_confirm_at);
+create index if not exists idx_market_order_wallet_recovery on market_order(status, wallet_recovery_next_attempt_at, order_id);
 
 create table if not exists market_wallet_action (
   action_id binary(16) primary key,
@@ -365,6 +379,23 @@ create table if not exists user_task_event_log (
   constraint uk_user_task_event unique (user_id, task_code, period_key, source_event_id)
 );
 
+create index if not exists idx_user_task_event_source
+  on user_task_event_log(user_id, source_event_id, task_code, period_key);
+
+create table if not exists growth_like_task_lifecycle_state (
+  recipient_user_id binary(16) not null,
+  relation_key varchar(255) not null,
+  relation_instance_id binary(16),
+  source_version bigint not null default 0,
+  active boolean,
+  source_event_id varchar(128),
+  update_time timestamp default current_timestamp,
+  primary key (recipient_user_id, relation_key)
+);
+
+create index if not exists idx_growth_like_task_lifecycle_instance
+  on growth_like_task_lifecycle_state(relation_instance_id);
+
 create table if not exists user_consumed_event (
   id binary(16) primary key,
   event_id varchar(64) not null,
@@ -380,6 +411,7 @@ create table if not exists auth_refresh_token (
   expires_at timestamp not null,
   state varchar(32) not null default 'ACTIVE',
   pending_expires_at timestamp,
+  rotation_lease_id binary(16),
   revoked_at timestamp,
   created_at timestamp default current_timestamp,
   constraint ck_auth_refresh_token_state check (state in ('ACTIVE', 'PENDING_ROTATION', 'CONSUMED', 'REVOKED'))
@@ -387,8 +419,17 @@ create table if not exists auth_refresh_token (
 
 create table if not exists auth_refresh_token_family_revocation (
   family_id varchar(64) primary key,
-  revoked_at timestamp not null default current_timestamp
+  revoked_at timestamp not null default current_timestamp,
+  expires_at timestamp not null default current_timestamp
 );
+
+create table if not exists auth_refresh_token_family_lock (
+  family_id varchar(64) primary key,
+  retain_until timestamp not null
+);
+
+create index if not exists idx_refresh_family_lock_retention
+  on auth_refresh_token_family_lock(retain_until);
 
 create table if not exists discuss_post (
   id binary(16) primary key,
@@ -408,6 +449,13 @@ create table if not exists discuss_post (
   score_version bigint not null default 1,
   aggregate_version bigint not null default 1
 );
+
+create index if not exists idx_discuss_post_feed_latest on discuss_post(status, type, create_time, id);
+create index if not exists idx_discuss_post_feed_hot on discuss_post(status, type, score, create_time, id);
+create index if not exists idx_discuss_post_category_latest on discuss_post(category_id, status, type, create_time, id);
+create index if not exists idx_discuss_post_category_hot on discuss_post(category_id, status, type, score, create_time, id);
+create index if not exists idx_discuss_post_user_latest on discuss_post(user_id, status, type, create_time, id);
+create index if not exists idx_discuss_post_author_recent on discuss_post(user_id, status, create_time, id);
 
 create table if not exists post_media_asset (
   id binary(16) primary key,
@@ -460,12 +508,40 @@ create table if not exists post_content_block (
 create index if not exists idx_post_content_block_post on post_content_block(post_id);
 create index if not exists idx_post_content_block_media on post_content_block(media_asset_id);
 
+create table if not exists post_counter_snapshot (
+  post_id binary(16) primary key,
+  view_count bigint not null default 0,
+  like_count bigint not null default 0,
+  comment_count bigint not null default 0,
+  bookmark_count bigint not null default 0,
+  flush_revision bigint not null default 0,
+  snapshot_time timestamp null default current_timestamp
+);
+
+create table if not exists post_score_snapshot (
+  post_id binary(16) primary key,
+  score double not null default 0,
+  rank_version varchar(64) not null,
+  flush_revision bigint not null default 0,
+  snapshot_time timestamp null default current_timestamp
+);
+
+create table if not exists post_bookmark_counter_reconciliation (
+  post_id binary(16) primary key,
+  revision bigint not null default 1,
+  pending tinyint not null default 1,
+  updated_at timestamp not null default current_timestamp
+);
+create index if not exists idx_post_bookmark_counter_reconcile_scan
+  on post_bookmark_counter_reconciliation(pending, updated_at, post_id);
+
 create table if not exists post_bookmark (
   user_id binary(16) not null,
   post_id binary(16) not null,
   create_time timestamp default current_timestamp,
   primary key (user_id, post_id)
 );
+create index if not exists idx_post_bookmark_post on post_bookmark(post_id, create_time);
 
 create table if not exists comment (
   id binary(16) primary key,
@@ -487,6 +563,8 @@ create table if not exists comment (
 
 create index if not exists idx_comment_post_root on comment(post_id, parent_comment_id, create_time, id);
 create index if not exists idx_comment_root_reply on comment(root_comment_id, parent_comment_id, create_time, id);
+create index if not exists idx_comment_root_cleanup on comment(root_comment_id, status, create_time, id);
+create index if not exists idx_comment_user_recent on comment(user_id, status, create_time, id);
 
 create table if not exists category (
   id binary(16) primary key,
@@ -545,6 +623,7 @@ create table if not exists social_like (
   user_id binary(16) not null,
   entity_type int not null,
   entity_id binary(16) not null,
+  post_id binary(16),
   entity_user_id binary(16),
   created_at timestamp null default current_timestamp,
   primary key (user_id, entity_type, entity_id)
@@ -552,6 +631,16 @@ create table if not exists social_like (
 
 create unique index if not exists uk_social_like_relation_instance on social_like(relation_instance_id);
 create index if not exists idx_like_entity_user on social_like(entity_type, entity_id, user_id);
+create index if not exists idx_like_post_entity_user on social_like(entity_type, post_id, entity_id, user_id);
+
+create table if not exists social_like_relation_version (
+  actor_user_id binary(16) not null,
+  entity_type int not null,
+  entity_id binary(16) not null,
+  current_version bigint not null default 4611686018427387904,
+  updated_at timestamp not null default current_timestamp,
+  primary key (actor_user_id, entity_type, entity_id)
+);
 
 create table if not exists social_like_target_state (
   entity_type int not null,
@@ -582,6 +671,13 @@ create table if not exists social_follow (
   primary key (user_id, entity_type, entity_id)
 );
 
+create table if not exists social_user_pair_lock (
+  first_user_id binary(16) not null,
+  second_user_id binary(16) not null,
+  primary key (first_user_id, second_user_id),
+  check (first_user_id <> second_user_id)
+);
+
 create table if not exists social_block (
   user_id binary(16) not null,
   target_user_id binary(16) not null,
@@ -607,6 +703,9 @@ create table if not exists social_block_version_log (
   occurred_at timestamp null default current_timestamp
 );
 
+create index if not exists idx_social_block_version_pair
+  on social_block_version_log(user_id, target_user_id, version);
+
 create table if not exists notice_record (
   id binary(16) primary key,
   sender_user_id binary(16),
@@ -619,10 +718,24 @@ create table if not exists notice_record (
   create_time timestamp
 );
 
+create table if not exists notice_like_projection_state (
+  recipient_user_id binary(16) not null,
+  source_relation_key varchar(255) not null,
+  relation_instance_id binary(16),
+  source_version bigint not null default 0,
+  active boolean,
+  source_event_id varchar(128),
+  update_time timestamp default current_timestamp,
+  primary key (recipient_user_id, source_relation_key)
+);
+
 create table if not exists notice_projection_event_log (
   source_event_id varchar(128) not null primary key,
   create_time datetime not null default current_timestamp
 );
+
+create index if not exists idx_notice_record_like_relation
+  on notice_record(recipient_user_id, topic, source_relation_key, status);
 
 create table if not exists http_idempotency (
   id binary(16) primary key,
@@ -769,8 +882,10 @@ create table if not exists drive_share_access (
 
 create index if not exists idx_drive_share_access_share_time on drive_share_access(share_id, accessed_at);
 
+delete from growth_like_task_lifecycle_state;
 delete from user_task_progress;
 delete from user_consumed_event;
+delete from auth_refresh_token_family_lock;
 delete from auth_refresh_token_family_revocation;
 delete from auth_refresh_token;
 delete from comment;
@@ -778,11 +893,14 @@ delete from post_tag;
 delete from tag;
 delete from category;
 delete from social_like;
+delete from social_like_relation_version;
 delete from social_like_target_state;
 delete from social_user_like_count;
 delete from social_follow;
 delete from social_block;
+delete from social_user_pair_lock;
 delete from notice_projection_event_log;
+delete from notice_like_projection_state;
 delete from notice_record;
 delete from http_idempotency;
 delete from outbox_event;
@@ -794,6 +912,7 @@ delete from drive_share;
 delete from drive_upload;
 delete from drive_entry;
 delete from drive_space;
+delete from user_policy_version_log;
 delete from user;
 
 merge into user (id, username, password, salt, email, type, status, header_url, create_time, policy_version)
@@ -802,6 +921,10 @@ key(id) values
   (X'00000000000070008000000000000002', 'u2', 'p', 's', 'u2@example.com', 0, 1, 'http://old.local/b.png', CURRENT_TIMESTAMP(), 2);
 
 update user_policy_version_counter set current_version = 2 where id = 1;
+
+insert into user_policy_version_log(version, user_id, user_exists, mute_until, ban_until)
+select policy_version, id, true, mute_until, ban_until
+from user;
 
 merge into category (id, name, description, position, create_time)
 key(id) values

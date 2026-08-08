@@ -1,5 +1,7 @@
 package com.nowcoder.community.content.application;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.content.application.result.FeedPageResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.DiscussPost;
@@ -56,7 +58,7 @@ class FeedReadApplicationServiceReliabilityTest {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         UUID postId = uuid(1);
 
         when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of(postId));
@@ -92,8 +94,8 @@ class FeedReadApplicationServiceReliabilityTest {
         fallbackPost.setScore(91.0);
 
         when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
-        when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of(fallbackPost));
-        when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(List.of(fallbackPost));
         when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost)))
                 .thenReturn(List.of(summary(fallbackPost.getId(), fallbackPost.getTitle())));
 
@@ -156,8 +158,8 @@ class FeedReadApplicationServiceReliabilityTest {
 
         when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of(cachedPostId));
         when(postFeedSummaryLoader.readSummaries(List.of(cachedPostId))).thenThrow(new IllegalStateException("summary load failed"));
-        when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of(fallbackPost));
-        when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(List.of(fallbackPost));
         when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost)))
                 .thenReturn(List.of(summary(fallbackPost.getId(), fallbackPost.getTitle())));
 
@@ -250,8 +252,8 @@ class FeedReadApplicationServiceReliabilityTest {
         fallbackPost.setScore(77.0);
 
         when(postFeedCache.readGlobalHotIds("", 2)).thenThrow(new IllegalStateException("redis down"));
-        when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of(fallbackPost));
-        when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(List.of(fallbackPost));
         when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost)))
                 .thenReturn(List.of(summary(fallbackPost.getId(), fallbackPost.getTitle())));
 
@@ -287,8 +289,8 @@ class FeedReadApplicationServiceReliabilityTest {
         when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
         org.mockito.Mockito.doThrow(new IllegalStateException("feed cache warmup failed"))
                 .when(postFeedCache).writeRankVersion("hot-v2");
-        when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of(fallbackPost));
-        when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(List.of(fallbackPost));
         when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost)))
                 .thenReturn(List.of(summary(fallbackPost.getId(), fallbackPost.getTitle())));
 
@@ -323,8 +325,8 @@ class FeedReadApplicationServiceReliabilityTest {
         List<PostSummaryResult> summaries = List.of(summary(fallbackPost.getId(), fallbackPost.getTitle()));
 
         when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
-        when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of(fallbackPost));
-        when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(List.of(fallbackPost));
         when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost))).thenReturn(summaries);
         org.mockito.Mockito.doThrow(new IllegalStateException("summary cache backfill failed"))
                 .when(postSummaryCache).putAll(summaries);
@@ -353,7 +355,7 @@ class FeedReadApplicationServiceReliabilityTest {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentFeedPolicyProperties policyProperties = new ContentFeedPolicyProperties();
         policyProperties.setHotRankVersion("hot-v9");
         UUID postId = uuid(31);
@@ -416,7 +418,7 @@ class FeedReadApplicationServiceReliabilityTest {
                 postContentRepository,
                 postSummaryCache,
                 postFeedSummaryLoader,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 policyProperties,
                 new HotFeedReadMetrics(registry),
                 hotPathProperties,

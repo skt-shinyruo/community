@@ -94,13 +94,13 @@ public class WalletRewardKafkaListener {
     private void handleLikeCreated(SocialContractEvent event, LikePayload payload) {
         validateLikePayload(event, payload);
         apply(applicationService.commandForLikeCreated(
-                likeSourceId("created", payload), payload.getActorUserId(), payload.getEntityUserId()));
+                likeSourceId("created", event, payload), payload.getActorUserId(), payload.getEntityUserId()));
     }
 
     private void handleLikeRemoved(SocialContractEvent event, LikePayload payload) {
         validateLikePayload(event, payload);
         apply(applicationService.commandForLikeRemoved(
-                likeSourceId("removed", payload), payload.getActorUserId(), payload.getEntityUserId()));
+                likeSourceId("removed", event, payload), payload.getActorUserId(), payload.getEntityUserId()));
     }
 
     private void apply(RewardProjectionCommand command) {
@@ -130,9 +130,9 @@ public class WalletRewardKafkaListener {
         return new IllegalArgumentException("invalid recognized event: type=" + eventType + ", eventId=" + eventId);
     }
 
-    private String likeSourceId(String action, LikePayload payload) {
+    private String likeSourceId(String action, SocialContractEvent event, LikePayload payload) {
         String base = payload.getRelationInstanceId() == null
-                ? payload.getRelationKey().trim()
+                ? payload.getRelationKey().trim() + ":v" + event.version()
                 : payload.getRelationInstanceId().toString();
         return base + ":" + action;
     }

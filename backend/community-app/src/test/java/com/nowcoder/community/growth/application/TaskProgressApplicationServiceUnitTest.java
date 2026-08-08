@@ -1,7 +1,10 @@
 package com.nowcoder.community.growth.application;
 
+import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
+import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
 import com.nowcoder.community.growth.domain.model.TaskTemplate;
 import com.nowcoder.community.growth.domain.model.UserTaskProgress;
+import com.nowcoder.community.growth.domain.repository.LikeTaskLifecycleStateRepository;
 import com.nowcoder.community.growth.domain.repository.TaskTemplateRepository;
 import com.nowcoder.community.growth.domain.repository.UserTaskEventLogRepository;
 import com.nowcoder.community.growth.domain.repository.UserTaskProgressRepository;
@@ -10,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -19,6 +24,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -42,6 +48,9 @@ class TaskProgressApplicationServiceUnitTest {
     private UserTaskEventLogRepository userTaskEventLogRepository;
 
     @Mock
+    private LikeTaskLifecycleStateRepository likeTaskLifecycleStateRepository;
+
+    @Mock
     private WalletRewardActionApi walletRewardService;
 
     @Test
@@ -54,6 +63,7 @@ class TaskProgressApplicationServiceUnitTest {
                 taskTemplateRepository,
                 userTaskProgressRepository,
                 userTaskEventLogRepository,
+                likeTaskLifecycleStateRepository,
                 walletRewardService,
                 businessTimeService
         );
@@ -103,6 +113,7 @@ class TaskProgressApplicationServiceUnitTest {
                 taskTemplateRepository,
                 userTaskProgressRepository,
                 userTaskEventLogRepository,
+                likeTaskLifecycleStateRepository,
                 walletRewardService,
                 businessTimeService
         );
@@ -124,5 +135,20 @@ class TaskProgressApplicationServiceUnitTest {
         verify(userTaskProgressRepository, never()).findByUserTaskAndPeriodForUpdate(any(UUID.class), anyString(), anyString());
         verify(userTaskProgressRepository, never()).updateProgress(any(UUID.class), anyInt(), anyString(), any(), any(), anyString(), anyString());
         verify(walletRewardService, never()).issue(anyString(), any(UUID.class), anyLong(), anyString());
+    }
+
+    @Test
+    void likeLifecycleTransactionsShouldUseCurrentReadsForEveryProgressRecalculation() throws Exception {
+        Transactional createTransaction = TaskProgressApplicationService.class
+                .getMethod("triggerLikeCreated", TriggerLikeCreatedCommand.class)
+                .getAnnotation(Transactional.class);
+        Transactional removeTransaction = TaskProgressApplicationService.class
+                .getMethod("triggerLikeRemoved", TriggerLikeRemovedCommand.class)
+                .getAnnotation(Transactional.class);
+
+        assertThat(createTransaction).isNotNull();
+        assertThat(removeTransaction).isNotNull();
+        assertThat(createTransaction.isolation()).isEqualTo(Isolation.READ_COMMITTED);
+        assertThat(removeTransaction.isolation()).isEqualTo(Isolation.READ_COMMITTED);
     }
 }

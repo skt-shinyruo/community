@@ -39,7 +39,9 @@ export default defineConfig(({ mode }) => {
     plugins: [vue()],
     test: {
       environment: 'jsdom',
-      setupFiles: './src/test/setup.js'
+      setupFiles: './src/test/setup.js',
+      minWorkers: 1,
+      maxWorkers: 4
     },
     server: {
       port: devPort,

@@ -45,7 +45,7 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 - refresh token 通过 HttpOnly Cookie 下发，浏览器 JS 不可读取。
 - 前端开启 `withCredentials: true`，由浏览器自动携带 cookie。
 - 当非 `/api/auth/**` 业务请求返回 `401`，前端调用 `/api/auth/refresh` 获取新 access token 后重试原请求；auth 自身入口的 `401` 不触发 refresh 重试，避免循环和误刷新。
-- refresh token、registration token 和 password reset token 明文由 auth application 使用统一的 256-bit `SecureRandom` 生成器生成，并使用 base64url 无填充编码。
+- refresh token 和 registration token 明文由 auth application 使用统一的 256-bit `SecureRandom` 生成器生成并使用 base64url 无填充编码；password reset token 从随机 delivery ID 和独立 HMAC 密钥确定性派生，outbox 无需保存 bearer token。
 - refresh token store 支持 `redis` / `db`，当前默认 `db`；不提供进程内存实现。
 - DB store 使用 `community.auth_refresh_token`，仅保存 token hash。
 - refresh 支持 recoverable rotation：刷新时先把旧 session 转入 `PENDING_ROTATION`，再回源校验用户仍允许 refresh，成功后 finish rotation 使旧 session 变为 `CONSUMED` tombstone、同 family replacement 变为 `ACTIVE`；临时失败会 rollback，无法安全恢复或用户不存在、账号被禁用、`refreshAllowed=false` 时撤销 family。session 保存 `securityVersionAtIssue`；与 user 当前版本不一致时 auth 拒绝续期并撤销 family。refresh 失败响应不写 `Set-Cookie`，只有显式 logout 清 cookie。
@@ -61,15 +61,16 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 
 找回密码链路的安全目标是防用户枚举、防 reset link 泄漏、防旧 session 继续可用：
 
-- 请求重置必须通过验证码；验证码通过后先按客户端 IP 做请求限流，再按邮箱查 user owner。
-- 邮箱维度限流只对存在且可用的账号计数。
-- 邮箱不存在、未激活或状态不可用时也返回受理结果，但不签发 token、不发送邮件，也不消耗邮箱 quota。
+- 请求重置必须通过验证码；验证码通过后在查询 user owner 前，按客户端 IP 和规范化邮箱分别做请求限流。
+- IP / 邮箱 Redis key 只包含使用独立 `AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET` 计算的 HMAC 标识，不存储原始标识符；该密钥不得回退或复用 `JWT_SERVICE_HMAC_SECRET`，生产值至少 32 字节。
+- 生产 refresh session 必须使用数据库 store；启动校验拒绝 `auth.refresh.store=redis`，避免单 Redis Cluster slot 热点和不兼容的 session key 滚动切换。
+- 邮箱不存在、未激活或状态不可用时也消耗相同 quota，并写 dummy reset token 与空收件地址 outbox；worker 不调用 SMTP，HTTP 返回相同受理结果，避免通过响应和内部处理时序差异枚举账号。
 - reset link 只通过邮件下发，HTTP 响应体不返回链接或 token。
-- token 存储在 `auth:pwdreset:<token>`，带短 TTL，确认时一次性消费；token 明文是 256-bit base64url 随机值；若 token 写入后邮件发送失败，会 best-effort 删除该 token。
+- token 是从随机 delivery ID 与独立 HMAC 密钥派生的 256-bit base64url 值；Redis key 只包含 SHA-256 token ID，记录绑定签发时 `securityVersion` 和 generation。邮件 outbox payload 不包含 bearer token，只携带不可逆 derivation key ID；轮换期间 worker 可从受控旧密钥 keyring 派生原链接，成功后 outbox 原子清空 payload。
 - 确认重置也需要验证码。
-- 新密码由 user owner 的密码策略校验：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符，并拒绝首尾空白字符。
-- 密码更新成功后递增 user `securityVersion`。旧 cookie 下次续期时因 `securityVersionAtIssue` 不匹配而被 auth 拒绝并撤销 family。
-- 如果密码更新失败，reset token 会按消费时捕获的剩余 TTL 恢复，避免把有效期延长回完整 TTL。
+- reset token 确认采用 `ACTIVE -> PENDING -> consumed` lease/fencing 状态机；进程或下游失败后只有当前 lease owner 能在原剩余 TTL 内 rollback，过期 lease 可被新请求接管。
+- 新密码由 user owner 的密码策略校验：长度 8 到 `ValidationLimits.PASSWORD_MAX`，UTF-8 编码最多 72 字节，至少包含两类字符，并拒绝 Unicode 首尾空白字符。
+- user owner 只在 token 签发 `securityVersion` 仍匹配时 CAS 改密。成功或 stale CAS 都撤销旧 generation；后签发的新 generation 不会被旧请求清理。旧 cookie 下次续期时因安全版本不匹配而被 auth 拒绝并撤销 family。
 - prod 下 `AuthStartupValidator` 要求找回密码基础配置可用，禁止 reset link 回传和注册验证码回传类 dev-only 行为；OriginGuard 启用且 fail-closed 时必须配置 allowlist。
 
 ## CORS 和 OriginGuard
@@ -215,14 +216,25 @@ prod 下 `community-app` 如果开启 Servlet trusted proxy：
 登录风控：
 
 - 默认启用 `auth.login-rate-limit.*`。
-- 维度包括用户名、用户 IP 和组合维度。
+- 维度包括用户 IP、查库前的精确用户名输入和数据库排序规则 authoritative subject；Redis key 只保存带版本的 HMAC 伪名，不暴露原始用户名、IP 或排序权重。
 - 达到阈值后拒绝登录，必要时要求验证码。
+- 任何 user owner / MySQL 调用前，先按 IP 与 trim 后但不做 Java Unicode 折叠的原始输入获取 tokenized Redis ZSET permit。user owner 随后用不读取用户表的 MySQL `utf8mb4_unicode_ci` `WEIGHT_STRING` scalar 返回存在性无关的 opaque subject；auth 先取得 subject lease，再释放 provisional input lease，IP lease 全程不断档。
+- captcha、登录失败计数和成功清理只使用 authoritative subject，不使用 `userId`。排序规则别名以及已知 / 未知账号经过同一主体推导，避免账号存在性 oracle 和别名绕过预算。
+- 同 slot Lua 使用 Redis `TIME`，只有 `已提交失败数 + 活跃 token lease 数` 尚未达到阈值时才准入；失败次数提交后才释放最终 permit。
+- user owner 同时校验登录输入和数据库返回的存量用户名。若旧行含控制字符、Unicode format 字符或不可见字符，即使安全输入能按 `utf8mb4_unicode_ci` 命中该行，也只返回与账号不存在相同的 dummy challenge，不暴露真实 user ID 或密码 hash。
+- 缺失账号和非法密码 hash 也执行固定 dummy BCrypt；禁用账号在密码错误时仍返回通用无效凭据。
+- 成功登录只清 authoritative subject 失败桶，不清共享 IP 桶。
 
 密码重置请求风控：
 
 - 默认启用 `auth.password-reset.request-window-seconds`、`max-requests-per-email`、`max-requests-per-ip`。
 - 验证码通过后按邮箱和客户端 IP 自增计数，超过阈值返回 `TOO_MANY_REQUESTS`。
-- 邮箱不存在或不可用的请求不会消耗邮箱 quota，但仍可能计入 IP 维度限流；系统不会暴露该邮箱是否存在。
+- 邮箱不存在或不可用的请求也消耗规范化邮箱 quota 和 IP quota；两类 key 都是 HMAC 伪名，系统不会通过配额行为暴露该邮箱是否存在。
+
+注册请求风控：
+
+- captcha 和字段校验后、BCrypt 与 draft 创建前，按客户端 IP、规范化用户名、规范化邮箱分别原子计数。
+- 三类 Redis key 都只保存 HMAC 伪名；依赖异常 fail-closed，避免 Redis 故障时放大密码哈希或邮件副作用。
 
 gateway 路径级限流：
 
@@ -286,7 +298,9 @@ prod 下约束：
 - 禁止固定验证码。
 - 禁止回传注册验证码。
 - `AuthStartupValidator` 会在 `auth.registration.code.expose-code=true` 时阻断启动。
-- 必须启用 SMTP。
+- 必须启用 SMTP，并配置非空 host、port、From 和有界 connection/read/write timeout；启用 SMTP auth 时还必须注入 username/password，并启用 STARTTLS 或隐式 SSL。
+- OriginGuard 必须启用且显式 fail-closed，allowlist 至少包含一个合法的 http/https Origin；空项、路径、userinfo、query 和 fragment 均会阻断启动。
+- 密码重置窗口/邮箱/IP quota、注册请求窗口/用户名/邮箱/IP quota、注册重发窗口/registration identity/邮箱/IP quota，以及验证码 TTL/失败次数/IP 签发 quota 必须是有界正数，不能用 `0` 关闭生产防滥用控制。
 - access RSA 公私钥必须显式配置、至少 2048 bit 且匹配；私钥只注入 `community-app`。
 - service HMAC secret 必须显式配置、至少 32 bytes，并与 IM session-ticket secret 分离。
 - 真实密钥必须通过 Secrets / 配置中心注入。
@@ -295,7 +309,7 @@ prod 下约束：
 
 启动期和 bean 创建期都会执行 fail-closed：
 
-- `StartupValidation` 聚合各模块 `StartupValidator`。
+- `StartupValidation` 聚合各模块 `StartupValidator`；`prod` / `production` profile 匹配不区分大小写，`PROD` 同样会启用校验。
 - `AuthStartupValidator` 校验 refresh cookie、找回密码、注册邮件、固定验证码和 OriginGuard fail-closed allowlist。
 - 共享安全基础设施校验 access 公钥、issuer、audience；签发端额外校验 access 私钥和公钥匹配，service token 使用方校验独立 HMAC secret。
 - trusted proxy 校验 CIDR。

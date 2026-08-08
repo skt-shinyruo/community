@@ -13,9 +13,13 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.regex.Pattern;
+
 @Service
 @ConditionalOnProperty(name = "auth.registration.mail.enabled", havingValue = "true")
 public class SmtpMailAdapter implements MailPort {
+
+    private static final Pattern DELIVERY_REFERENCE = Pattern.compile("[A-Za-z0-9_-]{32,128}");
 
     private final JavaMailSender mailSender;
     private final RegistrationProperties properties;
@@ -26,13 +30,14 @@ public class SmtpMailAdapter implements MailPort {
     }
 
     @Override
-    public void sendRegistrationCodeMail(String toEmail, String code) {
+    public void sendRegistrationCodeMail(String toEmail, String code, String deliveryReference) {
         if (!StringUtils.hasText(toEmail)) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "email 不能为空");
         }
         if (!StringUtils.hasText(code)) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "code 不能为空");
         }
+        String normalizedDeliveryReference = requireDeliveryReference(deliveryReference);
 
         try {
             MimeMessage mime = mailSender.createMimeMessage();
@@ -41,6 +46,10 @@ public class SmtpMailAdapter implements MailPort {
             helper.setTo(toEmail);
             helper.setSubject(properties.getMail().getSubject());
             helper.setText(buildRegistrationCodeHtml(code), true);
+            mime.setHeader(
+                    "Message-ID",
+                    "<registration-code." + normalizedDeliveryReference + "@community.invalid>"
+            );
             mailSender.send(mime);
         } catch (MessagingException | MailException e) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "发送注册验证码邮件失败");
@@ -48,13 +57,14 @@ public class SmtpMailAdapter implements MailPort {
     }
 
     @Override
-    public void sendPasswordResetMail(String toEmail, String resetLink) {
+    public void sendPasswordResetMail(String toEmail, String resetLink, String deliveryReference) {
         if (!StringUtils.hasText(toEmail)) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "email 不能为空");
         }
         if (!StringUtils.hasText(resetLink)) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "resetLink 不能为空");
         }
+        String normalizedDeliveryReference = requireDeliveryReference(deliveryReference);
 
         try {
             MimeMessage mime = mailSender.createMimeMessage();
@@ -63,10 +73,22 @@ public class SmtpMailAdapter implements MailPort {
             helper.setTo(toEmail);
             helper.setSubject("重置密码");
             helper.setText(buildResetHtml(resetLink), true);
+            mime.setHeader(
+                    "Message-ID",
+                    "<password-reset." + normalizedDeliveryReference + "@community.invalid>"
+            );
             mailSender.send(mime);
         } catch (MessagingException | MailException e) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "发送重置密码邮件失败");
         }
+    }
+
+    private String requireDeliveryReference(String deliveryReference) {
+        String normalized = deliveryReference == null ? "" : deliveryReference.trim();
+        if (!DELIVERY_REFERENCE.matcher(normalized).matches()) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "deliveryReference 不合法");
+        }
+        return normalized;
     }
 
     private String buildRegistrationCodeHtml(String code) {

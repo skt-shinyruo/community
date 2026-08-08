@@ -24,6 +24,7 @@ import com.nowcoder.community.content.application.PostReadTransactionOperations.
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -273,7 +274,12 @@ public class PostReadApplicationService implements PostScanQueryApi {
         if (detail == null) {
             return null;
         }
-        PostCounterSnapshot counters = postCounterApplicationService.read(detail.id());
+        PostCounterSnapshot counters;
+        try {
+            counters = postCounterApplicationService.read(detail.id());
+        } catch (RuntimeException ignored) {
+            return detail;
+        }
         return new PostDetailResult(
                 detail.id(),
                 detail.userId(),
@@ -327,8 +333,24 @@ public class PostReadApplicationService implements PostScanQueryApi {
         if (comments == null || comments.isEmpty()) {
             return List.of();
         }
+
+        List<UUID> postIds = comments.stream()
+                .filter(comment -> comment != null && comment.getPostId() != null)
+                .map(Comment::getPostId)
+                .distinct()
+                .toList();
+        if (postIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, DiscussPost> visiblePostsById = new HashMap<>();
+        for (DiscussPost post : postContentPort.listPostsByIds(postIds)) {
+            if (post != null && post.getId() != null) {
+                visiblePostsById.putIfAbsent(post.getId(), post);
+            }
+        }
         return comments.stream()
-                .map(this::toRecentComment)
+                .map(comment -> toRecentComment(comment, visiblePostsById))
                 .filter(view -> view != null)
                 .toList();
     }
@@ -405,17 +427,16 @@ public class PostReadApplicationService implements PostScanQueryApi {
         );
     }
 
-    private RecentUserCommentResult toRecentComment(Comment comment) {
+    private RecentUserCommentResult toRecentComment(Comment comment, Map<UUID, DiscussPost> visiblePostsById) {
         if (comment == null || comment.getId() == null || comment.getPostId() == null) {
             return null;
         }
-        try {
-            UUID postId = comment.getPostId();
-            DiscussPost post = postContentPort.getById(postId);
-            return recentUserCommentAssembler.assemble(comment, postId, post.getTitle());
-        } catch (BusinessException ex) {
+        UUID postId = comment.getPostId();
+        DiscussPost post = visiblePostsById.get(postId);
+        if (post == null) {
             return null;
         }
+        return recentUserCommentAssembler.assemble(comment, postId, post.getTitle());
     }
 
     private static int toIntCount(long rawCount, int fallback) {

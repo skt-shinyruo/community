@@ -65,37 +65,51 @@ public class PolicySnapshotClient {
     }
 
     public Mono<FetchedUserPolicySnapshot> fetchUserPolicySnapshot() {
-        return fetchUserPolicyPage(null)
-                .expand(page -> {
-                    if (page == null || !page.hasMore() || page.nextUserId() == null) {
-                        return Mono.empty();
-                    }
-                    return fetchUserPolicyPage(page.nextUserId());
+        return fetchUserPolicyPage(null, null)
+                .flatMapMany(firstPage -> {
+                    long snapshotVersion = userPolicyPageWatermark(firstPage);
+                    return Flux.just(firstPage).expand(page -> {
+                        if (!page.hasMore() || page.nextUserId() == null) {
+                            return Mono.empty();
+                        }
+                        return fetchUserPolicyPage(page.nextUserId(), snapshotVersion)
+                                .map(nextPage -> requireUserPolicyPageWatermark(nextPage, snapshotVersion));
+                    });
                 })
                 .collectList()
                 .map(pages -> new FetchedUserPolicySnapshot(userPolicyEntries(pages), userPolicyWatermark(pages)));
     }
 
     public Mono<FetchedBlockRelationSnapshot> fetchBlockRelationSnapshot() {
-        return fetchBlockRelationPage(null, null)
-                .expand(page -> {
-                    if (page == null || !page.hasMore()
-                            || page.nextBlockerUserId() == null || page.nextBlockedUserId() == null) {
-                        return Mono.empty();
-                    }
-                    return fetchBlockRelationPage(page.nextBlockerUserId(), page.nextBlockedUserId());
+        return fetchBlockRelationPage(null, null, null)
+                .flatMapMany(firstPage -> {
+                    long snapshotVersion = blockRelationPageWatermark(firstPage);
+                    return Flux.just(firstPage).expand(page -> {
+                        if (!page.hasMore()
+                                || page.nextBlockerUserId() == null || page.nextBlockedUserId() == null) {
+                            return Mono.empty();
+                        }
+                        return fetchBlockRelationPage(
+                                page.nextBlockerUserId(),
+                                page.nextBlockedUserId(),
+                                snapshotVersion
+                        ).map(nextPage -> requireBlockRelationPageWatermark(nextPage, snapshotVersion));
+                    });
                 })
                 .collectList()
                 .map(pages -> new FetchedBlockRelationSnapshot(blockRelationEntries(pages), blockRelationWatermark(pages)));
     }
 
-    private Mono<UserMessagingPolicySnapshot> fetchUserPolicyPage(UUID afterUserId) {
+    private Mono<UserMessagingPolicySnapshot> fetchUserPolicyPage(UUID afterUserId, Long snapshotVersion) {
         return webClient.get()
                 .uri(uriBuilder -> {
                     var builder = uriBuilder.path("/internal/im/realtime/projections/user-policies")
                             .queryParam("limit", PAGE_LIMIT);
                     if (afterUserId != null) {
                         builder.queryParam("afterUserId", afterUserId);
+                    }
+                    if (snapshotVersion != null) {
+                        builder.queryParam("snapshotVersion", snapshotVersion);
                     }
                     return builder.build();
                 })
@@ -105,7 +119,11 @@ public class PolicySnapshotClient {
                 .timeout(timeout);
     }
 
-    private Mono<UserBlockRelationSnapshot> fetchBlockRelationPage(UUID afterBlockerUserId, UUID afterBlockedUserId) {
+    private Mono<UserBlockRelationSnapshot> fetchBlockRelationPage(
+            UUID afterBlockerUserId,
+            UUID afterBlockedUserId,
+            Long snapshotVersion
+    ) {
         return webClient.get()
                 .uri(uriBuilder -> {
                     var builder = uriBuilder.path("/internal/im/realtime/projections/block-relations")
@@ -113,6 +131,9 @@ public class PolicySnapshotClient {
                     if (afterBlockerUserId != null && afterBlockedUserId != null) {
                         builder.queryParam("afterBlockerUserId", afterBlockerUserId);
                         builder.queryParam("afterBlockedUserId", afterBlockedUserId);
+                    }
+                    if (snapshotVersion != null) {
+                        builder.queryParam("snapshotVersion", snapshotVersion);
                     }
                     return builder.build();
                 })
@@ -168,19 +189,9 @@ public class PolicySnapshotClient {
         if (pages == null || pages.isEmpty()) {
             throw new IllegalStateException("projection snapshot returned no pages");
         }
-        UserMessagingPolicySnapshot firstPage = pages.get(0);
-        long watermark = ProjectionVersions.requireNonNegative(
-                firstPage == null ? null : firstPage.snapshotHighWatermark(),
-                "snapshotHighWatermark"
-        );
+        long watermark = userPolicyPageWatermark(pages.get(0));
         for (UserMessagingPolicySnapshot page : pages) {
-            long pageWatermark = ProjectionVersions.requireNonNegative(
-                    page == null ? null : page.snapshotHighWatermark(),
-                    "snapshotHighWatermark"
-            );
-            if (pageWatermark != watermark) {
-                throw new IllegalStateException("projection snapshot watermark changed between pages");
-            }
+            requireUserPolicyPageWatermark(page, watermark);
         }
         return watermark;
     }
@@ -189,21 +200,45 @@ public class PolicySnapshotClient {
         if (pages == null || pages.isEmpty()) {
             throw new IllegalStateException("projection snapshot returned no pages");
         }
-        UserBlockRelationSnapshot firstPage = pages.get(0);
-        long watermark = ProjectionVersions.requireNonNegative(
-                firstPage == null ? null : firstPage.snapshotHighWatermark(),
-                "snapshotHighWatermark"
-        );
+        long watermark = blockRelationPageWatermark(pages.get(0));
         for (UserBlockRelationSnapshot page : pages) {
-            long pageWatermark = ProjectionVersions.requireNonNegative(
-                    page == null ? null : page.snapshotHighWatermark(),
-                    "snapshotHighWatermark"
-            );
-            if (pageWatermark != watermark) {
-                throw new IllegalStateException("projection snapshot watermark changed between pages");
-            }
+            requireBlockRelationPageWatermark(page, watermark);
         }
         return watermark;
+    }
+
+    private static long userPolicyPageWatermark(UserMessagingPolicySnapshot page) {
+        return ProjectionVersions.requireNonNegative(
+                page == null ? null : page.snapshotHighWatermark(),
+                "snapshotHighWatermark"
+        );
+    }
+
+    private static UserMessagingPolicySnapshot requireUserPolicyPageWatermark(
+            UserMessagingPolicySnapshot page,
+            long expectedWatermark
+    ) {
+        if (userPolicyPageWatermark(page) != expectedWatermark) {
+            throw new IllegalStateException("projection snapshot watermark changed between pages");
+        }
+        return page;
+    }
+
+    private static long blockRelationPageWatermark(UserBlockRelationSnapshot page) {
+        return ProjectionVersions.requireNonNegative(
+                page == null ? null : page.snapshotHighWatermark(),
+                "snapshotHighWatermark"
+        );
+    }
+
+    private static UserBlockRelationSnapshot requireBlockRelationPageWatermark(
+            UserBlockRelationSnapshot page,
+            long expectedWatermark
+    ) {
+        if (blockRelationPageWatermark(page) != expectedWatermark) {
+            throw new IllegalStateException("projection snapshot watermark changed between pages");
+        }
+        return page;
     }
 
     public record FetchedUserPolicySnapshot(List<UserMessagingPolicyEntry> entries, long snapshotHighWatermark) {

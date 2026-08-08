@@ -18,7 +18,7 @@ import java.util.Map;
 /**
  * Spring scheduler wrapper for {@link OutboxWorker}.
  */
-public class OutboxWorkerScheduler {
+public class OutboxWorkerScheduler implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxWorkerScheduler.class);
     private static final String CATEGORY_ASYNC = "async";
@@ -50,10 +50,21 @@ public class OutboxWorkerScheduler {
         Map<String, OutboxHandler> handlerMap = new HashMap<>();
         if (handlers != null) {
             for (OutboxHandler handler : handlers) {
-                if (handler == null || handler.topic() == null || handler.topic().isBlank()) {
+                if (handler == null) {
                     continue;
                 }
-                handlerMap.put(handler.topic(), handler);
+                String declaredTopic = handler.topic();
+                if (declaredTopic == null || declaredTopic.isBlank()) {
+                    continue;
+                }
+                String topic = declaredTopic.trim();
+                OutboxHandler existing = handlerMap.putIfAbsent(topic, handler);
+                if (existing != null) {
+                    throw new IllegalStateException(
+                            "Duplicate outbox handlers for topic '" + topic + "': " +
+                                    existing.getClass().getName() + " and " + handler.getClass().getName()
+                    );
+                }
             }
         }
 
@@ -85,6 +96,11 @@ public class OutboxWorkerScheduler {
                 );
             }
         });
+    }
+
+    @Override
+    public void close() {
+        worker.close();
     }
 
     private void infoEvent(String action, String outcome, Object... keyValues) {

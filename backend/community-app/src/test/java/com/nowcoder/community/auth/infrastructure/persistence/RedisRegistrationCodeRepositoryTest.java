@@ -1,27 +1,28 @@
 package com.nowcoder.community.auth.infrastructure.persistence;
 
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import java.time.Duration;
-import java.util.List;
-import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class RedisRegistrationCodeRepositoryTest {
@@ -29,248 +30,258 @@ class RedisRegistrationCodeRepositoryTest {
     @Mock
     private StringRedisTemplate redisTemplate;
 
-    @Mock
-    private ValueOperations<String, String> valueOperations;
-
-    @Test
-    void issueShouldExposeIssueContractForUserCodeTtlAndCooldown() {
-        UUID userId = uuid(7);
-        when(redisTemplate.execute(
-                any(RedisScript.class),
-                eq(List.of("auth:regcode:" + userId)),
-                eq("222222"),
-                any(String.class),
-                eq(Long.toString(Duration.ofMinutes(5).toMillis())),
-                eq(Long.toString(Duration.ofMinutes(1).toMillis()))))
-                .thenReturn("ISSUED");
-
-        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
-
-        assertThat(store.issue(userId, "222222", Duration.ofMinutes(5), Duration.ofMinutes(1)))
-                .isEqualTo(RegistrationCodeRepository.IssueResult.ISSUED);
+    @BeforeEach
+    void legacyKeyAbsent() {
+        lenient().when(redisTemplate.execute(any(RedisScript.class), any(List.class)))
+                .thenReturn(null);
     }
 
     @Test
-    void issueShouldSurfaceCooldownOutcomeFromRedisScript() {
+    void issueShouldUseAClusterTaggedHashKeyAndStructuredFields() {
         UUID userId = uuid(7);
         when(redisTemplate.execute(
                 any(RedisScript.class),
-                eq(List.of("auth:regcode:" + userId)),
+                eq(keys(userId)),
                 eq("222222"),
-                any(String.class),
-                eq(Long.toString(Duration.ofMinutes(5).toMillis())),
-                eq(Long.toString(Duration.ofMinutes(1).toMillis()))))
-                .thenReturn("COOLDOWN_ACTIVE");
-
-        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
-
-        assertThat(store.issue(userId, "222222", Duration.ofMinutes(5), Duration.ofMinutes(1)))
-                .isEqualTo(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
-    }
-
-    @Test
-    void issueScriptShouldRequireIssuedTimestampInStoredPayload() {
-        UUID userId = uuid(7);
-        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
-
-        when(redisTemplate.execute(
-                any(RedisScript.class),
-                eq(List.of("auth:regcode:" + userId)),
-                eq("222222"),
-                any(String.class),
-                eq(Long.toString(Duration.ofMinutes(5).toMillis())),
-                eq(Long.toString(Duration.ofMinutes(1).toMillis()))))
+                eq("300000"),
+                eq("60000"),
+                any(String.class)))
                 .thenReturn("ISSUED");
+        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
 
-        assertThat(store.issue(userId, "222222", Duration.ofMinutes(5), Duration.ofMinutes(1)))
+        assertThat(repository.issue(
+                userId, "222222", Duration.ofMinutes(5), Duration.ofMinutes(1), uuid(70)))
                 .isEqualTo(RegistrationCodeRepository.IssueResult.ISSUED);
 
         ArgumentCaptor<RedisScript<String>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
         verify(redisTemplate).execute(
                 scriptCaptor.capture(),
-                eq(List.of("auth:regcode:" + userId)),
+                eq(keys(userId)),
                 eq("222222"),
-                any(String.class),
-                eq(Long.toString(Duration.ofMinutes(5).toMillis())),
-                eq(Long.toString(Duration.ofMinutes(1).toMillis()))
+                eq("300000"),
+                eq("60000"),
+                any(String.class)
         );
-        assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);
-        DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
-        assertThat(script.getScriptAsString())
-                .contains("([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)")
-                .doesNotContain("#parts == 5")
-                .doesNotContain("#parts == 4")
-                .doesNotContain("storedCode, expiresAtMs, failures = string.match")
-                .doesNotContain("issued = 0");
+        String script = ((DefaultRedisScript<?>) scriptCaptor.getValue()).getScriptAsString();
+        assertThat(script)
+                .contains(
+                        "redis.call('TIME')",
+                        "HSET",
+                        "active_code",
+                        "active_expires_at_ms",
+                        "issued_at_ms"
+                )
+                .doesNotContain("KEYS[2]", "System.currentTimeMillis");
     }
 
     @Test
-    void lastSentAtMillisShouldRejectPayloadThatIsNotCurrentEightFieldFormat() {
-        UUID userId = uuid(7);
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.get("auth:regcode:" + userId)).thenReturn("222222|4102444800000|0|1712345678901|ACTIVE");
-
-        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
-
-        assertThat(store.lastSentAtMillis(userId)).isNull();
-    }
-
-    @Test
-    void verifyAndConsumeShouldExposeVerificationOutcomesThroughPublicContract() {
-        UUID userId = uuid(7);
-        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
-
+    void replacementLifecycleShouldCarryTheSameLeaseThroughEveryMutation() {
+        UUID userId = uuid(8);
+        UUID leaseId = uuid(81);
+        Instant leaseExpiresAt = Instant.now().plusSeconds(60);
         when(redisTemplate.execute(
                 any(RedisScript.class),
-                eq(List.of("auth:regcode:" + userId)),
-                eq("222222"),
-                any(String.class),
-                eq("3"),
-                eq("0")))
-                .thenReturn("PENDING");
-        assertThat(store.verifyAndConsume(userId, "222222"))
-                .isEqualTo(RegistrationCodeRepository.VerifyResult.SUCCESS);
-        verify(redisTemplate).delete("auth:regcode:" + userId);
-
-        when(redisTemplate.execute(
-                any(RedisScript.class),
-                eq(List.of("auth:regcode:" + userId)),
-                eq("111111"),
-                any(String.class),
-                eq("3"),
-                eq("0")))
-                .thenReturn("MISMATCH");
-        assertThat(store.verifyAndConsume(userId, "111111"))
-                .isEqualTo(RegistrationCodeRepository.VerifyResult.MISMATCH);
-
-        when(redisTemplate.execute(
-                any(RedisScript.class),
-                eq(List.of("auth:regcode:" + userId)),
+                eq(keys(userId)),
                 eq("333333"),
-                any(String.class),
-                eq("3"),
-                eq("0")))
-                .thenReturn("TOO_MANY_ATTEMPTS");
-        assertThat(store.verifyAndConsume(userId, "333333"))
-                .isEqualTo(RegistrationCodeRepository.VerifyResult.TOO_MANY_ATTEMPTS);
-
+                eq("300000"),
+                eq("0"),
+                eq(leaseId.toString()),
+                any(String.class)))
+                .thenReturn("ISSUED");
         when(redisTemplate.execute(
                 any(RedisScript.class),
-                eq(List.of("auth:regcode:" + userId)),
-                eq("222222"),
-                any(String.class),
-                eq("3"),
+                eq(keys(userId)),
+                eq(leaseId.toString()),
                 eq("0")))
-                .thenReturn("EXPIRED");
-        assertThat(store.verifyAndConsume(userId, "222222"))
-                .isEqualTo(RegistrationCodeRepository.VerifyResult.EXPIRED);
-
+                .thenReturn(1L);
         when(redisTemplate.execute(
                 any(RedisScript.class),
-                eq(List.of("auth:regcode:" + userId)),
+                eq(keys(userId)),
+                eq(leaseId.toString())))
+                .thenReturn(1L);
+        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
+
+        assertThat(repository.beginReplacement(
+                userId, "333333", Duration.ofMinutes(5), Duration.ZERO, leaseExpiresAt, leaseId))
+                .isEqualTo(RegistrationCodeRepository.IssueResult.ISSUED);
+        assertThat(repository.promoteReplacement(userId, leaseId)).isTrue();
+        assertThat(repository.abortReplacement(userId, leaseId)).isTrue();
+
+        ArgumentCaptor<RedisScript<String>> beginScriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        verify(redisTemplate).execute(
+                beginScriptCaptor.capture(),
+                eq(keys(userId)),
+                eq("333333"),
+                eq("300000"),
+                eq("0"),
+                eq(leaseId.toString()),
+                any(String.class)
+        );
+        String script = ((DefaultRedisScript<?>) beginScriptCaptor.getValue()).getScriptAsString();
+        assertThat(script)
+                .contains("replacement_lease_id", "replacement_lease_expires_at_ms", "PENDING_REPLACEMENT")
+                .doesNotContain("gmatch");
+    }
+
+    @Test
+    void verificationLifecycleShouldBeFencedByLease() {
+        UUID userId = uuid(9);
+        UUID leaseId = uuid(91);
+        Instant leaseExpiresAt = Instant.now().plusSeconds(60);
+        when(redisTemplate.execute(
+                any(RedisScript.class),
+                eq(keys(userId)),
                 eq("222222"),
-                any(String.class),
                 eq("3"),
-                eq("0")))
-                .thenReturn("NOT_FOUND");
-        assertThat(store.verifyAndConsume(userId, "222222"))
+                any(String.class),
+                eq(leaseId.toString()),
+                any(String.class)))
+                .thenReturn("PENDING");
+        when(redisTemplate.execute(
+                any(RedisScript.class),
+                eq(keys(userId)),
+                eq(leaseId.toString())))
+                .thenReturn(1L, 1L);
+        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
+
+        assertThat(repository.verifyForConsumption(userId, "222222", leaseExpiresAt, leaseId))
+                .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
+        assertThat(repository.consumePending(userId, leaseId)).isTrue();
+        assertThat(repository.restorePending(userId, leaseId)).isTrue();
+    }
+
+    @Test
+    void invalidOrUnknownScriptOutcomesShouldFailClosed() {
+        UUID userId = uuid(10);
+        when(redisTemplate.execute(
+                any(RedisScript.class),
+                eq(keys(userId)),
+                eq("222222"),
+                eq("300000"),
+                eq("60000"),
+                any(String.class)))
+                .thenReturn("unexpected");
+        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
+
+        assertThat(repository.issue(
+                userId, "222222", Duration.ofMinutes(5), Duration.ofMinutes(1), uuid(100)))
+                .isEqualTo(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
+        assertThat(repository.verifyForConsumption(
+                userId, "222222", Instant.now().minusSeconds(1), UUID.randomUUID()))
                 .isEqualTo(RegistrationCodeRepository.VerifyResult.NOT_FOUND);
     }
 
     @Test
-    void verifyForConsumptionShouldMarkPendingAndBlockSecondVerifier() {
-        UUID userId = uuid(7);
-        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
-
+    void legacyMigrationShouldSnapshotImportThenDeleteOnlyTheUnchangedLegacyValue() {
+        UUID userId = uuid(12);
+        long issuedAtMs = System.currentTimeMillis() - 1_000L;
+        long expiresAtMs = issuedAtMs + 300_000L;
+        String raw = "111111|" + expiresAtMs + "|0|" + issuedAtMs + "|ACTIVE|||";
         when(redisTemplate.execute(
                 any(RedisScript.class),
-                eq(List.of("auth:regcode:" + userId)),
+                eq(List.of(legacyKey(userId)))))
+                .thenReturn(List.of(raw, 60_000L));
+        when(redisTemplate.execute(
+                any(RedisScript.class),
+                eq(keys(userId)),
+                eq("111111"),
+                eq(Long.toString(expiresAtMs)),
+                eq("0"),
+                eq(Long.toString(issuedAtMs)),
+                eq("60000")))
+                .thenReturn("IMPORTED");
+        when(redisTemplate.execute(
+                any(RedisScript.class),
+                eq(List.of(legacyKey(userId))),
+                eq(raw)))
+                .thenReturn(1L);
+        when(redisTemplate.execute(
+                any(RedisScript.class),
+                eq(keys(userId)),
                 eq("222222"),
-                any(String.class),
-                eq("3"),
-                eq(Long.toString(Duration.ofSeconds(60).toMillis()))))
-                .thenReturn("PENDING")
-                .thenReturn("PENDING_CONFLICT");
+                eq("300000"),
+                eq("60000"),
+                any(String.class)))
+                .thenReturn("COOLDOWN_ACTIVE");
+        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
 
-        assertThat(store.verifyForConsumption(userId, "222222", Duration.ofSeconds(60)))
-                .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
-        assertThat(store.verifyForConsumption(userId, "222222", Duration.ofSeconds(60)))
-                .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING_CONFLICT);
+        assertThat(repository.issue(
+                userId, "222222", Duration.ofMinutes(5), Duration.ofMinutes(1), uuid(120)))
+                .isEqualTo(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
+
+        ArgumentCaptor<RedisScript<List>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        verify(redisTemplate).execute(scriptCaptor.capture(), eq(List.of(legacyKey(userId))));
+        String script = ((DefaultRedisScript<?>) scriptCaptor.getValue()).getScriptAsString();
+        assertThat(script).contains(
+                "redis.call('GET', KEYS[1])",
+                "redis.call('PTTL', KEYS[1])"
+        ).doesNotContain("redis.call('DEL', KEYS[1])");
+        ArgumentCaptor<RedisScript<Long>> deleteScriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        verify(redisTemplate).execute(
+                deleteScriptCaptor.capture(),
+                eq(List.of(legacyKey(userId))),
+                eq(raw)
+        );
+        assertThat(((DefaultRedisScript<?>) deleteScriptCaptor.getValue()).getScriptAsString())
+                .contains("current ~= ARGV[1]", "redis.call('DEL', KEYS[1])");
+        verify(redisTemplate, never()).hasKey(legacyKey(userId));
+        verify(redisTemplate, never()).opsForValue();
     }
 
     @Test
-    void restorePendingAndConsumePendingShouldUseRedisScripts() {
-        UUID userId = uuid(8);
-        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
-
-        store.restorePending(userId);
-        store.consumePending(userId);
-
-        ArgumentCaptor<RedisScript<Long>> restoreScriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
-        verify(redisTemplate).execute(restoreScriptCaptor.capture(), eq(List.of("auth:regcode:" + userId)));
-        assertThat(((DefaultRedisScript<?>) restoreScriptCaptor.getValue()).getScriptAsString())
-                .contains("|ACTIVE")
-                .contains("PENDING")
-                .doesNotContain("storedCode, expiresAtMs, failures, issuedAtMs, state = string.match(raw");
-
-        verify(redisTemplate).delete("auth:regcode:" + userId);
-    }
-
-    @Test
-    void beginReplacementShouldWritePendingFieldsWithoutReplacingActiveCode() {
-        UUID userId = uuid(9);
+    void legacyMigrationShouldRetainLegacyValueWhenImportFailsAmbiguously() {
+        UUID userId = uuid(13);
+        long issuedAtMs = System.currentTimeMillis() - 1_000L;
+        long expiresAtMs = issuedAtMs + 300_000L;
+        String raw = "111111|" + expiresAtMs + "|0|" + issuedAtMs + "|ACTIVE|||";
         when(redisTemplate.execute(
                 any(RedisScript.class),
-                eq(List.of("auth:regcode:" + userId)),
-                eq("333333"),
-                any(String.class),
-                eq(Long.toString(Duration.ofMinutes(5).toMillis())),
-                eq(Long.toString(Duration.ofMinutes(1).toMillis()))))
-                .thenReturn("ISSUED");
-        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
+                eq(List.of(legacyKey(userId)))))
+                .thenReturn(List.of(raw, 60_000L));
+        when(redisTemplate.execute(
+                any(RedisScript.class),
+                eq(keys(userId)),
+                eq("111111"),
+                eq(Long.toString(expiresAtMs)),
+                eq("0"),
+                eq(Long.toString(issuedAtMs)),
+                eq("60000")))
+                .thenThrow(new IllegalStateException("ambiguous redis timeout"));
+        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
 
-        assertThat(store.beginReplacement(userId, "333333", Duration.ofMinutes(5), Duration.ofMinutes(1)))
-                .isEqualTo(RegistrationCodeRepository.IssueResult.ISSUED);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> repository.issue(
+                        userId, "222222", Duration.ofMinutes(5), Duration.ofMinutes(1), uuid(130)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ambiguous redis timeout");
 
-        ArgumentCaptor<RedisScript<String>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
-        verify(redisTemplate).execute(
-                scriptCaptor.capture(),
-                eq(List.of("auth:regcode:" + userId)),
-                eq("333333"),
-                any(String.class),
-                eq(Long.toString(Duration.ofMinutes(5).toMillis())),
-                eq(Long.toString(Duration.ofMinutes(1).toMillis()))
+        verify(redisTemplate, never()).execute(
+                any(RedisScript.class),
+                eq(List.of(legacyKey(userId))),
+                eq(raw)
         );
-        assertThat(((DefaultRedisScript<?>) scriptCaptor.getValue()).getScriptAsString())
-                .contains("pendingCode")
-                .contains("PENDING_REPLACEMENT")
-                .contains("activeCode")
-                .contains("pendingExpiresAtMs");
     }
 
     @Test
-    void promoteAndAbortReplacementShouldMutateOnlyPendingFields() {
-        UUID userId = uuid(10);
-        RedisRegistrationCodeRepository store = new RedisRegistrationCodeRepository(redisTemplate);
+    void deleteShouldRemoveBothVersionedAndLegacyKeys() {
+        UUID userId = uuid(11);
+        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
 
-        store.promoteReplacement(userId);
-        store.abortReplacement(userId);
+        repository.delete(userId);
 
-        ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
-        verify(redisTemplate, org.mockito.Mockito.times(2)).execute(
-                scriptCaptor.capture(),
-                eq(List.of("auth:regcode:" + userId)),
-                any(String.class)
-        );
-        assertThat(((DefaultRedisScript<?>) scriptCaptor.getAllValues().get(0)).getScriptAsString())
-                .contains("pendingCode")
-                .contains("activeCode")
-                .contains("PENDING_REPLACEMENT")
-                .contains("promote");
-        assertThat(((DefaultRedisScript<?>) scriptCaptor.getAllValues().get(1)).getScriptAsString())
-                .contains("pendingCode")
-                .contains("PENDING_REPLACEMENT")
-                .contains("abort");
+        verify(redisTemplate).delete(key(userId));
+        verify(redisTemplate).delete(legacyKey(userId));
+    }
+
+    private static String key(UUID userId) {
+        return "auth:regcode:v2:{" + userId + "}";
+    }
+
+    private static String legacyKey(UUID userId) {
+        return "auth:regcode:" + userId;
+    }
+
+    private static List<String> keys(UUID userId) {
+        return List.of(key(userId));
     }
 
     private static UUID uuid(long suffix) {

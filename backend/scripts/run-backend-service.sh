@@ -5,7 +5,17 @@ set -eu
 # - JAVA_OPTS supports standard space-separated JVM flags only.
 # - Shell quoting inside JAVA_OPTS is not parsed by this script.
 # - YIERLOOM_ENABLED=true enables the optional YierLoom Java agent.
-java_opts="${JAVA_OPTS:-}"
+runtime_dir="/tmp/community-runtime"
+runtime_home="${runtime_dir}/home"
+runtime_tmp="${runtime_dir}/tmp"
+umask 077
+mkdir -p "${runtime_home}" "${runtime_tmp}"
+export HOME="${runtime_home}"
+
+java_opts="-Duser.home=${runtime_home} -Djava.io.tmpdir=${runtime_tmp}"
+if [ -n "${JAVA_OPTS:-}" ]; then
+  java_opts="${java_opts} ${JAVA_OPTS}"
+fi
 service_version="${SERVICE_VERSION:-unknown}"
 otel_enabled="${OTEL_ENABLED:-false}"
 otel_service_name="${OTEL_SERVICE_NAME:-}"

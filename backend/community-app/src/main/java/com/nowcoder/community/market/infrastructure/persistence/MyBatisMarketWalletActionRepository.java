@@ -1,7 +1,9 @@
 package com.nowcoder.community.market.infrastructure.persistence;
 
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
+import com.nowcoder.community.market.domain.model.MarketWalletActionClaim;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
+import com.nowcoder.community.market.domain.model.MarketWalletActionLeaseRecovery;
 import com.nowcoder.community.market.domain.repository.MarketWalletActionRepository;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper;
@@ -51,8 +53,13 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     }
 
     @Override
-    public List<MarketWalletAction> findDue(Date asOf, int limit) {
-        return DomainRowAdapter.asDomainList(mapper.selectDue(asOf, limit));
+    public List<MarketWalletAction> findDue(Date asOf, int maxRetryAttempts, int limit) {
+        return DomainRowAdapter.asDomainList(mapper.selectDue(asOf, maxRetryAttempts, limit));
+    }
+
+    @Override
+    public List<MarketWalletAction> findExpiredProcessing(Date asOf, int limit) {
+        return DomainRowAdapter.asDomainList(mapper.selectExpiredProcessing(asOf, limit));
     }
 
     @Override
@@ -61,8 +68,28 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     }
 
     @Override
-    public int claimProcessing(MarketWalletActionLease lease, Date leaseUntil) {
-        return mapper.claimProcessing(lease, leaseUntil);
+    public int claimProcessing(MarketWalletActionClaim claim) {
+        return mapper.claimProcessing(claim);
+    }
+
+    @Override
+    public MarketWalletAction findClaimed(MarketWalletActionLease lease) {
+        return mapper.selectClaimed(lease);
+    }
+
+    @Override
+    public MarketWalletAction lockClaimed(MarketWalletActionLease lease, Date leaseValidAt) {
+        return mapper.selectClaimedForUpdate(lease, leaseValidAt);
+    }
+
+    @Override
+    public MarketWalletAction lockById(UUID actionId) {
+        return mapper.selectByIdForUpdate(actionId);
+    }
+
+    @Override
+    public int recordWalletTxn(MarketWalletActionLease lease, UUID walletTxnId, Date leaseValidAt) {
+        return mapper.recordWalletTxn(lease, walletTxnId, leaseValidAt);
     }
 
     @Override
@@ -111,12 +138,48 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     }
 
     @Override
-    public int rescheduleFailed(UUID actionId, String expectedFailureCode, Date nextRetryAt, String lastError) {
-        return mapper.rescheduleFailed(actionId, expectedFailureCode, nextRetryAt, lastError);
+    public int rescheduleFailed(
+            UUID actionId,
+            String expectedFailureCode,
+            int expectedRetryCount,
+            Date nextRetryAt,
+            int maxRetryAttempts,
+            String lastError
+    ) {
+        return mapper.rescheduleFailed(
+                actionId,
+                expectedFailureCode,
+                expectedRetryCount,
+                nextRetryAt,
+                maxRetryAttempts,
+                lastError
+        );
     }
 
     @Override
-    public int recoverExpiredProcessing(Date asOf) {
-        return mapper.recoverExpiredProcessing(asOf);
+    public int recoverExpiredProcessing(MarketWalletActionLeaseRecovery recovery) {
+        return mapper.recoverExpiredProcessing(recovery);
+    }
+
+    @Override
+    public int deferWalletTxnRecovery(
+            UUID actionId,
+            String expectedStatus,
+            UUID walletTxnId,
+            Date nextRetryAt,
+            String lastError
+    ) {
+        return mapper.deferWalletTxnRecovery(actionId, expectedStatus, walletTxnId, nextRetryAt, lastError);
+    }
+
+    @Override
+    public int deferFailedRecovery(
+            UUID actionId,
+            String expectedStatus,
+            String expectedFailureCode,
+            Date nextRetryAt,
+            String lastError
+    ) {
+        return mapper.deferFailedRecovery(actionId, expectedStatus, expectedFailureCode, nextRetryAt, lastError);
     }
 }

@@ -8,6 +8,12 @@ import java.util.UUID;
 
 public interface BlockRepository {
 
+    /**
+     * Serializes writes that can change the follow/block invariant for an unordered user pair.
+     * The caller must hold an active transaction until its relation writes complete.
+     */
+    void lockUserPair(UUID userIdA, UUID userIdB);
+
     boolean block(UUID userId, UUID targetUserId, long version);
 
     boolean unblock(UUID userId, UUID targetUserId, long version);
@@ -24,7 +30,12 @@ public interface BlockRepository {
 
     List<UUID> listBlockedUserIds(UUID userId);
 
-    List<BlockRelation> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit);
+    List<BlockRelation> scanBlocksAtVersionAfter(
+            long snapshotVersion,
+            UUID afterUserId,
+            UUID afterTargetUserId,
+            int limit
+    );
 
     long nextBlockProjectionVersion();
 

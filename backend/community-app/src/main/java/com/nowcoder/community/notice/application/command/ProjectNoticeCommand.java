@@ -57,8 +57,12 @@ public sealed interface ProjectNoticeCommand permits
             UUID entityId,
             UUID entityUserId,
             UUID postId,
-            String relationKey
+            String relationKey,
+            UUID relationInstanceId
     ) implements ProjectNoticeCommand {
+        public LikeCreated {
+            relationKey = relationKey == null ? null : relationKey.trim();
+        }
     }
 
     record LikeRemoved(
@@ -70,8 +74,12 @@ public sealed interface ProjectNoticeCommand permits
             UUID entityId,
             UUID entityUserId,
             UUID postId,
-            String relationKey
+            String relationKey,
+            UUID relationInstanceId
     ) implements ProjectNoticeCommand {
+        public LikeRemoved {
+            relationKey = relationKey == null ? null : relationKey.trim();
+        }
     }
 
     record FollowCreated(

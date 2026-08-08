@@ -83,8 +83,8 @@ feed HTTP 列表使用 opaque cursor：`FeedReadApplicationService` 读全局/�
 全局和版块 hot feed 的读取顺序：
 
 1. `FeedReadApplicationService` 解码 opaque cursor，并把 page size 约束在 `1..50`。
-2. 优先从 `PostFeedCache` 读取全局或版块帖子 ID，再由 `PostFeedSummaryLoader` 读取/回填摘要；返回值携带当前 rank version。
-3. cache miss 或 Redis 异常时进入跨节点 `HotPathSingleFlight`。同一 scope/page/size 只有一个请求回源，其他请求返回空的 degraded-safe 页面并记录 `singleflight_busy`，避免并发打满 repository。
+2. 优先从 `PostFeedCache` 读取全局或版块帖子 ID，再由 `PostFeedSummaryLoader` 读取/回填摘要；返回值携带当前 rank version。需要发出下一页游标时，application 用 repository 的同一条 hot-order 查询校验整页候选，并只用 owner row 的 `type + score + createTime + postId` 生成边界；过期 summary 只能影响短期展示内容，不能改变排序、版块归属或 fallback 边界。
+3. cache miss、Redis 异常或缓存候选与 owner hot order 不一致时进入跨节点 `HotPathSingleFlight`。同一 scope/page/size/boundary 只有一个请求回源，其他请求返回空的 degraded-safe 页面并记录 `singleflight_busy`，避免并发打满 repository。
 4. `content.feed.latest-fallback-enabled=true` 时，leader 从 content repository 按 hot order 回源，best-effort 回填 feed 和 summary cache；关闭 fallback 时 miss 返回空页。
 5. Redis 读取、rank version、回填失败不会把缓存当主事实；路径记录 `hit`、`fallback`、`empty`、`degraded` 或 `singleflight_busy` 指标。
 
@@ -112,7 +112,7 @@ terminal deletion 不等待帖子删除状态对当前数据库读取可见，�
 
 `HotPathPrewarmApplicationService` 在 single-flight 锁内从 content 当前事实预热全局及前 N 个版块的 hot feed、summary 和 detail。代码默认每次 `2` 页、每页 `20`、最多 `20` 个版块、锁 TTL `30s`；`HotPathPrewarmJob` 默认每 `60s` 调用一次，重复节点由 single-flight 收敛。
 
-`PostCounterApplicationService` 把浏览、点赞、评论、收藏和 score 作为派生 counter 读取模型：同一 `postId + viewerKey` 默认 `86400s` 内只增加一次浏览；脏 post ID 连同严格递增 revision 进入 Redis 有序集合。读取时以 cache view/bookmark 为基础，并回源 social 点赞数、content 评论数和持久 score；flush 每批限制在 `1..500`，upsert `post_counter_snapshot` 成功后只条件确认读取时的 revision，期间出现的新写入会保留 dirty marker。`PostCounterSnapshotFlushJob` 默认启用、每 `30s` 运行，默认 batch `200`；失败只记录并留待下轮重试。
+`PostCounterApplicationService` 把浏览、点赞、评论、收藏和 score 作为派生 counter 读取模型。Redis 首次缺失时以 `post_counter_snapshot` 恢复浏览基线，并从各 owner 重建点赞、评论、收藏和 score；持久基线读取失败时，本次请求可以用当前可读事实临时降级，但不得把零值写成已初始化基线，也不得记录依赖该基线的新浏览，后续请求会重新恢复。初始化在 Lua 内清理旧 overlay，避免把已包含新事实的 owner 基线重复叠加；若 `initialized` 或任一 `base*` 字段损坏，Lua 会先原子隔离尚未 flush 的浏览 delta，基线恢复成功后再叠加，不能因修复缓存而丢失新浏览。同一 `postId + viewerKey` 默认 `86400s` 内只增加一次浏览，viewer 去重、浏览增量和 dirty revision 在同一 Lua 脚本完成；其他 owner 写路径只标记 dirty，读取和 flush 回源权威事实，不会被乱序绝对值覆盖。counter/dirty queue 按帖子分成 32 个 Cluster slot；每个 slot 内的清理按读取 revision 做 fencing，MySQL 的 `flush_revision` 又用 CAS 拒绝多实例迟到的旧快照。flush 每批限制在 `1..500`，使用 fail-closed 快照读取：Redis 或任一 owner 事实读取失败时不执行 upsert，也不确认 dirty marker；全部读取和 upsert 成功后才确认，期间出现的新写入仍会保留。dirty 扫描先给各分片公平配额，再把未使用额度重新分给仍活跃的分片；不可解析的 UUID 或 revision score 会从队头删除并继续补位，避免热点分片和坏成员让批次长期欠载。`PostCounterSnapshotFlushJob` 默认启用、每 `30s` 运行，默认 batch `200`；失败只记录并留待下轮重试。v2 与旧 writer 不能滚动混跑，发布前必须停止旧流量，具体 key 与 legacy dirty 排空协议见 [数据与存储](../data-and-storage.md#redis)。
 
 ## 发帖
 
@@ -239,6 +239,9 @@ Complete upload：
 
 评论删除：
 
+- 删除根评论时先在独立短事务中写入 tombstone，立即阻断新回复；已有回复按固定批量在独立事务中删除。任一批失败后，重试同一删除命令会从剩余活跃回复继续，不会重新扣减已完成批次的计数。
+- 批处理查询使用 `idx_comment_root_cleanup(root_comment_id,status,create_time,id)`，避免热门评论树形成无界锁集合或动态超长 SQL。
+
 - 作者删除校验作者和路由帖子。
 - 治理删除校验治理动作。
 - 删除是软删除，并包含 active descendant replies。
@@ -270,6 +273,9 @@ Complete upload：
 - `BookmarkApplicationService.add(userId, postId)` 收藏帖子。
 - `remove(...)` 取消收藏。
 - `listBookmarkedPostSummaries(...)` 回源帖子摘要。
+- 收藏写事务先用 `SELECT ... FOR UPDATE` 锁定仍处于非删除状态的帖子，再使用 `INSERT ... SELECT` 在写入语句内二次校验；它与帖子删除串行化，删除提交后到达的收藏不会落入关系表。重复收藏仍按幂等成功处理，帖子不存在或已删除则返回 `POST_NOT_FOUND`。
+- 收藏关系和 `post_bookmark_counter_reconciliation` revision 在同一事务提交；重复收藏或重复取消也会推进 revision。事务提交后再尝试标记 Redis dirty，避免数据库回滚时产生派生读模型副作用。
+- Redis dirty 标记失败不会丢失修复工作。counter job 先扫描持久 reconciliation token，标记 Redis dirty，并把收藏 owner 的绝对计数与 `post_counter_snapshot` 对比；只有两者一致时才按扫描 revision CAS 清除 pending。失败 token 会按 revision CAS 移到队尾，避免固定失败前缀饿死后续帖子；并发新收藏会推进 revision，旧 worker 不能确认新任务。
 - 收藏是用户对帖子的读偏好，不改变帖子主事实。
 
 订阅：
@@ -292,7 +298,7 @@ Complete upload：
 2. `ModerationApplicationService.takeAction(...)` 根据 action、reason、duration 决策。
 3. `ModerationDecisionDomainService` 解析具体治理动作。
 4. 可能执行内容下线、用户处罚、举报状态更新和动作记录。
-5. 用户处罚通过 user owner action 更新。
+5. 用户处罚携带 `actorUserId` 通过 user owner action 更新，最终角色层级授权由 user owner 判定。
 6. 治理结果可投影通知。
 
 帖子置顶/加精/管理删除由 `PostModerationApplicationService` 处理，要求 actor 拥有治理权限。

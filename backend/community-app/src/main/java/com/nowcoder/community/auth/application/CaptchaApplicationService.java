@@ -23,12 +23,14 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 public class CaptchaApplicationService {
 
     private static final SecureRandom random = new SecureRandom();
     private static final String RATE_LIMIT_IP_KEY_PREFIX = "auth:captcha:issue:ip:";
+    private static final Pattern CAPTCHA_ID_PATTERN = Pattern.compile("\\A[0-9a-f]{32}\\z");
 
     private final CaptchaProperties properties;
     private final CaptchaRepository captchaStore;
@@ -75,23 +77,20 @@ public class CaptchaApplicationService {
     }
 
     public boolean verify(String captchaId, String code) {
-        if (isBlank(captchaId) || isBlank(code)) {
+        if (!isValidCaptchaId(captchaId) || isBlank(code)) {
             return false;
         }
         int ttlSeconds = Math.max(1, properties.getTtlSeconds());
         int maxFailures = Math.max(1, properties.getMaxFailures());
         try {
-            CaptchaRepository.VerifyResult verifyResult = captchaStore.verifyAndConsume(captchaId, captchaDomainService.normalizeCode(code));
+            CaptchaRepository.VerifyResult verifyResult = captchaStore.verifyAndConsume(
+                    captchaId,
+                    captchaDomainService.normalizeCode(code),
+                    maxFailures,
+                    Duration.ofSeconds(ttlSeconds)
+            );
             if (verifyResult == CaptchaRepository.VerifyResult.MATCHED) {
                 return true;
-            }
-            if (verifyResult == CaptchaRepository.VerifyResult.NOT_FOUND) {
-                return false;
-            }
-            int failures = captchaStore.incrementFailures(captchaId, Duration.ofSeconds(ttlSeconds));
-            if (failures >= maxFailures) {
-                // 失败次数达到阈值：作废该验证码，要求重新获取
-                captchaStore.delete(captchaId);
             }
         } catch (RuntimeException e) {
             throw captchaUnavailable(e);
@@ -143,6 +142,10 @@ public class CaptchaApplicationService {
 
     private boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
+    }
+
+    private boolean isValidCaptchaId(String captchaId) {
+        return captchaId != null && CAPTCHA_ID_PATTERN.matcher(captchaId).matches();
     }
 
     private BusinessException captchaUnavailable(RuntimeException cause) {

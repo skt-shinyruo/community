@@ -38,7 +38,7 @@ class RedisAnalyticsRepositoryTest {
 
         repo.recordUv(LocalDate.of(2026, 1, 1), "1.1.1.1");
 
-        verify(hyperOps).add("uv:2026-01-01", "1.1.1.1");
+        verify(hyperOps).add("analytics:{range}:uv:2026-01-01", "1.1.1.1");
     }
 
     @Test
@@ -52,7 +52,7 @@ class RedisAnalyticsRepositoryTest {
 
         repo.recordDau(LocalDate.of(2026, 1, 1), 123);
 
-        verify(valueOps).setBit("dau:2026-01-01", 123, true);
+        verify(valueOps).setBit("analytics:{range}:dau:2026-01-01", 123, true);
     }
 
     @Test
@@ -78,8 +78,8 @@ class RedisAnalyticsRepositoryTest {
         verify(redisTemplate, times(1)).delete(deleteKey.capture());
 
         String key = deleteKey.getValue();
-        assertThat(key).startsWith("uv:tmp:2026-01-01:2026-01-02:");
-        assertThat(key).isNotEqualTo("uv:2026-01-01:2026-01-02");
+        assertThat(key).startsWith("analytics:{range}:uv:tmp:2026-01-01:2026-01-02:");
+        assertThat(key).isNotEqualTo("analytics:{range}:uv:2026-01-01:2026-01-02");
 
         ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
         ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
@@ -94,8 +94,8 @@ class RedisAnalyticsRepositoryTest {
         assertThat(script.getScriptAsString()).contains("pexpire");
         assertThat(keysCaptor.getValue()).containsExactly(
                 key,
-                "uv:2026-01-01",
-                "uv:2026-01-02"
+                "analytics:{range}:uv:2026-01-01",
+                "analytics:{range}:uv:2026-01-02"
         );
         verify(redisTemplate, never()).expire(eq(key), any(Duration.class));
     }
@@ -122,8 +122,8 @@ class RedisAnalyticsRepositoryTest {
 
         List<String> keys = deleteKey.getAllValues();
         assertThat(keys).hasSize(2);
-        assertThat(keys.get(0)).startsWith("dau:tmp:2026-01-01:2026-01-02:");
-        assertThat(keys.get(1)).startsWith("dau:tmp:2026-01-01:2026-01-02:");
+        assertThat(keys.get(0)).startsWith("analytics:{range}:dau:tmp:2026-01-01:2026-01-02:");
+        assertThat(keys.get(1)).startsWith("analytics:{range}:dau:tmp:2026-01-01:2026-01-02:");
         assertThat(keys.get(0)).isNotEqualTo(keys.get(1));
     }
 

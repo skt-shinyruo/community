@@ -21,16 +21,17 @@ import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
 import com.nowcoder.community.common.idempotency.RequestFingerprint;
-import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
+import com.nowcoder.community.social.api.action.SocialInteractionActionApi;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
@@ -47,9 +48,11 @@ public class CommentApplicationService {
     private final CommentRepository commentRepository;
     private final PostContentRepository postContentPort;
     private final CommentCacheAfterCommit commentCacheAfterCommit;
-    private final SocialBlockQueryApi blockQueryApi;
+    private final SocialInteractionActionApi interactionActionApi;
     private final ContentEventPublisher eventPublisher;
+    private final CommentDeletionTransactionOperations deletionOperations;
 
+    @Autowired
     public CommentApplicationService(
             ContentSanitizer sensitiveFilter,
             IdempotencyGuard idempotencyGuard,
@@ -59,8 +62,9 @@ public class CommentApplicationService {
             CommentRepository commentRepository,
             PostContentRepository postContentPort,
             CommentCacheAfterCommit commentCacheAfterCommit,
-            SocialBlockQueryApi blockQueryApi,
-            ContentEventPublisher eventPublisher
+            SocialInteractionActionApi interactionActionApi,
+            ContentEventPublisher eventPublisher,
+            CommentDeletionTransactionOperations deletionOperations
     ) {
         this.sensitiveFilter = sensitiveFilter;
         this.idempotencyGuard = idempotencyGuard;
@@ -70,8 +74,40 @@ public class CommentApplicationService {
         this.commentRepository = commentRepository;
         this.postContentPort = postContentPort;
         this.commentCacheAfterCommit = commentCacheAfterCommit;
-        this.blockQueryApi = blockQueryApi;
+        this.interactionActionApi = interactionActionApi;
         this.eventPublisher = eventPublisher;
+        this.deletionOperations = deletionOperations;
+    }
+
+    /**
+     * Test/compatibility constructor for callers that exercise the legacy
+     * in-memory thread transition directly. Spring uses the full constructor.
+     */
+    public CommentApplicationService(
+            ContentSanitizer sensitiveFilter,
+            IdempotencyGuard idempotencyGuard,
+            ContentTextCodec textCodec,
+            UserModerationGuard moderationGuard,
+            CommentDomainService domainService,
+            CommentRepository commentRepository,
+            PostContentRepository postContentPort,
+            CommentCacheAfterCommit commentCacheAfterCommit,
+            SocialInteractionActionApi interactionActionApi,
+            ContentEventPublisher eventPublisher
+    ) {
+        this(
+                sensitiveFilter,
+                idempotencyGuard,
+                textCodec,
+                moderationGuard,
+                domainService,
+                commentRepository,
+                postContentPort,
+                commentCacheAfterCommit,
+                interactionActionApi,
+                eventPublisher,
+                null
+        );
     }
 
     @Transactional
@@ -133,8 +169,11 @@ public class CommentApplicationService {
         }
     }
 
-    @Transactional
     public void deleteByAuthor(UUID userId, UUID postId, UUID commentId) {
+        if (deletionOperations != null) {
+            deleteWithBoundedOperations(userId, postId, commentId, false, "author_delete");
+            return;
+        }
         CommentSnapshot existing = commentRepository.getRequiredSnapshot(commentId);
         UUID actualPostId = resolvePostId(existing);
         Comment aggregate = Comment.reconstitute(existing);
@@ -147,12 +186,86 @@ public class CommentApplicationService {
         deleteActiveThread(aggregate, deletion, actualPostId);
     }
 
-    @Transactional
     public void deleteByModeration(UUID actorUserId, UUID commentId, String deletedReason) {
+        if (deletionOperations != null) {
+            deleteWithBoundedOperations(actorUserId, null, commentId, true, deletedReason);
+            return;
+        }
         CommentSnapshot existing = commentRepository.getRequiredSnapshot(commentId);
         Comment aggregate = Comment.reconstitute(existing);
         CommentDeletion deletion = aggregate.deleteByModerator(actorUserId, deletedReason, new Date());
         deleteActiveThread(aggregate, deletion, resolvePostId(existing));
+    }
+
+    private void deleteWithBoundedOperations(
+            UUID actorUserId,
+            UUID requestedPostId,
+            UUID commentId,
+            boolean moderator,
+            String deletedReason
+    ) {
+        CommentSnapshot existing = commentRepository.findSnapshot(commentId)
+                .orElseThrow(() -> new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND));
+        UUID postId = resolvePostId(existing);
+        if (requestedPostId != null && !requestedPostId.equals(postId)) {
+            throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
+        }
+        if (existing.status() == 0) {
+            Comment aggregate = Comment.reconstitute(existing);
+            CommentDeletion deletion = moderator
+                    ? aggregate.deleteByModerator(actorUserId, deletedReason, new Date())
+                    : aggregate.deleteByAuthor(actorUserId, postId, deletedReason, new Date());
+            CommentDeletionResult rootResult = existing.rootComment()
+                    ? deletionOperations.deleteRoot(deletion, postId)
+                    : deletionOperations.deleteSingle(deletion, postId);
+            if (rootResult == null) {
+                throw new IllegalStateException("comment deletion returned no result");
+            }
+            switch (rootResult.status()) {
+                case STALE -> throw staleTransition();
+                case NOT_FOUND -> throw new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND);
+                case APPLIED, NO_OP -> {
+                    if (!existing.rootComment() || moderator) {
+                        return;
+                    }
+                }
+            }
+            deleteReplyBatches(existing.rootCommentId(), postId, deletion.deletedBy(),
+                    deletion.deletedReason(), deletion.deletedTime());
+            return;
+        }
+
+        // A previous request may have committed the root tombstone before a
+        // later reply batch failed. Retrying the same command resumes cleanup.
+        if (existing.rootComment() && !moderator) {
+            deleteReplyBatches(existing.rootCommentId(), postId,
+                    existing.deletedBy() == null ? actorUserId : existing.deletedBy(),
+                    StringUtils.hasText(existing.deletedReason())
+                            ? existing.deletedReason() : deletedReason,
+                    existing.deletedTime() == null ? new Date() : existing.deletedTime());
+        }
+    }
+
+    private void deleteReplyBatches(
+            UUID rootCommentId,
+            UUID postId,
+            UUID deletedBy,
+            String deletedReason,
+            Date deletedTime
+    ) {
+        while (true) {
+            CommentDeletionResult batch = deletionOperations.deleteReplyBatch(
+                    rootCommentId,
+                    postId,
+                    deletedBy,
+                    deletedReason,
+                    deletedTime,
+                    CommentDeletionTransactionOperations.REPLY_BATCH_SIZE
+            );
+            if (batch == null || !batch.changed()) {
+                return;
+            }
+        }
     }
 
     private CommentMutationResult createInsideTransaction(CreateCommentCommand command) {
@@ -170,8 +283,8 @@ public class CommentApplicationService {
                 post.getUserId(),
                 context
         );
-        if (target.targetUserId() != null && blockQueryApi.isEitherBlocked(userId, target.targetUserId())) {
-            throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
+        if (target.targetUserId() != null) {
+            interactionActionApi.assertInteractionAllowed(userId, target.targetUserId());
         }
 
         String safeContent = sanitize(command.content());

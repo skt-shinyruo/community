@@ -15,6 +15,7 @@ public class RefreshTokenSessionDataObject {
     private Instant expiresAt;
     private RefreshTokenSessionState state;
     private Instant pendingExpiresAt;
+    private UUID rotationLeaseId;
     private Instant revokedAt;
 
     public RefreshTokenSession toDomain() {
@@ -26,7 +27,8 @@ public class RefreshTokenSessionDataObject {
                 expiresAt,
                 revokedAt,
                 state,
-                pendingExpiresAt
+                pendingExpiresAt,
+                rotationLeaseId
         );
     }
 
@@ -84,6 +86,14 @@ public class RefreshTokenSessionDataObject {
 
     public void setPendingExpiresAt(Instant pendingExpiresAt) {
         this.pendingExpiresAt = pendingExpiresAt;
+    }
+
+    public UUID getRotationLeaseId() {
+        return rotationLeaseId;
+    }
+
+    public void setRotationLeaseId(UUID rotationLeaseId) {
+        this.rotationLeaseId = rotationLeaseId;
     }
 
     public Instant getRevokedAt() {

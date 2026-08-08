@@ -19,6 +19,7 @@ import com.nowcoder.community.social.exception.SocialErrorCode;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -36,6 +37,7 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -190,6 +192,36 @@ class FollowApplicationServiceTest {
         assertThat(service.followeeCount(actorUserId, USER)).isEqualTo(0);
         assertThat(service.followerCount(USER, targetUserId)).isEqualTo(0);
         assertThat(publisher.snapshot()).hasSize(1);
+    }
+
+    @Test
+    void followShouldLockUserPairBeforeInspectingOrCreatingTheRelation() {
+        FollowRepository followRepository = mock(FollowRepository.class);
+        BlockRepository blockRepository = mock(BlockRepository.class);
+        SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
+        UUID actorUserId = uuid(1);
+        UUID targetUserId = uuid(2);
+        when(followRepository.follow(
+                org.mockito.ArgumentMatchers.eq(actorUserId),
+                org.mockito.ArgumentMatchers.eq(USER),
+                org.mockito.ArgumentMatchers.eq(targetUserId),
+                org.mockito.ArgumentMatchers.anyLong()
+        )).thenReturn(true);
+        FollowApplicationService service = newService(followRepository, blockRepository, publisher);
+
+        service.follow(new FollowCommand(actorUserId, USER, targetUserId));
+
+        InOrder writes = inOrder(blockRepository, followRepository);
+        writes.verify(blockRepository).lockUserPair(actorUserId, targetUserId);
+        writes.verify(followRepository).hasFollowed(actorUserId, USER, targetUserId);
+        writes.verify(blockRepository).hasBlocked(actorUserId, targetUserId);
+        writes.verify(blockRepository).hasBlocked(targetUserId, actorUserId);
+        writes.verify(followRepository).follow(
+                org.mockito.ArgumentMatchers.eq(actorUserId),
+                org.mockito.ArgumentMatchers.eq(USER),
+                org.mockito.ArgumentMatchers.eq(targetUserId),
+                org.mockito.ArgumentMatchers.anyLong()
+        );
     }
 
     @Test
@@ -490,6 +522,10 @@ class FollowApplicationServiceTest {
         private final ConcurrentHashMap<UUID, Set<UUID>> blocks = new ConcurrentHashMap<>();
 
         @Override
+        public void lockUserPair(UUID userIdA, UUID userIdB) {
+        }
+
+        @Override
         public boolean block(UUID userId, UUID targetUserId, long version) {
             return blocks.computeIfAbsent(userId, ignored -> ConcurrentHashMap.newKeySet()).add(targetUserId);
         }
@@ -523,7 +559,12 @@ class FollowApplicationServiceTest {
         }
 
         @Override
-        public List<BlockRelation> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit) {
+        public List<BlockRelation> scanBlocksAtVersionAfter(
+                long snapshotVersion,
+                UUID afterUserId,
+                UUID afterTargetUserId,
+                int limit
+        ) {
             return List.of();
         }
 

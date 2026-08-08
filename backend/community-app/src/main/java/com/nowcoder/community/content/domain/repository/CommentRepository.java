@@ -27,9 +27,31 @@ public interface CommentRepository {
 
     List<CommentSnapshot> getActiveThreadSnapshots(UUID rootCommentId);
 
+    /**
+     * Find deleted roots that still own active replies. The deleted root row is
+     * the durable work marker, so reconciliation survives process restarts.
+     */
+    default List<UUID> findDeletedRootIdsWithActiveReplies(int limit) {
+        return List.of();
+    }
+
     CommentTransitionStatus apply(CommentEdit edit);
 
     CommentDeletionResult apply(CommentDeletion deletion);
 
     CommentDeletionResult apply(CommentThreadDeletion deletion);
+
+    /**
+     * Tombstone a bounded page of active replies after a root has been deleted.
+     * Implementations must lock the selected rows before updating them.
+     */
+    default CommentDeletionResult deleteActiveReplyBatch(
+            UUID rootCommentId,
+            UUID deletedBy,
+            String deletedReason,
+            java.util.Date deletedTime,
+            int limit
+    ) {
+        return CommentDeletionResult.noOp();
+    }
 }

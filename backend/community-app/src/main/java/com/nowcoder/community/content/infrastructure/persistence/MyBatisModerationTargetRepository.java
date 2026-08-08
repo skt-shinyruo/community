@@ -40,7 +40,7 @@ public class MyBatisModerationTargetRepository implements ModerationTargetReposi
         }
         if (report.targetType() == EntityTypes.COMMENT) {
             CommentDataObject comment = commentMapper.selectById(report.targetId());
-            if (comment == null || comment.getStatus() != 0) {
+            if (comment == null) {
                 throw new BusinessException(COMMENT_NOT_FOUND);
             }
             return new ModerationTarget(report.targetType(), report.targetId(), comment.getUserId());

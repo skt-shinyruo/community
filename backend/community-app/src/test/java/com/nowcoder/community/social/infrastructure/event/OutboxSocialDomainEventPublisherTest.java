@@ -150,15 +150,14 @@ class OutboxSocialDomainEventPublisherTest {
     }
 
     @Test
-    void relationInstanceGateShouldPublishLifecycleIdentityForCreatedAndRemoved() {
+    void likeEventsShouldPublishLifecycleIdentityForCreatedAndRemoved() {
         JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
         SocialContractEventCodec contractEventCodec = new JacksonSocialContractEventCodec(jsonCodec);
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
                 contractEventCodec,
                 store,
-                TOPIC,
-                true
+                TOPIC
         );
         UUID actorUserId = uuid(31);
         UUID entityId = uuid(32);
@@ -188,28 +187,6 @@ class OutboxSocialDomainEventPublisherTest {
         assertThat(created.payload().getRelationKey()).isEqualTo(relationKey);
         assertThat(removed.payload().getRelationKey()).isEqualTo(relationKey);
         assertThat(eventIdCaptor.getAllValues()).doesNotHaveDuplicates();
-    }
-
-    @Test
-    void disabledRelationInstanceGateShouldKeepLegacyPayloadShape() throws Exception {
-        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
-        OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
-                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
-                store,
-                TOPIC,
-                false
-        );
-
-        publisher.publishLikeChanged(new LikeChangedDomainEvent(
-                uuid(35), EntityTypes.POST, uuid(36), uuid(37), uuid(36),
-                "like:" + uuid(35) + ":" + EntityTypes.POST + ":" + uuid(36),
-                uuid(38), true, Instant.EPOCH
-        ));
-
-        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
-        verify(store).enqueue(any(), eq(TOPIC), eq(EntityTypes.POST + ":" + uuid(36)), payloadCaptor.capture());
-        JsonNode payload = JsonMappers.standard().readTree(payloadCaptor.getValue()).path("payload");
-        assertThat(payload.has("relationInstanceId")).isFalse();
     }
 
     @Test

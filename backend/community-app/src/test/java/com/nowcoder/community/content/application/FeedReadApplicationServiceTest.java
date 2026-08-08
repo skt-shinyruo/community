@@ -1,5 +1,7 @@
 package com.nowcoder.community.content.application;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.content.application.result.FeedPageResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.Comment;
@@ -42,13 +44,19 @@ class FeedReadApplicationServiceTest {
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
         when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
         UUID firstPostId = uuid(1);
         UUID secondPostId = uuid(2);
         UUID extraPostId = uuid(3);
+        DiscussPost firstPost = post(firstPostId, "<first>");
+        firstPost.setScore(20.0);
+        DiscussPost secondPost = post(secondPostId, "<second>");
+        secondPost.setScore(10.0);
+        DiscussPost extraPost = post(extraPostId, "<extra>");
+        extraPost.setScore(5.0);
 
         when(postFeedCache.readGlobalHotIds("", 2))
                 .thenReturn(List.of(firstPostId, secondPostId));
@@ -56,7 +64,9 @@ class FeedReadApplicationServiceTest {
                 .thenReturn(List.of(extraPostId));
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
         when(postContentRepository.listPostsByIds(List.of(firstPostId, secondPostId)))
-                .thenReturn(List.of(post(firstPostId, "<first>"), post(secondPostId, "<second>")));
+                .thenReturn(List.of(firstPost, secondPost));
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(List.of(firstPost, secondPost, extraPost));
         when(commentContentRepository.getLatestPostActivitiesByPostIds(List.of(firstPostId, secondPostId)))
                 .thenReturn(Map.of(firstPostId, lastActivity(uuid(11), "<reply>")));
         when(tagContentRepository.getTagsByPostIds(List.of(firstPostId, secondPostId)))
@@ -101,7 +111,7 @@ class FeedReadApplicationServiceTest {
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
         when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
@@ -150,7 +160,7 @@ class FeedReadApplicationServiceTest {
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
         when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
@@ -189,12 +199,16 @@ class FeedReadApplicationServiceTest {
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
         when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
         List<DiscussPost> allPosts = IntStream.rangeClosed(1, 4)
-                .mapToObj(i -> post(uuid(i), "<post-" + i + ">"))
+                .mapToObj(i -> {
+                    DiscussPost post = post(uuid(i), "<post-" + i + ">");
+                    post.setScore(100.0 - i);
+                    return post;
+                })
                 .toList();
 
         when(postFeedCache.readGlobalHotIds("", 2))
@@ -205,6 +219,17 @@ class FeedReadApplicationServiceTest {
                 .thenReturn(allPosts.subList(0, 2));
         when(postContentRepository.listPostsByIds(List.of(uuid(3), uuid(4))))
                 .thenReturn(allPosts.subList(2, 4));
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(allPosts.subList(0, 3));
+        DiscussPost secondBoundary = allPosts.get(1);
+        when(postContentRepository.listHotPostsAfter(
+                secondBoundary.getType(),
+                secondBoundary.getScore(),
+                secondBoundary.getCreateTime(),
+                secondBoundary.getId(),
+                3,
+                null
+        )).thenReturn(allPosts.subList(2, 4));
         mockSummaryDependencies(commentContentRepository, tagContentRepository, postContentBlockRepository, postContentBlockTextProjector, allPosts);
 
         FeedReadApplicationService service = new FeedReadApplicationService(
@@ -227,6 +252,95 @@ class FeedReadApplicationServiceTest {
     }
 
     @Test
+    void cachedPageShouldUseAuthoritativeRankTupleBeforeDatabaseFallback() {
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
+        ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
+        when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
+
+        UUID pinnedId = uuid(90);
+        UUID boundaryId = uuid(82);
+        UUID nextId = uuid(81);
+        DiscussPost pinned = post(pinnedId, "<pinned>");
+        pinned.setType(1);
+        pinned.setScore(10.0);
+        pinned.setCreateTime(new Date(5_000L));
+        DiscussPost boundary = post(boundaryId, "<boundary>");
+        boundary.setScore(50.0);
+        boundary.setCreateTime(new Date(4_000L));
+        DiscussPost next = post(nextId, "<next>");
+        next.setScore(50.0);
+        next.setCreateTime(new Date(4_000L));
+
+        String secondPageOffset = feedCursorCodec.encodePage(1, 2);
+        when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of(pinnedId, boundaryId));
+        when(postFeedCache.readGlobalHotIds(secondPageOffset, 2))
+                .thenReturn(List.of(nextId))
+                .thenThrow(new IllegalStateException("redis unavailable"));
+        when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
+        when(postSummaryCache.getAll(List.of(pinnedId, boundaryId))).thenReturn(Map.of(
+                pinnedId, summaryWithRank(pinnedId, "<cached-pinned>", 0, 999.0, new Date(9_000L)),
+                boundaryId, summaryWithRank(boundaryId, "<cached-boundary>", 1, 998.0, new Date(8_000L))
+        ));
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(List.of(pinned, boundary, next));
+        when(postContentRepository.listHotPostsAfter(
+                boundary.getType(),
+                boundary.getScore(),
+                boundary.getCreateTime(),
+                boundary.getId(),
+                3,
+                null
+        )).thenReturn(List.of(next));
+        mockSummaryDependencies(
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postContentBlockTextProjector,
+                List.of(next)
+        );
+
+        FeedReadApplicationService service = new FeedReadApplicationService(
+                postFeedCache,
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec
+        );
+
+        FeedPageResult firstPage = service.listGlobalHotFeed(null, "", 2);
+        FeedCursorCodec.CursorState cursor = feedCursorCodec.decode(firstPage.nextCursor());
+        FeedPageResult secondPage = service.listGlobalHotFeed(null, firstPage.nextCursor(), 2);
+
+        assertThat(firstPage.items()).extracting(PostSummaryResult::id).containsExactly(pinnedId, boundaryId);
+        assertThat(firstPage.items().get(0).type()).isEqualTo(1);
+        assertThat(firstPage.items().get(1).score()).isEqualTo(50.0);
+        assertThat(cursor.hotBoundary()).isEqualTo(new FeedCursorCodec.HotBoundary(
+                boundary.getType(), boundary.getScore(), boundary.getCreateTime(), boundary.getId()
+        ));
+        assertThat(secondPage.items()).extracting(PostSummaryResult::id).containsExactly(nextId);
+        verify(postContentRepository).listHotPostsAfter(
+                boundary.getType(),
+                boundary.getScore(),
+                boundary.getCreateTime(),
+                boundary.getId(),
+                3,
+                null
+        );
+    }
+
+    @Test
     void listGlobalHotFeedShouldTreatInvalidCursorAsFirstPage() {
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
@@ -235,7 +349,7 @@ class FeedReadApplicationServiceTest {
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
         when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
@@ -276,7 +390,7 @@ class FeedReadApplicationServiceTest {
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
         when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
@@ -288,8 +402,8 @@ class FeedReadApplicationServiceTest {
 
         when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
-        when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(posts);
-        when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(posts);
         mockSummaryDependencies(commentContentRepository, tagContentRepository, postContentBlockRepository, postContentBlockTextProjector, posts);
 
         FeedReadApplicationService service = new FeedReadApplicationService(
@@ -313,6 +427,80 @@ class FeedReadApplicationServiceTest {
     }
 
     @Test
+    void repositoryFallbackShouldUseOneRowLookaheadThenContinueWithKeysetBoundary() {
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
+        ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
+        when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
+        DiscussPost first = post(uuid(71), "<first>");
+        first.setScore(90.0);
+        DiscussPost second = post(uuid(72), "<second>");
+        second.setScore(80.0);
+        DiscussPost third = post(uuid(73), "<third>");
+        third.setScore(70.0);
+
+        when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(List.of(first, second, third));
+        when(postContentRepository.listHotPostsAfter(
+                second.getType(),
+                second.getScore(),
+                second.getCreateTime(),
+                second.getId(),
+                3,
+                null
+        )).thenReturn(List.of(third));
+        mockSummaryDependencies(
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postContentBlockTextProjector,
+                List.of(first, second, third)
+        );
+
+        FeedReadApplicationService service = new FeedReadApplicationService(
+                postFeedCache,
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec
+        );
+
+        FeedPageResult firstPage = service.listGlobalHotFeed(null, "", 2);
+        FeedCursorCodec.CursorState next = feedCursorCodec.decode(firstPage.nextCursor());
+        when(postFeedCache.readGlobalHotIds(feedCursorCodec.encodePage(1, 2), 2)).thenReturn(List.of());
+        FeedPageResult secondPage = service.listGlobalHotFeed(null, firstPage.nextCursor(), 2);
+
+        assertThat(firstPage.items()).extracting(PostSummaryResult::id).containsExactly(first.getId(), second.getId());
+        assertThat(next.page()).isEqualTo(1);
+        assertThat(next.hotBoundary()).isEqualTo(new FeedCursorCodec.HotBoundary(
+                second.getType(), second.getScore(), second.getCreateTime(), second.getId()
+        ));
+        assertThat(secondPage.items()).extracting(PostSummaryResult::id).containsExactly(third.getId());
+        assertThat(secondPage.nextCursor()).isEmpty();
+        verify(postContentRepository).listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null);
+        verify(postContentRepository).listHotPostsAfter(
+                second.getType(),
+                second.getScore(),
+                second.getCreateTime(),
+                second.getId(),
+                3,
+                null
+        );
+    }
+
+    @Test
     void listGlobalHotFeedShouldNotFallbackToRepositoryWhenLatestFallbackDisabled() {
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
@@ -321,7 +509,7 @@ class FeedReadApplicationServiceTest {
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
         when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
@@ -368,7 +556,7 @@ class FeedReadApplicationServiceTest {
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
         when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
@@ -380,8 +568,8 @@ class FeedReadApplicationServiceTest {
 
         when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
-        when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(posts);
-        when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(posts);
         mockSummaryDependencies(commentContentRepository, tagContentRepository, postContentBlockRepository, postContentBlockTextProjector, posts);
 
         FeedReadApplicationService service = new FeedReadApplicationService(
@@ -413,7 +601,7 @@ class FeedReadApplicationServiceTest {
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
         when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
@@ -423,10 +611,8 @@ class FeedReadApplicationServiceTest {
         boardPost.setScore(77.0);
 
         when(postFeedCache.readBoardHotIds(boardId, "", 2)).thenReturn(List.of());
-        when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT, boardId, null))
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, boardId, null))
                 .thenReturn(List.of(boardPost));
-        when(postContentRepository.listPosts(1, 2, PostContentRepository.ORDER_HOT, boardId, null))
-                .thenReturn(List.of());
         mockSummaryDependencies(
                 commentContentRepository,
                 tagContentRepository,
@@ -463,7 +649,7 @@ class FeedReadApplicationServiceTest {
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
         when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
@@ -517,14 +703,15 @@ class FeedReadApplicationServiceTest {
         PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
-        FeedCursorCodec feedCursorCodec = new FeedCursorCodec();
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
         when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
 
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
         when(postFeedCache.readGlobalHotIds("", 20)).thenReturn(List.of());
-        when(postContentRepository.listPosts(0, 20, PostContentRepository.ORDER_HOT)).thenReturn(List.of());
+        when(postContentRepository.listPosts(0, 20, 21, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(List.of());
 
         FeedReadApplicationService service = new FeedReadApplicationService(
                 postFeedCache,
@@ -578,6 +765,32 @@ class FeedReadApplicationServiceTest {
                 0,
                 0.0,
                 categoryId,
+                List.of(),
+                null,
+                null,
+                null,
+                ""
+        );
+    }
+
+    private static PostSummaryResult summaryWithRank(
+            UUID postId,
+            String title,
+            int type,
+            double score,
+            Date createTime
+    ) {
+        return new PostSummaryResult(
+                postId,
+                uuid(100),
+                title,
+                "<preview>",
+                type,
+                0,
+                createTime,
+                0,
+                score,
+                uuid(200),
                 List.of(),
                 null,
                 null,

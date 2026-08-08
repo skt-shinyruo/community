@@ -63,7 +63,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         verify(postContentRepository).updateScore(uuid(200), 88.5, 7L);
         verify(postFeedCache).upsertGlobalHot(uuid(200), 88.5, "hot-v2", 7L, 8L);
         verify(postFeedCache).upsertBoardHot(uuid(10), uuid(200), 88.5, "hot-v2", 7L, 8L);
-        verify(postCounterCache).updateScore(uuid(200), 88.5);
+        verify(postCounterCache).markDirty(uuid(200));
         verify(postSummaryCache).evictAll(List.of(uuid(200)), 7L, 8L);
         verify(postDetailCache).evict(uuid(200), 7L);
     }
@@ -869,7 +869,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         verify(postFeedCache).remove(uuid(205), null, 7L);
         verify(postFeedCache).upsertGlobalHot(uuid(205), 51.0, "hot-v2", 7L, 8L);
         verify(postFeedCache).upsertBoardHot(uuid(15), uuid(205), 51.0, "hot-v2", 7L, 8L);
-        verify(postCounterCache).updateScore(uuid(205), 51.0);
+        verify(postCounterCache).markDirty(uuid(205));
     }
 
     private static ContentFeedPolicyProperties policyProperties() {

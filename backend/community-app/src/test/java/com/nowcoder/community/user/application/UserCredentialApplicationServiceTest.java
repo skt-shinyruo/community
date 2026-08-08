@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.application.port.UsernameAuthenticationSubjectPort;
 import com.nowcoder.community.user.application.result.UserAuthenticationResult;
 import com.nowcoder.community.user.application.result.UserCredentialResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
@@ -22,6 +23,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.SERVICE_UNAVAILABLE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,6 +40,37 @@ class UserCredentialApplicationServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private UsernameAuthenticationSubjectPort usernameAuthenticationSubjectPort;
+
+    @Test
+    void authenticationSubjectShouldBeDerivedWithoutLookingUpAccountExistence() {
+        UserCredentialApplicationService service = service();
+        when(usernameAuthenticationSubjectPort.resolve("Alice"))
+                .thenReturn("utf8mb4_unicode_ci:v1:abc123");
+
+        String subject = service.authenticationSubject(" Alice ");
+
+        assertThat(subject).isEqualTo("utf8mb4_unicode_ci:v1:abc123");
+        verify(usernameAuthenticationSubjectPort).resolve("Alice");
+        verifyNoInteractions(userRepository);
+    }
+
+    @Test
+    void authenticationSubjectShouldFailClosedWhenTheCollationResolverFails() {
+        UserCredentialApplicationService service = service();
+        when(usernameAuthenticationSubjectPort.resolve("alice"))
+                .thenThrow(new RuntimeException("database unavailable"));
+
+        assertThatThrownBy(() -> service.authenticationSubject("alice"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(SERVICE_UNAVAILABLE))
+                .hasRootCauseMessage("database unavailable");
+
+        verifyNoInteractions(userRepository);
+    }
+
     @Test
     void authenticateShouldRejectBlankCredentials() {
         UserCredentialApplicationService service = service();
@@ -50,15 +83,39 @@ class UserCredentialApplicationServiceTest {
     }
 
     @Test
-    void authenticateShouldRejectDisabledUser() {
+    void authenticateShouldRejectDisabledUserAfterPasswordMatches() {
         UserCredentialApplicationService service = service();
-        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(disabledUser(uuid(7), "alice")));
+        when(userRepository.findByUsername("alice"))
+                .thenReturn(Optional.of(disabledUser(uuid(7), "alice", "pw")));
 
         UserAuthenticationResult result = service.authenticate("alice", "pw");
 
         assertThat(result.failure()).isEqualTo(UserAuthenticationResult.Failure.USER_DISABLED);
         assertThat(result.user()).isNotNull();
         assertThat(result.user().username()).isEqualTo("alice");
+    }
+
+    @Test
+    void authenticateShouldNotRevealDisabledUserWhenPasswordIsWrong() {
+        UserCredentialApplicationService service = service();
+        when(userRepository.findByUsername("alice"))
+                .thenReturn(Optional.of(disabledUser(uuid(7), "alice", "correct-password")));
+
+        UserAuthenticationResult result = service.authenticate("alice", "wrong-password");
+
+        assertThat(result.failure()).isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+        assertThat(result.user()).isNull();
+    }
+
+    @Test
+    void authenticateShouldUseGenericInvalidCredentialsForMissingUser() {
+        UserCredentialApplicationService service = service();
+        when(userRepository.findByUsername("missing")).thenReturn(Optional.empty());
+
+        UserAuthenticationResult result = service.authenticate("missing", "wrong-password");
+
+        assertThat(result.failure()).isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+        assertThat(result.user()).isNull();
     }
 
     @Test
@@ -104,6 +161,64 @@ class UserCredentialApplicationServiceTest {
     }
 
     @Test
+    void authenticateShouldUseDummyHashForMalformedBcryptPrefix() {
+        UserCredentialApplicationService service = service();
+        UserAccount user = activeUser(uuid(7), "alice", "$2a$10$malformed", "");
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+
+        UserAuthenticationResult result = service.authenticate("alice", "secret12");
+
+        assertThat(result.failure()).isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+        assertThat(result.user()).isNull();
+    }
+
+    @Test
+    void malformedStoredHashMustNeverBecomeAuthenticatableThroughDummyHash() {
+        UserCredentialApplicationService service = service();
+        UserAccount user = activeUser(uuid(8), "alice", "not-a-bcrypt-hash", "");
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+
+        UserCredentialApplicationService.PreparedAuthentication preparation =
+                service.prepareAuthentication("alice");
+
+        assertThat(preparation.storedHashUsable()).isFalse();
+        assertThat(service.authenticate(preparation, "any-password").failure())
+                .isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+    }
+
+    @Test
+    void unsafeUsernameMustNotReachUserRepository() {
+        UserCredentialApplicationService service = service();
+
+        UserCredentialApplicationService.PreparedAuthentication preparation =
+                service.prepareAuthentication("alice\u200D");
+
+        assertThat(preparation.user()).isNull();
+        assertThat(preparation.storedHashUsable()).isFalse();
+        verifyNoInteractions(userRepository);
+    }
+
+    @Test
+    void safeAliasMustNotAuthenticateAnUnsafeStoredUsername() {
+        UserCredentialApplicationService service = service();
+        UserAccount unsafeStoredUser = activeUser(
+                uuid(7),
+                "a\u200Dlice",
+                new BCryptPasswordEncoder().encode("secret12"),
+                ""
+        );
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(unsafeStoredUser));
+
+        UserCredentialApplicationService.PreparedAuthentication preparation =
+                service.prepareAuthentication("alice");
+
+        assertThat(preparation.user()).isNull();
+        assertThat(preparation.storedHashUsable()).isFalse();
+        assertThat(service.authenticate(preparation, "secret12").failure())
+                .isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+    }
+
+    @Test
     void authenticateShouldNotTrimPasswordBeforeMatching() {
         UserCredentialApplicationService service = service();
         UUID userId = uuid(7);
@@ -133,6 +248,18 @@ class UserCredentialApplicationServiceTest {
                 UserCredentialResult::headerUrl,
                 UserCredentialResult::securityVersion
         ).containsExactly(userId, "alice", 1, 0, "h7", 0L);
+    }
+
+    @Test
+    void findByEmailShouldUseCanonicalLowercaseAddress() {
+        UserCredentialApplicationService service = service();
+        UserAccount user = activeUser(uuid(7), "alice", "encoded", "");
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
+
+        UserCredentialResult credential = service.findByEmailOrNull("  Alice@Example.COM  ");
+
+        assertThat(credential.email()).isEqualTo("alice@example.com");
+        verify(userRepository).findByEmail("alice@example.com");
     }
 
     @Test
@@ -171,6 +298,47 @@ class UserCredentialApplicationServiceTest {
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
         verify(userRepository).updatePassword(eq(userId), passwordCaptor.capture(), eq(123L));
         assertThat(new BCryptPasswordEncoder().matches("secret12", passwordCaptor.getValue())).isTrue();
+    }
+
+    @Test
+    void updatePasswordIfSecurityVersionShouldHashAndUseExpectedVersionCas() {
+        UserCredentialApplicationService service = service();
+        UUID userId = uuid(8);
+        when(userRepository.nextUserSecurityVersion(userId)).thenReturn(124L);
+        when(userRepository.updatePasswordIfSecurityVersion(
+                eq(userId),
+                any(String.class),
+                eq(124L),
+                eq(17L)
+        )).thenReturn(true);
+
+        assertThat(service.updatePasswordIfSecurityVersion(userId, "secret12", 17L)).isTrue();
+
+        ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
+        verify(userRepository).updatePasswordIfSecurityVersion(
+                eq(userId),
+                passwordCaptor.capture(),
+                eq(124L),
+                eq(17L)
+        );
+        assertThat(new BCryptPasswordEncoder().matches("secret12", passwordCaptor.getValue())).isTrue();
+    }
+
+    @Test
+    void updatePasswordIfSecurityVersionShouldReportStaleCasWithoutUnconditionalWrite() {
+        UserCredentialApplicationService service = service();
+        UUID userId = uuid(9);
+        when(userRepository.nextUserSecurityVersion(userId)).thenReturn(125L);
+        when(userRepository.updatePasswordIfSecurityVersion(
+                eq(userId),
+                any(String.class),
+                eq(125L),
+                eq(17L)
+        )).thenReturn(false);
+
+        assertThat(service.updatePasswordIfSecurityVersion(userId, "secret12", 17L)).isFalse();
+
+        verify(userRepository, never()).updatePassword(any(), any(), anyLong());
     }
 
     @Test
@@ -236,7 +404,8 @@ class UserCredentialApplicationServiceTest {
         return new UserCredentialApplicationService(
                 userRepository,
                 new UserCredentialDomainService(),
-                new PasswordPolicyDomainService()
+                new PasswordPolicyDomainService(),
+                usernameAuthenticationSubjectPort
         );
     }
 
@@ -244,8 +413,8 @@ class UserCredentialApplicationServiceTest {
         return new UserAccount(id, username, password, salt, username + "@example.com", 0, 1, "h7", Date.from(Instant.now()), null, null, 0L, 0L);
     }
 
-    private UserAccount disabledUser(UUID id, String username) {
-        UserAccount user = activeUser(id, username, "encoded", "");
+    private UserAccount disabledUser(UUID id, String username, String rawPassword) {
+        UserAccount user = activeUser(id, username, new BCryptPasswordEncoder().encode(rawPassword), "");
         return new UserAccount(user.id(), user.username(), user.encodedPassword(), user.salt(), user.email(), user.type(), 0, user.headerUrl(), user.createTime(), user.muteUntil(), user.banUntil(), user.policyVersion(), 0L);
     }
 

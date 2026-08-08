@@ -10,22 +10,31 @@ public interface PostCounterCache {
 
     PostCounterSnapshot get(UUID postId);
 
-    boolean markViewerSeen(UUID postId, String viewerKey, Instant viewedAt);
+    boolean isInitialized(UUID postId);
 
-    void incrementViewCount(UUID postId);
+    void initializeIfAbsent(PostCounterSnapshot baseline);
 
-    void incrementLikeCount(UUID postId, long delta);
+    boolean recordView(
+            UUID postId,
+            String viewerKey,
+            Instant viewedAt,
+            PostCounterSnapshot initializationBaseline
+    );
 
-    void incrementCommentCount(UUID postId, long delta);
-
-    void incrementBookmarkCount(UUID postId, long delta);
-
-    void updateScore(UUID postId, double score);
+    void markDirty(UUID postId);
 
     List<DirtyPost> dirtyPosts(int limit);
 
     void clearDirtyPosts(List<DirtyPost> dirtyPosts);
 
-    record DirtyPost(UUID postId, long revision) {
+    record DirtyPost(UUID postId, long revision, String queueId, long sourceRevision) {
+
+        public DirtyPost(UUID postId, long revision, String queueId) {
+            this(postId, revision, queueId, revision);
+        }
+
+        public DirtyPost(UUID postId, long revision) {
+            this(postId, revision, null, revision);
+        }
     }
 }

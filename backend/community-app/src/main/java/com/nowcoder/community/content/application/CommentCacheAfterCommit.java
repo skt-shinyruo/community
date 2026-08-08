@@ -31,7 +31,7 @@ public class CommentCacheAfterCommit {
                 "incrementCommentCount",
                 postId,
                 delta,
-                () -> postCounterCache.incrementCommentCount(postId, delta)
+                () -> postCounterCache.markDirty(postId)
         );
     }
 

@@ -10,10 +10,20 @@ class LoginRateLimitDomainServiceTest {
     private final LoginRateLimitDomainService service = new LoginRateLimitDomainService();
 
     @Test
-    void keyOfShouldNormalizeUsernameAndIp() {
+    void keyOfShouldTrimSubjectAndIpWithoutGuessingDatabaseCollation() {
         LoginRateLimitKey key = service.keyOf(" Alice ", " 127.0.0.1 ");
 
-        assertThat(key.username()).isEqualTo("alice");
+        assertThat(key.subject()).isEqualTo("Alice");
         assertThat(key.ip()).isEqualTo("127.0.0.1");
+    }
+
+    @Test
+    void keyOfShouldKeepDistinctInputsDistinctUntilTheOwnerReturnsAnAuthoritativeSubject() {
+        assertThat(service.keyOf("alice", null).subject())
+                .isNotEqualTo(service.keyOf("ałice", null).subject());
+        assertThat(service.keyOf("ae", null).subject())
+                .isNotEqualTo(service.keyOf("æ", null).subject());
+        assertThat(service.keyOf("は", null).subject())
+                .isNotEqualTo(service.keyOf("ハ", null).subject());
     }
 }

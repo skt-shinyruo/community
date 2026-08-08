@@ -28,7 +28,7 @@ import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
-import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
+import com.nowcoder.community.social.api.action.SocialInteractionActionApi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +47,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -54,6 +55,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -71,7 +73,7 @@ class CommentApplicationServiceTest {
     private PostCounterCache postCounterCache;
     private CommentPageCache commentPageCache;
     private PostCacheAfterCommit postCacheAfterCommit;
-    private SocialBlockQueryApi blockQueryApi;
+    private SocialInteractionActionApi interactionActionApi;
     private ContentEventPublisher eventPublisher;
     private CommentApplicationService service;
 
@@ -89,7 +91,7 @@ class CommentApplicationServiceTest {
         postCounterCache = mock(PostCounterCache.class);
         commentPageCache = mock(CommentPageCache.class);
         postCacheAfterCommit = mock(PostCacheAfterCommit.class);
-        blockQueryApi = mock(SocialBlockQueryApi.class);
+        interactionActionApi = mock(SocialInteractionActionApi.class);
         eventPublisher = mock(ContentEventPublisher.class);
         when(postContentPort.incrementActiveCommentCount(any(UUID.class), anyInt())).thenReturn(2L);
         service = new CommentApplicationService(
@@ -101,7 +103,7 @@ class CommentApplicationServiceTest {
                 commentRepository,
                 postContentPort,
                 new CommentCacheAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
-                blockQueryApi,
+                interactionActionApi,
                 eventPublisher
         );
     }
@@ -132,7 +134,6 @@ class CommentApplicationServiceTest {
                 any()
         )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post);
-        when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("hello &amp; world")).thenReturn("clean &amp; body");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
@@ -155,20 +156,20 @@ class CommentApplicationServiceTest {
         var inOrder = inOrder(
                 moderationGuard,
                 postContentPort,
-                blockQueryApi,
+                interactionActionApi,
                 commentRepository,
                 postCounterCache,
                 eventPublisher
         );
         inOrder.verify(moderationGuard).assertCanSpeak(userId);
         inOrder.verify(postContentPort).getById(postId);
-        inOrder.verify(blockQueryApi).isEitherBlocked(userId, postAuthorId);
+        inOrder.verify(interactionActionApi).assertInteractionAllowed(userId, postAuthorId);
         ArgumentCaptor<CommentDraft> draftCaptor = ArgumentCaptor.forClass(CommentDraft.class);
         inOrder.verify(postContentPort).incrementActiveCommentCount(postId, 1);
         inOrder.verify(commentRepository).create(draftCaptor.capture());
         ArgumentCaptor<CommentPayload> eventCaptor = ArgumentCaptor.forClass(CommentPayload.class);
         inOrder.verify(eventPublisher).publishCommentCreated(eventCaptor.capture());
-        inOrder.verify(postCounterCache).incrementCommentCount(postId, 1L);
+        inOrder.verify(postCounterCache).markDirty(postId);
 
         CommentDraft draft = draftCaptor.getValue();
         assertThat(draft.userId()).isEqualTo(userId);
@@ -208,7 +209,6 @@ class CommentApplicationServiceTest {
                 any()
         )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
-        when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("body")).thenReturn("body");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
@@ -255,7 +255,6 @@ class CommentApplicationServiceTest {
         when(store.saveSuccess(anyString(), any(), anyString(), anyString(), anyString(), any(Duration.class)))
                 .thenReturn(true);
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
-        when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("hi")).thenReturn("hi");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
         service = new CommentApplicationService(
@@ -267,7 +266,7 @@ class CommentApplicationServiceTest {
                 commentRepository,
                 postContentPort,
                 new CommentCacheAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
-                blockQueryApi,
+                interactionActionApi,
                 eventPublisher
         );
 
@@ -303,7 +302,6 @@ class CommentApplicationServiceTest {
         CreateCommentCommand command = new CreateCommentCommand(userId, postId, null, "body");
 
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
-        when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("body")).thenReturn("body");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
@@ -314,7 +312,7 @@ class CommentApplicationServiceTest {
         assertThat(replay.commentId()).isEqualTo(commentId);
         verify(commentRepository, times(1)).create(any(CommentDraft.class));
         verify(postContentPort, times(1)).incrementActiveCommentCount(postId, 1);
-        verify(postCounterCache, times(1)).incrementCommentCount(postId, 1L);
+        verify(postCounterCache, times(1)).markDirty(postId);
         verify(commentPageCache, times(1)).evictPost(postId);
         verify(postCacheAfterCommit, times(1)).evict(postId, 2L);
         verify(eventPublisher, times(1)).publishCommentCreated(any(CommentPayload.class));
@@ -329,7 +327,6 @@ class CommentApplicationServiceTest {
         UUID commentId = uuid(200);
 
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
-        when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("body")).thenReturn("body");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
@@ -377,7 +374,6 @@ class CommentApplicationServiceTest {
         when(postContentPort.getById(postId)).thenReturn(post(postId, uuid(2)));
         when(commentRepository.lockReplyContext(postId, rootCommentId))
                 .thenReturn(Optional.of(new CommentReplyContext(root, root)));
-        when(blockQueryApi.isEitherBlocked(userId, rootAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("reply")).thenReturn("reply");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
@@ -386,9 +382,9 @@ class CommentApplicationServiceTest {
                 new CreateCommentCommand(userId, postId, rootCommentId, "reply")
         );
 
-        var order = inOrder(commentRepository, blockQueryApi, sensitiveFilter);
+        var order = inOrder(commentRepository, interactionActionApi, sensitiveFilter);
         order.verify(commentRepository).lockReplyContext(postId, rootCommentId);
-        order.verify(blockQueryApi).isEitherBlocked(userId, rootAuthorId);
+        order.verify(interactionActionApi).assertInteractionAllowed(userId, rootAuthorId);
         order.verify(sensitiveFilter).filter("reply");
         ArgumentCaptor<CommentDraft> draftCaptor = ArgumentCaptor.forClass(CommentDraft.class);
         verify(commentRepository).create(draftCaptor.capture());
@@ -433,13 +429,12 @@ class CommentApplicationServiceTest {
         when(postContentPort.getById(postId)).thenReturn(post(postId, uuid(2)));
         when(commentRepository.lockReplyContext(postId, directParentId))
                 .thenReturn(Optional.of(new CommentReplyContext(directParent, root)));
-        when(blockQueryApi.isEitherBlocked(userId, directParentAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("reply")).thenReturn("reply");
         when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
 
         service.create("idem-parent-reply", new CreateCommentCommand(userId, postId, directParentId, "reply"));
 
-        verify(blockQueryApi).isEitherBlocked(userId, directParentAuthorId);
+        verify(interactionActionApi).assertInteractionAllowed(userId, directParentAuthorId);
         verify(commentRepository).create(org.mockito.ArgumentMatchers.argThat(draft ->
                 postId.equals(draft.postId())
                         && rootCommentId.equals(draft.rootCommentId())
@@ -478,7 +473,7 @@ class CommentApplicationServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
 
-        verify(blockQueryApi, never()).isEitherBlocked(any(), any());
+        verify(interactionActionApi, never()).assertInteractionAllowed(any(), any());
         verify(sensitiveFilter, never()).filter(anyString());
         verify(commentRepository, never()).create(any(CommentDraft.class));
         verify(postContentPort, never()).incrementActiveCommentCount(any(UUID.class), anyInt());
@@ -501,7 +496,8 @@ class CommentApplicationServiceTest {
                 any()
         )).thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(6).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
-        when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(true);
+        doThrow(new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作"))
+                .when(interactionActionApi).assertInteractionAllowed(userId, postAuthorId);
 
         assertThatThrownBy(() -> service.create(
                 "idem-3",
@@ -579,7 +575,7 @@ class CommentApplicationServiceTest {
 
         commitTransactionSynchronization();
 
-        verify(postCounterCache).incrementCommentCount(postId, -3L);
+        verify(postCounterCache).markDirty(postId);
         verify(commentPageCache).evictPost(postId);
         verify(postCacheAfterCommit).evict(postId, 2L);
     }
@@ -687,6 +683,49 @@ class CommentApplicationServiceTest {
         verify(eventPublisher, never()).publishCommentDeleted(any());
     }
 
+    @Test
+    void boundedModeratorDeletionShouldSurfaceStaleInsteadOfRecordingSuccess() {
+        UUID moderatorId = uuid(91);
+        UUID postId = uuid(100);
+        UUID commentId = uuid(200);
+        CommentDeletionTransactionOperations deletionOperations =
+                useBoundedDeletionOperations();
+        when(commentRepository.findSnapshot(commentId))
+                .thenReturn(Optional.of(rootComment(commentId, uuid(1), postId)));
+        when(deletionOperations.deleteRoot(any(CommentDeletion.class), eq(postId)))
+                .thenReturn(CommentDeletionResult.stale());
+
+        assertThatThrownBy(() -> service.deleteByModeration(
+                moderatorId, commentId, "hide: spam"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("comment transition stale");
+
+        verify(deletionOperations, never()).deleteReplyBatch(
+                any(), any(), any(), anyString(), any(), anyInt());
+    }
+
+    @Test
+    void boundedModeratorDeletionShouldSurfaceMissingTarget() {
+        UUID moderatorId = uuid(91);
+        UUID postId = uuid(100);
+        UUID commentId = uuid(200);
+        CommentDeletionTransactionOperations deletionOperations =
+                useBoundedDeletionOperations();
+        when(commentRepository.findSnapshot(commentId))
+                .thenReturn(Optional.of(rootComment(commentId, uuid(1), postId)));
+        when(deletionOperations.deleteRoot(any(CommentDeletion.class), eq(postId)))
+                .thenReturn(CommentDeletionResult.notFound());
+
+        assertThatThrownBy(() -> service.deleteByModeration(
+                moderatorId, commentId, "hide: spam"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(ContentErrorCode.COMMENT_NOT_FOUND));
+
+        verify(deletionOperations, never()).deleteReplyBatch(
+                any(), any(), any(), anyString(), any(), anyInt());
+    }
+
     private static DiscussPost post(UUID postId, UUID authorId) {
         DiscussPost post = new DiscussPost();
         post.setId(postId);
@@ -751,9 +790,28 @@ class CommentApplicationServiceTest {
                 commentRepository,
                 postContentPort,
                 new CommentCacheAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
-                blockQueryApi,
+                interactionActionApi,
                 eventPublisher
         );
+    }
+
+    private CommentDeletionTransactionOperations useBoundedDeletionOperations() {
+        CommentDeletionTransactionOperations deletionOperations =
+                mock(CommentDeletionTransactionOperations.class);
+        service = new CommentApplicationService(
+                sensitiveFilter,
+                idempotencyGuard,
+                new SpringHtmlContentTextCodec(),
+                moderationGuard,
+                new CommentDomainService(),
+                commentRepository,
+                postContentPort,
+                new CommentCacheAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
+                interactionActionApi,
+                eventPublisher,
+                deletionOperations
+        );
+        return deletionOperations;
     }
 
     private void beginTransactionSynchronization() {

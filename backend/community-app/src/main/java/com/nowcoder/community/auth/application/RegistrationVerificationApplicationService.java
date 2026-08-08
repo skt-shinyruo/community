@@ -2,7 +2,7 @@ package com.nowcoder.community.auth.application;
 
 import com.nowcoder.community.auth.application.command.ResendRegisterCodeCommand;
 import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand;
-import com.nowcoder.community.auth.application.port.MailPort;
+import com.nowcoder.community.auth.application.port.RegistrationCodeMailDispatcher;
 import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
 import com.nowcoder.community.auth.config.RegistrationProperties;
@@ -32,37 +32,39 @@ import java.util.UUID;
 public class RegistrationVerificationApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(RegistrationVerificationApplicationService.class);
-
     private final UserRegistrationActionApi userRegistrationActionApi;
     private final RegistrationProperties properties;
     private final RegistrationCodeRepository registrationCodeStore;
-    private final MailPort mailService;
+    private final RegistrationCodeMailDispatcher mailDispatcher;
     private final CaptchaChallengeComponent captchaChallenge;
     private final RegistrationDraftRepository registrationDraftRepository;
     private final LoginTokenIssuer loginTokenIssuer;
     private final AuthSecretGenerator authSecretGenerator;
     private final RegistrationDomainService registrationDomainService;
+    private final RegistrationRequestRateLimiter registrationRequestRateLimiter;
 
     public RegistrationVerificationApplicationService(
             UserRegistrationActionApi userRegistrationActionApi,
             RegistrationProperties properties,
             RegistrationCodeRepository registrationCodeStore,
-            MailPort mailService,
+            RegistrationCodeMailDispatcher mailDispatcher,
             CaptchaChallengeComponent captchaChallenge,
             RegistrationDraftRepository registrationDraftRepository,
             LoginTokenIssuer loginTokenIssuer,
             AuthSecretGenerator authSecretGenerator,
-            RegistrationDomainService registrationDomainService
+            RegistrationDomainService registrationDomainService,
+            RegistrationRequestRateLimiter registrationRequestRateLimiter
     ) {
         this.userRegistrationActionApi = userRegistrationActionApi;
         this.properties = properties;
         this.registrationCodeStore = registrationCodeStore;
-        this.mailService = mailService;
+        this.mailDispatcher = mailDispatcher;
         this.captchaChallenge = captchaChallenge;
         this.registrationDraftRepository = registrationDraftRepository;
         this.loginTokenIssuer = loginTokenIssuer;
         this.authSecretGenerator = authSecretGenerator;
         this.registrationDomainService = registrationDomainService;
+        this.registrationRequestRateLimiter = registrationRequestRateLimiter;
     }
 
     public RegisterCodeResendResult resendCode(ResendRegisterCodeCommand command) {
@@ -73,19 +75,31 @@ public class RegistrationVerificationApplicationService {
         captchaChallenge.requireValidCaptcha(captchaId, captchaCode);
 
         PreparedRegistrationDraft draft = resolveDraftOrThrow(registrationToken);
+        registrationRequestRateLimiter.enforceResend(
+                draft.userId(), draft.email(), command.clientIp());
 
         String code = generateCode();
-        Duration ttl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
+        Duration ttl = codeTtlWithinDraftLifetime(registrationToken, draft);
         Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
-        RegistrationCodeRepository.IssueResult issueResult = registrationCodeStore.beginReplacement(draft.userId(), code, ttl, cooldown);
+        UUID leaseId = UUID.randomUUID();
+        Instant issuedAt = Instant.now();
+        Instant leaseExpiresAt = issuedAt.plus(operationLeaseTtl());
+        RegistrationCodeRepository.IssueResult issueResult = registrationCodeStore.beginReplacement(
+                draft.userId(), code, ttl, cooldown, leaseExpiresAt, leaseId);
         if (issueResult == RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_RESEND_COOLDOWN);
         }
         try {
-            mailService.sendRegistrationCodeMail(draft.email(), code);
-            registrationCodeStore.promoteReplacement(draft.userId());
+            mailDispatcher.dispatch(new RegistrationCodeMailDispatcher.Delivery(
+                    leaseId,
+                    draft.userId(),
+                    leaseId,
+                    draft.email(),
+                    code,
+                    issuedAt.plus(ttl)
+            ));
         } catch (RuntimeException ex) {
-            registrationCodeStore.abortReplacement(draft.userId());
+            registrationCodeStore.abortReplacement(draft.userId(), leaseId);
             throw ex;
         }
 
@@ -106,12 +120,14 @@ public class RegistrationVerificationApplicationService {
 
         PreparedRegistrationDraft draft = resolveDraftOrThrow(registrationToken);
 
-        Duration pendingTtl = Duration.ofSeconds(60);
-        RegistrationCodeRepository.VerifyResult result = registrationCodeStore.verifyForConsumption(draft.userId(), code.trim(), pendingTtl);
+        UUID leaseId = UUID.randomUUID();
+        Instant leaseExpiresAt = Instant.now().plus(operationLeaseTtl());
+        RegistrationCodeRepository.VerifyResult result = registrationCodeStore.verifyForConsumption(
+                draft.userId(), code.trim(), leaseExpiresAt, leaseId);
         if (result == RegistrationCodeRepository.VerifyResult.PENDING) {
-            boolean activated = false;
+            UserRegistrationActionApi.VerifiedRegistrationResult activation;
             try {
-                UserCredentialView activatedUser = userRegistrationActionApi.createVerifiedRegistrationUser(
+                activation = userRegistrationActionApi.createVerifiedRegistrationUser(
                         new VerifiedRegistrationUserCommand(
                                 draft.userId(),
                                 draft.username(),
@@ -120,26 +136,42 @@ public class RegistrationVerificationApplicationService {
                                 draft.headerUrl()
                         )
                 );
-                if (activatedUser == null || activatedUser.userId() == null) {
+                if (activation == null || activation.user() == null || activation.user().userId() == null) {
                     throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
                 }
-                activated = true;
+            } catch (RuntimeException ex) {
+                registrationCodeStore.restorePending(draft.userId(), leaseId);
+                throw ex;
+            }
+
+            UserCredentialView activatedUser = activation.user();
+            retainActivatedDraftOrThrow(registrationToken, draft);
+
+            boolean consumed;
+            try {
+                consumed = registrationCodeStore.consumePending(draft.userId(), leaseId);
+            } catch (RuntimeException ex) {
+                throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED, ex);
+            }
+            if (!consumed) {
+                throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
+            }
+
+            if (!activation.created()) {
+                throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
+            }
+            if (!activatedUser.loginAllowed() || !activatedUser.refreshAllowed()) {
+                throw new BusinessException(AuthErrorCode.USER_DISABLED);
+            }
+
+            try {
                 LoginResult loginResult = loginTokenIssuer.issueLoginResult(activatedUser);
                 SecurityEventLogger.info(log, "registration_verify", "success",
                         "user.id", activatedUser.userId(),
                         "username", activatedUser.username());
                 return loginResult;
             } catch (RuntimeException ex) {
-                if (activated) {
-                    throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED, ex);
-                }
-                registrationCodeStore.restorePending(draft.userId());
-                throw ex;
-            } finally {
-                if (activated) {
-                    consumePendingQuietly(draft.userId());
-                    deleteDraftQuietly(registrationToken);
-                }
+                throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED, ex);
             }
         }
         if (result == RegistrationCodeRepository.VerifyResult.EXPIRED) {
@@ -163,12 +195,38 @@ public class RegistrationVerificationApplicationService {
         }
         String token = registrationToken.trim();
         PreparedRegistrationDraft draft = registrationDraftRepository.find(token)
-                .orElseThrow(() -> new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID));
+                .orElse(null);
+        if (draft == null) {
+            if (registrationDraftRepository.findActivatedUserId(token).isPresent()) {
+                throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
+            }
+            throw new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
+        }
         if (!isUsableDraft(draft)) {
             deleteDraftQuietly(token);
             throw new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
         }
         return draft;
+    }
+
+    private void retainActivatedDraftOrThrow(
+            String registrationToken,
+            PreparedRegistrationDraft draft
+    ) {
+        Duration remaining = Duration.between(Instant.now(), draft.expiresAt());
+        if (remaining.isNegative() || remaining.isZero() || remaining.toMillis() <= 0) {
+            throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
+        }
+        try {
+            if (!registrationDraftRepository.markActivated(
+                    registrationToken.trim(), draft.userId(), remaining)) {
+                throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
+            }
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED, exception);
+        }
     }
 
     private boolean isUsableDraft(PreparedRegistrationDraft draft) {
@@ -179,6 +237,17 @@ public class RegistrationVerificationApplicationService {
                 && StringUtils.hasText(draft.encodedPassword())
                 && draft.expiresAt() != null
                 && Instant.now().isBefore(draft.expiresAt());
+    }
+
+    private Duration codeTtlWithinDraftLifetime(String registrationToken, PreparedRegistrationDraft draft) {
+        Duration configuredTtl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
+        Duration draftRemainingTtl = Duration.between(Instant.now(), draft.expiresAt());
+        if (draftRemainingTtl.isNegative() || draftRemainingTtl.isZero()
+                || draftRemainingTtl.compareTo(operationLeaseTtl()) <= 0) {
+            deleteDraftQuietly(registrationToken);
+            throw new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
+        }
+        return configuredTtl.compareTo(draftRemainingTtl) <= 0 ? configuredTtl : draftRemainingTtl;
     }
 
     private void deleteDraftQuietly(String registrationToken) {
@@ -192,19 +261,12 @@ public class RegistrationVerificationApplicationService {
         }
     }
 
-    private void consumePendingQuietly(UUID userId) {
-        if (userId == null || registrationCodeStore == null) {
-            return;
-        }
-        try {
-            registrationCodeStore.consumePending(userId);
-        } catch (RuntimeException ignored) {
-            // best-effort cleanup
-        }
-    }
-
     private String generateCode() {
         return authSecretGenerator.numericCode(6);
+    }
+
+    private Duration operationLeaseTtl() {
+        return Duration.ofSeconds(Math.max(60, properties.getCode().getOperationLeaseSeconds()));
     }
 
 }

@@ -10,10 +10,12 @@ import com.nowcoder.community.user.domain.model.UserModerationStatus;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserModerationDomainService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -53,10 +55,21 @@ public class UserModerationApplicationService implements UserModerationActionApi
     }
 
     @Override
-    public List<UserModerationStateView> scanModerationStatesAfterId(UUID afterUserId, int limit) {
+    public List<UserModerationStateView> scanModerationStatesAtVersionAfterId(
+            long snapshotVersion,
+            UUID afterUserId,
+            int limit
+    ) {
+        if (snapshotVersion < 0L) {
+            throw new IllegalArgumentException("snapshotVersion must be non-negative");
+        }
         UUID normalizedAfterUserId = afterUserId == null ? ZERO_UUID : afterUserId;
         int normalizedLimit = Math.min(500, Math.max(1, limit));
-        return userRepository.scanModerationStatesAfterId(normalizedAfterUserId, normalizedLimit).stream()
+        return userRepository.scanModerationStatesAtVersionAfterId(
+                        snapshotVersion,
+                        normalizedAfterUserId,
+                        normalizedLimit
+                ).stream()
                 .filter(status -> status != null && status.userId() != null)
                 .map(this::toView)
                 .toList();
@@ -67,27 +80,42 @@ public class UserModerationApplicationService implements UserModerationActionApi
         return userRepository.currentUserPolicyVersion();
     }
 
-    private UserModerationStatus applyModerationInternal(UUID userId, String rawAction, int durationSeconds) {
-        if (userId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void assertActiveModerationActor(UUID actorUserId) {
+        requireActiveModerationActorForUpdate(actorUserId, Instant.now());
+    }
+
+    private UserModerationStatus applyModerationInternal(UserModerationActionApi.ApplyModerationCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.actorUserId() == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
         }
-        String action = userModerationDomainService.requireNonBlankAction(rawAction);
-        UserAccount user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
+        if (command.targetUserId() == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "targetUserId 非法");
+        }
+        String action = userModerationDomainService.requireNonBlankAction(command.action());
 
         Instant now = Instant.now();
+        UserAccount actor = requireActiveModerationActorForUpdate(command.actorUserId(), now);
+        UserAccount user = command.targetUserId().equals(command.actorUserId())
+                ? actor
+                : userRepository.findByIdForUpdate(command.targetUserId())
+                        .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
+
+        userModerationDomainService.requireModerationHierarchy(actor, user);
         boolean wasActivelyBanned = isActiveBan(user.banUntil(), now);
         Instant previousBanUntil = user.banUntil();
         UserModerationStatus next = userModerationDomainService.applyModeration(
                 toStatus(user),
                 action,
-                durationSeconds,
+                command.durationSeconds(),
                 now
         );
-        long version = userRepository.nextUserPolicyVersion(userId);
         boolean isActivelyBanned = isActiveBan(next.banUntil(), now);
         boolean activeBanChanged = isActivelyBanned && (!wasActivelyBanned || !sameInstant(previousBanUntil, next.banUntil()));
-        long securityVersion = activeBanChanged ? userRepository.nextUserSecurityVersion(userId) : 0L;
+        long securityVersion = activeBanChanged ? userRepository.nextUserSecurityVersion(command.targetUserId()) : 0L;
+        long version = userRepository.nextUserPolicyVersion(command.targetUserId());
         UserModerationStatus versionedNext = new UserModerationStatus(
                 next.userId(),
                 next.muteUntil(),
@@ -95,7 +123,7 @@ public class UserModerationApplicationService implements UserModerationActionApi
                 version
         );
         userRepository.updateModerationUntil(
-                userId,
+                command.targetUserId(),
                 versionedNext.muteUntil(),
                 versionedNext.banUntil(),
                 version,
@@ -104,6 +132,16 @@ public class UserModerationApplicationService implements UserModerationActionApi
         );
         userPolicyEventPublisher.publishUserPolicyChanged(versionedNext, Instant.now());
         return versionedNext;
+    }
+
+    private UserAccount requireActiveModerationActorForUpdate(UUID actorUserId, Instant now) {
+        if (actorUserId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
+        }
+        userRepository.lockRoleManagement();
+        UserAccount actor = userRepository.findByIdForUpdate(actorUserId).orElse(null);
+        userModerationDomainService.requireActiveModerationActor(actor, now);
+        return actor;
     }
 
     private UserModerationStatus toStatus(UserAccount user) {
@@ -124,7 +162,7 @@ public class UserModerationApplicationService implements UserModerationActionApi
 
     @Override
     @Transactional
-    public UserModerationStateView applyModeration(UUID userId, String action, int durationSeconds) {
-        return toView(applyModerationInternal(userId, action, durationSeconds));
+    public UserModerationStateView applyModeration(UserModerationActionApi.ApplyModerationCommand command) {
+        return toView(applyModerationInternal(command));
     }
 }

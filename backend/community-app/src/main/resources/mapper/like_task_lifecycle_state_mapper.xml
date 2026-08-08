@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.growth.infrastructure.persistence.mapper.LikeTaskLifecycleStateMapper">
+
+    <insert id="ensureSlot">
+        insert into growth_like_task_lifecycle_state(
+            recipient_user_id, relation_key, source_version, active, update_time
+        )
+        values (#{recipientUserId, jdbcType=BINARY}, #{relationKey}, 0, null, current_timestamp)
+        on duplicate key update relation_key = relation_key
+    </insert>
+
+    <select id="selectForUpdate"
+            resultType="com.nowcoder.community.growth.infrastructure.persistence.dataobject.LikeTaskLifecycleStateDataObject">
+        select recipient_user_id as recipientUserId,
+               relation_key as relationKey,
+               relation_instance_id as relationInstanceId,
+               source_version as sourceVersion,
+               active,
+               source_event_id as sourceEventId
+        from growth_like_task_lifecycle_state
+        where recipient_user_id = #{recipientUserId, jdbcType=BINARY}
+          and relation_key = #{relationKey}
+        for update
+    </select>
+
+    <update id="update"
+            parameterType="com.nowcoder.community.growth.infrastructure.persistence.dataobject.LikeTaskLifecycleStateDataObject">
+        update growth_like_task_lifecycle_state
+        set relation_instance_id = #{relationInstanceId, jdbcType=BINARY},
+            source_version = #{sourceVersion},
+            active = #{active},
+            source_event_id = #{sourceEventId},
+            update_time = current_timestamp
+        where recipient_user_id = #{recipientUserId, jdbcType=BINARY}
+          and relation_key = #{relationKey}
+    </update>
+
+</mapper>

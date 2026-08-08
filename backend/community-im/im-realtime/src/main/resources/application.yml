@@ -127,6 +127,8 @@ im:
     timeout-ms: ${IM_COMMUNITY_TIMEOUT_MS:1500}
   projection:
     bootstrap-on-startup: ${IM_PROJECTION_BOOTSTRAP_ON_STARTUP:true}
+    bootstrap-retry-initial-backoff: ${IM_PROJECTION_BOOTSTRAP_RETRY_INITIAL_BACKOFF:PT1S}
+    bootstrap-retry-max-backoff: ${IM_PROJECTION_BOOTSTRAP_RETRY_MAX_BACKOFF:PT30S}
   room-presence:
     key-prefix: "${IM_ROOM_PRESENCE_KEY_PREFIX:im:}"
     ttl: ${IM_ROOM_PRESENCE_TTL:PT30S}

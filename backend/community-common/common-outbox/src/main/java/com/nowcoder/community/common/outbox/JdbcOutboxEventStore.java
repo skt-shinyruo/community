@@ -143,20 +143,49 @@ public class JdbcOutboxEventStore {
         return rows.stream().findFirst();
     }
 
+    /**
+     * Extends an active lease while preserving token fencing.
+     *
+     * <p>An expired lease cannot be resurrected: once the deadline is reached, only the
+     * recovery path may move the row back to {@code PENDING}.</p>
+     */
+    public boolean renewLease(OutboxLease lease, Instant now, Instant leaseUntil) {
+        if (lease == null || now == null || leaseUntil == null || !leaseUntil.isAfter(now)) {
+            return false;
+        }
+        Timestamp nowTs = Timestamp.from(now);
+        Timestamp leaseTs = Timestamp.from(leaseUntil);
+        int updated = jdbcTemplate.update(
+                "update outbox_event set processing_lease_until = ?, updated_at = ? " +
+                        "where id = ? and status = ? and lease_token = ? " +
+                        "and processing_lease_until > ? and processing_lease_until < ?",
+                leaseTs,
+                nowTs,
+                BinaryUuidCodec.toBytes(lease.rowId()),
+                OutboxEventStatus.PROCESSING,
+                BinaryUuidCodec.toBytes(lease.token()),
+                nowTs,
+                leaseTs
+        );
+        return updated == 1;
+    }
+
     public boolean markSucceeded(OutboxLease lease, Instant now) {
         if (lease == null) {
             return false;
         }
         Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
         int updated = jdbcTemplate.update(
-                "update outbox_event set status = ?, lease_token = null, processing_lease_until = null, " +
+                "update outbox_event set status = ?, payload = '', lease_token = null, processing_lease_until = null, " +
                         "next_retry_at = null, last_error = null, updated_at = ? " +
-                        "where id = ? and status = ? and lease_token = ?",
+                        "where id = ? and status = ? and lease_token = ? " +
+                        "and processing_lease_until > ?",
                 OutboxEventStatus.SUCCEEDED,
                 nowTs,
                 BinaryUuidCodec.toBytes(lease.rowId()),
                 OutboxEventStatus.PROCESSING,
-                BinaryUuidCodec.toBytes(lease.token())
+                BinaryUuidCodec.toBytes(lease.token()),
+                nowTs
         );
         return updated == 1;
     }
@@ -169,13 +198,39 @@ public class JdbcOutboxEventStore {
         int updated = jdbcTemplate.update(
                 "update outbox_event set status = ?, lease_token = null, processing_lease_until = null, " +
                         "next_retry_at = null, last_error = ?, updated_at = ? " +
-                        "where id = ? and status = ? and lease_token = ?",
+                        "where id = ? and status = ? and lease_token = ? " +
+                        "and processing_lease_until > ?",
                 OutboxEventStatus.DEAD,
                 truncateError(lastError),
                 nowTs,
                 BinaryUuidCodec.toBytes(lease.rowId()),
                 OutboxEventStatus.PROCESSING,
-                BinaryUuidCodec.toBytes(lease.token())
+                BinaryUuidCodec.toBytes(lease.token()),
+                nowTs
+        );
+        return updated == 1;
+    }
+
+    /**
+     * Moves an intentionally discarded event to its terminal state and erases its payload.
+     */
+    public boolean markDeadAndScrubPayload(OutboxLease lease, Instant now, String lastError) {
+        if (lease == null) {
+            return false;
+        }
+        Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
+        int updated = jdbcTemplate.update(
+                "update outbox_event set status = ?, payload = '', lease_token = null, processing_lease_until = null, " +
+                        "next_retry_at = null, last_error = ?, updated_at = ? " +
+                        "where id = ? and status = ? and lease_token = ? " +
+                        "and processing_lease_until > ?",
+                OutboxEventStatus.DEAD,
+                truncateError(lastError),
+                nowTs,
+                BinaryUuidCodec.toBytes(lease.rowId()),
+                OutboxEventStatus.PROCESSING,
+                BinaryUuidCodec.toBytes(lease.token()),
+                nowTs
         );
         return updated == 1;
     }
@@ -189,14 +244,16 @@ public class JdbcOutboxEventStore {
         int updated = jdbcTemplate.update(
                 "update outbox_event set status = ?, lease_token = null, processing_lease_until = null, " +
                         "retry_count = retry_count + 1, next_retry_at = ?, last_error = ?, updated_at = ? " +
-                        "where id = ? and status = ? and lease_token = ?",
+                        "where id = ? and status = ? and lease_token = ? " +
+                        "and processing_lease_until > ?",
                 OutboxEventStatus.PENDING,
                 nextTs,
                 truncateError(lastError),
                 nowTs,
                 BinaryUuidCodec.toBytes(lease.rowId()),
                 OutboxEventStatus.PROCESSING,
-                BinaryUuidCodec.toBytes(lease.token())
+                BinaryUuidCodec.toBytes(lease.token()),
+                nowTs
         );
         return updated == 1;
     }
@@ -205,17 +262,54 @@ public class JdbcOutboxEventStore {
      * Recover events stuck in PROCESSING whose lease has expired.
      */
     public int recoverExpiredLeases(Instant now) {
+        return recoverExpiredLeases(now, OutboxProperties.DEFAULT_RECOVER_LIMIT);
+    }
+
+    /**
+     * Recovers at most {@code limit} expired leases. Each transition is fenced by the
+     * lease token and deadline observed during the bounded scan, so a concurrent renewal
+     * wins without being overwritten by a stale recovery candidate.
+     */
+    public int recoverExpiredLeases(Instant now, int limit) {
+        int safeLimit = Math.min(500, Math.max(0, limit));
+        if (safeLimit == 0) {
+            return 0;
+        }
         Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
-        return jdbcTemplate.update(
-                "update outbox_event set status = ?, lease_token = null, processing_lease_until = null, " +
-                        "next_retry_at = ?, updated_at = ? where status = ? " +
-                        "and processing_lease_until is not null and processing_lease_until <= ?",
-                OutboxEventStatus.PENDING,
-                nowTs,
-                nowTs,
+        List<ExpiredLeaseCandidate> candidates = jdbcTemplate.query(
+                "select id, lease_token, processing_lease_until from outbox_event " +
+                        "where status = ? and processing_lease_until is not null " +
+                        "and processing_lease_until <= ? " +
+                        "order by processing_lease_until asc, id asc limit ?",
+                (rs, rowNum) -> new ExpiredLeaseCandidate(
+                        BinaryUuidCodec.fromBytes(rs.getBytes("id")),
+                        BinaryUuidCodec.fromBytes(rs.getBytes("lease_token")),
+                        rs.getTimestamp("processing_lease_until")
+                ),
                 OutboxEventStatus.PROCESSING,
-                nowTs
+                nowTs,
+                safeLimit
         );
+
+        int recovered = 0;
+        for (ExpiredLeaseCandidate candidate : candidates) {
+            int updated = jdbcTemplate.update(
+                    "update outbox_event set status = ?, lease_token = null, processing_lease_until = null, " +
+                            "next_retry_at = ?, updated_at = ? where id = ? and status = ? " +
+                            "and processing_lease_until = ? " +
+                            "and (lease_token = ? or (lease_token is null and ? is null))",
+                    OutboxEventStatus.PENDING,
+                    nowTs,
+                    nowTs,
+                    BinaryUuidCodec.toBytes(candidate.rowId()),
+                    OutboxEventStatus.PROCESSING,
+                    candidate.deadline(),
+                    BinaryUuidCodec.toBytes(candidate.token()),
+                    BinaryUuidCodec.toBytes(candidate.token())
+            );
+            recovered += updated;
+        }
+        return recovered;
     }
 
     public List<OutboxEventView> findEvents(OutboxEventQuery query) {
@@ -357,5 +451,8 @@ public class JdbcOutboxEventStore {
                 );
             }
         };
+    }
+
+    private record ExpiredLeaseCandidate(UUID rowId, UUID token, Timestamp deadline) {
     }
 }

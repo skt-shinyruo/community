@@ -9,18 +9,7 @@
     />
     <title>Community</title>
     <script src="/app-config.js"></script>
-    <script>
-      ;(() => {
-        try {
-          const raw = localStorage.getItem('community.ui')
-          if (!raw) return
-          const v = JSON.parse(raw)
-          if (v && (v.theme === 'light' || v.theme === 'dark')) document.documentElement.dataset.theme = v.theme
-          if (v && (v.density === 'compact' || v.density === 'comfortable'))
-            document.documentElement.dataset.density = v.density
-        } catch {}
-      })()
-    </script>
+    <script src="/theme-bootstrap.js"></script>
   </head>
   <body>
     <div id="app"></div>

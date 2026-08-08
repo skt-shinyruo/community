@@ -6,6 +6,7 @@ import com.nowcoder.community.user.domain.model.UserAccount;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -16,6 +17,7 @@ public class UserRegistrationDomainService {
 
     private final Clock clock;
     private final PasswordPolicyDomainService passwordPolicyDomainService;
+    private final UsernamePolicyDomainService usernamePolicyDomainService;
 
     public UserRegistrationDomainService() {
         this(Clock.systemUTC(), new PasswordPolicyDomainService());
@@ -26,14 +28,23 @@ public class UserRegistrationDomainService {
     }
 
     public UserRegistrationDomainService(Clock clock, PasswordPolicyDomainService passwordPolicyDomainService) {
+        this(clock, passwordPolicyDomainService, new UsernamePolicyDomainService());
+    }
+
+    public UserRegistrationDomainService(
+            Clock clock,
+            PasswordPolicyDomainService passwordPolicyDomainService,
+            UsernamePolicyDomainService usernamePolicyDomainService
+    ) {
         this.clock = clock;
         this.passwordPolicyDomainService = passwordPolicyDomainService;
+        this.usernamePolicyDomainService = usernamePolicyDomainService;
     }
 
     public RegistrationInput requireValidRegistration(String username, String password, String email) {
-        String trimmedUsername = safeTrim(username);
+        String trimmedUsername = usernamePolicyDomainService.requireValid(username);
         String validatedPassword = passwordPolicyDomainService.requireValidPassword(password);
-        String trimmedEmail = safeTrim(email);
+        String trimmedEmail = canonicalEmail(email);
         if (!hasText(trimmedUsername)
                 || !hasText(validatedPassword)
                 || !hasText(trimmedEmail)) {
@@ -66,11 +77,22 @@ public class UserRegistrationDomainService {
             String email,
             String headerUrl
     ) {
-        return new UserAccount(userId, safeTrim(username), safeTrim(encodedPassword), "", safeTrim(email), 0, 1, safeTrim(headerUrl), Date.from(Instant.now(clock)), null, null, 0L, 0L);
+        return new UserAccount(userId, usernamePolicyDomainService.requireValid(username), safeTrim(encodedPassword), "", canonicalEmail(email), 0, 1, safeTrim(headerUrl), Date.from(Instant.now(clock)), null, null, 0L, 0L);
+    }
+
+    public boolean credentialIssuanceAllowed(UserAccount user) {
+        if (user == null || user.status() == 0) {
+            return false;
+        }
+        return user.banUntil() == null || !user.banUntil().isAfter(Instant.now(clock));
     }
 
     private String safeTrim(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String canonicalEmail(String value) {
+        return safeTrim(value).toLowerCase(Locale.ROOT);
     }
 
     private boolean hasText(String value) {

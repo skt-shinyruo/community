@@ -53,20 +53,35 @@ community:
 auth:
   refresh:
     store: db
+    cleanup:
+      enabled: false
   captcha:
     store: redis
     ttl-seconds: 60
     max-failures: 3
   password-reset:
     reset-base-url: http://localhost:8080
+    identifier-hmac-secret: test-password-reset-identifier-hmac-secret-20260804
+    quota-hmac-secret: test-password-reset-stable-quota-hmac-secret-20260805
     store: redis
     ttl-seconds: 600
   registration:
+    request-limit:
+      window-seconds: 3600
+      max-requests-per-username: 3
+      max-requests-per-email: 3
+      max-requests-per-ip: 10
+    resend-limit:
+      window-seconds: 3600
+      max-requests-per-registration: 5
+      max-requests-per-email: 5
+      max-requests-per-ip: 20
     code:
       store: redis
       ttl-seconds: 600
       max-failures: 3
       resend-cooldown-seconds: 60
+      operation-lease-seconds: 120
       expose-code: true
     draft:
       store: redis
@@ -79,6 +94,14 @@ auth:
 
 content:
   storage: redis
+  comment-thread-cleanup:
+    enabled: false
+  hot-path:
+    prewarm:
+      enabled: false
+  counter:
+    flush:
+      enabled: false
   events:
     outbox-topic: ${CONTENT_EVENTS_OUTBOX_TOPIC:eventbus.content}
     kafka-topic: ${CONTENT_EVENTS_KAFKA_TOPIC:content.events}
@@ -174,3 +197,6 @@ wallet:
 drive:
   share:
     ticket-secret: test-drive-share-ticket-secret
+  upload:
+    recovery:
+      enabled: false

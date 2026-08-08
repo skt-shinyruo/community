@@ -3,9 +3,10 @@ package com.nowcoder.community.market.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.ErrorCode;
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
+import com.nowcoder.community.market.domain.model.MarketWalletActionClaim;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
 import com.nowcoder.community.market.domain.repository.MarketWalletActionRepository;
-import com.nowcoder.community.market.domain.model.MarketWalletActionResultType;
+import com.nowcoder.community.market.domain.model.MarketWalletActionStatus;
 import com.nowcoder.community.market.domain.model.MarketWalletActionType;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import com.nowcoder.community.wallet.api.model.WalletErrorCodes;
@@ -19,7 +20,6 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -30,10 +30,8 @@ public class MarketWalletActionProcessorApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(MarketWalletActionProcessorApplicationService.class);
     private static final Duration DEFAULT_PROCESSING_LEASE = Duration.ofSeconds(60);
-    private static final int DEFAULT_MAX_RETRY_ATTEMPTS = 8;
     private static final int MAX_LAST_ERROR_LENGTH = 255;
-    private static final String SAGA_STATE_NOT_ADVANCED = "SAGA_STATE_NOT_ADVANCED";
-    private static final String SAGA_STATE_NOT_ADVANCED_MESSAGE = "market order saga did not advance after wallet success";
+    private static final String SAGA_COMPLETION_FAILED = "SAGA_COMPLETION_FAILED";
     private static final Set<Integer> RECOVERABLE_RELEASE_REFUND_WALLET_ERROR_CODES = Set.of(
             WalletErrorCodes.ACCOUNT_UPDATE_CONFLICT,
             WalletErrorCodes.ACCOUNT_BALANCE_INSUFFICIENT
@@ -41,8 +39,7 @@ public class MarketWalletActionProcessorApplicationService {
 
     private final MarketWalletActionRepository walletActionRepository;
     private final WalletMarketActionApi walletApi;
-    private final MarketOrderSagaApplicationService sagaService;
-    private final MarketWalletActionCoordinator actionCoordinator;
+    private final MarketWalletActionProcessorTransactionOperations transactionOperations;
     private final Clock clock;
     private final Duration processingLease;
     private final int maxRetryAttempts;
@@ -50,15 +47,13 @@ public class MarketWalletActionProcessorApplicationService {
     @Autowired
     public MarketWalletActionProcessorApplicationService(MarketWalletActionRepository walletActionRepository,
                                        WalletMarketActionApi walletApi,
-                                       MarketOrderSagaApplicationService sagaService,
-                                       MarketWalletActionCoordinator actionCoordinator,
+                                       MarketWalletActionProcessorTransactionOperations transactionOperations,
                                        @Value("${market.wallet-action.processing-lease:60s}") Duration processingLease,
                                        @Value("${market.wallet-action.max-retry-attempts:8}") int maxRetryAttempts) {
         this(
                 walletActionRepository,
                 walletApi,
-                sagaService,
-                actionCoordinator,
+                transactionOperations,
                 Clock.systemUTC(),
                 processingLease,
                 maxRetryAttempts
@@ -73,11 +68,14 @@ public class MarketWalletActionProcessorApplicationService {
         this(
                 walletActionRepository,
                 walletApi,
-                sagaService,
-                actionCoordinator,
+                new MarketWalletActionProcessorTransactionOperations(
+                        walletActionRepository,
+                        sagaService,
+                        actionCoordinator
+                ),
                 clock,
                 DEFAULT_PROCESSING_LEASE,
-                DEFAULT_MAX_RETRY_ATTEMPTS
+                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
         );
     }
 
@@ -90,11 +88,14 @@ public class MarketWalletActionProcessorApplicationService {
         this(
                 walletActionRepository,
                 walletApi,
-                sagaService,
-                actionCoordinator,
+                new MarketWalletActionProcessorTransactionOperations(
+                        walletActionRepository,
+                        sagaService,
+                        actionCoordinator
+                ),
                 clock,
                 processingLease,
-                DEFAULT_MAX_RETRY_ATTEMPTS
+                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
         );
     }
 
@@ -105,20 +106,45 @@ public class MarketWalletActionProcessorApplicationService {
                                 Clock clock,
                                 Duration processingLease,
                                 int maxRetryAttempts) {
+        this(
+                walletActionRepository,
+                walletApi,
+                new MarketWalletActionProcessorTransactionOperations(
+                        walletActionRepository,
+                        sagaService,
+                        actionCoordinator
+                ),
+                clock,
+                processingLease,
+                maxRetryAttempts
+        );
+    }
+
+    private MarketWalletActionProcessorApplicationService(
+            MarketWalletActionRepository walletActionRepository,
+            WalletMarketActionApi walletApi,
+            MarketWalletActionProcessorTransactionOperations transactionOperations,
+            Clock clock,
+            Duration processingLease,
+            int maxRetryAttempts
+    ) {
         this.walletActionRepository = walletActionRepository;
         this.walletApi = walletApi;
-        this.sagaService = sagaService;
-        this.actionCoordinator = actionCoordinator;
+        this.transactionOperations = transactionOperations;
         this.clock = clock;
         this.processingLease = normalizeProcessingLease(processingLease);
-        this.maxRetryAttempts = normalizeMaxRetryAttempts(maxRetryAttempts);
+        this.maxRetryAttempts = MarketWalletActionRetryPolicy.normalizeMaxRetryAttempts(maxRetryAttempts);
     }
 
     public int processDue(int limit) {
         if (limit <= 0) {
             return 0;
         }
-        List<MarketWalletAction> actions = walletActionRepository.findDue(Date.from(clock.instant()), limit);
+        List<MarketWalletAction> actions = walletActionRepository.findDue(
+                Date.from(clock.instant()),
+                maxRetryAttempts,
+                limit
+        );
         int processed = 0;
         for (MarketWalletAction action : actions) {
             if (processOne(action)) {
@@ -129,16 +155,29 @@ public class MarketWalletActionProcessorApplicationService {
     }
 
     public boolean processOne(MarketWalletAction action) {
+        Instant claimedAt = clock.instant();
         MarketWalletActionLease lease = new MarketWalletActionLease(action.getActionId(), UUID.randomUUID());
-        Date leaseUntil = Date.from(clock.instant().plus(processingLease));
-        int claimed = walletActionRepository.claimProcessing(lease, leaseUntil);
+        MarketWalletActionClaim claim = new MarketWalletActionClaim(
+                lease,
+                action.getStatus(),
+                action.getRetryCount(),
+                Date.from(claimedAt),
+                Date.from(claimedAt.plus(processingLease)),
+                maxRetryAttempts
+        );
+        int claimed = walletActionRepository.claimProcessing(claim);
         if (claimed != 1) {
             return false;
         }
+        MarketWalletAction claimedAction = walletActionRepository.findClaimed(lease);
+        if (claimedAction == null) {
+            log.warn("[market-wallet-action] claimed row unavailable actionId={}", lease.actionId());
+            return false;
+        }
         try {
-            return route(action, lease);
+            return route(claimedAction, lease, claim.expectedStatus());
         } catch (RuntimeException ex) {
-            return handleFailure(action, lease, ex);
+            return handleFailure(claimedAction, lease, ex);
         }
     }
 
@@ -148,13 +187,13 @@ public class MarketWalletActionProcessorApplicationService {
                 : processingLease;
     }
 
-    private static int normalizeMaxRetryAttempts(int maxRetryAttempts) {
-        return maxRetryAttempts <= 0 ? DEFAULT_MAX_RETRY_ATTEMPTS : maxRetryAttempts;
-    }
-
-    private boolean route(MarketWalletAction action, MarketWalletActionLease lease) {
+    private boolean route(
+            MarketWalletAction action,
+            MarketWalletActionLease lease,
+            String claimedFromStatus
+    ) {
         if (MarketWalletActionType.ESCROW.equals(action.getActionType())) {
-            return processEscrow(action, lease);
+            return processEscrow(action, lease, claimedFromStatus);
         }
         if (MarketWalletActionType.RELEASE.equals(action.getActionType())) {
             WalletMarketTxnView result = walletApi.releaseOrder(
@@ -163,27 +202,7 @@ public class MarketWalletActionProcessorApplicationService {
                     action.getAmount(),
                     action.getWalletBizId()
             );
-            if (sagaService.markReleaseSucceeded(action.getOrderId(), result.txnId())) {
-                return ownsTransition(
-                        lease,
-                        "succeeded",
-                        walletActionRepository.markSucceeded(
-                                lease,
-                                result.txnId(),
-                                MarketWalletActionResultType.APPLIED
-                        )
-                );
-            }
-            return ownsTransition(
-                    lease,
-                    "recovery-pending",
-                    walletActionRepository.markRecoveryPending(
-                            lease,
-                            result.txnId(),
-                            SAGA_STATE_NOT_ADVANCED,
-                            SAGA_STATE_NOT_ADVANCED_MESSAGE
-                    )
-            );
+            return completeWalletSuccess(action, lease, result);
         }
         if (MarketWalletActionType.REFUND.equals(action.getActionType())) {
             WalletMarketTxnView result = walletApi.refundOrder(
@@ -192,42 +211,19 @@ public class MarketWalletActionProcessorApplicationService {
                     action.getAmount(),
                     action.getWalletBizId()
             );
-            if (sagaService.markRefundSucceeded(action.getOrderId(), result.txnId())) {
-                return ownsTransition(
-                        lease,
-                        "succeeded",
-                        walletActionRepository.markSucceeded(
-                                lease,
-                                result.txnId(),
-                                MarketWalletActionResultType.APPLIED
-                        )
-                );
-            }
-            return ownsTransition(
-                    lease,
-                    "recovery-pending",
-                    walletActionRepository.markRecoveryPending(
-                            lease,
-                            result.txnId(),
-                            SAGA_STATE_NOT_ADVANCED,
-                            SAGA_STATE_NOT_ADVANCED_MESSAGE
-                    )
-            );
+            return completeWalletSuccess(action, lease, result);
         }
         throw new IllegalArgumentException("unsupported market wallet action type: " + action.getActionType());
     }
 
-    private boolean processEscrow(MarketWalletAction action, MarketWalletActionLease lease) {
-        if (!sagaService.canApplyEscrow(action.getOrderId())) {
-            if (!ownsTransition(
-                    lease,
-                    "cancelled",
-                    walletActionRepository.markCancelled(lease, MarketWalletActionResultType.NOOP)
-            )) {
-                return false;
-            }
-            sagaService.completeEscrowNoop(action.getOrderId());
-            return true;
+    private boolean processEscrow(
+            MarketWalletAction action,
+            MarketWalletActionLease lease,
+            String claimedFromStatus
+    ) {
+        if (MarketWalletActionStatus.PENDING.equals(claimedFromStatus)
+                && !transactionOperations.canApplyEscrow(action.getOrderId())) {
+            return transactionOperations.completeEscrowNoop(action, lease, Date.from(clock.instant()));
         }
         WalletMarketTxnView result = walletApi.escrowOrder(
                 action.getRequestId(),
@@ -235,43 +231,24 @@ public class MarketWalletActionProcessorApplicationService {
                 action.getAmount(),
                 action.getWalletBizId()
         );
-        if (sagaService.markEscrowSucceeded(action.getOrderId(), result.txnId())) {
-            return ownsTransition(
-                    lease,
-                    "succeeded",
-                    walletActionRepository.markSucceeded(
-                            lease,
-                            result.txnId(),
-                            MarketWalletActionResultType.APPLIED
-                    )
-            );
+        return completeWalletSuccess(action, lease, result);
+    }
+
+    private boolean completeWalletSuccess(
+            MarketWalletAction action,
+            MarketWalletActionLease lease,
+            WalletMarketTxnView result
+    ) {
+        if (!transactionOperations.recordWalletTxn(lease, result.txnId(), Date.from(clock.instant()))) {
+            log.warn("[market-wallet-action] lease lost before wallet result persistence actionId={}", lease.actionId());
+            return false;
         }
-        if (sagaService.markEscrowCancelRefundPending(action.getOrderId(), result.txnId())) {
-            actionCoordinator.enqueueRefund(
-                    action.getOrderId(),
-                    action.getActorUserId(),
-                    action.getCounterpartyUserId(),
-                    action.getAmount()
-            );
-            return ownsTransition(
-                    lease,
-                    "succeeded",
-                    walletActionRepository.markSucceeded(
-                            lease,
-                            result.txnId(),
-                            MarketWalletActionResultType.APPLIED
-                    )
-            );
-        }
-        return ownsTransition(
+        action.setWalletTxnId(result.txnId());
+        return transactionOperations.completeWalletSuccess(
+                action,
                 lease,
-                "recovery-pending",
-                walletActionRepository.markRecoveryPending(
-                        lease,
-                        result.txnId(),
-                        SAGA_STATE_NOT_ADVANCED,
-                        SAGA_STATE_NOT_ADVANCED_MESSAGE
-                )
+                result.txnId(),
+                Date.from(clock.instant())
         );
     }
 
@@ -280,6 +257,21 @@ public class MarketWalletActionProcessorApplicationService {
             MarketWalletActionLease lease,
             RuntimeException ex
     ) {
+        if (ex instanceof MarketWalletActionProcessorTransactionOperations.LeaseLostException) {
+            return false;
+        }
+        if (action.getWalletTxnId() != null) {
+            return ownsTransition(
+                    lease,
+                    "recovery-pending",
+                    walletActionRepository.markRecoveryPending(
+                            lease,
+                            action.getWalletTxnId(),
+                            SAGA_COMPLETION_FAILED,
+                            lastError(ex)
+                    )
+            );
+        }
         if (isRetryable(action, ex)) {
             if (action.getRetryCount() + 1 >= maxRetryAttempts) {
                 return ownsTransition(
@@ -300,7 +292,13 @@ public class MarketWalletActionProcessorApplicationService {
             return false;
         }
         if (MarketWalletActionType.ESCROW.equals(action.getActionType())) {
-            sagaService.markEscrowTerminalFailed(action.getOrderId(), ex.getMessage());
+            return transactionOperations.completeEscrowTerminalFailure(
+                    action,
+                    lease,
+                    failureCode(ex),
+                    lastError(ex),
+                    Date.from(clock.instant())
+            );
         }
         return ownsTransition(
                 lease,
@@ -325,17 +323,19 @@ public class MarketWalletActionProcessorApplicationService {
         if (!(ex instanceof BusinessException businessException)) {
             return true;
         }
+        ErrorCode errorCode = businessException.getErrorCode();
+        if (errorCode != null && errorCode.getCode() == WalletErrorCodes.ACCOUNT_UPDATE_CONFLICT) {
+            return true;
+        }
         if (MarketWalletActionType.ESCROW.equals(action.getActionType())) {
             return false;
         }
-        ErrorCode errorCode = businessException.getErrorCode();
         return errorCode != null
                 && RECOVERABLE_RELEASE_REFUND_WALLET_ERROR_CODES.contains(errorCode.getCode());
     }
 
     private Instant nextRetryAt(MarketWalletAction action) {
-        long delaySeconds = Math.min(300L, 5L * (1L << Math.min(action.getRetryCount(), 6)));
-        return clock.instant().plus(delaySeconds, ChronoUnit.SECONDS);
+        return MarketWalletActionRetryPolicy.nextRetryAt(clock.instant(), action.getRetryCount());
     }
 
     private String failureCode(RuntimeException ex) {

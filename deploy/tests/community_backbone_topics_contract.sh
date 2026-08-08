@@ -26,7 +26,7 @@ partition_count() {
   ' "${BOOTSTRAP}"
 }
 
-for topic in content.events social.events user.events; do
+for topic in content.events social.events user.events analytics.request; do
   test "$(partition_count "${topic}")" = "12"
   test "$(partition_count "${topic}.dlq")" = "12"
 done

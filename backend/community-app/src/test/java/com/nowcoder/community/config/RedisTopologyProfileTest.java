@@ -19,6 +19,8 @@ class RedisTopologyProfileTest {
 
         assertThat(environment.getProperty("spring.data.redis.host")).isEqualTo("127.0.0.1");
         assertThat(environment.getProperty("spring.data.redis.port")).isEqualTo("6379");
+        assertThat(environment.getProperty("spring.data.redis.connect-timeout")).isEqualTo("2s");
+        assertThat(environment.getProperty("spring.data.redis.timeout")).isEqualTo("2s");
         assertThat(environment.getProperty("spring.data.redis.cluster.nodes")).isNull();
     }
 

@@ -19,7 +19,7 @@
           and source_event_id = #{sourceEventId}
     </select>
 
-    <select id="selectLikeContributionLogs" resultType="com.nowcoder.community.growth.domain.repository.UserTaskEventLogRepository$UserTaskContributionLog">
+    <select id="selectLikeContributionLogsForUpdate" resultType="com.nowcoder.community.growth.domain.repository.UserTaskEventLogRepository$UserTaskContributionLog">
         select l.user_id as userId,
                l.task_code as taskCode,
                l.period_key as periodKey,
@@ -27,8 +27,18 @@
         from user_task_event_log l
                  join task_template t on t.task_code = l.task_code
         where l.user_id = #{userId, jdbcType=BINARY}
-          and l.source_event_id = #{sourceEventId}
+          and l.source_event_id = #{contributionSourceId}
           and t.trigger_event_type = 'LikeCreated'
+        order by l.task_code asc, l.period_key asc
+        for update
+    </select>
+
+    <select id="countByUserTaskAndPeriod" resultType="int">
+        select count(*)
+        from user_task_event_log
+        where user_id = #{userId, jdbcType=BINARY}
+          and task_code = #{taskCode}
+          and period_key = #{periodKey}
     </select>
 
     <delete id="deleteByUserTaskPeriodAndSourceEventId">

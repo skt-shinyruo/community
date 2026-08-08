@@ -31,6 +31,7 @@ public class RefreshTokenApplicationService {
         this.authSecretGenerator = authSecretGenerator;
     }
 
+    @Transactional
     public IssuedRefreshToken issue(UUID userId, long securityVersionAtIssue) {
         String familyId = UUID.randomUUID().toString().replace("-", "");
         return issue(userId, familyId, securityVersionAtIssue);
@@ -39,13 +40,18 @@ public class RefreshTokenApplicationService {
     @Transactional
     public RefreshTokenRepository.StoredRefreshToken beginRotation(String refreshToken) {
         Instant now = Instant.now();
-        RefreshTokenRepository.StoredRefreshToken pending = refreshTokenStore.beginRotation(refreshToken, now.plusSeconds(30));
+        UUID rotationLeaseId = UUID.randomUUID();
+        RefreshTokenRepository.StoredRefreshToken pending = refreshTokenStore.beginRotation(
+                refreshToken,
+                now.plusSeconds(30),
+                rotationLeaseId
+        );
         if (pending == null) {
             maybeRevokeFamilyForReusedToken(refreshToken);
             return null;
         }
         if (refreshTokenDomainService.isExpired(pending.expiresAt(), now)) {
-            refreshTokenStore.rollbackPendingRotation(refreshToken);
+            rollbackPendingRotation(refreshToken, pending.rotationLeaseId());
             return null;
         }
         return pending;
@@ -62,21 +68,27 @@ public class RefreshTokenApplicationService {
             String replacementRefreshToken,
             UUID userId,
             String familyId,
-            long securityVersionAtIssue
+            long securityVersionAtIssue,
+            UUID rotationLeaseId
     ) {
         Instant replacementExpiresAt = Instant.now().plusSeconds(jwtProperties.getRefreshTokenTtlSeconds());
+        if (rotationLeaseId == null) {
+            return false;
+        }
         return refreshTokenStore.finishRotation(
                 pendingRefreshToken,
                 replacementRefreshToken,
                 userId,
                 familyId,
                 securityVersionAtIssue,
-                replacementExpiresAt
+                replacementExpiresAt,
+                rotationLeaseId
         );
     }
 
-    public boolean rollbackPendingRotation(String refreshToken) {
-        return refreshTokenStore.rollbackPendingRotation(refreshToken);
+    public boolean rollbackPendingRotation(String refreshToken, UUID rotationLeaseId) {
+        return rotationLeaseId != null
+                && refreshTokenStore.rollbackPendingRotation(refreshToken, rotationLeaseId);
     }
 
     public RefreshTokenRepository.StoredRefreshToken find(String refreshToken) {
@@ -106,16 +118,7 @@ public class RefreshTokenApplicationService {
     }
 
     private void revokeFamilyByPresentedTokenCore(String refreshToken) {
-        RefreshTokenRepository.StoredRefreshToken token = refreshTokenStore.find(refreshToken);
-        if (token != null) {
-            refreshTokenStore.revoke(refreshToken);
-            refreshTokenStore.revokeFamily(token.familyId());
-            return;
-        }
-        RefreshTokenRepository.RevokedRefreshToken revoked = refreshTokenStore.findRevoked(refreshToken);
-        if (revoked != null) {
-            refreshTokenStore.revokeFamily(revoked.familyId());
-        }
+        refreshTokenStore.revokeFamilyByPresentedToken(refreshToken);
     }
 
     @Transactional

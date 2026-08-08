@@ -13,7 +13,7 @@
 - `backend/community-oss-client`：给业务服务调用 OSS 的 typed client。
 - `backend/community-im`：IM 聚合模块，包含 `im-common`、`im-core`、`im-realtime`。
 - `backend/community-common/*`：共享 Web、安全、幂等、outbox、错误协议、trace 等横切能力。
-- `deploy/`：本地 single / cluster 拓扑、三个业务 schema 的当前态 SQL 和默认启用的 observability overlay。
+- `deploy/`：本地 single / cluster 拓扑、三个业务 schema 的空库快照、community 前向迁移和默认启用的 observability overlay。
 
 默认对外业务入口为 `community-gateway`，本地通过 NGINX / gateway 暴露在 `12880`。对外 API 前缀稳定为 `/api/**`，静态文件前缀稳定为 `/files/**`，其中 `/files/**` 由 `community-oss` 承担 canonical 对象读取；IM WebSocket 前缀稳定为 `/ws/im`；session bootstrap 由 `community-im-gateway` 负责，返回稳定的 `/ws/im`，worker 选择和内部桥接对客户端不可见。
 
@@ -242,7 +242,7 @@ Domain event 和本地 Spring bridge 不是发布 integration event 的必经层
 - `--scope infra`：只启动基础设施，便于 IDE 启动业务服务。
 - `--no-observability`：关闭 observability overlay。
 
-MySQL 的 `community`、`community_oss`、`im_core` 结构统一由 `deploy/mysql/primary-init/010_current_schema.sql` 描述。MySQL entrypoint 只在主库数据目录为空时执行该快照；cluster replica 通过 GTID 复制获得相同结构。runtime 账号只保留 DML 权限，不在应用启动时建表或升级结构。结构变化直接修改最终定义并重建 MySQL volumes，详见 [data-and-storage.md](data-and-storage.md#当前态-schema-快照)。
+MySQL 的 `community`、`community_oss`、`im_core` 空库结构统一由 `deploy/mysql/primary-init/010_current_schema.sql` 描述。MySQL entrypoint 只在主库数据目录为空时执行该快照；cluster replica 通过 GTID 复制获得相同结构。`community` 已有数据通过 app 启动前的独立 one-shot 向前升级，runtime 账号只保留 DML 权限，不在应用启动代码中建表。详见 [data-and-storage.md](data-and-storage.md#当前态-schema-快照)。
 
 运行命令和端口见 [local-development.md](local-development.md)，观测和排障见 [operations.md](operations.md)。
 

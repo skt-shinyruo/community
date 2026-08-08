@@ -51,8 +51,19 @@
         select <include refid="BaseColumns"/>
         from market_wallet_action
         where status in ('PENDING', 'RETRYING')
+          and retry_count &lt; #{maxRetryAttempts}
           and (next_retry_at is null or next_retry_at &lt;= #{asOf})
         order by coalesce(next_retry_at, create_time) asc, action_id asc
+        limit #{limit}
+    </select>
+
+    <select id="selectExpiredProcessing" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject">
+        select <include refid="BaseColumns"/>
+        from market_wallet_action
+        where status = 'PROCESSING'
+          and processing_lease_until is not null
+          and processing_lease_until &lt;= #{asOf}
+        order by processing_lease_until asc, action_id asc
         limit #{limit}
     </select>
 
@@ -60,19 +71,60 @@
         select <include refid="BaseColumns"/>
         from market_wallet_action
         where wallet_txn_id is not null
-          and status != 'SUCCEEDED'
-        order by update_time asc, action_id asc
+          and status not in ('SUCCEEDED', 'PROCESSING')
+          and (next_retry_at is null or next_retry_at &lt;= current_timestamp)
+        order by coalesce(next_retry_at, update_time) asc, action_id asc
         limit #{limit}
     </select>
+
+    <select id="selectClaimed" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject">
+        select <include refid="BaseColumns"/>
+        from market_wallet_action
+        where action_id = #{lease.actionId, jdbcType=BINARY}
+          and status = 'PROCESSING'
+          and lease_token = #{lease.token, jdbcType=BINARY}
+    </select>
+
+    <select id="selectClaimedForUpdate" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject">
+        select <include refid="BaseColumns"/>
+        from market_wallet_action
+        where action_id = #{lease.actionId, jdbcType=BINARY}
+          and status = 'PROCESSING'
+          and lease_token = #{lease.token, jdbcType=BINARY}
+          and processing_lease_until &gt; #{leaseValidAt}
+        for update
+    </select>
+
+    <select id="selectByIdForUpdate" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject">
+        select <include refid="BaseColumns"/>
+        from market_wallet_action
+        where action_id = #{actionId, jdbcType=BINARY}
+        for update
+    </select>
+
+    <update id="recordWalletTxn">
+        update market_wallet_action
+        set wallet_txn_id = #{walletTxnId, jdbcType=BINARY},
+            update_time = current_timestamp
+        where action_id = #{lease.actionId, jdbcType=BINARY}
+          and status = 'PROCESSING'
+          and lease_token = #{lease.token, jdbcType=BINARY}
+          and processing_lease_until &gt; #{leaseValidAt}
+          and (wallet_txn_id is null or wallet_txn_id = #{walletTxnId, jdbcType=BINARY})
+    </update>
 
     <update id="claimProcessing">
         update market_wallet_action
         set status = 'PROCESSING',
-            processing_lease_until = #{leaseUntil},
-            lease_token = #{lease.token, jdbcType=BINARY},
+            next_retry_at = null,
+            processing_lease_until = #{claim.leaseUntil},
+            lease_token = #{claim.lease.token, jdbcType=BINARY},
             update_time = current_timestamp
-        where action_id = #{lease.actionId, jdbcType=BINARY}
-          and status in ('PENDING', 'RETRYING')
+        where action_id = #{claim.lease.actionId, jdbcType=BINARY}
+          and status = #{claim.expectedStatus}
+          and retry_count = #{claim.expectedRetryCount}
+          and retry_count &lt; #{claim.maxRetryAttempts}
+          and (next_retry_at is null or next_retry_at &lt;= #{claim.claimedAt})
     </update>
 
     <update id="markSucceeded">
@@ -111,7 +163,7 @@
             update_time = current_timestamp
         where request_id = #{requestId}
           and action_type = 'ESCROW'
-          and status in ('PENDING', 'RETRYING')
+          and status = 'PENDING'
     </update>
 
     <update id="markRetrying">
@@ -183,9 +235,18 @@
 
     <update id="rescheduleFailed">
         update market_wallet_action
-        set status = 'RETRYING',
-            retry_count = retry_count + 1,
-            next_retry_at = #{nextRetryAt},
+        set status = case
+                when retry_count &gt;= (#{maxRetryAttempts} - 1) then 'DEAD'
+                else 'RETRYING'
+            end,
+            next_retry_at = case
+                when retry_count &gt;= (#{maxRetryAttempts} - 1) then null
+                else #{nextRetryAt}
+            end,
+            retry_count = case
+                when retry_count &gt;= (#{maxRetryAttempts} - 1) then retry_count
+                else retry_count + 1
+            end,
             last_error = #{lastError},
             processing_lease_until = null,
             lease_token = null,
@@ -193,20 +254,65 @@
         where action_id = #{actionId, jdbcType=BINARY}
           and status = 'FAILED'
           and failure_code = #{expectedFailureCode}
+          and retry_count = #{expectedRetryCount}
           and wallet_txn_id is null
     </update>
 
     <update id="recoverExpiredProcessing">
         update market_wallet_action
-        set status = 'RETRYING',
-            retry_count = retry_count + 1,
-            next_retry_at = current_timestamp,
+        set status = case
+                when retry_count &gt;= (#{recovery.maxRetryAttempts} - 1) then 'DEAD'
+                else 'RETRYING'
+            end,
+            next_retry_at = case
+                when retry_count &gt;= (#{recovery.maxRetryAttempts} - 1) then null
+                else #{recovery.nextRetryAt}
+            end,
+            retry_count = case
+                when retry_count &gt;= (#{recovery.maxRetryAttempts} - 1) then retry_count
+                else retry_count + 1
+            end,
+            last_error = #{recovery.lastError},
             processing_lease_until = null,
             lease_token = null,
             update_time = current_timestamp
-        where status = 'PROCESSING'
-          and processing_lease_until is not null
-          and processing_lease_until &lt;= #{asOf}
+        where action_id = #{recovery.actionId, jdbcType=BINARY}
+          and status = 'PROCESSING'
+          and retry_count = #{recovery.expectedRetryCount}
+          and processing_lease_until = #{recovery.expectedLeaseUntil}
+          and processing_lease_until &lt;= #{recovery.asOf}
+          <choose>
+              <when test="recovery.expectedLeaseToken != null">
+                  and lease_token = #{recovery.expectedLeaseToken, jdbcType=BINARY}
+              </when>
+              <otherwise>
+                  and lease_token is null
+              </otherwise>
+          </choose>
+    </update>
+
+    <update id="deferWalletTxnRecovery">
+        update market_wallet_action
+        set retry_count = retry_count + 1,
+            next_retry_at = #{nextRetryAt},
+            last_error = #{lastError},
+            update_time = current_timestamp
+        where action_id = #{actionId, jdbcType=BINARY}
+          and status = #{expectedStatus}
+          and status not in ('SUCCEEDED', 'PROCESSING')
+          and wallet_txn_id = #{walletTxnId, jdbcType=BINARY}
+    </update>
+
+    <update id="deferFailedRecovery">
+        update market_wallet_action
+        set next_retry_at = #{nextRetryAt},
+            last_error = #{lastError},
+            update_time = current_timestamp
+        where action_id = #{actionId, jdbcType=BINARY}
+          and status = #{expectedStatus}
+          and status = 'FAILED'
+          and failure_code = #{expectedFailureCode}
+          and wallet_txn_id is null
     </update>
 
 </mapper>

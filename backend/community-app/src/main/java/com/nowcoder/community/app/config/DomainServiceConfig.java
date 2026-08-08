@@ -25,6 +25,7 @@ import com.nowcoder.community.user.domain.service.UserModerationDomainService;
 import com.nowcoder.community.user.domain.service.UserReadDomainService;
 import com.nowcoder.community.user.domain.service.UserRegistrationDomainService;
 import com.nowcoder.community.user.domain.service.UserRoleDomainService;
+import com.nowcoder.community.user.domain.service.UsernamePolicyDomainService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -132,8 +133,13 @@ public class DomainServiceConfig {
     }
 
     @Bean
-    UserCredentialDomainService userCredentialDomainService() {
-        return new UserCredentialDomainService();
+    UsernamePolicyDomainService usernamePolicyDomainService() {
+        return new UsernamePolicyDomainService();
+    }
+
+    @Bean
+    UserCredentialDomainService userCredentialDomainService(UsernamePolicyDomainService usernamePolicyDomainService) {
+        return new UserCredentialDomainService(usernamePolicyDomainService);
     }
 
     @Bean
@@ -147,8 +153,15 @@ public class DomainServiceConfig {
     }
 
     @Bean
-    UserRegistrationDomainService userRegistrationDomainService() {
-        return new UserRegistrationDomainService();
+    UserRegistrationDomainService userRegistrationDomainService(
+            PasswordPolicyDomainService passwordPolicyDomainService,
+            UsernamePolicyDomainService usernamePolicyDomainService
+    ) {
+        return new UserRegistrationDomainService(
+                java.time.Clock.systemUTC(),
+                passwordPolicyDomainService,
+                usernamePolicyDomainService
+        );
     }
 
     @Bean

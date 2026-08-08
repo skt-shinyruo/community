@@ -15,6 +15,7 @@ import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.exception.SocialErrorCode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -135,6 +137,48 @@ class BlockApplicationServiceTest {
     }
 
     @Test
+    void blockShouldLockUserPairBeforeChangingBlockAndFollowRelations() {
+        BlockRepository blockRepository = mock(BlockRepository.class);
+        FollowRepository followRepository = mock(FollowRepository.class);
+        when(blockRepository.nextBlockProjectionVersion()).thenReturn(91L);
+        when(blockRepository.block(USER_ID_1, USER_ID_2, 91L)).thenReturn(true);
+        BlockApplicationService service = new BlockApplicationService(
+                blockRepository,
+                followRepository,
+                new BlockDomainService(),
+                mock(SocialDomainEventPublisher.class)
+        );
+
+        service.block(new BlockCommand(USER_ID_1, USER_ID_2));
+
+        InOrder writes = inOrder(blockRepository, followRepository);
+        writes.verify(blockRepository).lockUserPair(USER_ID_1, USER_ID_2);
+        writes.verify(blockRepository).nextBlockProjectionVersion();
+        writes.verify(blockRepository).block(USER_ID_1, USER_ID_2, 91L);
+        writes.verify(followRepository).unfollow(USER_ID_1, USER, USER_ID_2);
+        writes.verify(followRepository).unfollow(USER_ID_2, USER, USER_ID_1);
+    }
+
+    @Test
+    void unblockShouldLockUserPairBeforeChangingTheBlockRelation() {
+        BlockRepository blockRepository = mock(BlockRepository.class);
+        when(blockRepository.nextBlockProjectionVersion()).thenReturn(92L);
+        BlockApplicationService service = new BlockApplicationService(
+                blockRepository,
+                mock(FollowRepository.class),
+                new BlockDomainService(),
+                mock(SocialDomainEventPublisher.class)
+        );
+
+        service.unblock(new UnblockCommand(USER_ID_1, USER_ID_2));
+
+        InOrder writes = inOrder(blockRepository);
+        writes.verify(blockRepository).lockUserPair(USER_ID_1, USER_ID_2);
+        writes.verify(blockRepository).nextBlockProjectionVersion();
+        writes.verify(blockRepository).unblock(USER_ID_1, USER_ID_2, 92L);
+    }
+
+    @Test
     void blockShouldRemoveFollowRelationsInBothDirections() {
         StatefulBlockRepository blockRepository = new StatefulBlockRepository();
         StatefulFollowRepository followRepository = new StatefulFollowRepository();
@@ -180,6 +224,10 @@ class BlockApplicationServiceTest {
         private final ConcurrentHashMap<UUID, Set<UUID>> blocks = new ConcurrentHashMap<>();
 
         @Override
+        public void lockUserPair(UUID userIdA, UUID userIdB) {
+        }
+
+        @Override
         public boolean block(UUID userId, UUID targetUserId, long version) {
             return blocks.computeIfAbsent(userId, ignored -> ConcurrentHashMap.newKeySet()).add(targetUserId);
         }
@@ -213,7 +261,12 @@ class BlockApplicationServiceTest {
         }
 
         @Override
-        public List<BlockRelation> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit) {
+        public List<BlockRelation> scanBlocksAtVersionAfter(
+                long snapshotVersion,
+                UUID afterUserId,
+                UUID afterTargetUserId,
+                int limit
+        ) {
             return List.of();
         }
 

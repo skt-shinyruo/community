@@ -1,7 +1,7 @@
 package com.nowcoder.community.auth.application;
 
 import com.nowcoder.community.auth.application.command.RegisterCommand;
-import com.nowcoder.community.auth.application.port.MailPort;
+import com.nowcoder.community.auth.application.port.RegistrationCodeMailDispatcher;
 import com.nowcoder.community.auth.application.result.RegisterResult;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
@@ -48,7 +48,7 @@ class RegistrationApplicationServiceTest {
     private UserRegistrationActionApi userRegistrationActionApi;
 
     @Mock
-    private MailPort mailService;
+    private RegistrationCodeMailDispatcher mailDispatcher;
 
     @Mock
     private CaptchaChallengeComponent captchaChallenge;
@@ -58,6 +58,9 @@ class RegistrationApplicationServiceTest {
 
     @Mock
     private RegistrationDraftRepository registrationDraftRepository;
+
+    @Mock
+    private RegistrationRequestRateLimiter registrationRequestRateLimiter;
 
     private RegistrationProperties properties;
     private RegistrationApplicationService service;
@@ -70,12 +73,13 @@ class RegistrationApplicationServiceTest {
         service = new RegistrationApplicationService(
                 userRegistrationActionApi,
                 properties,
-                mailService,
+                mailDispatcher,
                 captchaChallenge,
                 registrationCodeStore,
                 registrationDraftRepository,
                 new AuthSecretGenerator(),
-                new RegistrationDomainService()
+                new RegistrationDomainService(),
+                registrationRequestRateLimiter
         );
     }
 
@@ -97,7 +101,7 @@ class RegistrationApplicationServiceTest {
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
         when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
                 .thenReturn(true);
-        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)), any(UUID.class)))
                 .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
 
         RegisterResult response = service.register(command);
@@ -111,6 +115,8 @@ class RegistrationApplicationServiceTest {
         assertThat(response.maskedEmail()).isNotBlank().contains("@").isNotEqualTo("alice@example.com");
         assertThat(response.debugEmailCode()).matches("\\d{6}");
         verify(userRegistrationActionApi).prepareRegistrationUser("alice", "secret", "alice@example.com");
+        verify(registrationRequestRateLimiter).enforce(
+                "alice", "alice@example.com", "127.0.0.1");
         ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<PreparedRegistrationDraft> draftCaptor = ArgumentCaptor.forClass(PreparedRegistrationDraft.class);
         verify(registrationDraftRepository).store(tokenCaptor.capture(), draftCaptor.capture(), eq(Duration.ofMinutes(30)));
@@ -123,8 +129,18 @@ class RegistrationApplicationServiceTest {
         assertThat(draft.headerUrl()).isEqualTo(HEADER_URL);
         assertThat(draft.issuedAt()).isNotNull();
         assertThat(draft.expiresAt()).isEqualTo(draft.issuedAt().plus(Duration.ofMinutes(30)));
-        verify(registrationCodeStore).issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
-        verify(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));
+        ArgumentCaptor<UUID> deliveryIdCaptor = ArgumentCaptor.forClass(UUID.class);
+        verify(registrationCodeStore).issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)),
+                eq(Duration.ofSeconds(60)), deliveryIdCaptor.capture());
+        ArgumentCaptor<RegistrationCodeMailDispatcher.Delivery> deliveryCaptor =
+                ArgumentCaptor.forClass(RegistrationCodeMailDispatcher.Delivery.class);
+        verify(mailDispatcher).dispatch(deliveryCaptor.capture());
+        assertThat(deliveryCaptor.getValue().deliveryId()).isEqualTo(deliveryIdCaptor.getValue());
+        assertThat(deliveryCaptor.getValue().registrationId()).isEqualTo(userId);
+        assertThat(deliveryCaptor.getValue().replacementLeaseId()).isNull();
+        assertThat(deliveryCaptor.getValue().toEmail()).isEqualTo("alice@example.com");
+        assertThat(deliveryCaptor.getValue().code()).matches("\\d{6}");
+        assertThat(deliveryCaptor.getValue().expiresAt()).isAfter(java.time.Instant.now());
         assertThat(output.getAll())
                 .contains("user.id=" + userId)
                 .contains("username=alice")
@@ -136,7 +152,7 @@ class RegistrationApplicationServiceTest {
     }
 
     @Test
-    void registerShouldRollbackDraftAndCodeWhenMailSendingFails() {
+    void registerShouldRollbackDraftAndCodeWhenMailDispatchFails() {
         UUID userId = uuid(8);
         RegisterCommand command = registerCommand();
 
@@ -146,17 +162,18 @@ class RegistrationApplicationServiceTest {
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
         when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
                 .thenReturn(true);
-        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)), any(UUID.class)))
                 .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
         doThrow(new IllegalStateException("mail down"))
-                .when(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));
+                .when(mailDispatcher).dispatch(any(RegistrationCodeMailDispatcher.Delivery.class));
 
         assertThatThrownBy(() -> service.register(command))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("mail down");
 
         verify(registrationDraftRepository).store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)));
-        verify(registrationCodeStore).issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
+        verify(registrationCodeStore).issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)),
+                eq(Duration.ofSeconds(60)), any(UUID.class));
         verify(registrationDraftRepository).delete(matches("[A-Za-z0-9_-]+"));
         verify(registrationCodeStore).delete(userId);
     }
@@ -178,8 +195,8 @@ class RegistrationApplicationServiceTest {
                 .isEqualTo(CommonErrorCode.INTERNAL_ERROR);
 
         verify(registrationDraftRepository, times(5)).store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)));
-        verify(registrationCodeStore, never()).issue(any(), any(), any(), any());
-        verify(mailService, never()).sendRegistrationCodeMail(any(), any());
+        verify(registrationCodeStore, never()).issue(any(), any(), any(), any(), any());
+        verify(mailDispatcher, never()).dispatch(any());
         verify(registrationCodeStore).delete(userId);
         verify(registrationDraftRepository, never()).delete(any());
     }
@@ -195,7 +212,7 @@ class RegistrationApplicationServiceTest {
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
         when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
                 .thenReturn(true);
-        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)), any(UUID.class)))
                 .thenReturn(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
 
         assertThatThrownBy(() -> service.register(command))
@@ -205,7 +222,7 @@ class RegistrationApplicationServiceTest {
 
         verify(registrationDraftRepository).delete(matches("[A-Za-z0-9_-]+"));
         verify(registrationCodeStore).delete(userId);
-        verify(mailService, never()).sendRegistrationCodeMail(any(), any());
+        verify(mailDispatcher, never()).dispatch(any());
     }
 
     @Test
@@ -219,7 +236,7 @@ class RegistrationApplicationServiceTest {
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
         when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
                 .thenReturn(true);
-        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)), any(UUID.class)))
                 .thenThrow(new IllegalStateException("redis down"));
 
         assertThatThrownBy(() -> service.register(command))
@@ -228,7 +245,7 @@ class RegistrationApplicationServiceTest {
 
         verify(registrationDraftRepository).delete(matches("[A-Za-z0-9_-]+"));
         verify(registrationCodeStore).delete(userId);
-        verify(mailService, never()).sendRegistrationCodeMail(any(), any());
+        verify(mailDispatcher, never()).dispatch(any());
     }
 
     @Test
@@ -247,8 +264,8 @@ class RegistrationApplicationServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("draft down");
 
-        verify(registrationCodeStore, never()).issue(any(), any(), any(), any());
-        verify(mailService, never()).sendRegistrationCodeMail(any(), any());
+        verify(registrationCodeStore, never()).issue(any(), any(), any(), any(), any());
+        verify(mailDispatcher, never()).dispatch(any());
         verify(registrationCodeStore).delete(userId);
         verify(registrationDraftRepository, never()).delete(any());
     }
@@ -269,8 +286,8 @@ class RegistrationApplicationServiceTest {
                 .isEqualTo(CommonErrorCode.INTERNAL_ERROR);
 
         verify(registrationDraftRepository, never()).store(any(), any(), any());
-        verify(registrationCodeStore, never()).issue(any(), any(), any(), any());
-        verify(mailService, never()).sendRegistrationCodeMail(any(), any());
+        verify(registrationCodeStore, never()).issue(any(), any(), any(), any(), any());
+        verify(mailDispatcher, never()).dispatch(any());
     }
 
     private static UUID uuid(long suffix) {
@@ -278,7 +295,8 @@ class RegistrationApplicationServiceTest {
     }
 
     private static RegisterCommand registerCommand() {
-        return new RegisterCommand("alice", "secret", "alice@example.com", "cid", "abcd");
+        return new RegisterCommand(
+                "alice", "secret", "alice@example.com", "cid", "abcd", "127.0.0.1");
     }
 
     private static PreparedRegistrationUserView preparedUser(UUID userId) {

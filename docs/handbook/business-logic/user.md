@@ -106,13 +106,16 @@ HTTP：
 `UserModerationApplicationService` 管理禁言和封禁：
 
 - `getModerationState(userId)`：读取用户处罚状态。
-- `scanModerationStatesAfterId(...)`：给 IM snapshot 分页扫描用户 policy。
+- `scanModerationStatesAtVersionAfterId(...)`：按固定 owner version 给 IM snapshot 分页扫描用户 policy。
 - `applyModeration(command)`：应用禁言、封禁或解除类动作。
 
 处罚规则在 `UserModerationDomainService`：
 
 - action 必须非空且属于允许动作。
 - duration 决定处罚到期时间。
+- user owner 按 `actorUserId` 重新读取操作者角色，不信任调用域自行声明的权限。
+- 禁止自我处罚和处罚管理员；版主只能处罚普通用户，管理员可以处罚普通用户和版主。
+- 普通用户、失活用户和处于账号封禁期的操作者不能执行处罚。
 - 返回新的 `UserModerationStatus`。
 
 写入后：
@@ -130,10 +133,11 @@ HTTP：
 
 1. 管理员按 userId、username 或 email 搜索用户。
 2. 修改角色必须带目标用户、目标 type、reason 和 confirm。
-3. 禁止管理员把自己降级为非管理员。
-4. 找不到目标用户失败。
-5. 同角色更新直接返回，不重复写库。
-6. 变更成功写 `user.type`，并通过 audit port 记录审计日志。
+3. 角色写入先获取 user owner 的全局角色决策锁，再以 `FOR UPDATE` 重新读取 actor 和 target。
+4. actor 必须仍是启用、未封禁的管理员；禁止管理员把自己降级为非管理员。
+5. 并发互相降权会串行执行，后续请求按前一事务提交后的角色重新鉴权，避免全部管理员同时失权。
+6. 找不到目标用户失败；同角色更新直接返回，不重复写库。
+7. 变更成功写 `user.type`，并通过 audit port 记录审计日志。
 
 角色决定 JWT authorities，但已签发的 access token claims 不会立即变化，需要重新签发后体现。角色调整会同时提升 `securityVersion`；所有带旧 access token 的 `/api/**` 请求立即按 freshness 拒绝，旧 refresh family 在下次续期时被 auth 拒绝。
 

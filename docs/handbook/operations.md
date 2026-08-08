@@ -525,19 +525,21 @@ XXL-JOB Admin 本地入口：
 http://localhost:12887/xxl-job-admin
 ```
 
-## Current-State Schema Runbook
+## Community 前向 Schema 迁移
 
-三个业务 schema 由 `deploy/mysql/primary-init/010_current_schema.sql` 统一描述。MySQL entrypoint 只在主库数据目录为空时执行它，因此结构变化不会自动应用到已有 volume。
+空库仍由 `deploy/mysql/primary-init/010_current_schema.sql` 一次性建立最终结构。已有 `community` 数据由 `community-db-migrations` one-shot 执行 `deploy/mysql/community-migrations/VNNN__*.sql`；它使用独立 `${COMMUNITY_MIGRATION_USERNAME}`，runtime 账号始终只有 DML 权限。当前序列从 `V016` 开始，能接管之前没有 history 的快照环境，也能在已经包含目标结构的新空库上幂等登记。
 
-### 结构变化
+### 发布步骤
 
-1. 直接修改快照中的最终 `CREATE TABLE` 定义；保留分类、任务模板、OSS usage policy、IM version counter 等必要引用数据，不要加入 development 用户。
-2. 同步受影响的 H2 `schema.sql` 测试夹具、Java MySQL 契约和三个部署快照契约。
-3. 先停止完整拓扑并只删除 MySQL volumes：`./deploy/deployment.sh reset-mysql --topology single` 或 `--topology cluster`。
-4. 重新执行 `deployment.sh up`。single 在 `mysql` 初始化快照；cluster 只在 `mysql-primary` 初始化，再通过 GTID 复制到两个 replica。
-5. 确认 runtime 账号没有 DDL 权限、三个 schema 没有 history table，并检查必要引用数据和 development seed 状态。
+1. 备份 `community`，确认可恢复；涉及数据清理或与旧写路径互斥时，先停止 `community-app` 和 Mock Data Studio 写入。V016 执行前必须停止并排空所有旧 refresh rotation writer，禁止旧二进制跨迁移恢复并改写带 lease 的 pending session。V022 必须在旧版收藏 writer 全部停止并排空后执行，直到全部实例切换到事务内 durable marker 版本前不得恢复收藏写入。
+2. 为本次发布准备独立强口令 `COMMUNITY_MIGRATION_PASSWORD`，确认迁移用户名与 `MYSQL_USER` 不同。不要把这两个迁移变量注入 runtime service。
+3. 修改当前态快照最终定义，同时追加新的、不可变的 `VNNN__description.sql`；同步 H2 fixture 和 schema / migration 契约。
+4. 执行 `./deploy/deployment.sh up --topology <single|cluster>`。账号 bootstrap 先收敛权限；cluster 再建立 GTID 复制；随后 one-shot 执行迁移。`community-app` 只会在迁移退出码为 0 后启动。
+5. 检查 `community-db-migrations` 日志和 `community_forward_schema_history` 的 version、script、SHA-256、installed_by。cluster 还要确认 replica 已追上迁移 GTID，再恢复业务写入。
 
-`reset-mysql` 是破坏性 clean break，只支持 `--scope full`。它不会删除 Redis、Kafka、Garage 或 Elasticsearch volumes，但会永久删除目标拓扑的 MySQL 数据。需要保留既有业务数据时不要执行；当前态快照模型不提供原地升级，必须先设计并验证数据导出/导入或正式前向升级流程。
+迁移只向前，不提供 down migration。发布失败时保持 runtime 停止，修复尚未成功登记的迁移，使其仍可从任一部分完成状态重跑；不要手工插入 history，不要修改已登记文件，也不要把 DDL 权限临时授给 application 账号。需要回退应用镜像时，必须先确认旧版本与已前向升级的 schema 兼容。
+
+`reset-mysql` 仍是可丢弃环境的破坏性 clean break，只支持 `--scope full`，并永久删除目标拓扑 MySQL 数据。保留数据的环境不得使用。
 
 ### Development Seed
 
@@ -546,15 +548,19 @@ http://localhost:12887/xxl-job-admin
 ### 故障定位
 
 - 新快照没有执行：确认目标 MySQL volume 是否确实为空；普通 restart 不会重放 `/docker-entrypoint-initdb.d`。
-- runtime 未启动：检查 `community-db-user-bootstrap`；cluster 还要检查 `mysql-replication-bootstrap` 是否成功。
+- runtime 未启动：依次检查 `community-db-user-bootstrap`、cluster 的 `mysql-replication-bootstrap` 和 `community-db-migrations`。
+- checksum mismatch：已登记 migration 被修改；恢复发布时的原文件并新增更高版本修正，禁止改 history checksum。
+- migration 中断：确认没有 runtime 写入后直接重跑同一 one-shot；V016 及后续迁移的 DDL 和数据清理逐项幂等，history 只记录完整成功。
 - cluster replica 缺表或缺引用数据：保持 runtime 停止，检查 primary 初始化日志、GTID 状态和 replication bootstrap 日志。
 - development seed 失败：确认部署环境精确为 `development`，开关为 `true`，且当前态快照已经创建 `user` 等目标表。
-- 结构漂移：不要手工补 `ALTER TABLE`；修正当前态快照并重新执行 `reset-mysql`。
+- 结构漂移：可丢弃环境修正快照后 reset；保留数据环境新增前向迁移，不要手工补 DDL。
 
 契约验证：
 
 ```bash
 ./deploy/tests/community_schema_snapshot_contract.sh
+./deploy/tests/community_forward_migration_contract.sh
+./deploy/tests/community_forward_migration_mysql.sh
 ./deploy/tests/oss_schema_snapshot_contract.sh
 ./deploy/tests/im_schema_snapshot_contract.sh
 ./deploy/tests/reset_mysql_contract.sh
@@ -572,12 +578,99 @@ http://localhost:12887/xxl-job-admin
 - access verifier 缺少至少 2048-bit RSA public key 会阻断启动；`community-app` 还要求匹配的 private key。service JWT HMAC secret 为空、过短或为已知占位值也会阻断启动。
 - trusted proxy 开启但 CIDR 为空或全信任会阻断 prod 启动。
 - refresh cookie 在 prod 下必须满足安全属性。
-- 找回密码和注册邮件在 prod 下必须可用，禁止泄漏 reset link / registration code。
+- 找回密码和注册邮件在 prod 下必须可用，禁止泄漏 reset link / registration code；SMTP 必须使用隐式 SSL，或同时启用并强制 STARTTLS。密码重置、注册请求和验证码 quota 不允许用非正数关闭。
+- Redis connect / command timeout 必须为正数且不超过 5 秒；command timeout 还必须小于登录密码检查 lease 的四分之一，避免一次阻塞命令耗尽续租间隔。
+- OriginGuard 必须启用、fail-closed，并配置非空且格式合法的 Origin allowlist。
 - 固定验证码禁止出现在 prod。
 - Prometheus basic auth 如果启用但凭据缺失，会在 bean 创建期失败。
-- outbox 开启时必须能拿到 JDBC store，否则启动失败。
+- outbox 开启时必须能拿到 JDBC store；prod / production 还必须启用 outbox worker，否则启动失败。
 
 这些规则的设计目标是：关键能力一旦声明启用，就不能 silently degrade 到危险默认值。
+
+profile 名按大小写无关方式识别：`prod`、`PROD`、`production` 和大小写混合形式都会启用同一套启动校验。即使误把 profile 留在 `dev`，只要 `DEPLOYMENT_ENVIRONMENT` 或 Nacos discovery deployment metadata 是 `prod` / `production`，同一套校验也会 fail-closed，不能靠 profile 错配绕过生产守卫。
+
+### 认证邮件与 Cookie 配置所有权
+
+`nacos-config-bootstrap` 在发布 `community-app.yaml` 时渲染 `AUTH_REFRESH_COOKIE_SECURE`、`AUTH_REFRESH_COOKIE_SAME_SITE`、`AUTH_MAIL_ENABLED`、`AUTH_MAIL_FROM` 和 `AUTH_REGISTRATION_EXPOSE_CODE`。`SameSite` 只接受 `Lax` / `Strict` / `None`，且 `None` 必须配合 `Secure=true`。这些值属于 Nacos 配置，不重复注入 `community-app` runtime。
+
+SMTP endpoint、username/password、auth、STARTTLS/SSL 与三个 timeout 直接注入 `community-app` 容器；密码不写入 Nacos 发布内容。生产外部 SMTP 的典型配置是 `SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true`、设置 `SPRING_MAIL_USERNAME` / `SPRING_MAIL_PASSWORD`，并同时设置 STARTTLS enable/required，或启用隐式 SSL。MailHog、`.local` host / from 和 TLS 降级配置会被生产启动校验拒绝。三个 timeout 必须在 1..30000 ms，注册验证码 operation lease 必须覆盖三者总和并额外保留 10 秒。
+
+`SPRING_DATA_REDIS_CONNECT_TIMEOUT` 和 `SPRING_DATA_REDIS_TIMEOUT` 分别控制 Redis 建连和单条命令等待时间，部署模板默认都是 `2s`。生产环境中两者都必须大于 0 且不超过 `5s`，并保证 command timeout 小于 `auth.login-rate-limit.password-check-lease-seconds / 4`；缩短密码检查 lease 时必须同步复核该约束。
+
+`AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET` 使用双向兼容轮换。假设当前密钥为 K1、新密钥为 K2，顺序必须是：
+
+1. 全部 K1 节点先保持 `current=K1`，并把 K2 放入 `AUTH_PASSWORD_RESET_PREVIOUS_IDENTIFIER_HMAC_SECRETS`。该属性名是历史命名，实际语义是 worker 可接受的辅助密钥列表。
+2. 确认所有节点都接受 K1/K2 后，再滚动为 `current=K2`、辅助列表包含 K1。此时新旧节点都能处理两个 key ID，不会因滚动发布而饿死邮件。
+3. 只有确认 K1 已无携带 payload 的 `PENDING` / `PROCESSING` / 可重放 `DEAD` 邮件，且用 K1 签发的 reset token TTL 已结束后，才能从辅助列表移除 K1。`SUCCEEDED` 和不可恢复的 terminal `DEAD` 会原子清空 payload，不再要求保留对应密钥。
+
+`AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET` 是密码重置和注册滥用防护的稳定伪名密钥，必须与 delivery identifier secret、service JWT secret 分离。正常发布不得轮换它；强制轮换会创建一套新 Redis quota key，相当于重置窗口。确需轮换时，应先暂停相关公开入口，至少等待所有 request/resend quota 的最长窗口到期，再一次性切换全部实例。
+
+登录风控的 IP `v2`、临时输入 `input:v3` 和 authoritative subject `subject:v3` key 复用该稳定 quota 密钥，但分别使用 `login-ip`、`login-input` 和 `login-subject` HMAC scope。`user:v2` 不会被 v3 双读或迁移：从 `auth:login:fail:user:v2-*` 切换到 `input:v3` / `subject:v3`，以及强制轮换 quota 密钥时，都禁止新旧 writer 混合接收登录流量，否则两套独立预算可在同一窗口内被合并利用。
+
+切换步骤是：暂停公开登录并排空在途请求，停止全部旧版 `community-app`，确认已无 `user:v2` writer 后，等待至少 `max(auth.login-rate-limit.window-seconds, auth.login-rate-limit.password-check-lease-seconds) + 1` 秒，使旧失败计数和 lease 全部过期；再一次性启动全部 v3 实例并恢复登录。回滚同样必须先停流、停止 v3 writer 并等待相同 drain 时间，不能直接滚动混跑。
+
+启用严格用户名策略前必须审计存量 `user.username`。新版本会对请求值和查询返回值分别校验；不安全旧行会被当成不存在账号，因此未治理的用户将无法重新登录。下面的 MySQL 8 查询保守列出控制/format 字符、owner 策略显式拒绝的不可见码点以及纯 Unicode separator 用户名；结果只显示 ID 和 UTF-8 hex，避免终端把不可见字符伪装成普通用户名：
+
+```sql
+WITH RECURSIVE username_codepoints AS (
+  SELECT id, username, 1 AS position,
+         SUBSTRING(username, 1, 1) AS character_value
+  FROM user
+  WHERE CHAR_LENGTH(username) > 0
+  UNION ALL
+  SELECT id, username, position + 1,
+         SUBSTRING(username, position + 1, 1)
+  FROM username_codepoints
+  WHERE position < CHAR_LENGTH(username)
+), flagged_users AS (
+  SELECT id, username
+  FROM username_codepoints
+  WHERE REGEXP_LIKE(character_value, '[\\p{Cc}\\p{Cf}]')
+     OR HEX(character_value) = 'CD8F'
+     OR HEX(character_value) BETWEEN 'E1859F' AND 'E185A0'
+     OR HEX(character_value) BETWEEN 'E19EB4' AND 'E19EB5'
+     OR HEX(character_value) BETWEEN 'E1A08B' AND 'E1A08F'
+     OR HEX(character_value) = 'E385A4'
+     OR HEX(character_value) BETWEEN 'EFB880' AND 'EFB88F'
+     OR HEX(character_value) = 'EFBEA0'
+     OR HEX(character_value) BETWEEN 'F09BB2A0' AND 'F09BB2A3'
+     OR HEX(character_value) BETWEEN 'F09D85B3' AND 'F09D85BA'
+     OR HEX(character_value) BETWEEN 'F3A08080' AND 'F3A0BFBF'
+  UNION
+  SELECT id, username
+  FROM user
+  WHERE username = ''
+     OR REGEXP_LIKE(username, '^[\\p{Zs}\\p{Zl}\\p{Zp}]+$')
+)
+SELECT HEX(id) AS user_id_hex, HEX(username) AS username_utf8_hex
+FROM flagged_users
+ORDER BY user_id_hex;
+```
+
+结果非空时保持登录/注册停流，逐条检查安全目标名在 `utf8mb4_unicode_ci` 下没有冲突，再通过受审的 user owner 管理流程重命名；无法确认归属的账号先禁用并撤销 refresh family，走人工身份恢复。禁止直接删除不可见码点后批量更新，因为多个旧名可能折叠到同一个唯一键。审计结果为空并完成 v3 drain 后，才恢复登录流量。
+
+真实 SMTP 密码应由部署平台 Secret 注入。`docker compose config` 会展开普通环境变量，不能把其输出当作可公开日志；若只能使用 Compose env file，还需按 Compose 规则处理密码中的 `$`。
+
+## 注册验证码 Redis v2 切换
+
+`auth:regcode:v2:{<userId>}` 把注册码、delivery ID、失败次数和 UUID lease 存为 Hash。旧版真实 key 是 `auth:regcode:<userId>`，值为没有 lease 的 8 字段 String。两个 key 不在同一 Redis Cluster slot，因此桥接先在 legacy key 上用单个 Lua 原子执行 `GET + PTTL + DEL`，再执行 v2 单 key 条件导入，从不对跨 slot key 执行一个 Lua。
+
+这个 bridge 只保证停机切换后的存量验证码可继续使用，不支持新旧 writer 滚动混跑。旧实例会忽略 v2，新实例也无法约束旧脚本，因此混跑可能出现两个同时可验证的 code。
+
+发布步骤：
+
+1. 暂停注册、验证码验证和重发入口，等待所有在途请求结束。
+2. 停止全部旧版 `community-app`，确认没有旧实例、listener 或任务再写 `auth:regcode:<userId>`。
+3. 启动 v2 实例后恢复入口。无需提前扫描或改写 Redis；每个用户的首个操作会在“旧 writer 已停止”的发布约束下安全桥接有效 legacy 值。legacy pending 只恢复此前 active code，replacement 不会被猜测为已投递。
+4. 观察注册签发、重发和验证错误率。非法、过期、无 TTL 的 legacy 值会 fail-closed 清理；显式注册 cleanup 会同时删除 v2 和 legacy key。
+
+不得通过重新启动旧实例直接回滚。回滚时先再次关闭入口并停止全部 v2 writer，使仍在途的 registration draft/code 失效，再启动旧版并要求用户重新发起注册；否则旧版会忽略 v2 状态并破坏 lease fencing。
+
+## Captcha Redis key 切换
+
+验证码使用 `captcha:{<32位十六进制 captchaId>}:value` 与同 slot 的 `:fail` key，并在一个 Lua 中原子校验、累计失败和消费。旧版 `captcha:<captchaId>` 与新 key 不兼容，也没有双读协议；新旧实例混跑会互相拒绝对方签发的验证码。
+
+发布该 key 协议时，先暂停 captcha 签发以及依赖 captcha 的登录、注册、重发和密码重置入口，等待至少一个 `auth.captcha.ttl-seconds` 并排空在途请求，再停止全部旧实例、启动全部新实例后恢复入口。回滚遵循相同停流和 TTL 排空步骤，禁止直接滚动混跑。
 
 ## 常见本地故障
 

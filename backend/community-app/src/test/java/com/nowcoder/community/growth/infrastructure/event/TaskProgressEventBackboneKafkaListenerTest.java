@@ -100,27 +100,32 @@ class TaskProgressEventBackboneKafkaListenerTest {
     }
 
     @Test
-    void likeCreatedShouldUseStableRelationKeyAsGrowthSourceId() {
+    void likeCreatedShouldPreserveLifecycleMetadataForGrowthOrdering() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
         String relationKey = "like:" + uuid(1) + ":" + POST + ":" + uuid(100);
         Instant occurredAt = Instant.parse("2026-05-18T10:30:00Z");
         LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
         payload.setRelationKey(relationKey);
+        payload.setRelationInstanceId(uuid(700));
+        payload.setRelationVersion(11L);
 
         listener.onSocialEvent(new SocialContractEvent(
                 "se:like:created:1", null, null, SocialEventTypes.LIKE_CREATED,
-                occurredAt, 1L, jsonCodec.valueToTree(payload)));
+                occurredAt, 11L, jsonCodec.valueToTree(payload)));
         listener.onSocialEvent(new SocialContractEvent(
                 "se:like:created:2", null, null, SocialEventTypes.LIKE_CREATED,
-                occurredAt, 1L, jsonCodec.valueToTree(payload)));
+                occurredAt, 11L, jsonCodec.valueToTree(payload)));
 
         ArgumentCaptor<TriggerLikeCreatedCommand> captor = ArgumentCaptor.forClass(TriggerLikeCreatedCommand.class);
         verify(applicationService, org.mockito.Mockito.times(2)).triggerLikeCreated(captor.capture());
         TriggerLikeCreatedCommand first = captor.getAllValues().get(0);
         TriggerLikeCreatedCommand second = captor.getAllValues().get(1);
-        assertThat(first.sourceEventId()).isEqualTo(relationKey);
-        assertThat(first.sourceEventId()).isEqualTo(second.sourceEventId());
+        assertThat(first.sourceEventId()).isEqualTo("se:like:created:1");
+        assertThat(second.sourceEventId()).isEqualTo("se:like:created:2");
+        assertThat(first.sourceVersion()).isEqualTo(11L);
+        assertThat(first.relationKey()).isEqualTo(relationKey);
+        assertThat(first.relationInstanceId()).isEqualTo(uuid(700));
         assertThat(first.actorUserId()).isEqualTo(uuid(1));
         assertThat(first.entityUserId()).isEqualTo(uuid(2));
         assertThat(first.createTime()).isEqualTo(Instant.parse("2026-05-18T10:30:00Z"));
@@ -157,7 +162,10 @@ class TaskProgressEventBackboneKafkaListenerTest {
 
         ArgumentCaptor<TriggerLikeCreatedCommand> captor = ArgumentCaptor.forClass(TriggerLikeCreatedCommand.class);
         verify(applicationService).triggerLikeCreated(captor.capture());
-        assertThat(captor.getValue().sourceEventId()).isEqualTo("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
+        assertThat(captor.getValue().sourceEventId()).isEqualTo("se:like:created:map");
+        assertThat(captor.getValue().sourceVersion()).isEqualTo(1L);
+        assertThat(captor.getValue().relationKey()).isEqualTo("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
+        assertThat(captor.getValue().relationInstanceId()).isNull();
         assertThat(captor.getValue().actorUserId()).isEqualTo(uuid(1));
         assertThat(captor.getValue().entityUserId()).isEqualTo(uuid(2));
         assertThat(captor.getValue().createTime()).isEqualTo(Instant.parse("2026-05-18T10:30:00Z"));
@@ -169,13 +177,135 @@ class TaskProgressEventBackboneKafkaListenerTest {
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
         LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
         payload.setRelationKey("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
+        payload.setRelationInstanceId(uuid(700));
+        payload.setRelationVersion(12L);
 
         listener.onSocialEvent(new SocialContractEvent(
                 "se:like:removed:1", null, null, SocialEventTypes.LIKE_REMOVED,
-                java.time.Instant.EPOCH, 1L, jsonCodec.valueToTree(payload)));
+                java.time.Instant.EPOCH, 12L, jsonCodec.valueToTree(payload)));
 
         verify(applicationService).triggerLikeRemoved(new TriggerLikeRemovedCommand(
+                "se:like:removed:1",
+                12L,
                 "like:" + uuid(1) + ":" + POST + ":" + uuid(100),
+                uuid(700),
+                uuid(2)
+        ));
+    }
+
+    @Test
+    void likeRemovedWithNonCanonicalRelationKeyShouldFailDelivery() {
+        TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
+        TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
+        payload.setRelationKey("like:" + uuid(9) + ":" + POST + ":" + uuid(100));
+        payload.setRelationInstanceId(uuid(700));
+        payload.setRelationVersion(12L);
+
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "se:like:removed:non-canonical-key", null, null, SocialEventTypes.LIKE_REMOVED,
+                Instant.EPOCH, 12L, jsonCodec.valueToTree(payload))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("se:like:removed:non-canonical-key");
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void likeRemovedWithoutCanonicalIdentityShouldFailDelivery() {
+        TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
+        TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
+        LikePayload payload = likePayload(null, uuid(100), uuid(2));
+
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "se:like:removed:missing-actor", null, null, SocialEventTypes.LIKE_REMOVED,
+                Instant.EPOCH, 1L, jsonCodec.valueToTree(payload))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("se:like:removed:missing-actor");
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void likeCreatedWithNonCanonicalRelationKeyShouldFailDelivery() {
+        TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
+        TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
+        payload.setRelationKey("like:" + uuid(1) + ":" + POST + ":" + uuid(101));
+
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "se:like:created:non-canonical-key", null, null, SocialEventTypes.LIKE_CREATED,
+                Instant.EPOCH, 1L, jsonCodec.valueToTree(payload))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("se:like:created:non-canonical-key");
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void relationVersionMismatchShouldFailDelivery() {
+        TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
+        TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
+        payload.setRelationInstanceId(uuid(700));
+        payload.setRelationVersion(12L);
+
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "se:like:created:version-mismatch", null, null, SocialEventTypes.LIKE_CREATED,
+                Instant.EPOCH, 11L, jsonCodec.valueToTree(payload))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("se:like:created:version-mismatch");
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void declaredRelationVersionWithoutInstanceShouldFailDelivery() {
+        TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
+        TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
+        payload.setRelationVersion(12L);
+
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "se:like:created:missing-instance", null, null, SocialEventTypes.LIKE_CREATED,
+                Instant.EPOCH, 12L, jsonCodec.valueToTree(payload))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("se:like:created:missing-instance");
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void durableEnvelopeVersionWithoutDeclaredRelationVersionShouldFailDelivery() {
+        TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
+        TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
+        payload.setRelationInstanceId(uuid(700));
+
+        assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
+                "se:like:created:missing-relation-version", null, null, SocialEventTypes.LIKE_CREATED,
+                Instant.EPOCH, 4_611_686_018_427_387_905L, jsonCodec.valueToTree(payload))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("se:like:created:missing-relation-version");
+
+        verifyNoInteractions(applicationService);
+    }
+
+    @Test
+    void legacyLikeRemovedWithoutLifecycleMetadataShouldUseEnvelopeVersion() {
+        TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
+        TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
+
+        listener.onSocialEvent(new SocialContractEvent(
+                "se:like:removed:legacy", null, null, SocialEventTypes.LIKE_REMOVED,
+                Instant.EPOCH, 1_800_000_000_000L, jsonCodec.valueToTree(payload)));
+
+        verify(applicationService).triggerLikeRemoved(new TriggerLikeRemovedCommand(
+                "se:like:removed:legacy",
+                1_800_000_000_000L,
+                "like:" + uuid(1) + ":" + POST + ":" + uuid(100),
+                null,
                 uuid(2)
         ));
     }

@@ -2,7 +2,7 @@ package com.nowcoder.community.auth.application;
 
 import com.nowcoder.community.auth.application.command.ResendRegisterCodeCommand;
 import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand;
-import com.nowcoder.community.auth.application.port.MailPort;
+import com.nowcoder.community.auth.application.port.RegistrationCodeMailDispatcher;
 import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
@@ -21,7 +21,10 @@ import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -39,6 +42,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -56,7 +60,10 @@ class RegistrationVerificationApplicationServiceTest {
     private RegistrationCodeRepository registrationCodeStore;
 
     @Mock
-    private MailPort mailService;
+    private RegistrationCodeMailDispatcher mailDispatcher;
+
+    @Mock
+    private RegistrationRequestRateLimiter registrationRequestRateLimiter;
 
     @Mock
     private CaptchaChallengeComponent captchaChallenge;
@@ -79,12 +86,13 @@ class RegistrationVerificationApplicationServiceTest {
                 userRegistrationActionApi,
                 properties,
                 registrationCodeStore,
-                mailService,
+                mailDispatcher,
                 captchaChallenge,
                 registrationDraftRepository,
                 loginTokenIssuer,
                 new AuthSecretGenerator(),
-                new RegistrationDomainService()
+                new RegistrationDomainService(),
+                registrationRequestRateLimiter
         );
     }
 
@@ -103,23 +111,112 @@ class RegistrationVerificationApplicationServiceTest {
     }
 
     @Test
+    void activatedRegistrationTokenShouldRequireNormalLoginForVerifyAndResend() {
+        UUID userId = uuid(70);
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.empty());
+        when(registrationDraftRepository.findActivatedUserId("token")).thenReturn(Optional.of(userId));
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
+
+        assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
+        assertThatThrownBy(() -> service.resendCode(
+                new ResendRegisterCodeCommand("token", "cid", "abcd", "127.0.0.1")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
+
+        verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailDispatcher, loginTokenIssuer);
+    }
+
+    @Test
     void resendCodeShouldRequireCaptchaAndReturnIssuedResponse() {
         UUID userId = uuid(7);
 
         doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
-        when(registrationCodeStore.beginReplacement(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+        when(registrationCodeStore.beginReplacement(
+                eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)),
+                any(Instant.class), any(UUID.class)))
                 .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
-
-        RegisterCodeResendResult response = service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd"));
+        RegisterCodeResendResult response = service.resendCode(
+                new ResendRegisterCodeCommand("token", "cid", "abcd", "127.0.0.1"));
 
         assertThat(response.issued()).isTrue();
         assertThat(response.maskedEmail()).isNotBlank().contains("@").isNotEqualTo("alice@example.com");
         assertThat(response.debugEmailCode()).matches("\\d{6}");
-        verify(registrationCodeStore).beginReplacement(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
-        verify(registrationCodeStore).promoteReplacement(userId);
-        verify(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));
+        ArgumentCaptor<Instant> leaseExpiryCaptor = ArgumentCaptor.forClass(Instant.class);
+        ArgumentCaptor<UUID> leaseIdCaptor = ArgumentCaptor.forClass(UUID.class);
+        verify(registrationCodeStore).beginReplacement(
+                eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)),
+                leaseExpiryCaptor.capture(), leaseIdCaptor.capture());
+        assertThat(leaseExpiryCaptor.getValue()).isAfter(Instant.now());
+        verify(registrationRequestRateLimiter).enforceResend(userId, "alice@example.com", "127.0.0.1");
+        ArgumentCaptor<RegistrationCodeMailDispatcher.Delivery> deliveryCaptor =
+                ArgumentCaptor.forClass(RegistrationCodeMailDispatcher.Delivery.class);
+        verify(mailDispatcher).dispatch(deliveryCaptor.capture());
+        assertThat(deliveryCaptor.getValue().deliveryId()).isEqualTo(leaseIdCaptor.getValue());
+        assertThat(deliveryCaptor.getValue().replacementLeaseId()).isEqualTo(leaseIdCaptor.getValue());
+        assertThat(deliveryCaptor.getValue().registrationId()).isEqualTo(userId);
+        assertThat(deliveryCaptor.getValue().code()).matches("\\d{6}");
+        verify(registrationCodeStore, never()).promoteReplacement(eq(userId), any(UUID.class));
         verify(userRegistrationActionApi, never()).createVerifiedRegistrationUser(any());
+    }
+
+    @Test
+    void resendCodeShouldClampCodeTtlToRegistrationDraftLifetime() {
+        UUID userId = uuid(7);
+        PreparedRegistrationDraft shortLivedDraft = new PreparedRegistrationDraft(
+                userId,
+                "alice",
+                "alice@example.com",
+                ENCODED_PASSWORD,
+                "h",
+                Instant.now(),
+                Instant.now().plusSeconds(240)
+        );
+
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(shortLivedDraft));
+        when(registrationCodeStore.beginReplacement(
+                eq(userId), matches("\\d{6}"), any(Duration.class), eq(Duration.ofSeconds(60)),
+                any(Instant.class), any(UUID.class)))
+                .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
+        service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd"));
+
+        ArgumentCaptor<Duration> ttlCaptor = ArgumentCaptor.forClass(Duration.class);
+        verify(registrationCodeStore).beginReplacement(
+                eq(userId), matches("\\d{6}"), ttlCaptor.capture(), eq(Duration.ofSeconds(60)),
+                any(Instant.class), any(UUID.class));
+        assertThat(ttlCaptor.getValue())
+                .isGreaterThan(Duration.ZERO)
+                .isLessThanOrEqualTo(Duration.ofSeconds(240));
+    }
+
+    @Test
+    void resendCodeShouldRejectDraftThatCannotCoverTheDeliveryValidityMargin() {
+        UUID userId = uuid(72);
+        PreparedRegistrationDraft expiringDraft = new PreparedRegistrationDraft(
+                userId,
+                "alice",
+                "alice@example.com",
+                ENCODED_PASSWORD,
+                "h",
+                Instant.now(),
+                Instant.now().plusSeconds(20)
+        );
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(expiringDraft));
+
+        assertThatThrownBy(() -> service.resendCode(
+                new ResendRegisterCodeCommand("token", "cid", "abcd", "127.0.0.1")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
+
+        verify(registrationCodeStore, never()).beginReplacement(any(), any(), any(), any(), any(), any());
+        verifyNoInteractions(mailDispatcher);
     }
 
     @Test
@@ -128,7 +225,9 @@ class RegistrationVerificationApplicationServiceTest {
 
         doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
-        when(registrationCodeStore.beginReplacement(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+        when(registrationCodeStore.beginReplacement(
+                eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)),
+                any(Instant.class), any(UUID.class)))
                 .thenReturn(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
 
         assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
@@ -136,26 +235,45 @@ class RegistrationVerificationApplicationServiceTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(AuthErrorCode.REGISTRATION_CODE_RESEND_COOLDOWN);
 
-        verifyNoInteractions(mailService);
+        verifyNoInteractions(mailDispatcher);
         verify(userRegistrationActionApi, never()).createVerifiedRegistrationUser(any());
     }
 
     @Test
-    void resendCodeShouldAbortReplacementWhenMailSendingFails() {
+    void resendCodeShouldAbortReplacementWhenOutboxDispatchFails() {
         UUID userId = uuid(7);
         doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
-        when(registrationCodeStore.beginReplacement(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+        when(registrationCodeStore.beginReplacement(
+                eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)),
+                any(Instant.class), any(UUID.class)))
                 .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
         doThrow(new IllegalStateException("mail down"))
-                .when(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));
+                .when(mailDispatcher).dispatch(any(RegistrationCodeMailDispatcher.Delivery.class));
 
         assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("mail down");
 
-        verify(registrationCodeStore).abortReplacement(userId);
-        verify(registrationCodeStore, never()).promoteReplacement(userId);
+        verify(registrationCodeStore).abortReplacement(eq(userId), any(UUID.class));
+        verify(registrationCodeStore, never()).promoteReplacement(eq(userId), any(UUID.class));
+    }
+
+    @Test
+    void resendCodeShouldStopBeforeRedisMutationWhenQuotaRejects() {
+        UUID userId = uuid(7);
+        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
+        doThrow(new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS))
+                .when(registrationRequestRateLimiter).enforceResend(userId, "alice@example.com", "127.0.0.1");
+
+        assertThatThrownBy(() -> service.resendCode(
+                new ResendRegisterCodeCommand("token", "cid", "abcd", "127.0.0.1")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(CommonErrorCode.TOO_MANY_REQUESTS);
+
+        verifyNoInteractions(registrationCodeStore, mailDispatcher);
     }
 
     @Test
@@ -166,9 +284,14 @@ class RegistrationVerificationApplicationServiceTest {
         RefreshCookieSpec cookie = issuedCookie("rt");
 
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
-        when(registrationCodeStore.verifyForConsumption(userId, "222222", Duration.ofSeconds(60)))
+        when(registrationCodeStore.verifyForConsumption(
+                eq(userId), eq("222222"), any(Instant.class), any(UUID.class)))
                 .thenReturn(RegistrationCodeRepository.VerifyResult.PENDING);
-        when(userRegistrationActionApi.createVerifiedRegistrationUser(any(VerifiedRegistrationUserCommand.class))).thenReturn(activatedUser);
+        when(userRegistrationActionApi.createVerifiedRegistrationUser(any(VerifiedRegistrationUserCommand.class)))
+                .thenReturn(new UserRegistrationActionApi.VerifiedRegistrationResult(activatedUser, true));
+        when(registrationDraftRepository.markActivated(
+                eq("token"), eq(userId), any(Duration.class))).thenReturn(true);
+        when(registrationCodeStore.consumePending(eq(userId), any(UUID.class))).thenReturn(true);
         when(loginTokenIssuer.issueLoginResult(activatedUser)).thenReturn(new LoginResult("access-token", cookie));
 
         LoginResult result = service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222"));
@@ -184,9 +307,16 @@ class RegistrationVerificationApplicationServiceTest {
         assertThat(createCommand.email()).isEqualTo("alice@example.com");
         assertThat(createCommand.encodedPassword()).isEqualTo(ENCODED_PASSWORD);
         assertThat(createCommand.headerUrl()).isEqualTo("h");
-        verify(registrationDraftRepository).delete("token");
-        verify(registrationCodeStore).consumePending(userId);
+        verify(registrationDraftRepository).markActivated(eq("token"), eq(userId), any(Duration.class));
+        verify(registrationDraftRepository, never()).delete("token");
+        ArgumentCaptor<UUID> verificationLeaseCaptor = ArgumentCaptor.forClass(UUID.class);
+        verify(registrationCodeStore).verifyForConsumption(
+                eq(userId), eq("222222"), any(Instant.class), verificationLeaseCaptor.capture());
+        verify(registrationCodeStore).consumePending(userId, verificationLeaseCaptor.getValue());
         verify(loginTokenIssuer).issueLoginResult(activatedUser);
+        InOrder credentialIssuanceOrder = inOrder(registrationCodeStore, loginTokenIssuer);
+        credentialIssuanceOrder.verify(registrationCodeStore).consumePending(userId, verificationLeaseCaptor.getValue());
+        credentialIssuanceOrder.verify(loginTokenIssuer).issueLoginResult(activatedUser);
         assertThat(output.getAll())
                 .contains("user.id=" + userId)
                 .contains("username=alice")
@@ -195,14 +325,45 @@ class RegistrationVerificationApplicationServiceTest {
     }
 
     @Test
-    void verifyAndLoginShouldDeleteDraftWhenLoginIssuanceFailsAfterUserCreation() {
+    void verifiedUserReplayShouldRetainTerminalDraftAndNeverIssueAnotherLogin() {
+        UUID userId = uuid(71);
+        PreparedRegistrationDraft draft = draft(userId);
+        UserCredentialView existingUser = new UserCredentialView(
+                userId, "alice", 1, 0, null, 41L, true, true);
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft));
+        when(registrationCodeStore.verifyForConsumption(
+                eq(userId), eq("222222"), any(Instant.class), any(UUID.class)))
+                .thenReturn(RegistrationCodeRepository.VerifyResult.PENDING);
+        when(userRegistrationActionApi.createVerifiedRegistrationUser(any(VerifiedRegistrationUserCommand.class)))
+                .thenReturn(new UserRegistrationActionApi.VerifiedRegistrationResult(existingUser, false));
+        when(registrationDraftRepository.markActivated(
+                eq("token"), eq(userId), any(Duration.class))).thenReturn(true);
+        when(registrationCodeStore.consumePending(eq(userId), any(UUID.class))).thenReturn(true);
+
+        assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
+
+        verify(registrationDraftRepository).markActivated(eq("token"), eq(userId), any(Duration.class));
+        verify(registrationDraftRepository, never()).delete("token");
+        verify(loginTokenIssuer, never()).issueLoginResult(any(UserCredentialView.class));
+    }
+
+    @Test
+    void verifyAndLoginShouldRetainTerminalDraftWhenLoginIssuanceFailsAfterUserCreation() {
         UUID userId = uuid(7);
         UserCredentialView activatedUser = new UserCredentialView(userId, "alice", 1, 0, null, 0L, true, true);
 
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
-        when(registrationCodeStore.verifyForConsumption(userId, "222222", Duration.ofSeconds(60)))
+        when(registrationCodeStore.verifyForConsumption(
+                eq(userId), eq("222222"), any(Instant.class), any(UUID.class)))
                 .thenReturn(RegistrationCodeRepository.VerifyResult.PENDING);
-        when(userRegistrationActionApi.createVerifiedRegistrationUser(any(VerifiedRegistrationUserCommand.class))).thenReturn(activatedUser);
+        when(userRegistrationActionApi.createVerifiedRegistrationUser(any(VerifiedRegistrationUserCommand.class)))
+                .thenReturn(new UserRegistrationActionApi.VerifiedRegistrationResult(activatedUser, true));
+        when(registrationDraftRepository.markActivated(
+                eq("token"), eq(userId), any(Duration.class))).thenReturn(true);
+        when(registrationCodeStore.consumePending(eq(userId), any(UUID.class))).thenReturn(true);
         when(loginTokenIssuer.issueLoginResult(activatedUser)).thenThrow(new IllegalStateException("token down"));
 
         assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222")))
@@ -210,8 +371,67 @@ class RegistrationVerificationApplicationServiceTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
 
-        verify(registrationDraftRepository).delete("token");
-        verify(registrationCodeStore).consumePending(userId);
+        verify(registrationDraftRepository).markActivated(eq("token"), eq(userId), any(Duration.class));
+        verify(registrationDraftRepository, never()).delete("token");
+        verify(registrationCodeStore).consumePending(eq(userId), any(UUID.class));
+    }
+
+    @Test
+    void verifyAndLoginShouldNotIssueCredentialsWhenVerificationLeaseCanNoLongerConsume() {
+        UUID userId = uuid(7);
+        UserCredentialView activatedUser = new UserCredentialView(userId, "alice", 1, 0, null, 0L, true, true);
+
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
+        when(registrationCodeStore.verifyForConsumption(
+                eq(userId), eq("222222"), any(Instant.class), any(UUID.class)))
+                .thenReturn(RegistrationCodeRepository.VerifyResult.PENDING);
+        when(userRegistrationActionApi.createVerifiedRegistrationUser(any(VerifiedRegistrationUserCommand.class)))
+                .thenReturn(new UserRegistrationActionApi.VerifiedRegistrationResult(activatedUser, true));
+        when(registrationDraftRepository.markActivated(
+                eq("token"), eq(userId), any(Duration.class))).thenReturn(true);
+        when(registrationCodeStore.consumePending(eq(userId), any(UUID.class))).thenReturn(false);
+
+        assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
+
+        verify(loginTokenIssuer, never()).issueLoginResult(any(UserCredentialView.class));
+        verify(registrationDraftRepository, never()).delete("token");
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "false,true",
+            "true,false"
+    })
+    void verifyAndLoginShouldNotIssueCredentialsWhenActivatedUserCannotLoginOrRefresh(
+            boolean loginAllowed,
+            boolean refreshAllowed
+    ) {
+        UUID userId = uuid(7);
+        UserCredentialView activatedUser = new UserCredentialView(
+                userId, "alice", 1, 0, null, 0L, loginAllowed, refreshAllowed);
+
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
+        when(registrationCodeStore.verifyForConsumption(
+                eq(userId), eq("222222"), any(Instant.class), any(UUID.class)))
+                .thenReturn(RegistrationCodeRepository.VerifyResult.PENDING);
+        when(userRegistrationActionApi.createVerifiedRegistrationUser(any(VerifiedRegistrationUserCommand.class)))
+                .thenReturn(new UserRegistrationActionApi.VerifiedRegistrationResult(activatedUser, true));
+        when(registrationDraftRepository.markActivated(
+                eq("token"), eq(userId), any(Duration.class))).thenReturn(true);
+        when(registrationCodeStore.consumePending(eq(userId), any(UUID.class))).thenReturn(true);
+
+        assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(AuthErrorCode.USER_DISABLED);
+
+        verify(registrationCodeStore).consumePending(eq(userId), any(UUID.class));
+        verify(registrationDraftRepository).markActivated(eq("token"), eq(userId), any(Duration.class));
+        verify(registrationDraftRepository, never()).delete("token");
+        verify(loginTokenIssuer, never()).issueLoginResult(any(UserCredentialView.class));
     }
 
     @Test
@@ -219,7 +439,8 @@ class RegistrationVerificationApplicationServiceTest {
         UUID userId = uuid(7);
         PreparedRegistrationDraft draft = draft(userId);
         when(registrationDraftRepository.find("reg-token")).thenReturn(Optional.of(draft));
-        when(registrationCodeStore.verifyForConsumption(draft.userId(), "123456", Duration.ofSeconds(60)))
+        when(registrationCodeStore.verifyForConsumption(
+                eq(draft.userId()), eq("123456"), any(Instant.class), any(UUID.class)))
                 .thenReturn(RegistrationCodeRepository.VerifyResult.PENDING);
         RuntimeException createFailure = new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "用户名或邮箱已存在");
         when(userRegistrationActionApi.createVerifiedRegistrationUser(any()))
@@ -228,8 +449,8 @@ class RegistrationVerificationApplicationServiceTest {
         assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("reg-token", "123456")))
                 .isSameAs(createFailure);
 
-        verify(registrationCodeStore).restorePending(draft.userId());
-        verify(registrationCodeStore, never()).consumePending(draft.userId());
+        verify(registrationCodeStore).restorePending(eq(draft.userId()), any(UUID.class));
+        verify(registrationCodeStore, never()).consumePending(eq(draft.userId()), any(UUID.class));
         verify(registrationDraftRepository, never()).delete("reg-token");
     }
 
@@ -238,7 +459,8 @@ class RegistrationVerificationApplicationServiceTest {
         UUID userId = uuid(7);
 
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
-        when(registrationCodeStore.verifyForConsumption(userId, "111111", Duration.ofSeconds(60)))
+        when(registrationCodeStore.verifyForConsumption(
+                eq(userId), eq("111111"), any(Instant.class), any(UUID.class)))
                 .thenReturn(RegistrationCodeRepository.VerifyResult.MISMATCH);
 
         assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "111111")))
@@ -272,7 +494,7 @@ class RegistrationVerificationApplicationServiceTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
 
-        verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailService);
+        verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailDispatcher);
     }
 
     @Test
@@ -294,7 +516,7 @@ class RegistrationVerificationApplicationServiceTest {
                 .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
 
         verify(registrationDraftRepository).delete("token");
-        verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailService);
+        verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailDispatcher);
     }
 
     @Test
@@ -315,7 +537,7 @@ class RegistrationVerificationApplicationServiceTest {
                 .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
 
         verify(registrationDraftRepository).delete("token");
-        verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailService, loginTokenIssuer);
+        verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailDispatcher, loginTokenIssuer);
     }
 
     private static UUID uuid(long suffix) {

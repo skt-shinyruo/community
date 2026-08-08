@@ -44,8 +44,9 @@
     </select>
 
     <update id="updateNoticesStatusForRecipient">
-        update notice_record set status = #{status}
+        update notice_record set status = #{readStatus}
         where recipient_user_id = #{userId}
+          and status = #{unreadStatus}
           and id in
         <foreach collection="ids" item="id" open="(" separator="," close=")">
             #{id, jdbcType=BINARY}

@@ -27,10 +27,11 @@ public class ImPolicySnapshotController {
     @GetMapping("/user-policies")
     public ResponseEntity<UserMessagingPolicySnapshot> userPolicies(
             @RequestParam(name = "afterUserId", required = false) UUID afterUserId,
-            @RequestParam(name = "limit", defaultValue = "500") int limit
+            @RequestParam(name = "limit", defaultValue = "500") int limit,
+            @RequestParam(name = "snapshotVersion", required = false) Long snapshotVersion
     ) {
         try {
-            return ResponseEntity.ok(snapshotService.userPolicies(afterUserId, limit));
+            return ResponseEntity.ok(snapshotService.userPolicies(afterUserId, limit, snapshotVersion));
         } catch (UnsupportedOperationException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
         } catch (IllegalArgumentException e) {
@@ -42,10 +43,16 @@ public class ImPolicySnapshotController {
     public ResponseEntity<UserBlockRelationSnapshot> blockRelations(
             @RequestParam(name = "afterBlockerUserId", required = false) UUID afterBlockerUserId,
             @RequestParam(name = "afterBlockedUserId", required = false) UUID afterBlockedUserId,
-            @RequestParam(name = "limit", defaultValue = "500") int limit
+            @RequestParam(name = "limit", defaultValue = "500") int limit,
+            @RequestParam(name = "snapshotVersion", required = false) Long snapshotVersion
     ) {
         try {
-            return ResponseEntity.ok(snapshotService.blockRelations(afterBlockerUserId, afterBlockedUserId, limit));
+            return ResponseEntity.ok(snapshotService.blockRelations(
+                    afterBlockerUserId,
+                    afterBlockedUserId,
+                    limit,
+                    snapshotVersion
+            ));
         } catch (UnsupportedOperationException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
         } catch (IllegalArgumentException e) {

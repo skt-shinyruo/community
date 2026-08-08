@@ -3,7 +3,6 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.domain.repository.BookmarkRepository;
-import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.BookmarkMapper;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.common.pagination.Pagination;
@@ -14,19 +13,15 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
 
 @Repository
 public class MyBatisBookmarkRepository implements BookmarkRepository {
 
     private final BookmarkMapper bookmarkMapper;
-    private final PostContentRepository postContentRepository;
 
-    public MyBatisBookmarkRepository(
-            BookmarkMapper bookmarkMapper,
-            PostContentRepository postContentRepository
-    ) {
+    public MyBatisBookmarkRepository(BookmarkMapper bookmarkMapper) {
         this.bookmarkMapper = bookmarkMapper;
-        this.postContentRepository = postContentRepository;
     }
 
     @Override
@@ -34,14 +29,25 @@ public class MyBatisBookmarkRepository implements BookmarkRepository {
         if (userId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/postId 非法");
         }
-        postContentRepository.getById(postId);
-        return bookmarkMapper.insertBookmark(userId, postId, new Date()) > 0;
+        if (bookmarkMapper.lockActivePost(postId) == null) {
+            throw new BusinessException(POST_NOT_FOUND);
+        }
+        if (bookmarkMapper.insertBookmarkForActivePost(userId, postId, new Date()) > 0) {
+            return true;
+        }
+        if (bookmarkMapper.existsActivePost(postId) == 0) {
+            throw new BusinessException(POST_NOT_FOUND);
+        }
+        return false;
     }
 
     @Override
     public boolean remove(UUID userId, UUID postId) {
         if (userId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/postId 非法");
+        }
+        if (bookmarkMapper.lockPost(postId) == null) {
+            throw new BusinessException(POST_NOT_FOUND);
         }
         return bookmarkMapper.deleteBookmark(userId, postId) > 0;
     }
@@ -52,6 +58,14 @@ public class MyBatisBookmarkRepository implements BookmarkRepository {
             return false;
         }
         return bookmarkMapper.existsBookmark(userId, postId) > 0;
+    }
+
+    @Override
+    public long countByPostId(UUID postId) {
+        if (postId == null) {
+            return 0L;
+        }
+        return Math.max(0L, bookmarkMapper.countByPostId(postId));
     }
 
     @Override

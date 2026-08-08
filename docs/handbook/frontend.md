@@ -89,6 +89,12 @@ shouldBootstrapSession(...)
 
 浏览器默认通过 gateway 访问业务 API、IM HTTP 和 IM WebSocket bootstrap。不要在页面代码里直接硬编码 `community-app`、`im-core` 或内部容器名。
 
+生产前端镜像在容器启动时把 `FRONTEND_RUNTIME_API_BASE_URL` 和
+`FRONTEND_RUNTIME_IM_HTTP_BASE_URL` 写入 `/app-config.js`；未设置时两者回退到
+`GATEWAY_PUBLIC_BASE_URL`。输出通过 JSON 编码生成，部署值中的引号、反斜杠和换行不会变成可执行脚本。
+该文件明确使用 `no-store`，因此同一份静态镜像可以在不同环境注入端点而无需重新构建。
+将某个 `FRONTEND_RUNTIME_*` 变量显式设为空字符串会启用该客户端的同源相对路径。
+
 ## HTTP 客户端
 
 主站 HTTP 客户端是 `frontend/src/api/http.js`：

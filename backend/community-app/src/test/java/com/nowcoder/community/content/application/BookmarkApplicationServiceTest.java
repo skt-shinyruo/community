@@ -9,6 +9,8 @@ import com.nowcoder.community.content.domain.repository.CommentContentRepository
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Date;
 import java.util.List;
@@ -18,12 +20,35 @@ import java.util.UUID;
 import static com.nowcoder.community.content.support.CommentTestBuilder.aComment;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class BookmarkApplicationServiceTest {
+
+    private static BookmarkCounterReconciliationPort reconciliationPort() {
+        return mock(BookmarkCounterReconciliationPort.class);
+    }
+
+    @Test
+    void constructorShouldRejectMissingDurableReconciliationPort() {
+        assertThatThrownBy(() -> new BookmarkApplicationService(
+                mock(BookmarkRepository.class),
+                mock(CommentContentRepository.class),
+                mock(TagContentRepository.class),
+                mock(PostContentBlockRepository.class),
+                new PostContentBlockTextProjector(),
+                mock(PostCounterCache.class),
+                null,
+                mock(PostSummaryAssembler.class)
+        )).isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("bookmarkCounterReconciliationPort");
+    }
 
     @Test
     void listBookmarkedPostSummariesShouldAssembleViewsWithActivityAndTags() {
@@ -40,6 +65,7 @@ class BookmarkApplicationServiceTest {
                 blockRepository,
                 new PostContentBlockTextProjector(),
                 postCounterCache,
+                reconciliationPort(),
                 postSummaryAssembler
         );
         UUID userId = uuid(7);
@@ -101,7 +127,7 @@ class BookmarkApplicationServiceTest {
     }
 
     @Test
-    void addShouldIncrementBookmarkCounterWhenRepositoryCreatesBookmark() {
+    void addShouldMarkAuthoritativeBookmarkCountForRebuild() {
         BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         BookmarkApplicationService service = new BookmarkApplicationService(
@@ -111,19 +137,19 @@ class BookmarkApplicationServiceTest {
                 mock(PostContentBlockRepository.class),
                 new PostContentBlockTextProjector(),
                 postCounterCache,
+                reconciliationPort(),
                 mock(PostSummaryAssembler.class)
         );
         UUID userId = uuid(9);
         UUID postId = uuid(10);
         when(bookmarkRepository.add(userId, postId)).thenReturn(true);
-
         service.add(userId, postId);
 
-        verify(postCounterCache).incrementBookmarkCount(postId, 1L);
+        verify(postCounterCache).markDirty(postId);
     }
 
     @Test
-    void removeShouldNotDecrementBookmarkCounterWhenRepositoryHasNoBookmarkToDelete() {
+    void addShouldDeferCounterDirtyMarkerUntilDatabaseCommit() {
         BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         BookmarkApplicationService service = new BookmarkApplicationService(
@@ -133,14 +159,107 @@ class BookmarkApplicationServiceTest {
                 mock(PostContentBlockRepository.class),
                 new PostContentBlockTextProjector(),
                 postCounterCache,
+                reconciliationPort(),
+                mock(PostSummaryAssembler.class)
+        );
+        UUID userId = uuid(27);
+        UUID postId = uuid(28);
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            service.add(userId, postId);
+
+            verify(bookmarkRepository).add(userId, postId);
+            verify(postCounterCache, never()).markDirty(postId);
+            for (TransactionSynchronization synchronization
+                    : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCommit();
+            }
+            verify(postCounterCache).markDirty(postId);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+    }
+
+    @Test
+    void idempotentRemoveRetryShouldStillRepairBookmarkCounter() {
+        BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
+        PostCounterCache postCounterCache = mock(PostCounterCache.class);
+        BookmarkCounterReconciliationPort reconciliationPort = reconciliationPort();
+        BookmarkApplicationService service = new BookmarkApplicationService(
+                bookmarkRepository,
+                mock(CommentContentRepository.class),
+                mock(TagContentRepository.class),
+                mock(PostContentBlockRepository.class),
+                new PostContentBlockTextProjector(),
+                postCounterCache,
+                reconciliationPort,
                 mock(PostSummaryAssembler.class)
         );
         UUID userId = uuid(11);
         UUID postId = uuid(12);
         when(bookmarkRepository.remove(userId, postId)).thenReturn(false);
-
         service.remove(userId, postId);
 
-        verifyNoInteractions(postCounterCache);
+        verify(reconciliationPort).recordMutation(postId);
+        verify(postCounterCache).markDirty(postId);
+    }
+
+    @Test
+    void retryAfterCacheFailureShouldReconcileEvenWhenBookmarkAlreadyExists() {
+        BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
+        PostCounterCache postCounterCache = mock(PostCounterCache.class);
+        BookmarkCounterReconciliationPort reconciliationPort = reconciliationPort();
+        BookmarkApplicationService service = new BookmarkApplicationService(
+                bookmarkRepository,
+                mock(CommentContentRepository.class),
+                mock(TagContentRepository.class),
+                mock(PostContentBlockRepository.class),
+                new PostContentBlockTextProjector(),
+                postCounterCache,
+                reconciliationPort,
+                mock(PostSummaryAssembler.class)
+        );
+        UUID userId = uuid(13);
+        UUID postId = uuid(14);
+        when(bookmarkRepository.add(userId, postId)).thenReturn(true, false);
+        doThrow(new IllegalStateException("redis unavailable"))
+                .doNothing()
+                .when(postCounterCache).markDirty(postId);
+
+        assertThatCode(() -> service.add(userId, postId)).doesNotThrowAnyException();
+        service.add(userId, postId);
+
+        verify(bookmarkRepository, times(2)).add(userId, postId);
+        verify(reconciliationPort, times(2)).recordMutation(postId);
+        verify(postCounterCache, times(2)).markDirty(postId);
+    }
+
+    @Test
+    void addShouldPersistDurableMutationBeforeBestEffortAfterCommitCacheRepair() {
+        BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
+        PostCounterCache postCounterCache = mock(PostCounterCache.class);
+        BookmarkCounterReconciliationPort reconciliationPort = reconciliationPort();
+        BookmarkApplicationService service = new BookmarkApplicationService(
+                bookmarkRepository,
+                mock(CommentContentRepository.class),
+                mock(TagContentRepository.class),
+                mock(PostContentBlockRepository.class),
+                new PostContentBlockTextProjector(),
+                postCounterCache,
+                reconciliationPort,
+                mock(PostSummaryAssembler.class)
+        );
+        UUID userId = uuid(15);
+        UUID postId = uuid(16);
+        doThrow(new IllegalStateException("redis unavailable"))
+                .when(postCounterCache).markDirty(postId);
+
+        service.add(userId, postId);
+
+        verify(reconciliationPort).recordMutation(postId);
+        verify(postCounterCache).markDirty(postId);
     }
 }

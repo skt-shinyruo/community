@@ -6,5 +6,9 @@ public interface UserCredentialActionApi {
 
     void validatePasswordPolicy(String newPassword);
 
-    void updatePassword(UUID userId, String newPassword);
+    boolean updatePasswordIfSecurityVersion(
+            UUID userId,
+            String newPassword,
+            long expectedSecurityVersion
+    );
 }

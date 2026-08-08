@@ -15,6 +15,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.nowcoder.community.common.constants.EntityTypes.COMMENT;
+
 /**
  * MySQL 持久化实现：以 DB 为 SSOT（source of truth）。
  *
@@ -37,7 +39,8 @@ public class MyBatisLikeRepository implements LikeRepository {
                     relation.actorUserId(),
                     relation.entityType(),
                     relation.entityId(),
-                    relation.entityUserId()
+                    relation.entityUserId(),
+                    relation.postId()
             ) > 0;
         } catch (DuplicateKeyException ignored) {
             // 唯一约束冲突视为幂等重复
@@ -53,6 +56,28 @@ public class MyBatisLikeRepository implements LikeRepository {
                 expectedRelation.entityId(),
                 expectedRelation.relationInstanceId()
         ) > 0;
+    }
+
+    @Override
+    public long nextRelationEventVersion(UUID actorUserId, int entityType, UUID entityId) {
+        mapper.ensureRelationEventVersion(actorUserId, entityType, entityId);
+        long currentVersion = mapper.selectRelationEventVersionForUpdate(actorUserId, entityType, entityId);
+        long nextVersion;
+        try {
+            nextVersion = Math.addExact(currentVersion, 1L);
+        } catch (ArithmeticException overflow) {
+            throw new IllegalStateException("like relation event version exhausted", overflow);
+        }
+        if (mapper.updateRelationEventVersion(
+                actorUserId,
+                entityType,
+                entityId,
+                currentVersion,
+                nextVersion
+        ) != 1) {
+            throw new IllegalStateException("failed to advance locked like relation event version");
+        }
+        return nextVersion;
     }
 
     @Override
@@ -90,6 +115,33 @@ public class MyBatisLikeRepository implements LikeRepository {
         }
         return rows.stream()
                 .map(row -> toRelation(row, entityType))
+                .toList();
+    }
+
+    @Override
+    public List<LikeRelation> scanCommentLikesByPost(
+            UUID postId,
+            UUID afterCommentId,
+            UUID afterActorUserId,
+            int limit
+    ) {
+        if (postId == null || limit <= 0) {
+            return List.of();
+        }
+        UUID entityCursor = afterCommentId == null ? new UUID(0L, 0L) : afterCommentId;
+        UUID actorCursor = afterActorUserId == null ? new UUID(0L, 0L) : afterActorUserId;
+        List<LikeScanDataObject> rows = mapper.scanCommentLikesByPost(
+                COMMENT,
+                postId,
+                entityCursor,
+                actorCursor,
+                limit
+        );
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        return rows.stream()
+                .map(row -> toRelation(row, COMMENT))
                 .toList();
     }
 
@@ -194,7 +246,8 @@ public class MyBatisLikeRepository implements LikeRepository {
                 row.getUserId(),
                 entityType,
                 row.getEntityId(),
-                row.getEntityUserId()
+                row.getEntityUserId(),
+                row.getPostId()
         );
     }
 }

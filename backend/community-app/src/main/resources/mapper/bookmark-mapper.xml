@@ -4,10 +4,35 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nowcoder.community.content.infrastructure.persistence.mapper.BookmarkMapper">
 
-    <insert id="insertBookmark">
+    <select id="lockActivePost" resultType="java.util.UUID">
+        select id
+        from discuss_post
+        where id = #{postId, jdbcType=BINARY}
+          and status != 2
+        for update
+    </select>
+
+    <select id="lockPost" resultType="java.util.UUID">
+        select id
+        from discuss_post
+        where id = #{postId, jdbcType=BINARY}
+        for update
+    </select>
+
+    <insert id="insertBookmarkForActivePost">
         insert ignore into post_bookmark(user_id, post_id, create_time)
-        values(#{userId, jdbcType=BINARY}, #{postId, jdbcType=BINARY}, #{createTime})
+        select #{userId, jdbcType=BINARY}, p.id, #{createTime}
+        from discuss_post p
+        where p.id = #{postId, jdbcType=BINARY}
+          and p.status != 2
     </insert>
+
+    <select id="existsActivePost" resultType="int">
+        select count(*)
+        from discuss_post
+        where id = #{postId, jdbcType=BINARY}
+          and status != 2
+    </select>
 
     <delete id="deleteBookmark">
         delete from post_bookmark
@@ -20,6 +45,12 @@
         from post_bookmark
         where user_id = #{userId, jdbcType=BINARY}
           and post_id = #{postId, jdbcType=BINARY}
+    </select>
+
+    <select id="countByPostId" resultType="long">
+        select count(*)
+        from post_bookmark
+        where post_id = #{postId, jdbcType=BINARY}
     </select>
 
     <select id="selectBookmarkedPosts" resultType="com.nowcoder.community.content.domain.model.DiscussPost">

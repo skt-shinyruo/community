@@ -9,7 +9,11 @@ public interface UserModerationQueryApi {
 
     UserModerationStateView getModerationState(UUID userId);
 
-    List<UserModerationStateView> scanModerationStatesAfterId(UUID afterUserId, int limit);
+    List<UserModerationStateView> scanModerationStatesAtVersionAfterId(
+            long snapshotVersion,
+            UUID afterUserId,
+            int limit
+    );
 
     long currentModerationProjectionVersion();
 }

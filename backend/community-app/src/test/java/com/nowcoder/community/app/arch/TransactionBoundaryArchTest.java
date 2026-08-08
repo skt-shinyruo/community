@@ -4,10 +4,14 @@ import com.nowcoder.community.growth.application.UserLevelApplicationService;
 import com.nowcoder.community.growth.application.command.UpdateUserLevelConfigCommand;
 import com.nowcoder.community.market.application.MarketOrderApplicationService;
 import com.nowcoder.community.market.application.MarketWalletActionRecoveryApplicationService;
+import com.nowcoder.community.market.application.MarketWalletActionRecoveryTransactionOperations;
 import com.nowcoder.community.market.application.command.CreateMarketOrderCommand;
 import com.nowcoder.community.content.application.PostReadTransactionOperations;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService;
 import com.nowcoder.community.content.application.PostHotFeedProjectionTransactionOperations;
+import com.nowcoder.community.content.application.CommentDeletionTransactionOperations;
+import com.nowcoder.community.content.application.CommentThreadCleanupApplicationService;
+import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
 import com.nowcoder.community.social.application.LikeApplicationService;
 import com.nowcoder.community.social.application.LikeCleanupTransactionOperations;
@@ -17,6 +21,7 @@ import com.nowcoder.community.user.application.UserAvatarApplicationService;
 import com.nowcoder.community.user.application.UserAvatarTransactionOperations;
 import com.nowcoder.community.user.application.UserCredentialApplicationService;
 import com.nowcoder.community.user.application.UserModerationApplicationService;
+import com.nowcoder.community.user.api.action.UserModerationActionApi;
 import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
 import com.nowcoder.community.wallet.application.WalletRechargeApplicationService;
 import com.nowcoder.community.wallet.application.WalletTransferApplicationService;
@@ -31,9 +36,11 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -95,14 +102,81 @@ class TransactionBoundaryArchTest {
         assertTransactional(WalletTransferApplicationService.class, "transfer", CreateTransferCommand.class);
         assertTransactional(MarketOrderApplicationService.class, "createOrder", CreateMarketOrderCommand.class);
         assertTransactional(UserLevelApplicationService.class, "updateConfig", UUID.class, UpdateUserLevelConfigCommand.class);
-        assertTransactional(MarketWalletActionRecoveryApplicationService.class, "reconcileOnce", int.class);
         assertTransactional(AdminUserApplicationService.class, "updateRole", UpdateUserRoleCommand.class);
         assertTransactional(UserCredentialApplicationService.class, "updatePassword", UUID.class, String.class);
-        assertTransactional(UserModerationApplicationService.class, "applyModeration", UUID.class, String.class, int.class);
+        assertTransactional(
+                UserModerationApplicationService.class,
+                "applyModeration",
+                UserModerationActionApi.ApplyModerationCommand.class
+        );
+        assertTransactionalWithPropagation(
+                UserModerationApplicationService.class,
+                "assertActiveModerationActor",
+                Propagation.MANDATORY,
+                UUID.class
+        );
     }
 
     @Test
     void bulkCleanupAndRemoteIoMustRemainOutsideLongDatabaseTransactions() throws NoSuchMethodException {
+        assertTransactionalWithPropagation(
+                CommentDeletionTransactionOperations.class,
+                "deleteRoot",
+                Propagation.REQUIRED,
+                CommentDeletion.class,
+                UUID.class
+        );
+        assertTransactionalWithPropagation(
+                CommentDeletionTransactionOperations.class,
+                "deleteSingle",
+                Propagation.REQUIRED,
+                CommentDeletion.class,
+                UUID.class
+        );
+        assertTransactionalWithPropagation(
+                CommentDeletionTransactionOperations.class,
+                "deleteReplyBatch",
+                Propagation.REQUIRES_NEW,
+                UUID.class,
+                UUID.class,
+                UUID.class,
+                String.class,
+                Date.class,
+                int.class
+        );
+        assertNotTransactional(
+                CommentThreadCleanupApplicationService.class,
+                "reconcile",
+                int.class
+        );
+        assertNotTransactional(MarketWalletActionRecoveryApplicationService.class, "reconcileOnce", int.class);
+        assertNotTransactional(
+                MarketWalletActionRecoveryApplicationService.class,
+                "recoverExpiredProcessing",
+                java.time.Instant.class
+        );
+        assertTransactionalWithPropagation(
+                MarketWalletActionRecoveryTransactionOperations.class,
+                "recoverExpiredProcessing",
+                org.springframework.transaction.annotation.Propagation.REQUIRES_NEW,
+                com.nowcoder.community.market.domain.model.MarketWalletAction.class,
+                Date.class,
+                int.class
+        );
+        assertTransactionalWithPropagation(
+                MarketWalletActionRecoveryTransactionOperations.class,
+                "reconcileWalletTxnAction",
+                org.springframework.transaction.annotation.Propagation.REQUIRES_NEW,
+                UUID.class
+        );
+        assertTransactionalWithPropagation(
+                MarketWalletActionRecoveryTransactionOperations.class,
+                "reconcilePendingOrder",
+                org.springframework.transaction.annotation.Propagation.REQUIRES_NEW,
+                UUID.class,
+                Date.class,
+                int.class
+        );
         assertNotTransactional(
                 LikeApplicationService.class,
                 "cleanupDeletedContentLikes",
@@ -119,6 +193,13 @@ class TransactionBoundaryArchTest {
                 "cleanupBatch",
                 org.springframework.transaction.annotation.Propagation.REQUIRES_NEW,
                 int.class,
+                UUID.class,
+                int.class
+        );
+        assertTransactionalWithPropagation(
+                LikeCleanupTransactionOperations.class,
+                "cleanupCommentLikesByPostBatch",
+                org.springframework.transaction.annotation.Propagation.REQUIRES_NEW,
                 UUID.class,
                 int.class
         );

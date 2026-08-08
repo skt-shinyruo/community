@@ -232,20 +232,11 @@ class RefreshTokenApplicationServiceTest {
     @Test
     void logoutShouldRevokeFamilyFromRevokedTombstoneWhenActiveTokenIsGone() {
         RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
-        Instant now = Instant.now();
-        when(repository.find("old-refresh")).thenReturn(null);
-        when(repository.findRevoked("old-refresh")).thenReturn(new RefreshTokenRepository.RevokedRefreshToken(
-                "old-refresh",
-                USER_ID,
-                "family-1",
-                now.plusSeconds(300),
-                now.minusSeconds(2)
-        ));
         RefreshTokenApplicationService refreshTokenService = refreshTokenService(repository, jwtProperties());
 
         refreshTokenService.revokeFamilyByPresentedToken("old-refresh");
 
-        verify(repository).revokeFamily("family-1");
+        verify(repository).revokeFamilyByPresentedToken("old-refresh");
     }
 
     private static LoginApplicationService authService(RefreshTokenApplicationService refreshTokenService) {
@@ -342,7 +333,8 @@ class RefreshTokenApplicationServiceTest {
                     userId,
                     familyId,
                     securityVersionAtIssue,
-                    expiresAt
+                    expiresAt,
+                    null
             ));
         }
 
@@ -372,13 +364,25 @@ class RefreshTokenApplicationServiceTest {
         }
 
         @Override
-        public StoredRefreshToken beginRotation(String refreshToken, Instant pendingExpiresAt) {
+        public StoredRefreshToken beginRotation(
+                String refreshToken,
+                Instant pendingExpiresAt,
+                UUID rotationLeaseId
+        ) {
             StoredRefreshToken captured = tokens.get(refreshToken);
             if (coordinatedToken.equals(refreshToken) && captured != null) {
                 awaitBarrier();
             }
             StoredRefreshToken token = tokens.remove(refreshToken);
             if (token != null) {
+                token = new StoredRefreshToken(
+                        token.refreshToken(),
+                        token.userId(),
+                        token.familyId(),
+                        token.securityVersionAtIssue(),
+                        token.expiresAt(),
+                        rotationLeaseId
+                );
                 pendingTokens.put(refreshToken, token);
             }
             return token;
@@ -391,12 +395,14 @@ class RefreshTokenApplicationServiceTest {
                 UUID userId,
                 String familyId,
                 long securityVersionAtIssue,
-                Instant replacementExpiresAt
+                Instant replacementExpiresAt,
+                UUID rotationLeaseId
         ) {
-            StoredRefreshToken token = pendingTokens.remove(pendingRefreshToken);
-            if (token == null) {
+            StoredRefreshToken token = pendingTokens.get(pendingRefreshToken);
+            if (token == null || !rotationLeaseId.equals(token.rotationLeaseId())) {
                 return false;
             }
+            pendingTokens.remove(pendingRefreshToken, token);
             revokedTokens.put(pendingRefreshToken, new RevokedRefreshToken(
                     pendingRefreshToken,
                     token.userId(),
@@ -409,18 +415,27 @@ class RefreshTokenApplicationServiceTest {
                     userId,
                     familyId,
                     securityVersionAtIssue,
-                    replacementExpiresAt
+                    replacementExpiresAt,
+                    null
             ));
             return true;
         }
 
         @Override
-        public boolean rollbackPendingRotation(String refreshToken) {
-            StoredRefreshToken token = pendingTokens.remove(refreshToken);
-            if (token == null) {
+        public boolean rollbackPendingRotation(String refreshToken, UUID rotationLeaseId) {
+            StoredRefreshToken token = pendingTokens.get(refreshToken);
+            if (token == null || !rotationLeaseId.equals(token.rotationLeaseId())) {
                 return false;
             }
-            tokens.put(refreshToken, token);
+            pendingTokens.remove(refreshToken, token);
+            tokens.put(refreshToken, new StoredRefreshToken(
+                    token.refreshToken(),
+                    token.userId(),
+                    token.familyId(),
+                    token.securityVersionAtIssue(),
+                    token.expiresAt(),
+                    null
+            ));
             return true;
         }
 
@@ -438,6 +453,23 @@ class RefreshTokenApplicationServiceTest {
         public void revokeFamily(String familyId) {
             tokens.entrySet().removeIf(entry -> familyId.equals(entry.getValue().familyId()));
             pendingTokens.entrySet().removeIf(entry -> familyId.equals(entry.getValue().familyId()));
+        }
+
+        @Override
+        public boolean revokeFamilyByPresentedToken(String refreshToken) {
+            StoredRefreshToken active = tokens.get(refreshToken);
+            StoredRefreshToken pending = pendingTokens.get(refreshToken);
+            RevokedRefreshToken revoked = revokedTokens.get(refreshToken);
+            String familyId = active != null
+                    ? active.familyId()
+                    : pending != null
+                    ? pending.familyId()
+                    : revoked == null ? null : revoked.familyId();
+            if (familyId == null) {
+                return false;
+            }
+            revokeFamily(familyId);
+            return true;
         }
 
         @Override

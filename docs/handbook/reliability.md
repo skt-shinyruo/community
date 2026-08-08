@@ -32,7 +32,7 @@ P3-A 保护 BBS 热路径读链路：hot feed、board hot feed 和 post detail �
 - Redis 读失败：feed 返回 degraded 结果或 fallback 结果，metric 记录 `degraded`。
 - fallback 已被其他节点 single-flight 占用：feed 返回空 degraded-safe 页面并记录 `singleflight_busy`，不继续打 repository。
 - post detail cache miss：仍从 owner repository 装配 viewer-neutral shell；不能因为 single-flight busy 返回空 detail。
-- malformed summary/detail/feed/counter cache payload：读取时按 key/member/field 做 best-effort cleanup，不把异常 payload 当成业务事实。
+- malformed summary/detail/feed/counter cache payload：读取时按 key/member/field 做 best-effort cleanup，不把异常 payload 当成业务事实。hot-feed 分页会先清理目标 offset 之前的非法 UUID member，再继续补读到当前页上限，避免清理造成后续页整体左移而跳过有效帖子。
 
 ## HTTP Idempotency-Key
 
@@ -260,8 +260,9 @@ OutboxWorkerScheduler
   -> recoverExpiredLeases
   -> load due PENDING events
   -> tryClaimProcessing
+  -> reload by lease token
   -> dispatch by topic
-  -> handler.handle
+  -> handler.handle + fenced lease heartbeat
   -> markSucceeded / markFailed / markDead
 ```
 
@@ -276,19 +277,23 @@ OutboxWorkerScheduler
 
 - `PENDING`：待处理或重试到期。
 - `PROCESSING`：某 worker 已抢 lease。
-- `SUCCEEDED`：副作用成功且已标记完成。
-- `DEAD`：超过最大重试次数或不可自动恢复。
+- `SUCCEEDED`：副作用成功且已标记完成；状态转换同时清空 payload，避免长期保留邮箱等敏感投递数据。
+- `DEAD`：超过最大重试次数或不可自动恢复；普通重试耗尽行保留 payload 供治理，显式 terminal 行在同一状态更新中擦除 payload。
 
 最小正确性：
 
 - 标记 `SUCCEEDED` 之前，副作用必须已经成功。
-- handler 必须幂等，因为至少一次投递。
-- worker 崩溃时，lease 到期后由 `recoverExpiredLeases` 回收。
+- handler 必须幂等或显式支持重复副作用，因为系统提供至少一次投递。
+- handler 执行期间，worker 约每个 lease 周期的三分之一用 `rowId + leaseToken + 未过期 deadline` CAS 续租；旧 token 或已经到期的 token 不能复活 lease。耗时超过初始 lease 的存活 handler 不会被另一个正常 worker 回收并并发重放。
+- `markSucceeded`、`markFailed` 和 `markDead` 都同时校验 lease token 与未过期 deadline；失去 lease 的旧 worker 不得写回状态。
+- worker 崩溃时，lease 到期后由 `recoverExpiredLeases` 回收。每轮最多扫描 `events.outbox.recover-limit` 条（默认 `200`、硬上限 `500`），并按扫描到的 token + deadline 逐行 CAS，不能覆盖并发续租。
 - handler 抛异常时，事件回到 `PENDING` 并设置 `next_retry_at`。
 - worker claim 必须在条件更新中再次校验 `next_retry_at <= pollNow`，不能让另一实例持有的旧 poll 结果绕过 backoff。
 - claim 成功后必须按 lease token 回读当前 row，再用新鲜的 payload / retry count 派发；不得继续使用 claim 前的候选快照，否则 `DEAD -> PENDING` 复活会产生 ABA 误判。
-- 超过最大重试次数进入 `DEAD`。
+- 超过最大重试次数进入 `DEAD`。handler 可对过期、坏 payload 等不可恢复输入抛 `OutboxTerminalException`，worker 会立即执行带 lease fence 的 `DEAD + payload scrub`，不浪费重试预算也不长期保留邮箱、验证码等敏感数据。
 - 当前 content media command 的确定性 event ID 再次 enqueue 冲突时，可按 event ID 原位执行 `DEAD -> PENDING`；该更新清空 retry、lease 和旧错误，且绝不覆盖 `PENDING`、`PROCESSING` 或 `SUCCEEDED`。其他 producer 需要显式选择并实现同类恢复，不能仅凭确定性 ID 假定会自动重排。
+
+心跳不把 outbox 提升为 exactly-once：进程仍可能在外部副作用成功后、`SUCCEEDED` 提交前退出。handler 必须继续以 event ID 或等价业务键实现幂等；SMTP 无法事务性确认时可能重复投递，但 password-reset mail 会用同一 delivery ID 派生同一有效链接，注册与重置邮件也使用稳定 `Message-ID`。`markSucceeded` 以 lease fence 更新状态并在同一 SQL 中擦除 payload；可恢复失败和普通重试耗尽的 DEAD 保留 payload，显式 terminal DEAD 则原子擦除。
 
 `DEAD` 不是业务终点，只是自动重试终点。人工仍需确认副作用、修复 handler 或执行重放。
 
@@ -396,7 +401,8 @@ content.events
 ```
 
 - listener 只接受完整的帖子/评论删除事件；缺少 event ID、发生时间、正数 owner version 或实体 ID 时抛错进入 retry / `.dlq`。
-- `LikeTargetState` 只接受更大的 `sourceVersion`，重复和乱序删除事件不会重复推进 fence；deleted target 也会阻止新的点赞写入。
+- `LikeTargetState` 只接受更大的 `sourceVersion`，重复和乱序删除事件不会重复推进 fence；deleted target 也会阻止新的点赞写入。COMMENT like 先锁根帖 fence 再锁 comment fence，因此 POST 删除提交后，早先解析但尚未落库的 COMMENT like 也不能穿透 tombstone。
+- `social_like.post_id` 是内容关系所属根帖的持久引用。帖子自身点赞继续按 target + actor 扫描，子评论点赞使用 `idx_like_post_entity_user(entity_type,post_id,entity_id,user_id)` 按根帖稳定扫描；USER like 的 `post_id` 保持 `NULL`，不会进入内容清理。
 - deletion fence 和每页最多 200 条关系清理分别使用独立 `REQUIRES_NEW` 短事务；已提交页不会因后续页失败而回滚，reconciliation 从剩余关系继续，不从头制造一个无界事务。
 - 每条实际删除的关系继续发布 like-removed event，使 wallet、growth、notice 和 hot-feed 走正常消费路径。
 - `SocialLikeCleanupReconciliationJob` 扫描仍有点赞的 deleted target 并重跑 owner cleanup。代码默认 disabled，batch `50`、delay `300s`。
@@ -452,10 +458,12 @@ MarketOrderApplicationService / MarketDisputeApplicationService
 ```text
 MarketWalletActionProcessorHandler
   -> MarketWalletActionProcessorApplicationService.processDue
-  -> claim PROCESSING with lease
+  -> due/status/retry CAS claim PROCESSING with lease token
+  -> reload current action by lease token
   -> WalletMarketActionApi
-  -> MarketOrderSagaApplicationService conditional transition
-  -> mark SUCCEEDED / RETRYING / FAILED / CANCELLED
+  -> persist wallet_txn_id under lease
+  -> REQUIRES_NEW: lock order -> lock action -> saga + fenced action terminal state
+  -> mark SUCCEEDED / RETRYING / FAILED / CANCELLED (CAS loss rolls back saga)
 ```
 
 状态：
@@ -476,12 +484,18 @@ MarketWalletActionProcessorHandler
 
 恢复语义：
 
+- due 查询和 claim 都检查 `next_retry_at` 与 retry budget；claim 还 CAS 候选的 `status + retry_count`，因此并发 worker 的旧快照不能绕过 backoff 或最大重试次数。
+- 过期 lease 先按 deadline 有限扫描，再逐条 CAS 原 `lease_token + processing_lease_until + retry_count`。未耗尽时使用同一指数 backoff，耗尽时进入 `DEAD`。
+- recovery 批次入口不持有长事务；每个 lease/action/order 使用独立短事务，单条异常不会回滚已完成记录，也不会阻断后续候选。
 - processor 成功调用 wallet 后崩溃，恢复任务通过已有 `wallet_txn_id` 继续推进订单状态并标记 action succeeded。
-- 订单处于资金 pending 状态但缺少 command 时，恢复任务会补写对应 escrow / release / refund command。
+- wallet 成功结果先单独持久化到 action；因此 saga 推进前后的进程崩溃都可用同一个 wallet requestId / txnId 重放，不会因 action CAS 丢失而提交孤立订单或库存副作用。
+- 订单处于资金 pending 状态但缺少 command 时，恢复任务会补写对应 escrow / release / refund command；若本次补写失败，会在 `market_order.wallet_recovery_next_attempt_at` 持久化下一次时间，有限扫描只取到期订单。
+- 自动恢复只接纳已有 wallet transaction 的事实，或 RELEASE / REFUND 的明确可恢复失败码；永久业务失败不会反复进入队列。查询按订单恢复截止时间稳定排序，因此永久失败前缀和缺失 action 都不能饿死后续候选。
 - pending 订单应补写哪一种资金 command 由 `MarketOrder.pendingWalletActionType()` 判断，避免恢复任务维护一份独立订单状态映射。
 - escrow 还没落账就取消时，escrow action 可变成 `CANCELLED` + `NOOP`，订单无退款取消，并恢复 market 侧库存。
 - escrow 已落账但订单已接受取消时，saga 会把订单转成 refund pending 并补写 refund command。
 - release / refund 遇到可恢复钱包错误会回到 retrying；不会把订单静默推进为完成。
+- `RETRYING` escrow 不可被取消逻辑标成无资金 `NOOP`；只有从未 claim 的 `PENDING` action 允许该路径。
 
 可观察状态：
 

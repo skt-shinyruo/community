@@ -257,13 +257,13 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - 自动动作型任务只写 owner command，例如市场自动确认只写 release command，不在 job 中直接记账。
 - 长任务或集群互斥任务需要 single-flight、lease 或条件更新保护。
 
-## Current-State Schema 设计
+## Schema 快照与前向迁移设计
 
-`deploy/mysql/primary-init/010_current_schema.sql` 是 `community`、`community_oss`、`im_core` 的单一结构事实源。它包含最终建表语句与必要引用数据，不包含版本化演进、历史表或 development 身份数据。schema 名固定，Compose 和 runtime JDBC URL 不支持改名。
+`deploy/mysql/primary-init/010_current_schema.sql` 是 `community`、`community_oss`、`im_core` 的空库当前态快照。它包含最终建表语句与必要引用数据，不包含版本化演进、历史表或 development 身份数据。schema 名固定，Compose 和 runtime JDBC URL 不支持改名。
 
-MySQL entrypoint 在空主库卷上先创建最小权限账号，再执行当前态快照。single 只有一个 MySQL；cluster 只初始化 primary，并在放行 runtime 前由 replication bootstrap 确认两个 replica 的 GTID 复制。业务服务、Mock Data Studio 和 development seed 都使用 DML-only 账号，不能在 runtime 启动路径中补表。
+MySQL entrypoint 在空主库卷上先创建最小权限账号，再执行当前态快照。single 只有一个 MySQL；cluster 只初始化 primary，并在放行迁移前由 replication bootstrap 建立两个 replica 的 GTID 复制。业务服务、Mock Data Studio 和 development seed 都使用 DML-only 账号，不能在 runtime 启动路径中补表。
 
-结构变更采用 clean break：直接修改最终定义、同步测试夹具、删除该拓扑的 MySQL volumes，然后从空卷启动。已有数据需要保留时，这套本地可丢弃环境流程不提供原地升级能力，必须另行设计数据迁移。
+`community` 的结构变更同时维护最终快照和 `deploy/mysql/community-migrations` 前向序列。独立 one-shot 使用专用 DDL 账号、固定脚本位置、named lock、SHA-256 history 和逐项幂等 DDL，成功后 runtime 才能启动；应用进程从不接收迁移凭证。可丢弃环境仍可 clean reset，保留数据的环境只能备份后向前迁移，不支持 down migration。
 
 ## Config And Discovery 设计
 

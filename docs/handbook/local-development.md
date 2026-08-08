@@ -47,6 +47,7 @@ cp deploy/.env.cluster.example deploy/.env.cluster
 
 - `mysql`
 - MySQL entrypoint 当前态 schema 初始化（仅空卷首次启动）
+- `community-db-migrations`（专用 DDL 账号、app 前 one-shot）
 - `community-dev-seed`（仅 development，按开关执行）
 - `redis`
 - `kafka`
@@ -82,6 +83,7 @@ cp deploy/.env.single.example deploy/.env.single
 
 - `mysql-primary` + `mysql-replica-1/2`
 - primary 当前态 schema 初始化 + GTID replica bootstrap
+- `community-db-migrations`（复制建立后、app 前 one-shot）
 - `community-dev-seed`（仅 development，按开关执行）
 - `redis-1..6`
 - `kafka-1..3`
@@ -220,9 +222,9 @@ git diff --check -- docs/handbook
 
 ### 本地数据库结构
 
-`deploy/mysql/primary-init/010_current_schema.sql` 是 `community`、`community_oss`、`im_core` 的唯一当前态结构文件。MySQL entrypoint 只在 primary volume 为空时执行；普通 `up` 或 restart 不会升级已有 volume。三个 schema 名固定，所有 runtime 和 Mock Data Studio 账号均为 DML-only。
+`deploy/mysql/primary-init/010_current_schema.sql` 是 `community`、`community_oss`、`im_core` 的空库当前态结构文件。MySQL entrypoint 只在 primary volume 为空时执行。`community-db-migrations` 会在每次拓扑启动时校验/执行固定的 `deploy/mysql/community-migrations/VNNN__*.sql`，所以已有 community volume 可以向前升级。三个 schema 名固定，所有 runtime 和 Mock Data Studio 账号均为 DML-only；专用 migrator 凭证不注入应用。
 
-`--scope infra` 会完成主库初始化、最小权限账号创建和 cluster GTID replica bootstrap，因此这些步骤成功后可以从 IDE 启动业务 runtime。
+`--scope infra` 会完成主库初始化、最小权限账号创建、cluster GTID replica bootstrap 和 community 前向迁移，因此这些步骤成功后可以从 IDE 启动业务 runtime。
 
 schema 校验与 Compose 契约：
 
@@ -230,12 +232,13 @@ schema 校验与 Compose 契约：
 ./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example --no-observability
 ./deploy/deployment.sh config --topology cluster --env-file deploy/.env.cluster.example --no-observability
 ./deploy/tests/community_schema_snapshot_contract.sh
+./deploy/tests/community_forward_migration_contract.sh
 ./deploy/tests/oss_schema_snapshot_contract.sh
 ./deploy/tests/im_schema_snapshot_contract.sh
 ./deploy/tests/reset_mysql_contract.sh
 ```
 
-改表时直接修改快照中的最终 `CREATE TABLE`，同步 H2 测试 schema 与契约，然后运行 `./deploy/deployment.sh reset-mysql --topology <single|cluster>` 并重新 `up`。不要向快照追加 `ALTER TABLE` 演进过程，也不要在旧 volume 上手工重放它。
+改 community 表时同时修改快照中的最终 `CREATE TABLE`、追加新版本前向迁移并同步 H2/契约。可丢弃本地数据时可以 `reset-mysql`；要保留数据时普通 `up` 会先执行 one-shot，禁止在旧 volume 上手工重放快照。真实 MySQL 重放验证使用 `./deploy/tests/community_forward_migration_mysql.sh`。
 
 ## Compose 文件分层
 
@@ -325,6 +328,8 @@ example env 默认设置 `COMMUNITY_DEV_SEED_ENABLED=true`。Compose 的 `commun
 本地默认通过 MailHog 收邮件闭环：
 
 - MailHog UI：`http://localhost:8025`
+- `AUTH_MAIL_FROM`、`AUTH_MAIL_ENABLED` 和 `AUTH_REGISTRATION_EXPOSE_CODE` 由 Nacos bootstrap 渲染。
+- `SPRING_MAIL_HOST/PORT/USERNAME/PASSWORD`、SMTP auth、STARTTLS/SSL 与 timeout 变量直接注入 `community-app`；example env 的默认值连接 MailHog。
 
 如需 dev-only 快捷模式，可显式开启：
 
@@ -333,7 +338,7 @@ AUTH_MAIL_ENABLED=false
 AUTH_REGISTRATION_EXPOSE_CODE=true
 ```
 
-prod 下禁止回传注册验证码，并要求启用 SMTP。
+prod 下禁止回传注册验证码，并要求启用 SMTP。启用 SMTP auth 时必须同时提供凭据与 TLS；生产密码应通过 Secret 注入，不要提交到 env 文件。
 
 ## Mock Data Studio
 

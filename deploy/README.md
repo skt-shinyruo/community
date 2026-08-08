@@ -19,6 +19,7 @@
 - 渲染配置：`./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example`
 - 关闭观测层：`./deploy/deployment.sh up --topology cluster --no-observability`
 - 只重置 MySQL：`./deploy/deployment.sh reset-mysql --topology single`
+- 验证 community 前向迁移：`./deploy/tests/community_forward_migration_mysql.sh`
 
 默认 compose project name：
 
@@ -99,6 +100,28 @@
 
 默认入口与 `single` 保持一致，但后端与中间件是多副本 / 多节点形态。
 
+## Runtime 镜像约束
+
+`Dockerfile.frontend` 使用 Node 构建静态资源，最终镜像只保留非 root Nginx，不运行
+Vite preview 或携带前端源码依赖。single 和 cluster 拓扑均把前端根文件系统设为只读、
+丢弃 Linux capabilities，并只挂载受限的 `/tmp`。Nginx 的 pid、临时文件和启动时生成的
+`/app-config.js` 都位于该 tmpfs；版本化 `/assets/` 使用 immutable 缓存，HTML 和运行时配置不缓存。
+
+运行时端点按以下环境变量注入，值会经过 JSON 编码而不是直接拼接到 JavaScript：
+
+- `FRONTEND_RUNTIME_API_BASE_URL`：主站 API base URL。
+- `FRONTEND_RUNTIME_IM_HTTP_BASE_URL`：IM HTTP base URL。
+- `GATEWAY_PUBLIC_BASE_URL`：上述变量未设置时的共同回退值。
+
+显式设置 `FRONTEND_RUNTIME_API_BASE_URL=` 或 `FRONTEND_RUNTIME_IM_HTTP_BASE_URL=` 可选择
+同源相对路径。镜像中的 Nginx 仍代理 `/api/`、`/files/` 和 `/ws/im` 到 Compose ingress，
+以兼容同源部署和后端返回的相对公开文件 URL。`Dockerfile.backend-service` 的运行阶段使用
+固定 UID/GID `10001`，镜像内 JAR、agent 和启动脚本仅需只读访问；JVM 的 `user.home` 与
+`java.io.tmpdir` 固定落在 `/tmp/community-runtime`，只读根文件系统部署时应为 `/tmp`
+提供可写的临时挂载。
+
+对应静态契约可独立运行：`./deploy/tests/production_image_contract.sh`。
+
 ## 拓扑速览
 
 ### `single`
@@ -145,7 +168,7 @@ Nacos 3.1.2 使用 `/nacos/v3/admin/core/state/readiness` 作为 readiness 接�
 
 `-v` 是传给 `docker compose down` 的参数，要放在 `--` 后面，会删除该拓扑的所有 Compose volumes。默认 project name 是 `community-single` / `community-cluster`，默认 volume namespace 是 `community_single` / `community_cluster`，对应的 MySQL 数据卷名分别是 `community_single_mysql_primary_data` / `community_cluster_mysql_primary_data`。
 
-三个业务 schema 固定为 `community`、`community_oss`、`im_core`，最终结构统一维护在 `mysql/primary-init/010_current_schema.sql`。MySQL entrypoint 只在 primary volume 为空时执行该文件。改表后应修改最终 `CREATE TABLE`、同步测试 schema，运行 `reset-mysql`，再重新 `up`；不要在已有 volume 上重放快照。development 身份数据位于 `mysql/community/090_seed_identity.sql`，不属于当前态 schema。
+三个业务 schema 固定为 `community`、`community_oss`、`im_core`，空库最终结构统一维护在 `mysql/primary-init/010_current_schema.sql`。MySQL entrypoint 只在 primary volume 为空时执行该文件。`community` 改表还必须追加 `mysql/community-migrations/VNNN__*.sql`；`community-db-migrations` 使用专用 DDL 账号在 app 前一次性执行，已有 volume 不得重放快照。可丢弃环境可以 reset；保留数据时先备份并按 [operations runbook](../docs/handbook/operations.md#community-前向-schema-迁移) 静默写入、向前升级。development 身份数据位于 `mysql/community/090_seed_identity.sql`，不属于当前态 schema。
 
 如需给 volume 使用独立前缀，可在命令前设置 `COMMUNITY_VOLUME_NAMESPACE`，例如 `COMMUNITY_VOLUME_NAMESPACE=community_smoke ./deploy/deployment.sh up --topology single`。
 

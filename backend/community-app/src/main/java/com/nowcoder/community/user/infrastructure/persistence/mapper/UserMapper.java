@@ -14,7 +14,11 @@ public interface UserMapper {
 
     UserDataObject selectById(UUID id);
 
+    UserDataObject selectByIdForUpdate(UUID id);
+
     UserDataObject selectByName(String username);
+
+    String selectUsernameAuthenticationSubjectDigest(@Param("username") String username);
 
     UserDataObject selectByEmail(String email);
 
@@ -25,6 +29,13 @@ public interface UserMapper {
     int updateHeader(UUID id, String headerUrl);
 
     int updatePassword(@Param("id") UUID id, @Param("password") String password, @Param("securityVersion") long securityVersion);
+
+    int updatePasswordIfSecurityVersion(
+            @Param("id") UUID id,
+            @Param("password") String password,
+            @Param("securityVersion") long securityVersion,
+            @Param("expectedSecurityVersion") long expectedSecurityVersion
+    );
 
     int updateType(@Param("id") UUID id, @Param("type") int type, @Param("securityVersion") long securityVersion);
 
@@ -37,10 +48,19 @@ public interface UserMapper {
             @Param("expectedPolicyVersion") long expectedPolicyVersion
     );
 
-    /**
-     * internal 扫描接口使用：按主键游标向后扫描用户的治理状态（用于投影回填/纠偏）。
-     */
-    List<UserDataObject> selectModerationUsersAfterId(@Param("afterId") UUID afterId, @Param("limit") int limit);
+    List<UserDataObject> selectModerationUsersAtVersionAfterId(
+            @Param("snapshotVersion") long snapshotVersion,
+            @Param("afterId") UUID afterId,
+            @Param("limit") int limit
+    );
+
+    int insertPolicyVersionLog(
+            @Param("version") long version,
+            @Param("userId") UUID userId,
+            @Param("userExists") boolean userExists,
+            @Param("muteUntil") java.util.Date muteUntil,
+            @Param("banUntil") java.util.Date banUntil
+    );
 
     long selectPolicyVersionCounterForUpdate(@Param("id") int id);
 
@@ -49,6 +69,8 @@ public interface UserMapper {
     long selectPolicyVersionCounter(@Param("id") int id);
 
     long selectSecurityVersionCounterForUpdate(@Param("id") int id);
+
+    Long selectSecurityVersionById(@Param("id") UUID id);
 
     int updateSecurityVersionCounter(@Param("id") int id, @Param("version") long version);
 

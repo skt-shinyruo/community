@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 import java.util.UUID;
@@ -16,16 +17,17 @@ import java.util.UUID;
 @Mapper
 public interface LikeMapper {
 
-    @Insert("insert into social_like(relation_instance_id, user_id, entity_type, entity_id, entity_user_id, created_at) values(#{relationInstanceId, jdbcType=BINARY}, #{userId, jdbcType=BINARY}, #{entityType}, #{entityId, jdbcType=BINARY}, #{entityUserId, jdbcType=BINARY}, now())")
+    @Insert("insert into social_like(relation_instance_id, user_id, entity_type, entity_id, entity_user_id, post_id, created_at) values(#{relationInstanceId, jdbcType=BINARY}, #{userId, jdbcType=BINARY}, #{entityType}, #{entityId, jdbcType=BINARY}, #{entityUserId, jdbcType=BINARY}, #{postId, jdbcType=BINARY}, now())")
     int insertLike(
             @Param("relationInstanceId") UUID relationInstanceId,
             @Param("userId") UUID userId,
             @Param("entityType") int entityType,
             @Param("entityId") UUID entityId,
-            @Param("entityUserId") UUID entityUserId
+            @Param("entityUserId") UUID entityUserId,
+            @Param("postId") UUID postId
     );
 
-    @Select("select relation_instance_id as relationInstanceId, user_id as userId, entity_id as entityId, entity_user_id as entityUserId from social_like where user_id = #{userId, jdbcType=BINARY} and entity_type = #{entityType} and entity_id = #{entityId, jdbcType=BINARY}")
+    @Select("select relation_instance_id as relationInstanceId, user_id as userId, entity_id as entityId, entity_user_id as entityUserId, post_id as postId from social_like where user_id = #{userId, jdbcType=BINARY} and entity_type = #{entityType} and entity_id = #{entityId, jdbcType=BINARY}")
     LikeScanDataObject selectLike(@Param("userId") UUID userId, @Param("entityType") int entityType, @Param("entityId") UUID entityId);
 
     @Delete("delete from social_like where user_id = #{userId, jdbcType=BINARY} and entity_type = #{entityType} and entity_id = #{entityId, jdbcType=BINARY} and relation_instance_id = #{relationInstanceId, jdbcType=BINARY}")
@@ -34,6 +36,53 @@ public interface LikeMapper {
             @Param("entityType") int entityType,
             @Param("entityId") UUID entityId,
             @Param("relationInstanceId") UUID relationInstanceId
+    );
+
+    @Insert("""
+            insert into social_like_relation_version(
+                actor_user_id, entity_type, entity_id, current_version, updated_at
+            )
+            values(
+                #{actorUserId, jdbcType=BINARY}, #{entityType}, #{entityId, jdbcType=BINARY},
+                4611686018427387904, now()
+            )
+            on duplicate key update actor_user_id = values(actor_user_id)
+            """)
+    int ensureRelationEventVersion(
+            @Param("actorUserId") UUID actorUserId,
+            @Param("entityType") int entityType,
+            @Param("entityId") UUID entityId
+    );
+
+    @Select("""
+            select current_version
+            from social_like_relation_version
+            where actor_user_id = #{actorUserId, jdbcType=BINARY}
+              and entity_type = #{entityType}
+              and entity_id = #{entityId, jdbcType=BINARY}
+            for update
+            """)
+    long selectRelationEventVersionForUpdate(
+            @Param("actorUserId") UUID actorUserId,
+            @Param("entityType") int entityType,
+            @Param("entityId") UUID entityId
+    );
+
+    @Update("""
+            update social_like_relation_version
+            set current_version = #{nextVersion},
+                updated_at = now()
+            where actor_user_id = #{actorUserId, jdbcType=BINARY}
+              and entity_type = #{entityType}
+              and entity_id = #{entityId, jdbcType=BINARY}
+              and current_version = #{currentVersion}
+            """)
+    int updateRelationEventVersion(
+            @Param("actorUserId") UUID actorUserId,
+            @Param("entityType") int entityType,
+            @Param("entityId") UUID entityId,
+            @Param("currentVersion") long currentVersion,
+            @Param("nextVersion") long nextVersion
     );
 
     @Delete("delete from social_like where entity_type = #{entityType} and entity_id = #{entityId, jdbcType=BINARY}")
@@ -96,7 +145,8 @@ public interface LikeMapper {
             select relation_instance_id as relationInstanceId,
                    entity_id as entityId,
                    user_id as userId,
-                   entity_user_id as entityUserId
+                   entity_user_id as entityUserId,
+                   post_id as postId
             from social_like
             where entity_type = #{entityType}
               and (entity_id > #{afterEntityId} or (entity_id = #{afterEntityId} and user_id > #{afterUserId}))
@@ -114,7 +164,8 @@ public interface LikeMapper {
             select relation_instance_id as relationInstanceId,
                    user_id as userId,
                    entity_id as entityId,
-                   entity_user_id as entityUserId
+                   entity_user_id as entityUserId,
+                   post_id as postId
             from social_like
             where entity_type = #{entityType}
               and entity_id = #{entityId, jdbcType=BINARY}
@@ -125,6 +176,33 @@ public interface LikeMapper {
     List<LikeScanDataObject> scanLikesByEntity(
             @Param("entityType") int entityType,
             @Param("entityId") UUID entityId,
+            @Param("afterUserId") UUID afterUserId,
+            @Param("limit") int limit
+    );
+
+    @Select("""
+            select relation_instance_id as relationInstanceId,
+                   user_id as userId,
+                   entity_id as entityId,
+                   entity_user_id as entityUserId,
+                   post_id as postId
+            from social_like
+            where entity_type = #{commentEntityType}
+              and post_id = #{postId, jdbcType=BINARY}
+              and (
+                  entity_id > #{afterCommentId, jdbcType=BINARY}
+                  or (
+                      entity_id = #{afterCommentId, jdbcType=BINARY}
+                      and user_id > #{afterUserId, jdbcType=BINARY}
+                  )
+              )
+            order by entity_id asc, user_id asc
+            limit #{limit}
+            """)
+    List<LikeScanDataObject> scanCommentLikesByPost(
+            @Param("commentEntityType") int commentEntityType,
+            @Param("postId") UUID postId,
+            @Param("afterCommentId") UUID afterCommentId,
             @Param("afterUserId") UUID afterUserId,
             @Param("limit") int limit
     );

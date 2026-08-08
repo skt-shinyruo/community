@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -136,19 +137,58 @@ class MarketWalletActionRecoveryApplicationServiceTest {
     }
 
     @Test
-    void reconcileRefundPendingOrderShouldLeavePermanentFailedRefundVisible() {
+    void reconcileRefundPendingOrderShouldExcludePermanentFailureFromAutomaticRecovery() {
         seedRefundPendingOrder();
         seedFailedActionWithoutWalletTxn("REFUND", "17001");
 
         MarketWalletActionRecoveryResult result = recoveryService.reconcileOnce(50);
 
         assertThat(result.reconciledCount()).isZero();
-        assertThat(result.skippedCount()).isEqualTo(1);
+        assertThat(result.skippedCount()).isZero();
         assertThat(marketOrderMapper.selectById(orderId).getStatus()).isEqualTo("REFUND_PENDING");
         MarketWalletAction action = marketWalletActionMapper.selectByOrderAndType(orderId, "REFUND");
         assertThat(action.getStatus()).isEqualTo("FAILED");
         assertThat(action.getFailureCode()).isEqualTo("17001");
         assertThat(action.getNextRetryAt()).isNull();
+    }
+
+    @Test
+    void permanentFailurePrefixShouldNotStarveALaterRecoverableOrder() {
+        seedRefundPendingOrder();
+        UUID permanentOrderId = orderId;
+        seedFailedActionWithoutWalletTxn("REFUND", "17001");
+
+        seedWalletPendingOrder(411, 412, "REFUND_PENDING", "recovery:later-missing-action");
+        UUID recoverableOrderId = orderId;
+
+        MarketWalletActionRecoveryResult result = recoveryService.reconcileOnce(1);
+
+        assertThat(result.reconciledCount()).isEqualTo(1);
+        assertThat(result.skippedCount()).isZero();
+        assertThat(marketWalletActionMapper.selectByOrderAndType(recoverableOrderId, "REFUND"))
+                .isNotNull();
+        assertThat(marketWalletActionMapper.selectByOrderAndType(permanentOrderId, "REFUND").getStatus())
+                .isEqualTo("FAILED");
+    }
+
+    @Test
+    void durableOrderDeadlineShouldRemoveDeferredMissingActionFromDuePrefix() {
+        seedRefundPendingOrder();
+        Date asOf = new Date();
+        Date future = Date.from(Instant.now().plusSeconds(3600));
+
+        assertThat(marketOrderMapper.deferWalletRecovery(orderId, asOf, future)).isEqualTo(1);
+        assertThat(marketOrderMapper.selectWalletPendingOrders(10))
+                .extracting(MarketOrderDataObject::getOrderId)
+                .doesNotContain(orderId);
+
+        jdbcTemplate.update(
+                "update market_order set wallet_recovery_next_attempt_at = dateadd('SECOND', -1, current_timestamp) where order_id = ?",
+                com.nowcoder.community.common.id.BinaryUuidCodec.toBytes(orderId)
+        );
+        assertThat(marketOrderMapper.selectWalletPendingOrders(10))
+                .extracting(MarketOrderDataObject::getOrderId)
+                .contains(orderId);
     }
 
     @Test
@@ -173,6 +213,8 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         action.setStatus("FAILED");
         action.setWalletTxnId(uuid(603));
         when(walletActionRepository.findUnfinishedWithWalletTxn(1)).thenReturn(List.of(action));
+        when(walletActionRepository.findById(action.getActionId())).thenReturn(action);
+        when(walletActionRepository.lockById(action.getActionId())).thenReturn(action);
         when(orderRepository.findWalletPendingOrders(1)).thenReturn(List.of());
         when(sagaService.markReleaseSucceeded(action.getOrderId(), action.getWalletTxnId())).thenReturn(true);
         when(walletActionRepository.markRecoveredSucceeded(
@@ -216,6 +258,8 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         action.setStatus("FAILED");
         action.setWalletTxnId(uuid(606));
         when(walletActionRepository.findUnfinishedWithWalletTxn(1)).thenReturn(List.of(action));
+        when(walletActionRepository.findById(action.getActionId())).thenReturn(action);
+        when(walletActionRepository.lockById(action.getActionId())).thenReturn(action);
         when(sagaService.markRefundSucceeded(action.getOrderId(), action.getWalletTxnId())).thenReturn(true);
         when(walletActionRepository.markRecoveredSucceeded(
                 action.getActionId(),
@@ -259,6 +303,8 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         action.setWalletTxnId(uuid(609));
         action.setLeaseToken(uuid(610));
         when(walletActionRepository.findUnfinishedWithWalletTxn(1)).thenReturn(List.of(action));
+        when(walletActionRepository.findById(action.getActionId())).thenReturn(action);
+        when(walletActionRepository.lockById(action.getActionId())).thenReturn(action);
         when(orderRepository.findWalletPendingOrders(1)).thenReturn(List.of());
         MarketWalletActionRecoveryApplicationService service = new MarketWalletActionRecoveryApplicationService(
                 walletActionRepository,
@@ -291,11 +337,15 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         action.setLastError("wallet conflict");
         when(walletActionRepository.findUnfinishedWithWalletTxn(1)).thenReturn(List.of());
         when(orderRepository.findWalletPendingOrders(1)).thenReturn(List.of(pendingOrder));
+        when(orderRepository.lockById(actionOrderId)).thenReturn(pendingOrder);
         when(walletActionRepository.findByOrderAndType(actionOrderId, "RELEASE")).thenReturn(action);
+        when(walletActionRepository.lockById(action.getActionId())).thenReturn(action);
         when(walletActionRepository.rescheduleFailed(
                 action.getActionId(),
                 action.getFailureCode(),
-                Date.from(now),
+                action.getRetryCount(),
+                Date.from(now.plusSeconds(5)),
+                8,
                 action.getLastError()
         )).thenReturn(1);
         MarketWalletActionRecoveryApplicationService service = new MarketWalletActionRecoveryApplicationService(
@@ -313,7 +363,9 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         verify(walletActionRepository).rescheduleFailed(
                 action.getActionId(),
                 "17004",
-                Date.from(now),
+                0,
+                Date.from(now.plusSeconds(5)),
+                8,
                 "wallet conflict"
         );
         verify(walletActionRepository, never()).markRetrying(
@@ -338,11 +390,15 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         action.setLastError("wallet conflict");
         when(walletActionRepository.findUnfinishedWithWalletTxn(1)).thenReturn(List.of());
         when(orderRepository.findWalletPendingOrders(1)).thenReturn(List.of(pendingOrder));
+        when(orderRepository.lockById(actionOrderId)).thenReturn(pendingOrder);
         when(walletActionRepository.findByOrderAndType(actionOrderId, "REFUND")).thenReturn(action);
+        when(walletActionRepository.lockById(action.getActionId())).thenReturn(action);
         when(walletActionRepository.rescheduleFailed(
                 action.getActionId(),
                 action.getFailureCode(),
-                Date.from(now),
+                action.getRetryCount(),
+                Date.from(now.plusSeconds(5)),
+                8,
                 action.getLastError()
         )).thenReturn(0);
         MarketWalletActionRecoveryApplicationService service = new MarketWalletActionRecoveryApplicationService(
@@ -360,7 +416,9 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         verify(walletActionRepository).rescheduleFailed(
                 action.getActionId(),
                 "17004",
-                Date.from(now),
+                0,
+                Date.from(now.plusSeconds(5)),
+                8,
                 "wallet conflict"
         );
         verify(walletActionRepository, never()).markRetrying(
@@ -368,6 +426,34 @@ class MarketWalletActionRecoveryApplicationServiceTest {
                 any(),
                 any()
         );
+    }
+
+    @Test
+    void reconcileOnceShouldContinueAfterOneItemTransactionFails() {
+        MarketWalletActionRepository walletActionRepository = mock(MarketWalletActionRepository.class);
+        MarketOrderRepository orderRepository = mock(MarketOrderRepository.class);
+        MarketWalletActionRecoveryTransactionOperations transactionOperations =
+                mock(MarketWalletActionRecoveryTransactionOperations.class);
+        MarketWalletAction first = action(uuid(615), uuid(616), "RELEASE");
+        MarketWalletAction second = action(uuid(617), uuid(618), "REFUND");
+        when(walletActionRepository.findUnfinishedWithWalletTxn(2)).thenReturn(List.of(first, second));
+        when(transactionOperations.reconcileWalletTxnAction(first.getActionId()))
+                .thenThrow(new IllegalStateException("row transaction failed"));
+        when(transactionOperations.reconcileWalletTxnAction(second.getActionId())).thenReturn(true);
+        when(orderRepository.findWalletPendingOrders(1)).thenReturn(List.of());
+        MarketWalletActionRecoveryApplicationService service = new MarketWalletActionRecoveryApplicationService(
+                walletActionRepository,
+                orderRepository,
+                transactionOperations,
+                Clock.fixed(Instant.parse("2026-04-25T10:00:00Z"), ZoneOffset.UTC)
+        );
+
+        MarketWalletActionRecoveryResult result = service.reconcileOnce(2);
+
+        assertThat(result.reconciledCount()).isEqualTo(1);
+        assertThat(result.skippedCount()).isEqualTo(1);
+        verify(transactionOperations, times(1)).reconcileWalletTxnAction(first.getActionId());
+        verify(transactionOperations, times(1)).reconcileWalletTxnAction(second.getActionId());
     }
 
     private UUID seedProcessingActionWithExpiredLease(Instant expiredAt) {
@@ -390,8 +476,17 @@ class MarketWalletActionRecoveryApplicationServiceTest {
     }
 
     private void seedWalletPendingOrder(String status) {
-        listingId = uuid(401);
-        orderId = uuid(402);
+        seedWalletPendingOrder(401, 402, status, "recovery:refund-pending");
+    }
+
+    private void seedWalletPendingOrder(
+            long listingSuffix,
+            long orderSuffix,
+            String status,
+            String requestId
+    ) {
+        listingId = uuid(listingSuffix);
+        orderId = uuid(orderSuffix);
 
         MarketListing listing = new MarketListing();
         listing.setListingId(listingId);
@@ -409,7 +504,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         marketListingMapper.insert(MarketListingDataObject.from(listing));
 
         MarketOrder seededOrder = order(orderId)
-                .requestId("recovery:refund-pending")
+                .requestId(requestId)
                 .listingId(listingId)
                 .goodsType("PHYSICAL")
                 .sellerUserId(sellerUserId)

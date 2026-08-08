@@ -235,12 +235,15 @@ requestId 规则由 `MarketWalletActionDomainService` 生成，形如 `market-or
 processor：
 
 1. `MarketWalletActionProcessorHandler` 触发 `processDue(limit)`。
-2. application claim due action，设置 `PROCESSING` 和 lease。
-3. 在 market 事务外调用 `WalletMarketActionApi`。
-4. wallet 成功返回 walletTxnId。
-5. action 标记成功，并由 `MarketOrderSagaApplicationService` 条件推进订单/争议状态。
-6. 可恢复失败进入 retry/backoff；超过 retry budget 后进入 `DEAD`，停止自动重试。
-7. `FAILED` / `DEAD` 终态保留失败状态供 recovery 或人工排查。
+2. application 用候选的 `status + retry_count`、当前到期时间和 retry budget 做 CAS claim，设置 `PROCESSING` 和随机 lease token；旧候选不能越过新 backoff 重新认领。
+3. claim 成功后按 `action_id + lease_token` 回读当前 action，再在 market 事务外调用 `WalletMarketActionApi`，不使用扫描阶段的旧快照。
+4. wallet 成功返回 walletTxnId；processor 立即在当前 lease 下把它持久化到 action，避免 wallet 已提交而 market 丢失交易号。
+5. 独立 `REQUIRES_NEW` 完成事务先锁定订单再锁定 action，重新验证 `PROCESSING + lease token + 未过期`，然后在同一事务推进订单/库存 saga 和 action 终态；action CAS 失败会抛错回滚 saga。
+6. 只有本次从未尝试过的 `PENDING` escrow 才能在取消路径做 `NOOP`；`RETRYING` 或过期 lease 一律用稳定 requestId 重放 wallet，若晚到则补 refund。
+7. 可恢复失败进入 retry/backoff；超过 retry budget 后进入 `DEAD`，停止自动重试。`ACCOUNT_UPDATE_CONFLICT`（包括 escrow）属于可恢复错误。
+8. `FAILED` / `DEAD` 终态保留失败状态供 recovery 或人工排查。
+
+recovery 外层只负责有限扫描和逐项容错，不持有覆盖整个批次的数据库事务。每个过期 lease、已有 walletTxnId 的 action 和 pending order 都在独立 `REQUIRES_NEW` 短事务中处理；过期 lease 更新同时 CAS 原 token、deadline 和 retry count。action 使用 `next_retry_at`，订单使用 `wallet_recovery_next_attempt_at` 持久化下一次恢复时间；查询只取到期候选，并只自动接纳已有 wallet transaction 的事实或 RELEASE / REFUND 的明确可恢复失败码。永久业务失败与暂不可补写的缺失 action 不会反复占满固定扫描前缀。单条失败只回滚该条并继续后续记录，最后一次允许的 lease 超时直接进入 `DEAD`。
 
 saga 状态推进：
 

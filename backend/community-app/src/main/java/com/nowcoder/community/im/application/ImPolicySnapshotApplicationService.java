@@ -35,10 +35,20 @@ public class ImPolicySnapshotApplicationService {
     }
 
     public UserMessagingPolicySnapshot userPolicies(UUID afterUserId, int limit) {
+        return userPolicies(afterUserId, limit, null);
+    }
+
+    public UserMessagingPolicySnapshot userPolicies(UUID afterUserId, int limit, Long snapshotVersion) {
+        requireSnapshotVersionForContinuation(afterUserId != null, snapshotVersion);
         int normalizedLimit = normalizeLimit(limit);
         Instant now = Instant.now();
-        long snapshotHighWatermark = userModerationQueryApi.currentModerationProjectionVersion();
-        List<UserModerationStateView> states = userModerationQueryApi.scanModerationStatesAfterId(afterUserId, normalizedLimit);
+        long currentVersion = userModerationQueryApi.currentModerationProjectionVersion();
+        long snapshotHighWatermark = resolveSnapshotVersion(snapshotVersion, currentVersion);
+        List<UserModerationStateView> states = userModerationQueryApi.scanModerationStatesAtVersionAfterId(
+                snapshotHighWatermark,
+                afterUserId,
+                normalizedLimit
+        );
         List<UserMessagingPolicyEntry> entries = states.stream()
                 .map(state -> toUserPolicyEntry(state, now))
                 .toList();
@@ -46,17 +56,38 @@ public class ImPolicySnapshotApplicationService {
         UUID nextUserId = entries.isEmpty() ? null : entries.get(entries.size() - 1).userId();
         boolean hasMore = nextUserId != null
                 && entries.size() == normalizedLimit
-                && !userModerationQueryApi.scanModerationStatesAfterId(nextUserId, 1).isEmpty();
+                && !userModerationQueryApi.scanModerationStatesAtVersionAfterId(
+                        snapshotHighWatermark,
+                        nextUserId,
+                        1
+                ).isEmpty();
 
         return new UserMessagingPolicySnapshot(entries, nextUserId, hasMore, snapshotHighWatermark);
     }
 
     public UserBlockRelationSnapshot blockRelations(UUID afterBlockerUserId, UUID afterBlockedUserId, int limit) {
+        return blockRelations(afterBlockerUserId, afterBlockedUserId, limit, null);
+    }
+
+    public UserBlockRelationSnapshot blockRelations(
+            UUID afterBlockerUserId,
+            UUID afterBlockedUserId,
+            int limit,
+            Long snapshotVersion
+    ) {
+        boolean continuation = afterBlockerUserId != null || afterBlockedUserId != null;
+        requireSnapshotVersionForContinuation(continuation, snapshotVersion);
         int normalizedLimit = normalizeLimit(limit);
         long occurredAtEpochMillis = Instant.now().toEpochMilli();
-        long snapshotHighWatermark = socialBlockQueryApi.currentBlockProjectionVersion();
+        long currentVersion = socialBlockQueryApi.currentBlockProjectionVersion();
+        long snapshotHighWatermark = resolveSnapshotVersion(snapshotVersion, currentVersion);
         List<SocialBlockRelationView> views =
-                socialBlockQueryApi.scanBlockRelationsAfter(afterBlockerUserId, afterBlockedUserId, normalizedLimit);
+                socialBlockQueryApi.scanBlockRelationsAtVersionAfter(
+                        snapshotHighWatermark,
+                        afterBlockerUserId,
+                        afterBlockedUserId,
+                        normalizedLimit
+                );
         List<UserBlockRelationEntry> entries = views.stream()
                 .map(view -> toBlockRelationEntry(view, occurredAtEpochMillis))
                 .toList();
@@ -66,7 +97,12 @@ public class ImPolicySnapshotApplicationService {
         boolean hasMore = nextBlockerUserId != null
                 && nextBlockedUserId != null
                 && entries.size() == normalizedLimit
-                && !socialBlockQueryApi.scanBlockRelationsAfter(nextBlockerUserId, nextBlockedUserId, 1).isEmpty();
+                && !socialBlockQueryApi.scanBlockRelationsAtVersionAfter(
+                        snapshotHighWatermark,
+                        nextBlockerUserId,
+                        nextBlockedUserId,
+                        1
+                ).isEmpty();
 
         return new UserBlockRelationSnapshot(entries, nextBlockerUserId, nextBlockedUserId, hasMore, snapshotHighWatermark);
     }
@@ -153,6 +189,28 @@ public class ImPolicySnapshotApplicationService {
 
     private int normalizeLimit(int limit) {
         return Math.min(500, Math.max(1, limit));
+    }
+
+    private long resolveSnapshotVersion(Long requestedVersion, long currentVersion) {
+        if (currentVersion < 0L) {
+            throw new IllegalStateException("owner projection version must be non-negative");
+        }
+        if (requestedVersion == null) {
+            return currentVersion;
+        }
+        if (requestedVersion < 0L) {
+            throw new IllegalArgumentException("snapshotVersion must be non-negative");
+        }
+        if (requestedVersion > currentVersion) {
+            throw new IllegalArgumentException("snapshotVersion must not exceed current owner version");
+        }
+        return requestedVersion;
+    }
+
+    private void requireSnapshotVersionForContinuation(boolean continuation, Long snapshotVersion) {
+        if (continuation && snapshotVersion == null) {
+            throw new IllegalArgumentException("snapshotVersion is required for a continuation page");
+        }
     }
 
     private Long toEpochMillis(Instant instant) {

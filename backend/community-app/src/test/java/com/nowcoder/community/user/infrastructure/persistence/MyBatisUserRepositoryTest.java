@@ -51,6 +51,7 @@ class MyBatisUserRepositoryTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from auth_refresh_token");
+        jdbcTemplate.update("delete from user_policy_version_log");
         jdbcTemplate.update("delete from user");
         jdbcTemplate.update("update user_policy_version_counter set current_version = 0 where id = 1");
         jdbcTemplate.update("update user_security_version_counter set current_version = 0 where id = 1");
@@ -145,22 +146,30 @@ class MyBatisUserRepositoryTest {
     }
 
     @Test
-    void scanModerationStatesAfterIdShouldMapTimestampsAndPreserveMapperOrder() {
+    void scanModerationStatesAtVersionAfterIdShouldMapTimestampsAndPreserveMapperOrder() {
         Date createTime = Date.from(Instant.parse("2026-04-27T10:15:30Z"));
         Instant aliceMute = Instant.parse("2026-04-28T10:15:30Z");
         Instant bobBan = Instant.parse("2026-04-29T10:15:30Z");
         insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "h7", createTime, aliceMute, null);
         insertUser(BOB_ID, "bob", "encoded", "salt", "bob@example.com", 0, 1, "h8", createTime, null, bobBan);
+        long aliceVersion = userRepository.nextUserPolicyVersion(ALICE_ID);
+        userRepository.updateModerationUntil(ALICE_ID, aliceMute, null, aliceVersion, 0L, 0L);
+        long bobVersion = userRepository.nextUserPolicyVersion(BOB_ID);
+        userRepository.updateModerationUntil(BOB_ID, null, bobBan, bobVersion, 0L, 0L);
 
-        List<UserModerationStatus> statuses = userRepository.scanModerationStatesAfterId(new UUID(0L, 0L), 20);
+        List<UserModerationStatus> statuses = userRepository.scanModerationStatesAtVersionAfterId(
+                userRepository.currentUserPolicyVersion(),
+                new UUID(0L, 0L),
+                20
+        );
 
         assertThat(statuses).extracting(UserModerationStatus::userId).containsExactly(ALICE_ID, BOB_ID);
         assertThat(statuses.get(0).muteUntil()).isEqualTo(aliceMute);
         assertThat(statuses.get(0).banUntil()).isNull();
-        assertThat(statuses.get(0).version()).isZero();
+        assertThat(statuses.get(0).version()).isEqualTo(aliceVersion);
         assertThat(statuses.get(1).muteUntil()).isNull();
         assertThat(statuses.get(1).banUntil()).isEqualTo(bobBan);
-        assertThat(statuses.get(1).version()).isZero();
+        assertThat(statuses.get(1).version()).isEqualTo(bobVersion);
     }
 
     @Test
@@ -178,9 +187,49 @@ class MyBatisUserRepositoryTest {
         assertThat(first).isEqualTo(1L);
         assertThat(second).isEqualTo(2L);
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().policyVersion()).isEqualTo(second);
-        assertThat(userRepository.scanModerationStatesAfterId(new UUID(0L, 0L), 20).get(0).version())
+        assertThat(userRepository.scanModerationStatesAtVersionAfterId(
+                userRepository.currentUserPolicyVersion(),
+                new UUID(0L, 0L),
+                20
+        ).get(0).version())
                 .isEqualTo(second);
+        UserModerationStatus atFirstVersion = userRepository.scanModerationStatesAtVersionAfterId(
+                first,
+                new UUID(0L, 0L),
+                20
+        ).get(0);
+        assertThat(atFirstVersion.version()).isEqualTo(first);
+        assertThat(atFirstVersion.muteUntil()).isEqualTo(muteUntil);
+        assertThat(atFirstVersion.banUntil()).isNull();
         assertThat(userRepository.currentUserPolicyVersion()).isEqualTo(second);
+    }
+
+    @Test
+    void userPolicyVersionShouldRecoverWhenCounterTrailsDurableHistory() {
+        Date createTime = Date.from(Instant.parse("2026-04-27T10:15:30Z"));
+        Instant muteUntil = Instant.parse("2026-04-28T10:15:30Z");
+        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "h7", createTime, null, null);
+        jdbcTemplate.update(
+                """
+                        insert into user_policy_version_log(
+                            version, user_id, user_exists, mute_until, ban_until, occurred_at
+                        ) values (?, ?, ?, ?, ?, current_timestamp)
+                        """,
+                42L,
+                BinaryUuidCodec.toBytes(BOB_ID),
+                true,
+                null,
+                null
+        );
+        jdbcTemplate.update("update user_policy_version_counter set current_version = 3 where id = 1");
+
+        assertThat(userRepository.currentUserPolicyVersion()).isEqualTo(42L);
+        long allocated = userRepository.nextUserPolicyVersion(ALICE_ID);
+        userRepository.updateModerationUntil(ALICE_ID, muteUntil, null, allocated, 0L, 0L);
+
+        assertThat(allocated).isEqualTo(43L);
+        assertThat(userRepository.currentUserPolicyVersion()).isEqualTo(43L);
+        assertThat(userRepository.findById(ALICE_ID).orElseThrow().policyVersion()).isEqualTo(43L);
     }
 
     @Test
@@ -197,6 +246,55 @@ class MyBatisUserRepositoryTest {
         assertThat(second).isEqualTo(2L);
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(second);
         assertThat(userRepository.currentUserSecurityVersion()).isEqualTo(second);
+    }
+
+    @Test
+    void userSecurityVersionShouldRecoverWhenCounterTrailsPersistedTargetVersion() {
+        Date createTime = Date.from(Instant.parse("2026-04-27T10:15:30Z"));
+        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "h7", createTime, null, null);
+        jdbcTemplate.update(
+                "update user set security_version = ? where id = ?",
+                42L,
+                BinaryUuidCodec.toBytes(ALICE_ID)
+        );
+        jdbcTemplate.update("update user_security_version_counter set current_version = 3 where id = 1");
+
+        long allocated = userRepository.nextUserSecurityVersion(ALICE_ID);
+        userRepository.updatePassword(ALICE_ID, "new-password", allocated);
+
+        assertThat(allocated).isEqualTo(43L);
+        assertThat(userRepository.currentUserSecurityVersion()).isEqualTo(43L);
+        assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(43L);
+    }
+
+    @Test
+    void passwordSecurityVersionCasShouldRejectStaleExpectedVersionWithoutChangingUser() {
+        Date createTime = Date.from(Instant.parse("2026-04-27T10:15:30Z"));
+        insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "h7", createTime, null, null);
+
+        long staleWriteVersion = userRepository.nextUserSecurityVersion(ALICE_ID);
+        boolean staleUpdated = userRepository.updatePasswordIfSecurityVersion(
+                ALICE_ID,
+                "stale-password",
+                staleWriteVersion,
+                99L
+        );
+
+        assertThat(staleUpdated).isFalse();
+        UserAccount unchanged = userRepository.findById(ALICE_ID).orElseThrow();
+        assertThat(unchanged.encodedPassword()).isEqualTo("encoded");
+        assertThat(unchanged.securityVersion()).isZero();
+
+        long currentWriteVersion = userRepository.nextUserSecurityVersion(ALICE_ID);
+        assertThat(userRepository.updatePasswordIfSecurityVersion(
+                ALICE_ID,
+                "current-password",
+                currentWriteVersion,
+                0L
+        )).isTrue();
+        UserAccount updated = userRepository.findById(ALICE_ID).orElseThrow();
+        assertThat(updated.encodedPassword()).isEqualTo("current-password");
+        assertThat(updated.securityVersion()).isEqualTo(currentWriteVersion);
     }
 
     @Test

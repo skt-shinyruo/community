@@ -18,14 +18,22 @@ spring:
       max-file-size: 10GB
       max-request-size: 10GB
   mail:
-    host: mailhog
-    port: 1025
+    host: ${SPRING_MAIL_HOST:mailhog}
+    port: ${SPRING_MAIL_PORT:1025}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
-          auth: false
+          auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:false}
+          connectiontimeout: ${SPRING_MAIL_CONNECTION_TIMEOUT_MS:10000}
+          timeout: ${SPRING_MAIL_READ_TIMEOUT_MS:10000}
+          writetimeout: ${SPRING_MAIL_WRITE_TIMEOUT_MS:10000}
           starttls:
-            enable: false
+            enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:false}
+            required: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED:false}
+          ssl:
+            enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE:false}
 
 management:
   health:
@@ -36,10 +44,11 @@ security:
   jwt:
     access-token-ttl-seconds: 900
     refresh-token-ttl-seconds: 604800
+    refresh-reuse-grace-seconds: 10
     refresh-cookie-name: refresh_token
     refresh-cookie-path: /api/auth
-    refresh-cookie-same-site: Lax
-    refresh-cookie-secure: false
+    refresh-cookie-same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
+    refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:true}
 
 drive:
   share:
@@ -53,34 +62,50 @@ auth:
       interval-ms: 3600000
   captcha:
     store: redis
-    ttl-seconds: 60
-    max-failures: 3
+    ttl-seconds: ${AUTH_CAPTCHA_TTL_SECONDS:60}
+    max-failures: ${AUTH_CAPTCHA_MAX_FAILURES:3}
+    max-issue-requests-per-ip: ${AUTH_CAPTCHA_MAX_ISSUE_REQUESTS_PER_IP:10}
   registration:
+    request-limit:
+      window-seconds: ${AUTH_REGISTRATION_REQUEST_WINDOW_SECONDS:3600}
+      max-requests-per-username: ${AUTH_REGISTRATION_MAX_REQUESTS_PER_USERNAME:3}
+      max-requests-per-email: ${AUTH_REGISTRATION_MAX_REQUESTS_PER_EMAIL:3}
+      max-requests-per-ip: ${AUTH_REGISTRATION_MAX_REQUESTS_PER_IP:10}
+    resend-limit:
+      window-seconds: ${AUTH_REGISTRATION_RESEND_WINDOW_SECONDS:3600}
+      max-requests-per-registration: ${AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_REGISTRATION:5}
+      max-requests-per-email: ${AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_EMAIL:5}
+      max-requests-per-ip: ${AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_IP:20}
     code:
       store: redis
       ttl-seconds: 600
       max-failures: 3
       resend-cooldown-seconds: 60
-      expose-code: false
+      operation-lease-seconds: 120
+      expose-code: ${AUTH_REGISTRATION_EXPOSE_CODE:false}
     draft:
       store: redis
-      ttl-seconds: 1800
+      ttl-seconds: ${AUTH_REGISTRATION_DRAFT_TTL_SECONDS:1800}
     mail:
-      enabled: true
-      from: no-reply@community.local
+      enabled: ${AUTH_MAIL_ENABLED:true}
+      from: ${AUTH_MAIL_FROM:no-reply@community.local}
       subject: 注册验证码
   password-reset:
     reset-base-url: ${FRONTEND_PUBLIC_ORIGIN}
+    identifier-hmac-secret: ${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET}
+    quota-hmac-secret: ${AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET}
+    previous-identifier-hmac-secrets: ${AUTH_PASSWORD_RESET_PREVIOUS_IDENTIFIER_HMAC_SECRETS:}
     store: redis
-    ttl-seconds: 600
-    request-window-seconds: 3600
-    max-requests-per-email: 3
-    max-requests-per-ip: 20
+    ttl-seconds: ${AUTH_PASSWORD_RESET_TTL_SECONDS:600}
+    request-window-seconds: ${AUTH_PASSWORD_RESET_REQUEST_WINDOW_SECONDS:3600}
+    max-requests-per-email: ${AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_EMAIL:3}
+    max-requests-per-ip: ${AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_IP:20}
   login-rate-limit:
     enabled: true
     window-seconds: 60
     max-failures-per-ip: 20
     max-failures-per-user: 5
+    password-check-lease-seconds: 120
     captcha-required-failures-per-ip: 5
     captcha-required-failures-per-user: 2
 
@@ -114,6 +139,10 @@ wallet:
 
 content:
   storage: redis
+  comment-thread-cleanup:
+    enabled: ${CONTENT_COMMENT_THREAD_CLEANUP_ENABLED:true}
+    batch-size: ${CONTENT_COMMENT_THREAD_CLEANUP_BATCH_SIZE:100}
+    delay-ms: ${CONTENT_COMMENT_THREAD_CLEANUP_DELAY_MS:60000}
   score:
     refresh:
       enabled: true
@@ -131,8 +160,6 @@ events:
 
 social:
   storage: db
-  events:
-    relation-instance-publishing-enabled: false
 
 growth:
   business-zone-id: Asia/Shanghai

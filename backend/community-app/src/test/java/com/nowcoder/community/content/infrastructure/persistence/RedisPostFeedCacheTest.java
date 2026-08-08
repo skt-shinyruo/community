@@ -1,5 +1,7 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.content.application.FeedCursorCodec;
 import com.nowcoder.community.content.domain.model.Category;
 import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
@@ -20,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,7 +42,7 @@ class RedisPostFeedCacheTest {
 
         RedisPostFeedCache cache = new RedisPostFeedCache(
                 redisTemplate,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
         );
 
@@ -47,6 +50,39 @@ class RedisPostFeedCacheTest {
 
         assertThat(result).containsExactly(postId);
         verify(zSetOperations).remove("post:feed:global:hot", "not-a-uuid");
+    }
+
+    @Test
+    void poisonCleanupShouldRefillCurrentPageWithoutShiftingTheNextPage() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ZSetOperations<String, String> zSetOperations = mock(ZSetOperations.class);
+        CategoryContentRepository categoryContentRepository = mock(CategoryContentRepository.class);
+        FeedCursorCodec cursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
+        UUID firstId = uuid(11);
+        UUID secondId = uuid(12);
+        UUID thirdId = uuid(13);
+        String key = "post:feed:global:hot";
+
+        when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
+        when(zSetOperations.reverseRange(key, 0L, 1L))
+                .thenReturn(new LinkedHashSet<>(List.of("bad", firstId.toString())));
+        when(zSetOperations.reverseRange(key, 0L, 3L))
+                .thenReturn(new LinkedHashSet<>(List.of(
+                        "bad", firstId.toString(), secondId.toString(), thirdId.toString()
+                )))
+                .thenReturn(new LinkedHashSet<>(List.of(
+                        firstId.toString(), secondId.toString(), thirdId.toString()
+                )));
+
+        RedisPostFeedCache cache = new RedisPostFeedCache(redisTemplate, cursorCodec, categoryContentRepository);
+
+        List<UUID> firstPage = cache.readGlobalHotIds("", 2);
+        List<UUID> secondPage = cache.readGlobalHotIds(cursorCodec.encodePage(1, 2), 2);
+
+        assertThat(firstPage).containsExactly(firstId, secondId);
+        assertThat(secondPage).containsExactly(thirdId);
+        verify(zSetOperations, atLeastOnce()).remove(key, "bad");
     }
 
     @Test
@@ -61,7 +97,7 @@ class RedisPostFeedCacheTest {
 
         RedisPostFeedCache cache = new RedisPostFeedCache(
                 redisTemplate,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
         );
 
@@ -84,7 +120,7 @@ class RedisPostFeedCacheTest {
 
         RedisPostFeedCache cache = new RedisPostFeedCache(
                 redisTemplate,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
         );
 
@@ -104,7 +140,7 @@ class RedisPostFeedCacheTest {
         UUID boardId = uuid(18);
         RedisPostFeedCache cache = new RedisPostFeedCache(
                 redisTemplate,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
         );
 
@@ -157,7 +193,7 @@ class RedisPostFeedCacheTest {
         when(redisTemplate.execute(any(RedisScript.class), any(List.class), any(Object[].class))).thenReturn(1L);
         RedisPostFeedCache cache = new RedisPostFeedCache(
                 redisTemplate,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
         );
 
@@ -185,7 +221,7 @@ class RedisPostFeedCacheTest {
         UUID postId = uuid(10);
         RedisPostFeedCache cache = new RedisPostFeedCache(
                 redisTemplate,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
         );
 
@@ -204,7 +240,7 @@ class RedisPostFeedCacheTest {
         when(categoryContentRepository.listCategories()).thenThrow(new IllegalStateException("category store unavailable"));
         RedisPostFeedCache cache = new RedisPostFeedCache(
                 redisTemplate,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
         );
 
@@ -228,7 +264,7 @@ class RedisPostFeedCacheTest {
 
         RedisPostFeedCache cache = new RedisPostFeedCache(
                 redisTemplate,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
         );
 

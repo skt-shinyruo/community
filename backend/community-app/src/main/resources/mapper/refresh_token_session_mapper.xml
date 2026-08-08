@@ -6,7 +6,8 @@
 <mapper namespace="com.nowcoder.community.auth.infrastructure.persistence.mapper.RefreshTokenSessionMapper">
 
     <sql id="fields">
-        token_hash, user_id, family_id, security_version, expires_at, state, pending_expires_at, revoked_at
+        token_hash, user_id, family_id, security_version, expires_at, state, pending_expires_at,
+        rotation_lease_id, revoked_at
     </sql>
 
     <resultMap id="refreshTokenSessionResultMap"
@@ -18,26 +19,35 @@
         <result property="expiresAt" column="expires_at"/>
         <result property="state" column="state"/>
         <result property="pendingExpiresAt" column="pending_expires_at"/>
+        <result property="rotationLeaseId" column="rotation_lease_id" jdbcType="BINARY"/>
         <result property="revokedAt" column="revoked_at"/>
     </resultMap>
 
+    <insert id="ensureFamilyLock">
+        insert into auth_refresh_token_family_lock(family_id, retain_until)
+        values (#{familyId}, #{retainUntil})
+        on duplicate key update
+            retain_until = greatest(retain_until, values(retain_until))
+    </insert>
+
+    <select id="selectFamilyLockForUpdate" resultType="string">
+        select family_id
+        from auth_refresh_token_family_lock
+        where family_id = #{familyId}
+        for update
+    </select>
+
     <insert id="storeIfFamilyActive">
         insert into auth_refresh_token(
-            token_hash, user_id, family_id, security_version, expires_at, state, pending_expires_at, revoked_at
+            token_hash, user_id, family_id, security_version, expires_at, state, pending_expires_at,
+            rotation_lease_id, revoked_at
         )
         select #{tokenHash}, #{userId, jdbcType=BINARY}, #{familyId}, #{securityVersionAtIssue},
-               #{expiresAt}, 'ACTIVE', null, null
+               #{expiresAt}, 'ACTIVE', null, null, null
         where not exists (
-            select 1 from auth_refresh_token_family_revocation where family_id = #{familyId}
+            select 1 from auth_refresh_token_family_revocation
+            where family_id = #{familyId} and expires_at &gt; current_timestamp
         )
-        on duplicate key update
-            user_id = values(user_id),
-            family_id = values(family_id),
-            security_version = values(security_version),
-            expires_at = values(expires_at),
-            state = 'ACTIVE',
-            pending_expires_at = null,
-            revoked_at = null
     </insert>
 
     <select id="selectByTokenHash" resultMap="refreshTokenSessionResultMap">
@@ -46,10 +56,18 @@
         where token_hash = #{tokenHash}
     </select>
 
+    <select id="selectByTokenHashForUpdate" resultMap="refreshTokenSessionResultMap">
+        select <include refid="fields"/>
+        from auth_refresh_token
+        where token_hash = #{tokenHash}
+        for update
+    </select>
+
     <update id="consumeActive">
         update auth_refresh_token
         set state = 'CONSUMED',
             pending_expires_at = null,
+            rotation_lease_id = null,
             revoked_at = #{now}
         where token_hash = #{tokenHash}
           and state = 'ACTIVE'
@@ -60,7 +78,8 @@
     <update id="recoverExpiredPending">
         update auth_refresh_token
         set state = 'ACTIVE',
-            pending_expires_at = null
+            pending_expires_at = null,
+            rotation_lease_id = null
         where token_hash = #{tokenHash}
           and state = 'PENDING_ROTATION'
           and revoked_at is null
@@ -71,13 +90,15 @@
     <update id="beginRotation">
         update auth_refresh_token
         set state = 'PENDING_ROTATION',
-            pending_expires_at = #{pendingExpiresAt}
+            pending_expires_at = #{pendingExpiresAt},
+            rotation_lease_id = #{rotationLeaseId, jdbcType=BINARY}
         where token_hash = #{tokenHash}
           and state = 'ACTIVE'
           and revoked_at is null
           and expires_at &gt; #{now}
           and not exists (
-              select 1 from auth_refresh_token_family_revocation where family_id = auth_refresh_token.family_id
+              select 1 from auth_refresh_token_family_revocation
+              where family_id = auth_refresh_token.family_id and expires_at &gt; #{now}
           )
     </update>
 
@@ -85,21 +106,27 @@
         update auth_refresh_token
         set state = 'CONSUMED',
             pending_expires_at = null,
+            rotation_lease_id = null,
             revoked_at = #{now}
         where token_hash = #{tokenHash}
           and user_id = #{userId, jdbcType=BINARY}
           and family_id = #{familyId}
           and security_version = #{securityVersionAtIssue}
           and state = 'PENDING_ROTATION'
+          and rotation_lease_id = #{rotationLeaseId, jdbcType=BINARY}
+          and expires_at &gt; #{now}
+          and pending_expires_at &gt; #{now}
           and revoked_at is null
     </update>
 
     <update id="rollbackPendingRotation">
         update auth_refresh_token
         set state = 'ACTIVE',
-            pending_expires_at = null
+            pending_expires_at = null,
+            rotation_lease_id = null
         where token_hash = #{tokenHash}
           and state = 'PENDING_ROTATION'
+          and rotation_lease_id = #{rotationLeaseId, jdbcType=BINARY}
           and revoked_at is null
     </update>
 
@@ -107,6 +134,7 @@
         update auth_refresh_token
         set state = 'REVOKED',
             pending_expires_at = null,
+            rotation_lease_id = null,
             revoked_at = now()
         where token_hash = #{tokenHash}
           and state in ('ACTIVE', 'PENDING_ROTATION')
@@ -114,15 +142,20 @@
     </update>
 
     <insert id="upsertFamilyRevocation">
-        insert into auth_refresh_token_family_revocation(family_id, revoked_at)
-        values (#{familyId}, now())
-        on duplicate key update revoked_at = values(revoked_at)
+        insert into auth_refresh_token_family_revocation(family_id, revoked_at, expires_at)
+        select #{familyId}, now(), coalesce(max(expires_at), now())
+        from auth_refresh_token
+        where family_id = #{familyId}
+        on duplicate key update
+            revoked_at = values(revoked_at),
+            expires_at = greatest(expires_at, values(expires_at))
     </insert>
 
     <update id="revokeFamilyTokens">
         update auth_refresh_token
         set state = 'REVOKED',
             pending_expires_at = null,
+            rotation_lease_id = null,
             revoked_at = now()
         where family_id = #{familyId}
           and state in ('ACTIVE', 'PENDING_ROTATION')
@@ -132,6 +165,19 @@
     <delete id="deleteExpiredBefore">
         delete from auth_refresh_token
         where expires_at &lt;= #{cutoff}
+        limit 500
+    </delete>
+
+    <delete id="deleteExpiredFamilyRevocationsBefore">
+        delete from auth_refresh_token_family_revocation
+        where expires_at &lt;= #{cutoff}
+        limit 500
+    </delete>
+
+    <delete id="deleteExpiredFamilyLocksBefore">
+        delete from auth_refresh_token_family_lock
+        where retain_until &lt;= #{cutoff}
+        limit 500
     </delete>
 
 </mapper>

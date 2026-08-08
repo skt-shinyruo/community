@@ -101,10 +101,11 @@ public class NoticeApplicationService {
     }
 
     public void markRead(UUID userId, List<UUID> ids) {
-        if (ids == null || ids.isEmpty()) {
+        List<UUID> normalizedIds = noticeDomainService.normalizeMarkReadIds(ids);
+        if (normalizedIds.isEmpty()) {
             return;
         }
-        noticeRepository.markRead(userId, ids, STATUS_READ);
+        noticeRepository.markUnreadAsRead(userId, normalizedIds);
     }
 
     public void revokeLikeNotice(UUID recipientUserId, String relationKey) {

@@ -12,11 +12,23 @@ import java.util.UUID;
 @Mapper
 public interface BookmarkMapper {
 
-    int insertBookmark(@Param("userId") UUID userId, @Param("postId") UUID postId, @Param("createTime") Date createTime);
+    UUID lockActivePost(@Param("postId") UUID postId);
+
+    UUID lockPost(@Param("postId") UUID postId);
+
+    int insertBookmarkForActivePost(
+            @Param("userId") UUID userId,
+            @Param("postId") UUID postId,
+            @Param("createTime") Date createTime
+    );
+
+    int existsActivePost(@Param("postId") UUID postId);
 
     int deleteBookmark(@Param("userId") UUID userId, @Param("postId") UUID postId);
 
     int existsBookmark(@Param("userId") UUID userId, @Param("postId") UUID postId);
+
+    long countByPostId(@Param("postId") UUID postId);
 
     List<DiscussPost> selectBookmarkedPosts(@Param("userId") UUID userId, @Param("offset") int offset, @Param("limit") int limit);
 }

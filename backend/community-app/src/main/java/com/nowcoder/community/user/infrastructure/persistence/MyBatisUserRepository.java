@@ -41,6 +41,11 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
+    public Optional<UserAccount> findByIdForUpdate(UUID userId) {
+        return Optional.ofNullable(toAccount(userMapper.selectByIdForUpdate(userId)));
+    }
+
+    @Override
     public Optional<UserAccount> findByUsername(String username) {
         return Optional.ofNullable(toAccount(userMapper.selectByName(username)));
     }
@@ -108,6 +113,11 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
+    public void lockRoleManagement() {
+        userMapper.selectSecurityVersionCounterForUpdate(USER_SECURITY_VERSION_COUNTER_ID);
+    }
+
+    @Override
     public void updateStatus(UUID userId, int status, long securityVersion) {
         int updated = userMapper.updateStatus(userId, status, securityVersion);
         if (updated <= 0) {
@@ -121,6 +131,21 @@ public class MyBatisUserRepository implements UserRepository {
         if (updated <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新密码失败");
         }
+    }
+
+    @Override
+    public boolean updatePasswordIfSecurityVersion(
+            UUID userId,
+            String encodedPassword,
+            long securityVersion,
+            long expectedSecurityVersion
+    ) {
+        return userMapper.updatePasswordIfSecurityVersion(
+                userId,
+                encodedPassword,
+                securityVersion,
+                expectedSecurityVersion
+        ) == 1;
     }
 
     @Override
@@ -145,13 +170,31 @@ public class MyBatisUserRepository implements UserRepository {
                     com.nowcoder.community.user.exception.UserErrorCode.USER_MODERATION_CONFLICT
             );
         }
+        userMapper.insertPolicyVersionLog(
+                policyVersion,
+                userId,
+                true,
+                muteUntil == null ? null : Date.from(muteUntil),
+                banUntil == null ? null : Date.from(banUntil)
+        );
     }
 
     @Override
-    public List<UserModerationStatus> scanModerationStatesAfterId(UUID afterUserId, int limit) {
+    public List<UserModerationStatus> scanModerationStatesAtVersionAfterId(
+            long snapshotVersion,
+            UUID afterUserId,
+            int limit
+    ) {
+        if (snapshotVersion < 0L) {
+            throw new IllegalArgumentException("snapshotVersion must be non-negative");
+        }
         UUID normalizedAfterId = afterUserId == null ? new UUID(0L, 0L) : afterUserId;
         int normalizedLimit = Math.min(500, Math.max(1, limit));
-        List<UserDataObject> rows = userMapper.selectModerationUsersAfterId(normalizedAfterId, normalizedLimit);
+        List<UserDataObject> rows = userMapper.selectModerationUsersAtVersionAfterId(
+                snapshotVersion,
+                normalizedAfterId,
+                normalizedLimit
+        );
         if (rows == null || rows.isEmpty()) {
             return List.of();
         }
@@ -186,7 +229,9 @@ public class MyBatisUserRepository implements UserRepository {
     @Override
     public long nextUserSecurityVersion(UUID userId) {
         long current = userMapper.selectSecurityVersionCounterForUpdate(USER_SECURITY_VERSION_COUNTER_ID);
-        long next = current + 1L;
+        Long persistedValue = userId == null ? null : userMapper.selectSecurityVersionById(userId);
+        long persisted = persistedValue == null ? 0L : persistedValue;
+        long next = Math.max(current, persisted) + 1L;
         userMapper.updateSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID, next);
         return next;
     }

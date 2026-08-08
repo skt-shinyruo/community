@@ -16,13 +16,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Pull-based outbox worker: claims due events and dispatches to topic handlers.
  *
  * <p>Designed for at-least-once delivery (handlers must be idempotent).</p>
  */
-public class OutboxWorker {
+public class OutboxWorker implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxWorker.class);
     private static final String CATEGORY_ASYNC = "async";
@@ -35,12 +40,15 @@ public class OutboxWorker {
     private static final String TRANSITION_RETRY = "retry";
     private static final String TRANSITION_DEAD = "dead";
     private static final String TRANSITION_REFRESH = "refresh";
+    private static final String TRANSITION_HEARTBEAT = "heartbeat";
+    private static final AtomicInteger HEARTBEAT_THREAD_SEQUENCE = new AtomicInteger();
 
     private final JdbcOutboxEventStore store;
     private final Map<String, OutboxHandler> handlers;
     private final OutboxProperties properties;
     private final Clock clock;
     private final MeterRegistry meterRegistry;
+    private final ScheduledExecutorService heartbeatExecutor;
 
     public OutboxWorker(
             JdbcOutboxEventStore store,
@@ -66,6 +74,14 @@ public class OutboxWorker {
         this.properties = properties == null ? new OutboxProperties() : properties;
         this.clock = clock == null ? Clock.systemUTC() : clock;
         this.meterRegistry = meterRegistry;
+        this.heartbeatExecutor = Executors.newSingleThreadScheduledExecutor(task -> {
+            Thread thread = new Thread(
+                    task,
+                    "outbox-lease-heartbeat-" + HEARTBEAT_THREAD_SEQUENCE.incrementAndGet()
+            );
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     public int pollOnce() {
@@ -73,11 +89,11 @@ public class OutboxWorker {
             return 0;
         }
 
-        Instant now = clock.instant();
+        Instant pollTime = clock.instant();
 
         // best-effort recovery for stuck leases
         try {
-            int recovered = store.recoverExpiredLeases(now);
+            int recovered = recoverExpiredLeases(pollTime);
             if (recovered > 0) {
                 warnEvent(
                         "outbox_lease_recovery",
@@ -96,7 +112,7 @@ public class OutboxWorker {
             );
         }
 
-        List<OutboxEvent> due = store.findDuePending(properties.getBatchSize(), now);
+        List<OutboxEvent> due = store.findDuePending(properties.getBatchSize(), pollTime);
         int processed = 0;
 
         for (OutboxEvent candidate : due) {
@@ -104,8 +120,9 @@ public class OutboxWorker {
                 continue;
             }
 
-            Instant leaseUntil = now.plus(properties.getProcessingLease());
-            OutboxLease lease = store.tryClaimProcessing(candidate.id(), leaseUntil, now).orElse(null);
+            Instant claimTime = clock.instant();
+            Instant leaseUntil = claimTime.plus(effectiveProcessingLease());
+            OutboxLease lease = store.tryClaimProcessing(candidate.id(), leaseUntil, claimTime).orElse(null);
             if (lease == null) {
                 continue;
             }
@@ -125,38 +142,32 @@ public class OutboxWorker {
             )) {
                 OutboxHandler handler = handlers.get(event.topic());
                 if (handler == null) {
-                    Instant nextRetryAt = now.plus(Duration.ofSeconds(10));
-                    boolean retryScheduled = store.markFailedAndScheduleRetry(
-                            lease,
-                            now,
-                            nextRetryAt,
-                            "no handler for topic=" + event.topic()
-                    );
-                    if (!retryScheduled) {
-                        recordLeaseLost(event, TRANSITION_RETRY);
-                        continue;
-                    }
-                    warnEvent(
-                            "outbox_dispatch",
-                            "degraded",
-                            null,
-                            "community.reason_code", "no_handler",
-                            "community.event_id", event.eventId(),
-                            "community.topic", event.topic(),
-                            "community.retry_count", Math.max(0, event.retryCount()) + 1,
-                            "community.next_retry_at", nextRetryAt
-                    );
+                    handleMissingHandler(event, lease, clock.instant());
                     continue;
                 }
 
+                RuntimeException failure = null;
+                LeaseHeartbeat heartbeat = startHeartbeat(event, lease);
+                boolean leaseOwned;
                 try {
                     handler.handle(event);
                 } catch (RuntimeException e) {
-                    handleFailure(event, lease, now, e);
+                    failure = e;
+                } finally {
+                    leaseOwned = heartbeat.stopAndCheckOwnership();
+                }
+
+                if (!leaseOwned) {
+                    recordLeaseLost(event, TRANSITION_HEARTBEAT);
                     continue;
                 }
 
-                if (!store.markSucceeded(lease, now)) {
+                if (failure != null) {
+                    handleFailure(event, lease, clock.instant(), failure);
+                    continue;
+                }
+
+                if (!store.markSucceeded(lease, clock.instant())) {
                     recordLeaseLost(event, TRANSITION_SUCCESS);
                     continue;
                 }
@@ -166,7 +177,105 @@ public class OutboxWorker {
         return processed;
     }
 
+    private int recoverExpiredLeases(Instant now) {
+        int limit = properties.getRecoverLimit();
+        if (limit == OutboxProperties.DEFAULT_RECOVER_LIMIT) {
+            // Preserve the original method as a stable seam for existing embedders while
+            // its implementation now applies the same bounded default.
+            return store.recoverExpiredLeases(now);
+        }
+        return store.recoverExpiredLeases(now, limit);
+    }
+
+    private LeaseHeartbeat startHeartbeat(OutboxEvent event, OutboxLease lease) {
+        Duration leaseDuration = effectiveProcessingLease();
+        long intervalMillis = heartbeatIntervalMillis(leaseDuration);
+        LeaseHeartbeat heartbeat = new LeaseHeartbeat(event, lease, leaseDuration);
+        ScheduledFuture<?> future = heartbeatExecutor.scheduleWithFixedDelay(
+                heartbeat::renew,
+                intervalMillis,
+                intervalMillis,
+                TimeUnit.MILLISECONDS
+        );
+        heartbeat.attach(future);
+        return heartbeat;
+    }
+
+    private Duration effectiveProcessingLease() {
+        Duration configured = properties.getProcessingLease();
+        if (configured == null || configured.isZero() || configured.isNegative()) {
+            return Duration.ofSeconds(30);
+        }
+        return configured;
+    }
+
+    private static long heartbeatIntervalMillis(Duration leaseDuration) {
+        long leaseMillis;
+        try {
+            leaseMillis = leaseDuration.toMillis();
+        } catch (ArithmeticException overflow) {
+            leaseMillis = Long.MAX_VALUE;
+        }
+        return Math.max(1L, leaseMillis / 3L);
+    }
+
+    private void handleMissingHandler(OutboxEvent event, OutboxLease lease, Instant now) {
+        int nextAttemptNumber = Math.max(0, event.retryCount()) + 1;
+        String error = "no handler for topic=" + event.topic();
+        if (nextAttemptNumber > properties.getMaxRetries()) {
+            if (!store.markDead(lease, now, error)) {
+                recordLeaseLost(event, TRANSITION_DEAD);
+                return;
+            }
+            warnEvent(
+                    "outbox_dispatch",
+                    "dead",
+                    null,
+                    "community.reason_code", "no_handler",
+                    "community.event_id", event.eventId(),
+                    "community.topic", event.topic(),
+                    "community.retry_count", nextAttemptNumber
+            );
+            return;
+        }
+
+        Instant nextRetryAt = now.plus(Duration.ofSeconds(10));
+        if (!store.markFailedAndScheduleRetry(lease, now, nextRetryAt, error)) {
+            recordLeaseLost(event, TRANSITION_RETRY);
+            return;
+        }
+        warnEvent(
+                "outbox_dispatch",
+                "degraded",
+                null,
+                "community.reason_code", "no_handler",
+                "community.event_id", event.eventId(),
+                "community.topic", event.topic(),
+                "community.retry_count", nextAttemptNumber,
+                "community.next_retry_at", nextRetryAt
+        );
+    }
+
     private void handleFailure(OutboxEvent event, OutboxLease lease, Instant now, RuntimeException error) {
+        if (error instanceof OutboxTerminalException terminal) {
+            if (!store.markDeadAndScrubPayload(lease, now, terminal.toString())) {
+                recordLeaseLost(event, TRANSITION_DEAD, error.getClass().getName());
+                return;
+            }
+            warnEvent(
+                    "outbox_dispatch",
+                    "dead",
+                    null,
+                    "community.reason_code", terminal.reasonCode(),
+                    "community.event_id", event.eventId(),
+                    "community.topic", event.topic(),
+                    "community.retry_count", event.retryCount(),
+                    "community.error_class", error.getClass().getName(),
+                    "community.error_message", error.getMessage()
+            );
+            return;
+        }
+
         int currentRetryCount = Math.max(0, event.retryCount());
         int nextAttemptNumber = currentRetryCount + 1;
         if (nextAttemptNumber > properties.getMaxRetries()) {
@@ -285,6 +394,67 @@ public class OutboxWorker {
             return safeMax;
         }
         return candidate;
+    }
+
+    @Override
+    public void close() {
+        heartbeatExecutor.shutdownNow();
+    }
+
+    private final class LeaseHeartbeat {
+
+        private final OutboxEvent event;
+        private final OutboxLease lease;
+        private final Duration leaseDuration;
+        private ScheduledFuture<?> future;
+        private boolean stopped;
+        private boolean leaseOwned = true;
+
+        private LeaseHeartbeat(OutboxEvent event, OutboxLease lease, Duration leaseDuration) {
+            this.event = event;
+            this.lease = lease;
+            this.leaseDuration = leaseDuration;
+        }
+
+        private synchronized void attach(ScheduledFuture<?> future) {
+            this.future = future;
+            if (stopped) {
+                future.cancel(false);
+            }
+        }
+
+        private synchronized void renew() {
+            if (stopped || !leaseOwned) {
+                return;
+            }
+            Instant now = clock.instant();
+            try {
+                leaseOwned = store.renewLease(lease, now, now.plus(leaseDuration));
+            } catch (RuntimeException error) {
+                warnEvent(
+                        "outbox_lease_renewal",
+                        "failure",
+                        error,
+                        "community.event_id", event.eventId(),
+                        "community.topic", event.topic(),
+                        "community.reason_code", "renew_failed"
+                );
+            }
+        }
+
+        private boolean stopAndCheckOwnership() {
+            ScheduledFuture<?> scheduled;
+            synchronized (this) {
+                stopped = true;
+                scheduled = future;
+            }
+            if (scheduled != null) {
+                scheduled.cancel(false);
+            }
+            synchronized (this) {
+                return leaseOwned;
+            }
+        }
     }
 
     private void warnEvent(String action, String outcome, Throwable throwable, Object... keyValues) {

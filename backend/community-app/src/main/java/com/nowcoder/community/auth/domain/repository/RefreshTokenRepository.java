@@ -15,7 +15,11 @@ public interface RefreshTokenRepository {
 
     StoredRefreshToken find(String refreshToken);
 
-    StoredRefreshToken beginRotation(String refreshToken, Instant pendingExpiresAt);
+    StoredRefreshToken beginRotation(
+            String refreshToken,
+            Instant pendingExpiresAt,
+            UUID rotationLeaseId
+    );
 
     boolean finishRotation(
             String pendingRefreshToken,
@@ -23,10 +27,11 @@ public interface RefreshTokenRepository {
             UUID userId,
             String familyId,
             long securityVersionAtIssue,
-            Instant replacementExpiresAt
+            Instant replacementExpiresAt,
+            UUID rotationLeaseId
     );
 
-    boolean rollbackPendingRotation(String refreshToken);
+    boolean rollbackPendingRotation(String refreshToken, UUID rotationLeaseId);
 
     StoredRefreshToken consume(String refreshToken);
 
@@ -36,6 +41,8 @@ public interface RefreshTokenRepository {
 
     void revokeFamily(String familyId);
 
+    boolean revokeFamilyByPresentedToken(String refreshToken);
+
     int deleteExpiredBefore(Instant cutoff);
 
     record StoredRefreshToken(
@@ -43,8 +50,18 @@ public interface RefreshTokenRepository {
             UUID userId,
             String familyId,
             long securityVersionAtIssue,
-            Instant expiresAt
+            Instant expiresAt,
+            UUID rotationLeaseId
     ) {
+        public StoredRefreshToken(
+                String refreshToken,
+                UUID userId,
+                String familyId,
+                long securityVersionAtIssue,
+                Instant expiresAt
+        ) {
+            this(refreshToken, userId, familyId, securityVersionAtIssue, expiresAt, null);
+        }
     }
 
     record RevokedRefreshToken(String refreshToken, UUID userId, String familyId, Instant expiresAt, Instant revokedAt) {

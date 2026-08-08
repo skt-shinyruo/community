@@ -65,6 +65,12 @@
         from comment
         where status = 0
           and user_id = #{userId, jdbcType=BINARY}
+          and exists (
+              select 1
+              from discuss_post visible_post
+              where visible_post.id = comment.post_id
+                and visible_post.status != 2
+          )
         order by create_time desc, id desc
         limit #{offset}, #{limit}
     </select>
@@ -106,6 +112,33 @@
                  create_time asc,
                  id asc
         for update
+    </select>
+
+    <select id="selectActiveReplyBatchForUpdate" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
+        select <include refid="selectFields"></include>
+        from comment
+        where root_comment_id = #{rootCommentId, jdbcType=BINARY}
+          and parent_comment_id is not null
+          and status = 0
+        order by create_time asc, id asc
+        limit #{limit}
+        for update
+    </select>
+
+    <select id="selectDeletedRootIdsWithActiveReplies" resultType="java.util.UUID">
+        select root.id
+        from comment root
+        where root.parent_comment_id is null
+          and root.status != 0
+          and exists (
+              select 1
+              from comment reply
+              where reply.root_comment_id = root.id
+                and reply.parent_comment_id is not null
+                and reply.status = 0
+          )
+        order by root.deleted_time asc, root.id asc
+        limit #{limit}
     </select>
 
     <select id="existsRootComment" resultType="int">
@@ -171,6 +204,21 @@
                 (id = #{target.commentId, jdbcType=BINARY} and version = #{target.expectedVersion})
             </foreach>
           )
+    </update>
+
+    <update id="applyReplyBatchDeletion">
+        update comment
+        set status = 1,
+            deleted_by = #{deletedBy, jdbcType=BINARY},
+            deleted_reason = #{deletedReason},
+            deleted_time = #{deletedTime},
+            version = version + 1
+        where status = 0
+          and root_comment_id = #{rootCommentId, jdbcType=BINARY}
+          and id in
+          <foreach collection="commentIds" item="commentId" open="(" separator="," close=")">
+              #{commentId, jdbcType=BINARY}
+          </foreach>
     </update>
 
 </mapper>

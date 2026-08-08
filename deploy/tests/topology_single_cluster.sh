@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "${REPO_ROOT}"
 unset JWT_ACCESS_PUBLIC_KEY JWT_ACCESS_PRIVATE_KEY JWT_SERVICE_HMAC_SECRET
+unset AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET
 unset IM_SESSION_TICKET_HMAC_SECRET IM_SESSION_TICKET_ISSUER IM_SESSION_TICKET_AUDIENCE
 
 help_output="$(./deploy/deployment.sh --help 2>&1)"
@@ -171,6 +172,56 @@ assert_distinct_ticket_secret() {
   fi
 }
 
+assert_distinct_password_reset_identifier_secret() {
+  local env_file="$1"
+  local service_secret
+  local identifier_secret
+  local identifier_secret_bytes
+  local LC_ALL=C
+
+  service_secret="$(environment_file_value "${env_file}" JWT_SERVICE_HMAC_SECRET)"
+  identifier_secret="$(environment_file_value "${env_file}" AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET)"
+  if [[ -z "${service_secret}" || -z "${identifier_secret}" ]]; then
+    echo "${env_file} must define service JWT and password-reset identifier HMAC secrets" >&2
+    return 1
+  fi
+  if [[ "${service_secret}" == "${identifier_secret}" ]]; then
+    echo "${env_file} must use distinct service JWT and password-reset identifier HMAC secrets" >&2
+    return 1
+  fi
+  identifier_secret_bytes="${#identifier_secret}"
+  if (( identifier_secret_bytes < 32 )); then
+    echo "${env_file} password-reset identifier HMAC secret must be at least 32 UTF-8 bytes" >&2
+    return 1
+  fi
+}
+
+assert_distinct_password_reset_quota_secret() {
+  local env_file="$1"
+  local service_secret
+  local identifier_secret
+  local quota_secret
+  local quota_secret_bytes
+  local LC_ALL=C
+
+  service_secret="$(environment_file_value "${env_file}" JWT_SERVICE_HMAC_SECRET)"
+  identifier_secret="$(environment_file_value "${env_file}" AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET)"
+  quota_secret="$(environment_file_value "${env_file}" AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET)"
+  if [[ -z "${service_secret}" || -z "${identifier_secret}" || -z "${quota_secret}" ]]; then
+    echo "${env_file} must define service, delivery and quota HMAC secrets" >&2
+    return 1
+  fi
+  if [[ "${service_secret}" == "${quota_secret}" || "${identifier_secret}" == "${quota_secret}" ]]; then
+    echo "${env_file} must use a quota HMAC secret distinct from delivery and service secrets" >&2
+    return 1
+  fi
+  quota_secret_bytes="${#quota_secret}"
+  if (( quota_secret_bytes < 32 )); then
+    echo "${env_file} password-reset quota HMAC secret must be at least 32 UTF-8 bytes" >&2
+    return 1
+  fi
+}
+
 assert_required_jwt_values() {
   local topology="$1"
   local source_env_file="$2"
@@ -195,6 +246,48 @@ assert_required_jwt_values() {
   done
 }
 
+assert_required_password_reset_identifier_secret() {
+  local topology="$1"
+  local source_env_file="$2"
+  local missing_env_file
+  local error_file
+
+  missing_env_file="$(mktemp)"
+  error_file="$(mktemp)"
+  awk 'index($0, "AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=") != 1' \
+    "${source_env_file}" >"${missing_env_file}"
+  if env -u AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET \
+    ./deploy/deployment.sh config --topology "${topology}" --scope full \
+      --env-file "${missing_env_file}" >/dev/null 2>"${error_file}"; then
+    rm -f "${missing_env_file}" "${error_file}"
+    echo "expected ${topology} topology without AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET to fail" >&2
+    return 1
+  fi
+  grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required' "${error_file}" >/dev/null
+  rm -f "${missing_env_file}" "${error_file}"
+}
+
+assert_required_password_reset_quota_secret() {
+  local topology="$1"
+  local source_env_file="$2"
+  local missing_env_file
+  local error_file
+
+  missing_env_file="$(mktemp)"
+  error_file="$(mktemp)"
+  awk 'index($0, "AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET=") != 1' \
+    "${source_env_file}" >"${missing_env_file}"
+  if env -u AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET \
+    ./deploy/deployment.sh config --topology "${topology}" --scope full \
+      --env-file "${missing_env_file}" >/dev/null 2>"${error_file}"; then
+    rm -f "${missing_env_file}" "${error_file}"
+    echo "expected ${topology} topology without AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET to fail" >&2
+    return 1
+  fi
+  grep -F 'AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET is required' "${error_file}" >/dev/null
+  rm -f "${missing_env_file}" "${error_file}"
+}
+
 assert_nacos_auth_environment() {
   local rendered_config="$1"
   local env_file="$2"
@@ -217,6 +310,21 @@ assert_community_app_runtime_environment() {
   local variable
   local expected
   local variables=(
+    AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET
+    AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET
+    AUTH_PASSWORD_RESET_TTL_SECONDS
+    AUTH_PASSWORD_RESET_REQUEST_WINDOW_SECONDS
+    AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_EMAIL
+    AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_IP
+    AUTH_REGISTRATION_DRAFT_TTL_SECONDS
+    AUTH_REGISTRATION_REQUEST_WINDOW_SECONDS
+    AUTH_REGISTRATION_MAX_REQUESTS_PER_USERNAME
+    AUTH_REGISTRATION_MAX_REQUESTS_PER_EMAIL
+    AUTH_REGISTRATION_MAX_REQUESTS_PER_IP
+    AUTH_REGISTRATION_RESEND_WINDOW_SECONDS
+    AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_REGISTRATION
+    AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_EMAIL
+    AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_IP
     MARKET_ORDER_AUTO_CONFIRM_BATCH_SIZE
     SEARCH_REINDEX_PAGE_SIZE
     SEARCH_REINDEX_LOCK_TTL
@@ -324,6 +432,7 @@ rendered_service_ipv4_address() {
 single_access_public_key="$(environment_file_value deploy/.env.single.example JWT_ACCESS_PUBLIC_KEY)"
 single_access_private_key="$(environment_file_value deploy/.env.single.example JWT_ACCESS_PRIVATE_KEY)"
 single_service_secret="$(environment_file_value deploy/.env.single.example JWT_SERVICE_HMAC_SECRET)"
+single_password_reset_identifier_secret="$(environment_file_value deploy/.env.single.example AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET)"
 assert_environment_value_for_services "${single_full}" JWT_ACCESS_PUBLIC_KEY \
   "${single_access_public_key}" deploy/.env.single.example \
   community-app community-oss community-gateway community-im-gateway im-core im-realtime
@@ -336,10 +445,14 @@ assert_environment_value_for_services "${single_full}" JWT_SERVICE_HMAC_SECRET \
   community-app community-oss im-core im-realtime
 assert_environment_absent_for_services "${single_full}" JWT_SERVICE_HMAC_SECRET \
   community-gateway community-im-gateway
+assert_environment_value_for_services "${single_full}" AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET \
+  "${single_password_reset_identifier_secret}" deploy/.env.single.example community-app
+test "$(grep -Fc 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:' "${single_full}")" -eq 1
 
 cluster_access_public_key="$(environment_file_value deploy/.env.cluster.example JWT_ACCESS_PUBLIC_KEY)"
 cluster_access_private_key="$(environment_file_value deploy/.env.cluster.example JWT_ACCESS_PRIVATE_KEY)"
 cluster_service_secret="$(environment_file_value deploy/.env.cluster.example JWT_SERVICE_HMAC_SECRET)"
+cluster_password_reset_identifier_secret="$(environment_file_value deploy/.env.cluster.example AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET)"
 assert_environment_value_for_services "${cluster_full}" JWT_ACCESS_PUBLIC_KEY \
   "${cluster_access_public_key}" deploy/.env.cluster.example \
   community-app-1 community-app-2 community-app-3 \
@@ -363,6 +476,10 @@ assert_environment_value_for_services "${cluster_full}" JWT_SERVICE_HMAC_SECRET 
 assert_environment_absent_for_services "${cluster_full}" JWT_SERVICE_HMAC_SECRET \
   community-gateway-1 community-gateway-2 community-gateway-3 \
   community-im-gateway-1 community-im-gateway-2 community-im-gateway-3
+assert_environment_value_for_services "${cluster_full}" AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET \
+  "${cluster_password_reset_identifier_secret}" deploy/.env.cluster.example \
+  community-app-1 community-app-2 community-app-3
+test "$(grep -Fc 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:' "${cluster_full}")" -eq 3
 if grep -E '(^|[^A-Z0-9_])JWT_HMAC_SECRET([^A-Z0-9_]|$)' \
   "${single_full}" "${cluster_full}" >/dev/null; then
   echo "rendered service topologies must not expose the retired JWT_HMAC_SECRET" >&2
@@ -376,6 +493,10 @@ assert_ticket_runtime_environment "${cluster_full}" deploy/.env.cluster.example 
   im-realtime-1 im-realtime-2 im-realtime-3
 assert_distinct_ticket_secret deploy/.env.single.example
 assert_distinct_ticket_secret deploy/.env.cluster.example
+assert_distinct_password_reset_identifier_secret deploy/.env.single.example
+assert_distinct_password_reset_identifier_secret deploy/.env.cluster.example
+assert_distinct_password_reset_quota_secret deploy/.env.single.example
+assert_distinct_password_reset_quota_secret deploy/.env.cluster.example
 assert_nacos_auth_environment "${single_infra}" deploy/.env.single.example nacos
 assert_nacos_auth_environment "${cluster_infra}" deploy/.env.cluster.example nacos-1 nacos-2 nacos-3
 assert_community_app_runtime_environment "${single_full}" deploy/.env.single.example community-app
@@ -389,6 +510,10 @@ assert_required_nacos_auth_values single deploy/.env.single.example
 assert_required_nacos_auth_values cluster deploy/.env.cluster.example
 assert_required_jwt_values single deploy/.env.single.example
 assert_required_jwt_values cluster deploy/.env.cluster.example
+assert_required_password_reset_identifier_secret single deploy/.env.single.example
+assert_required_password_reset_identifier_secret cluster deploy/.env.cluster.example
+assert_required_password_reset_quota_secret single deploy/.env.single.example
+assert_required_password_reset_quota_secret cluster deploy/.env.cluster.example
 
 ticket_sentinel_secret="topology-test-im-session-ticket-secret-override-20260722"
 ticket_sentinel_issuer="topology-test-im-session-ticket-issuer"

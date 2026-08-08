@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class UserCredentialApiAdapter implements UserCredentialQueryApi, UserCredentialActionApi {
@@ -24,8 +25,13 @@ public class UserCredentialApiAdapter implements UserCredentialQueryApi, UserCre
     }
 
     @Override
-    public UserAuthenticationResultView authenticate(String username, String password) {
-        return toAuthenticationView(applicationService.authenticate(username, password));
+    public AuthenticationChallenge prepareAuthentication(String username) {
+        return new PreparedAuthenticationChallengeApiAdapter(applicationService.prepareAuthentication(username));
+    }
+
+    @Override
+    public AuthenticationSubject authenticationSubject(String username) {
+        return new AuthenticationSubject(applicationService.authenticationSubject(username));
     }
 
     @Override
@@ -56,8 +62,12 @@ public class UserCredentialApiAdapter implements UserCredentialQueryApi, UserCre
     }
 
     @Override
-    public void updatePassword(UUID userId, String newPassword) {
-        applicationService.updatePassword(userId, newPassword);
+    public boolean updatePasswordIfSecurityVersion(
+            UUID userId,
+            String newPassword,
+            long expectedSecurityVersion
+    ) {
+        return applicationService.updatePasswordIfSecurityVersion(userId, newPassword, expectedSecurityVersion);
     }
 
     private UserAuthenticationResultView toAuthenticationView(UserAuthenticationResult result) {
@@ -81,6 +91,7 @@ public class UserCredentialApiAdapter implements UserCredentialQueryApi, UserCre
         return new UserCredentialView(
                 result.userId(),
                 result.username(),
+                result.email(),
                 result.status(),
                 result.type(),
                 result.headerUrl(),
@@ -97,6 +108,7 @@ public class UserCredentialApiAdapter implements UserCredentialQueryApi, UserCre
         return new UserCredentialResult(
                 user.userId(),
                 user.username(),
+                user.email(),
                 user.status(),
                 user.type(),
                 user.headerUrl(),
@@ -104,5 +116,34 @@ public class UserCredentialApiAdapter implements UserCredentialQueryApi, UserCre
                 user.loginAllowed(),
                 user.refreshAllowed()
         );
+    }
+
+    private final class PreparedAuthenticationChallengeApiAdapter implements AuthenticationChallenge {
+
+        private final UUID userId;
+        private final AtomicReference<UserCredentialApplicationService.PreparedAuthentication> preparation;
+
+        private PreparedAuthenticationChallengeApiAdapter(
+                UserCredentialApplicationService.PreparedAuthentication preparation
+        ) {
+            this.userId = preparation == null || preparation.user() == null
+                    ? null
+                    : preparation.user().id();
+            this.preparation = new AtomicReference<>(preparation);
+        }
+
+        @Override
+        public UUID userId() {
+            return userId;
+        }
+
+        @Override
+        public UserAuthenticationResultView authenticate(String password) {
+            UserCredentialApplicationService.PreparedAuthentication current = preparation.getAndSet(null);
+            if (current == null) {
+                return UserAuthenticationResultView.invalidCredentials();
+            }
+            return toAuthenticationView(applicationService.authenticate(current, password));
+        }
     }
 }

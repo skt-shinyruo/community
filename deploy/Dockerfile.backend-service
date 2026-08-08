@@ -62,7 +62,11 @@ FROM eclipse-temurin:17-jre-jammy
 
 ARG OTEL_JAVA_AGENT_VERSION=2.23.0
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && groupadd --gid 10001 community \
+    && useradd --uid 10001 --gid community --no-create-home --home-dir /tmp/community-runtime/home --shell /usr/sbin/nologin community \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 RUN set -eu; \
@@ -78,7 +82,10 @@ COPY --from=build /workspace/yierloom-agent.jar /otel/yierloom-agent.jar
 COPY scripts/run-backend-service.sh /opt/community/run-backend-service.sh
 RUN chmod 0755 /opt/community/run-backend-service.sh
 
-ENV JAVA_OPTS=""
+ENV HOME=/tmp/community-runtime/home \
+    JAVA_OPTS=""
+
+USER 10001:10001
 
 HEALTHCHECK --interval=10s --timeout=3s --retries=30 \
   CMD curl -fsS "http://localhost:${SERVER_PORT:-8080}/actuator/health" >/dev/null || exit 1

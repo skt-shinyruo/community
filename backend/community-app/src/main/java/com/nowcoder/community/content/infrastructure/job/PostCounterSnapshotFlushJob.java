@@ -35,6 +35,11 @@ public class PostCounterSnapshotFlushJob {
                 return;
             }
             try {
+                postCounterApplicationService.reconcileBookmarkCounters(batchSize);
+            } catch (RuntimeException e) {
+                log.warn("[content-counter] bookmark reconciliation failed: {}", e.toString());
+            }
+            try {
                 postCounterApplicationService.flushSnapshots(batchSize);
             } catch (RuntimeException e) {
                 log.warn("[content-counter] snapshot flush failed: {}", e.toString());

@@ -348,27 +348,60 @@ public class RedisPostFeedCache implements PostFeedCache {
         int limit = limit(cursor, size);
         FeedCursorCodec.CursorState state = feedCursorCodec.decode(cursor);
         long start = (long) Math.max(0, state.page()) * limit;
-        long end = start + limit - 1L;
-        Set<String> rawIds = redisTemplate.opsForZSet().reverseRange(key, start, end);
-        if (rawIds == null || rawIds.isEmpty()) {
+        long targetCount = safeAdd(start, limit);
+        long end = Math.max(0L, targetCount - 1L);
+        List<UUID> ids = new ArrayList<>();
+        while (true) {
+            Set<String> rawIds = redisTemplate.opsForZSet().reverseRange(key, 0L, end);
+            if (rawIds == null || rawIds.isEmpty()) {
+                break;
+            }
+            ids.clear();
+            List<String> poisonMembers = new ArrayList<>();
+            for (String rawId : rawIds) {
+                UUID parsed = parseUuid(rawId);
+                if (parsed == null) {
+                    if (rawId != null) {
+                        poisonMembers.add(rawId);
+                    }
+                    continue;
+                }
+                ids.add(parsed);
+            }
+            if (!poisonMembers.isEmpty()) {
+                // Remove poison before calculating the page offset. Otherwise a bad
+                // member in an earlier page permanently shifts every later page.
+                redisTemplate.opsForZSet().remove(key, poisonMembers.toArray(Object[]::new));
+            }
+            if (ids.size() >= targetCount || rawIds.size() < requestedWindow(end)) {
+                break;
+            }
+            long nextEnd = safeAdd(end, Math.max(1, limit));
+            if (nextEnd <= end) {
+                break;
+            }
+            end = nextEnd;
+        }
+        if (start >= ids.size()) {
             return List.of();
         }
-        List<UUID> ids = new ArrayList<>();
-        List<String> poisonMembers = new ArrayList<>();
-        for (String rawId : rawIds) {
-            UUID parsed = parseUuid(rawId);
-            if (parsed == null) {
-                if (StringUtils.hasText(rawId)) {
-                    poisonMembers.add(rawId);
-                }
-                continue;
-            }
-            ids.add(parsed);
+        int from = (int) Math.min(Integer.MAX_VALUE, start);
+        int to = (int) Math.min((long) ids.size(), targetCount);
+        if (from >= to) {
+            return List.of();
         }
-        if (!poisonMembers.isEmpty()) {
-            redisTemplate.opsForZSet().remove(key, poisonMembers.toArray(Object[]::new));
+        return List.copyOf(ids.subList(from, to));
+    }
+
+    private long requestedWindow(long end) {
+        return end == Long.MAX_VALUE ? Long.MAX_VALUE : end + 1L;
+    }
+
+    private long safeAdd(long left, long right) {
+        if (right > 0L && left > Long.MAX_VALUE - right) {
+            return Long.MAX_VALUE;
         }
-        return List.copyOf(ids);
+        return Math.max(0L, left + Math.max(0L, right));
     }
 
     private int limit(String cursor, int size) {

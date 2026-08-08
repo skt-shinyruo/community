@@ -36,6 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -598,8 +599,8 @@ class PostReadApplicationServiceTest {
         secondPost.setTitle("&lt;second&gt;");
 
         when(commentService.listRecentCommentsByUser(userId, 0, 3)).thenReturn(List.of(reply, direct));
-        when(postService.getById(firstPostId)).thenReturn(firstPost);
-        when(postService.getById(secondPostId)).thenReturn(secondPost);
+        when(postService.listPostsByIds(List.of(secondPostId, firstPostId)))
+                .thenReturn(List.of(secondPost, firstPost));
 
         PostReadApplicationService service = service(
                 postService,
@@ -621,6 +622,8 @@ class PostReadApplicationServiceTest {
         assertThat(items.get(0).content()).isEqualTo("<reply>");
         assertThat(items.get(1).postId()).isEqualTo(firstPostId);
         assertThat(items.get(1).postTitle()).isEqualTo("<first>");
+        verify(postService).listPostsByIds(List.of(secondPostId, firstPostId));
+        verify(postService, never()).getById(any());
     }
 
     @Test
@@ -658,7 +661,7 @@ class PostReadApplicationServiceTest {
         firstPost.setTitle("&lt;first&gt;");
 
         when(commentService.listRecentCommentsByUser(userId, 0, 3)).thenReturn(List.of(brokenReply, direct));
-        when(postService.getById(postId)).thenReturn(firstPost);
+        when(postService.listPostsByIds(List.of(postId))).thenReturn(List.of(firstPost));
 
         PostReadApplicationService service = service(
                 postService,
@@ -677,6 +680,8 @@ class PostReadApplicationServiceTest {
         assertThat(items).hasSize(1);
         assertThat(items.get(0).id()).isEqualTo(directCommentId);
         assertThat(items.get(0).postId()).isEqualTo(postId);
+        verify(postService).listPostsByIds(List.of(postId));
+        verify(postService, never()).getById(any());
     }
 
     @Test

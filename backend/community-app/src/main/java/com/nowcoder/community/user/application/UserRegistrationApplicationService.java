@@ -93,7 +93,7 @@ public class UserRegistrationApplicationService implements UserRegistrationActio
 
     @Transactional
     @Override
-    public UserCredentialView createVerifiedRegistrationUser(VerifiedRegistrationUserCommand command) {
+    public VerifiedRegistrationResult createVerifiedRegistrationUser(VerifiedRegistrationUserCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         if (command.userId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
@@ -109,18 +109,19 @@ public class UserRegistrationApplicationService implements UserRegistrationActio
                 command.email(),
                 command.headerUrl()
         );
+        userRepository.lockRoleManagement();
         InsertResult insertResult = userRepository.insertUser(user);
         if (insertResult == InsertResult.ALREADY_EXISTS) {
-            return resolveExistingRegistration(user);
+            return new VerifiedRegistrationResult(resolveExistingRegistration(user), false);
         }
         if (insertResult != InsertResult.CREATED) {
             throw new BusinessException(INTERNAL_ERROR, "创建用户失败");
         }
-        long version = userRepository.nextUserPolicyVersion(user.id());
         long securityVersion = userRepository.nextUserSecurityVersion(user.id());
         if (securityVersion <= 0L) {
             throw new BusinessException(INTERNAL_ERROR, "用户安全版本分配失败");
         }
+        long version = userRepository.nextUserPolicyVersion(user.id());
         userRepository.updateModerationUntil(
                 user.id(),
                 user.muteUntil(),
@@ -130,7 +131,7 @@ public class UserRegistrationApplicationService implements UserRegistrationActio
                 user.policyVersion()
         );
         publishUserPolicyChanged(user.id(), true, version);
-        return toCredentialResult(user, 1, securityVersion);
+        return new VerifiedRegistrationResult(toCredentialResult(user, 1, securityVersion), true);
     }
 
     private UserCredentialView resolveExistingRegistration(UserAccount attempted) {
@@ -168,10 +169,11 @@ public class UserRegistrationApplicationService implements UserRegistrationActio
     }
 
     private UserCredentialView toCredentialResult(UserAccount user, int status, long securityVersion) {
-        boolean allowed = status != 0;
+        boolean allowed = status != 0 && userRegistrationDomainService.credentialIssuanceAllowed(user);
         return new UserCredentialView(
                 user.id(),
                 user.username(),
+                user.email(),
                 status,
                 user.type(),
                 user.headerUrl(),

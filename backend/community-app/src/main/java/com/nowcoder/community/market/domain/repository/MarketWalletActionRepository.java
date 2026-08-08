@@ -1,7 +1,9 @@
 package com.nowcoder.community.market.domain.repository;
 
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
+import com.nowcoder.community.market.domain.model.MarketWalletActionClaim;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
+import com.nowcoder.community.market.domain.model.MarketWalletActionLeaseRecovery;
 
 import java.util.Date;
 import java.util.List;
@@ -26,11 +28,21 @@ public interface MarketWalletActionRepository {
 
     MarketWalletAction findByOrderAndType(UUID orderId, String actionType);
 
-    List<MarketWalletAction> findDue(Date asOf, int limit);
+    List<MarketWalletAction> findDue(Date asOf, int maxRetryAttempts, int limit);
+
+    List<MarketWalletAction> findExpiredProcessing(Date asOf, int limit);
 
     List<MarketWalletAction> findUnfinishedWithWalletTxn(int limit);
 
-    int claimProcessing(MarketWalletActionLease lease, Date leaseUntil);
+    int claimProcessing(MarketWalletActionClaim claim);
+
+    MarketWalletAction findClaimed(MarketWalletActionLease lease);
+
+    MarketWalletAction lockClaimed(MarketWalletActionLease lease, Date leaseValidAt);
+
+    MarketWalletAction lockById(UUID actionId);
+
+    int recordWalletTxn(MarketWalletActionLease lease, UUID walletTxnId, Date leaseValidAt);
 
     int markSucceeded(MarketWalletActionLease lease, UUID walletTxnId, String resultType);
 
@@ -53,7 +65,30 @@ public interface MarketWalletActionRepository {
 
     int markRecoveredSucceeded(UUID actionId, String expectedStatus, UUID walletTxnId, String resultType);
 
-    int rescheduleFailed(UUID actionId, String expectedFailureCode, Date nextRetryAt, String lastError);
+    int rescheduleFailed(
+            UUID actionId,
+            String expectedFailureCode,
+            int expectedRetryCount,
+            Date nextRetryAt,
+            int maxRetryAttempts,
+            String lastError
+    );
 
-    int recoverExpiredProcessing(Date asOf);
+    int recoverExpiredProcessing(MarketWalletActionLeaseRecovery recovery);
+
+    int deferWalletTxnRecovery(
+            UUID actionId,
+            String expectedStatus,
+            UUID walletTxnId,
+            Date nextRetryAt,
+            String lastError
+    );
+
+    int deferFailedRecovery(
+            UUID actionId,
+            String expectedStatus,
+            String expectedFailureCode,
+            Date nextRetryAt,
+            String lastError
+    );
 }

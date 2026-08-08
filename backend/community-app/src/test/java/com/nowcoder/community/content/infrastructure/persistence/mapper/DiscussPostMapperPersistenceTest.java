@@ -15,6 +15,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -217,6 +218,56 @@ class DiscussPostMapperPersistenceTest {
         assertThat(persisted.getAggregateVersion()).isEqualTo(2L);
     }
 
+    @Test
+    void hotFeedKeysetShouldMatchStableTypeScoreTimeAndIdOrdering() {
+        insertCategory();
+        Date sameCreateTime = Date.from(Instant.parse("2026-07-20T12:00:00Z"));
+        DiscussPost firstPinned = feedPost(
+                UUID.fromString("00000000-0000-7000-8000-000000000506"),
+                1,
+                5.0,
+                sameCreateTime
+        );
+        DiscussPost secondPinned = feedPost(
+                UUID.fromString("00000000-0000-7000-8000-000000000505"),
+                1,
+                5.0,
+                sameCreateTime
+        );
+        DiscussPost normal = feedPost(
+                UUID.fromString("00000000-0000-7000-8000-000000000507"),
+                0,
+                999.0,
+                Date.from(Instant.parse("2026-07-20T13:00:00Z"))
+        );
+        discussPostMapper.insertDiscussPost(firstPinned);
+        discussPostMapper.insertDiscussPost(secondPinned);
+        discussPostMapper.insertDiscussPost(normal);
+
+        List<DiscussPost> firstPage = discussPostMapper.selectDiscussPosts(
+                null,
+                CATEGORY_ID,
+                null,
+                null,
+                0,
+                2,
+                1
+        );
+        DiscussPost boundary = firstPage.get(1);
+        List<DiscussPost> secondPage = discussPostMapper.selectHotPostsAfter(
+                boundary.getType(),
+                boundary.getScore(),
+                boundary.getCreateTime(),
+                boundary.getId(),
+                2,
+                CATEGORY_ID
+        );
+
+        assertThat(firstPage).extracting(DiscussPost::getId)
+                .containsExactly(firstPinned.getId(), secondPinned.getId());
+        assertThat(secondPage).extracting(DiscussPost::getId).containsExactly(normal.getId());
+    }
+
     private void insertCategory() {
         jdbcTemplate.update(
                 "insert into category(id, name, description, position, create_time) values (?, ?, ?, ?, ?)",
@@ -242,5 +293,21 @@ class DiscussPostMapperPersistenceTest {
         post.setScoreVersion(1L);
         post.setAggregateVersion(1L);
         discussPostMapper.insertDiscussPost(post);
+    }
+
+    private DiscussPost feedPost(UUID id, int type, double score, Date createTime) {
+        DiscussPost post = new DiscussPost();
+        post.setId(id);
+        post.setUserId(USER_ID);
+        post.setCategoryId(CATEGORY_ID);
+        post.setTitle("feed-" + id);
+        post.setType(type);
+        post.setStatus(DiscussPost.STATUS_NORMAL);
+        post.setCreateTime(createTime);
+        post.setCommentCount(0);
+        post.setScore(score);
+        post.setScoreVersion(1L);
+        post.setAggregateVersion(1L);
+        return post;
     }
 }

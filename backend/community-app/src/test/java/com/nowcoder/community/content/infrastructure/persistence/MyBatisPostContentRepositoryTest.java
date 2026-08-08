@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.content.domain.model.DiscussPost;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +15,49 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class MyBatisPostContentRepositoryTest {
+
+    @Test
+    void listPostsWithLookaheadShouldKeepLogicalPageOffsetAndFetchOneExtraRow() {
+        DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
+        MyBatisPostContentRepository repository = new MyBatisPostContentRepository(discussPostMapper);
+
+        when(discussPostMapper.selectDiscussPosts(null, null, null, null, 100, 51, PostContentRepository.ORDER_HOT))
+                .thenReturn(List.of());
+
+        repository.listPosts(2, 50, 999, PostContentRepository.ORDER_HOT, null, null);
+
+        verify(discussPostMapper)
+                .selectDiscussPosts(null, null, null, null, 100, 51, PostContentRepository.ORDER_HOT);
+    }
+
+    @Test
+    void listHotPostsAfterShouldForwardStableSortBoundaryAndClampLookaheadLimit() {
+        DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
+        MyBatisPostContentRepository repository = new MyBatisPostContentRepository(discussPostMapper);
+        UUID boundaryPostId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+        Date boundaryCreateTime = new Date(4_000L);
+
+        when(discussPostMapper.selectHotPostsAfter(
+                1,
+                42.5,
+                boundaryCreateTime,
+                boundaryPostId,
+                51,
+                categoryId
+        )).thenReturn(List.of());
+
+        repository.listHotPostsAfter(1, 42.5, boundaryCreateTime, boundaryPostId, 999, categoryId);
+
+        verify(discussPostMapper).selectHotPostsAfter(
+                1,
+                42.5,
+                boundaryCreateTime,
+                boundaryPostId,
+                51,
+                categoryId
+        );
+    }
 
     @Test
     void updateScoreShouldReturnThePersistedScoreVersion() {

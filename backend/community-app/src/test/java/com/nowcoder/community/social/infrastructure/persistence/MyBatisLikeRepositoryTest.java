@@ -20,6 +20,7 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.UUID;
 
+import static com.nowcoder.community.common.constants.EntityTypes.COMMENT;
 import static com.nowcoder.community.common.constants.EntityTypes.POST;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -50,6 +51,7 @@ class MyBatisLikeRepositoryTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from social_like");
+        jdbcTemplate.update("delete from social_like_relation_version");
         jdbcTemplate.update("delete from social_user_like_count");
     }
 
@@ -109,6 +111,34 @@ class MyBatisLikeRepositoryTest {
         assertThat(sql).contains("entity_type = #{entitytype}");
         assertThat(sql).contains("entity_id = #{entityid, jdbctype=binary}");
         assertThat(sql).contains("relation_instance_id = #{relationinstanceid, jdbctype=binary}");
+    }
+
+    @Test
+    void relationEventVersionShouldUseDurableRangeAndAdvanceMonotonically() {
+        long first = repository.nextRelationEventVersion(uuid(1), POST, ENTITY_ID);
+        long second = repository.nextRelationEventVersion(uuid(1), POST, ENTITY_ID);
+        long anotherRelation = repository.nextRelationEventVersion(uuid(2), POST, ENTITY_ID);
+
+        assertThat(first).isEqualTo(4_611_686_018_427_387_905L);
+        assertThat(second).isEqualTo(first + 1L);
+        assertThat(anotherRelation).isEqualTo(first);
+    }
+
+    @Test
+    void commentLikeShouldPersistAndScanItsOwningPostReference() {
+        UUID postId = uuid(740);
+        UUID commentId = uuid(741);
+        LikeRelation relation = new LikeRelation(
+                uuid(742), uuid(1), COMMENT, commentId, OWNER_ID, postId
+        );
+
+        assertThat(repository.addLike(relation)).isTrue();
+
+        assertThat(repository.findLike(uuid(1), COMMENT, commentId)).contains(relation);
+        assertThat(repository.scanCommentLikesByPost(postId, ZERO_UUID, ZERO_UUID, 10))
+                .containsExactly(relation);
+        assertThat(repository.scanCommentLikesByPost(uuid(799), ZERO_UUID, ZERO_UUID, 10))
+                .isEmpty();
     }
 
     private LikeRelation relation(UUID relationInstanceId, UUID actorUserId) {

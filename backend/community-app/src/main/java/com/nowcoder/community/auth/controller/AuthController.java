@@ -106,9 +106,12 @@ public class AuthController {
 
     @PostMapping("/logout")
     public Result<Void> logout(HttpServletRequest request, HttpServletResponse response) {
-        loginApplicationService.logout(new LogoutCommand(readRefreshToken(request)));
-        addRefreshCookie(response, loginApplicationService.clearRefreshCookie());
-        return Result.ok();
+        try {
+            loginApplicationService.logout(new LogoutCommand(readRefreshToken(request)));
+            return Result.ok();
+        } finally {
+            addRefreshCookie(response, loginApplicationService.clearRefreshCookie());
+        }
     }
 
     @GetMapping("/me")
@@ -124,21 +127,28 @@ public class AuthController {
 
     @PostMapping("/register")
     public Result<RegisterResponse> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
+        ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(httpRequest);
         return Result.ok(toResponse(registrationApplicationService.register(new RegisterCommand(
                 request.getUsername(),
                 request.getPassword(),
                 request.getEmail(),
                 request.getCaptchaId(),
-                request.getCaptchaCode()
+                request.getCaptchaCode(),
+                resolvedIp == null ? null : resolvedIp.ip()
         ))));
     }
 
     @PostMapping("/register/code/resend")
-    public Result<RegisterCodeResendResponse> resendRegisterCode(@Valid @RequestBody RegisterCodeResendRequest request) {
+    public Result<RegisterCodeResendResponse> resendRegisterCode(
+            @Valid @RequestBody RegisterCodeResendRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(httpRequest);
         return Result.ok(toResponse(registrationVerificationApplicationService.resendCode(new ResendRegisterCodeCommand(
                 request.getRegistrationToken(),
                 request.getCaptchaId(),
-                request.getCaptchaCode()
+                request.getCaptchaCode(),
+                resolvedIp == null ? null : resolvedIp.ip()
         ))));
     }
 

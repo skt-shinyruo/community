@@ -7,12 +7,17 @@ public interface CaptchaRepository {
     enum VerifyResult {
         MATCHED,
         MISMATCH,
+        EXHAUSTED,
         NOT_FOUND
     }
 
     void save(String owner, String code, Duration ttl);
 
-    VerifyResult verifyAndConsume(String owner, String code);
+    /**
+     * Atomically verifies the code, records a mismatch, and invalidates the
+     * challenge once the failure budget is exhausted.
+     */
+    VerifyResult verifyAndConsume(String owner, String code, int maxFailures, Duration failureTtl);
 
     String get(String owner);
 

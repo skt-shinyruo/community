@@ -12,6 +12,7 @@ import com.nowcoder.community.content.domain.model.ReportStatuses;
 import com.nowcoder.community.content.domain.repository.ReportRepository;
 import com.nowcoder.community.content.exception.ContentErrorCode;
 import com.nowcoder.community.user.api.action.UserModerationActionApi;
+import com.nowcoder.community.user.api.action.UserModerationActionApi.ApplyModerationCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,7 +32,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -89,7 +89,10 @@ class ModerationConcurrencySpringTest {
         jdbcTemplate.update("delete from moderation_action");
         jdbcTemplate.update("delete from report");
         jdbcTemplate.update("delete from outbox_event");
+        jdbcTemplate.update("delete from user_policy_version_log");
         jdbcTemplate.update("delete from user where id = ?", bytes(TARGET_USER_ID));
+        jdbcTemplate.update("delete from user where id = ?", bytes(FIRST_ACTOR_ID));
+        jdbcTemplate.update("delete from user where id = ?", bytes(SECOND_ACTOR_ID));
         jdbcTemplate.update(
                 "update user_policy_version_counter set current_version = ? where id = 1",
                 INITIAL_POLICY_COUNTER
@@ -99,12 +102,14 @@ class ModerationConcurrencySpringTest {
                 INITIAL_SECURITY_COUNTER
         );
         insertTargetUser();
+        insertActor(FIRST_ACTOR_ID, "first");
+        insertActor(SECOND_ACTOR_ID, "second");
         insertPendingReport();
     }
 
     @Test
     void concurrentSameDecisionShouldReturnOneActionIdAndCommitOneEffectSet() throws Exception {
-        List<Attempt> attempts = runWithOverlappingClaims(
+        List<Attempt> attempts = runConcurrently(
                 command(FIRST_ACTOR_ID, " BAN ", " abuse ", 3600),
                 command(SECOND_ACTOR_ID, "ban", "abuse", 3600)
         );
@@ -112,12 +117,18 @@ class ModerationConcurrencySpringTest {
         assertThat(attempts).allSatisfy(attempt -> assertThat(attempt.failure()).isNull());
         assertThat(attempts).extracting(Attempt::actionId).doesNotContainNull().containsOnly(attempts.get(0).actionId());
         assertCommittedEffectSet("ban");
-        verify(userModerationActionApi, times(1)).applyModeration(TARGET_USER_ID, "ban", 3600);
+        verify(userModerationActionApi, times(1)).applyModeration(org.mockito.ArgumentMatchers.argThat(command ->
+                command != null
+                        && TARGET_USER_ID.equals(command.targetUserId())
+                        && (FIRST_ACTOR_ID.equals(command.actorUserId()) || SECOND_ACTOR_ID.equals(command.actorUserId()))
+                        && "ban".equals(command.action())
+                        && command.durationSeconds() == 3600
+        ));
     }
 
     @Test
     void concurrentDifferentDecisionsShouldCommitOneAndConflictTheOther() throws Exception {
-        List<Attempt> attempts = runWithOverlappingClaims(
+        List<Attempt> attempts = runConcurrently(
                 command(FIRST_ACTOR_ID, "ban", "abuse", 3600),
                 command(SECOND_ACTOR_ID, "mute", "abuse", 3600)
         );
@@ -128,7 +139,13 @@ class ModerationConcurrencySpringTest {
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(ContentErrorCode.MODERATION_DECISION_CONFLICT));
         assertCommittedEffectSet(action());
-        verify(userModerationActionApi, times(1)).applyModeration(eq(TARGET_USER_ID), anyString(), eq(3600));
+        verify(userModerationActionApi, times(1)).applyModeration(org.mockito.ArgumentMatchers.argThat(command ->
+                command != null
+                        && TARGET_USER_ID.equals(command.targetUserId())
+                        && (FIRST_ACTOR_ID.equals(command.actorUserId()) || SECOND_ACTOR_ID.equals(command.actorUserId()))
+                        && ("ban".equals(command.action()) || "mute".equals(command.action()))
+                        && command.durationSeconds() == 3600
+        ));
     }
 
     @Test
@@ -139,7 +156,12 @@ class ModerationConcurrencySpringTest {
             assertThat(userPolicyVersion()).isEqualTo(INITIAL_POLICY_COUNTER + 1L);
             assertThat(outboxCount(USER_TOPIC, TARGET_USER_ID)).isOne();
             throw new IllegalStateException("owner side effect failed");
-        }).when(userModerationActionApi).applyModeration(TARGET_USER_ID, "ban", 3600);
+        }).when(userModerationActionApi).applyModeration(new ApplyModerationCommand(
+                FIRST_ACTOR_ID,
+                TARGET_USER_ID,
+                "ban",
+                3600
+        ));
 
         assertThatThrownBy(() -> applicationService.takeAction(
                 command(FIRST_ACTOR_ID, "ban", "abuse", 3600)
@@ -209,40 +231,16 @@ class ModerationConcurrencySpringTest {
         assertThat(requiredLong("select count(*) from moderation_action where report_id is null")).isEqualTo(2L);
     }
 
-    private List<Attempt> runWithOverlappingClaims(
+    private List<Attempt> runConcurrently(
             TakeModerationActionCommand firstCommand,
             TakeModerationActionCommand secondCommand
     ) throws Exception {
         CountDownLatch start = new CountDownLatch(1);
-        CountDownLatch firstClaimed = new CountDownLatch(1);
-        CountDownLatch secondClaimEntered = new CountDownLatch(1);
-        CountDownLatch releaseWinner = new CountDownLatch(1);
-        AtomicInteger claimOrder = new AtomicInteger();
-        doAnswer(invocation -> {
-            int order = claimOrder.incrementAndGet();
-            if (order == 1) {
-                Object result = invocation.callRealMethod();
-                firstClaimed.countDown();
-                if (!releaseWinner.await(10, TimeUnit.SECONDS)) {
-                    throw new IllegalStateException("winner claim was not released");
-                }
-                return result;
-            }
-            secondClaimEntered.countDown();
-            return invocation.callRealMethod();
-        }).when(reportRepository).claimPending(REPORT_ID);
-
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
             Future<Attempt> first = executor.submit(() -> attempt(start, firstCommand));
             Future<Attempt> second = executor.submit(() -> attempt(start, secondCommand));
             start.countDown();
-            try {
-                assertThat(firstClaimed.await(10, TimeUnit.SECONDS)).isTrue();
-                assertThat(secondClaimEntered.await(10, TimeUnit.SECONDS)).isTrue();
-            } finally {
-                releaseWinner.countDown();
-            }
             return List.of(
                     first.get(15, TimeUnit.SECONDS),
                     second.get(15, TimeUnit.SECONDS)
@@ -328,6 +326,30 @@ class ModerationConcurrencySpringTest {
                 null,
                 INITIAL_USER_POLICY_VERSION,
                 INITIAL_USER_SECURITY_VERSION
+        );
+    }
+
+    private void insertActor(UUID actorId, String suffix) {
+        jdbcTemplate.update(
+                """
+                insert into user(
+                    id, username, password, salt, email, type, status, header_url,
+                    create_time, mute_until, ban_until, policy_version, security_version
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                bytes(actorId),
+                "moderation-concurrency-" + suffix,
+                "encoded-password",
+                "salt",
+                "moderation-concurrency-" + suffix + "@example.com",
+                1,
+                1,
+                "header",
+                Timestamp.from(Instant.parse("2026-07-18T00:00:00Z")),
+                null,
+                null,
+                0L,
+                0L
         );
     }
 

@@ -20,6 +20,8 @@ public interface UserRepository {
 
     Optional<UserAccount> findById(UUID userId);
 
+    Optional<UserAccount> findByIdForUpdate(UUID userId);
+
     Optional<UserAccount> findByUsername(String username);
 
     Optional<UserAccount> findByEmail(String email);
@@ -32,9 +34,23 @@ public interface UserRepository {
 
     void updateRole(UUID userId, int type, long securityVersion);
 
+    /**
+     * Establishes the security-counter-before-user-row lock order for registration,
+     * role changes, and moderation decisions. Role-authorized decisions also use
+     * this shared lock so each actor sees the preceding committed decision.
+     */
+    void lockRoleManagement();
+
     void updateStatus(UUID userId, int status, long securityVersion);
 
     void updatePassword(UUID userId, String encodedPassword, long securityVersion);
+
+    boolean updatePasswordIfSecurityVersion(
+            UUID userId,
+            String encodedPassword,
+            long securityVersion,
+            long expectedSecurityVersion
+    );
 
     void updateModerationUntil(
             UUID userId,
@@ -45,14 +61,27 @@ public interface UserRepository {
             long expectedPolicyVersion
     );
 
-    List<UserModerationStatus> scanModerationStatesAfterId(UUID afterUserId, int limit);
+    List<UserModerationStatus> scanModerationStatesAtVersionAfterId(
+            long snapshotVersion,
+            UUID afterUserId,
+            int limit
+    );
 
     long nextUserPolicyVersion(UUID userId);
 
     long currentUserPolicyVersion();
 
+    /**
+     * Allocates above both the durable counter and this user's persisted epoch.
+     * Security epochs are compared only within the same user, so allocation does
+     * not require an unindexed maximum scan across all users.
+     */
     long nextUserSecurityVersion(UUID userId);
 
+    /**
+     * Returns the durable allocator watermark. Authentication freshness is
+     * evaluated against the security version persisted on the relevant user.
+     */
     long currentUserSecurityVersion();
 
     InsertResult insertUser(UserAccount user);

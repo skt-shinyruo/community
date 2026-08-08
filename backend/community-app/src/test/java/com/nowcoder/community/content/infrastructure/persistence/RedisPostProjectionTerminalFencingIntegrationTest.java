@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
@@ -54,7 +55,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
         ));
         RedisPostFeedCache feedCache = new RedisPostFeedCache(
                 redisTemplate,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryRepository
         );
         JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
@@ -135,7 +136,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
         when(categoryRepository.listCategories()).thenReturn(List.of(category(categoryId)));
         RedisPostFeedCache feedCache = new RedisPostFeedCache(
                 redisTemplate,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryRepository
         );
         JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
@@ -166,7 +167,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
         when(categoryRepository.listCategories()).thenReturn(List.of(category(boardId)));
         RedisPostFeedCache feedCache = new RedisPostFeedCache(
                 redisTemplate,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryRepository
         );
         JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
@@ -216,7 +217,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
         UUID postId = UUID.randomUUID();
         RedisPostFeedCache feedCache = new RedisPostFeedCache(
                 redisTemplate,
-                new FeedCursorCodec(),
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 mock(CategoryContentRepository.class)
         );
         try {

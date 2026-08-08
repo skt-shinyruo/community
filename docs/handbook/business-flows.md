@@ -54,7 +54,7 @@ Main path：
 The high-concurrency registration flow is Verify-First:
 
 1. `AuthController.register` calls `RegistrationApplicationService.register`.
-2. Auth validates captcha and request fields, then calls `user.api.action.UserRegistrationActionApi.prepareRegistrationUser`.
+2. Auth validates captcha and request fields, then atomically charges HMAC-pseudonymized IP/username/email registration quotas before calling `user.api.action.UserRegistrationActionApi.prepareRegistrationUser`.
 3. User checks username/email conflicts, then prepares normalized username/email, generated provisional user id, BCrypt password hash, and default avatar URL without inserting a `user` row.
 4. Auth application 生成 256-bit base64url opaque `registrationToken`，仓储只负责按该 token 存储 `PreparedRegistrationDraft`；token 冲突时 application 最多重试 5 次。
 5. `AuthController.verifyRegisterCode` calls `RegistrationVerificationApplicationService.verifyAndLogin`.
@@ -68,22 +68,22 @@ Refresh session DB state：
 
 - `auth_refresh_token` 保存 refresh token hash、用户、family、`security_version_at_issue`、过期时间、rotation 状态、pending lease 和 terminal 撤销时间。
 - `MyBatisRefreshTokenRepository.store(...)` 在签发 refresh token 时写入 auth DB session 状态。
-- `/api/auth/refresh` 通过 `beginRotation(...)` 把当前 active token 转入 `PENDING_ROTATION`；找不到、已过期、已撤销或 family 已撤销都会视为不可刷新。
+- `/api/auth/refresh` 通过 `beginRotation(...)` 把当前 active token 转入 `PENDING_ROTATION` 并绑定随机 fencing lease；找不到、已过期、已撤销或 family 已撤销都会视为不可刷新。
 - begin 成功后先回源 user owner 校验用户状态和当前安全版本；用户不存在、已禁用或版本不匹配时撤销该 refresh family，失败响应不改写浏览器 cookie。
-- 刷新成功会 `finishRotation(...)`：旧 token 变成 `CONSUMED` tombstone，新 token 成为同 family 的 active session；不会在用户状态校验前提前持久化新 token。
-- begin 后出现临时失败时会 `rollbackPendingRotation(...)`；rollback 不安全时 fail-closed 撤销 family。失败响应不写 `Set-Cookie`，避免并发旧请求清除新 cookie。
+- 刷新成功会携带同一 lease 调 `finishRotation(...)`：旧 token 变成 `CONSUMED` tombstone，新 token 成为同 family 的 active session；DB store 的 replacement insert 和最终 CAS 位于同一事务。
+- begin 后出现临时失败时携带同一 lease 调 `rollbackPendingRotation(...)`；旧 lease 被接管后失去写权限，rollback 不安全时 fail-closed 撤销 family。失败响应不写 `Set-Cookie`，避免并发旧请求清除新 cookie。
 - `revoke(...)` 用于单 token 撤销；`revokeFamily(...)` 用于 logout、family reuse、安全版本失配或整族撤销。
 - `deleteExpiredBefore(...)` 由 cleanup job 调用，只清理已过期 refresh session，不影响已经签出的 access token。
 
 Password reset：
 
 1. 请求重置密码必须带邮箱和验证码。
-2. 服务端先校验 reset base URL 配置，避免签发 token 后才发现无法生成链接；验证码通过后按邮箱/IP 维度做请求限流。
-3. 邮箱不存在、用户未激活或状态不可用时也返回“已受理”，但不签发 token，不发邮件，防止用户枚举。
-4. 256-bit base64url token 存储在 `auth:pwdreset:<token>`，通过邮件下发链接，HTTP 响应体不返回 reset link；若 token 已写入但邮件发送失败，会 best-effort 删除该 token。
-5. 确认重置时再次校验验证码、token 和密码策略。
-6. 密码策略由 user owner 校验：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符，并拒绝首尾空白字符，避免静默修改用户输入。
-7. 密码更新成功后递增 user `securityVersion`；旧 refresh family 在下一次续期时失效。若密码更新失败，会按消费时捕获的剩余 TTL 恢复 reset token，允许用户在原有效期内重试。
+2. 服务端先校验 reset base URL 配置，避免签发 token 后才发现无法生成链接；验证码通过后在查询账号前按邮箱/IP 维度做请求限流，两类 key 都只包含独立 HMAC 密钥生成的伪名。
+3. 邮箱不存在、用户未激活或状态不可用时也消耗相同 quota，并走 dummy reset token 与空收件地址 outbox 路径；worker 不调用 SMTP，HTTP 始终返回“已受理”，减少可用于用户枚举的时序差异。
+4. 随机 delivery ID 经独立 HMAC 密钥派生 256-bit base64url token，Redis key 只保存其 SHA-256 ID。HTTP 事务持久化 `auth.password-reset-mail` outbox 后才完成；outbox 仅保存 delivery ID、不可逆 derivation key ID、收件地址和过期时间，不保存 bearer token。key ID 允许轮换期间从受控旧密钥 keyring 重新派生同一链接；SMTP 失败由共享 outbox 退避重试，成功后 payload 被原子擦除。
+5. 确认重置时再次校验验证码和密码策略，再把 token 原子转入带 UUID fencing lease 的 pending 状态。
+6. 密码策略由 user owner 校验：长度 8 到 `ValidationLimits.PASSWORD_MAX`、UTF-8 最多 72 字节、至少包含两类字符，并拒绝 Unicode 首尾空白，避免静默修改用户输入。
+7. user owner 按 token 签发 `securityVersion` 做 CAS 改密。调用失败时只有 lease owner 能在原 TTL 内 rollback；成功或版本 stale 时撤销旧 token generation。旧 refresh family 在下一次续期时失效。
 
 Security：
 
@@ -279,7 +279,7 @@ Main path: read public feed：
 1. public homepage 和板块页分别走 `GET /api/feed/global`、`GET /api/boards/{boardId}/feed`。
 2. `FeedController` 进入 `FeedReadApplicationService`，使用 opaque cursor 分页。
 3. application 先从 Redis hot feed projection 读取帖子 ID：全站 `post:feed:global:hot`，板块 `post:feed:board:hot:{boardId}`。
-4. application 批量读取 `post:summary:{postId}`；缺失时回源 content owner 组装摘要并回填 Redis。
+4. application 批量读取 `post:summary:{postId}`；缺失时回源 content owner 组装摘要并回填 Redis。需要返回下一页时，以 owner repository 的 `type + score + createTime + postId` 总序校验缓存候选并生成 opaque cursor，summary 中的过期排序字段不参与边界。
 5. 响应返回摘要列表、`nextCursor` 和 `rankVersion`。
 6. 旧 posts list route 已退休；public feed 只使用上述两个 feed 入口。
 
@@ -453,7 +453,7 @@ Snapshot：
 - `im-realtime` 和 `im-core` 用 internal scope JWT 拉取。
 - `im-core` 的最终校验不缓存允许裁决；只短 TTL 缓存拒绝裁决（默认 500ms，容量上限），降低违规用户高频发送时的 owner API 压力。
 - 浏览器不能访问这些 internal projection 入口。
-- user policy snapshot 的 entry version 和 high-watermark 来自 user owner 的 `user.policy_version` / `user_policy_version_counter`；block snapshot 的 entry version 和 high-watermark 来自 social owner 的 `social_block.version` / `social_block_version_counter`。二者都不能用 snapshot time 或 IM bridge 本地 counter 生成。
+- user policy snapshot 的 entry version 和 high-watermark 来自 user owner 的 `user.policy_version` / `user_policy_version_counter`，分页历史来自 `user_policy_version_log`；block snapshot 的 entry version 和 high-watermark 来自 social owner 的 `social_block.version` / `social_block_version_counter`，分页历史来自 `social_block_version_log`。第一页返回的 high-watermark 必须作为所有续页的 `snapshotVersion`，二者都不能用 snapshot time 或 IM bridge 本地 counter 生成。
 
 Failure：
 
@@ -487,7 +487,7 @@ Read path：
 - 通知列表。
 - 未读数。
 - 摘要。
-- 批量已读，`ids` 是通知 UUID 列表。
+- 批量已读，`ids` 是通知 UUID 列表；应用层去重并限制 100 个，SQL 只执行 unread -> read。
 
 Projection path：
 
@@ -496,11 +496,12 @@ Projection path：
 3. `NoticeProjectionApplicationService` 判断事件类型、收件人、topic 和 content 快照。
 4. `NoticeProjectionDomainService` 判断是否应该投影。
 5. 先按 `sourceEventId` 记录投影去重，再写 notice 记录。
+6. like create/remove 在 social owner 事务内为稳定 `relationKey` 分配持久化单调 `relationVersion`，并在 notice 事务内推进对应状态；`relationInstanceId` 只是不透明的生命周期身份，不参与排序。
 
 Topics / content：
 
 - 评论、点赞、关注、治理事件都可生成通知。
-- `LIKE_REMOVED`、`FOLLOW_REMOVED` 当前不会撤销或生成通知。
+- `LIKE_REMOVED` 在状态机接受 removal 后撤销对应 like notice；持久化 relation version 较小的延迟事件是 no-op。
 - notice `content` 是带上下文的 JSON 快照，不是最终渲染文案。
 - 通知 content 保留源事件 `eventId`、`type` 和 payload 关键字段。
 
@@ -837,10 +838,11 @@ Market wallet action saga：
 3. `MarketWalletActionProcessorHandler` 触发 `MarketWalletActionProcessorApplicationService.processDue(...)`。
 4. processor claim due action，设置 `PROCESSING` 和短 lease。
 5. processor 在原 market 事务之外调用 `WalletMarketActionApi`。
-6. wallet 成功后，processor 记录 `wallet_txn_id` 并通过 `MarketOrderSagaApplicationService` 条件推进订单 / 争议状态。
-7. release / refund 的可恢复钱包错误进入 `RETRYING` 并带 backoff。
-8. escrow 的业务失败会进入失败路径并恢复 market 侧库存 / 预加载库存。
-9. `MarketWalletActionRecoveryHandler` 负责恢复过期 processing lease、补齐缺失 command、把已有 `wallet_txn_id` 重新应用到 saga 状态；pending 订单应补哪个 command 由 `MarketOrder.pendingWalletActionType()` 判断。
+6. wallet 成功后立即按 lease 持久化 `wallet_txn_id`；随后独立完成事务按订单锁 -> action 锁顺序验证 lease，并把 saga side effect 与 action 终态放在同一事务内，终态 CAS 丢失会回滚 saga。
+7. release / refund 的可恢复钱包错误进入 `RETRYING` 并带 backoff；`ACCOUNT_UPDATE_CONFLICT` 也可重试。
+8. 只有从未 claim 的 `PENDING` escrow 才能在取消路径做 `NOOP`；`RETRYING` / lease 过期 action 使用同一个 requestId 重放，晚到 escrow 会补 refund。
+9. escrow 的业务失败会进入失败路径并恢复 market 侧库存 / 预加载库存。
+10. `MarketWalletActionRecoveryHandler` 负责恢复过期 processing lease、补齐缺失 command、把已有 `wallet_txn_id` 重新应用到 saga 状态；pending 订单应补哪个 command 由 `MarketOrder.pendingWalletActionType()` 判断。
 
 Order states：
 

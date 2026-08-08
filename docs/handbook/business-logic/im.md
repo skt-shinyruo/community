@@ -201,8 +201,9 @@ Policy projection：
 - user moderation change 和 social block change 通过 Kafka 增量事件更新 realtime。
 - realtime 发私信前使用本地 policy projection 做快速判定。
 - user policy 以 `userId` 为 projection key，block relation 以 `(blockerUserId,blockedUserId)` 为 projection key。snapshot watermark 必填且非负，entry / delta version 必须是正数 owner version；refresh 与 Kafka delta 并发时按 key 版本决胜。
-- user policy `version` 是 user owner 的持久逻辑时钟：`user_policy_version_counter` 分配版本，`user.policy_version` 保存当前用户治理事实版本，`UserPolicyChangedPayload.version` 和 user policy snapshot entry / high-watermark 使用同一 counter 域。
-- block relation `version` 是 social owner 的持久逻辑时钟：`social_block_version_counter` 分配版本，active fact 写入 `social_block.version`，取消拉黑写入 `social_block_version_log` 并推进 counter；`BlockPayload.version`、block snapshot entry 和 high-watermark 使用同一 counter 域。
+- user policy `version` 是 user owner 的持久逻辑时钟：`user_policy_version_counter` 分配版本，`user.policy_version` 保存当前用户治理事实版本，每次状态写入同时追加 `user_policy_version_log`；`UserPolicyChangedPayload.version` 和 user policy snapshot entry / high-watermark 使用同一 counter 域。
+- block relation `version` 是 social owner 的持久逻辑时钟：`social_block_version_counter` 分配版本，active fact 写入 `social_block.version`，创建和取消拉黑都追加 `social_block_version_log`；`BlockPayload.version`、block snapshot entry 和 high-watermark 使用同一 counter 域。
+- policy snapshot 第一页固定 owner 当前版本并返回 `snapshotHighWatermark`；带游标的后续请求必须把该值作为 `snapshotVersion` 原样传回。owner 在历史日志上按该版本扫描，realtime 也在收到水位漂移的页面时立即终止刷新。
 - `occurredAtEpochMillis` 不参与版本决策；版本只能由上述 owner 持久 counter 单调推进，不能使用 snapshot time 或进程内 counter 生成。
 
 projection 不是权威事实；启动和异常恢复依赖 snapshot 重新构建。

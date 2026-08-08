@@ -2,6 +2,7 @@ package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
@@ -66,7 +67,7 @@ class UserRegistrationInsertOutcomeApplicationServiceTest {
         );
         when(repository.findById(userId)).thenReturn(Optional.of(canonical));
 
-        UserCredentialView result = service(repository, eventPublisher)
+        UserRegistrationActionApi.VerifiedRegistrationResult result = service(repository, eventPublisher)
                 .createVerifiedRegistrationUser(command(
                         userId,
                         "alice",
@@ -74,9 +75,11 @@ class UserRegistrationInsertOutcomeApplicationServiceTest {
                         "canonical-header"
                 ));
 
-        assertThat(result).isEqualTo(new UserCredentialView(
+        assertThat(result.created()).isFalse();
+        assertThat(result.user()).isEqualTo(new UserCredentialView(
                 userId,
                 "alice",
+                "alice@example.com",
                 1,
                 2,
                 "canonical-header",
@@ -95,6 +98,44 @@ class UserRegistrationInsertOutcomeApplicationServiceTest {
                 anyLong(),
                 anyLong()
         );
+        verify(eventPublisher, never()).publishUserPolicyChanged(
+                any(UUID.class),
+                anyBoolean(),
+                any(Instant.class),
+                anyLong()
+        );
+    }
+
+    @Test
+    void alreadyExistingInsertShouldNotAuthorizeReplayForActivelyBannedUser() {
+        UUID userId = userId(34);
+        UserRepository repository = repositoryReturningInsertOutcome("ALREADY_EXISTS");
+        UserPolicyEventPublisher eventPublisher = mock(UserPolicyEventPublisher.class);
+        UserAccount canonical = account(
+                userId,
+                "alice",
+                "alice@example.com",
+                "canonical-header",
+                0,
+                1,
+                17L,
+                41L,
+                NOW.plusSeconds(300)
+        );
+        when(repository.findById(userId)).thenReturn(Optional.of(canonical));
+
+        UserRegistrationActionApi.VerifiedRegistrationResult result = service(repository, eventPublisher)
+                .createVerifiedRegistrationUser(command(
+                        userId,
+                        "alice",
+                        "alice@example.com",
+                        "canonical-header"
+                ));
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.user().loginAllowed()).isFalse();
+        assertThat(result.user().refreshAllowed()).isFalse();
+        verify(repository, never()).nextUserSecurityVersion(any(UUID.class));
         verify(eventPublisher, never()).publishUserPolicyChanged(
                 any(UUID.class),
                 anyBoolean(),
@@ -229,6 +270,30 @@ class UserRegistrationInsertOutcomeApplicationServiceTest {
             long policyVersion,
             long securityVersion
     ) {
+        return account(
+                userId,
+                username,
+                email,
+                headerUrl,
+                type,
+                status,
+                policyVersion,
+                securityVersion,
+                null
+        );
+    }
+
+    private UserAccount account(
+            UUID userId,
+            String username,
+            String email,
+            String headerUrl,
+            int type,
+            int status,
+            long policyVersion,
+            long securityVersion,
+            Instant banUntil
+    ) {
         return new UserAccount(
                 userId,
                 username,
@@ -240,7 +305,7 @@ class UserRegistrationInsertOutcomeApplicationServiceTest {
                 headerUrl,
                 Date.from(NOW),
                 null,
-                null,
+                banUntil,
                 policyVersion,
                 securityVersion
         );

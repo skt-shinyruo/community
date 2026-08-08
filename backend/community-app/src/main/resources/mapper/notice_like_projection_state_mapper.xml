@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.notice.infrastructure.persistence.mapper.LikeNoticeProjectionStateMapper">
+
+    <insert id="ensureSlot">
+        insert into notice_like_projection_state(
+            recipient_user_id, source_relation_key, source_version, active, update_time
+        )
+        values (#{recipientUserId, jdbcType=BINARY}, #{sourceRelationKey}, 0, null, now())
+        on duplicate key update source_relation_key = source_relation_key
+    </insert>
+
+    <select id="selectForUpdate"
+            resultType="com.nowcoder.community.notice.infrastructure.persistence.dataobject.LikeNoticeProjectionStateDataObject">
+        select recipient_user_id as recipientUserId,
+               source_relation_key as sourceRelationKey,
+               relation_instance_id as relationInstanceId,
+               source_version as sourceVersion,
+               active,
+               source_event_id as sourceEventId
+        from notice_like_projection_state
+        where recipient_user_id = #{recipientUserId, jdbcType=BINARY}
+          and source_relation_key = #{sourceRelationKey}
+        for update
+    </select>
+
+    <update id="update"
+            parameterType="com.nowcoder.community.notice.infrastructure.persistence.dataobject.LikeNoticeProjectionStateDataObject">
+        update notice_like_projection_state
+        set relation_instance_id = #{relationInstanceId, jdbcType=BINARY},
+            source_version = #{sourceVersion},
+            active = #{active},
+            source_event_id = #{sourceEventId},
+            update_time = now()
+        where recipient_user_id = #{recipientUserId, jdbcType=BINARY}
+          and source_relation_key = #{sourceRelationKey}
+    </update>
+
+</mapper>

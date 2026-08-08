@@ -22,7 +22,7 @@ import static com.nowcoder.community.common.constants.EntityTypes.POST;
 @Component
 public class LikeCleanupTransactionOperations {
 
-    private static final UUID FIRST_ACTOR_ID = new UUID(0L, 0L);
+    private static final UUID ZERO_UUID = new UUID(0L, 0L);
 
     private final LikeRepository likeRepository;
     private final LikeTargetStateRepository targetStateRepository;
@@ -64,12 +64,34 @@ public class LikeCleanupTransactionOperations {
         List<LikeRelation> page = likeRepository.scanLikesByEntity(
                 entityType,
                 entityId,
-                FIRST_ACTOR_ID,
+                ZERO_UUID,
                 limit
         );
         if (page == null || page.isEmpty()) {
             return CleanupBatchResult.empty();
         }
+        return removeRelations(page);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public CleanupBatchResult cleanupCommentLikesByPostBatch(UUID postId, int limit) {
+        LikeTargetState target = targetStateRepository.findForUpdate(POST, postId);
+        if (target == null || !target.isDeleted()) {
+            throw new IllegalStateException("post like target deletion fence missing");
+        }
+        List<LikeRelation> page = likeRepository.scanCommentLikesByPost(
+                postId,
+                ZERO_UUID,
+                ZERO_UUID,
+                limit
+        );
+        if (page == null || page.isEmpty()) {
+            return CleanupBatchResult.empty();
+        }
+        return removeRelations(page);
+    }
+
+    private CleanupBatchResult removeRelations(List<LikeRelation> page) {
         long removed = 0L;
         for (LikeRelation relation : page) {
             if (!likeRepository.removeLike(relation)) {
@@ -78,9 +100,12 @@ public class LikeCleanupTransactionOperations {
             if (relation.entityUserId() != null) {
                 likeRepository.incrementUserLikeCount(relation.entityUserId(), -1L);
             }
+            long relationVersion = likeRepository.nextRelationEventVersion(
+                    relation.actorUserId(), relation.entityType(), relation.entityId());
             LikeChangedDomainEvent event = likeDomainService.likeChangedEvent(
                     relation,
-                    new ResolvedSocialEntity(relation.entityUserId(), entityType == POST ? entityId : null),
+                    new ResolvedSocialEntity(relation.entityUserId(), relation.postId()),
+                    relationVersion,
                     false,
                     Instant.now()
             );

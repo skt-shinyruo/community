@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
@@ -9,9 +10,11 @@ import com.nowcoder.community.content.domain.repository.CommentContentRepository
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -23,6 +26,7 @@ public class BookmarkApplicationService {
     private final PostContentBlockRepository postContentBlockRepository;
     private final PostContentBlockTextProjector postContentBlockTextProjector;
     private final PostCounterCache postCounterCache;
+    private final BookmarkCounterReconciliationPort bookmarkCounterReconciliationPort;
     private final PostSummaryAssembler postSummaryAssembler;
 
     public BookmarkApplicationService(
@@ -32,6 +36,7 @@ public class BookmarkApplicationService {
             PostContentBlockRepository postContentBlockRepository,
             PostContentBlockTextProjector postContentBlockTextProjector,
             PostCounterCache postCounterCache,
+            BookmarkCounterReconciliationPort bookmarkCounterReconciliationPort,
             PostSummaryAssembler postSummaryAssembler
     ) {
         this.bookmarkRepository = bookmarkRepository;
@@ -40,19 +45,25 @@ public class BookmarkApplicationService {
         this.postContentBlockRepository = postContentBlockRepository;
         this.postContentBlockTextProjector = postContentBlockTextProjector;
         this.postCounterCache = postCounterCache;
+        this.bookmarkCounterReconciliationPort = Objects.requireNonNull(
+                bookmarkCounterReconciliationPort,
+                "bookmarkCounterReconciliationPort"
+        );
         this.postSummaryAssembler = postSummaryAssembler;
     }
 
+    @Transactional
     public void add(UUID userId, UUID postId) {
-        if (bookmarkRepository.add(userId, postId)) {
-            postCounterCache.incrementBookmarkCount(postId, 1L);
-        }
+        bookmarkRepository.add(userId, postId);
+        recordBookmarkMutation(postId);
+        markBookmarkCountDirty(postId);
     }
 
+    @Transactional
     public void remove(UUID userId, UUID postId) {
-        if (bookmarkRepository.remove(userId, postId)) {
-            postCounterCache.incrementBookmarkCount(postId, -1L);
-        }
+        bookmarkRepository.remove(userId, postId);
+        recordBookmarkMutation(postId);
+        markBookmarkCountDirty(postId);
     }
 
     public List<PostSummaryResult> listBookmarkedPostSummaries(UUID userId, int page, int size) {
@@ -75,5 +86,19 @@ public class BookmarkApplicationService {
                         postContentBlockTextProjector.preview(blocksByPostId.get(post.getId()), 240)
                 ))
                 .toList();
+    }
+
+    private void markBookmarkCountDirty(UUID postId) {
+        AfterCommitExecutor.runAfterCommit(() -> {
+            try {
+                postCounterCache.markDirty(postId);
+            } catch (RuntimeException ignored) {
+                // Bookmark facts are durable; a later read or flush rebuilds the derived count.
+            }
+        });
+    }
+
+    private void recordBookmarkMutation(UUID postId) {
+        bookmarkCounterReconciliationPort.recordMutation(postId);
     }
 }

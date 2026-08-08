@@ -48,4 +48,8 @@ public interface MarketOrderMapper {
                          @Param("nextAttemptAt") Date nextAttemptAt);
 
     List<MarketOrderDataObject> selectWalletPendingOrders(@Param("limit") int limit);
+
+    int deferWalletRecovery(@Param("orderId") UUID orderId,
+                            @Param("asOf") Date asOf,
+                            @Param("nextAttemptAt") Date nextAttemptAt);
 }

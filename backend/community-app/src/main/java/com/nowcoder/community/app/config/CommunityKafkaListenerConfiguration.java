@@ -3,6 +3,10 @@ package com.nowcoder.community.app.config;
 import com.nowcoder.community.common.kafka.trace.TraceRecordInterceptor;
 import com.nowcoder.community.common.spring.policy.KafkaPolicyDecisions;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
+import org.apache.kafka.common.serialization.Serializer;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.boot.autoconfigure.kafka.DefaultKafkaProducerFactoryCustomizer;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerContainerFactoryConfigurer;
@@ -10,21 +14,52 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.CompositeRecordInterceptor;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.listener.RecordInterceptor;
 import org.springframework.kafka.support.serializer.DeserializationException;
+import org.springframework.kafka.support.serializer.DelegatingByTypeSerializer;
+import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.util.backoff.ExponentialBackOff;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Configuration
 @ConditionalOnClass(KafkaTemplate.class)
 public class CommunityKafkaListenerConfiguration {
+
+    @Bean
+    public DefaultKafkaProducerFactoryCustomizer dltCompatibleProducerSerializers() {
+        return this::configureDltCompatibleSerializers;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void configureDltCompatibleSerializers(DefaultKafkaProducerFactory<?, ?> producerFactory) {
+        DefaultKafkaProducerFactory factory = (DefaultKafkaProducerFactory) producerFactory;
+        factory.setKeySerializerSupplier(this::dltCompatibleKeySerializer);
+        factory.setValueSerializerSupplier(this::dltCompatibleValueSerializer);
+    }
+
+    Serializer<Object> dltCompatibleKeySerializer() {
+        Map<Class<?>, Serializer<?>> delegates = new LinkedHashMap<>();
+        delegates.put(byte[].class, new ByteArraySerializer());
+        delegates.put(String.class, new StringSerializer());
+        return new DelegatingByTypeSerializer(delegates, true);
+    }
+
+    Serializer<Object> dltCompatibleValueSerializer() {
+        Map<Class<?>, Serializer<?>> delegates = new LinkedHashMap<>();
+        delegates.put(byte[].class, new ByteArraySerializer());
+        delegates.put(Object.class, new JsonSerializer<>());
+        return new DelegatingByTypeSerializer(delegates, true);
+    }
 
     @Bean
     public ConcurrentKafkaListenerContainerFactory<Object, Object> kafkaListenerContainerFactory(

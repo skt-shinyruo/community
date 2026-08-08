@@ -110,10 +110,7 @@ class PaginationOffsetOverflowTest {
         when(bookmarkMapper.selectBookmarkedPosts(any(), anyInt(), anyInt())).thenReturn(List.of());
         UUID userId = uuid(1);
 
-        MyBatisBookmarkRepository service = new MyBatisBookmarkRepository(
-                bookmarkMapper,
-                mock(MyBatisPostContentRepository.class)
-        );
+        MyBatisBookmarkRepository service = new MyBatisBookmarkRepository(bookmarkMapper);
         service.listBookmarkedPosts(userId, Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);

@@ -48,4 +48,6 @@ public interface MarketOrderRepository {
     int deferAutoConfirm(UUID orderId, Date asOf, Date nextAttemptAt);
 
     List<MarketOrder> findWalletPendingOrders(int limit);
+
+    int deferWalletRecovery(UUID orderId, Date asOf, Date nextAttemptAt);
 }

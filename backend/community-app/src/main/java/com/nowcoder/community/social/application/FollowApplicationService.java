@@ -66,6 +66,7 @@ public class FollowApplicationService implements SocialFollowQueryApi {
         UUID entityId = command.entityId();
         followDomainService.validateFollow(actorUserId, entityType, entityId);
 
+        blockRepository.lockUserPair(actorUserId, entityId);
         boolean existed = followRepository.hasFollowed(actorUserId, entityType, entityId);
         if (!existed) {
             requireFollowTargetUserExists(entityId);

@@ -91,13 +91,16 @@ class AdminUserApplicationServiceTest {
     void updateRoleShouldRejectMissingTargetUser() {
         AdminUserApplicationService service = service();
         UpdateUserRoleCommand command = new UpdateUserRoleCommand(ACTOR_ID, TARGET_ID, 1, "elevate", true);
-        when(userRepository.findById(TARGET_ID)).thenReturn(Optional.empty());
+        when(userRepository.findByIdForUpdate(ACTOR_ID)).thenReturn(Optional.of(activeAdmin(ACTOR_ID)));
+        when(userRepository.findByIdForUpdate(TARGET_ID)).thenReturn(Optional.empty());
 
         Throwable thrown = catchThrowable(() -> service.updateRole(command));
 
         assertThat(thrown).isInstanceOf(BusinessException.class)
                 .hasMessage("目标用户不存在");
-        verify(userRepository).findById(TARGET_ID);
+        verify(userRepository).lockRoleManagement();
+        verify(userRepository).findByIdForUpdate(ACTOR_ID);
+        verify(userRepository).findByIdForUpdate(TARGET_ID);
         verify(userRepository, never()).updateRole(any(), anyInt(), anyLong());
         verifyNoInteractions(userAuditLogPort);
     }
@@ -115,7 +118,8 @@ class AdminUserApplicationServiceTest {
     void updateRoleShouldReturnWithoutWriteWhenRoleUnchanged() {
         AdminUserApplicationService service = service();
         UpdateUserRoleCommand command = new UpdateUserRoleCommand(ACTOR_ID, TARGET_ID, 1, "noop", true);
-        when(userRepository.findById(TARGET_ID)).thenReturn(Optional.of(user(TARGET_ID, "admin", "admin@example.com", 1, 0, "h8", new Date())));
+        when(userRepository.findByIdForUpdate(ACTOR_ID)).thenReturn(Optional.of(activeAdmin(ACTOR_ID)));
+        when(userRepository.findByIdForUpdate(TARGET_ID)).thenReturn(Optional.of(user(TARGET_ID, "admin", "admin@example.com", 1, 1, "h8", new Date())));
 
         service.updateRole(command);
 
@@ -127,20 +131,47 @@ class AdminUserApplicationServiceTest {
     void updateRoleShouldPersistRoleChangeAndWriteAuditLog() {
         AdminUserApplicationService service = service();
         UpdateUserRoleCommand command = new UpdateUserRoleCommand(ACTOR_ID, TARGET_ID, 2, "  delegate moderation  ", true);
-        when(userRepository.findById(TARGET_ID)).thenReturn(Optional.of(user(TARGET_ID, "admin", "admin@example.com", 1, 0, "h8", new Date())));
+        when(userRepository.findByIdForUpdate(ACTOR_ID)).thenReturn(Optional.of(activeAdmin(ACTOR_ID)));
+        when(userRepository.findByIdForUpdate(TARGET_ID)).thenReturn(Optional.of(user(TARGET_ID, "admin", "admin@example.com", 1, 1, "h8", new Date())));
         when(userRepository.nextUserSecurityVersion(TARGET_ID)).thenReturn(123L);
 
         service.updateRole(command);
 
         InOrder inOrder = inOrder(userRepository, userAuditLogPort);
-        inOrder.verify(userRepository).findById(TARGET_ID);
+        inOrder.verify(userRepository).lockRoleManagement();
+        inOrder.verify(userRepository).findByIdForUpdate(ACTOR_ID);
+        inOrder.verify(userRepository).findByIdForUpdate(TARGET_ID);
         inOrder.verify(userRepository).nextUserSecurityVersion(TARGET_ID);
         inOrder.verify(userRepository).updateRole(TARGET_ID, 2, 123L);
         inOrder.verify(userAuditLogPort).recordRoleUpdated(ACTOR_ID, TARGET_ID, 1, 2, "delegate moderation");
     }
 
+    @Test
+    void updateRoleShouldReauthorizeActorAfterAcquiringRoleManagementLock() {
+        AdminUserApplicationService service = service();
+        UpdateUserRoleCommand command = new UpdateUserRoleCommand(ACTOR_ID, TARGET_ID, 2, "delegate", true);
+        when(userRepository.findByIdForUpdate(ACTOR_ID)).thenReturn(Optional.of(
+                user(ACTOR_ID, "former-admin", "former@example.com", 2, 1, "ha", new Date())
+        ));
+
+        assertThatThrownBy(() -> service.updateRole(command))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("操作者不再具备有效管理员权限");
+
+        InOrder inOrder = inOrder(userRepository);
+        inOrder.verify(userRepository).lockRoleManagement();
+        inOrder.verify(userRepository).findByIdForUpdate(ACTOR_ID);
+        verify(userRepository, never()).findByIdForUpdate(TARGET_ID);
+        verify(userRepository, never()).updateRole(any(), anyInt(), anyLong());
+        verifyNoInteractions(userAuditLogPort);
+    }
+
     private AdminUserApplicationService service() {
         return new AdminUserApplicationService(userRepository, new UserRoleDomainService(), userAuditLogPort);
+    }
+
+    private static UserAccount activeAdmin(UUID id) {
+        return user(id, "actor-admin", "actor@example.com", 1, 1, "ha", new Date());
     }
 
     private static UserAccount user(UUID id, String username, String email, int type, int status, String headerUrl, Date createTime) {

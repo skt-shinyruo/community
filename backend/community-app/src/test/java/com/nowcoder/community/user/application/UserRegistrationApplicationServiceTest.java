@@ -2,6 +2,7 @@ package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.nowcoder.community.user.api.model.PreparedRegistrationUserView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
@@ -15,6 +16,7 @@ import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -34,6 +36,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,7 +58,7 @@ class UserRegistrationApplicationServiceTest {
         PreparedRegistrationUserView prepared = service.prepareRegistrationUser(
                 "  alice  ",
                 "secret12",
-                "  alice@example.com  "
+                "  Alice@Example.COM  "
         );
 
         assertThat(prepared.userId()).isNotNull();
@@ -63,6 +66,7 @@ class UserRegistrationApplicationServiceTest {
         assertThat(prepared.email()).isEqualTo("alice@example.com");
         assertThat(new BCryptPasswordEncoder().matches("secret12", prepared.encodedPassword())).isTrue();
         assertThat(prepared.headerUrl()).startsWith("http://images.nowcoder.com/head/");
+        verify(userRepository).findByEmail("alice@example.com");
         verify(userRepository, never()).insertUser(any());
         verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class), anyLong());
     }
@@ -76,16 +80,18 @@ class UserRegistrationApplicationServiceTest {
         when(userRepository.nextUserPolicyVersion(userId)).thenReturn(17L);
         when(userRepository.nextUserSecurityVersion(userId)).thenReturn(41L);
 
-        UserCredentialView result = service.createVerifiedRegistrationUser(new VerifiedRegistrationUserCommand(
+        UserRegistrationActionApi.VerifiedRegistrationResult result = service.createVerifiedRegistrationUser(new VerifiedRegistrationUserCommand(
                 userId,
                 "alice",
-                "alice@example.com",
+                "Alice@Example.COM",
                 encodedPassword,
                 "http://images.nowcoder.com/head/1t.png"
         ));
 
         ArgumentCaptor<UserAccount> userCaptor = ArgumentCaptor.forClass(UserAccount.class);
-        verify(userRepository).insertUser(userCaptor.capture());
+        InOrder writeOrder = inOrder(userRepository);
+        writeOrder.verify(userRepository).lockRoleManagement();
+        writeOrder.verify(userRepository).insertUser(userCaptor.capture());
         UserAccount inserted = userCaptor.getValue();
         assertThat(inserted.id()).isEqualTo(userId);
         assertThat(inserted.username()).isEqualTo("alice");
@@ -93,9 +99,10 @@ class UserRegistrationApplicationServiceTest {
         assertThat(inserted.encodedPassword()).isEqualTo(encodedPassword);
         assertThat(inserted.status()).isEqualTo(1);
         assertThat(inserted.type()).isEqualTo(0);
-        assertThat(result.userId()).isEqualTo(userId);
-        assertThat(result.status()).isEqualTo(1);
-        assertThat(result.securityVersion()).isEqualTo(41L);
+        assertThat(result.created()).isTrue();
+        assertThat(result.user().userId()).isEqualTo(userId);
+        assertThat(result.user().status()).isEqualTo(1);
+        assertThat(result.user().securityVersion()).isEqualTo(41L);
         verify(userRepository).nextUserPolicyVersion(userId);
         verify(userRepository).nextUserSecurityVersion(userId);
         verify(userRepository).updateModerationUntil(

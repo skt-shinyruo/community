@@ -9,7 +9,7 @@ import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
-import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
+import com.nowcoder.community.social.api.action.SocialInteractionActionApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -72,7 +72,7 @@ class CommentDeletionCardinalityContractTest {
                 repository,
                 postRepository,
                 new CommentCacheAfterCommit(counterCache, pageCache, postCacheAfterCommit),
-                mock(SocialBlockQueryApi.class),
+                mock(SocialInteractionActionApi.class),
                 eventPublisher
         );
     }
@@ -96,7 +96,7 @@ class CommentDeletionCardinalityContractTest {
         assertThat(events.getAllValues()).extracting(CommentPayload::getEntityType)
                 .containsExactly(POST, COMMENT, COMMENT);
         verify(postRepository).incrementActiveCommentCount(POST_ID, -3);
-        verify(counterCache).incrementCommentCount(POST_ID, -3L);
+        verify(counterCache).markDirty(POST_ID);
         verify(postCacheAfterCommit).evict(POST_ID, 2L);
     }
 
@@ -112,7 +112,7 @@ class CommentDeletionCardinalityContractTest {
 
         verifyNoInteractions(eventPublisher);
         verify(postRepository, never()).incrementActiveCommentCount(any(UUID.class), anyInt());
-        verify(counterCache, never()).incrementCommentCount(any(UUID.class), anyLong());
+        verify(counterCache, never()).markDirty(any(UUID.class));
         verify(pageCache, never()).evictPost(any(UUID.class));
     }
 
@@ -127,7 +127,7 @@ class CommentDeletionCardinalityContractTest {
 
         verifyNoInteractions(eventPublisher);
         verify(postRepository, never()).incrementActiveCommentCount(any(UUID.class), anyInt());
-        verify(counterCache, never()).incrementCommentCount(any(UUID.class), anyLong());
+        verify(counterCache, never()).markDirty(any(UUID.class));
     }
 
     @Test

@@ -41,7 +41,8 @@ public class NoticeProjectionKafkaListener {
     @KafkaListener(
             topics = "${content.events.kafka-topic:content.events}",
             groupId = "${notice.kafka.consumer.group-id:notice-projection}",
-            concurrency = "${notice.kafka.consumer.concurrency:3}"
+            concurrency = "${notice.kafka.consumer.concurrency:3}",
+            autoStartup = "${spring.kafka.listener.auto-startup:${notice.projection-enabled:true}}"
     )
     public void onContentEvent(ContentContractEvent event) {
         if (event == null || !isSupportedContentNoticeEvent(event.type())) {
@@ -58,7 +59,8 @@ public class NoticeProjectionKafkaListener {
     @KafkaListener(
             topics = "${social.events.kafka-topic:social.events}",
             groupId = "${notice.kafka.consumer.group-id:notice-projection}",
-            concurrency = "${notice.kafka.consumer.concurrency:3}"
+            concurrency = "${notice.kafka.consumer.concurrency:3}",
+            autoStartup = "${spring.kafka.listener.auto-startup:${notice.projection-enabled:true}}"
     )
     public void onSocialEvent(SocialContractEvent event) {
         if (event == null || !isSupportedSocialNoticeEvent(event.type())) {
@@ -124,29 +126,32 @@ public class NoticeProjectionKafkaListener {
             if (!isValid(payload)) {
                 return null;
             }
+            long sourceVersion = likeSourceVersion(event, payload);
             if (SocialEventTypes.LIKE_CREATED.equals(event.type())) {
                 return new ProjectNoticeCommand.LikeCreated(
                         event.eventId(),
-                        event.version(),
+                        sourceVersion,
                         event.type(),
                         payload.getActorUserId(),
                         payload.getEntityType(),
                         payload.getEntityId(),
                         payload.getEntityUserId(),
                         payload.getPostId(),
-                        payload.getRelationKey()
+                        payload.getRelationKey(),
+                        payload.getRelationInstanceId()
                 );
             }
             return new ProjectNoticeCommand.LikeRemoved(
                     event.eventId(),
-                    event.version(),
+                    sourceVersion,
                     event.type(),
                     payload.getActorUserId(),
                     payload.getEntityType(),
                     payload.getEntityId(),
                     payload.getEntityUserId(),
                     payload.getPostId(),
-                    payload.getRelationKey()
+                    payload.getRelationKey(),
+                    payload.getRelationInstanceId()
             );
         }
         if (SocialEventTypes.FOLLOW_CREATED.equals(event.type())) {
@@ -166,6 +171,17 @@ public class NoticeProjectionKafkaListener {
             );
         }
         return null;
+    }
+
+    private long likeSourceVersion(SocialContractEvent event, LikePayload payload) {
+        Long relationVersion = payload.getRelationVersion();
+        if (relationVersion == null) {
+            return event.version();
+        }
+        if (relationVersion <= 0L || event.version() != relationVersion) {
+            throw new IllegalStateException("like event relation version metadata mismatch");
+        }
+        return relationVersion;
     }
 
     private boolean isValid(LikePayload payload) {

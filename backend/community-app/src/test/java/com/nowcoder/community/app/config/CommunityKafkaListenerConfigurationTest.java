@@ -6,6 +6,7 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.serialization.Serializer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerContainerFactoryConfigurer;
@@ -55,6 +56,28 @@ class CommunityKafkaListenerConfigurationTest {
         BackOffExecution execution = configuration.retryBackOff(decisions(1, true)).start();
 
         assertThat(execution.nextBackOff()).isEqualTo(BackOffExecution.STOP);
+    }
+
+    @Test
+    void dltSerializerShouldPreserveRawPoisonPayloadsAndSerializeDomainEvents() {
+        Serializer<Object> serializer = configuration.dltCompatibleValueSerializer();
+        byte[] poison = "{bad-json".getBytes(StandardCharsets.UTF_8);
+
+        assertThat(serializer.serialize("content.events.dlq", poison)).isEqualTo(poison);
+        assertThat(new String(
+                serializer.serialize("content.events", new TestPayload("ok")),
+                StandardCharsets.UTF_8
+        )).contains("\"value\":\"ok\"");
+    }
+
+    @Test
+    void dltKeySerializerShouldPreserveRawPoisonKeysAndNormalStringKeys() {
+        Serializer<Object> serializer = configuration.dltCompatibleKeySerializer();
+        byte[] poison = new byte[]{(byte) 0xC3, 0x28};
+
+        assertThat(serializer.serialize("content.events.dlq", poison)).isEqualTo(poison);
+        assertThat(serializer.serialize("content.events", "post:42"))
+                .isEqualTo("post:42".getBytes(StandardCharsets.UTF_8));
     }
 
     @Test
@@ -188,5 +211,8 @@ class CommunityKafkaListenerConfigurationTest {
                 return Stream.of(interceptor);
             }
         };
+    }
+
+    private record TestPayload(String value) {
     }
 }

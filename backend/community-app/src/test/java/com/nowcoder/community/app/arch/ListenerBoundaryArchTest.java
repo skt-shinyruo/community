@@ -24,6 +24,7 @@ class ListenerBoundaryArchTest {
                     .that().resideInAnyPackage(
                             "..infrastructure.event..",
                             "..infrastructure.job..",
+                            "..infrastructure.mail..",
                             "..infra.job.handlers.."
                     )
                     .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
@@ -35,6 +36,7 @@ class ListenerBoundaryArchTest {
                     .that().resideInAnyPackage(
                             "..infrastructure.event..",
                             "..infrastructure.job..",
+                            "..infrastructure.mail..",
                             "..infra.job.handlers.."
                     )
                     .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
@@ -46,6 +48,7 @@ class ListenerBoundaryArchTest {
                     .that().resideInAnyPackage(
                             "..infrastructure.event..",
                             "..infrastructure.job..",
+                            "..infrastructure.mail..",
                             "..infra.job.handlers.."
                     )
                     .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
@@ -57,6 +60,7 @@ class ListenerBoundaryArchTest {
                     .that().resideInAnyPackage(
                             "..infrastructure.event..",
                             "..infrastructure.job..",
+                            "..infrastructure.mail..",
                             "..infra.job.handlers.."
                     )
                     .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
@@ -68,6 +72,7 @@ class ListenerBoundaryArchTest {
                     .that().resideInAnyPackage(
                             "..infrastructure.event..",
                             "..infrastructure.job..",
+                            "..infrastructure.mail..",
                             "..infra.job.handlers.."
                     )
                     .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
@@ -79,6 +84,7 @@ class ListenerBoundaryArchTest {
                     .that().resideInAnyPackage(
                             "..infrastructure.event..",
                             "..infrastructure.job..",
+                            "..infrastructure.mail..",
                             "..infra.job.handlers.."
                     )
                     .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")

@@ -13,6 +13,7 @@ public class LikePayload {
     private UUID postId;
     private String relationKey;
     private UUID relationInstanceId;
+    private Long relationVersion;
 
     public UUID getActorUserId() {
         return actorUserId;
@@ -69,6 +70,15 @@ public class LikePayload {
 
     public void setRelationInstanceId(UUID relationInstanceId) {
         this.relationInstanceId = relationInstanceId;
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Long getRelationVersion() {
+        return relationVersion;
+    }
+
+    public void setRelationVersion(Long relationVersion) {
+        this.relationVersion = relationVersion;
     }
 
 }

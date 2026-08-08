@@ -31,8 +31,18 @@ public class MyBatisUserTaskEventLogRepository implements UserTaskEventLogReposi
     }
 
     @Override
-    public List<UserTaskContributionLog> findLikeContributionLogs(UUID userId, String relationKey) {
-        return userTaskEventLogMapper.selectLikeContributionLogs(userId, relationKey);
+    public boolean exists(UUID userId, String taskCode, String periodKey, String sourceEventId) {
+        return userTaskEventLogMapper.exists(userId, taskCode, periodKey, sourceEventId);
+    }
+
+    @Override
+    public List<UserTaskContributionLog> findLikeContributionLogsForUpdate(UUID userId, String contributionSourceId) {
+        return userTaskEventLogMapper.selectLikeContributionLogsForUpdate(userId, contributionSourceId);
+    }
+
+    @Override
+    public int countByUserTaskAndPeriod(UUID userId, String taskCode, String periodKey) {
+        return userTaskEventLogMapper.countByUserTaskAndPeriod(userId, taskCode, periodKey);
     }
 
     @Override

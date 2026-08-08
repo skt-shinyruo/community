@@ -19,6 +19,7 @@ import com.nowcoder.community.social.domain.repository.LikeTargetStateRepository
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -38,7 +39,9 @@ import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -78,6 +81,60 @@ class LikeApplicationServiceTest {
         assertThatThrownBy(() -> service.setLike(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
+    }
+
+    @Test
+    void userLikeShouldLockTheStablePairBeforeReadingTheRelation() {
+        LikeRepository repo = mock(LikeRepository.class);
+        BlockRepository blockRepository = mock(BlockRepository.class);
+        when(repo.findLike(uuid(1), USER, uuid(2))).thenReturn(Optional.empty());
+        when(repo.isLiked(uuid(1), USER, uuid(2))).thenReturn(false);
+        when(repo.countEntityLikes(USER, uuid(2))).thenReturn(0L);
+        LikeApplicationService service = newService(
+                repo,
+                blockRepository,
+                mock(SocialDomainEventPublisher.class)
+        );
+
+        LikeResult result = service.setLike(new SetLikeCommand(
+                uuid(1), USER, uuid(2), false, uuid(2), null
+        ));
+
+        assertThat(result.liked()).isFalse();
+        InOrder order = inOrder(blockRepository, repo);
+        order.verify(blockRepository).lockUserPair(uuid(1), uuid(2));
+        order.verify(repo).findLike(uuid(1), USER, uuid(2));
+    }
+
+    @Test
+    void postLikeShouldLockAndCheckTheUserPairBeforeCreatingTheRelation() {
+        LikeRepository repo = mock(LikeRepository.class);
+        BlockRepository blockRepository = mock(BlockRepository.class);
+        LikeTargetStateRepository targetStateRepository = mock(LikeTargetStateRepository.class);
+        when(targetStateRepository.findForUpdate(POST, uuid(100)))
+                .thenReturn(LikeTargetState.active(POST, uuid(100)));
+        when(repo.findLike(uuid(1), POST, uuid(100))).thenReturn(Optional.empty());
+        when(repo.addLike(any(LikeRelation.class))).thenReturn(true);
+        when(repo.isLiked(uuid(1), POST, uuid(100))).thenReturn(true);
+        when(repo.countEntityLikes(POST, uuid(100))).thenReturn(1L);
+        LikeApplicationService service = newService(
+                repo,
+                blockRepository,
+                mock(SocialDomainEventPublisher.class),
+                targetStateRepository
+        );
+
+        service.setLike(new SetLikeCommand(
+                uuid(1), POST, uuid(100), true, uuid(2), uuid(100)
+        ));
+
+        InOrder order = inOrder(blockRepository, targetStateRepository, repo);
+        order.verify(blockRepository).lockUserPair(uuid(1), uuid(2));
+        order.verify(targetStateRepository).insertActiveIfAbsent(POST, uuid(100));
+        order.verify(targetStateRepository).findForUpdate(POST, uuid(100));
+        order.verify(blockRepository).hasBlocked(uuid(1), uuid(2));
+        order.verify(blockRepository).hasBlocked(uuid(2), uuid(1));
+        order.verify(repo).addLike(any(LikeRelation.class));
     }
 
     @Test
@@ -595,6 +652,7 @@ class LikeApplicationServiceTest {
 
         private final Map<String, Map<UUID, LikeRelation>> entityLikes = new ConcurrentHashMap<>();
         private final Map<UUID, Long> userLikeCounts = new ConcurrentHashMap<>();
+        private final Map<String, Long> relationVersions = new ConcurrentHashMap<>();
 
         @Override
         public boolean addLike(LikeRelation relation) {
@@ -612,6 +670,12 @@ class LikeApplicationServiceTest {
                     expectedRelation.entityId()
             ));
             return map != null && map.remove(expectedRelation.actorUserId(), expectedRelation);
+        }
+
+        @Override
+        public long nextRelationEventVersion(UUID actorUserId, int entityType, UUID entityId) {
+            String key = actorUserId + ":" + entityType + ":" + entityId;
+            return relationVersions.merge(key, 4_611_686_018_427_387_905L, (current, ignored) -> current + 1L);
         }
 
         @Override
@@ -735,6 +799,10 @@ class LikeApplicationServiceTest {
         private final ConcurrentHashMap<UUID, Set<UUID>> blocks = new ConcurrentHashMap<>();
 
         @Override
+        public void lockUserPair(UUID userIdA, UUID userIdB) {
+        }
+
+        @Override
         public boolean block(UUID userId, UUID targetUserId, long version) {
             return blocks.computeIfAbsent(userId, ignored -> ConcurrentHashMap.newKeySet()).add(targetUserId);
         }
@@ -768,7 +836,12 @@ class LikeApplicationServiceTest {
         }
 
         @Override
-        public List<BlockRelation> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit) {
+        public List<BlockRelation> scanBlocksAtVersionAfter(
+                long snapshotVersion,
+                UUID afterUserId,
+                UUID afterTargetUserId,
+                int limit
+        ) {
             return List.of();
         }
 

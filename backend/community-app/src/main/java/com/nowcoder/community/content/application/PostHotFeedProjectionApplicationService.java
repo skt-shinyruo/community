@@ -222,7 +222,7 @@ public class PostHotFeedProjectionApplicationService {
             if (!projectionGuard.isCurrent(attempt)) {
                 return;
             }
-            postCounterCache.updateScore(postId, score);
+            postCounterCache.markDirty(postId);
             postFeedCache.writeRankVersion(rankVersion);
             postFeedCache.remove(postId, null, aggregateVersion);
             postFeedCache.upsertGlobalHot(postId, score, rankVersion, aggregateVersion, scoreVersion);

@@ -63,6 +63,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -220,6 +221,24 @@ class AuthControllerUnitTest {
     }
 
     @Test
+    void logoutShouldClearRefreshCookieAndPropagateDurableRevokeFailure() {
+        RefreshCookieSpec clearCookie = clearedCookie();
+        RuntimeException durableFailure = new IllegalStateException("database unavailable");
+        doThrow(durableFailure).when(loginApplicationService).logout(new LogoutCommand("logout-token"));
+        when(loginApplicationService.clearRefreshCookie()).thenReturn(clearCookie);
+
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+        httpRequest.setCookies(new Cookie("refresh_token", "logout-token"));
+        MockHttpServletResponse httpResponse = new MockHttpServletResponse();
+
+        Throwable thrown = catchThrowable(() -> controller.logout(httpRequest, httpResponse));
+
+        assertThat(thrown).isSameAs(durableFailure);
+        verify(loginApplicationService).clearRefreshCookie();
+        assertClearedRefreshCookie(httpResponse.getHeader(HttpHeaders.SET_COOKIE));
+    }
+
+    @Test
     void meShouldReadSubjectAndClaimsFromJwt() {
         UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000042");
         Jwt jwt = Jwt.withTokenValue("t")
@@ -313,6 +332,8 @@ class AuthControllerUnitTest {
         assertThat(response.getData().isEmailCodeIssued()).isTrue();
         assertThat(response.getData().getMaskedEmail()).isEqualTo("a***@example.com");
         assertThat(response.getData().getDebugEmailCode()).isEqualTo("123456");
+        verify(registrationApplicationService).register(new RegisterCommand(
+                "alice", "secret", "alice@example.com", "cid", "abcd", "127.0.0.1"));
     }
 
     @Test
@@ -363,13 +384,16 @@ class AuthControllerUnitTest {
         when(registrationVerificationApplicationService.resendCode(any(ResendRegisterCodeCommand.class)))
                 .thenReturn(new RegisterCodeResendResult(true, "a***@example.com", "123456"));
 
-        Result<RegisterCodeResendResponse> response = controller.resendRegisterCode(request);
+        Result<RegisterCodeResendResponse> response = controller.resendRegisterCode(
+                request, new MockHttpServletRequest());
 
         assertThat(response.getCode()).isEqualTo(0);
         assertThat(response.getData()).isNotNull();
         assertThat(response.getData().isIssued()).isTrue();
         assertThat(response.getData().getMaskedEmail()).isEqualTo("a***@example.com");
         assertThat(response.getData().getDebugEmailCode()).isEqualTo("123456");
+        verify(registrationVerificationApplicationService).resendCode(
+                new ResendRegisterCodeCommand("token", "cid", "abcd", "127.0.0.1"));
     }
 
     @Test

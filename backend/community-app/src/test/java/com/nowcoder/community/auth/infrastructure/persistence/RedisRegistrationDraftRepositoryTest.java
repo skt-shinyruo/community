@@ -81,7 +81,9 @@ class RedisRegistrationDraftRepositoryTest {
                 new RedisRegistrationDraftRepository(redisTemplate, jsonCodec());
 
         assertThat(repository.find("token")).isEmpty();
-        verify(redisTemplate).delete("auth:regdraft:token");
+        verify(redisTemplate).execute(
+                org.mockito.ArgumentMatchers.any(org.springframework.data.redis.core.script.RedisScript.class),
+                eq(java.util.List.of("auth:regdraft:token")));
     }
 
     @Test
@@ -92,7 +94,9 @@ class RedisRegistrationDraftRepositoryTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(valueOps.get("auth:regdraft:token")).thenReturn("{bad");
         doThrow(new RuntimeException("redis unavailable"))
-                .when(redisTemplate).delete("auth:regdraft:token");
+                .when(redisTemplate).execute(
+                        org.mockito.ArgumentMatchers.any(org.springframework.data.redis.core.script.RedisScript.class),
+                        eq(java.util.List.of("auth:regdraft:token")));
         RedisRegistrationDraftRepository repository =
                 new RedisRegistrationDraftRepository(redisTemplate, jsonCodec());
 
@@ -107,7 +111,9 @@ class RedisRegistrationDraftRepositoryTest {
 
         repository.delete(" token ");
 
-        verify(redisTemplate).delete("auth:regdraft:token");
+        verify(redisTemplate).execute(
+                org.mockito.ArgumentMatchers.any(org.springframework.data.redis.core.script.RedisScript.class),
+                eq(java.util.List.of("auth:regdraft:token")));
     }
 
     private static JacksonJsonCodec jsonCodec() {

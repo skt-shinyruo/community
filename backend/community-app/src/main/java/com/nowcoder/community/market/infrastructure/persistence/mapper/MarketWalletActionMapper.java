@@ -1,6 +1,8 @@
 package com.nowcoder.community.market.infrastructure.persistence.mapper;
 
+import com.nowcoder.community.market.domain.model.MarketWalletActionClaim;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
+import com.nowcoder.community.market.domain.model.MarketWalletActionLeaseRecovery;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -22,11 +24,28 @@ public interface MarketWalletActionMapper {
 
     MarketWalletActionDataObject selectByOrderAndType(@Param("orderId") UUID orderId, @Param("actionType") String actionType);
 
-    List<MarketWalletActionDataObject> selectDue(@Param("asOf") Date asOf, @Param("limit") int limit);
+    List<MarketWalletActionDataObject> selectDue(
+            @Param("asOf") Date asOf,
+            @Param("maxRetryAttempts") int maxRetryAttempts,
+            @Param("limit") int limit
+    );
+
+    List<MarketWalletActionDataObject> selectExpiredProcessing(@Param("asOf") Date asOf, @Param("limit") int limit);
 
     List<MarketWalletActionDataObject> selectUnfinishedWithWalletTxn(@Param("limit") int limit);
 
-    int claimProcessing(@Param("lease") MarketWalletActionLease lease, @Param("leaseUntil") Date leaseUntil);
+    int claimProcessing(@Param("claim") MarketWalletActionClaim claim);
+
+    MarketWalletActionDataObject selectClaimed(@Param("lease") MarketWalletActionLease lease);
+
+    MarketWalletActionDataObject selectClaimedForUpdate(@Param("lease") MarketWalletActionLease lease,
+                                                        @Param("leaseValidAt") Date leaseValidAt);
+
+    MarketWalletActionDataObject selectByIdForUpdate(@Param("actionId") UUID actionId);
+
+    int recordWalletTxn(@Param("lease") MarketWalletActionLease lease,
+                        @Param("walletTxnId") UUID walletTxnId,
+                        @Param("leaseValidAt") Date leaseValidAt);
 
     int markSucceeded(@Param("lease") MarketWalletActionLease lease,
                       @Param("walletTxnId") UUID walletTxnId,
@@ -58,8 +77,22 @@ public interface MarketWalletActionMapper {
 
     int rescheduleFailed(@Param("actionId") UUID actionId,
                          @Param("expectedFailureCode") String expectedFailureCode,
+                         @Param("expectedRetryCount") int expectedRetryCount,
                          @Param("nextRetryAt") Date nextRetryAt,
+                         @Param("maxRetryAttempts") int maxRetryAttempts,
                          @Param("lastError") String lastError);
 
-    int recoverExpiredProcessing(@Param("asOf") Date asOf);
+    int recoverExpiredProcessing(@Param("recovery") MarketWalletActionLeaseRecovery recovery);
+
+    int deferWalletTxnRecovery(@Param("actionId") UUID actionId,
+                               @Param("expectedStatus") String expectedStatus,
+                               @Param("walletTxnId") UUID walletTxnId,
+                               @Param("nextRetryAt") Date nextRetryAt,
+                               @Param("lastError") String lastError);
+
+    int deferFailedRecovery(@Param("actionId") UUID actionId,
+                            @Param("expectedStatus") String expectedStatus,
+                            @Param("expectedFailureCode") String expectedFailureCode,
+                            @Param("nextRetryAt") Date nextRetryAt,
+                            @Param("lastError") String lastError);
 }

@@ -87,6 +87,11 @@ PATH="${fake_bin}:${PATH}" \
   FAKE_NACOS_READINESS_COUNT="${readiness_count_file}" \
   BROWSER_ALLOWED_ORIGINS="http://localhost:13110,http://127.0.0.1:13110" \
   FRONTEND_PUBLIC_ORIGIN="http://localhost:13110" \
+  AUTH_REFRESH_COOKIE_SECURE="false" \
+  AUTH_REFRESH_COOKIE_SAME_SITE="Strict" \
+  AUTH_MAIL_ENABLED="false" \
+  AUTH_MAIL_FROM="auth-test@community.invalid" \
+  AUTH_REGISTRATION_EXPOSE_CODE="true" \
   GATEWAY_PUBLIC_BASE_URL="http://localhost:13109" \
   OSS_PUBLIC_BASE_URL="http://localhost:13109" \
   IM_GATEWAY_PUBLIC_WS_URL="ws://localhost:13109/ws/im" \
@@ -123,11 +128,21 @@ for data_id in "${browser_origin_seed_files[@]}"; do
 done
 grep -F 'http://localhost:13110,http://127.0.0.1:13110' "${curl_log}"
 grep -F 'reset-base-url: ${FRONTEND_PUBLIC_ORIGIN}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:true}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'refresh-cookie-same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'enabled: ${AUTH_MAIL_ENABLED:true}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'from: ${AUTH_MAIL_FROM:no-reply@community.local}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'expose-code: ${AUTH_REGISTRATION_EXPOSE_CODE:false}' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'public-gateway-origin: ${GATEWAY_PUBLIC_BASE_URL}' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'websocket-url: ${IM_GATEWAY_PUBLIC_WS_URL}' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'public-base-url: ${OSS_PUBLIC_BASE_URL}' "${CONFIG_DIR}/community-oss.yaml"
 grep -F 'public-ws-url: ${IM_GATEWAY_PUBLIC_WS_URL}' "${CONFIG_DIR}/community-im-gateway.yaml"
 grep -F 'reset-base-url: http://localhost:13110' "${curl_log}"
+grep -F 'refresh-cookie-secure: false' "${curl_log}"
+grep -F 'refresh-cookie-same-site: Strict' "${curl_log}"
+grep -F 'enabled: false' "${curl_log}"
+grep -F 'from: auth-test@community.invalid' "${curl_log}"
+grep -F 'expose-code: true' "${curl_log}"
 grep -F 'public-gateway-origin: http://localhost:13109' "${curl_log}"
 grep -F 'websocket-url: ws://localhost:13109/ws/im' "${curl_log}"
 grep -F 'public-base-url: http://localhost:13109' "${curl_log}"
@@ -136,8 +151,8 @@ if grep -F '${BROWSER_ALLOWED_ORIGINS}' "${curl_log}" >/dev/null; then
   echo 'published Nacos config must not contain an unresolved browser origin placeholder' >&2
   exit 1
 fi
-for placeholder in FRONTEND_PUBLIC_ORIGIN GATEWAY_PUBLIC_BASE_URL OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
-  if grep -F "\${${placeholder}}" "${curl_log}" >/dev/null; then
+for placeholder in FRONTEND_PUBLIC_ORIGIN AUTH_REFRESH_COOKIE_SECURE AUTH_REFRESH_COOKIE_SAME_SITE AUTH_MAIL_ENABLED AUTH_MAIL_FROM AUTH_REGISTRATION_EXPOSE_CODE GATEWAY_PUBLIC_BASE_URL OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
+  if grep -F "\${${placeholder}" "${curl_log}" >/dev/null; then
     echo "published Nacos config must not contain an unresolved ${placeholder} placeholder" >&2
     exit 1
   fi
@@ -152,6 +167,60 @@ grep -F 'issuer: community-auth' "${CONFIG_DIR}/community-shared.yaml"
 grep -F 'access-token-audience: community-api' "${CONFIG_DIR}/community-shared.yaml"
 if grep -RE 'access-(public|private)-key|service-hmac-secret|JWT_(ACCESS|SERVICE)' "${CONFIG_DIR}" >/dev/null; then
   echo 'Nacos seed configuration must not contain JWT key material or secret placeholders' >&2
+  exit 1
+fi
+
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_NACOS_CURL_LOG="${curl_log}" \
+  FAKE_NACOS_READINESS_COUNT="${readiness_count_file}" \
+  BROWSER_ALLOWED_ORIGINS="https://community.invalid" \
+  FRONTEND_PUBLIC_ORIGIN="https://community.invalid" \
+  AUTH_REFRESH_COOKIE_SECURE="true" \
+  AUTH_REFRESH_COOKIE_SAME_SITE="CrossSite" \
+  GATEWAY_PUBLIC_BASE_URL="https://api.community.invalid" \
+  OSS_PUBLIC_BASE_URL="https://api.community.invalid" \
+  IM_GATEWAY_PUBLIC_WS_URL="wss://api.community.invalid/ws/im" \
+  CONFIG_DIR="${CONFIG_DIR}" \
+  NACOS_ADDR="http://nacos:8848" \
+  "${SEED_SCRIPT}" >/dev/null 2>&1; then
+  echo 'seed script must reject an invalid SameSite value before publishing' >&2
+  exit 1
+fi
+
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_NACOS_CURL_LOG="${curl_log}" \
+  FAKE_NACOS_READINESS_COUNT="${readiness_count_file}" \
+  BROWSER_ALLOWED_ORIGINS="https://community.invalid" \
+  FRONTEND_PUBLIC_ORIGIN="https://community.invalid" \
+  AUTH_REFRESH_COOKIE_SECURE="false" \
+  AUTH_REFRESH_COOKIE_SAME_SITE="None" \
+  GATEWAY_PUBLIC_BASE_URL="https://api.community.invalid" \
+  OSS_PUBLIC_BASE_URL="https://api.community.invalid" \
+  IM_GATEWAY_PUBLIC_WS_URL="wss://api.community.invalid/ws/im" \
+  CONFIG_DIR="${CONFIG_DIR}" \
+  NACOS_ADDR="http://nacos:8848" \
+  "${SEED_SCRIPT}" >/dev/null 2>&1; then
+  echo 'seed script must reject SameSite=None when Secure is false' >&2
+  exit 1
+fi
+grep -Fx '    identifier-hmac-secret: ${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET}' \
+  "${CONFIG_DIR}/community-app.yaml"
+grep -Fx '    quota-hmac-secret: ${AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET}' \
+  "${CONFIG_DIR}/community-app.yaml"
+grep -Fx '    ttl-seconds: ${AUTH_PASSWORD_RESET_TTL_SECONDS:600}' \
+  "${CONFIG_DIR}/community-app.yaml"
+grep -Fx '    request-window-seconds: ${AUTH_PASSWORD_RESET_REQUEST_WINDOW_SECONDS:3600}' \
+  "${CONFIG_DIR}/community-app.yaml"
+grep -Fx '      ttl-seconds: ${AUTH_REGISTRATION_DRAFT_TTL_SECONDS:1800}' \
+  "${CONFIG_DIR}/community-app.yaml"
+grep -Fx '      window-seconds: ${AUTH_REGISTRATION_RESEND_WINDOW_SECONDS:3600}' \
+  "${CONFIG_DIR}/community-app.yaml"
+grep -Fx '    identifier-hmac-secret: ${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET}' \
+  "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
+if grep -F 'identifier-hmac-secret: ${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:' \
+  "${CONFIG_DIR}/community-app.yaml" \
+  "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml" >/dev/null; then
+  echo 'password-reset identifier HMAC secret must not have a fallback' >&2
   exit 1
 fi
 
@@ -255,6 +324,12 @@ grep -F -- '- DRIVE_SHARE_TICKET_SECRET=${DRIVE_SHARE_TICKET_SECRET:?DRIVE_SHARE
   "${REPO_ROOT}/deploy/compose.runtime.services.single.yml"
 test "$(grep -Fc -- '- DRIVE_SHARE_TICKET_SECRET=${DRIVE_SHARE_TICKET_SECRET:?DRIVE_SHARE_TICKET_SECRET is required}' \
   "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 3
+grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=' "${REPO_ROOT}/deploy/.env.single.example"
+grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=' "${REPO_ROOT}/deploy/.env.cluster.example"
+grep -F -- '- AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:?AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required}' \
+  "${REPO_ROOT}/deploy/compose.runtime.services.single.yml"
+test "$(grep -Fc -- '- AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:?AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required}' \
+  "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 3
 grep -F 'allowed-mime-types:' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'image/jpeg' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'allowed-extensions:' "${CONFIG_DIR}/community-frontend-runtime.yaml"
@@ -262,22 +337,20 @@ grep -F 'jpg' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'avatar-upload-enabled: true' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'media-upload-enabled: true' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 
-awk '
-  /^auth:/ { in_auth = 1 }
-  in_auth && /^  registration:/ { in_registration = 1 }
-  in_registration && /^    mail:/ { in_mail = 1 }
-  in_mail && /^      enabled:/ {
-    if ($2 == "true") found = 1
-    else exit 1
-  }
-  END { exit found ? 0 : 1 }
-' "${CONFIG_DIR}/community-app.yaml"
+grep -F '      enabled: ${AUTH_MAIL_ENABLED:true}' "${CONFIG_DIR}/community-app.yaml"
 
 grep -F 'refresh:' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'cleanup:' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'interval-ms: 3600000' "${CONFIG_DIR}/community-app.yaml"
-grep -F 'from: no-reply@community.local' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'from: ${AUTH_MAIL_FROM:no-reply@community.local}' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'subject: 注册验证码' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'username: ${SPRING_MAIL_USERNAME:}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'password: ${SPRING_MAIL_PASSWORD:}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'connectiontimeout: ${SPRING_MAIL_CONNECTION_TIMEOUT_MS:10000}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'timeout: ${SPRING_MAIL_READ_TIMEOUT_MS:10000}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'writetimeout: ${SPRING_MAIL_WRITE_TIMEOUT_MS:10000}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'required: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED:false}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE:false}' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'http:' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'idempotency:' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'growth:' "${CONFIG_DIR}/community-app.yaml"
@@ -329,6 +402,65 @@ grep -F 'auto-offset-reset: latest' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'service: im-realtime-worker' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'worker-id: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}' "${CONFIG_DIR}/im-realtime.yaml"
 
+nacos_bootstrap_env_vars=(
+  AUTH_REFRESH_COOKIE_SECURE
+  AUTH_REFRESH_COOKIE_SAME_SITE
+  AUTH_MAIL_ENABLED
+  AUTH_MAIL_FROM
+  AUTH_REGISTRATION_EXPOSE_CODE
+)
+for compose_yml in \
+  "${REPO_ROOT}/deploy/compose.infra.nacos.single.yml" \
+  "${REPO_ROOT}/deploy/compose.infra.nacos.cluster.yml"
+do
+  for env_var in "${nacos_bootstrap_env_vars[@]}"; do
+    test "$(grep -Fc -- "- ${env_var}=" "${compose_yml}")" -eq 1
+  done
+done
+
+smtp_runtime_env_vars=(
+  SPRING_MAIL_HOST
+  SPRING_MAIL_PORT
+  SPRING_MAIL_USERNAME
+  SPRING_MAIL_PASSWORD
+  SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH
+  SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE
+  SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED
+  SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE
+  SPRING_MAIL_CONNECTION_TIMEOUT_MS
+  SPRING_MAIL_READ_TIMEOUT_MS
+  SPRING_MAIL_WRITE_TIMEOUT_MS
+)
+for env_var in "${smtp_runtime_env_vars[@]}"; do
+  test "$(grep -Fc -- "- ${env_var}=" "${REPO_ROOT}/deploy/compose.runtime.services.single.yml")" -eq 1
+  test "$(grep -Fc -- "- ${env_var}=" "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 3
+  grep -F "${env_var}=" "${REPO_ROOT}/deploy/.env.single.example"
+  grep -F "${env_var}=" "${REPO_ROOT}/deploy/.env.cluster.example"
+done
+
+community_auth_runtime_env_vars=(
+  AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET
+  AUTH_PASSWORD_RESET_TTL_SECONDS
+  AUTH_PASSWORD_RESET_REQUEST_WINDOW_SECONDS
+  AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_EMAIL
+  AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_IP
+  AUTH_REGISTRATION_DRAFT_TTL_SECONDS
+  AUTH_REGISTRATION_REQUEST_WINDOW_SECONDS
+  AUTH_REGISTRATION_MAX_REQUESTS_PER_USERNAME
+  AUTH_REGISTRATION_MAX_REQUESTS_PER_EMAIL
+  AUTH_REGISTRATION_MAX_REQUESTS_PER_IP
+  AUTH_REGISTRATION_RESEND_WINDOW_SECONDS
+  AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_REGISTRATION
+  AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_EMAIL
+  AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_IP
+)
+for env_var in "${community_auth_runtime_env_vars[@]}"; do
+  test "$(grep -Fc -- "- ${env_var}=" "${REPO_ROOT}/deploy/compose.runtime.services.single.yml")" -eq 1
+  test "$(grep -Fc -- "- ${env_var}=" "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 3
+  grep -F "${env_var}=" "${REPO_ROOT}/deploy/.env.single.example"
+  grep -F "${env_var}=" "${REPO_ROOT}/deploy/.env.cluster.example"
+done
+
 nacos_owned_env_vars=(
   OSS_CLIENT_BASE_URL
   OSS_CLIENT_SERVICE_SUBJECT
@@ -342,8 +474,8 @@ nacos_owned_env_vars=(
   GATEWAY_PUBLIC_BASE_URL
   AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS
   AUTH_MAIL_ENABLED
+  AUTH_MAIL_FROM
   AUTH_PASSWORD_RESET_BASE_URL
-  AUTH_REGISTRATION_DRAFT_TTL_SECONDS
   AUTH_REGISTRATION_EXPOSE_CODE
   XXL_JOB_ENABLED
   XXL_JOB_ADMIN_INGRESS_URL

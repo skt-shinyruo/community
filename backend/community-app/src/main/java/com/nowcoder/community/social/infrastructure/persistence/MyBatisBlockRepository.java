@@ -8,6 +8,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -23,6 +24,22 @@ public class MyBatisBlockRepository implements BlockRepository {
 
     public MyBatisBlockRepository(BlockMapper mapper) {
         this.mapper = mapper;
+    }
+
+    @Override
+    public void lockUserPair(UUID userIdA, UUID userIdB) {
+        UUID firstUserId = Objects.requireNonNull(userIdA, "userIdA must not be null");
+        UUID secondUserId = Objects.requireNonNull(userIdB, "userIdB must not be null");
+        if (firstUserId.equals(secondUserId)) {
+            throw new IllegalArgumentException("user pair must contain two distinct users");
+        }
+        if (firstUserId.compareTo(secondUserId) > 0) {
+            UUID swap = firstUserId;
+            firstUserId = secondUserId;
+            secondUserId = swap;
+        }
+        mapper.ensureUserPairLock(firstUserId, secondUserId);
+        mapper.lockUserPair(firstUserId, secondUserId);
     }
 
     @Override
@@ -60,11 +77,24 @@ public class MyBatisBlockRepository implements BlockRepository {
     }
 
     @Override
-    public List<BlockRelation> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit) {
+    public List<BlockRelation> scanBlocksAtVersionAfter(
+            long snapshotVersion,
+            UUID afterUserId,
+            UUID afterTargetUserId,
+            int limit
+    ) {
+        if (snapshotVersion < 0L) {
+            throw new IllegalArgumentException("snapshotVersion must be non-negative");
+        }
         UUID normalizedAfterUserId = afterUserId == null ? ZERO_UUID : afterUserId;
         UUID normalizedAfterTargetUserId = afterTargetUserId == null ? ZERO_UUID : afterTargetUserId;
         int normalizedLimit = Math.min(500, Math.max(1, limit));
-        List<BlockRelationDataObject> rows = mapper.scanBlocks(normalizedAfterUserId, normalizedAfterTargetUserId, normalizedLimit);
+        List<BlockRelationDataObject> rows = mapper.scanBlocksAtVersion(
+                snapshotVersion,
+                normalizedAfterUserId,
+                normalizedAfterTargetUserId,
+                normalizedLimit
+        );
         if (rows == null || rows.isEmpty()) {
             return List.of();
         }

@@ -1,7 +1,13 @@
 package com.nowcoder.community.auth.config;
 
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
+import java.util.ArrayList;
+import java.util.List;
+
+@Validated
 @ConfigurationProperties(prefix = "auth.password-reset")
 public class PasswordResetProperties {
 
@@ -37,6 +43,26 @@ public class PasswordResetProperties {
      * 单个客户端 IP 在窗口内最多允许请求次数，<= 0 表示关闭 IP 维度限流。
      */
     private int maxRequestsPerIp = 20;
+
+    /**
+     * Active HMAC key used to derive password-reset bearer tokens.
+     */
+    @NotBlank
+    private String identifierHmacSecret = "";
+
+    /**
+     * Stable HMAC key for password-reset and registration request quota identifiers.
+     * This key is intentionally independent from the rotatable mail-delivery key so
+     * rotating delivery tokens cannot reset active abuse-prevention windows.
+     */
+    @NotBlank
+    private String quotaHmacSecret = "";
+
+    /**
+     * Previous identifier HMAC secrets retained while password-reset mail outbox
+     * events issued before a rotation can still be delivered.
+     */
+    private List<String> previousIdentifierHmacSecrets = new ArrayList<>();
 
     public String getResetBaseUrl() {
         return resetBaseUrl;
@@ -84,5 +110,31 @@ public class PasswordResetProperties {
 
     public void setMaxRequestsPerIp(int maxRequestsPerIp) {
         this.maxRequestsPerIp = maxRequestsPerIp;
+    }
+
+    public String getIdentifierHmacSecret() {
+        return identifierHmacSecret;
+    }
+
+    public void setIdentifierHmacSecret(String identifierHmacSecret) {
+        this.identifierHmacSecret = identifierHmacSecret;
+    }
+
+    public String getQuotaHmacSecret() {
+        return quotaHmacSecret;
+    }
+
+    public void setQuotaHmacSecret(String quotaHmacSecret) {
+        this.quotaHmacSecret = quotaHmacSecret;
+    }
+
+    public List<String> getPreviousIdentifierHmacSecrets() {
+        return List.copyOf(previousIdentifierHmacSecrets);
+    }
+
+    public void setPreviousIdentifierHmacSecrets(List<String> previousIdentifierHmacSecrets) {
+        this.previousIdentifierHmacSecrets = previousIdentifierHmacSecrets == null
+                ? new ArrayList<>()
+                : new ArrayList<>(previousIdentifierHmacSecrets);
     }
 }

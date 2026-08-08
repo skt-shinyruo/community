@@ -2,6 +2,7 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.social.application.command.BlockCommand;
 import com.nowcoder.community.social.application.command.UnblockCommand;
+import com.nowcoder.community.social.api.action.SocialInteractionActionApi;
 import com.nowcoder.community.social.api.model.SocialBlockRelationView;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEvent;
@@ -12,6 +13,7 @@ import com.nowcoder.community.social.domain.repository.FollowRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,9 +22,10 @@ import java.util.UUID;
 
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 
 @Service("socialBlockApplicationService")
-public class BlockApplicationService implements SocialBlockQueryApi {
+public class BlockApplicationService implements SocialBlockQueryApi, SocialInteractionActionApi {
 
     private final BlockRepository blockRepository;
     private final FollowRepository followRepository;
@@ -45,6 +48,7 @@ public class BlockApplicationService implements SocialBlockQueryApi {
     public void block(BlockCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         blockDomainService.validateBlock(command.actorUserId(), command.targetUserId());
+        blockRepository.lockUserPair(command.actorUserId(), command.targetUserId());
         long version = blockRepository.nextBlockProjectionVersion();
         boolean changed = blockRepository.block(command.actorUserId(), command.targetUserId(), version);
         followRepository.unfollow(command.actorUserId(), USER, command.targetUserId());
@@ -62,6 +66,7 @@ public class BlockApplicationService implements SocialBlockQueryApi {
     public void unblock(UnblockCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         blockDomainService.validateUnblock(command.actorUserId(), command.targetUserId());
+        blockRepository.lockUserPair(command.actorUserId(), command.targetUserId());
         long version = blockRepository.nextBlockProjectionVersion();
         boolean changed = blockRepository.unblock(command.actorUserId(), command.targetUserId(), version);
         if (!changed) {
@@ -86,6 +91,19 @@ public class BlockApplicationService implements SocialBlockQueryApi {
         return blockDomainService.isEitherBlocked(userIdA, userIdB, blockRepository);
     }
 
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void assertInteractionAllowed(UUID actorUserId, UUID targetUserId) {
+        if (actorUserId == null || targetUserId == null || actorUserId.equals(targetUserId)) {
+            return;
+        }
+        blockRepository.lockUserPair(actorUserId, targetUserId);
+        if (blockDomainService.isEitherBlocked(actorUserId, targetUserId, blockRepository)) {
+            throw new com.nowcoder.community.common.exception.BusinessException(
+                    FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
+        }
+    }
+
     public List<UUID> listBlockedUserIds(UUID userId) {
         if (userId == null) {
             throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "userId 非法");
@@ -94,11 +112,24 @@ public class BlockApplicationService implements SocialBlockQueryApi {
     }
 
     @Override
-    public List<SocialBlockRelationView> scanBlockRelationsAfter(UUID afterBlockerUserId, UUID afterBlockedUserId, int limit) {
+    public List<SocialBlockRelationView> scanBlockRelationsAtVersionAfter(
+            long snapshotVersion,
+            UUID afterBlockerUserId,
+            UUID afterBlockedUserId,
+            int limit
+    ) {
+        if (snapshotVersion < 0L) {
+            throw new IllegalArgumentException("snapshotVersion must be non-negative");
+        }
         if ((afterBlockerUserId == null) != (afterBlockedUserId == null)) {
             throw new IllegalArgumentException("afterBlockerUserId and afterBlockedUserId must be provided together");
         }
-        return blockRepository.scanBlocksAfter(afterBlockerUserId, afterBlockedUserId, limit)
+        return blockRepository.scanBlocksAtVersionAfter(
+                        snapshotVersion,
+                        afterBlockerUserId,
+                        afterBlockedUserId,
+                        limit
+                )
                 .stream()
                 .map(this::toResult)
                 .toList();

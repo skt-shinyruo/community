@@ -1,8 +1,12 @@
 package com.nowcoder.community.user.application;
 
+import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
+
 import com.nowcoder.community.app.CommunityAppApplication;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
+import com.nowcoder.community.user.api.action.UserModerationActionApi.ApplyModerationCommand;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
 import com.nowcoder.community.user.infrastructure.audit.Slf4jUserAuditLogAdapter;
@@ -17,8 +21,15 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
+import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -64,6 +75,8 @@ class UserWriteTransactionIntegrationTest {
     void setUp() {
         reset(userAuditLogAdapter, userPolicyEventPublisher);
         jdbcTemplate.update("delete from outbox_event");
+        jdbcTemplate.update("delete from user_policy_version_log");
+        jdbcTemplate.update("delete from user where id = ?", BinaryUuidCodec.toBytes(ACTOR_USER_ID));
         jdbcTemplate.update("delete from user where id = ?", BinaryUuidCodec.toBytes(TARGET_USER_ID));
         jdbcTemplate.update("delete from user where id = ?", BinaryUuidCodec.toBytes(REGISTRATION_USER_ID));
         jdbcTemplate.update(
@@ -74,27 +87,54 @@ class UserWriteTransactionIntegrationTest {
                 "update user_security_version_counter set current_version = ? where id = 1",
                 INITIAL_SECURITY_COUNTER
         );
-        jdbcTemplate.update(
-                """
-                insert into user(
-                    id, username, password, salt, email, type, status, header_url,
-                    create_time, mute_until, ban_until, policy_version, security_version
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                BinaryUuidCodec.toBytes(TARGET_USER_ID),
+        insertUser(
+                ACTOR_USER_ID,
+                "transaction-actor",
+                "transaction-actor@example.com",
+                1,
+                1
+        );
+        insertUser(
+                TARGET_USER_ID,
                 "transaction-target",
-                "encoded-password",
-                "salt",
                 "transaction-target@example.com",
                 0,
-                0,
-                "header",
-                Timestamp.from(Instant.parse("2026-07-15T00:00:00Z")),
-                null,
-                null,
-                INITIAL_USER_POLICY_VERSION,
-                INITIAL_USER_SECURITY_VERSION
+                1
         );
+    }
+
+    @Test
+    void concurrentMutualAdminDowngradesMustLeaveOneActiveAdmin() throws Exception {
+        jdbcTemplate.update(
+                "update user set type = 1, status = 1 where id in (?, ?)",
+                BinaryUuidCodec.toBytes(ACTOR_USER_ID),
+                BinaryUuidCodec.toBytes(TARGET_USER_ID)
+        );
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Throwable> first = executor.submit(() -> attemptRoleUpdate(
+                    start,
+                    new UpdateUserRoleCommand(ACTOR_USER_ID, TARGET_USER_ID, 2, "delegate target", true)
+            ));
+            Future<Throwable> second = executor.submit(() -> attemptRoleUpdate(
+                    start,
+                    new UpdateUserRoleCommand(TARGET_USER_ID, ACTOR_USER_ID, 2, "delegate target", true)
+            ));
+
+            start.countDown();
+            List<Throwable> outcomes = Arrays.asList(first.get(), second.get());
+
+            assertThat(outcomes).filteredOn(error -> error == null).hasSize(1);
+            assertThat(outcomes).filteredOn(error -> error instanceof BusinessException).singleElement()
+                    .satisfies(error -> {
+                        assertThat(error).hasMessage("操作者不再具备有效管理员权限");
+                        assertThat(((BusinessException) error).getErrorCode()).isEqualTo(FORBIDDEN);
+                    });
+            assertThat(activeAdminCount(ACTOR_USER_ID, TARGET_USER_ID)).isOne();
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
@@ -135,7 +175,9 @@ class UserWriteTransactionIntegrationTest {
             throw new IllegalStateException("policy publication failed");
         }).when(userPolicyEventPublisher).publishUserPolicyChanged(any(), any());
 
-        assertThatThrownBy(() -> userModerationApplicationService.applyModeration(TARGET_USER_ID, "ban", 120))
+        assertThatThrownBy(() -> userModerationApplicationService.applyModeration(
+                new ApplyModerationCommand(ACTOR_USER_ID, TARGET_USER_ID, "ban", 120)
+        ))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("policy publication failed");
 
@@ -149,7 +191,7 @@ class UserWriteTransactionIntegrationTest {
 
     @Test
     void registrationMustReturnThePositiveSecurityVersionPersistedInItsTransaction() {
-        UserCredentialView result = userRegistrationApplicationService.createVerifiedRegistrationUser(
+        UserRegistrationActionApi.VerifiedRegistrationResult result = userRegistrationApplicationService.createVerifiedRegistrationUser(
                 registrationCommand()
         );
 
@@ -160,7 +202,8 @@ class UserWriteTransactionIntegrationTest {
         );
         assertThat(persistedSecurityVersion).isEqualTo(INITIAL_SECURITY_COUNTER + 1L);
         assertThat(persistedSecurityVersion).isPositive();
-        assertThat(result.securityVersion()).isEqualTo(persistedSecurityVersion);
+        assertThat(result.created()).isTrue();
+        assertThat(result.user().securityVersion()).isEqualTo(persistedSecurityVersion);
         assertThat(securityCounter()).isEqualTo(persistedSecurityVersion);
         assertThat(requiredValue(
                 REGISTRATION_USER_ID,
@@ -202,6 +245,50 @@ class UserWriteTransactionIntegrationTest {
 
     private int userType() {
         return requiredValue("select type from user where id = ?", Integer.class);
+    }
+
+    private Throwable attemptRoleUpdate(CountDownLatch start, UpdateUserRoleCommand command) {
+        try {
+            start.await();
+            adminUserApplicationService.updateRole(command);
+            return null;
+        } catch (Throwable error) {
+            return error;
+        }
+    }
+
+    private long activeAdminCount(UUID firstUserId, UUID secondUserId) {
+        Long count = jdbcTemplate.queryForObject(
+                "select count(*) from user where id in (?, ?) and type = 1 and status != 0",
+                Long.class,
+                BinaryUuidCodec.toBytes(firstUserId),
+                BinaryUuidCodec.toBytes(secondUserId)
+        );
+        return count == null ? 0L : count;
+    }
+
+    private void insertUser(UUID userId, String username, String email, int type, int status) {
+        jdbcTemplate.update(
+                """
+                insert into user(
+                    id, username, password, salt, email, type, status, header_url,
+                    create_time, mute_until, ban_until, policy_version, security_version
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                BinaryUuidCodec.toBytes(userId),
+                username,
+                "encoded-password",
+                "salt",
+                email,
+                type,
+                status,
+                "header",
+                Timestamp.from(Instant.parse("2026-07-15T00:00:00Z")),
+                null,
+                null,
+                INITIAL_USER_POLICY_VERSION,
+                INITIAL_USER_SECURITY_VERSION
+        );
     }
 
     private long userPolicyVersion() {

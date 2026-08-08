@@ -22,6 +22,15 @@ public interface DiscussPostMapper {
             @Param("orderMode") int orderMode
     );
 
+    List<DiscussPost> selectHotPostsAfter(
+            @Param("beforeType") int beforeType,
+            @Param("beforeScore") double beforeScore,
+            @Param("beforeCreateTime") Date beforeCreateTime,
+            @Param("beforePostId") UUID beforePostId,
+            @Param("limit") int limit,
+            @Param("categoryId") UUID categoryId
+    );
+
     List<DiscussPost> selectDiscussPostsByIds(@Param("postIds") List<UUID> postIds);
 
     List<DiscussPost> selectRecentVisiblePostsByAuthorIds(@Param("authorIds") List<UUID> authorIds, @Param("limit") int limit);

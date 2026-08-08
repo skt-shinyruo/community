@@ -1,7 +1,9 @@
 package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
+import com.nowcoder.community.market.domain.model.MarketWalletActionClaim;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
+import com.nowcoder.community.market.domain.model.MarketWalletActionLeaseRecovery;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.domain.model.MarketOrderTransition;
@@ -10,6 +12,7 @@ import com.nowcoder.community.market.domain.repository.MarketInventoryRepository
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import com.nowcoder.community.market.infrastructure.persistence.MyBatisMarketWalletActionRepository;
+import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
@@ -51,7 +54,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = escrowAction();
         Instant now = Instant.parse("2026-05-18T00:00:00Z");
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(0);
+        when(mapper.claimProcessing(any(MarketWalletActionClaim.class))).thenReturn(0);
         MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
@@ -63,13 +66,17 @@ class MarketWalletActionProcessorApplicationServiceTest {
 
         processor.processOne(action);
 
-        ArgumentCaptor<MarketWalletActionLease> ownershipCaptor =
-                ArgumentCaptor.forClass(MarketWalletActionLease.class);
-        ArgumentCaptor<Date> deadlineCaptor = ArgumentCaptor.forClass(Date.class);
-        verify(mapper).claimProcessing(ownershipCaptor.capture(), deadlineCaptor.capture());
-        assertThat(ownershipCaptor.getValue().actionId()).isEqualTo(action.getActionId());
-        assertThat(ownershipCaptor.getValue().token()).isNotNull();
-        assertThat(deadlineCaptor.getValue().toInstant()).isEqualTo(now.plusSeconds(120));
+        ArgumentCaptor<MarketWalletActionClaim> claimCaptor =
+                ArgumentCaptor.forClass(MarketWalletActionClaim.class);
+        verify(mapper).claimProcessing(claimCaptor.capture());
+        MarketWalletActionClaim claim = claimCaptor.getValue();
+        assertThat(claim.lease().actionId()).isEqualTo(action.getActionId());
+        assertThat(claim.lease().token()).isNotNull();
+        assertThat(claim.expectedStatus()).isEqualTo("PENDING");
+        assertThat(claim.expectedRetryCount()).isZero();
+        assertThat(claim.claimedAt().toInstant()).isEqualTo(now);
+        assertThat(claim.leaseUntil().toInstant()).isEqualTo(now.plusSeconds(120));
+        assertThat(claim.maxRetryAttempts()).isEqualTo(8);
     }
 
     @Test
@@ -79,7 +86,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = escrowAction();
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(mapper.markCancelled(any(MarketWalletActionLease.class), eq("NOOP"))).thenReturn(1);
         when(sagaService.canApplyEscrow(action.getOrderId())).thenReturn(false);
 
@@ -95,10 +102,8 @@ class MarketWalletActionProcessorApplicationServiceTest {
 
         assertThat(processed).isTrue();
         verify(walletApi, never()).escrowOrder(any(), any(), anyLong(), any());
-        ArgumentCaptor<MarketWalletActionLease> leaseCaptor =
-                ArgumentCaptor.forClass(MarketWalletActionLease.class);
-        verify(mapper).claimProcessing(leaseCaptor.capture(), any());
-        verify(mapper).markCancelled(same(leaseCaptor.getValue()), eq("NOOP"));
+        MarketWalletActionLease lease = claimedLease(mapper);
+        verify(mapper).markCancelled(same(lease), eq("NOOP"));
     }
 
     @Test
@@ -157,26 +162,58 @@ class MarketWalletActionProcessorApplicationServiceTest {
             int call = reservedReleaseCalls.incrementAndGet();
             return call == 1 ? 1 : 0;
         });
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenAnswer(invocation -> {
+        when(mapper.claimProcessing(any(MarketWalletActionClaim.class))).thenAnswer(invocation -> {
             String status = walletActionStatus.get();
             if (!MarketWalletActionStatus.PENDING.equals(status)
                     && !MarketWalletActionStatus.RETRYING.equals(status)) {
                 return 0;
             }
             walletActionStatus.set(MarketWalletActionStatus.PROCESSING);
-            processingLease.set(invocation.getArgument(0));
-            processingLeaseUntil.set(invocation.getArgument(1));
+            MarketWalletActionClaim claim = invocation.getArgument(0);
+            processingLease.set(claim.lease());
+            processingLeaseUntil.set(claim.leaseUntil());
             return 1;
         });
-        when(mapper.recoverExpiredProcessing(any())).thenAnswer(invocation -> {
+        when(mapper.selectClaimed(any(MarketWalletActionLease.class))).thenAnswer(invocation -> {
+            MarketWalletActionLease lease = invocation.getArgument(0);
+            return MarketWalletActionStatus.PROCESSING.equals(walletActionStatus.get())
+                    && lease.equals(processingLease.get())
+                    ? MarketWalletActionDataObject.from(action)
+                    : null;
+        });
+        when(mapper.selectClaimedForUpdate(any(MarketWalletActionLease.class), any())).thenAnswer(invocation -> {
+            MarketWalletActionLease lease = invocation.getArgument(0);
+            return MarketWalletActionStatus.PROCESSING.equals(walletActionStatus.get())
+                    && lease.equals(processingLease.get())
+                    ? MarketWalletActionDataObject.from(action)
+                    : null;
+        });
+        when(mapper.selectExpiredProcessing(any(), anyInt())).thenAnswer(invocation -> {
             Date asOf = invocation.getArgument(0);
             Date leaseUntil = processingLeaseUntil.get();
             if (!MarketWalletActionStatus.PROCESSING.equals(walletActionStatus.get())
                     || leaseUntil == null
                     || leaseUntil.after(asOf)) {
+                return java.util.List.of();
+            }
+            MarketWalletActionDataObject candidate = MarketWalletActionDataObject.from(action);
+            candidate.setStatus(MarketWalletActionStatus.PROCESSING);
+            candidate.setProcessingLeaseUntil(leaseUntil);
+            candidate.setLeaseToken(processingLease.get().token());
+            return java.util.List.of(candidate);
+        });
+        when(mapper.recoverExpiredProcessing(any(MarketWalletActionLeaseRecovery.class))).thenAnswer(invocation -> {
+            MarketWalletActionLeaseRecovery recovery = invocation.getArgument(0);
+            Date leaseUntil = processingLeaseUntil.get();
+            if (!MarketWalletActionStatus.PROCESSING.equals(walletActionStatus.get())
+                    || leaseUntil == null
+                    || !leaseUntil.equals(recovery.expectedLeaseUntil())
+                    || !processingLease.get().token().equals(recovery.expectedLeaseToken())
+                    || action.getRetryCount() != recovery.expectedRetryCount()) {
                 return 0;
             }
             walletActionStatus.set(MarketWalletActionStatus.RETRYING);
+            action.setRetryCount(action.getRetryCount() + 1);
             processingLease.set(null);
             processingLeaseUntil.set(null);
             return 1;
@@ -258,7 +295,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(mapper.markRetrying(any(MarketWalletActionLease.class), any(), any())).thenReturn(1);
         when(walletApi.releaseOrder(action.getRequestId(), action.getActorUserId(), action.getAmount(), action.getWalletBizId()))
                 .thenThrow(new BusinessException(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT, "escrow insufficient"));
@@ -274,11 +311,9 @@ class MarketWalletActionProcessorApplicationServiceTest {
         boolean processed = processor.processOne(action);
 
         assertThat(processed).isFalse();
-        ArgumentCaptor<MarketWalletActionLease> leaseCaptor =
-                ArgumentCaptor.forClass(MarketWalletActionLease.class);
-        verify(mapper).claimProcessing(leaseCaptor.capture(), any());
+        MarketWalletActionLease lease = claimedLease(mapper);
         verify(mapper).markRetrying(
-                same(leaseCaptor.getValue()),
+                same(lease),
                 any(),
                 eq("escrow insufficient")
         );
@@ -294,7 +329,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = refundAction();
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(mapper.markRetrying(any(MarketWalletActionLease.class), any(), any())).thenReturn(1);
         when(walletApi.refundOrder(action.getRequestId(), action.getActorUserId(), action.getAmount(), action.getWalletBizId()))
                 .thenThrow(new BusinessException(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT, "escrow insufficient"));
@@ -310,17 +345,137 @@ class MarketWalletActionProcessorApplicationServiceTest {
         boolean processed = processor.processOne(action);
 
         assertThat(processed).isFalse();
-        ArgumentCaptor<MarketWalletActionLease> leaseCaptor =
-                ArgumentCaptor.forClass(MarketWalletActionLease.class);
-        verify(mapper).claimProcessing(leaseCaptor.capture(), any());
+        MarketWalletActionLease lease = claimedLease(mapper);
         verify(mapper).markRetrying(
-                same(leaseCaptor.getValue()),
+                same(lease),
                 any(),
                 eq("escrow insufficient")
         );
         verify(sagaService, never()).markRefundSucceeded(any(), any());
         verify(mapper, never()).markFailed(any(MarketWalletActionLease.class), any(), any());
         verify(mapper, never()).markSucceeded(any(MarketWalletActionLease.class), any(), any());
+    }
+
+    @Test
+    void processOneShouldRetryEscrowOnWalletAccountUpdateConflict() {
+        MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
+        MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
+        WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
+        MarketWalletAction action = escrowAction();
+        claimSucceeds(mapper, action);
+        when(sagaService.canApplyEscrow(action.getOrderId())).thenReturn(true);
+        when(mapper.markRetrying(any(MarketWalletActionLease.class), any(), any())).thenReturn(1);
+        when(walletApi.escrowOrder(
+                action.getRequestId(),
+                action.getActorUserId(),
+                action.getAmount(),
+                action.getWalletBizId()
+        )).thenThrow(new BusinessException(WalletErrorCode.ACCOUNT_UPDATE_CONFLICT, "wallet version conflict"));
+        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+                new MyBatisMarketWalletActionRepository(mapper),
+                walletApi,
+                sagaService,
+                actionCoordinator,
+                Clock.systemUTC()
+        );
+
+        assertThat(processor.processOne(action)).isFalse();
+
+        verify(mapper).markRetrying(any(MarketWalletActionLease.class), any(), eq("wallet version conflict"));
+        verify(sagaService, never()).markEscrowTerminalFailed(any(), any());
+        verify(mapper, never()).markFailed(any(), any(), any());
+    }
+
+    @Test
+    void retryingEscrowShouldReplayWalletInsteadOfCompletingCancellationAsNoop() {
+        MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
+        MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
+        WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
+        MarketWalletAction action = escrowAction();
+        action.setStatus(MarketWalletActionStatus.RETRYING);
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
+                uuid(107),
+                "ORDER_ESCROW",
+                "SUCCEEDED",
+                action.getAmount(),
+                action.getWalletBizId()
+        );
+        claimSucceeds(mapper, action);
+        when(walletApi.escrowOrder(
+                action.getRequestId(),
+                action.getActorUserId(),
+                action.getAmount(),
+                action.getWalletBizId()
+        )).thenReturn(walletTxn);
+        when(sagaService.markEscrowSucceeded(action.getOrderId(), walletTxn.txnId())).thenReturn(false);
+        when(sagaService.markEscrowCancelRefundPending(action.getOrderId(), walletTxn.txnId())).thenReturn(true);
+        when(mapper.markSucceeded(any(), eq(walletTxn.txnId()), eq("APPLIED"))).thenReturn(1);
+        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+                new MyBatisMarketWalletActionRepository(mapper),
+                walletApi,
+                sagaService,
+                actionCoordinator,
+                Clock.systemUTC()
+        );
+
+        assertThat(processor.processOne(action)).isTrue();
+
+        verify(sagaService, never()).canApplyEscrow(any());
+        verify(walletApi).escrowOrder(
+                action.getRequestId(),
+                action.getActorUserId(),
+                action.getAmount(),
+                action.getWalletBizId()
+        );
+        verify(actionCoordinator).enqueueRefund(
+                action.getOrderId(),
+                action.getActorUserId(),
+                action.getCounterpartyUserId(),
+                action.getAmount()
+        );
+        verify(mapper, never()).markCancelled(any(), any());
+    }
+
+    @Test
+    void walletSuccessShouldRemainRecoverableWhenSagaCompletionThrows() {
+        MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
+        MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
+        WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
+        MarketWalletAction action = releaseAction();
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
+                uuid(108),
+                "ORDER_RELEASE",
+                "SUCCEEDED",
+                action.getAmount(),
+                action.getWalletBizId()
+        );
+        claimSucceeds(mapper, action);
+        when(walletApi.releaseOrder(any(), any(), anyLong(), any())).thenReturn(walletTxn);
+        when(sagaService.markReleaseSucceeded(action.getOrderId(), walletTxn.txnId()))
+                .thenThrow(new IllegalStateException("saga write failed"));
+        when(mapper.markRecoveryPending(any(), eq(walletTxn.txnId()), eq("SAGA_COMPLETION_FAILED"), any()))
+                .thenReturn(1);
+        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+                new MyBatisMarketWalletActionRepository(mapper),
+                walletApi,
+                sagaService,
+                actionCoordinator,
+                Clock.systemUTC()
+        );
+
+        assertThat(processor.processOne(action)).isTrue();
+
+        verify(mapper).recordWalletTxn(any(), eq(walletTxn.txnId()), any());
+        verify(mapper).markRecoveryPending(
+                any(),
+                eq(walletTxn.txnId()),
+                eq("SAGA_COMPLETION_FAILED"),
+                eq("saga write failed")
+        );
+        verify(mapper, never()).markFailed(any(), any(), any());
     }
 
     @Test
@@ -331,7 +486,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         action.setRetryCount(7);
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(mapper.markDead(any(MarketWalletActionLease.class), any())).thenReturn(1);
         when(walletApi.releaseOrder(action.getRequestId(), action.getActorUserId(), action.getAmount(), action.getWalletBizId()))
                 .thenThrow(new BusinessException(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT, "escrow insufficient"));
@@ -349,10 +504,8 @@ class MarketWalletActionProcessorApplicationServiceTest {
         boolean processed = processor.processOne(action);
 
         assertThat(processed).isTrue();
-        ArgumentCaptor<MarketWalletActionLease> leaseCaptor =
-                ArgumentCaptor.forClass(MarketWalletActionLease.class);
-        verify(mapper).claimProcessing(leaseCaptor.capture(), any());
-        verify(mapper).markDead(same(leaseCaptor.getValue()), eq("escrow insufficient"));
+        MarketWalletActionLease lease = claimedLease(mapper);
+        verify(mapper).markDead(same(lease), eq("escrow insufficient"));
         verify(mapper, never()).markRetrying(any(MarketWalletActionLease.class), any(), any());
         verify(mapper, never()).markFailed(any(MarketWalletActionLease.class), any(), any());
     }
@@ -364,7 +517,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(mapper.markFailed(any(MarketWalletActionLease.class), any(), any())).thenReturn(1);
         when(walletApi.releaseOrder(action.getRequestId(), action.getActorUserId(), action.getAmount(), action.getWalletBizId()))
                 .thenThrow(new BusinessException(WalletErrorCode.INVALID_REQUEST, "invalid market wallet request"));
@@ -380,11 +533,9 @@ class MarketWalletActionProcessorApplicationServiceTest {
         boolean processed = processor.processOne(action);
 
         assertThat(processed).isTrue();
-        ArgumentCaptor<MarketWalletActionLease> leaseCaptor =
-                ArgumentCaptor.forClass(MarketWalletActionLease.class);
-        verify(mapper).claimProcessing(leaseCaptor.capture(), any());
+        MarketWalletActionLease lease = claimedLease(mapper);
         verify(mapper).markFailed(
-                same(leaseCaptor.getValue()),
+                same(lease),
                 eq(String.valueOf(WalletErrorCode.INVALID_REQUEST.getCode())),
                 eq("invalid market wallet request")
         );
@@ -406,7 +557,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 action.getAmount(),
                 action.getWalletBizId()
         );
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(walletApi.releaseOrder(
                 action.getRequestId(),
                 action.getActorUserId(),
@@ -427,11 +578,9 @@ class MarketWalletActionProcessorApplicationServiceTest {
         boolean processed = processor.processOne(action);
 
         assertThat(processed).isTrue();
-        ArgumentCaptor<MarketWalletActionLease> leaseCaptor =
-                ArgumentCaptor.forClass(MarketWalletActionLease.class);
-        verify(mapper).claimProcessing(leaseCaptor.capture(), any());
+        MarketWalletActionLease lease = claimedLease(mapper);
         verify(mapper).markSucceeded(
-                same(leaseCaptor.getValue()),
+                same(lease),
                 eq(walletTxn.txnId()),
                 eq("APPLIED")
         );
@@ -451,7 +600,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 action.getAmount(),
                 action.getWalletBizId()
         );
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(mapper.markRecoveryPending(any(MarketWalletActionLease.class), any(), any(), any()))
                 .thenReturn(1);
         when(walletApi.releaseOrder(action.getRequestId(), action.getActorUserId(), action.getAmount(), action.getWalletBizId()))
@@ -470,12 +619,10 @@ class MarketWalletActionProcessorApplicationServiceTest {
 
         assertThat(processed).isTrue();
         verify(sagaService).markReleaseSucceeded(action.getOrderId(), walletTxn.txnId());
-        ArgumentCaptor<MarketWalletActionLease> leaseCaptor =
-                ArgumentCaptor.forClass(MarketWalletActionLease.class);
-        verify(mapper).claimProcessing(leaseCaptor.capture(), any());
+        MarketWalletActionLease lease = claimedLease(mapper);
         verify(mapper, never()).markSucceeded(any(MarketWalletActionLease.class), any(), any());
         verify(mapper).markRecoveryPending(
-                same(leaseCaptor.getValue()),
+                same(lease),
                 eq(walletTxn.txnId()),
                 eq("SAGA_STATE_NOT_ADVANCED"),
                 eq("market order saga did not advance after wallet success")
@@ -496,7 +643,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 action.getAmount(),
                 action.getWalletBizId()
         );
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(mapper.markRecoveryPending(any(MarketWalletActionLease.class), any(), any(), any()))
                 .thenReturn(1);
         when(sagaService.canApplyEscrow(action.getOrderId())).thenReturn(true);
@@ -518,12 +665,10 @@ class MarketWalletActionProcessorApplicationServiceTest {
         assertThat(processed).isTrue();
         verify(sagaService).markEscrowSucceeded(action.getOrderId(), walletTxn.txnId());
         verify(sagaService).markEscrowCancelRefundPending(action.getOrderId(), walletTxn.txnId());
-        ArgumentCaptor<MarketWalletActionLease> leaseCaptor =
-                ArgumentCaptor.forClass(MarketWalletActionLease.class);
-        verify(mapper).claimProcessing(leaseCaptor.capture(), any());
+        MarketWalletActionLease lease = claimedLease(mapper);
         verify(mapper, never()).markSucceeded(any(MarketWalletActionLease.class), any(), any());
         verify(mapper).markRecoveryPending(
-                same(leaseCaptor.getValue()),
+                same(lease),
                 eq(walletTxn.txnId()),
                 eq("SAGA_STATE_NOT_ADVANCED"),
                 eq("market order saga did not advance after wallet success")
@@ -545,7 +690,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 action.getAmount(),
                 action.getWalletBizId()
         );
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(walletApi.releaseOrder(
                 action.getRequestId(),
                 action.getActorUserId(),
@@ -577,7 +722,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = escrowAction();
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(sagaService.canApplyEscrow(action.getOrderId())).thenReturn(false);
         when(mapper.markCancelled(any(MarketWalletActionLease.class), eq("NOOP"))).thenReturn(0);
         MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
@@ -602,7 +747,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(walletApi.releaseOrder(
                 action.getRequestId(),
                 action.getActorUserId(),
@@ -635,7 +780,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(walletApi.releaseOrder(
                 action.getRequestId(),
                 action.getActorUserId(),
@@ -676,7 +821,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 action.getAmount(),
                 action.getWalletBizId()
         );
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(walletApi.releaseOrder(
                 action.getRequestId(),
                 action.getActorUserId(),
@@ -714,7 +859,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
         action.setRetryCount(7);
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenReturn(1);
+        claimSucceeds(mapper, action);
         when(walletApi.releaseOrder(
                 action.getRequestId(),
                 action.getActorUserId(),
@@ -762,12 +907,16 @@ class MarketWalletActionProcessorApplicationServiceTest {
         AtomicReference<MarketWalletActionLease> leaseA = new AtomicReference<>();
         AtomicReference<MarketWalletActionLease> leaseB = new AtomicReference<>();
         AtomicInteger claimCount = new AtomicInteger();
-        when(mapper.claimProcessing(any(MarketWalletActionLease.class), any())).thenAnswer(invocation -> {
+        when(mapper.claimProcessing(any(MarketWalletActionClaim.class))).thenAnswer(invocation -> {
             if (!MarketWalletActionStatus.PENDING.equals(status.get())
                     && !MarketWalletActionStatus.RETRYING.equals(status.get())) {
                 return 0;
             }
-            MarketWalletActionLease lease = invocation.getArgument(0);
+            MarketWalletActionClaim claim = invocation.getArgument(0);
+            if (claim.expectedRetryCount() != action.getRetryCount()) {
+                return 0;
+            }
+            MarketWalletActionLease lease = claim.lease();
             if (claimCount.getAndIncrement() == 0) {
                 leaseA.set(lease);
             } else {
@@ -777,11 +926,51 @@ class MarketWalletActionProcessorApplicationServiceTest {
             status.set(MarketWalletActionStatus.PROCESSING);
             return 1;
         });
-        when(mapper.recoverExpiredProcessing(any())).thenAnswer(ignored -> {
+        when(mapper.selectClaimed(any(MarketWalletActionLease.class))).thenAnswer(invocation -> {
+            MarketWalletActionLease lease = invocation.getArgument(0);
+            return MarketWalletActionStatus.PROCESSING.equals(status.get())
+                    && lease.equals(currentLease.get())
+                    ? MarketWalletActionDataObject.from(action)
+                    : null;
+        });
+        when(mapper.selectClaimedForUpdate(any(MarketWalletActionLease.class), any())).thenAnswer(invocation -> {
+            MarketWalletActionLease lease = invocation.getArgument(0);
+            return MarketWalletActionStatus.PROCESSING.equals(status.get())
+                    && lease.equals(currentLease.get())
+                    ? MarketWalletActionDataObject.from(action)
+                    : null;
+        });
+        when(mapper.recordWalletTxn(any(MarketWalletActionLease.class), eq(walletTxn.txnId()), any()))
+                .thenAnswer(invocation -> {
+                    MarketWalletActionLease attemptedLease = invocation.getArgument(0);
+                    return MarketWalletActionStatus.PROCESSING.equals(status.get())
+                            && attemptedLease.equals(currentLease.get()) ? 1 : 0;
+                });
+        when(mapper.selectExpiredProcessing(any(), anyInt())).thenAnswer(invocation -> {
+            Date asOf = invocation.getArgument(0);
             if (!MarketWalletActionStatus.PROCESSING.equals(status.get())) {
+                return java.util.List.of();
+            }
+            MarketWalletActionLease activeLease = currentLease.get();
+            if (activeLease == null) {
+                return java.util.List.of();
+            }
+            MarketWalletActionDataObject candidate = MarketWalletActionDataObject.from(action);
+            candidate.setStatus(MarketWalletActionStatus.PROCESSING);
+            candidate.setLeaseToken(activeLease.token());
+            candidate.setProcessingLeaseUntil(Date.from(asOf.toInstant().minusSeconds(1)));
+            return java.util.List.of(candidate);
+        });
+        when(mapper.recoverExpiredProcessing(any(MarketWalletActionLeaseRecovery.class))).thenAnswer(invocation -> {
+            MarketWalletActionLeaseRecovery recovery = invocation.getArgument(0);
+            if (!MarketWalletActionStatus.PROCESSING.equals(status.get())
+                    || currentLease.get() == null
+                    || !currentLease.get().token().equals(recovery.expectedLeaseToken())
+                    || action.getRetryCount() != recovery.expectedRetryCount()) {
                 return 0;
             }
             status.set(MarketWalletActionStatus.RETRYING);
+            action.setRetryCount(action.getRetryCount() + 1);
             currentLease.set(null);
             return 1;
         });
@@ -853,6 +1042,76 @@ class MarketWalletActionProcessorApplicationServiceTest {
         assertThat(transitionLeases.getAllValues()).containsExactly(leaseB.get(), leaseA.get());
         verify(mapper, never()).markFailed(any(MarketWalletActionLease.class), any(), any());
         verify(mapper, never()).markRecoveryPending(any(MarketWalletActionLease.class), any(), any(), any());
+    }
+
+    @Test
+    void processOneShouldUseLeaseFencedCurrentActionAfterClaim() {
+        MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
+        MarketOrderSagaApplicationService sagaService = mock(MarketOrderSagaApplicationService.class);
+        MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
+        WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
+        MarketWalletAction staleCandidate = releaseAction();
+        MarketWalletActionDataObject current = MarketWalletActionDataObject.from(staleCandidate);
+        current.setAmount(staleCandidate.getAmount() + 500L);
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
+                uuid(106),
+                "ORDER_RELEASE",
+                "SUCCEEDED",
+                current.getAmount(),
+                current.getWalletBizId()
+        );
+        when(mapper.claimProcessing(any(MarketWalletActionClaim.class))).thenReturn(1);
+        when(mapper.selectClaimed(any(MarketWalletActionLease.class))).thenReturn(current);
+        when(mapper.selectClaimedForUpdate(any(MarketWalletActionLease.class), any())).thenReturn(current);
+        when(mapper.recordWalletTxn(any(MarketWalletActionLease.class), eq(walletTxn.txnId()), any()))
+                .thenReturn(1);
+        when(walletApi.releaseOrder(
+                current.getRequestId(),
+                current.getActorUserId(),
+                current.getAmount(),
+                current.getWalletBizId()
+        )).thenReturn(walletTxn);
+        when(sagaService.markReleaseSucceeded(current.getOrderId(), walletTxn.txnId())).thenReturn(true);
+        when(mapper.markSucceeded(any(MarketWalletActionLease.class), eq(walletTxn.txnId()), eq("APPLIED")))
+                .thenReturn(1);
+        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+                new MyBatisMarketWalletActionRepository(mapper),
+                walletApi,
+                sagaService,
+                actionCoordinator,
+                Clock.systemUTC()
+        );
+
+        assertThat(processor.processOne(staleCandidate)).isTrue();
+
+        verify(walletApi).releaseOrder(
+                current.getRequestId(),
+                current.getActorUserId(),
+                current.getAmount(),
+                current.getWalletBizId()
+        );
+        verify(walletApi, never()).releaseOrder(
+                staleCandidate.getRequestId(),
+                staleCandidate.getActorUserId(),
+                staleCandidate.getAmount(),
+                staleCandidate.getWalletBizId()
+        );
+    }
+
+    private void claimSucceeds(MarketWalletActionMapper mapper, MarketWalletAction action) {
+        when(mapper.claimProcessing(any(MarketWalletActionClaim.class))).thenReturn(1);
+        when(mapper.selectClaimed(any(MarketWalletActionLease.class)))
+                .thenReturn(MarketWalletActionDataObject.from(action));
+        when(mapper.selectClaimedForUpdate(any(MarketWalletActionLease.class), any()))
+                .thenReturn(MarketWalletActionDataObject.from(action));
+        when(mapper.recordWalletTxn(any(MarketWalletActionLease.class), any(), any())).thenReturn(1);
+    }
+
+    private MarketWalletActionLease claimedLease(MarketWalletActionMapper mapper) {
+        ArgumentCaptor<MarketWalletActionClaim> claimCaptor =
+                ArgumentCaptor.forClass(MarketWalletActionClaim.class);
+        verify(mapper).claimProcessing(claimCaptor.capture());
+        return claimCaptor.getValue().lease();
     }
 
     private MarketWalletAction escrowAction() {

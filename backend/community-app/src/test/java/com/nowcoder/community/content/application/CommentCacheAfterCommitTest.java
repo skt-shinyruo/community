@@ -63,7 +63,7 @@ class CommentCacheAfterCommitTest {
 
         commitTransactionSynchronization();
 
-        verify(postCounterCache).incrementCommentCount(POST_ID, 3L);
+        verify(postCounterCache).markDirty(POST_ID);
         verify(commentPageCache).evictPost(POST_ID);
     }
 
@@ -112,7 +112,7 @@ class CommentCacheAfterCommitTest {
     void counterFailureDoesNotBlockPageEvictionOrLogCommentBody() {
         doThrow(new IllegalStateException(COMMENT_BODY))
                 .when(postCounterCache)
-                .incrementCommentCount(POST_ID, 1L);
+                .markDirty(POST_ID);
         LogCapture logs = startLogCapture();
         try {
             beginTransactionSynchronization();
@@ -121,7 +121,7 @@ class CommentCacheAfterCommitTest {
 
             assertThatCode(this::commitTransactionSynchronization).doesNotThrowAnyException();
 
-            verify(postCounterCache).incrementCommentCount(POST_ID, 1L);
+            verify(postCounterCache).markDirty(POST_ID);
             verify(commentPageCache).evictPost(POST_ID);
             assertWarning(logs, "incrementCommentCount", 1L);
         } finally {
@@ -140,7 +140,7 @@ class CommentCacheAfterCommitTest {
 
             assertThatCode(this::commitTransactionSynchronization).doesNotThrowAnyException();
 
-            verify(postCounterCache).incrementCommentCount(POST_ID, -2L);
+            verify(postCounterCache).markDirty(POST_ID);
             verify(commentPageCache).evictPost(POST_ID);
             assertWarning(logs, "evictCommentPages", 0L);
         } finally {
@@ -152,7 +152,7 @@ class CommentCacheAfterCommitTest {
     void expectedCacheFailureWarningDoesNotPropagateBeyondLocalCapture() {
         doThrow(new IllegalStateException(COMMENT_BODY))
                 .when(postCounterCache)
-                .incrementCommentCount(POST_ID, 1L);
+                .markDirty(POST_ID);
         Logger rootLogger = (Logger) org.slf4j.LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         ListAppender<ILoggingEvent> rootEvents = new ListAppender<>();
         rootEvents.start();

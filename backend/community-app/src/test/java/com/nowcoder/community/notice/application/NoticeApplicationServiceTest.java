@@ -1,21 +1,26 @@
 package com.nowcoder.community.notice.application;
 
 import com.nowcoder.community.common.id.BinaryUuidCodec;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.result.NoticeItemResult;
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
+import com.nowcoder.community.notice.domain.repository.NoticeRepository;
+import com.nowcoder.community.notice.domain.service.NoticeDomainService;
 import com.nowcoder.community.notice.infrastructure.persistence.MyBatisNoticeRepository;
 import com.nowcoder.community.notice.infrastructure.persistence.mapper.NoticeMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.mybatis.spring.annotation.MapperScan;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,10 +28,14 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest(
         classes = NoticeApplicationServiceTest.MapperOnlyTestConfig.class,
-        webEnvironment = SpringBootTest.WebEnvironment.NONE
+        webEnvironment = SpringBootTest.WebEnvironment.NONE,
+        properties = "mybatis.mapper-locations=classpath:/mapper/notice_mapper.xml"
 )
 class NoticeApplicationServiceTest {
 
@@ -139,6 +148,51 @@ class NoticeApplicationServiceTest {
 
         assertThat(noticeService.unreadCount(recipientUserId, "like")).isZero();
         assertThat(noticeService.listNotices(recipientUserId, "like", 0, 10)).isEmpty();
+    }
+
+    @Test
+    void markReadShouldDeduplicateAndCapIdsAtApplicationBoundary() {
+        NoticeRepository repository = mock(NoticeRepository.class);
+        NoticeApplicationService service = new NoticeApplicationService(
+                repository, new NoticeDomainService(), new UuidV7Generator());
+        List<UUID> ids = new ArrayList<>();
+        for (int index = 1; index <= 120; index++) {
+            ids.add(uuid(index));
+        }
+        ids.add(null);
+        ids.add(uuid(1));
+
+        service.markRead(uuid(999), ids);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<UUID>> idsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(repository).markUnreadAsRead(eq(uuid(999)), idsCaptor.capture());
+        assertThat(idsCaptor.getValue()).hasSize(NoticeDomainService.MARK_READ_BATCH_LIMIT)
+                .doesNotContainNull()
+                .doesNotHaveDuplicates();
+        assertThat(idsCaptor.getValue()).containsExactlyElementsOf(ids.subList(0, 100));
+    }
+
+    @Test
+    void markReadShouldLeaveRevokedNoticeRevoked() {
+        UUID recipientUserId = uuid(9);
+        insertNotice(
+                NOTICE_ID_4,
+                ZERO_UUID,
+                recipientUserId,
+                "like",
+                "{\"eventId\":\"evt-revoked\"}",
+                NoticeApplicationService.STATUS_REVOKED
+        );
+
+        noticeService.markRead(recipientUserId, List.of(NOTICE_ID_4));
+
+        Integer status = jdbcTemplate.queryForObject(
+                "select status from notice_record where id = ?",
+                Integer.class,
+                BinaryUuidCodec.toBytes(NOTICE_ID_4)
+        );
+        assertThat(status).isEqualTo(NoticeApplicationService.STATUS_REVOKED);
     }
 
     private void insertNotice(UUID id, UUID fromId, UUID toId, String topic, String content, int status) {

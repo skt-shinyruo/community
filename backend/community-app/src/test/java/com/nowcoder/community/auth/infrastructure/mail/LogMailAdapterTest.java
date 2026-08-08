@@ -15,7 +15,7 @@ class LogMailAdapterTest {
     void sendRegistrationCodeMailShouldNotLogRawEmailOrCode(CapturedOutput output) {
         LogMailAdapter adapter = new LogMailAdapter(new RegistrationProperties());
 
-        adapter.sendRegistrationCodeMail("alice@example.com", "123456");
+        adapter.sendRegistrationCodeMail("alice@example.com", "123456", "A".repeat(32));
 
         assertThat(output.getAll())
                 .contains("[mail][registration-code][disabled]")
@@ -31,7 +31,8 @@ class LogMailAdapterTest {
 
         adapter.sendPasswordResetMail(
                 "alice@example.com",
-                "https://community.example/#/auth/password/reset?token=reset-token-123"
+                "https://community.example/#/auth/password/reset?token=reset-token-123",
+                "opaque-delivery-reference"
         );
 
         assertThat(output.getAll())

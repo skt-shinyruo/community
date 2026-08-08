@@ -9,6 +9,7 @@ public class LoginRateLimitProperties {
     private int windowSeconds = 60;
     private int maxFailuresPerIp = 20;
     private int maxFailuresPerUser = 5;
+    private int passwordCheckLeaseSeconds = 120;
 
     /**
      * 登录失败达到该阈值后，要求验证码（风险触发）。
@@ -50,6 +51,14 @@ public class LoginRateLimitProperties {
 
     public void setMaxFailuresPerUser(int maxFailuresPerUser) {
         this.maxFailuresPerUser = maxFailuresPerUser;
+    }
+
+    public int getPasswordCheckLeaseSeconds() {
+        return passwordCheckLeaseSeconds;
+    }
+
+    public void setPasswordCheckLeaseSeconds(int passwordCheckLeaseSeconds) {
+        this.passwordCheckLeaseSeconds = passwordCheckLeaseSeconds;
     }
 
     public int getCaptchaRequiredFailuresPerIp() {

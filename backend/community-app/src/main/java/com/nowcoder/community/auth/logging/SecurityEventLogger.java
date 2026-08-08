@@ -77,7 +77,8 @@ public final class SecurityEventLogger {
         StringBuilder encoded = new StringBuilder(raw.length());
         for (int i = 0; i < raw.length(); i++) {
             char ch = raw.charAt(i);
-            if (Character.isWhitespace(ch) || Character.isISOControl(ch) || ch == '=' || ch == '%') {
+            if (Character.isWhitespace(ch) || Character.isISOControl(ch)
+                    || isInvisibleFormattingCharacter(ch) || ch == '=' || ch == '%') {
                 encoded.append('%');
                 String hex = Integer.toHexString(ch).toUpperCase(Locale.ROOT);
                 if (hex.length() == 1) {
@@ -89,6 +90,23 @@ public final class SecurityEventLogger {
             }
         }
         return encoded.toString();
+    }
+
+    private static boolean isInvisibleFormattingCharacter(char value) {
+        int type = Character.getType(value);
+        return type == Character.FORMAT
+                || type == Character.SURROGATE
+                || value == '\u034F'
+                || between(value, '\u115F', '\u1160')
+                || between(value, '\u17B4', '\u17B5')
+                || between(value, '\u180B', '\u180F')
+                || value == '\u3164'
+                || between(value, '\uFE00', '\uFE0F')
+                || value == '\uFFA0';
+    }
+
+    private static boolean between(char value, char lowerInclusive, char upperInclusive) {
+        return value >= lowerInclusive && value <= upperInclusive;
     }
 
     private static void restore(String key, String previousValue) {

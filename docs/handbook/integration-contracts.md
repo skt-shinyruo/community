@@ -177,6 +177,7 @@ Versioning and schema evolution：
 - projection entry / delta 的 `version` 必须是 owner-domain 持久逻辑时钟分配的正数：user policy 来自 `user_policy_version_counter` / `user.policy_version`，block relation 来自 `social_block_version_counter` / `social_block.version` 和删除日志，room membership 来自 `im_membership_version_counter` / `im_room_member.version` 和删除日志。
 - `occurredAtEpochMillis` 只是可观测时间，不能作为版本来源。
 - snapshot 的 boxed `snapshotHighWatermark` 必填、非负且允许为 `0`。分页刷新只使用第一页水位作为覆盖边界；后续页只贡献 entries，不能扩大覆盖边界。
+- user policy / block relation snapshot 的游标续页必须携带第一页的 `snapshotHighWatermark` 作为 `snapshotVersion`；缺失、负数或高于 owner 当前版本的值按无效请求拒绝。所有续页必须返回同一水位，client 在水位变化时不得继续请求下一页。
 - `im-realtime` 对 user policy、block relation、room membership 都按 key 比较版本：只应用版本更大的 snapshot entry 或 delta。重复事件、乱序旧事件、旧 snapshot 都不能回滚本地状态；高水位高于本地版本且 snapshot 缺少的 key 才能表示删除或不存在。
 
 幂等：

@@ -7,6 +7,8 @@ import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
+import com.nowcoder.community.notice.domain.model.LikeNoticeProjectionState;
+import com.nowcoder.community.notice.domain.repository.LikeNoticeProjectionStateRepository;
 import com.nowcoder.community.notice.domain.service.NoticeProjectionDomainService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -183,7 +185,7 @@ class NoticeProjectionApplicationServiceTest {
         String relationKey = "like:" + uuid(44) + ":3:" + uuid(100);
         ProjectNoticeCommand command = new ProjectNoticeCommand.LikeCreated(
                 "evt-like-created", 21L, "LikeCreated", uuid(44), EntityTypes.POST,
-                uuid(100), uuid(55), uuid(100), relationKey);
+                uuid(100), uuid(55), uuid(100), relationKey, uuid(700));
 
         service.projectReliably(command);
         service.projectReliably(command);
@@ -194,9 +196,11 @@ class NoticeProjectionApplicationServiceTest {
         assertThat(notice.noticeTopic()).isEqualTo("like");
         assertThat(notice.sourceEventType()).isEqualTo("LikeCreated");
         assertThat(notice.sourceRelationKey()).isEqualTo(relationKey);
+        verify(noticeService).revokeLikeNotice(uuid(55), relationKey);
         JsonNode payload = jsonCodec().readTree(notice.contentJson()).path("payload");
         assertThat(payload.path("actorUserId").asText()).isEqualTo(uuid(44).toString());
         assertThat(payload.path("relationKey").asText()).isEqualTo(relationKey);
+        assertThat(payload.path("relationInstanceId").asText()).isEqualTo(uuid(700).toString());
     }
 
     @Test
@@ -216,6 +220,31 @@ class NoticeProjectionApplicationServiceTest {
     }
 
     @Test
+    void staleLikeLifecycleEventShouldNotCreateOrRevokeNotice() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        LikeNoticeProjectionStateRepository stateRepository = mock(LikeNoticeProjectionStateRepository.class);
+        when(eventRecorder.tryRecord("evt-like-stale")).thenReturn(true);
+        when(stateRepository.advance(any(LikeNoticeProjectionState.class)))
+                .thenReturn(LikeNoticeProjectionState.Transition.IGNORED);
+        NoticeProjectionApplicationService service = projectionService(
+                noticeService, eventRecorder, stateRepository);
+        ProjectNoticeCommand command = new ProjectNoticeCommand.LikeCreated(
+                "evt-like-stale", 20L, "LikeCreated", uuid(44), EntityTypes.POST,
+                uuid(100), uuid(55), uuid(100), "like:actor:3:entity", uuid(700));
+
+        service.projectReliably(command);
+
+        ArgumentCaptor<LikeNoticeProjectionState> stateCaptor =
+                ArgumentCaptor.forClass(LikeNoticeProjectionState.class);
+        verify(stateRepository).advance(stateCaptor.capture());
+        assertThat(stateCaptor.getValue().relationInstanceId()).isEqualTo(uuid(700));
+        assertThat(stateCaptor.getValue().sourceVersion()).isEqualTo(20L);
+        verify(noticeService, never()).createNotice(any(CreateNoticeCommand.class));
+        verify(noticeService, never()).revokeLikeNotice(any(), any());
+    }
+
+    @Test
     void blankLikeRemovedEventIdShouldBeRejectedBeforeRevoking() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
         NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
@@ -230,7 +259,7 @@ class NoticeProjectionApplicationServiceTest {
     }
 
     @Test
-    void projectionDisabledShouldSkipRecordingAndSideEffects() {
+    void projectionDisabledShouldFailClosedBeforeRecordingOrSideEffects() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
         NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
         NoticePolicyProperties properties = new NoticePolicyProperties();
@@ -238,7 +267,9 @@ class NoticeProjectionApplicationServiceTest {
         NoticeProjectionApplicationService service = new NoticeProjectionApplicationService(
                 jsonCodec(), noticeService, new NoticeProjectionDomainService(), properties, eventRecorder);
 
-        service.projectReliably(commentCommand("evt-disabled", uuid(100), uuid(9)));
+        assertThatThrownBy(() -> service.projectReliably(commentCommand("evt-disabled", uuid(100), uuid(9))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("notice projection is paused");
 
         verifyNoInteractions(noticeService, eventRecorder);
     }
@@ -255,8 +286,24 @@ class NoticeProjectionApplicationServiceTest {
             NoticeApplicationService noticeService,
             NoticeProjectionEventRecorder eventRecorder
     ) {
+        LikeNoticeProjectionStateRepository stateRepository = mock(LikeNoticeProjectionStateRepository.class);
+        when(stateRepository.advance(any(LikeNoticeProjectionState.class))).thenAnswer(invocation -> {
+            LikeNoticeProjectionState state = invocation.getArgument(0);
+            return state.active()
+                    ? LikeNoticeProjectionState.Transition.ACTIVATED
+                    : LikeNoticeProjectionState.Transition.DEACTIVATED;
+        });
+        return projectionService(noticeService, eventRecorder, stateRepository);
+    }
+
+    private static NoticeProjectionApplicationService projectionService(
+            NoticeApplicationService noticeService,
+            NoticeProjectionEventRecorder eventRecorder,
+            LikeNoticeProjectionStateRepository stateRepository
+    ) {
         return new NoticeProjectionApplicationService(
-                jsonCodec(), noticeService, new NoticeProjectionDomainService(), new NoticePolicyProperties(), eventRecorder);
+                jsonCodec(), noticeService, new NoticeProjectionDomainService(), new NoticePolicyProperties(),
+                eventRecorder, stateRepository);
     }
 
     private static ProjectNoticeCommand commentCommand(String eventId, java.util.UUID postId, java.util.UUID targetUserId) {
@@ -277,7 +324,7 @@ class NoticeProjectionApplicationServiceTest {
     private static ProjectNoticeCommand likeRemovedCommand(String eventId) {
         return new ProjectNoticeCommand.LikeRemoved(
                 eventId, 11L, "LikeRemoved", uuid(44), EntityTypes.POST,
-                uuid(100), uuid(55), uuid(100), "like:actor:3:entity");
+                uuid(100), uuid(55), uuid(100), "like:actor:3:entity", uuid(700));
     }
 
     private static CreateNoticeCommand capturedNotice(NoticeApplicationService noticeService) {

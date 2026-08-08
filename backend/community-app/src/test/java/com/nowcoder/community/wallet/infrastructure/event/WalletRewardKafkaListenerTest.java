@@ -83,8 +83,36 @@ class WalletRewardKafkaListenerTest {
         listener.onSocialEvent(event("se:like:created:2", SocialEventTypes.LIKE_CREATED, payload));
 
         verify(walletReward, times(2)).applyDelta(new WalletRewardCommand(
-                "wallet-reward:" + payload.getRelationKey() + ":created", uuid(2), 1, "LikeCreated"
+                "wallet-reward:" + payload.getRelationKey() + ":v1:created", uuid(2), 1, "LikeCreated"
         ));
+    }
+
+    @Test
+    void legacyLikeLifecyclesShouldUseOwnerVersionInTheirBusinessKeys() {
+        WalletRewardApplicationService walletReward = mock(WalletRewardApplicationService.class);
+        WalletRewardKafkaListener listener = listener(walletReward);
+        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
+
+        listener.onSocialEvent(event("legacy-create-1", SocialEventTypes.LIKE_CREATED, payload, 10L));
+        listener.onSocialEvent(event("legacy-remove-1", SocialEventTypes.LIKE_REMOVED, payload, 11L));
+        listener.onSocialEvent(event("legacy-create-2", SocialEventTypes.LIKE_CREATED, payload, 12L));
+
+        ArgumentCaptor<WalletRewardCommand> commands = ArgumentCaptor.forClass(WalletRewardCommand.class);
+        verify(walletReward, times(3)).applyDelta(commands.capture());
+        assertThat(commands.getAllValues()).containsExactly(
+                new WalletRewardCommand(
+                        "wallet-reward:" + payload.getRelationKey() + ":v10:created",
+                        uuid(2), 1, "LikeCreated"
+                ),
+                new WalletRewardCommand(
+                        "wallet-reward:" + payload.getRelationKey() + ":v11:removed",
+                        uuid(2), -1, "LikeRemoved"
+                ),
+                new WalletRewardCommand(
+                        "wallet-reward:" + payload.getRelationKey() + ":v12:created",
+                        uuid(2), 1, "LikeCreated"
+                )
+        );
     }
 
     @Test
@@ -144,7 +172,7 @@ class WalletRewardKafkaListenerTest {
         ));
 
         verify(walletReward).applyDelta(new WalletRewardCommand(
-                "wallet-reward:" + payload.getRelationKey() + ":removed", uuid(2), -1, "LikeRemoved"
+                "wallet-reward:" + payload.getRelationKey() + ":v1:removed", uuid(2), -1, "LikeRemoved"
         ));
     }
 
@@ -177,8 +205,12 @@ class WalletRewardKafkaListenerTest {
     }
 
     private SocialContractEvent event(String eventId, String type, LikePayload payload) {
+        return event(eventId, type, payload, 1L);
+    }
+
+    private SocialContractEvent event(String eventId, String type, LikePayload payload, long version) {
         return new SocialContractEvent(
-                eventId, null, null, type, Instant.EPOCH, 1L, jsonCodec.valueToTree(payload));
+                eventId, null, null, type, Instant.EPOCH, version, jsonCodec.valueToTree(payload));
     }
 
     private static LikePayload likePayload(UUID actor, UUID entityId, UUID owner) {

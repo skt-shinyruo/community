@@ -20,7 +20,7 @@ public class LogMailAdapter implements MailPort {
     }
 
     @Override
-    public void sendRegistrationCodeMail(String toEmail, String code) {
+    public void sendRegistrationCodeMail(String toEmail, String code, String deliveryReference) {
         log.info("[mail][registration-code][disabled] to={}, subject={}",
                 maskEmail(toEmail),
                 properties.getMail().getSubject()
@@ -28,7 +28,7 @@ public class LogMailAdapter implements MailPort {
     }
 
     @Override
-    public void sendPasswordResetMail(String toEmail, String resetLink) {
+    public void sendPasswordResetMail(String toEmail, String resetLink, String deliveryReference) {
         log.info("[mail][password-reset][disabled] to={}, subject={}",
                 maskEmail(toEmail),
                 "重置密码"

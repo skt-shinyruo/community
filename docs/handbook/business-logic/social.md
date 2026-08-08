@@ -41,7 +41,7 @@
 
 - interaction 调 `SocialLikeActionApi` 写点赞；profile/content/IM 通过 social owner query 读取关系。
 - content 删除事件由 `SocialContentDeletionKafkaListener` 消费后进入 social application 清理点赞。
-- IM snapshot 扫描 block relations。
+- IM snapshot 通过 `scanBlockRelationsAtVersionAfter(...)` 按固定 owner version 扫描 block relations。
 
 ## 数据流
 
@@ -167,15 +167,17 @@ contract events：
 - 某些 storage adapter 可能声明需要显式补偿，application 在事务回滚时反向修复。
 - 事件发布失败时，如果 repository 需要显式补偿，application 会执行补偿。
 - owner contract event 与 social 主事实同事务写 `eventbus.social`；Kafka 发布失败由 owner outbox 重试 / DEAD。
+- 点赞创建、取消和内容删除清理都在关系事实与 outbox 的同一事务内推进 `social_like_relation_version`。该版本是通知生命周期的唯一排序依据；UUID 和应用节点时钟都不承担水位语义。
 - notice、growth、reward、hot-feed 和 IM policy 都从 `social.events` 进入各自 ApplicationService，失败由 consumer retry / `.dlq` 恢复。
 
 内容删除清理的正确性机制：
 
 1. `SocialContentDeletionKafkaListener` 只识别 `POST_DELETED` / `COMMENT_DELETED`，要求 event ID、发生时间和正数 owner version 完整。
-2. `LikeTargetState` 持久化 `ACTIVE/DELETED`、source event 和正数 `sourceVersion`；只接受更大的删除版本，重复或乱序事件为 no-op。
-3. 清理按 actor UUID 游标每页扫描 `200` 条点赞，逐条删除，并为每条变化发布 like-removed event，使 wallet/growth/notice/hot-feed 能按正常骨干追平。
-4. `SocialLikeCleanupReconciliationJob` 分别扫描仍有点赞的 deleted post/comment target，再进入 `LikeCleanupReconciliationApplicationService` 重跑同一清理用例。
-5. reconciliation 代码默认关闭，batch `50`、delay `300s`；启用时仍受 target source version 和关系写入幂等保护。
+2. `social_like.post_id` 保存内容关系的根帖：POST like 写 `entity_id`，COMMENT like 写 comment owner 返回的 `postId`；USER like 保持 `NULL`。COMMENT like 写入时先锁定根帖 fence，再锁定 comment fence，避免已经解析的旧请求在删帖后补写关系。
+3. `LikeTargetState` 持久化 `ACTIVE/DELETED`、source event 和正数 `sourceVersion`；只接受更大的删除版本，重复或乱序事件为 no-op。POST 删除 fence 同时禁止新的 POST/COMMENT like。
+4. 帖子自身点赞按 target + actor 游标清理；子评论点赞使用 `(entity_type,post_id,entity_id,user_id)` 根帖索引，每页最多扫描 `200` 条。单条评论删除仍按 comment target 的 actor UUID 游标清理。每条实际删除都发布 like-removed event，使 wallet/growth/notice/hot-feed 能按正常骨干追平。
+5. `SocialLikeCleanupReconciliationJob` 分别扫描仍有点赞的 deleted post/comment target，再进入 `LikeCleanupReconciliationApplicationService` 重跑同一清理用例。
+6. reconciliation 代码默认关闭，batch `50`、delay `300s`；启用时仍受 target source version 和关系写入幂等保护。
 
 ## 关键代码
 

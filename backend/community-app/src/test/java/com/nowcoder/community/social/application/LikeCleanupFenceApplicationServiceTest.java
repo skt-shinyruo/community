@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
+import static com.nowcoder.community.common.constants.EntityTypes.COMMENT;
 import static com.nowcoder.community.common.constants.EntityTypes.POST;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -74,7 +75,7 @@ class LikeCleanupFenceApplicationServiceTest {
         order.verify(likeRepository).scanLikesByEntity(POST, TARGET_ID, ZERO_UUID, 200);
         verify(likeRepository, times(4)).scanLikesByEntity(POST, TARGET_ID, ZERO_UUID, 200);
         verify(targetStateRepository, times(3)).insertActiveIfAbsent(POST, TARGET_ID);
-        verify(targetStateRepository, times(7)).findForUpdate(POST, TARGET_ID);
+        verify(targetStateRepository, times(10)).findForUpdate(POST, TARGET_ID);
         verify(targetStateRepository, times(1)).saveIfNewer(any(LikeTargetState.class));
         verify(likeRepository, times(1)).removeLike(relation);
         verify(publisher, times(1)).publishLikeChanged(org.mockito.ArgumentMatchers.argThat(
@@ -202,6 +203,101 @@ class LikeCleanupFenceApplicationServiceTest {
         order.verify(targetStateRepository).findForUpdate(POST, TARGET_ID);
         order.verify(likeRepository).findLike(uuid(1), POST, TARGET_ID);
         order.verify(likeRepository).addLike(any(LikeRelation.class));
+    }
+
+    @Test
+    void commentLikeShouldAcquireRootPostFenceBeforeCommentFenceAndRelationMutation() {
+        UUID commentId = uuid(601);
+        LikeRepository likeRepository = mock(LikeRepository.class);
+        LikeTargetStateRepository targetStateRepository = mock(LikeTargetStateRepository.class);
+        SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
+        when(targetStateRepository.findForUpdate(POST, TARGET_ID))
+                .thenReturn(LikeTargetState.active(POST, TARGET_ID));
+        when(targetStateRepository.findForUpdate(COMMENT, commentId))
+                .thenReturn(LikeTargetState.active(COMMENT, commentId));
+        when(likeRepository.addLike(any(LikeRelation.class))).thenReturn(true);
+        when(likeRepository.isLiked(uuid(1), COMMENT, commentId)).thenReturn(true);
+        when(likeRepository.countEntityLikes(COMMENT, commentId)).thenReturn(1L);
+        LikeApplicationService service = newService(likeRepository, targetStateRepository, publisher);
+
+        service.setLike(new SetLikeCommand(
+                uuid(1), COMMENT, commentId, true, uuid(2), TARGET_ID
+        ));
+
+        InOrder order = inOrder(targetStateRepository, likeRepository);
+        order.verify(targetStateRepository).insertActiveIfAbsent(POST, TARGET_ID);
+        order.verify(targetStateRepository).findForUpdate(POST, TARGET_ID);
+        order.verify(targetStateRepository).insertActiveIfAbsent(COMMENT, commentId);
+        order.verify(targetStateRepository).findForUpdate(COMMENT, commentId);
+        order.verify(likeRepository).findLike(uuid(1), COMMENT, commentId);
+        ArgumentCaptor<LikeRelation> relation = ArgumentCaptor.forClass(LikeRelation.class);
+        order.verify(likeRepository).addLike(relation.capture());
+        assertThat(relation.getValue().postId()).isEqualTo(TARGET_ID);
+    }
+
+    @Test
+    void deletedRootPostShouldRejectCommentLikeBeforeRelationReadOrWrite() {
+        UUID commentId = uuid(602);
+        LikeRepository likeRepository = mock(LikeRepository.class);
+        LikeTargetStateRepository targetStateRepository = mock(LikeTargetStateRepository.class);
+        LikeTargetState deletedPost = LikeTargetState.active(POST, TARGET_ID)
+                .applyDeletion("content:post-deleted:600", 42L, DELETED_AT);
+        when(targetStateRepository.findForUpdate(POST, TARGET_ID)).thenReturn(deletedPost);
+        when(targetStateRepository.findForUpdate(COMMENT, commentId))
+                .thenReturn(LikeTargetState.active(COMMENT, commentId));
+        LikeApplicationService service = newService(
+                likeRepository,
+                targetStateRepository,
+                mock(SocialDomainEventPublisher.class)
+        );
+
+        assertThatThrownBy(() -> service.setLike(new SetLikeCommand(
+                uuid(1), COMMENT, commentId, true, uuid(2), TARGET_ID
+        )))
+                .isInstanceOf(BusinessException.class);
+
+        InOrder order = inOrder(targetStateRepository);
+        order.verify(targetStateRepository).insertActiveIfAbsent(POST, TARGET_ID);
+        order.verify(targetStateRepository).findForUpdate(POST, TARGET_ID);
+        order.verify(targetStateRepository).insertActiveIfAbsent(COMMENT, commentId);
+        order.verify(targetStateRepository).findForUpdate(COMMENT, commentId);
+        verifyNoInteractions(likeRepository);
+    }
+
+    @Test
+    void postCleanupShouldRemoveCommentLikesUsingTheRootPostFence() {
+        UUID commentId = uuid(603);
+        LikeRepository likeRepository = mock(LikeRepository.class);
+        LikeTargetStateRepository targetStateRepository = mock(LikeTargetStateRepository.class);
+        SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
+        LikeTargetState active = LikeTargetState.active(POST, TARGET_ID);
+        LikeTargetState deleted = active.applyDeletion("content:post-deleted:600", 42L, DELETED_AT);
+        LikeRelation commentLike = new LikeRelation(
+                uuid(704), uuid(1), COMMENT, commentId, uuid(2), TARGET_ID
+        );
+        when(targetStateRepository.findForUpdate(POST, TARGET_ID))
+                .thenReturn(active, deleted);
+        when(targetStateRepository.saveIfNewer(any(LikeTargetState.class))).thenReturn(true);
+        when(likeRepository.scanLikesByEntity(POST, TARGET_ID, ZERO_UUID, 200))
+                .thenReturn(List.of());
+        when(likeRepository.scanCommentLikesByPost(TARGET_ID, ZERO_UUID, ZERO_UUID, 200))
+                .thenReturn(List.of(commentLike), List.of());
+        when(likeRepository.removeLike(commentLike)).thenReturn(true);
+        LikeApplicationService service = newService(likeRepository, targetStateRepository, publisher);
+
+        assertThat(service.cleanupDeletedContentLikes(
+                deletionCommand(42L, "content:post-deleted:600")
+        )).isOne();
+
+        verify(likeRepository, times(2))
+                .scanCommentLikesByPost(TARGET_ID, ZERO_UUID, ZERO_UUID, 200);
+        verify(likeRepository).incrementUserLikeCount(uuid(2), -1L);
+        verify(publisher).publishLikeChanged(org.mockito.ArgumentMatchers.argThat(
+                event -> event.entityType() == COMMENT
+                        && commentId.equals(event.entityId())
+                        && TARGET_ID.equals(event.postId())
+                        && !event.liked()
+        ));
     }
 
     @Test

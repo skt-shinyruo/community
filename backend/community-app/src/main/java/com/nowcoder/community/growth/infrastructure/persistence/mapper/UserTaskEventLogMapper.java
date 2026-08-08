@@ -27,9 +27,15 @@ public interface UserTaskEventLogMapper {
             @Param("sourceEventId") String sourceEventId
     );
 
-    List<UserTaskContributionLog> selectLikeContributionLogs(
+    List<UserTaskContributionLog> selectLikeContributionLogsForUpdate(
             @Param("userId") UUID userId,
-            @Param("sourceEventId") String sourceEventId
+            @Param("contributionSourceId") String contributionSourceId
+    );
+
+    int countByUserTaskAndPeriod(
+            @Param("userId") UUID userId,
+            @Param("taskCode") String taskCode,
+            @Param("periodKey") String periodKey
     );
 
     int deleteByUserTaskPeriodAndSourceEventId(

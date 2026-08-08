@@ -32,7 +32,7 @@ public class StartupValidation {
         if (environment == null) {
             return;
         }
-        if (!isProd(environment)) {
+        if (!ProductionEnvironmentPredicate.isProduction(environment)) {
             return;
         }
 
@@ -82,18 +82,6 @@ public class StartupValidation {
             sb.append(" - 检查 deploy/.env.single / deploy/.env.cluster 与部署平台 Secret/ConfigMap 是否已注入对应环境变量").append('\n');
             throw new IllegalStateException(sb.toString());
         }
-    }
-
-    private boolean isProd(Environment environment) {
-        if (environment == null) {
-            return false;
-        }
-        for (String p : environment.getActiveProfiles()) {
-            if ("prod".equalsIgnoreCase(p) || "production".equalsIgnoreCase(p)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private void requireNonBlank(Environment env, List<String> errors, String key, String hint) {

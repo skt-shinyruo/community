@@ -4,42 +4,62 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nowcoder.community.content.infrastructure.persistence.mapper.PostCounterSnapshotMapper">
 
+    <select id="selectByPostId" resultType="com.nowcoder.community.content.domain.model.PostCounterSnapshot">
+        select
+            counters.post_id as post_id,
+            counters.view_count as view_count,
+            counters.like_count as like_count,
+            counters.comment_count as comment_count,
+            counters.bookmark_count as bookmark_count,
+            coalesce(score.score, 0) as score,
+            greatest(counters.flush_revision, coalesce(score.flush_revision, 0)) as revision
+        from post_counter_snapshot counters
+        left join post_score_snapshot score on score.post_id = counters.post_id
+        where counters.post_id = #{postId, jdbcType=BINARY}
+    </select>
+
     <insert id="upsertCounterSnapshot">
         insert into post_counter_snapshot(
             post_id,
             view_count,
             like_count,
             comment_count,
-            bookmark_count
+            bookmark_count,
+            flush_revision
         )
         values(
             #{postId, jdbcType=BINARY},
             #{viewCount},
             #{likeCount},
             #{commentCount},
-            #{bookmarkCount}
+            #{bookmarkCount},
+            #{revision}
         )
         on duplicate key update
-            view_count = values(view_count),
-            like_count = values(like_count),
-            comment_count = values(comment_count),
-            bookmark_count = values(bookmark_count)
+            view_count = case when values(flush_revision) > flush_revision then values(view_count) else view_count end,
+            like_count = case when values(flush_revision) > flush_revision then values(like_count) else like_count end,
+            comment_count = case when values(flush_revision) > flush_revision then values(comment_count) else comment_count end,
+            bookmark_count = case when values(flush_revision) > flush_revision then values(bookmark_count) else bookmark_count end,
+            flush_revision = greatest(flush_revision, values(flush_revision))
     </insert>
 
     <insert id="upsertScoreSnapshot">
         insert into post_score_snapshot(
             post_id,
             score,
-            rank_version
+            rank_version,
+            flush_revision
         )
         values(
             #{postId, jdbcType=BINARY},
             #{score},
-            #{rankVersion}
+            #{rankVersion},
+            #{revision}
         )
         on duplicate key update
-            score = values(score),
-            rank_version = values(rank_version)
+            score = case when values(flush_revision) > flush_revision then values(score) else score end,
+            rank_version = case when values(flush_revision) > flush_revision then values(rank_version) else rank_version end,
+            flush_revision = greatest(flush_revision, values(flush_revision))
     </insert>
 
 </mapper>

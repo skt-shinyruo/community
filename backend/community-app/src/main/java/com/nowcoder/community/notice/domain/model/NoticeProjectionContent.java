@@ -41,7 +41,8 @@ public sealed interface NoticeProjectionContent permits
             UUID entityId,
             UUID entityUserId,
             UUID postId,
-            String relationKey
+            String relationKey,
+            UUID relationInstanceId
     ) implements NoticeProjectionContent {
     }
 

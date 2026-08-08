@@ -9,6 +9,7 @@ public class PasswordResetRequestRequest {
 
     @NotBlank
     @Email
+    @Size(max = ValidationLimits.EMAIL_MAX)
     private String email;
 
     @Size(max = ValidationLimits.CAPTCHA_ID_MAX)

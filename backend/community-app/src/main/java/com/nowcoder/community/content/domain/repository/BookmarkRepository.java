@@ -13,5 +13,7 @@ public interface BookmarkRepository {
 
     boolean hasBookmarked(UUID userId, UUID postId);
 
+    long countByPostId(UUID postId);
+
     List<DiscussPost> listBookmarkedPosts(UUID userId, int page, int size);
 }

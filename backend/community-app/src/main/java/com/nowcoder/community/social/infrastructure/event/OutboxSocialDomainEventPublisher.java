@@ -25,29 +25,17 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
     private final SocialContractEventCodec contractEventCodec;
     private final JdbcOutboxEventStore store;
     private final String topic;
-    private final boolean relationInstancePublishingEnabled;
     private final UuidV7Generator idGenerator = new UuidV7Generator();
 
     @Autowired
     public OutboxSocialDomainEventPublisher(
             SocialContractEventCodec contractEventCodec,
             JdbcOutboxEventStore store,
-            @Value("${social.events.outbox-topic:eventbus.social}") String topic,
-            @Value("${social.events.relation-instance-publishing-enabled:false}")
-            boolean relationInstancePublishingEnabled
+            @Value("${social.events.outbox-topic:eventbus.social}") String topic
     ) {
         this.contractEventCodec = contractEventCodec;
         this.store = store;
         this.topic = topic;
-        this.relationInstancePublishingEnabled = relationInstancePublishingEnabled;
-    }
-
-    public OutboxSocialDomainEventPublisher(
-            SocialContractEventCodec contractEventCodec,
-            JdbcOutboxEventStore store,
-            String topic
-    ) {
-        this(contractEventCodec, store, topic, false);
     }
 
     @Override
@@ -64,9 +52,9 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         payload.setEntityUserId(event.entityUserId());
         payload.setPostId(event.postId());
         payload.setRelationKey(relationKey);
-        if (relationInstancePublishingEnabled) {
-            payload.setRelationInstanceId(event.relationInstanceId());
-        }
+        payload.setRelationInstanceId(event.relationInstanceId());
+        long relationVersion = requiredVersion(type, event.relationVersion());
+        payload.setRelationVersion(relationVersion);
 
         Instant occurredAt = requiredOccurredAt(type, event.occurredAt());
         String eventId = event.liked()
@@ -74,9 +62,9 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
                 : "se:like:removed:" + idGenerator.next();
         SocialTypedEvent typedEvent = event.liked()
                 ? new SocialTypedEvent.LikeCreated(
-                        eventId, event.entityId(), "entity", occurredAt, positiveVersion(occurredAt), payload)
+                        eventId, event.entityId(), "entity", occurredAt, relationVersion, payload)
                 : new SocialTypedEvent.LikeRemoved(
-                        eventId, event.entityId(), "entity", occurredAt, positiveVersion(occurredAt), payload);
+                        eventId, event.entityId(), "entity", occurredAt, relationVersion, payload);
         publish(typedEvent, event.entityType() + ":" + event.entityId());
     }
 

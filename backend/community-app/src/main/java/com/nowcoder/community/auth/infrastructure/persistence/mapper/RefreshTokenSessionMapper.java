@@ -12,6 +12,13 @@ import java.util.UUID;
 @Mapper
 public interface RefreshTokenSessionMapper {
 
+    int ensureFamilyLock(
+            @Param("familyId") String familyId,
+            @Param("retainUntil") Instant retainUntil
+    );
+
+    String selectFamilyLockForUpdate(@Param("familyId") String familyId);
+
     int storeIfFamilyActive(
             @Param("tokenHash") String tokenHash,
             @Param("userId") UUID userId,
@@ -22,6 +29,8 @@ public interface RefreshTokenSessionMapper {
 
     RefreshTokenSessionDataObject selectByTokenHash(@Param("tokenHash") String tokenHash);
 
+    RefreshTokenSessionDataObject selectByTokenHashForUpdate(@Param("tokenHash") String tokenHash);
+
     int consumeActive(@Param("tokenHash") String tokenHash, @Param("now") Instant now);
 
     int recoverExpiredPending(@Param("tokenHash") String tokenHash, @Param("now") Instant now);
@@ -29,7 +38,8 @@ public interface RefreshTokenSessionMapper {
     int beginRotation(
             @Param("tokenHash") String tokenHash,
             @Param("pendingExpiresAt") Instant pendingExpiresAt,
-            @Param("now") Instant now
+            @Param("now") Instant now,
+            @Param("rotationLeaseId") UUID rotationLeaseId
     );
 
     int finishPendingRotation(
@@ -37,10 +47,14 @@ public interface RefreshTokenSessionMapper {
             @Param("userId") UUID userId,
             @Param("familyId") String familyId,
             @Param("securityVersionAtIssue") long securityVersionAtIssue,
-            @Param("now") Instant now
+            @Param("now") Instant now,
+            @Param("rotationLeaseId") UUID rotationLeaseId
     );
 
-    int rollbackPendingRotation(@Param("tokenHash") String tokenHash);
+    int rollbackPendingRotation(
+            @Param("tokenHash") String tokenHash,
+            @Param("rotationLeaseId") UUID rotationLeaseId
+    );
 
     int revoke(@Param("tokenHash") String tokenHash);
 
@@ -49,4 +63,8 @@ public interface RefreshTokenSessionMapper {
     int revokeFamilyTokens(@Param("familyId") String familyId);
 
     int deleteExpiredBefore(@Param("cutoff") Instant cutoff);
+
+    int deleteExpiredFamilyRevocationsBefore(@Param("cutoff") Instant cutoff);
+
+    int deleteExpiredFamilyLocksBefore(@Param("cutoff") Instant cutoff);
 }

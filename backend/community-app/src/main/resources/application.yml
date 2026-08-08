@@ -47,15 +47,37 @@ spring:
     username: ${DB_USERNAME:${MYSQL_USER:community}}
     password: ${DB_PASSWORD:${MYSQL_PASSWORD:communitypass}}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  mail:
+    host: ${SPRING_MAIL_HOST:}
+    port: ${SPRING_MAIL_PORT:25}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:false}
+          connectiontimeout: ${SPRING_MAIL_CONNECTION_TIMEOUT_MS:10000}
+          timeout: ${SPRING_MAIL_READ_TIMEOUT_MS:10000}
+          writetimeout: ${SPRING_MAIL_WRITE_TIMEOUT_MS:10000}
+          starttls:
+            enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:false}
+            required: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED:false}
+          ssl:
+            enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE:false}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     consumer:
       group-id: ${growth.task.kafka.consumer.group-id:growth-task-progress}
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      enable-auto-commit: false
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
         spring.json.trusted.packages: "com.nowcoder.community.*"
         spring.json.use.type.headers: true
+    listener:
+      ack-mode: record
     producer:
       acks: ${community.kafka-policy.producer.acks:all}
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -74,6 +96,8 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      connect-timeout: ${SPRING_DATA_REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
   elasticsearch:
     # Comma-separated node list, for example http://elasticsearch-1:9200,http://elasticsearch-2:9200
     uris: ${ELASTICSEARCH_URIS:http://127.0.0.1:9200}
@@ -173,10 +197,11 @@ security:
     access-token-audience: ${JWT_ACCESS_TOKEN_AUDIENCE:community-api}
     access-token-ttl-seconds: 900
     refresh-token-ttl-seconds: 604800
+    refresh-reuse-grace-seconds: 10
     refresh-cookie-name: refresh_token
     refresh-cookie-path: /api/auth
     refresh-cookie-same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
-    refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:false}
+    refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:true}
 
 drive:
   share:
@@ -197,14 +222,26 @@ auth:
       interval-ms: ${AUTH_REFRESH_CLEANUP_INTERVAL_MS:3600000}
   captcha:
     store: redis
-    ttl-seconds: 60
-    max-failures: 3
+    ttl-seconds: ${AUTH_CAPTCHA_TTL_SECONDS:60}
+    max-failures: ${AUTH_CAPTCHA_MAX_FAILURES:3}
+    max-issue-requests-per-ip: ${AUTH_CAPTCHA_MAX_ISSUE_REQUESTS_PER_IP:10}
   registration:
+    request-limit:
+      window-seconds: ${AUTH_REGISTRATION_REQUEST_WINDOW_SECONDS:3600}
+      max-requests-per-username: ${AUTH_REGISTRATION_MAX_REQUESTS_PER_USERNAME:3}
+      max-requests-per-email: ${AUTH_REGISTRATION_MAX_REQUESTS_PER_EMAIL:3}
+      max-requests-per-ip: ${AUTH_REGISTRATION_MAX_REQUESTS_PER_IP:10}
+    resend-limit:
+      window-seconds: ${AUTH_REGISTRATION_RESEND_WINDOW_SECONDS:3600}
+      max-requests-per-registration: ${AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_REGISTRATION:5}
+      max-requests-per-email: ${AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_EMAIL:5}
+      max-requests-per-ip: ${AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_IP:20}
     code:
       store: redis
       ttl-seconds: ${AUTH_REGISTRATION_CODE_TTL_SECONDS:600}
       max-failures: ${AUTH_REGISTRATION_CODE_MAX_FAILURES:3}
       resend-cooldown-seconds: ${AUTH_REGISTRATION_CODE_RESEND_COOLDOWN_SECONDS:60}
+      operation-lease-seconds: ${AUTH_REGISTRATION_CODE_OPERATION_LEASE_SECONDS:120}
       expose-code: ${AUTH_REGISTRATION_EXPOSE_CODE:false}
     draft:
       store: ${AUTH_REGISTRATION_DRAFT_STORE:redis}
@@ -215,8 +252,11 @@ auth:
       subject: 注册验证码
   password-reset:
     reset-base-url: ${AUTH_PASSWORD_RESET_BASE_URL:}
+    identifier-hmac-secret: ${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET}
+    quota-hmac-secret: ${AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET:}
+    previous-identifier-hmac-secrets: ${AUTH_PASSWORD_RESET_PREVIOUS_IDENTIFIER_HMAC_SECRETS:}
     store: redis
-    ttl-seconds: 600
+    ttl-seconds: ${AUTH_PASSWORD_RESET_TTL_SECONDS:600}
     request-window-seconds: ${AUTH_PASSWORD_RESET_REQUEST_WINDOW_SECONDS:3600}
     max-requests-per-email: ${AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_EMAIL:3}
     max-requests-per-ip: ${AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_IP:20}
@@ -225,6 +265,7 @@ auth:
     window-seconds: 60
     max-failures-per-ip: 20
     max-failures-per-user: 5
+    password-check-lease-seconds: 120
     captcha-required-failures-per-ip: 5
     captcha-required-failures-per-user: 2
 
@@ -261,6 +302,10 @@ content:
   storage: redis
   comments:
     first-page-cache-ttl-seconds: ${CONTENT_COMMENT_FIRST_PAGE_CACHE_TTL_SECONDS:15}
+  comment-thread-cleanup:
+    enabled: ${CONTENT_COMMENT_THREAD_CLEANUP_ENABLED:true}
+    batch-size: ${CONTENT_COMMENT_THREAD_CLEANUP_BATCH_SIZE:100}
+    delay-ms: ${CONTENT_COMMENT_THREAD_CLEANUP_DELAY_MS:60000}
   counters:
     flush-batch-size: ${CONTENT_COUNTER_FLUSH_BATCH_SIZE:200}
   feed:
@@ -289,7 +334,6 @@ social:
   events:
     outbox-topic: ${SOCIAL_EVENTS_OUTBOX_TOPIC:eventbus.social}
     kafka-topic: ${SOCIAL_EVENTS_KAFKA_TOPIC:social.events}
-    relation-instance-publishing-enabled: ${SOCIAL_EVENTS_RELATION_INSTANCE_PUBLISHING_ENABLED:false}
 
 notice:
   projection-enabled: ${NOTICE_PROJECTION_ENABLED:true}

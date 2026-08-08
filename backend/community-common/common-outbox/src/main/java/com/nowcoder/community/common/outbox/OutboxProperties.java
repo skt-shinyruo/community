@@ -7,6 +7,8 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "events.outbox")
 public class OutboxProperties {
 
+    static final int DEFAULT_RECOVER_LIMIT = 200;
+
     /**
      * Enables the outbox backbone and BEFORE_COMMIT enqueuers.
      */
@@ -50,7 +52,7 @@ public class OutboxProperties {
     /**
      * Max events moved by lease reaper per poll.
      */
-    private int recoverLimit = 200;
+    private int recoverLimit = DEFAULT_RECOVER_LIMIT;
 
     public boolean isEnabled() {
         return enabled;

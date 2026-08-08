@@ -16,7 +16,11 @@ public interface UserTaskEventLogRepository {
 
     CreateStatus create(UUID id, UUID userId, String taskCode, String periodKey, String sourceEventId);
 
-    List<UserTaskContributionLog> findLikeContributionLogs(UUID userId, String relationKey);
+    boolean exists(UUID userId, String taskCode, String periodKey, String sourceEventId);
+
+    List<UserTaskContributionLog> findLikeContributionLogsForUpdate(UUID userId, String contributionSourceId);
+
+    int countByUserTaskAndPeriod(UUID userId, String taskCode, String periodKey);
 
     int deleteByUserTaskPeriodAndSourceEventId(UUID userId, String taskCode, String periodKey, String sourceEventId);
 }

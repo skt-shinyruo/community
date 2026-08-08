@@ -46,12 +46,14 @@ CREATE TABLE `auth_refresh_token` (
   `expires_at` timestamp NOT NULL,
   `state` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ACTIVE',
   `pending_expires_at` timestamp NULL DEFAULT NULL,
+  `rotation_lease_id` binary(16) DEFAULT NULL,
   `revoked_at` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`token_hash`),
   KEY `idx_refresh_family` (`family_id`,`expires_at`),
   KEY `idx_refresh_user` (`user_id`,`expires_at`),
   KEY `idx_refresh_state_pending` (`state`,`pending_expires_at`),
+  KEY `idx_refresh_expires` (`expires_at`),
   CONSTRAINT `ck_auth_refresh_token_state` CHECK ((`state` in (_utf8mb4'ACTIVE',_utf8mb4'PENDING_ROTATION',_utf8mb4'CONSUMED',_utf8mb4'REVOKED')))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -61,7 +63,19 @@ CREATE TABLE `auth_refresh_token` (
 CREATE TABLE `auth_refresh_token_family_revocation` (
   `family_id` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
   `revoked_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`family_id`)
+  `expires_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`family_id`),
+  KEY `idx_refresh_family_revocation_expires` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `auth_refresh_token_family_lock` (
+  `family_id` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `retain_until` timestamp NOT NULL,
+  PRIMARY KEY (`family_id`),
+  KEY `idx_refresh_family_lock_retention` (`retain_until`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -99,7 +113,9 @@ CREATE TABLE `comment` (
   `version` bigint NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
   KEY `idx_comment_post_root` (`post_id`,`parent_comment_id`,`create_time`,`id`),
-  KEY `idx_comment_root_reply` (`root_comment_id`,`parent_comment_id`,`create_time`,`id`)
+  KEY `idx_comment_root_reply` (`root_comment_id`,`parent_comment_id`,`create_time`,`id`),
+  KEY `idx_comment_root_cleanup` (`root_comment_id`,`status`,`create_time`,`id`),
+  KEY `idx_comment_user_recent` (`user_id`,`status`,`create_time`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -191,8 +207,12 @@ CREATE TABLE `discuss_post` (
   `score_version` bigint NOT NULL DEFAULT '1',
   `aggregate_version` bigint NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`),
-  KEY `idx_discuss_post_user_id` (`user_id`),
-  KEY `idx_discuss_post_category_id` (`category_id`)
+  KEY `idx_discuss_post_feed_latest` (`status`,`type`,`create_time`,`id`),
+  KEY `idx_discuss_post_feed_hot` (`status`,`type`,`score`,`create_time`,`id`),
+  KEY `idx_discuss_post_category_latest` (`category_id`,`status`,`type`,`create_time`,`id`),
+  KEY `idx_discuss_post_category_hot` (`category_id`,`status`,`type`,`score`,`create_time`,`id`),
+  KEY `idx_discuss_post_user_latest` (`user_id`,`status`,`type`,`create_time`,`id`),
+  KEY `idx_discuss_post_author_recent` (`user_id`,`status`,`create_time`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -446,6 +466,7 @@ CREATE TABLE `market_order` (
   `refund_txn_id` binary(16) DEFAULT NULL,
   `auto_confirm_at` timestamp NULL DEFAULT NULL,
   `auto_confirm_next_attempt_at` timestamp NULL DEFAULT NULL,
+  `wallet_recovery_next_attempt_at` timestamp NULL DEFAULT NULL,
   `address_id_snapshot` binary(16) DEFAULT NULL,
   `receiver_name_snapshot` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `receiver_phone_snapshot` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -461,7 +482,8 @@ CREATE TABLE `market_order` (
   KEY `idx_market_order_buyer_time` (`buyer_user_id`,`create_time`,`order_id`),
   KEY `idx_market_order_seller_time` (`seller_user_id`,`create_time`,`order_id`),
   KEY `idx_market_order_listing_status` (`listing_id`,`status`),
-  KEY `idx_market_order_auto_confirm` (`auto_confirm_next_attempt_at`,`order_id`,`status`,`auto_confirm_at`)
+  KEY `idx_market_order_auto_confirm` (`auto_confirm_next_attempt_at`,`order_id`,`status`,`auto_confirm_at`),
+  KEY `idx_market_order_wallet_recovery` (`status`,`wallet_recovery_next_attempt_at`,`order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -553,7 +575,23 @@ CREATE TABLE `notice_record` (
   PRIMARY KEY (`id`),
   KEY `idx_notice_record_topic` (`topic`),
   KEY `idx_notice_record_recipient_status` (`recipient_user_id`,`status`),
-  KEY `idx_notice_record_recipient_topic_time` (`recipient_user_id`,`topic`,`create_time`)
+  KEY `idx_notice_record_recipient_topic_time` (`recipient_user_id`,`topic`,`create_time`),
+  KEY `idx_notice_record_like_relation` (`recipient_user_id`,`topic`,`source_relation_key`,`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `notice_like_projection_state` (
+  `recipient_user_id` binary(16) NOT NULL,
+  `source_relation_key` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `relation_instance_id` binary(16) DEFAULT NULL,
+  `source_version` bigint NOT NULL DEFAULT '0',
+  `active` tinyint(1) DEFAULT NULL,
+  `source_event_id` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`recipient_user_id`,`source_relation_key`),
+  KEY `idx_notice_like_projection_state_instance` (`relation_instance_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -609,6 +647,18 @@ CREATE TABLE `outbox_event` (
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `post_bookmark_counter_reconciliation` (
+  `post_id` binary(16) NOT NULL,
+  `revision` bigint unsigned NOT NULL DEFAULT '1',
+  `pending` tinyint(1) NOT NULL DEFAULT '1',
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`post_id`),
+  KEY `idx_post_bookmark_counter_reconcile_scan` (`pending`,`updated_at`,`post_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `post_bookmark` (
   `user_id` binary(16) NOT NULL,
   `post_id` binary(16) NOT NULL,
@@ -648,6 +698,7 @@ CREATE TABLE `post_counter_snapshot` (
   `like_count` bigint NOT NULL DEFAULT '0',
   `comment_count` bigint NOT NULL DEFAULT '0',
   `bookmark_count` bigint NOT NULL DEFAULT '0',
+  `flush_revision` bigint unsigned NOT NULL DEFAULT '0',
   `snapshot_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`post_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -696,6 +747,7 @@ CREATE TABLE `post_score_snapshot` (
   `post_id` binary(16) NOT NULL,
   `score` double NOT NULL DEFAULT '0',
   `rank_version` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `flush_revision` bigint unsigned NOT NULL DEFAULT '0',
   `snapshot_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`post_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -800,17 +852,41 @@ CREATE TABLE `social_follow` (
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `social_user_pair_lock` (
+  `first_user_id` binary(16) NOT NULL,
+  `second_user_id` binary(16) NOT NULL,
+  PRIMARY KEY (`first_user_id`,`second_user_id`),
+  CONSTRAINT `chk_social_user_pair_distinct` CHECK ((`first_user_id` <> `second_user_id`))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `social_like` (
   `user_id` binary(16) NOT NULL,
   `entity_type` int NOT NULL,
   `entity_id` binary(16) NOT NULL,
+  `post_id` binary(16) DEFAULT NULL,
   `entity_user_id` binary(16) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `relation_instance_id` binary(16) NOT NULL,
   PRIMARY KEY (`user_id`,`entity_type`,`entity_id`),
   UNIQUE KEY `uk_social_like_relation_instance` (`relation_instance_id`),
   KEY `idx_like_entity` (`entity_type`,`entity_id`),
-  KEY `idx_like_entity_user` (`entity_type`,`entity_id`,`user_id`)
+  KEY `idx_like_entity_user` (`entity_type`,`entity_id`,`user_id`),
+  KEY `idx_like_post_entity_user` (`entity_type`,`post_id`,`entity_id`,`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `social_like_relation_version` (
+  `actor_user_id` binary(16) NOT NULL,
+  `entity_type` int NOT NULL,
+  `entity_id` binary(16) NOT NULL,
+  `current_version` bigint NOT NULL DEFAULT '4611686018427387904',
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`actor_user_id`,`entity_type`,`entity_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -954,6 +1030,20 @@ CREATE TABLE `user_policy_version_counter` (
 INSERT INTO `user_policy_version_counter` VALUES (1,0);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `user_policy_version_log` (
+  `version` bigint NOT NULL,
+  `user_id` binary(16) NOT NULL,
+  `user_exists` tinyint(1) NOT NULL,
+  `mute_until` timestamp NULL DEFAULT NULL,
+  `ban_until` timestamp NULL DEFAULT NULL,
+  `occurred_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`version`),
+  KEY `idx_user_policy_version_user` (`user_id`,`version`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `user_security_version_counter` (
   `id` int NOT NULL,
   `current_version` bigint NOT NULL DEFAULT '0',
@@ -984,7 +1074,23 @@ CREATE TABLE `user_task_event_log` (
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_task_event` (`user_id`,`task_code`,`period_key`,`source_event_id`),
-  KEY `idx_user_task_event_lookup` (`user_id`,`task_code`,`period_key`,`create_time`)
+  KEY `idx_user_task_event_lookup` (`user_id`,`task_code`,`period_key`,`create_time`),
+  KEY `idx_user_task_event_source` (`user_id`,`source_event_id`,`task_code`,`period_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `growth_like_task_lifecycle_state` (
+  `recipient_user_id` binary(16) NOT NULL,
+  `relation_key` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `relation_instance_id` binary(16) DEFAULT NULL,
+  `source_version` bigint NOT NULL DEFAULT '0',
+  `active` tinyint(1) DEFAULT NULL,
+  `source_event_id` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`recipient_user_id`,`relation_key`),
+  KEY `idx_growth_like_task_lifecycle_instance` (`relation_instance_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

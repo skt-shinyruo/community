@@ -275,6 +275,97 @@ class SnapshotClientContractVersionTest {
                 .verify();
     }
 
+    @Test
+    void policySnapshotClientShouldRejectUserWatermarkDriftBeforeRequestingAnotherPage() {
+        AtomicInteger requestCount = new AtomicInteger();
+        AtomicReference<String> continuationQuery = new AtomicReference<>();
+        ExchangeFunction exchange = request -> {
+            int index = requestCount.getAndIncrement();
+            if (index == 0) {
+                return jsonResponse("""
+                        {
+                          "schemaVersion": 1,
+                          "entries": [],
+                          "nextUserId": "00000000-0000-7000-8000-000000000001",
+                          "hasMore": true,
+                          "snapshotHighWatermark": 10
+                        }
+                        """);
+            }
+            if (index == 1) {
+                continuationQuery.set(request.url().getQuery());
+                return jsonResponse("""
+                        {
+                          "schemaVersion": 1,
+                          "entries": [],
+                          "nextUserId": "00000000-0000-7000-8000-000000000002",
+                          "hasMore": true,
+                          "snapshotHighWatermark": 11
+                        }
+                        """);
+            }
+            return Mono.error(new AssertionError("watermark drift triggered another user snapshot request"));
+        };
+        PolicySnapshotClient client = policyClient(WebClient.builder().exchangeFunction(exchange).build());
+
+        StepVerifier.create(client.fetchUserPolicySnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException
+                        && "projection snapshot watermark changed between pages".equals(error.getMessage()))
+                .verify();
+
+        assertThat(requestCount).hasValue(2);
+        assertThat(continuationQuery.get())
+                .contains("afterUserId=00000000-0000-7000-8000-000000000001")
+                .contains("snapshotVersion=10");
+    }
+
+    @Test
+    void policySnapshotClientShouldRejectBlockWatermarkDriftBeforeRequestingAnotherPage() {
+        AtomicInteger requestCount = new AtomicInteger();
+        AtomicReference<String> continuationQuery = new AtomicReference<>();
+        ExchangeFunction exchange = request -> {
+            int index = requestCount.getAndIncrement();
+            if (index == 0) {
+                return jsonResponse("""
+                        {
+                          "schemaVersion": 1,
+                          "entries": [],
+                          "nextBlockerUserId": "00000000-0000-7000-8000-000000000001",
+                          "nextBlockedUserId": "00000000-0000-7000-8000-000000000002",
+                          "hasMore": true,
+                          "snapshotHighWatermark": 20
+                        }
+                        """);
+            }
+            if (index == 1) {
+                continuationQuery.set(request.url().getQuery());
+                return jsonResponse("""
+                        {
+                          "schemaVersion": 1,
+                          "entries": [],
+                          "nextBlockerUserId": "00000000-0000-7000-8000-000000000002",
+                          "nextBlockedUserId": "00000000-0000-7000-8000-000000000003",
+                          "hasMore": true,
+                          "snapshotHighWatermark": 21
+                        }
+                        """);
+            }
+            return Mono.error(new AssertionError("watermark drift triggered another block snapshot request"));
+        };
+        PolicySnapshotClient client = policyClient(WebClient.builder().exchangeFunction(exchange).build());
+
+        StepVerifier.create(client.fetchBlockRelationSnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException
+                        && "projection snapshot watermark changed between pages".equals(error.getMessage()))
+                .verify();
+
+        assertThat(requestCount).hasValue(2);
+        assertThat(continuationQuery.get())
+                .contains("afterBlockerUserId=00000000-0000-7000-8000-000000000001")
+                .contains("afterBlockedUserId=00000000-0000-7000-8000-000000000002")
+                .contains("snapshotVersion=20");
+    }
+
     private static MembershipSnapshotClient membershipClient(WebClient webClient) {
         return new MembershipSnapshotClient(
                 webClient,
@@ -318,6 +409,13 @@ class SnapshotClientContractVersionTest {
     private static WebClient noContentWebClient() {
         ExchangeFunction exchange = request -> Mono.just(ClientResponse.create(HttpStatus.NO_CONTENT).build());
         return WebClient.builder().exchangeFunction(exchange).build();
+    }
+
+    private static Mono<ClientResponse> jsonResponse(String body) {
+        return Mono.just(ClientResponse.create(HttpStatus.OK)
+                .header("Content-Type", "application/json")
+                .body(body)
+                .build());
     }
 
     private static ImServiceClientProperties clientProperties() {

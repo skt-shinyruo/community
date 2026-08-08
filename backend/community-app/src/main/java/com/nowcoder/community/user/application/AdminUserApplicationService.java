@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -50,8 +51,21 @@ public class AdminUserApplicationService {
                 command.reason(),
                 command.confirm()
         );
-        UserAccount target = userRepository.findById(command.targetUserId()).orElse(null);
-        userRoleDomainService.requireRoleUpdateAllowed(command.actorUserId(), command.targetUserId(), command.type(), target);
+        userRepository.lockRoleManagement();
+        Instant now = Instant.now();
+        UserAccount actor = userRepository.findByIdForUpdate(command.actorUserId()).orElse(null);
+        userRoleDomainService.requireActiveAdmin(actor, now);
+        UserAccount target = command.targetUserId().equals(command.actorUserId())
+                ? actor
+                : userRepository.findByIdForUpdate(command.targetUserId()).orElse(null);
+        userRoleDomainService.requireRoleUpdateAllowed(
+                command.actorUserId(),
+                command.targetUserId(),
+                command.type(),
+                actor,
+                target,
+                now
+        );
 
         int fromType = target.type();
         int toType = command.type();

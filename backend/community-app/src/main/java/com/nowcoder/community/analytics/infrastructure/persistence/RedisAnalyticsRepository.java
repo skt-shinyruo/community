@@ -17,10 +17,10 @@ import java.util.UUID;
 @Repository
 public class RedisAnalyticsRepository implements AnalyticsRepository {
 
-    private static final String PREFIX_UV = "uv:";
-    private static final String PREFIX_DAU = "dau:";
-    private static final String PREFIX_UV_TMP = "uv:tmp:";
-    private static final String PREFIX_DAU_TMP = "dau:tmp:";
+    private static final String PREFIX_UV = "analytics:{range}:uv:";
+    private static final String PREFIX_DAU = "analytics:{range}:dau:";
+    private static final String PREFIX_UV_TMP = "analytics:{range}:uv:tmp:";
+    private static final String PREFIX_DAU_TMP = "analytics:{range}:dau:tmp:";
     private static final DateTimeFormatter DF = DateTimeFormatter.ISO_LOCAL_DATE;
     // unionKey 属于“临时计算中间结果”，即使 finally 清理失败/进程崩溃，也应尽快过期避免 Redis 膨胀。
     private static final Duration UNION_KEY_TTL = Duration.ofSeconds(60);

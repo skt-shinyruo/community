@@ -21,6 +21,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -155,6 +156,13 @@ public class MyBatisCommentRepository implements CommentRepository {
     }
 
     @Override
+    public List<UUID> findDeletedRootIdsWithActiveReplies(int limit) {
+        List<UUID> ids = commentMapper.selectDeletedRootIdsWithActiveReplies(
+                Math.min(500, Math.max(1, limit)));
+        return ids == null ? List.of() : ids.stream().filter(Objects::nonNull).toList();
+    }
+
+    @Override
     public CommentTransitionStatus apply(CommentEdit edit) {
         CommentDataObject current = commentMapper.selectByIdForUpdate(edit.commentId());
         CommentTransitionStatus currentStatus = classify(current, edit.expectedVersion());
@@ -249,6 +257,31 @@ public class MyBatisCommentRepository implements CommentRepository {
                 .map(target -> CommentPersistenceConverter.toSnapshot(rowsById.get(target.commentId())))
                 .toList();
         return CommentDeletionResult.applied(affected);
+    }
+
+    @Override
+    public CommentDeletionResult deleteActiveReplyBatch(
+            UUID rootCommentId,
+            UUID deletedBy,
+            String deletedReason,
+            java.util.Date deletedTime,
+            int limit
+    ) {
+        if (rootCommentId == null || deletedBy == null || deletedTime == null || limit <= 0) {
+            return CommentDeletionResult.noOp();
+        }
+        List<CommentDataObject> rows = safeRows(commentMapper.selectActiveReplyBatchForUpdate(
+                rootCommentId, Math.min(limit, 200)));
+        if (rows.isEmpty()) {
+            return CommentDeletionResult.noOp();
+        }
+        List<UUID> ids = rows.stream().map(CommentDataObject::getId).toList();
+        int updated = commentMapper.applyReplyBatchDeletion(
+                rootCommentId, ids, deletedBy, deletedReason, deletedTime);
+        ensureAppliedCount(ids.size(), updated);
+        return CommentDeletionResult.applied(rows.stream()
+                .map(CommentPersistenceConverter::toSnapshot)
+                .toList());
     }
 
     private void lockRootBeforeThread(UUID rootCommentId) {

@@ -5,79 +5,139 @@ import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import com.nowcoder.community.market.domain.repository.MarketWalletActionRepository;
-import com.nowcoder.community.market.domain.model.MarketWalletActionResultType;
-import com.nowcoder.community.market.domain.model.MarketWalletActionStatus;
-import com.nowcoder.community.market.domain.model.MarketWalletActionType;
-import com.nowcoder.community.wallet.api.model.WalletErrorCodes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
 
 @Service
 public class MarketWalletActionRecoveryApplicationService {
 
-    private static final Set<String> RECOVERABLE_RELEASE_REFUND_FAILURE_CODES = Set.of(
-            String.valueOf(WalletErrorCodes.ACCOUNT_UPDATE_CONFLICT),
-            String.valueOf(WalletErrorCodes.ACCOUNT_BALANCE_INSUFFICIENT)
-    );
+    private static final Logger log = LoggerFactory.getLogger(MarketWalletActionRecoveryApplicationService.class);
+    private static final int DEFAULT_RECOVERY_SCAN_LIMIT = 100;
 
     private final MarketWalletActionRepository walletActionRepository;
     private final MarketOrderRepository orderRepository;
-    private final MarketOrderSagaApplicationService sagaService;
-    private final MarketWalletActionCoordinator actionCoordinator;
+    private final MarketWalletActionRecoveryTransactionOperations transactionOperations;
     private final Clock clock;
+    private final int maxRetryAttempts;
 
     @Autowired
-    public MarketWalletActionRecoveryApplicationService(MarketWalletActionRepository walletActionRepository,
-                                             MarketOrderRepository orderRepository,
-                                             MarketOrderSagaApplicationService sagaService,
-                                             MarketWalletActionCoordinator actionCoordinator) {
-        this(walletActionRepository, orderRepository, sagaService, actionCoordinator, Clock.systemUTC());
+    public MarketWalletActionRecoveryApplicationService(
+            MarketWalletActionRepository walletActionRepository,
+            MarketOrderRepository orderRepository,
+            MarketWalletActionRecoveryTransactionOperations transactionOperations,
+            @Value("${market.wallet-action.max-retry-attempts:8}") int maxRetryAttempts
+    ) {
+        this(
+                walletActionRepository,
+                orderRepository,
+                transactionOperations,
+                Clock.systemUTC(),
+                maxRetryAttempts
+        );
     }
 
-    MarketWalletActionRecoveryApplicationService(MarketWalletActionRepository walletActionRepository,
-                                      MarketOrderRepository orderRepository,
-                                      MarketOrderSagaApplicationService sagaService,
-                                      MarketWalletActionCoordinator actionCoordinator,
-                                      Clock clock) {
+    MarketWalletActionRecoveryApplicationService(
+            MarketWalletActionRepository walletActionRepository,
+            MarketOrderRepository orderRepository,
+            MarketOrderSagaApplicationService sagaService,
+            MarketWalletActionCoordinator actionCoordinator,
+            Clock clock
+    ) {
+        this(
+                walletActionRepository,
+                orderRepository,
+                new MarketWalletActionRecoveryTransactionOperations(
+                        walletActionRepository,
+                        orderRepository,
+                        sagaService,
+                        actionCoordinator
+                ),
+                clock,
+                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
+        );
+    }
+
+    MarketWalletActionRecoveryApplicationService(
+            MarketWalletActionRepository walletActionRepository,
+            MarketOrderRepository orderRepository,
+            MarketWalletActionRecoveryTransactionOperations transactionOperations,
+            Clock clock
+    ) {
+        this(
+                walletActionRepository,
+                orderRepository,
+                transactionOperations,
+                clock,
+                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
+        );
+    }
+
+    MarketWalletActionRecoveryApplicationService(
+            MarketWalletActionRepository walletActionRepository,
+            MarketOrderRepository orderRepository,
+            MarketWalletActionRecoveryTransactionOperations transactionOperations,
+            Clock clock,
+            int maxRetryAttempts
+    ) {
         this.walletActionRepository = walletActionRepository;
         this.orderRepository = orderRepository;
-        this.sagaService = sagaService;
-        this.actionCoordinator = actionCoordinator;
+        this.transactionOperations = transactionOperations;
         this.clock = clock;
+        this.maxRetryAttempts = MarketWalletActionRetryPolicy.normalizeMaxRetryAttempts(maxRetryAttempts);
     }
 
-    @Transactional
     public MarketWalletActionRecoveryResult reconcileOnce(int limit) {
         if (limit <= 0) {
             return new MarketWalletActionRecoveryResult(0, 0, 0);
         }
-        int recoveredLeases = recoverExpiredProcessingInternal(clock.instant());
+        Instant now = clock.instant();
+        int recoveredLeases = recoverExpiredProcessingInternal(now, limit);
         int reconciled = 0;
         int skipped = 0;
 
-        for (MarketWalletAction action : walletActionRepository.findUnfinishedWithWalletTxn(limit)) {
-            if (reconcileWalletTxnAction(action)) {
-                reconciled++;
-            } else {
+        List<MarketWalletAction> actionCandidates = walletActionRepository.findUnfinishedWithWalletTxn(limit);
+        for (MarketWalletAction action : actionCandidates) {
+            try {
+                if (transactionOperations.reconcileWalletTxnAction(action.getActionId())) {
+                    reconciled++;
+                } else {
+                    skipped++;
+                    deferWalletTxnRecovery(action, now, "wallet recovery made no progress");
+                }
+            } catch (RuntimeException ex) {
                 skipped++;
+                deferWalletTxnRecovery(action, now, ex.toString());
+                log.warn("market wallet action recovery failed; continuing batch: actionId={}", action.getActionId(), ex);
             }
         }
 
         int remaining = limit - reconciled;
         if (remaining > 0) {
             for (MarketOrder order : orderRepository.findWalletPendingOrders(remaining)) {
-                if (reconcilePendingOrder(order)) {
-                    reconciled++;
-                } else {
+                try {
+                    if (transactionOperations.reconcilePendingOrder(
+                            order.getOrderId(),
+                            Date.from(now),
+                            maxRetryAttempts
+                    )) {
+                        reconciled++;
+                    } else {
+                        skipped++;
+                        deferPendingOrderRecovery(order, now, "pending order recovery made no progress");
+                    }
+                } catch (RuntimeException ex) {
                     skipped++;
+                    deferPendingOrderRecovery(order, now, ex.toString());
+                    log.warn("market pending order recovery failed; continuing batch: orderId={}", order.getOrderId(), ex);
                 }
             }
         }
@@ -85,149 +145,65 @@ public class MarketWalletActionRecoveryApplicationService {
         return new MarketWalletActionRecoveryResult(recoveredLeases, reconciled, skipped);
     }
 
-    @Transactional
     public int recoverExpiredProcessing(Instant asOf) {
-        return recoverExpiredProcessingInternal(asOf);
-    }
-
-    private int recoverExpiredProcessingInternal(Instant asOf) {
         Objects.requireNonNull(asOf, "asOf must not be null");
-        return walletActionRepository.recoverExpiredProcessing(Date.from(asOf));
+        return recoverExpiredProcessingInternal(asOf, DEFAULT_RECOVERY_SCAN_LIMIT);
     }
 
-    private boolean reconcileWalletTxnAction(MarketWalletAction action) {
-        if (action == null
-                || action.getWalletTxnId() == null
-                || MarketWalletActionStatus.PROCESSING.equals(action.getStatus())) {
-            return false;
+    private int recoverExpiredProcessingInternal(Instant asOf, int limit) {
+        Date recoveredAt = Date.from(asOf);
+        int recovered = 0;
+        for (MarketWalletAction action : walletActionRepository.findExpiredProcessing(recoveredAt, limit)) {
+            try {
+                if (transactionOperations.recoverExpiredProcessing(action, recoveredAt, maxRetryAttempts)) {
+                    recovered++;
+                }
+            } catch (RuntimeException ex) {
+                log.warn(
+                        "market wallet action lease recovery failed; continuing batch: actionId={}",
+                        action.getActionId(),
+                        ex
+                );
+            }
         }
-        if (applyWalletTxnToSaga(action) || sagaAlreadyHasTxn(action)) {
-            return walletActionRepository.markRecoveredSucceeded(
+        return recovered;
+    }
+
+    private void deferWalletTxnRecovery(MarketWalletAction action, Instant now, String lastError) {
+        try {
+            transactionOperations.deferWalletTxnRecovery(
                     action.getActionId(),
-                    action.getStatus(),
-                    action.getWalletTxnId(),
-                    MarketWalletActionResultType.APPLIED
-            ) == 1;
+                    Date.from(MarketWalletActionRetryPolicy.nextRetryAt(now, action.getRetryCount())),
+                    lastError
+            );
+        } catch (RuntimeException deferFailure) {
+            log.warn(
+                    "market wallet action recovery deferral failed: actionId={}",
+                    action.getActionId(),
+                    deferFailure
+            );
         }
-        return false;
     }
 
-    private boolean reconcilePendingOrder(MarketOrder order) {
+    private void deferPendingOrderRecovery(MarketOrder order, Instant now, String lastError) {
         String actionType = order.pendingWalletActionType();
         if (actionType == null) {
-            return false;
+            return;
         }
-
-        MarketWalletAction action = walletActionRepository.findByOrderAndType(order.getOrderId(), actionType);
-        if (action == null) {
-            return enqueueMissingAction(order, actionType);
-        }
-        if (action.getWalletTxnId() != null && !MarketWalletActionStatus.SUCCEEDED.equals(action.getStatus())) {
-            return reconcileWalletTxnAction(action);
-        }
-        if (isFailedActionRepairable(action, actionType)) {
-            return walletActionRepository.rescheduleFailed(
-                    action.getActionId(),
-                    action.getFailureCode(),
-                    Date.from(clock.instant()),
-                    action.getLastError()
-            ) == 1;
-        }
-        if (order.isEscrowCancelPending()
-                && MarketWalletActionType.ESCROW.equals(action.getActionType())
-                && MarketWalletActionStatus.CANCELLED.equals(action.getStatus())
-                && MarketWalletActionResultType.NOOP.equals(action.getResultType())) {
-            sagaService.completeEscrowNoop(order.getOrderId());
-            return true;
-        }
-        return false;
-    }
-
-    private boolean isFailedActionRepairable(MarketWalletAction action, String expectedActionType) {
-        return action != null
-                && action.getWalletTxnId() == null
-                && MarketWalletActionStatus.FAILED.equals(action.getStatus())
-                && RECOVERABLE_RELEASE_REFUND_FAILURE_CODES.contains(action.getFailureCode())
-                && expectedActionType.equals(action.getActionType())
-                && (MarketWalletActionType.RELEASE.equals(action.getActionType())
-                || MarketWalletActionType.REFUND.equals(action.getActionType()));
-    }
-
-    private boolean applyWalletTxnToSaga(MarketWalletAction action) {
-        if (MarketWalletActionType.ESCROW.equals(action.getActionType())) {
-            if (sagaService.markEscrowSucceeded(action.getOrderId(), action.getWalletTxnId())) {
-                return true;
-            }
-            if (sagaService.markEscrowCancelRefundPending(action.getOrderId(), action.getWalletTxnId())) {
-                actionCoordinator.enqueueRefund(
-                        action.getOrderId(),
-                        action.getActorUserId(),
-                        action.getCounterpartyUserId(),
-                        action.getAmount()
-                );
-                return true;
-            }
-            return false;
-        }
-        if (MarketWalletActionType.RELEASE.equals(action.getActionType())) {
-            return sagaService.markReleaseSucceeded(action.getOrderId(), action.getWalletTxnId());
-        }
-        if (MarketWalletActionType.REFUND.equals(action.getActionType())) {
-            return sagaService.markRefundSucceeded(action.getOrderId(), action.getWalletTxnId());
-        }
-        return false;
-    }
-
-    private boolean sagaAlreadyHasTxn(MarketWalletAction action) {
-        MarketOrder order = orderRepository.findById(action.getOrderId());
-        if (order == null) {
-            return false;
-        }
-        UUID walletTxnId = action.getWalletTxnId();
-        if (MarketWalletActionType.ESCROW.equals(action.getActionType())) {
-            return walletTxnId.equals(order.getEscrowTxnId());
-        }
-        if (MarketWalletActionType.RELEASE.equals(action.getActionType())) {
-            return walletTxnId.equals(order.getReleaseTxnId());
-        }
-        if (MarketWalletActionType.REFUND.equals(action.getActionType())) {
-            return walletTxnId.equals(order.getRefundTxnId());
-        }
-        return false;
-    }
-
-    private boolean enqueueMissingAction(MarketOrder order, String actionType) {
-        if (MarketWalletActionType.ESCROW.equals(actionType)) {
-            if (order.isEscrowCancelPending()) {
-                sagaService.completeEscrowNoop(order.getOrderId());
-                return true;
-            }
-            actionCoordinator.enqueueEscrow(
+        try {
+            transactionOperations.deferPendingOrderRecovery(
                     order.getOrderId(),
-                    order.getBuyerUserId(),
-                    order.getSellerUserId(),
-                    order.getTotalAmount()
+                    actionType,
+                    Date.from(now),
+                    Date.from(MarketWalletActionRetryPolicy.nextRetryAt(now, 0)),
+                    lastError
             );
-            return true;
-        }
-        if (MarketWalletActionType.RELEASE.equals(actionType)) {
-            actionCoordinator.enqueueRelease(
+        } catch (RuntimeException deferFailure) {
+            log.warn(
+                    "market pending order recovery deferral failed: orderId={}",
                     order.getOrderId(),
-                    order.getSellerUserId(),
-                    order.getBuyerUserId(),
-                    order.getTotalAmount()
+                    deferFailure
             );
-            return true;
         }
-        if (MarketWalletActionType.REFUND.equals(actionType)) {
-            actionCoordinator.enqueueRefund(
-                    order.getOrderId(),
-                    order.getBuyerUserId(),
-                    order.getSellerUserId(),
-                    order.getTotalAmount()
-            );
-            return true;
-        }
-        return false;
     }
 }

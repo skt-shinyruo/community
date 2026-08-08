@@ -1,7 +1,7 @@
 package com.nowcoder.community.auth.application;
 
 import com.nowcoder.community.auth.application.command.RegisterCommand;
-import com.nowcoder.community.auth.application.port.MailPort;
+import com.nowcoder.community.auth.application.port.RegistrationCodeMailDispatcher;
 import com.nowcoder.community.auth.application.result.RegisterResult;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
@@ -16,6 +16,7 @@ import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.nowcoder.community.user.api.model.PreparedRegistrationUserView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -31,31 +32,35 @@ public class RegistrationApplicationService {
 
     private final UserRegistrationActionApi userRegistrationActionApi;
     private final RegistrationProperties properties;
-    private final MailPort mailService;
+    private final RegistrationCodeMailDispatcher mailDispatcher;
     private final CaptchaChallengeComponent captchaChallenge;
     private final RegistrationCodeRepository registrationCodeStore;
     private final RegistrationDraftRepository registrationDraftRepository;
     private final AuthSecretGenerator authSecretGenerator;
     private final RegistrationDomainService registrationDomainService;
+    private final RegistrationRequestRateLimiter registrationRequestRateLimiter;
 
+    @Autowired
     public RegistrationApplicationService(
             UserRegistrationActionApi userRegistrationActionApi,
             RegistrationProperties properties,
-            MailPort mailService,
+            RegistrationCodeMailDispatcher mailDispatcher,
             CaptchaChallengeComponent captchaChallenge,
             RegistrationCodeRepository registrationCodeStore,
             RegistrationDraftRepository registrationDraftRepository,
             AuthSecretGenerator authSecretGenerator,
-            RegistrationDomainService registrationDomainService
+            RegistrationDomainService registrationDomainService,
+            RegistrationRequestRateLimiter registrationRequestRateLimiter
     ) {
         this.userRegistrationActionApi = userRegistrationActionApi;
         this.properties = properties;
-        this.mailService = mailService;
+        this.mailDispatcher = mailDispatcher;
         this.captchaChallenge = captchaChallenge;
         this.registrationCodeStore = registrationCodeStore;
         this.registrationDraftRepository = registrationDraftRepository;
         this.authSecretGenerator = authSecretGenerator;
         this.registrationDomainService = registrationDomainService;
+        this.registrationRequestRateLimiter = registrationRequestRateLimiter;
     }
 
     public RegisterResult register(RegisterCommand command) {
@@ -67,6 +72,7 @@ public class RegistrationApplicationService {
         String email = safeTrim(command.email());
 
         registrationDomainService.requireRegisterFields(username, password, email);
+        registrationRequestRateLimiter.enforce(username, email, command.clientIp());
 
         Duration registrationDraftTtl = Duration.ofSeconds(Math.max(60, properties.getDraft().getTtlSeconds()));
         PreparedRegistrationUserView prepared = userRegistrationActionApi.prepareRegistrationUser(username, password, email);
@@ -80,6 +86,7 @@ public class RegistrationApplicationService {
         String targetEmail = prepared.email();
 
         String code = generateCode();
+        UUID deliveryId = UUID.randomUUID();
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
         Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
         String registrationToken = null;
@@ -99,12 +106,20 @@ public class RegistrationApplicationService {
                 throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册上下文创建失败");
             }
 
-            RegistrationCodeRepository.IssueResult issueResult = registrationCodeStore.issue(prepared.userId(), code, ttl, cooldown);
+            RegistrationCodeRepository.IssueResult issueResult = registrationCodeStore.issue(
+                    prepared.userId(), code, ttl, cooldown, deliveryId);
             if (issueResult != RegistrationCodeRepository.IssueResult.ISSUED) {
                 throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册验证码签发失败");
             }
 
-            mailService.sendRegistrationCodeMail(targetEmail, code);
+            mailDispatcher.dispatch(new RegistrationCodeMailDispatcher.Delivery(
+                    deliveryId,
+                    prepared.userId(),
+                    null,
+                    targetEmail,
+                    code,
+                    issuedAt.plus(ttl)
+            ));
         } catch (RuntimeException ex) {
             rollbackFailedRegistration(prepared.userId(), registrationToken);
             throw ex;

@@ -144,7 +144,6 @@ class CommentCreateConcurrencySpringTest {
         when(postContentRepository.getById(POST_ID)).thenReturn(post());
         when(postContentRepository.incrementActiveCommentCount(POST_ID, 1)).thenReturn(2L);
         when(contentSanitizer.filter(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(blockApplicationService.isEitherBlocked(any(UUID.class), any(UUID.class))).thenReturn(false);
         executor = Executors.newFixedThreadPool(2);
     }
 
@@ -238,12 +237,12 @@ class CommentCreateConcurrencySpringTest {
             );
 
             verify(postContentRepository).incrementActiveCommentCount(POST_ID, 1);
-            verify(postCounterCache, never()).incrementCommentCount(any(UUID.class), anyLong());
+            verify(postCounterCache, never()).markDirty(any(UUID.class));
             verify(commentPageCache, never()).evictPost(any(UUID.class));
             verify(postCacheAfterCommit).evict(POST_ID, 2L);
         });
 
-        verify(postCounterCache).incrementCommentCount(POST_ID, 1L);
+        verify(postCounterCache).markDirty(POST_ID);
         verify(commentPageCache).evictPost(POST_ID);
     }
 
@@ -281,9 +280,9 @@ class CommentCreateConcurrencySpringTest {
                 Integer.class
         )).isEqualTo(activeCommentCount);
         verify(contentSanitizer, never()).filter(anyString());
-        verify(blockApplicationService, never()).isEitherBlocked(any(UUID.class), any(UUID.class));
+        verify(blockApplicationService, never()).assertInteractionAllowed(any(UUID.class), any(UUID.class));
         verify(postContentRepository, never()).incrementActiveCommentCount(any(UUID.class), anyInt());
-        verify(postCounterCache, never()).incrementCommentCount(any(UUID.class), anyLong());
+        verify(postCounterCache, never()).markDirty(any(UUID.class));
         verify(commentPageCache, never()).evictPost(any(UUID.class));
         verify(eventPublisher, never()).publishCommentCreated(any(CommentPayload.class));
     }

@@ -113,10 +113,10 @@ describe('k6 load testing suite structure', () => {
       'K6_BASE_URL',
       'aaa / aaa',
       '/actuator/prometheus',
-      'Kibana',
-      'threshold'
+      'Kibana'
     ]) {
       assert.match(readme, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
     }
+    assert.match(readme, /threshold|阈值/i)
   })
 })

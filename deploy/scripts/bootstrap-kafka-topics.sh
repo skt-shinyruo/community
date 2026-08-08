@@ -19,6 +19,8 @@ kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-e
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic social.events.dlq --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic user.events --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic user.events.dlq --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic analytics.request --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic analytics.request.dlq --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.private-text --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.room-text --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 12
 kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.room-fanout-routed --replication-factor "${KAFKA_TOPIC_REPLICATION_FACTOR}" --partitions 64

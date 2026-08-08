@@ -3,6 +3,7 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.repository.PostRepository;
 import com.nowcoder.community.content.domain.service.PostModerationDomainService;
+import com.nowcoder.community.user.api.action.UserModerationActionApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +35,7 @@ class PostModerationApplicationServiceTest {
     private PostRepository postRepository;
     private PostIntegrationEventPublisher integrationEventPublisher;
     private PostMediaReferenceScheduler mediaReferenceScheduler;
+    private UserModerationActionApi userModerationActionApi;
     private PostModerationApplicationService service;
 
     @BeforeEach
@@ -42,12 +44,14 @@ class PostModerationApplicationServiceTest {
         postRepository = mock(PostRepository.class);
         integrationEventPublisher = mock(PostIntegrationEventPublisher.class);
         mediaReferenceScheduler = mock(PostMediaReferenceScheduler.class);
+        userModerationActionApi = mock(UserModerationActionApi.class);
         service = new PostModerationApplicationService(
                 domainService,
                 postRepository,
                 integrationEventPublisher,
                 mediaReferenceScheduler,
-                new PostBusinessEventLogger()
+                new PostBusinessEventLogger(),
+                userModerationActionApi
         );
     }
 

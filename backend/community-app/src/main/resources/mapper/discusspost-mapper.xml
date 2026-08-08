@@ -15,7 +15,7 @@
     <select id="selectDiscussPosts" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
         select <include refid="selectFields"></include>
         from discuss_post
-        where status != 2
+        where status in (0, 1)
         <if test="userId != null">
             and user_id = #{userId, jdbcType=BINARY}
         </if>
@@ -38,18 +38,40 @@
             )
         </if>
         <if test="orderMode==0">
-            order by type desc, create_time desc
+            order by type desc, create_time desc, id desc
         </if>
         <if test="orderMode==1">
-            order by type desc, score desc, create_time desc
+            order by type desc, score desc, create_time desc, id desc
         </if>
         limit #{offset}, #{limit}
+    </select>
+
+    <select id="selectHotPostsAfter" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
+        select <include refid="selectFields"></include>
+        from discuss_post
+        where status in (0, 1)
+        <if test="categoryId != null">
+            and category_id = #{categoryId, jdbcType=BINARY}
+        </if>
+          and (
+              type &lt; #{beforeType}
+              or (type = #{beforeType} and score &lt; #{beforeScore})
+              or (type = #{beforeType} and score = #{beforeScore} and create_time &lt; #{beforeCreateTime})
+              or (
+                  type = #{beforeType}
+                  and score = #{beforeScore}
+                  and create_time = #{beforeCreateTime}
+                  and id &lt; #{beforePostId, jdbcType=BINARY}
+              )
+          )
+        order by type desc, score desc, create_time desc, id desc
+        limit #{limit}
     </select>
 
     <select id="selectDiscussPostsAfterId" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
         select <include refid="selectFields"></include>
         from discuss_post
-        where status != 2
+        where status in (0, 1)
         <if test="afterId != null">
           and id &gt; #{afterId, jdbcType=BINARY}
         </if>
@@ -60,7 +82,7 @@
     <select id="selectDiscussPostsByIds" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
         select <include refid="selectFields"></include>
         from discuss_post
-        where status != 2
+        where status in (0, 1)
           and id in
           <foreach collection="postIds" item="pid" open="(" separator="," close=")">
               #{pid, jdbcType=BINARY}
@@ -70,7 +92,7 @@
     <select id="selectRecentVisiblePostsByAuthorIds" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
         select <include refid="selectFields"></include>
         from discuss_post
-        where status != 2
+        where status in (0, 1)
           and user_id in
           <foreach collection="authorIds" item="authorId" open="(" separator="," close=")">
               #{authorId, jdbcType=BINARY}
@@ -82,7 +104,7 @@
     <select id="selectRecentVisiblePostsByAuthorIdsBefore" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
         select <include refid="selectFields"></include>
         from discuss_post
-        where status != 2
+        where status in (0, 1)
           and user_id in
           <foreach collection="authorIds" item="authorId" open="(" separator="," close=")">
               #{authorId, jdbcType=BINARY}

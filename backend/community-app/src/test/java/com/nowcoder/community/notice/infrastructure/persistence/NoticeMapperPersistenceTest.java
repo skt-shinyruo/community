@@ -6,6 +6,8 @@ import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.notice.application.NoticeProjectionApplicationService;
+import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
 import com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeRecordDataObject;
 import com.nowcoder.community.notice.infrastructure.persistence.mapper.NoticeMapper;
@@ -35,6 +37,10 @@ class NoticeMapperPersistenceTest {
     private static final UUID NOTICE_ID = UUID.fromString("00000000-0000-7000-8000-000000000401");
     private static final UUID OTHER_NOTICE_ID = UUID.fromString("00000000-0000-7000-8000-000000000402");
     private static final UUID RECIPIENT_USER_ID = uuid(9);
+    private static final UUID FIRST_LIFECYCLE =
+            UUID.fromString("00000000-0000-7000-8000-000000000001");
+    private static final UUID SECOND_LIFECYCLE =
+            UUID.fromString("00000000-0000-7000-8000-000000000002");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -42,11 +48,16 @@ class NoticeMapperPersistenceTest {
     @Autowired
     private NoticeMapper noticeMapper;
 
+    @Autowired
+    private NoticeProjectionApplicationService noticeProjectionApplicationService;
+
     @MockBean
     private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {
+        jdbcTemplate.update("delete from notice_projection_event_log");
+        jdbcTemplate.update("delete from notice_like_projection_state");
         jdbcTemplate.update("delete from notice_record");
     }
 
@@ -120,11 +131,22 @@ class NoticeMapperPersistenceTest {
         insertNotice(NOTICE_ID, RECIPIENT_USER_ID, "comment", 0);
         insertNotice(OTHER_NOTICE_ID, RECIPIENT_USER_ID, "comment", 0);
 
-        int updated = noticeMapper.updateNoticesStatusForRecipient(List.of(NOTICE_ID), 1, RECIPIENT_USER_ID);
+        int updated = noticeMapper.updateNoticesStatusForRecipient(List.of(NOTICE_ID), 0, 1, RECIPIENT_USER_ID);
 
         assertThat(updated).isEqualTo(1);
         assertThat(statusOf(NOTICE_ID)).isEqualTo(1);
         assertThat(statusOf(OTHER_NOTICE_ID)).isEqualTo(0);
+    }
+
+    @Test
+    void updateNoticesStatusShouldNotReviveRevokedNotice() {
+        insertNotice(NOTICE_ID, RECIPIENT_USER_ID, "like", 2);
+
+        int updated = noticeMapper.updateNoticesStatusForRecipient(
+                List.of(NOTICE_ID), 0, 1, RECIPIENT_USER_ID);
+
+        assertThat(updated).isZero();
+        assertThat(statusOf(NOTICE_ID)).isEqualTo(2);
     }
 
     @Test
@@ -145,6 +167,31 @@ class NoticeMapperPersistenceTest {
         assertThat(updated).isEqualTo(1);
         assertThat(statusOf(NOTICE_ID)).isEqualTo(2);
         assertThat(statusOf(OTHER_NOTICE_ID)).isEqualTo(0);
+    }
+
+    @Test
+    void likeProjectionShouldConvergeAcrossReorderedLifecycles() {
+        String relationKey = "like:" + uuid(1) + ":3:" + uuid(100);
+
+        noticeProjectionApplicationService.projectReliably(likeCommand(
+                true, "first-created", 10L, FIRST_LIFECYCLE, relationKey));
+        noticeProjectionApplicationService.projectReliably(likeCommand(
+                true, "second-created", 30L, SECOND_LIFECYCLE, relationKey));
+        noticeProjectionApplicationService.projectReliably(likeCommand(
+                false, "first-delayed-removed", 20L, FIRST_LIFECYCLE, relationKey));
+
+        assertThat(visibleLikeNoticeCount()).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "select source_event_id from notice_like_projection_state where recipient_user_id = ? and source_relation_key = ?",
+                String.class,
+                BinaryUuidCodec.toBytes(RECIPIENT_USER_ID),
+                relationKey
+        )).isEqualTo("second-created");
+
+        noticeProjectionApplicationService.projectReliably(likeCommand(
+                false, "second-removed", 50L, SECOND_LIFECYCLE, relationKey));
+
+        assertThat(visibleLikeNoticeCount()).isZero();
     }
 
     private void insertNotice(UUID noticeId, UUID toUserId, String topic, int status) {
@@ -180,6 +227,49 @@ class NoticeMapperPersistenceTest {
                 "select status from notice_record where id = ?",
                 Integer.class,
                 BinaryUuidCodec.toBytes(noticeId)
+        );
+    }
+
+    private ProjectNoticeCommand likeCommand(
+            boolean active,
+            String eventId,
+            long sourceVersion,
+            UUID relationInstanceId,
+            String relationKey
+    ) {
+        if (active) {
+            return new ProjectNoticeCommand.LikeCreated(
+                    eventId,
+                    sourceVersion,
+                    "LikeCreated",
+                    uuid(1),
+                    3,
+                    uuid(100),
+                    RECIPIENT_USER_ID,
+                    uuid(100),
+                    relationKey,
+                    relationInstanceId
+            );
+        }
+        return new ProjectNoticeCommand.LikeRemoved(
+                eventId,
+                sourceVersion,
+                "LikeRemoved",
+                uuid(1),
+                3,
+                uuid(100),
+                RECIPIENT_USER_ID,
+                uuid(100),
+                relationKey,
+                relationInstanceId
+        );
+    }
+
+    private Integer visibleLikeNoticeCount() {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from notice_record where recipient_user_id = ? and topic = 'like' and status != 2",
+                Integer.class,
+                BinaryUuidCodec.toBytes(RECIPIENT_USER_ID)
         );
     }
 

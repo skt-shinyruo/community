@@ -5,6 +5,7 @@ import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentTransitionTargetDataObject;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,8 @@ class CommentMapperPersistenceTest {
     private static final UUID COMMENT_ID = UUID.fromString("00000000-0000-7000-8000-000000000401");
     private static final UUID USER_ID = UUID.fromString("00000000-0000-7000-8000-000000000402");
     private static final UUID POST_ID = UUID.fromString("00000000-0000-7000-8000-000000000403");
+    private static final UUID VISIBLE_POST_ID = UUID.fromString("00000000-0000-7000-8000-000000000430");
+    private static final UUID DELETED_POST_ID = UUID.fromString("00000000-0000-7000-8000-000000000431");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -43,6 +46,13 @@ class CommentMapperPersistenceTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from comment");
+        deleteVisibilityTestPosts();
+    }
+
+    @AfterEach
+    void tearDown() {
+        jdbcTemplate.update("delete from comment");
+        deleteVisibilityTestPosts();
     }
 
     @Test
@@ -154,6 +164,32 @@ class CommentMapperPersistenceTest {
     }
 
     @Test
+    void cleanupScanShouldReturnOnlyDeletedRootsThatStillHaveActiveReplies() {
+        UUID repairRootId =
+                UUID.fromString("00000000-0000-7000-8000-000000000440");
+        UUID completeRootId =
+                UUID.fromString("00000000-0000-7000-8000-000000000441");
+        UUID activeRootId =
+                UUID.fromString("00000000-0000-7000-8000-000000000442");
+        insertRootComment(repairRootId, USER_ID, POST_ID, 1, "deleted-root",
+                Instant.parse("2026-04-29T01:03:00Z"));
+        insertReply(uuidFromSuffix(443), USER_ID, POST_ID, repairRootId, USER_ID,
+                0, "active-reply", Instant.parse("2026-04-29T01:03:01Z"));
+        insertRootComment(completeRootId, USER_ID, POST_ID, 1, "complete-root",
+                Instant.parse("2026-04-29T01:03:02Z"));
+        insertReply(uuidFromSuffix(444), USER_ID, POST_ID, completeRootId, USER_ID,
+                1, "deleted-reply", Instant.parse("2026-04-29T01:03:03Z"));
+        insertRootComment(activeRootId, USER_ID, POST_ID, 0, "active-root",
+                Instant.parse("2026-04-29T01:03:04Z"));
+        insertReply(uuidFromSuffix(445), USER_ID, POST_ID, activeRootId, USER_ID,
+                0, "active-thread-reply", Instant.parse("2026-04-29T01:03:05Z"));
+
+        List<UUID> roots = commentMapper.selectDeletedRootIdsWithActiveReplies(10);
+
+        assertThat(roots).containsExactly(repairRootId);
+    }
+
+    @Test
     void rootKeysetShouldUseDescendingIdTieBreakWithoutMutationGaps() {
         UUID oldestRootId = UUID.fromString("00000000-0000-7000-8000-000000000407");
         UUID olderRootId = UUID.fromString("00000000-0000-7000-8000-000000000408");
@@ -207,6 +243,57 @@ class CommentMapperPersistenceTest {
                 .containsExactly(oldestReplyId, boundaryReplyId);
         assertThat(secondPage).extracting(CommentDataObject::getId)
                 .containsExactly(newerReplyId, newestReplyId);
+    }
+
+    @Test
+    void recentCommentsShouldFilterDeletedPostsBeforeApplyingLimit() {
+        UUID visibleCommentId = UUID.fromString("00000000-0000-7000-8000-000000000432");
+        UUID deletedPostCommentId = UUID.fromString("00000000-0000-7000-8000-000000000433");
+        jdbcTemplate.update(
+                "insert into discuss_post(id, title, status) values (?, ?, ?)",
+                BinaryUuidCodec.toBytes(VISIBLE_POST_ID),
+                "visible",
+                0
+        );
+        jdbcTemplate.update(
+                "insert into discuss_post(id, title, status) values (?, ?, ?)",
+                BinaryUuidCodec.toBytes(DELETED_POST_ID),
+                "deleted",
+                2
+        );
+        insertRootComment(
+                visibleCommentId,
+                USER_ID,
+                VISIBLE_POST_ID,
+                0,
+                "visible-comment",
+                Instant.parse("2026-04-29T01:02:07Z")
+        );
+        insertRootComment(
+                deletedPostCommentId,
+                USER_ID,
+                DELETED_POST_ID,
+                0,
+                "deleted-post-comment",
+                Instant.parse("2026-04-29T01:02:08Z")
+        );
+
+        List<CommentDataObject> comments = commentMapper.selectRecentCommentsByUser(USER_ID, 0, 1);
+
+        assertThat(comments).extracting(CommentDataObject::getId).containsExactly(visibleCommentId);
+    }
+
+    private void deleteVisibilityTestPosts() {
+        jdbcTemplate.update(
+                "delete from discuss_post where id in (?, ?)",
+                BinaryUuidCodec.toBytes(VISIBLE_POST_ID),
+                BinaryUuidCodec.toBytes(DELETED_POST_ID)
+        );
+    }
+
+    private static UUID uuidFromSuffix(int suffix) {
+        return UUID.fromString(String.format(
+                "00000000-0000-7000-8000-%012d", suffix));
     }
 
     private void insertRootComment(UUID id, UUID userId, UUID postId, int status, String content, Instant createTime) {

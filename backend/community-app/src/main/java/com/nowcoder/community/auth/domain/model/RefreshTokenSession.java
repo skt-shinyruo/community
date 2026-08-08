@@ -12,7 +12,8 @@ public record RefreshTokenSession(
         Instant expiresAt,
         Instant revokedAt,
         RefreshTokenSessionState state,
-        Instant pendingExpiresAt
+        Instant pendingExpiresAt,
+        UUID rotationLeaseId
 ) {
     public RefreshTokenSession {
         Objects.requireNonNull(state, "state must not be null");

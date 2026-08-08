@@ -7,7 +7,8 @@
 数据库与账号 bootstrap：
 
 - `deploy/mysql/primary-init/001_create_databases.sh`：mysql-primary 首次建库和最小权限账号。
-- `deploy/mysql/primary-init/010_current_schema.sql`：三个业务 schema 的唯一当前态建表 SQL，由 MySQL entrypoint 在主库数据目录为空时执行一次。
+- `deploy/mysql/primary-init/010_current_schema.sql`：三个业务 schema 的当前态建表快照，由 MySQL entrypoint 在主库数据目录为空时执行一次。
+- `deploy/mysql/community-migrations/VNNN__*.sql`：`community` 已有数据环境的不可变前向迁移序列，从 `V016` 开始。
 
 schema：
 
@@ -19,11 +20,12 @@ schema：
 最小权限账号：
 
 - `${MYSQL_USER:-community}` -> `community`：`select/insert/update/delete`。
+- `${COMMUNITY_MIGRATION_USERNAME:-community_migrator}` -> `community`：仅一次性迁移容器使用的 DML/DDL 账号。
 - `${IM_MYSQL_USER:-im_core}` -> `im_core`：`select/insert/update/delete`。
 - `${OSS_MYSQL_USER:-community_oss}` -> `community_oss`：`select/insert/update/delete`。
 - `${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}` -> `community`、`community_oss`、`im_core`：`select/insert/update/delete`。
 
-所有 runtime 和 Mock Data Studio 账号都只保留 DML 权限。建库建表由 MySQL entrypoint 以初始化权限完成，不提供常驻 DDL 账号。
+所有 runtime 和 Mock Data Studio 账号都只保留 DML 权限。`community_migrator` 与 runtime 账号必须不同，只注入 `community-db-migrations` one-shot；应用进程不持有 DDL 凭证，也不在启动代码中补表。
 
 UUID 持久化：
 
@@ -35,16 +37,26 @@ UUID 持久化：
 
 `deploy/mysql/primary-init/010_current_schema.sql` 同时拥有 `community`、`community_oss`、`im_core` 三个固定名称的业务 schema。文件只保存最终 `CREATE TABLE` 定义和运行所需的引用数据，不保存结构演进过程、history table 或开发用户。必要引用数据包括分类、任务模板、OSS usage policy 和 IM version counter。
 
-MySQL entrypoint 按文件名顺序先执行 `001_create_databases.sh`，再执行 `010_current_schema.sql`，且只在主库 `/var/lib/mysql` 为空时运行。single 只把快照挂到 `mysql`；cluster 只挂到 `mysql-primary`，初始化 DDL 和 DML 通过 GTID 复制到两个 replica。runtime 等待账号 bootstrap，cluster runtime 还等待 replication bootstrap 完成。
+MySQL entrypoint 按文件名顺序先执行 `001_create_databases.sh`，再执行 `010_current_schema.sql`，且只在主库 `/var/lib/mysql` 为空时运行。single 只把快照挂到 `mysql`；cluster 只挂到 `mysql-primary`，初始化 DDL 和 DML 通过 GTID 复制到两个 replica。之后 `community-db-migrations` 使用固定只读挂载 `/migrations` 执行迁移；cluster 会先等待复制 bootstrap，`community-app` 和 development seed 都等待迁移成功。
 
-结构变化时直接修改快照中的最终定义，并同步受影响的 H2 `schema.sql` 测试夹具和 schema 契约。不要追加 `ALTER TABLE` 演进记录，也不要向已有 volume 手工重放快照。完成验证后使用：
+每次 `community` 结构变化必须同时修改快照最终定义，并追加新的 `VNNN__*.sql`，同步 H2 `schema.sql` 和契约。序列从 `V016` 继续，是为了不与仓库历史上已经发布过的 V001-V015 编号碰撞；新的 `community_forward_schema_history` 不伪造旧版本 baseline。已经成功登记的迁移不得修改；runner 会比较文件 SHA-256、拒绝数据库中缺失于镜像的历史版本，并用 MySQL named lock 阻止并行执行。MySQL DDL 会隐式提交，因此迁移中的每项 DDL 必须先查 `information_schema`、数据修复必须幂等，成功行只能在全部步骤完成后写入；进程中断后可直接重跑同一文件。
+
+根评论 tombstone 后的回复清理由 `idx_comment_root_cleanup(root_comment_id,status,create_time,id)` 支撑，按 `(create_time,id)` 稳定顺序锁定有限行；每批提交后才能继续下一批。
+
+`social_like.post_id` 是内容点赞的根帖引用：POST like 等于 `entity_id`，COMMENT like 从 `comment.post_id` 取得，USER like 为 `NULL`。帖子自身点赞使用既有 target 索引清理，`idx_like_post_entity_user(entity_type,post_id,entity_id,user_id)` 支撑删帖后的子评论关系根帖扫描。V018 会回填既有内容关系，并在任何 POST/COMMENT 行仍缺少可信 `post_id` 时失败关闭，不登记迁移成功。
+
+`market_order.wallet_recovery_next_attempt_at` 是 pending 资金订单的持久恢复截止时间；`idx_market_order_wallet_recovery(status,wallet_recovery_next_attempt_at,order_id)` 让有限批次只扫描到期候选。V019 为已有环境补齐该列和索引，避免缺失 action 或暂不可修复订单反复占满固定扫描前缀。
+
+V020 为 IM policy snapshot 增加 append-only owner version history，V021 为成长任务增加按 like relation instance/version fencing 的 lifecycle state，V022 为收藏计数增加事务内 durable reconciliation token。V022 的一次性差异回填不能覆盖迁移完成后仍由旧二进制产生的收藏写入，因此该版本不支持旧、新 `community-app` 混合写；必须先停止并排空旧 writer，完成迁移并切换全部新实例后再恢复收藏写入。
+
+可丢弃的本地环境仍可使用 clean reset：
 
 ```bash
 ./deploy/deployment.sh reset-mysql --topology single
 ./deploy/deployment.sh up --topology single
 ```
 
-`reset-mysql` 会停止完整拓扑，并且只删除该拓扑明确命名的 MySQL primary/replica volumes；其他中间件数据卷不受影响。这一模型只适用于可丢弃并重建的环境。需要保留既有业务数据的环境必须先设计数据导出/导入或正式的前向升级方案，不能直接重放当前态 SQL。
+`reset-mysql` 会停止完整拓扑，并且只删除该拓扑明确命名的 MySQL primary/replica volumes；其他中间件数据卷不受影响。需要保留既有业务数据时禁止 reset 或重放快照，应按 [运行与排障](operations.md#community-前向-schema-迁移) 先备份、静默写入并运行 one-shot。`community_oss` 和 `im_core` 尚无本序列覆盖的结构变化；给这两个 owner 增加演进时必须建立各自独立 history、DDL 账号和 runtime 启动依赖，不能借用 community 迁移账号。
 
 ## community 主要表
 
@@ -53,13 +65,20 @@ MySQL entrypoint 按文件名顺序先执行 `001_create_databases.sh`，再执�
 | `user` | 用户基础信息、角色、处罚状态、`security_version` 等用户事实 |
 | `user_security_version_counter` | user 认证授权版本计数器，用于分配 `user.security_version` |
 | `auth_refresh_token` | refresh token 状态，仅存 token hash |
+| `auth_refresh_token_family_revocation` | refresh family 注销 marker 及其最晚有效期 |
+| `auth_refresh_token_family_lock` | refresh family 持久互斥行；统一轮换、签发和注销的数据库锁序 |
 | `discuss_post` | 帖子主事实；`aggregate_version` 是编辑、治理和删除共用的 CAS / 事件版本，`score_version` 是派生热度的独立单调版本 |
 | `comment` | 评论 / 回复 |
 | `post_counter_snapshot` | 帖子计数快照，承载 comment / like / view / score 聚合读模型 |
+| `post_bookmark_counter_reconciliation` | 收藏事实与计数快照的持久对账 token；revision/pending CAS 防止旧 worker 清除并发新任务 |
 | `post_score_snapshot` | 帖子热度分数快照，支撑 durable hot feed ranking |
 | `notice_record` | 站内通知读模型、topic、未读状态和内容快照 |
+| `notice_like_projection_state` | like/unlike 通知的 relation instance、source version 和 tombstone 状态 |
 | `report` / `moderation_action` | 举报与治理动作 |
-| `social_like` / `social_follow` | 点赞与关注关系 |
+| `social_like` / `social_follow` | 点赞与关注关系；内容点赞在 `social_like.post_id` 保存根帖引用，支持删帖 fence 与有界清理 |
+| `social_like_relation_version` | 每个稳定点赞关系的持久化事件序列；高位起始值隔离 legacy 时间戳版本 |
+| `social_user_pair_lock` | 规范化用户对互斥行，串行化 follow/block 写入 |
+| `community_forward_schema_history` | 前向迁移版本、脚本名和 SHA-256 成功记录；由 one-shot 创建，不属于空库快照 |
 | `http_idempotency` | HTTP 写接口幂等状态 |
 | `user_consumed_event` | 用户侧消费去重样例 |
 | `task_template` | 成长任务模板 |
@@ -78,7 +97,7 @@ MySQL entrypoint 按文件名顺序先执行 `001_create_databases.sh`，再执�
 | `post_content_block` | 帖子正文 block，承载 paragraph/code/media block 顺序 |
 | `market_listing` | 市场商品 listing；状态迁移使用行锁和 expected-status CAS |
 | `market_inventory_unit` | 市场预加载库存单元 |
-| `market_order` | 市场订单，保存价格、标题、地址等下单快照 |
+| `market_order` | 市场订单，保存价格、标题、地址等下单快照，并持久化资金恢复下一次尝试时间 |
 | `market_wallet_action` | market 到 wallet 的 durable saga command，承载 escrow / release / refund 状态 |
 | `market_dispute` | 市场订单争议 |
 | `market_address` | 市场收货地址簿；generated active-default user key 的唯一索引约束每用户至多一个活动默认地址 |
@@ -146,24 +165,32 @@ Redis 用于 session / 验证码 / 风控 / 缓存 / analytics / single-flight �
 
 | 能力 | Key |
 | --- | --- |
-| refresh token | `auth:refresh:<refreshToken>` |
-| refresh family | `auth:refresh:family:<familyId>` |
-| refresh family revoked | `auth:refresh:family:revoked:<familyId>` |
-| 登录失败 IP | `auth:login:fail:ip:<ip>` |
-| 登录失败用户 | `auth:login:fail:user:<username>` |
-| 验证码 | `captcha:<captchaId>` |
-| 验证码失败计数 | `captcha:fail:<captchaId>` |
-| 找回密码 | `auth:pwdreset:<token>` |
-| 找回密码请求邮箱限流 | `auth:pwdreset:req:email:<email>` |
-| 找回密码请求 IP 限流 | `auth:pwdreset:req:ip:<ip>` |
+| refresh token | `auth:refresh:{auth-refresh}:token:<sha256>` |
+| refresh family | `auth:refresh:{auth-refresh}:family:<familyId>` |
+| refresh family revoked | `auth:refresh:{auth-refresh}:family-revoked:<familyId>` |
+| 登录失败 IP | `auth:login:fail:ip:v2-<hmac>` |
+| 登录查库前临时输入 | `auth:login:fail:input:v3-<hmac>`（trim 后原始输入以 `login-input` scope 生成，不做 Java Unicode 折叠；authoritative subject lease 获取后释放其 provisional lease） |
+| 登录失败 authoritative subject | `auth:login:fail:subject:v3-<hmac>`（user owner 以 MySQL `utf8mb4_unicode_ci` `WEIGHT_STRING` scalar 生成存在性无关的 `utf8mb4_unicode_ci:v1:<digest>`，auth 再以 `login-subject` scope 生成 Redis 伪名；不存 userId） |
+| 登录身份查询 / 密码检查预算 lease | `auth:login:inflight:{<完整 failure key>}:<完整 failure key>`（tokenized ZSET；与 failure String 同 slot；key TTL 覆盖最大存活 score） |
+| 验证码 | `captcha:{<captchaId>}:value` |
+| 验证码失败计数 | `captcha:{<captchaId>}:fail` |
+| 注册验证码状态机 v2 | `auth:regcode:v2:{<userId>}`（Redis Hash） |
+| 注册验证码 legacy bridge | `auth:regcode:<userId>`（升级期只读迁移的 8 字段 String） |
+| 注册请求/重发原子配额 | `auth:registration:quota:{registration-quota}:<request\|resend>:<dimension>:<hmac>` |
+| 找回密码 token | `auth:pwdreset:{password-reset}:token:<sha256>` |
+| 找回密码 token generation | `auth:pwdreset:{password-reset}:generation:<userId>:<securityVersion>` |
+| 找回密码请求邮箱限流 | `auth:pwdreset:req:email:<hmac>` |
+| 找回密码请求 IP 限流 | `auth:pwdreset:req:ip:<hmac>` |
+| 找回密码实际投递限流 | `auth:pwdreset:req:delivery:<hmac>` |
 | HTTP 幂等 Redis 方案 | `idem:<operation>:<userId>:<Idempotency-Key>` |
 | 全站热门流 | `post:feed:global:hot` |
 | 板块热门流 | `post:feed:board:hot:<boardId>` |
 | 帖子摘要缓存 | `post:summary:<postId>` |
 | 帖子详情缓存 | `post:detail:<postId>` |
-| 帖子计数 legacy 基线（升级期只读） | `post:counter:<postId>` |
-| 帖子计数 Cluster-safe overlay | `post:counter:{post:counter:dirty}:<postId>` |
-| 帖子计数 dirty revision | `post:counter:dirty` + `post:counter:{post:counter:dirty}:sequence` |
+| 帖子计数 legacy 基线（升级期只读） | `post:counter:<postId>` 与 `post:counter:{post:counter:dirty}:<postId>` |
+| 帖子计数 v2 基线/浏览增量 | `post:counter:v2:{post-counter-<00..1f>}:<postId>` |
+| 帖子计数 v2 dirty revision | `post:counter:v2:{post-counter-<00..1f>}:dirty` + `post:counter:v2:{post-counter-<00..1f>}:sequence` |
+| 帖子浏览去重 | `post:viewer:v2:{post-counter-<00..1f>}:<postId>:<viewerKey sha256>` |
 | 全站/板块 hot-feed 删除 fence | `post:feed:terminal-members:{<完整 feed zset key>}:<postId>`（TTL 7 天） |
 | 全站/板块 hot-feed aggregate-version floor | `post:feed:version-members:{<完整 feed zset key>}:<postId>`（TTL 7 天） |
 | 全站/板块 hot-feed score-version floor | `post:feed:score-version-members:{<完整 feed zset key>}:<postId>`（TTL 7 天） |
@@ -179,11 +206,21 @@ Redis 用于 session / 验证码 / 风控 / 缓存 / analytics / single-flight �
 
 Hot-feed projection 的 BEGIN/CURRENT/COMMIT/ABORT Lua 对同一帖子使用 `{<postId>}` Redis Cluster hash tag；event key 也按帖子分区，并把 hash tag 放在 source event ID 前，因此任意 event ID 都不能把同一脚本的 key 分散到不同 slot。新 Post event 与携带 `postAggregateVersion` 的 comment event 共享 `post` lane，并以 Post aggregate version 单调判旧。切换前已排队且 payload 没有正 `aggregateVersion` 的 Post event 进入 `legacy-post` lane；缺少 `postAggregateVersion` 的 legacy comment 进入 `comment` lane，social 进入 `social` lane。这三类事件的时间戳版本只做元数据校验，不充当水位；它们按 event ID 去重并在每帖锁内回源当前事实重算，避免节点时钟回拨永久丢失有效重算。terminal `PostDeleted` commit 会保留 Post lane 的 `max(currentVersion, deletionVersion)`，并写 7 天 tombstone；event identity 同样保留 7 天。
 
+注册验证码 v2 Hash 使用 `auth:regcode:v2:{<userId>}`，保存 code、delivery ID、失败次数、状态和 replacement/verification lease。失败达到上限后会清除 code 与 delivery ID，保留 `EXHAUSTED` 冷却墓碑，避免删除 key 后立即重发绕过 cooldown。
+
+legacy String 的真实旧格式是没有 hash tag 的 `auth:regcode:<userId>`。桥接不会把两个跨 slot key 传入同一个 Lua：应用先在 legacy key 上用一个 Lua 原子执行 `GET + PTTL + DEL`，解析出已确认 active code、失败次数与签发时间，再用只操作 v2 key 的 Lua 条件导入。legacy pending 状态没有 UUID lease，桥接只恢复此前 active code，不会猜测邮件是否已发送并提升 replacement code；非法、过期或无 TTL 值 fail-closed 丢弃。显式 cleanup 同时删除两个 key。
+
+该 bridge 只支持旧 writer 完全退出后的状态切换，不是双写协议。旧进程不识别 v2 lease，新旧实例混跑会分别接受不同验证码；发布前必须停止旧流量、排空在途注册/重发请求并确认所有旧实例退出，再启动 v2。回滚也必须先停掉 v2，并使在途注册上下文失效后再启动旧版本，禁止新旧 writer 滚动混跑。
+
 guard tombstone 之外，每个 Redis sink 同时保留 terminal fence 和 aggregate-version floor，两者 TTL 都是 7 天。terminal fence 无条件拒绝普通回填，aggregate floor 保存该 sink 最小可接受的 Post `aggregateVersion`。hot-feed 和 summary 另外保存 `scoreVersion`：更大的 aggregate version 可替换当前值，同一 aggregate version 只有不小于当前 score version 的写入可更新；较小 aggregate version 即使携带更大 score version 也会被拒绝。feed upsert 与 summary put/evict 分别在同一个 Lua 中写 payload 并刷新各自的二元版本 marker，避免旧 score 在同一 aggregate version 下回填；detail 不缓存最终 score，只按 aggregate version 保护。帖子普通变更的 `remove/evict` 会删除当前 sink，将版本 floor 提升到当前值与传入值的字典序最大值并刷新 TTL；终态删除还会写 terminal fence。
 
 feed 的删除覆盖全站 feed、事件 payload board 以及当时 category repository 返回的所有 board，并按 board ID 去重。每组 feed zset/terminal fence/version floor 都把完整 feed key 放入第一组 `{...}`；summary/detail 也把完整 cache key 放入对应 fence/floor 的第一组 `{...}`。因此每个 sink 的检查、删除和写入共享 Redis Cluster slot。
 
-counter 写入使用 `post:counter:{post:counter:dirty}:<postId>` overlay；花括号中的 tag 与原有全局 dirty zset `post:counter:dirty` 的完整 key 相同，因此 HINCR/HSET、全局 sequence 自增和 ZADD 可在一个 Cluster Lua 中原子执行。升级期间读取把旧 `post:counter:<postId>` 当作只读基线，对 view/like/comment/bookmark 叠加 overlay，score 则优先取 overlay。dirty zset 的 score 是全局严格递增 revision；flush 只在当前 revision 仍等于读取值时用 Lua ZREM，批次读取后发生的新计数不会被旧批次误确认。该设计保留单一 dirty slot 的既有吞吐边界，但不再产生 CROSSSLOT。
+counter v2 按 `postId.hashCode()` 分成 32 个 Redis Cluster slot；每个 slot 内的 counter hash、viewer 去重 key、dirty zset 和 sequence 共用 `{post-counter-<00..1f>}` hash tag，因此浏览去重、浏览增量与 dirty revision 可在同一 Lua 中原子完成。点赞、评论、收藏和 score 均以 owner 数据库为事实源：写路径只标记 dirty，读取/flush 时回源重建，不再把乱序到达的绝对值或增量当作事实。首次初始化会原子清理初始化前的派生 overlay，防止已包含新事实的数据库基线再次叠加；持久 snapshot 不可读时禁止写入已初始化标记。若 `initialized` 或 `base*` 损坏，修复脚本把 `deltaViewCount` 原子移入内部 `recoveryViewDelta`，恢复持久基线后再移回增量字段；该内部字段存在期间不得作为零基线完成初始化。
+
+dirty zset 的 score 是分片内严格递增 revision。flush 把该 revision 与快照一起持久化到 `post_counter_snapshot.flush_revision` 和 `post_score_snapshot.flush_revision`，MySQL upsert 只接受更大 revision；因此多实例中迟到的旧 flush 无法覆盖新快照。Redis 初始化会用持久化 revision 抬高本分片 sequence，确保重建后的新修改仍能越过数据库水位。flush 对 Redis 和 owner 事实源使用严格读取，任一来源失败都不落库、不确认 dirty；仅在 dirty revision 仍等于读取值时用 Lua 确认，批次读取后的新修改会留给下一轮。扫描先轮询 32 个分片，再把空分片让出的额度按活跃分片重新分配；队头不可解析的 UUID、落入错误分片的 UUID，以及非正数、非整数或非有限 revision score 会被删除并立即补位。
+
+此 key 协议不允许旧 counter writer 与 v2 writer 混跑。升级时必须先停止全部旧版流量并等待旧 writer 退出，再启动 v2；不得使用滚动混合发布。v2 会把升级前遗留的全局 `post:counter:dirty` marker 先桥接成分片 revision，在分片 flush 成功且 fenced clear 后才按旧 score CAS 清理 legacy marker；这只用于排空切换前积压，不是双写协议。
 
 帖子编辑/治理/删除事务除了写 owner outbox，还注册本域 after-commit callback：更新立即删除 feed / summary / detail cache，删除立即执行 terminal eviction，不依赖 Kafka 回环才开始失效。评论创建、编辑和删除也在同一事务内通过 `incrementActiveCommentCount` 推进 `discuss_post.aggregate_version`，提交后按该版本失效同一组读模型；因此评论变更不会与删帖产生可提交的混合版本。callback 失败按缓存 fail-open 记录日志，后续 Kafka 投影继续追平；因此 Redis 仍是派生状态，不是删除事实的唯一存储。
 
@@ -348,6 +385,8 @@ ES upsert 使用原子 Painless CAS：缺失文档的 `create` 分支先写入�
 
 - owner eventbus：`eventbus.content`、`eventbus.social`、`eventbus.user`。
 - 唯一内部 projection outbox：`projection.im.policy`，把 user policy / social block 变化发布给 `im-realtime`。
+- 认证副作用：`auth.password-reset-mail`；payload 只有 delivery ID、derivation key ID、收件地址和过期时间，不保存 bearer token。
+- 注册邮件：`auth.registration-code-mail`；payload 保存稳定 delivery/registration/lease 元数据、收件地址、短期验证码和过期时间。worker 发送前回查 Redis fencing；成功后 outbox 原子清空 payload。
 
 状态语义：
 
@@ -355,6 +394,8 @@ ES upsert 使用原子 Painless CAS：缺失文档的 `create` 分支先写入�
 - `PROCESSING`
 - `SUCCEEDED`
 - `DEAD`
+
+`SUCCEEDED` 转换在同一条 fenced UPDATE 中把 `payload` 清为空串，缩短邮箱等投递数据的保留时间；`PENDING`、`PROCESSING`、`DEAD` 必须保留 payload 以便重试或人工 replay。
 
 worker 先查询 due candidate，再以 `id + PENDING + next_retry_at <= pollNow` 条件更新原子认领；认领成功后按 `id + PROCESSING + lease_token` 回读当前 row，handler 和重试决策只使用该新鲜快照。多实例同时轮询时，旧 candidate 因此不能绕过新的 backoff，也不能在 `DEAD -> PENDING` 原位恢复后沿用恢复前的 retry count。
 

@@ -1,8 +1,12 @@
 package com.nowcoder.community.content.domain.repository;
 
+import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
+
 import java.util.UUID;
 
 public interface PostCounterSnapshotRepository {
+
+    PostCounterSnapshot findByPostId(UUID postId);
 
     void upsert(
             UUID postId,
@@ -10,6 +14,7 @@ public interface PostCounterSnapshotRepository {
             long likeCount,
             long commentCount,
             long bookmarkCount,
-            double score
+            double score,
+            long revision
     );
 }

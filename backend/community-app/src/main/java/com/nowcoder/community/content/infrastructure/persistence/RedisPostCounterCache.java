@@ -2,65 +2,163 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.content.application.PostCounterCache;
 import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Repository
 @ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisPostCounterCache implements PostCounterCache {
 
-    // The existing dirty key is also the hash tag, keeping both Lua keys in one Cluster slot.
-    private static final String COUNTER_KEY_PREFIX = "post:counter:{post:counter:dirty}:";
+    private static final int DIRTY_SHARD_COUNT = 32;
+    private static final String COUNTER_KEY_PREFIX = "post:counter:v2:";
+    private static final String VIEWER_KEY_PREFIX = "post:viewer:v2:";
+    private static final String PREVIOUS_COUNTER_KEY_PREFIX = "post:counter:{post:counter:dirty}:";
     private static final String LEGACY_COUNTER_KEY_PREFIX = "post:counter:";
-    private static final String VIEWER_KEY_PREFIX = "post:viewer:";
-    private static final String DIRTY_KEY = "post:counter:dirty";
-    private static final String DIRTY_SEQUENCE_KEY = "post:counter:{post:counter:dirty}:sequence";
-    private static final String FIELD_VIEW = "viewCount";
-    private static final String FIELD_LIKE = "likeCount";
-    private static final String FIELD_COMMENT = "commentCount";
-    private static final String FIELD_BOOKMARK = "bookmarkCount";
-    private static final String FIELD_SCORE = "score";
+    private static final String LEGACY_DIRTY_KEY = "post:counter:dirty";
+    private static final String LEGACY_QUEUE_ID = "legacy";
+    private static final String SHARD_QUEUE_ID_PREFIX = "shard-";
 
-    private static final DefaultRedisScript<Long> UPDATE_COUNTER_SCRIPT = new DefaultRedisScript<>(
-            """
-            redis.call('HINCRBY', KEYS[1], ARGV[1], ARGV[2])
-            local revision = redis.call('INCR', KEYS[3])
-            redis.call('ZADD', KEYS[2], revision, ARGV[3])
-            return 1
-            """,
-            Long.class
-    );
+    private static final String FIELD_INITIALIZED = "initialized";
+    private static final String FIELD_BASE_VIEW = "baseViewCount";
+    private static final String FIELD_BASE_LIKE = "baseLikeCount";
+    private static final String FIELD_BASE_COMMENT = "baseCommentCount";
+    private static final String FIELD_BASE_BOOKMARK = "baseBookmarkCount";
+    private static final String FIELD_BASE_SCORE = "baseScore";
+    private static final String FIELD_BASE_REVISION = "baseRevision";
+    private static final String FIELD_DELTA_VIEW = "deltaViewCount";
+    private static final String FIELD_RECOVERY_VIEW_DELTA = "recoveryViewDelta";
+    private static final String FIELD_DELTA_LIKE = "deltaLikeCount";
+    private static final String FIELD_DELTA_COMMENT = "deltaCommentCount";
+    private static final String FIELD_DELTA_BOOKMARK = "deltaBookmarkCount";
+    private static final String FIELD_BOOKMARK_ABSOLUTE = "bookmarkCountAbsolute";
+    private static final String FIELD_SCORE_OVERLAY = "scoreOverlay";
 
-    private static final DefaultRedisScript<Long> UPDATE_SCORE_SCRIPT = new DefaultRedisScript<>(
-            """
-            redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
-            local revision = redis.call('INCR', KEYS[3])
-            redis.call('ZADD', KEYS[2], revision, ARGV[3])
-            return 1
-            """,
-            Long.class
-    );
+    private static final String LEGACY_FIELD_VIEW = "viewCount";
+    private static final String LEGACY_FIELD_LIKE = "likeCount";
+    private static final String LEGACY_FIELD_COMMENT = "commentCount";
+    private static final String LEGACY_FIELD_BOOKMARK = "bookmarkCount";
+    private static final String LEGACY_FIELD_SCORE = "score";
 
-    private static final DefaultRedisScript<Long> MARK_VIEWER_SEEN_SCRIPT = new DefaultRedisScript<>(
+    private static final DefaultRedisScript<Long> QUARANTINE_DAMAGED_BASELINE_SCRIPT = new DefaultRedisScript<>(
             """
-            if redis.call('SETNX', KEYS[1], ARGV[1]) == 1 then
-              redis.call('PEXPIRE', KEYS[1], ARGV[2])
-              return 1
+            local delta = redis.call('HGET', KEYS[1], 'deltaViewCount')
+            if delta ~= false then
+              if ARGV[1] == '1' then
+                local recovered = redis.call('HGET', KEYS[1], 'recoveryViewDelta')
+                local recoveryCheck = recovered == false
+                  or redis.pcall('HINCRBY', KEYS[1], 'recoveryViewDelta', 0)
+                if recovered == false
+                  or (type(recoveryCheck) == 'table' and recoveryCheck.err ~= nil) then
+                  redis.call('HSET', KEYS[1], 'recoveryViewDelta', delta)
+                else
+                  redis.call('HINCRBY', KEYS[1], 'recoveryViewDelta', delta)
+                end
+              end
+              redis.call('HDEL', KEYS[1], 'deltaViewCount')
             end
-            return 0
+            redis.call('HDEL', KEYS[1], 'initialized')
+            for index = 2, #ARGV do
+              redis.call('HDEL', KEYS[1], ARGV[index])
+            end
+            return 1
+            """,
+            Long.class
+    );
+
+    private static final DefaultRedisScript<Long> INITIALIZE_SCRIPT = new DefaultRedisScript<>(
+            """
+            local created = redis.call('HSETNX', KEYS[1], 'initialized', '1')
+            if created == 1 then
+              local recoveredViewDelta = redis.call('HGET', KEYS[1], 'recoveryViewDelta')
+              redis.call('HSET', KEYS[1],
+                'baseViewCount', ARGV[1],
+                'baseLikeCount', ARGV[2],
+                'baseCommentCount', ARGV[3],
+                'baseBookmarkCount', ARGV[4],
+                'baseScore', ARGV[5],
+                'baseRevision', ARGV[6])
+              redis.call('HDEL', KEYS[1],
+                'deltaViewCount', 'deltaLikeCount', 'deltaCommentCount',
+                'deltaBookmarkCount', 'bookmarkCountAbsolute', 'scoreOverlay',
+                'recoveryViewDelta')
+              if recoveredViewDelta ~= false then
+                redis.call('HSET', KEYS[1], 'deltaViewCount', recoveredViewDelta)
+              end
+            end
+            local floor = tonumber(ARGV[6]) or 0
+            local sequence = tonumber(redis.call('GET', KEYS[3]) or '0')
+            if sequence < floor then
+              redis.call('SET', KEYS[3], floor)
+            end
+            local dirty = redis.call('ZSCORE', KEYS[2], ARGV[7])
+            if dirty ~= false and tonumber(dirty) <= floor then
+              local revision = redis.call('INCR', KEYS[3])
+              redis.call('ZADD', KEYS[2], revision, ARGV[7])
+            end
+            return created
+            """,
+            Long.class
+    );
+
+    private static final DefaultRedisScript<Long> RECORD_VIEW_SCRIPT = new DefaultRedisScript<>(
+            """
+            if redis.call('HSETNX', KEYS[1], 'initialized', '1') == 1 then
+              local recoveredViewDelta = redis.call('HGET', KEYS[1], 'recoveryViewDelta')
+              redis.call('HSET', KEYS[1],
+                'baseViewCount', ARGV[1],
+                'baseLikeCount', ARGV[2],
+                'baseCommentCount', ARGV[3],
+                'baseBookmarkCount', ARGV[4],
+                'baseScore', ARGV[5],
+                'baseRevision', ARGV[6])
+              redis.call('HDEL', KEYS[1],
+                'deltaViewCount', 'deltaLikeCount', 'deltaCommentCount',
+                'deltaBookmarkCount', 'bookmarkCountAbsolute', 'scoreOverlay',
+                'recoveryViewDelta')
+              if recoveredViewDelta ~= false then
+                redis.call('HSET', KEYS[1], 'deltaViewCount', recoveredViewDelta)
+              end
+            end
+            local floor = tonumber(ARGV[6]) or 0
+            local sequence = tonumber(redis.call('GET', KEYS[4]) or '0')
+            if sequence < floor then
+              redis.call('SET', KEYS[4], floor)
+            end
+            if not redis.call('SET', KEYS[2], ARGV[7], 'PX', ARGV[8], 'NX') then
+              return 0
+            end
+            redis.call('HINCRBY', KEYS[1], 'deltaViewCount', 1)
+            local revision = redis.call('INCR', KEYS[4])
+            redis.call('ZADD', KEYS[3], revision, ARGV[9])
+            return 1
+            """,
+            Long.class
+    );
+
+    private static final DefaultRedisScript<Long> MARK_DIRTY_SCRIPT = new DefaultRedisScript<>(
+            """
+            local revision = redis.call('INCR', KEYS[2])
+            redis.call('ZADD', KEYS[1], revision, ARGV[1])
+            return revision
             """,
             Long.class
     );
@@ -81,6 +179,7 @@ public class RedisPostCounterCache implements PostCounterCache {
 
     private final StringRedisTemplate redisTemplate;
     private final Duration viewerWindow;
+    private final AtomicInteger dirtyScanCursor = new AtomicInteger();
 
     public RedisPostCounterCache(
             StringRedisTemplate redisTemplate,
@@ -93,125 +192,147 @@ public class RedisPostCounterCache implements PostCounterCache {
     @Override
     public PostCounterSnapshot get(UUID postId) {
         if (postId == null) {
-            return new PostCounterSnapshot(null, 0L, 0L, 0L, 0L, 0.0);
+            return PostCounterSnapshot.empty();
         }
         String counterKey = counterKey(postId);
-        String legacyCounterKey = legacyCounterKey(postId);
         Map<Object, Object> values = entries(counterKey);
-        Map<Object, Object> legacyValues = entries(legacyCounterKey);
-        if (values.isEmpty() && legacyValues.isEmpty()) {
-            return new PostCounterSnapshot(postId, 0L, 0L, 0L, 0L, 0.0);
-        }
         List<Object> invalidFields = new ArrayList<>();
-        List<Object> invalidLegacyFields = new ArrayList<>();
-        long viewCount = addCounts(
-                longValue(legacyValues.get(FIELD_VIEW), FIELD_VIEW, invalidLegacyFields),
-                longValue(values.get(FIELD_VIEW), FIELD_VIEW, invalidFields)
-        );
-        long likeCount = addCounts(
-                longValue(legacyValues.get(FIELD_LIKE), FIELD_LIKE, invalidLegacyFields),
-                longValue(values.get(FIELD_LIKE), FIELD_LIKE, invalidFields)
-        );
-        long commentCount = addCounts(
-                longValue(legacyValues.get(FIELD_COMMENT), FIELD_COMMENT, invalidLegacyFields),
-                longValue(values.get(FIELD_COMMENT), FIELD_COMMENT, invalidFields)
-        );
-        long bookmarkCount = addCounts(
-                longValue(legacyValues.get(FIELD_BOOKMARK), FIELD_BOOKMARK, invalidLegacyFields),
-                longValue(values.get(FIELD_BOOKMARK), FIELD_BOOKMARK, invalidFields)
-        );
-        double score = values.containsKey(FIELD_SCORE)
-                ? doubleValue(values.get(FIELD_SCORE), FIELD_SCORE, invalidFields)
-                : doubleValue(legacyValues.get(FIELD_SCORE), FIELD_SCORE, invalidLegacyFields);
-        deleteInvalidFields(counterKey, invalidFields);
-        deleteInvalidFields(legacyCounterKey, invalidLegacyFields);
-        return new PostCounterSnapshot(
-                postId,
-                viewCount,
-                likeCount,
-                commentCount,
-                bookmarkCount,
-                score
+        boolean initialized = "1".equals(stringValue(values.get(FIELD_INITIALIZED)));
+
+        long baseViewCount = longValue(values.get(FIELD_BASE_VIEW), FIELD_BASE_VIEW, invalidFields);
+        long deltaViewCount = longValue(values.get(FIELD_DELTA_VIEW), FIELD_DELTA_VIEW, invalidFields);
+        long likeCount = longValue(values.get(FIELD_BASE_LIKE), FIELD_BASE_LIKE, invalidFields);
+        long commentCount = longValue(values.get(FIELD_BASE_COMMENT), FIELD_BASE_COMMENT, invalidFields);
+        long bookmarkCount = longValue(values.get(FIELD_BASE_BOOKMARK), FIELD_BASE_BOOKMARK, invalidFields);
+        double score = doubleValue(values.get(FIELD_BASE_SCORE), FIELD_BASE_SCORE, invalidFields);
+        long revision = longValue(values.get(FIELD_BASE_REVISION), FIELD_BASE_REVISION, invalidFields);
+
+        boolean damagedBaseline = hasDamagedBaseline(values, initialized, invalidFields);
+        long viewCount = damagedBaseline
+                ? baseViewCount
+                : addCounts(baseViewCount, deltaViewCount);
+        if (!initialized && !damagedBaseline) {
+            likeCount = addCounts(likeCount,
+                    longValue(values.get(FIELD_DELTA_LIKE), FIELD_DELTA_LIKE, invalidFields));
+            commentCount = addCounts(commentCount,
+                    longValue(values.get(FIELD_DELTA_COMMENT), FIELD_DELTA_COMMENT, invalidFields));
+            bookmarkCount = values.containsKey(FIELD_BOOKMARK_ABSOLUTE)
+                    ? longValue(values.get(FIELD_BOOKMARK_ABSOLUTE), FIELD_BOOKMARK_ABSOLUTE, invalidFields)
+                    : addCounts(bookmarkCount,
+                            longValue(values.get(FIELD_DELTA_BOOKMARK), FIELD_DELTA_BOOKMARK, invalidFields));
+            score = values.containsKey(FIELD_SCORE_OVERLAY)
+                    ? doubleValue(values.get(FIELD_SCORE_OVERLAY), FIELD_SCORE_OVERLAY, invalidFields)
+                    : score;
+            PostCounterSnapshot old = legacySnapshot(postId);
+            viewCount = addCounts(viewCount, old.viewCount());
+            likeCount = addCounts(likeCount, old.likeCount());
+            commentCount = addCounts(commentCount, old.commentCount());
+            if (!values.containsKey(FIELD_BOOKMARK_ABSOLUTE)) {
+                bookmarkCount = addCounts(bookmarkCount, old.bookmarkCount());
+            }
+            if (!values.containsKey(FIELD_SCORE_OVERLAY) && !values.containsKey(FIELD_BASE_SCORE)) {
+                score = old.score();
+            }
+        }
+
+        if (damagedBaseline) {
+            quarantineDamagedBaseline(counterKey, invalidFields);
+        } else if (!invalidFields.isEmpty()) {
+            deleteInvalidFields(counterKey, invalidFields);
+        }
+        return new PostCounterSnapshot(postId, viewCount, likeCount, commentCount, bookmarkCount, score, revision);
+    }
+
+    @Override
+    public boolean isInitialized(UUID postId) {
+        if (postId == null) {
+            return false;
+        }
+        Object initialized = redisTemplate.opsForHash().get(counterKey(postId), FIELD_INITIALIZED);
+        return "1".equals(stringValue(initialized));
+    }
+
+    @Override
+    public void initializeIfAbsent(PostCounterSnapshot baseline) {
+        if (baseline == null || baseline.postId() == null) {
+            return;
+        }
+        redisTemplate.execute(
+                INITIALIZE_SCRIPT,
+                List.of(counterKey(baseline.postId()), dirtyKey(baseline.postId()), dirtySequenceKey(baseline.postId())),
+                Long.toString(baseline.viewCount()),
+                Long.toString(baseline.likeCount()),
+                Long.toString(baseline.commentCount()),
+                Long.toString(baseline.bookmarkCount()),
+                Double.toString(baseline.score()),
+                Long.toString(baseline.revision()),
+                baseline.postId().toString()
         );
     }
 
     @Override
-    public boolean markViewerSeen(UUID postId, String viewerKey, Instant viewedAt) {
+    public boolean recordView(
+            UUID postId,
+            String viewerKey,
+            Instant viewedAt,
+            PostCounterSnapshot initializationBaseline
+    ) {
         if (postId == null || !StringUtils.hasText(viewerKey)) {
             return false;
         }
+        PostCounterSnapshot baseline = normalizeBaseline(postId, initializationBaseline);
         Instant instant = viewedAt == null ? Instant.now() : viewedAt;
         Long result = redisTemplate.execute(
-                MARK_VIEWER_SEEN_SCRIPT,
-                List.of(viewerKey(postId, viewerKey)),
+                RECORD_VIEW_SCRIPT,
+                List.of(counterKey(postId), viewerKey(postId, viewerKey), dirtyKey(postId), dirtySequenceKey(postId)),
+                Long.toString(baseline.viewCount()),
+                Long.toString(baseline.likeCount()),
+                Long.toString(baseline.commentCount()),
+                Long.toString(baseline.bookmarkCount()),
+                Double.toString(baseline.score()),
+                Long.toString(baseline.revision()),
                 Long.toString(instant.toEpochMilli()),
-                Long.toString(viewerWindow.toMillis())
+                Long.toString(viewerWindow.toMillis()),
+                postId.toString()
         );
         return result != null && result > 0;
     }
 
     @Override
-    public void incrementViewCount(UUID postId) {
-        incrementCounter(postId, FIELD_VIEW, 1L);
-    }
-
-    public void incrementLikeCount(UUID postId) {
-        incrementLikeCount(postId, 1L);
-    }
-
-    @Override
-    public void incrementLikeCount(UUID postId, long delta) {
-        incrementCounter(postId, FIELD_LIKE, delta);
-    }
-
-    public void incrementCommentCount(UUID postId) {
-        incrementCommentCount(postId, 1L);
-    }
-
-    @Override
-    public void incrementCommentCount(UUID postId, long delta) {
-        incrementCounter(postId, FIELD_COMMENT, delta);
-    }
-
-    public void incrementBookmarkCount(UUID postId) {
-        incrementBookmarkCount(postId, 1L);
-    }
-
-    @Override
-    public void incrementBookmarkCount(UUID postId, long delta) {
-        incrementCounter(postId, FIELD_BOOKMARK, delta);
-    }
-
-    @Override
-    public void updateScore(UUID postId, double score) {
+    public void markDirty(UUID postId) {
         if (postId == null) {
             return;
         }
-        redisTemplate.execute(
-                UPDATE_SCORE_SCRIPT,
-                List.of(counterKey(postId), DIRTY_KEY, DIRTY_SEQUENCE_KEY),
-                FIELD_SCORE,
-                Double.toString(score),
-                postId.toString()
-        );
+        markDirtyInternal(postId);
     }
 
     @Override
     public List<DirtyPost> dirtyPosts(int limit) {
         int size = Math.max(1, limit);
-        LinkedHashSet<DirtyPost> ordered = new LinkedHashSet<>();
-        var tuples = redisTemplate.opsForZSet().rangeWithScores(DIRTY_KEY, 0, size - 1L);
-        if (tuples == null) {
-            return List.of();
+        List<DirtyPost> result = new ArrayList<>(size);
+        Set<UUID> selectedPostIds = new HashSet<>();
+        List<DirtyQueue> activeQueues = new ArrayList<>();
+
+        int legacyQuota = Math.min(size, Math.max(1, size / 4));
+        int legacyAdded = appendLegacyDirty(result, selectedPostIds, legacyQuota, size);
+        if (legacyAdded == legacyQuota) {
+            activeQueues.add(DirtyQueue.legacyQueue());
         }
-        for (ZSetOperations.TypedTuple<String> tuple : tuples) {
-            UUID postId = tuple == null ? null : parseUuid(tuple.getValue());
-            Double score = tuple == null ? null : tuple.getScore();
-            if (postId != null && score != null && score > 0.0 && score <= Long.MAX_VALUE) {
-                ordered.add(new DirtyPost(postId, score.longValue()));
+
+        int start = Math.floorMod(dirtyScanCursor.getAndIncrement(), DIRTY_SHARD_COUNT);
+        int remaining = size - result.size();
+        int perShardQuota = Math.max(1, remaining / DIRTY_SHARD_COUNT);
+        for (int offset = 0; offset < DIRTY_SHARD_COUNT && result.size() < size; offset++) {
+            int shard = (start + offset) % DIRTY_SHARD_COUNT;
+            int quota = Math.min(perShardQuota, size - result.size());
+            int added = appendDirty(result, selectedPostIds, dirtyKey(shard), queueId(shard), quota, size);
+            if (added == quota) {
+                activeQueues.add(DirtyQueue.shard(shard));
             }
         }
-        return new ArrayList<>(ordered);
+
+        redistributeUnusedBudget(result, selectedPostIds, activeQueues, size);
+        return List.copyOf(result);
     }
 
     @Override
@@ -219,34 +340,274 @@ public class RedisPostCounterCache implements PostCounterCache {
         if (dirtyPosts == null || dirtyPosts.isEmpty()) {
             return;
         }
-        List<String> args = new ArrayList<>();
+        List<DirtyPost> legacyDirtyPosts = new ArrayList<>();
+        Map<Integer, List<String>> argsByShard = new LinkedHashMap<>();
         for (DirtyPost dirtyPost : dirtyPosts) {
-            if (dirtyPost != null && dirtyPost.postId() != null && dirtyPost.revision() > 0L) {
-                args.add(dirtyPost.postId().toString());
-                args.add(Long.toString(dirtyPost.revision()));
+            if (dirtyPost == null || dirtyPost.postId() == null || dirtyPost.revision() <= 0L) {
+                continue;
+            }
+            if (LEGACY_QUEUE_ID.equals(dirtyPost.queueId())) {
+                legacyDirtyPosts.add(dirtyPost);
+                continue;
+            }
+            int shard = shard(dirtyPost.postId());
+            if (dirtyPost.queueId() != null && !queueId(shard).equals(dirtyPost.queueId())) {
+                continue;
+            }
+            List<String> args = argsByShard.computeIfAbsent(shard, ignored -> new ArrayList<>());
+            args.add(dirtyPost.postId().toString());
+            args.add(Long.toString(dirtyPost.revision()));
+        }
+        for (DirtyPost legacyDirtyPost : legacyDirtyPosts) {
+            Long clearedBridge = redisTemplate.execute(
+                    CLEAR_DIRTY_SCRIPT,
+                    List.of(dirtyKey(legacyDirtyPost.postId())),
+                    legacyDirtyPost.postId().toString(),
+                    Long.toString(legacyDirtyPost.revision())
+            );
+            if (clearedBridge != null && clearedBridge > 0L) {
+                redisTemplate.execute(
+                        CLEAR_DIRTY_SCRIPT,
+                        List.of(LEGACY_DIRTY_KEY),
+                        legacyDirtyPost.postId().toString(),
+                        Long.toString(legacyDirtyPost.sourceRevision())
+                );
             }
         }
-        if (!args.isEmpty()) {
-            redisTemplate.execute(CLEAR_DIRTY_SCRIPT, List.of(DIRTY_KEY), args.toArray());
+        argsByShard.forEach((shard, args) -> redisTemplate.execute(
+                CLEAR_DIRTY_SCRIPT,
+                List.of(dirtyKey(shard)),
+                args.toArray()
+        ));
+    }
+
+    private void redistributeUnusedBudget(
+            List<DirtyPost> target,
+            Set<UUID> selectedPostIds,
+            List<DirtyQueue> candidates,
+            int totalLimit
+    ) {
+        List<DirtyQueue> activeQueues = candidates;
+        while (target.size() < totalLimit && !activeQueues.isEmpty()) {
+            int remaining = totalLimit - target.size();
+            int perQueueQuota = Math.max(1, (remaining + activeQueues.size() - 1) / activeQueues.size());
+            List<DirtyQueue> nextActiveQueues = new ArrayList<>(activeQueues.size());
+            boolean madeProgress = false;
+            for (DirtyQueue queue : activeQueues) {
+                if (target.size() >= totalLimit) {
+                    break;
+                }
+                int quota = Math.min(perQueueQuota, totalLimit - target.size());
+                int added = queue.legacy()
+                        ? appendLegacyDirty(target, selectedPostIds, quota, totalLimit)
+                        : appendDirty(target, selectedPostIds, queue.key(), queue.queueId(), quota, totalLimit);
+                madeProgress |= added > 0;
+                if (added == quota) {
+                    nextActiveQueues.add(queue);
+                }
+            }
+            if (!madeProgress) {
+                return;
+            }
+            activeQueues = nextActiveQueues;
         }
     }
 
-    private void incrementCounter(UUID postId, String field, long delta) {
-        if (postId == null || delta == 0L) {
-            return;
+    private int appendDirty(
+            List<DirtyPost> target,
+            Set<UUID> selectedPostIds,
+            String key,
+            String queueId,
+            int requestedAdditions,
+            int totalLimit
+    ) {
+        int initialSize = target.size();
+        int wanted = Math.min(Math.max(0, requestedAdditions), totalLimit - initialSize);
+        int prefixSize = Math.max(1, wanted);
+        while (target.size() - initialSize < wanted && target.size() < totalLimit) {
+            var tuples = redisTemplate.opsForZSet().rangeWithScores(key, 0, prefixSize - 1L);
+            if (tuples == null || tuples.isEmpty()) {
+                break;
+            }
+            List<String> poisonMembers = new ArrayList<>();
+            for (ZSetOperations.TypedTuple<String> tuple : tuples) {
+                String member = tuple == null ? null : tuple.getValue();
+                UUID postId = parseUuid(member);
+                Long revision = tuple == null ? null : parseRevision(tuple.getScore());
+                if (postId == null || revision == null || !key.equals(dirtyKey(postId))) {
+                    if (member != null) {
+                        poisonMembers.add(member);
+                    }
+                    continue;
+                }
+                if (selectedPostIds.add(postId)) {
+                    target.add(new DirtyPost(postId, revision, queueId));
+                    if (target.size() - initialSize >= wanted || target.size() >= totalLimit) {
+                        break;
+                    }
+                }
+            }
+            long removedPoison = removePoisonMembers(key, poisonMembers);
+            if (target.size() - initialSize >= wanted || tuples.size() < prefixSize) {
+                break;
+            }
+            if (poisonMembers.isEmpty() || removedPoison == 0L) {
+                prefixSize += Math.max(1, wanted - (target.size() - initialSize));
+            }
         }
-        redisTemplate.execute(
-                UPDATE_COUNTER_SCRIPT,
-                List.of(counterKey(postId), DIRTY_KEY, DIRTY_SEQUENCE_KEY),
-                field,
-                Long.toString(delta),
+        return target.size() - initialSize;
+    }
+
+    private int appendLegacyDirty(
+            List<DirtyPost> target,
+            Set<UUID> selectedPostIds,
+            int requestedAdditions,
+            int totalLimit
+    ) {
+        int initialSize = target.size();
+        int wanted = Math.min(Math.max(0, requestedAdditions), totalLimit - initialSize);
+        int prefixSize = Math.max(1, wanted);
+        while (target.size() - initialSize < wanted && target.size() < totalLimit) {
+            var tuples = redisTemplate.opsForZSet().rangeWithScores(
+                    LEGACY_DIRTY_KEY,
+                    0,
+                    prefixSize - 1L
+            );
+            if (tuples == null || tuples.isEmpty()) {
+                break;
+            }
+            List<String> poisonMembers = new ArrayList<>();
+            for (ZSetOperations.TypedTuple<String> tuple : tuples) {
+                String member = tuple == null ? null : tuple.getValue();
+                UUID postId = parseUuid(member);
+                Long sourceRevision = tuple == null ? null : parseRevision(tuple.getScore());
+                if (postId == null || sourceRevision == null) {
+                    if (member != null) {
+                        poisonMembers.add(member);
+                    }
+                    continue;
+                }
+                if (selectedPostIds.add(postId)) {
+                    long bridgedRevision = markDirtyInternal(postId);
+                    target.add(new DirtyPost(
+                            postId,
+                            bridgedRevision,
+                            LEGACY_QUEUE_ID,
+                            sourceRevision
+                    ));
+                    if (target.size() - initialSize >= wanted || target.size() >= totalLimit) {
+                        break;
+                    }
+                }
+            }
+            long removedPoison = removePoisonMembers(LEGACY_DIRTY_KEY, poisonMembers);
+            if (target.size() - initialSize >= wanted || tuples.size() < prefixSize) {
+                break;
+            }
+            if (poisonMembers.isEmpty() || removedPoison == 0L) {
+                prefixSize += Math.max(1, wanted - (target.size() - initialSize));
+            }
+        }
+        return target.size() - initialSize;
+    }
+
+    private long removePoisonMembers(String key, List<String> poisonMembers) {
+        if (!poisonMembers.isEmpty()) {
+            Long removed = redisTemplate.opsForZSet().remove(key, poisonMembers.toArray());
+            return removed == null ? 0L : removed;
+        }
+        return 0L;
+    }
+
+    private long markDirtyInternal(UUID postId) {
+        Long revision = redisTemplate.execute(
+                MARK_DIRTY_SCRIPT,
+                List.of(dirtyKey(postId), dirtySequenceKey(postId)),
                 postId.toString()
         );
+        if (revision == null || revision <= 0L) {
+            throw new IllegalStateException("post counter dirty revision allocation failed");
+        }
+        return revision;
+    }
+
+    private PostCounterSnapshot legacySnapshot(UUID postId) {
+        List<String> keys = List.of(previousCounterKey(postId), legacyCounterKey(postId));
+        long viewCount = 0L;
+        long likeCount = 0L;
+        long commentCount = 0L;
+        long bookmarkCount = 0L;
+        double score = 0.0;
+        for (String key : keys) {
+            Map<Object, Object> values = entries(key);
+            List<Object> invalidFields = new ArrayList<>();
+            viewCount = addCounts(viewCount, longValue(values.get(LEGACY_FIELD_VIEW), LEGACY_FIELD_VIEW, invalidFields));
+            likeCount = addCounts(likeCount, longValue(values.get(LEGACY_FIELD_LIKE), LEGACY_FIELD_LIKE, invalidFields));
+            commentCount = addCounts(commentCount,
+                    longValue(values.get(LEGACY_FIELD_COMMENT), LEGACY_FIELD_COMMENT, invalidFields));
+            bookmarkCount = addCounts(bookmarkCount,
+                    longValue(values.get(LEGACY_FIELD_BOOKMARK), LEGACY_FIELD_BOOKMARK, invalidFields));
+            if (values.containsKey(LEGACY_FIELD_SCORE)) {
+                score = doubleValue(values.get(LEGACY_FIELD_SCORE), LEGACY_FIELD_SCORE, invalidFields);
+            }
+            deleteInvalidFields(key, invalidFields);
+        }
+        return new PostCounterSnapshot(postId, viewCount, likeCount, commentCount, bookmarkCount, score);
     }
 
     private Map<Object, Object> entries(String key) {
         Map<Object, Object> values = redisTemplate.opsForHash().entries(key);
         return values == null ? Map.of() : values;
+    }
+
+    private void quarantineDamagedBaseline(String key, List<Object> invalidFields) {
+        List<Object> arguments = new ArrayList<>(invalidFields.size() + 1);
+        arguments.add(invalidFields.contains(FIELD_DELTA_VIEW) ? "0" : "1");
+        arguments.addAll(invalidFields);
+        Long quarantined = redisTemplate.execute(
+                QUARANTINE_DAMAGED_BASELINE_SCRIPT,
+                List.of(key),
+                arguments.toArray()
+        );
+        if (quarantined == null || quarantined != 1L) {
+            throw new IllegalStateException("post counter damaged baseline quarantine failed");
+        }
+    }
+
+    private static boolean hasDamagedBaseline(
+            Map<Object, Object> values,
+            boolean initialized,
+            List<Object> invalidFields
+    ) {
+        boolean markerPresent = values.containsKey(FIELD_INITIALIZED);
+        boolean anyBaselineFieldPresent = values.containsKey(FIELD_BASE_VIEW)
+                || values.containsKey(FIELD_BASE_LIKE)
+                || values.containsKey(FIELD_BASE_COMMENT)
+                || values.containsKey(FIELD_BASE_BOOKMARK)
+                || values.containsKey(FIELD_BASE_SCORE)
+                || values.containsKey(FIELD_BASE_REVISION);
+        boolean completeBaseline = values.containsKey(FIELD_BASE_VIEW)
+                && values.containsKey(FIELD_BASE_LIKE)
+                && values.containsKey(FIELD_BASE_COMMENT)
+                && values.containsKey(FIELD_BASE_BOOKMARK)
+                && values.containsKey(FIELD_BASE_SCORE)
+                && values.containsKey(FIELD_BASE_REVISION);
+        boolean invalidBaselineField = invalidFields.stream()
+                .map(Object::toString)
+                .anyMatch(RedisPostCounterCache::isBaselineField);
+        return values.containsKey(FIELD_RECOVERY_VIEW_DELTA)
+                || (markerPresent && !initialized)
+                || (!markerPresent && anyBaselineFieldPresent)
+                || (initialized && (!completeBaseline || invalidBaselineField));
+    }
+
+    private static boolean isBaselineField(String field) {
+        return FIELD_BASE_VIEW.equals(field)
+                || FIELD_BASE_LIKE.equals(field)
+                || FIELD_BASE_COMMENT.equals(field)
+                || FIELD_BASE_BOOKMARK.equals(field)
+                || FIELD_BASE_SCORE.equals(field)
+                || FIELD_BASE_REVISION.equals(field);
     }
 
     private void deleteInvalidFields(String key, List<Object> invalidFields) {
@@ -255,11 +616,26 @@ public class RedisPostCounterCache implements PostCounterCache {
         }
     }
 
-    private static long addCounts(long baseline, long overlay) {
+    private static PostCounterSnapshot normalizeBaseline(UUID postId, PostCounterSnapshot baseline) {
+        if (baseline == null) {
+            return new PostCounterSnapshot(postId, 0L, 0L, 0L, 0L, 0.0);
+        }
+        return new PostCounterSnapshot(
+                postId,
+                baseline.viewCount(),
+                baseline.likeCount(),
+                baseline.commentCount(),
+                baseline.bookmarkCount(),
+                baseline.score(),
+                baseline.revision()
+        );
+    }
+
+    private static long addCounts(long left, long right) {
         try {
-            return Math.addExact(baseline, overlay);
+            return Math.addExact(left, right);
         } catch (ArithmeticException ex) {
-            return overlay >= 0L ? Long.MAX_VALUE : Long.MIN_VALUE;
+            return right >= 0L ? Long.MAX_VALUE : Long.MIN_VALUE;
         }
     }
 
@@ -270,9 +646,7 @@ public class RedisPostCounterCache implements PostCounterCache {
         try {
             return Long.parseLong(raw.toString());
         } catch (NumberFormatException ex) {
-            if (field != null && invalidFields != null) {
-                invalidFields.add(field);
-            }
+            invalidFields.add(field);
             return 0L;
         }
     }
@@ -282,13 +656,19 @@ public class RedisPostCounterCache implements PostCounterCache {
             return 0.0;
         }
         try {
-            return Double.parseDouble(raw.toString());
-        } catch (NumberFormatException ex) {
-            if (field != null && invalidFields != null) {
-                invalidFields.add(field);
+            double value = Double.parseDouble(raw.toString());
+            if (!Double.isFinite(value)) {
+                throw new NumberFormatException("non-finite");
             }
+            return value;
+        } catch (NumberFormatException ex) {
+            invalidFields.add(field);
             return 0.0;
         }
+    }
+
+    private static String stringValue(Object raw) {
+        return raw == null ? null : raw.toString();
     }
 
     private static UUID parseUuid(String raw) {
@@ -302,15 +682,85 @@ public class RedisPostCounterCache implements PostCounterCache {
         }
     }
 
+    private static Long parseRevision(Double score) {
+        if (score == null
+                || !Double.isFinite(score)
+                || score < 1.0
+                || score >= 0x1.0p63
+                || score != Math.rint(score)) {
+            return null;
+        }
+        return score.longValue();
+    }
+
+    private record DirtyQueue(String key, String queueId, boolean legacy) {
+
+        private static DirtyQueue legacyQueue() {
+            return new DirtyQueue(LEGACY_DIRTY_KEY, LEGACY_QUEUE_ID, true);
+        }
+
+        private static DirtyQueue shard(int shard) {
+            return new DirtyQueue(
+                    RedisPostCounterCache.dirtyKey(shard),
+                    RedisPostCounterCache.queueId(shard),
+                    false
+            );
+        }
+    }
+
+    private static int shard(UUID postId) {
+        return Math.floorMod(postId.hashCode(), DIRTY_SHARD_COUNT);
+    }
+
+    private static String queueId(int shard) {
+        return SHARD_QUEUE_ID_PREFIX + shard;
+    }
+
     private static String counterKey(UUID postId) {
-        return COUNTER_KEY_PREFIX + postId;
+        return COUNTER_KEY_PREFIX + hashTag(shard(postId)) + ":" + postId;
+    }
+
+    private static String dirtyKey(UUID postId) {
+        return dirtyKey(shard(postId));
+    }
+
+    private static String dirtyKey(int shard) {
+        return COUNTER_KEY_PREFIX + hashTag(shard) + ":dirty";
+    }
+
+    private static String dirtySequenceKey(UUID postId) {
+        return COUNTER_KEY_PREFIX + hashTag(shard(postId)) + ":sequence";
+    }
+
+    private static String viewerKey(UUID postId, String viewerKey) {
+        return VIEWER_KEY_PREFIX + hashTag(shard(postId)) + ":" + postId + ":" + sha256(viewerKey.trim());
+    }
+
+    private static String previousCounterKey(UUID postId) {
+        return PREVIOUS_COUNTER_KEY_PREFIX + postId;
     }
 
     private static String legacyCounterKey(UUID postId) {
         return LEGACY_COUNTER_KEY_PREFIX + postId;
     }
 
-    private static String viewerKey(UUID postId, String viewerKey) {
-        return VIEWER_KEY_PREFIX + postId + ":" + viewerKey.trim();
+    private static String hashTag(int shard) {
+        String value = Integer.toHexString(shard);
+        return "{post-counter-" + (value.length() == 1 ? "0" + value : value) + "}";
+    }
+
+    private static String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(digest.length * 2);
+            for (byte item : digest) {
+                hex.append(Character.forDigit((item >>> 4) & 0xF, 16));
+                hex.append(Character.forDigit(item & 0xF, 16));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 not available", ex);
+        }
     }
 }

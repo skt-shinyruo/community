@@ -86,11 +86,22 @@ public interface LikeTargetStateMapper {
             where target_state.entity_type = #{entityType}
               and target_state.status = 'DELETED'
               and target_state.entity_id > #{afterEntityId, jdbcType=BINARY}
-              and exists (
-                  select 1
-                  from social_like likes
-                  where likes.entity_type = target_state.entity_type
-                    and likes.entity_id = target_state.entity_id
+              and (
+                  exists (
+                      select 1
+                      from social_like likes
+                      where likes.entity_type = target_state.entity_type
+                        and likes.entity_id = target_state.entity_id
+                  )
+                  or (
+                      target_state.entity_type = #{postEntityType}
+                      and exists (
+                          select 1
+                          from social_like child_likes
+                          where child_likes.entity_type = #{commentEntityType}
+                            and child_likes.post_id = target_state.entity_id
+                      )
+                  )
               )
             order by target_state.entity_id asc
             limit #{limit}
@@ -98,6 +109,8 @@ public interface LikeTargetStateMapper {
     List<LikeTargetStateDataObject> scanDeletedTargetsWithLikesAfter(
             @Param("entityType") int entityType,
             @Param("afterEntityId") UUID afterEntityId,
-            @Param("limit") int limit
+            @Param("limit") int limit,
+            @Param("postEntityType") int postEntityType,
+            @Param("commentEntityType") int commentEntityType
     );
 }

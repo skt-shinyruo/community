@@ -16,11 +16,11 @@ class ImPolicySnapshotControllerUnitTest {
         com.nowcoder.community.im.application.ImPolicySnapshotApplicationService snapshotService =
                 mock(com.nowcoder.community.im.application.ImPolicySnapshotApplicationService.class);
         doThrow(new UnsupportedOperationException("Redis-backed block projection snapshots are not supported"))
-                .when(snapshotService).blockRelations(null, null, 10);
+                .when(snapshotService).blockRelations(null, null, 10, null);
 
         ImPolicySnapshotController controller = new ImPolicySnapshotController(snapshotService);
 
-        assertThatThrownBy(() -> controller.blockRelations(null, null, 10))
+        assertThatThrownBy(() -> controller.blockRelations(null, null, 10, null))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> {
                     ResponseStatusException statusException = (ResponseStatusException) ex;

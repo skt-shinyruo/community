@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.application.port.UsernameAuthenticationSubjectPort;
 import com.nowcoder.community.user.application.result.UserAuthenticationResult;
 import com.nowcoder.community.user.application.result.UserCredentialResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
@@ -17,44 +18,104 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.SERVICE_UNAVAILABLE;
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @Service
 public class UserCredentialApplicationService {
 
+    private static final String DUMMY_PASSWORD_HASH =
+            "$2a$10$pEbLAXD.5j9U47tFYwlcM.xJyDlxVuxJ/RCBkcWAQHSwBS9w/vKKm";
+
     private final UserRepository userRepository;
     private final UserCredentialDomainService userCredentialDomainService;
     private final PasswordPolicyDomainService passwordPolicyDomainService;
+    private final UsernameAuthenticationSubjectPort usernameAuthenticationSubjectPort;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public UserCredentialApplicationService(
             UserRepository userRepository,
             UserCredentialDomainService userCredentialDomainService,
-            PasswordPolicyDomainService passwordPolicyDomainService
+            PasswordPolicyDomainService passwordPolicyDomainService,
+            UsernameAuthenticationSubjectPort usernameAuthenticationSubjectPort
     ) {
         this.userRepository = userRepository;
         this.userCredentialDomainService = userCredentialDomainService;
         this.passwordPolicyDomainService = passwordPolicyDomainService;
+        this.usernameAuthenticationSubjectPort = usernameAuthenticationSubjectPort;
     }
 
     public UserAuthenticationResult authenticate(String username, String password) {
-        String trimmedUsername = userCredentialDomainService.trim(username);
-        String rawPassword = password == null ? "" : password;
-        if (!StringUtils.hasText(trimmedUsername) || !StringUtils.hasText(rawPassword)) {
+        if (!StringUtils.hasText(userCredentialDomainService.trim(username))
+                || !StringUtils.hasText(password)) {
             return UserAuthenticationResult.invalidCredentials();
+        }
+        return authenticate(prepareAuthentication(username), password);
+    }
+
+    public PreparedAuthentication prepareAuthentication(String username) {
+        String trimmedUsername = userCredentialDomainService.trim(username);
+        if (!StringUtils.hasText(trimmedUsername) || !userCredentialDomainService.isSafeUsername(trimmedUsername)) {
+            return new PreparedAuthentication(null, DUMMY_PASSWORD_HASH, false);
         }
 
         UserAccount user = userRepository.findByUsername(trimmedUsername).orElse(null);
-        if (user == null) {
+        if (user != null && !userCredentialDomainService.isSafeUsername(user.username())) {
+            return new PreparedAuthentication(null, DUMMY_PASSWORD_HASH, false);
+        }
+        boolean storedHashUsable = user != null && userCredentialDomainService.isBcrypt(user.encodedPassword());
+        String encodedPassword = storedHashUsable ? user.encodedPassword() : DUMMY_PASSWORD_HASH;
+        return new PreparedAuthentication(user, encodedPassword, storedHashUsable);
+    }
+
+    public String authenticationSubject(String username) {
+        String trimmedUsername = userCredentialDomainService.trim(username);
+        if (!StringUtils.hasText(trimmedUsername) || !userCredentialDomainService.isSafeUsername(trimmedUsername)) {
+            throw new BusinessException(INVALID_ARGUMENT, "username 非法");
+        }
+        String subject;
+        try {
+            subject = usernameAuthenticationSubjectPort.resolve(trimmedUsername);
+        } catch (RuntimeException exception) {
+            throw new BusinessException(SERVICE_UNAVAILABLE, "用户认证服务暂时不可用", exception);
+        }
+        if (!StringUtils.hasText(subject)) {
+            throw new BusinessException(SERVICE_UNAVAILABLE, "用户认证服务暂时不可用");
+        }
+        return subject.trim();
+    }
+
+    public UserAuthenticationResult authenticate(PreparedAuthentication preparation, String password) {
+        PreparedAuthentication safePreparation = preparation == null
+                ? new PreparedAuthentication(null, DUMMY_PASSWORD_HASH, false)
+                : preparation;
+        String rawPassword = password == null ? "" : password;
+        if (!StringUtils.hasText(rawPassword)) {
+            return UserAuthenticationResult.invalidCredentials();
+        }
+
+        UserAccount user = safePreparation.user();
+        String encodedPassword = StringUtils.hasText(safePreparation.encodedPassword())
+                ? safePreparation.encodedPassword()
+                : DUMMY_PASSWORD_HASH;
+        boolean passwordMatches = passwordMatches(rawPassword, encodedPassword);
+        // A dummy hash keeps timing uniform, but must never authenticate a real
+        // account whose stored hash is missing or malformed.
+        if (user == null || !safePreparation.storedHashUsable() || !passwordMatches) {
             return UserAuthenticationResult.invalidCredentials();
         }
         if (user.status() == 0 || activeBan(user)) {
             return UserAuthenticationResult.userDisabled(toCredentialResult(user));
         }
-        if (!passwordMatches(user, rawPassword)) {
-            return UserAuthenticationResult.invalidCredentials();
-        }
         return UserAuthenticationResult.authenticated(toCredentialResult(user));
+    }
+
+    public record PreparedAuthentication(UserAccount user, String encodedPassword, boolean storedHashUsable) {
+
+        public PreparedAuthentication(UserAccount user, String encodedPassword) {
+            this(user, encodedPassword, user != null && encodedPassword != null
+                    && encodedPassword.matches("\\A\\$2[aby]\\$(?:0[4-9]|[12][0-9]|3[01])\\$[./A-Za-z0-9]{53}\\z"));
+        }
     }
 
     public UserCredentialResult getByUserId(UUID userId) {
@@ -67,7 +128,7 @@ public class UserCredentialApplicationService {
     }
 
     public UserCredentialResult findByEmailOrNull(String email) {
-        String value = userCredentialDomainService.trim(email);
+        String value = userCredentialDomainService.canonicalEmail(email);
         if (!StringUtils.hasText(value)) {
             throw new BusinessException(INVALID_ARGUMENT, "email 不能为空");
         }
@@ -77,6 +138,26 @@ public class UserCredentialApplicationService {
     @Transactional
     public void updatePassword(UUID userId, String newPassword) {
         updatePasswordOnly(userId, newPassword);
+    }
+
+    @Transactional
+    public boolean updatePasswordIfSecurityVersion(
+            UUID userId,
+            String newPassword,
+            long expectedSecurityVersion
+    ) {
+        if (userId == null || expectedSecurityVersion < 0L) {
+            throw new BusinessException(INVALID_ARGUMENT, "userId/securityVersion 非法");
+        }
+        String validatedPassword = passwordPolicyDomainService.requireValidPassword(newPassword);
+        String encodedPassword = passwordEncoder.encode(validatedPassword);
+        long securityVersion = userRepository.nextUserSecurityVersion(userId);
+        return userRepository.updatePasswordIfSecurityVersion(
+                userId,
+                encodedPassword,
+                securityVersion,
+                expectedSecurityVersion
+        );
     }
 
     public void validatePasswordPolicy(String newPassword) {
@@ -99,18 +180,15 @@ public class UserCredentialApplicationService {
         return user == null ? List.of() : userCredentialDomainService.authoritiesForType(user.type());
     }
 
-    private boolean passwordMatches(UserAccount user, String rawPassword) {
-        if (user == null || !StringUtils.hasText(rawPassword) || !StringUtils.hasText(user.encodedPassword())) {
+    private boolean passwordMatches(String rawPassword, String encodedPassword) {
+        if (!StringUtils.hasText(rawPassword) || !StringUtils.hasText(encodedPassword)) {
             return false;
         }
-        if (userCredentialDomainService.isBcrypt(user.encodedPassword())) {
-            try {
-                return passwordEncoder.matches(rawPassword, user.encodedPassword());
-            } catch (RuntimeException ignored) {
-                return false;
-            }
+        try {
+            return passwordEncoder.matches(rawPassword, encodedPassword);
+        } catch (RuntimeException ignored) {
+            return false;
         }
-        return false;
     }
 
     private boolean activeBan(UserAccount user) {
@@ -122,6 +200,7 @@ public class UserCredentialApplicationService {
         return new UserCredentialResult(
                 user.id(),
                 user.username(),
+                user.email(),
                 user.status(),
                 user.type(),
                 user.headerUrl(),

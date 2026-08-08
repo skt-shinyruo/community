@@ -42,6 +42,7 @@ public class LikeDomainService {
     public LikeChangedDomainEvent likeChangedEvent(
             LikeRelation relation,
             ResolvedSocialEntity resolved,
+            long relationVersion,
             boolean liked,
             Instant occurredAt
     ) {
@@ -55,6 +56,22 @@ public class LikeDomainService {
                         : resolved == null ? null : resolved.postId(),
                 relationKey(relation.actorUserId(), relation.entityType(), relation.entityId()),
                 relation.relationInstanceId(),
+                relationVersion,
+                liked,
+                occurredAt
+        );
+    }
+
+    public LikeChangedDomainEvent likeChangedEvent(
+            LikeRelation relation,
+            ResolvedSocialEntity resolved,
+            boolean liked,
+            Instant occurredAt
+    ) {
+        return likeChangedEvent(
+                relation,
+                resolved,
+                occurredAt == null ? 1L : Math.max(1L, occurredAt.toEpochMilli()),
                 liked,
                 occurredAt
         );

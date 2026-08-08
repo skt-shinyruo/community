@@ -199,6 +199,8 @@ OSS 字节删除只在数据库事务提交后执行，因此网络调用不会�
 
 取消点赞使用包含 relation instance 的 compare-and-set 删除，并发布完全相同的 instance。对同一目标再次点赞会创建新 instance。稳定 relation key 继续用于通知分组和现有通知语义。
 
+生命周期的乱序判定不能比较 UUIDv7 数值或应用节点时钟。social owner 为稳定关系键持久化 `relationVersion`，并在关系写入与 outbox 的同一事务内加锁递增。新协议从 `2^62` 起步，使第一个新版本必然高于历史 epoch-millisecond 版本。消费者把 `relationInstanceId` 当作不透明身份，历史回填 UUID 不需要也不允许承担顺序语义。
+
 钱包幂等来源使用 `<relationInstanceId>:created` 和 `<relationInstanceId>:removed`。任一生命周期事件重复投递都无害，后续重新点赞则属于新的奖励生命周期。Consumer 只有在读取不含 `relationInstanceId` 的旧事件时才回退到 legacy relation key。该加法 contract 要求兼容的钱包 consumer 先于新 social producer 发布。
 
 ### 8.2 帖子终态删除 tombstone

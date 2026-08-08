@@ -20,6 +20,7 @@ import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.social.infrastructure.event.JacksonSocialContractEventCodec;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.kafka.annotation.KafkaListener;
 
 import java.time.Instant;
 import java.util.Map;
@@ -38,6 +39,20 @@ class NoticeProjectionKafkaListenerTest {
             new JacksonContentContractEventCodec(jsonCodec);
     private final SocialContractEventCodec socialContractEventCodec =
             new JacksonSocialContractEventCodec(jsonCodec);
+
+    @Test
+    void listenersShouldPauseAtTheContainerBoundaryWhenProjectionIsDisabled() throws Exception {
+        KafkaListener content = NoticeProjectionKafkaListener.class
+                .getDeclaredMethod("onContentEvent", ContentContractEvent.class)
+                .getAnnotation(KafkaListener.class);
+        KafkaListener social = NoticeProjectionKafkaListener.class
+                .getDeclaredMethod("onSocialEvent", SocialContractEvent.class)
+                .getAnnotation(KafkaListener.class);
+
+        assertThat(content.autoStartup())
+                .isEqualTo("${spring.kafka.listener.auto-startup:${notice.projection-enabled:true}}");
+        assertThat(social.autoStartup()).isEqualTo(content.autoStartup());
+    }
 
     @Test
     void commentCreatedShouldBeConvertedToNoticeCommandAtListenerBoundary() {
@@ -120,7 +135,8 @@ class NoticeProjectionKafkaListenerTest {
                         "entityId", uuid(100).toString(),
                         "entityUserId", uuid(2).toString(),
                         "postId", uuid(100).toString(),
-                        "relationKey", relationKey
+                        "relationKey", relationKey,
+                        "relationInstanceId", uuid(700).toString()
                 )
         ));
 
@@ -128,6 +144,7 @@ class NoticeProjectionKafkaListenerTest {
         assertThat(command.actorUserId()).isEqualTo(uuid(1));
         assertThat(command.entityUserId()).isEqualTo(uuid(2));
         assertThat(command.relationKey()).isEqualTo(relationKey);
+        assertThat(command.relationInstanceId()).isEqualTo(uuid(700));
     }
 
     @Test
@@ -165,7 +182,8 @@ class NoticeProjectionKafkaListenerTest {
                         "entityType", EntityTypes.POST,
                         "entityId", uuid(100).toString(),
                         "entityUserId", uuid(2).toString(),
-                        "relationKey", relationKey
+                        "relationKey", relationKey,
+                        "relationInstanceId", uuid(700).toString()
                 )
         ));
 
@@ -173,6 +191,7 @@ class NoticeProjectionKafkaListenerTest {
         assertThat(command.sourceVersion()).isEqualTo(47L);
         assertThat(command.entityUserId()).isEqualTo(uuid(2));
         assertThat(command.relationKey()).isEqualTo(relationKey);
+        assertThat(command.relationInstanceId()).isEqualTo(uuid(700));
     }
 
     @Test

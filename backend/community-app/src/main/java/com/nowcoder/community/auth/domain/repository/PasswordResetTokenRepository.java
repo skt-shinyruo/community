@@ -1,18 +1,41 @@
 package com.nowcoder.community.auth.domain.repository;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 public interface PasswordResetTokenRepository {
 
-    void store(String token, UUID userId, Duration ttl);
+    void store(String token, UUID userId, long securityVersionAtIssue, Duration ttl);
 
-    ConsumedPasswordResetToken consumeWithTtl(String token);
+    PendingPasswordResetToken beginConfirmation(
+            String token,
+            Instant pendingExpiresAt,
+            UUID confirmationLeaseId
+    );
+
+    boolean finishConfirmation(
+            String token,
+            UUID userId,
+            long securityVersionAtIssue,
+            UUID confirmationLeaseId
+    );
+
+    boolean rollbackConfirmation(
+            String token,
+            UUID userId,
+            long securityVersionAtIssue,
+            UUID confirmationLeaseId
+    );
 
     void delete(String token);
 
-    UUID consume(String token);
+    void revokeGeneration(UUID userId, long securityVersionAtIssue, Duration minimumTtl);
 
-    record ConsumedPasswordResetToken(UUID userId, Duration remainingTtl) {
+    record PendingPasswordResetToken(
+            UUID userId,
+            long securityVersionAtIssue,
+            UUID confirmationLeaseId
+    ) {
     }
 }

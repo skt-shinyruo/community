@@ -25,6 +25,8 @@ import java.time.Instant;
 @Component
 public class TaskProgressEventBackboneKafkaListener {
 
+    private static final long DURABLE_RELATION_VERSION_FLOOR = 1L << 62;
+
     private final ContentContractEventCodec contentContractEventCodec;
     private final SocialContractEventCodec socialContractEventCodec;
     private final TaskProgressApplicationService applicationService;
@@ -104,19 +106,18 @@ public class TaskProgressEventBackboneKafkaListener {
     }
 
     private void handleLikeCreated(SocialContractEvent event, LikePayload payload) {
-        if (payload == null
-                || payload.getActorUserId() == null
-                || !EntityTypes.isValid(payload.getEntityType())
-                || payload.getEntityId() == null
-                || payload.getEntityUserId() == null
-                || !hasText(payload.getRelationKey())) {
+        if (!hasCanonicalLikeIdentity(payload) || payload.getEntityUserId() == null) {
             throw malformed(event.type(), event.eventId());
         }
         if (payload.getActorUserId().equals(payload.getEntityUserId())) {
             return;
         }
+        long sourceVersion = likeSourceVersion(event, payload);
         applicationService.triggerLikeCreated(new TriggerLikeCreatedCommand(
+                event.eventId().trim(),
+                sourceVersion,
                 payload.getRelationKey().trim(),
+                payload.getRelationInstanceId(),
                 payload.getActorUserId(),
                 payload.getEntityUserId(),
                 event.occurredAt()
@@ -124,13 +125,48 @@ public class TaskProgressEventBackboneKafkaListener {
     }
 
     private void handleLikeRemoved(SocialContractEvent event, LikePayload payload) {
-        if (payload == null || payload.getEntityUserId() == null || !hasText(payload.getRelationKey())) {
+        if (!hasCanonicalLikeIdentity(payload) || payload.getEntityUserId() == null) {
             throw malformed(event.type(), event.eventId());
         }
+        long sourceVersion = likeSourceVersion(event, payload);
         applicationService.triggerLikeRemoved(new TriggerLikeRemovedCommand(
+                event.eventId().trim(),
+                sourceVersion,
                 payload.getRelationKey().trim(),
+                payload.getRelationInstanceId(),
                 payload.getEntityUserId()
         ));
+    }
+
+    private long likeSourceVersion(SocialContractEvent event, LikePayload payload) {
+        Long relationVersion = payload.getRelationVersion();
+        if (relationVersion == null) {
+            if (event.version() >= DURABLE_RELATION_VERSION_FLOOR) {
+                throw malformed(event.type(), event.eventId());
+            }
+            return event.version();
+        }
+        if (relationVersion <= 0L
+                || event.version() != relationVersion
+                || payload.getRelationInstanceId() == null) {
+            throw malformed(event.type(), event.eventId());
+        }
+        return relationVersion;
+    }
+
+    private boolean hasCanonicalLikeIdentity(LikePayload payload) {
+        if (payload == null
+                || payload.getActorUserId() == null
+                || !EntityTypes.isValid(payload.getEntityType())
+                || payload.getEntityId() == null
+                || !hasText(payload.getRelationKey())) {
+            return false;
+        }
+        String expectedRelationKey = "like:"
+                + payload.getActorUserId()
+                + ":" + payload.getEntityType()
+                + ":" + payload.getEntityId();
+        return expectedRelationKey.equals(payload.getRelationKey().trim());
     }
 
     private boolean hasText(String value) {

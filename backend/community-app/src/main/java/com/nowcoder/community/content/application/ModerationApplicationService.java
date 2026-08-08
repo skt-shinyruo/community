@@ -79,6 +79,7 @@ public class ModerationApplicationService {
                 command.reason(),
                 command.durationSeconds()
         );
+        userModerationActionApi.assertActiveModerationActor(decision.actorId());
         if (!reportRepository.claimPending(decision.reportId())) {
             return moderationActionRepository.findByReportId(decision.reportId())
                     .filter(decision::matches)
@@ -131,11 +132,12 @@ public class ModerationApplicationService {
             return;
         }
         if (decision.isUserModerationAction()) {
-            userModerationActionApi.applyModeration(
+            userModerationActionApi.applyModeration(new UserModerationActionApi.ApplyModerationCommand(
+                    decision.actorId(),
                     target.targetUserId(),
                     decision.normalizedAction(),
                     decision.resolvedDurationSeconds()
-            );
+            ));
             return;
         }
         throw new BusinessException(INVALID_ARGUMENT, "未支持的 action");

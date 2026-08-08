@@ -4,8 +4,14 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.frontend
     mem_limit: ${FRONTEND_MEM_LIMIT:-256m}
+    read_only: true
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:size=32m,mode=1777,noexec,nosuid,nodev
     environment:
-    - VITE_PREVIEW_PROXY_TARGET=http://nginx:8080
     - GATEWAY_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:?GATEWAY_PUBLIC_BASE_URL is required}
     ports:
     - ${FRONTEND_HOST_PORT:-12881}:12881

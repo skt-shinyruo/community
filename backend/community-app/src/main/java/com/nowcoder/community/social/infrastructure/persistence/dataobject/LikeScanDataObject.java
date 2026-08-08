@@ -11,6 +11,7 @@ public class LikeScanDataObject {
     private UUID entityId;
     private UUID userId;
     private UUID entityUserId;
+    private UUID postId;
 
     public UUID getRelationInstanceId() {
         return relationInstanceId;
@@ -42,5 +43,13 @@ public class LikeScanDataObject {
 
     public void setEntityUserId(UUID entityUserId) {
         this.entityUserId = entityUserId;
+    }
+
+    public UUID getPostId() {
+        return postId;
+    }
+
+    public void setPostId(UUID postId) {
+        this.postId = postId;
     }
 }

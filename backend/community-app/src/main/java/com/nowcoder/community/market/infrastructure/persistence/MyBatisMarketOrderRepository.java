@@ -103,6 +103,11 @@ public class MyBatisMarketOrderRepository implements MarketOrderRepository {
         return toDomainList(mapper.selectWalletPendingOrders(limit));
     }
 
+    @Override
+    public int deferWalletRecovery(UUID orderId, Date asOf, Date nextAttemptAt) {
+        return mapper.deferWalletRecovery(orderId, asOf, nextAttemptAt);
+    }
+
     private static MarketOrder toDomain(MarketOrderDataObject dataObject) {
         return dataObject == null ? null : dataObject.toDomain();
     }

@@ -2,6 +2,7 @@ package com.nowcoder.community.notice.infrastructure.persistence;
 
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
 import com.nowcoder.community.notice.domain.repository.NoticeRepository;
+import com.nowcoder.community.notice.domain.service.NoticeDomainService;
 import com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeRecordDataObject;
 import com.nowcoder.community.notice.infrastructure.persistence.mapper.NoticeMapper;
 import org.springframework.stereotype.Repository;
@@ -40,8 +41,9 @@ public class MyBatisNoticeRepository implements NoticeRepository {
     }
 
     @Override
-    public int markRead(UUID userId, List<UUID> ids, int status) {
-        return noticeMapper.updateNoticesStatusForRecipient(ids, status, userId);
+    public int markUnreadAsRead(UUID userId, List<UUID> ids) {
+        return noticeMapper.updateNoticesStatusForRecipient(
+                ids, NoticeDomainService.STATUS_UNREAD, NoticeDomainService.STATUS_READ, userId);
     }
 
     @Override

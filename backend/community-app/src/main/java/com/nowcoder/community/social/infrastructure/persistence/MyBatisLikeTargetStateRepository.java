@@ -11,6 +11,9 @@ import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
 
+import static com.nowcoder.community.common.constants.EntityTypes.COMMENT;
+import static com.nowcoder.community.common.constants.EntityTypes.POST;
+
 @Repository
 public class MyBatisLikeTargetStateRepository implements LikeTargetStateRepository {
 
@@ -63,7 +66,13 @@ public class MyBatisLikeTargetStateRepository implements LikeTargetStateReposito
             return List.of();
         }
         UUID cursor = afterEntityId == null ? new UUID(0L, 0L) : afterEntityId;
-        List<LikeTargetStateDataObject> rows = mapper.scanDeletedTargetsWithLikesAfter(entityType, cursor, limit);
+        List<LikeTargetStateDataObject> rows = mapper.scanDeletedTargetsWithLikesAfter(
+                entityType,
+                cursor,
+                limit,
+                POST,
+                COMMENT
+        );
         if (rows == null || rows.isEmpty()) {
             return List.of();
         }

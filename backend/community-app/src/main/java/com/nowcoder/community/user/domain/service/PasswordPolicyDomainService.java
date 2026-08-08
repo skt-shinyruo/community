@@ -3,24 +3,42 @@ package com.nowcoder.community.user.domain.service;
 import com.nowcoder.community.common.constants.ValidationLimits;
 import com.nowcoder.community.common.exception.BusinessException;
 
+import java.nio.charset.StandardCharsets;
+
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 public class PasswordPolicyDomainService {
 
     private static final int PASSWORD_MIN = 8;
+    private static final int BCRYPT_MAX_UTF8_BYTES = 72;
 
     public String requireValidPassword(String password) {
         String value = password == null ? "" : password;
-        if (!value.equals(value.trim())) {
+        if (hasBoundaryWhitespace(value)) {
             throw new BusinessException(INVALID_ARGUMENT, "密码首尾不能包含空白字符");
         }
         if (value.length() < PASSWORD_MIN || value.length() > ValidationLimits.PASSWORD_MAX) {
             throw new BusinessException(INVALID_ARGUMENT, "密码长度必须为 8-" + ValidationLimits.PASSWORD_MAX + " 个字符");
         }
+        if (value.getBytes(StandardCharsets.UTF_8).length > BCRYPT_MAX_UTF8_BYTES) {
+            throw new BusinessException(INVALID_ARGUMENT, "密码 UTF-8 编码后不能超过 72 字节");
+        }
         if (characterClassCount(value) < 2) {
             throw new BusinessException(INVALID_ARGUMENT, "密码至少需要包含两类字符");
         }
         return value;
+    }
+
+    private boolean hasBoundaryWhitespace(String value) {
+        if (value.isEmpty()) {
+            return false;
+        }
+        return isWhitespace(value.codePointAt(0))
+                || isWhitespace(value.codePointBefore(value.length()));
+    }
+
+    private boolean isWhitespace(int codePoint) {
+        return Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint);
     }
 
     private int characterClassCount(String password) {

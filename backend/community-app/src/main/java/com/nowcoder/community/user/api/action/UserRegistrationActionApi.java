@@ -8,5 +8,8 @@ public interface UserRegistrationActionApi {
 
     PreparedRegistrationUserView prepareRegistrationUser(String username, String password, String email);
 
-    UserCredentialView createVerifiedRegistrationUser(VerifiedRegistrationUserCommand command);
+    VerifiedRegistrationResult createVerifiedRegistrationUser(VerifiedRegistrationUserCommand command);
+
+    record VerifiedRegistrationResult(UserCredentialView user, boolean created) {
+    }
 }

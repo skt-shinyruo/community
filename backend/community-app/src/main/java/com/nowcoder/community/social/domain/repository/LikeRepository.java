@@ -14,11 +14,26 @@ public interface LikeRepository {
 
     boolean removeLike(LikeRelation expectedRelation);
 
+    /**
+     * Allocates the next durable event version for one stable like relation.
+     * The caller must hold an active transaction until its relation write and outbox insert commit.
+     */
+    long nextRelationEventVersion(UUID actorUserId, int entityType, UUID entityId);
+
     Optional<LikeRelation> findLike(UUID actorUserId, int entityType, UUID entityId);
 
     long deleteLikesByEntity(int entityType, UUID entityId);
 
     List<LikeRelation> scanLikesByEntity(int entityType, UUID entityId, UUID afterActorUserId, int limit);
+
+    default List<LikeRelation> scanCommentLikesByPost(
+            UUID postId,
+            UUID afterCommentId,
+            UUID afterActorUserId,
+            int limit
+    ) {
+        return List.of();
+    }
 
     List<UUID> scanTargetIdsAfter(int entityType, UUID afterEntityId, int limit);
 

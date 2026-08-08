@@ -6,5 +6,19 @@ import java.util.UUID;
 
 public interface UserModerationActionApi {
 
-    UserModerationStateView applyModeration(UUID userId, String action, int durationSeconds);
+    /**
+     * Revalidates the actor from the owner-domain record and holds the role-management
+     * fence for the caller's current transaction.
+     */
+    void assertActiveModerationActor(UUID actorUserId);
+
+    UserModerationStateView applyModeration(ApplyModerationCommand command);
+
+    record ApplyModerationCommand(
+            UUID actorUserId,
+            UUID targetUserId,
+            String action,
+            int durationSeconds
+    ) {
+    }
 }

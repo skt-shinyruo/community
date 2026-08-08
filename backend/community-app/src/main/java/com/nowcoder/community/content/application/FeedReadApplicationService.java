@@ -11,7 +11,10 @@ import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -172,9 +175,9 @@ public class FeedReadApplicationService {
     private FeedPageResult listHotFeed(String cursor, int size, UUID boardId) {
         FeedCursorCodec.CursorState state = feedCursorCodec.decode(cursor);
         int requestedLimit = state.size() > 0 ? normalizeRequestedSize(state.size()) : normalizeRequestedSize(size);
-        LoadedFeedPage page = loadHotPage(cursor, state.page(), requestedLimit, boardId);
+        LoadedFeedPage page = loadHotPage(cursor, state, requestedLimit, boardId);
         String nextCursor = page.hasNext()
-                ? feedCursorCodec.encodePage(state.page() + 1, requestedLimit)
+                ? feedCursorCodec.encodeHotPage(nextPage(state.page()), requestedLimit, page.nextBoundary())
                 : "";
         return new FeedPageResult(page.items(), nextCursor, page.rankVersion());
     }
@@ -197,18 +200,28 @@ public class FeedReadApplicationService {
         return ids == null ? List.of() : ids;
     }
 
-    private LoadedFeedPage loadHotPage(String cursor, int page, int limit, UUID boardId) {
+    private LoadedFeedPage loadHotPage(String cursor, FeedCursorCodec.CursorState state, int limit, UUID boardId) {
         String scope = boardId == null ? "global" : "board";
-        String encodedCursor = feedCursorCodec.encodePage(page, limit);
-        CachePageLoad cachePageLoad = loadCachePage(page == 0 ? cursor : encodedCursor, page, limit, boardId);
+        String encodedCursor = feedCursorCodec.encodePage(state.page(), limit);
+        CachePageLoad cachePageLoad = loadCachePage(
+                state.page() == 0 ? cursor : encodedCursor,
+                state,
+                limit,
+                boardId
+        );
         if (cachePageLoad.page() != null) {
             hotFeedReadMetrics.record(cachePageLoad.result(), scope);
             return cachePageLoad.page();
         }
-        return loadFallbackPage(page, limit, boardId, scope, cachePageLoad.cacheDegraded());
+        return loadFallbackPage(state, limit, boardId, scope, cachePageLoad.cacheDegraded());
     }
 
-    private CachePageLoad loadCachePage(String cursor, int page, int limit, UUID boardId) {
+    private CachePageLoad loadCachePage(
+            String cursor,
+            FeedCursorCodec.CursorState state,
+            int limit,
+            UUID boardId
+    ) {
         List<UUID> ids;
         try {
             ids = readFeedIds(cursor, limit, boardId);
@@ -220,69 +233,246 @@ public class FeedReadApplicationService {
         }
         List<PostSummaryResult> items;
         try {
-            items = filterBoardItems(postFeedSummaryLoader.readSummaries(ids), boardId);
+            items = postFeedSummaryLoader.readSummaries(ids);
         } catch (RuntimeException ex) {
             return CachePageLoad.miss();
         }
         boolean hasNext;
         try {
-            hasNext = hasNextCachedPage(page, limit, boardId);
+            hasNext = hasNextCachedPage(state.page(), limit, boardId);
         } catch (RuntimeException ex) {
             return CachePageLoad.degradedMiss();
         }
         RankVersionResult rankVersion = safeRankVersion();
         String result = rankVersion.degraded() ? "degraded" : "hit";
-        return CachePageLoad.page(new LoadedFeedPage(items, hasNext, rankVersion.value()), result);
+        if (!hasNext && !state.hasHotBoundary()) {
+            return CachePageLoad.page(
+                    new LoadedFeedPage(filterBoardItems(items, boardId), false, rankVersion.value(), null),
+                    result
+            );
+        }
+        AuthoritativeCachePage authoritativePage;
+        try {
+            authoritativePage = authoritativeCachePage(ids, state, limit, boardId);
+        } catch (RuntimeException ex) {
+            return CachePageLoad.degradedMiss();
+        }
+        if (authoritativePage == null || authoritativePage.posts().isEmpty()) {
+            // A cache member can outlive a deleted/moved post. Let the SQL keyset query
+            // reconstruct the page instead of issuing a cursor from stale metadata.
+            return CachePageLoad.miss();
+        }
+        List<DiscussPost> authoritativePosts = authoritativePage.posts();
+        Map<UUID, PostSummaryResult> summariesById = new HashMap<>();
+        for (PostSummaryResult item : items) {
+            if (item != null && item.id() != null) {
+                summariesById.put(item.id(), item);
+            }
+        }
+        List<PostSummaryResult> authoritativeItems = new ArrayList<>(authoritativePosts.size());
+        for (DiscussPost post : authoritativePosts) {
+            PostSummaryResult summary = summariesById.get(post.getId());
+            if (summary == null) {
+                return CachePageLoad.miss();
+            }
+            // Summary content may legitimately be stale, but rank and board fields must
+            // come from the row that produced the cursor.
+            authoritativeItems.add(mergeRankFields(summary, post));
+        }
+        return CachePageLoad.page(
+                new LoadedFeedPage(
+                        authoritativeItems,
+                        authoritativePage.hasNext(),
+                        rankVersion.value(),
+                        postBoundaryOf(authoritativePosts)
+                ),
+                result
+        );
     }
 
-    private LoadedFeedPage loadFallbackPage(int page, int limit, UUID boardId, String scope, boolean cacheDegraded) {
+    /**
+     * Redis stores a compact score/member projection. Validate that the IDs it returned are
+     * still in the database's complete hot-feed order before trusting a page boundary.
+     */
+    private AuthoritativeCachePage authoritativeCachePage(
+            List<UUID> ids,
+            FeedCursorCodec.CursorState state,
+            int limit,
+            UUID boardId
+    ) {
+        List<UUID> distinctIds = ids.stream().filter(id -> id != null).distinct().toList();
+        if (distinctIds.size() != ids.size()) {
+            return null;
+        }
+        List<DiscussPost> loaded = listFallbackPosts(state, limit, boardId);
+        if (loaded == null || loaded.isEmpty()) {
+            return null;
+        }
+        boolean hasNext = loaded.size() > limit;
+        List<DiscussPost> authoritativePage = hasNext
+                ? List.copyOf(loaded.subList(0, limit))
+                : List.copyOf(loaded);
+        if (authoritativePage.size() != distinctIds.size()) {
+            return null;
+        }
+        for (DiscussPost post : authoritativePage) {
+            if (post == null
+                    || post.getId() == null
+                    || post.getCreateTime() == null
+                    || post.isDeleted()
+                    || !Double.isFinite(post.getScore())) {
+                return null;
+            }
+            if (boardId != null && !boardId.equals(post.getCategoryId())) {
+                return null;
+            }
+        }
+        List<UUID> authoritativeIds = authoritativePage.stream().map(DiscussPost::getId).toList();
+        return authoritativeIds.equals(distinctIds)
+                ? new AuthoritativeCachePage(authoritativePage, hasNext)
+                : null;
+    }
+
+    private static PostSummaryResult mergeRankFields(PostSummaryResult summary, DiscussPost post) {
+        return new PostSummaryResult(
+                post.getId(),
+                summary.userId() == null ? post.getUserId() : summary.userId(),
+                summary.title(),
+                summary.preview(),
+                post.getType(),
+                post.getStatus(),
+                post.getCreateTime(),
+                post.getCommentCount(),
+                post.getScore(),
+                post.getCategoryId(),
+                summary.tags(),
+                summary.lastReplyUserId(),
+                summary.lastReplyTime(),
+                summary.lastActivityTime(),
+                summary.lastReplyPreview()
+        );
+    }
+
+    private LoadedFeedPage loadFallbackPage(
+            FeedCursorCodec.CursorState state,
+            int limit,
+            UUID boardId,
+            String scope,
+            boolean cacheDegraded
+    ) {
         String singleFlightKey = boardId == null
-                ? "global:" + page + ":" + limit
-                : "board:" + boardId + ":" + page + ":" + limit;
+                ? "global:" + state.page() + ":" + limit + ":" + boundaryKey(state)
+                : "board:" + boardId + ":" + state.page() + ":" + limit + ":" + boundaryKey(state);
         return hotPathSingleFlight.execute(
                 "feed",
                 singleFlightKey,
                 hotPathProperties.getSingleFlight().ttl(),
-                () -> loadFallbackPageUnlocked(page, limit, boardId, scope, cacheDegraded),
+                () -> loadFallbackPageUnlocked(state, limit, boardId, scope, cacheDegraded),
                 () -> {
                     RankVersionResult rankVersion = safeRankVersion();
                     hotFeedReadMetrics.record("singleflight_busy", scope);
-                    return new LoadedFeedPage(List.of(), false, rankVersion.value());
+                    return new LoadedFeedPage(List.of(), false, rankVersion.value(), null);
                 }
         );
     }
 
-    private LoadedFeedPage loadFallbackPageUnlocked(int page, int limit, UUID boardId, String scope, boolean cacheDegraded) {
+    private LoadedFeedPage loadFallbackPageUnlocked(
+            FeedCursorCodec.CursorState state,
+            int limit,
+            UUID boardId,
+            String scope,
+            boolean cacheDegraded
+    ) {
         if (!policyProperties.isLatestFallbackEnabled()) {
             RankVersionResult rankVersion = safeRankVersion();
             hotFeedReadMetrics.record(cacheDegraded || rankVersion.degraded() ? "degraded" : "empty", scope);
-            return new LoadedFeedPage(List.of(), false, rankVersion.value());
+            return new LoadedFeedPage(List.of(), false, rankVersion.value(), null);
         }
-        List<DiscussPost> fallbackPosts = listFallbackPosts(page, limit, boardId);
-        if (fallbackPosts.isEmpty()) {
+        List<DiscussPost> fetchedPosts = listFallbackPosts(state, limit, boardId);
+        if (fetchedPosts.isEmpty()) {
             RankVersionResult rankVersion = safeRankVersion();
             hotFeedReadMetrics.record(cacheDegraded || rankVersion.degraded() ? "degraded" : "empty", scope);
-            return new LoadedFeedPage(List.of(), false, rankVersion.value());
+            return new LoadedFeedPage(List.of(), false, rankVersion.value(), null);
         }
+        boolean hasNext = fetchedPosts.size() > limit;
+        List<DiscussPost> fallbackPosts = hasNext
+                ? List.copyOf(fetchedPosts.subList(0, limit))
+                : List.copyOf(fetchedPosts);
         String rankVersion = policyProperties.getHotRankVersion();
         safeWarmFeedCache(fallbackPosts, boardId, rankVersion);
         List<PostSummaryResult> items = filterBoardItems(postFeedSummaryLoader.assembleSummaries(fallbackPosts), boardId);
         safePutSummaryCache(fallbackPosts, items);
         hotFeedReadMetrics.record(cacheDegraded ? "degraded" : "fallback", scope);
-        return new LoadedFeedPage(items, !listFallbackPosts(page + 1, limit, boardId).isEmpty(), rankVersion);
+        return new LoadedFeedPage(items, hasNext, rankVersion, postBoundaryOf(fallbackPosts));
     }
 
     private boolean hasNextCachedPage(int page, int limit, UUID boardId) {
-        String nextCursor = feedCursorCodec.encodePage(page + 1, limit);
+        if (page >= Integer.MAX_VALUE) {
+            return false;
+        }
+        String nextCursor = feedCursorCodec.encodePage(nextPage(page), limit);
         List<UUID> nextIds = readFeedIds(nextCursor, limit, boardId);
         return !nextIds.isEmpty();
     }
 
-    private List<DiscussPost> listFallbackPosts(int page, int limit, UUID boardId) {
-        if (boardId == null) {
-            return postContentRepository.listPosts(page, limit, PostContentRepository.ORDER_HOT);
+    private List<DiscussPost> listFallbackPosts(
+            FeedCursorCodec.CursorState state,
+            int limit,
+            UUID boardId
+    ) {
+        int fetchLimit = limit + 1;
+        if (state.hasHotBoundary()) {
+            FeedCursorCodec.HotBoundary boundary = state.hotBoundary();
+            return postContentRepository.listHotPostsAfter(
+                    boundary.type(),
+                    boundary.score(),
+                    boundary.createTime(),
+                    boundary.postId(),
+                    fetchLimit,
+                    boardId
+            );
         }
-        return postContentRepository.listPosts(page, limit, PostContentRepository.ORDER_HOT, boardId, null);
+        return postContentRepository.listPosts(
+                state.page(),
+                limit,
+                fetchLimit,
+                PostContentRepository.ORDER_HOT,
+                boardId,
+                null
+        );
+    }
+
+    private static FeedCursorCodec.HotBoundary summaryBoundaryOf(List<PostSummaryResult> items) {
+        if (items == null || items.isEmpty()) {
+            return null;
+        }
+        PostSummaryResult last = items.get(items.size() - 1);
+        if (last == null || last.id() == null || last.createTime() == null) {
+            return null;
+        }
+        return new FeedCursorCodec.HotBoundary(last.type(), last.score(), last.createTime(), last.id());
+    }
+
+    private static FeedCursorCodec.HotBoundary postBoundaryOf(List<DiscussPost> posts) {
+        if (posts == null || posts.isEmpty()) {
+            return null;
+        }
+        DiscussPost last = posts.get(posts.size() - 1);
+        if (last == null || last.getId() == null || last.getCreateTime() == null) {
+            return null;
+        }
+        return new FeedCursorCodec.HotBoundary(last.getType(), last.getScore(), last.getCreateTime(), last.getId());
+    }
+
+    private static String boundaryKey(FeedCursorCodec.CursorState state) {
+        if (!state.hasHotBoundary()) {
+            return "offset";
+        }
+        FeedCursorCodec.HotBoundary boundary = state.hotBoundary();
+        return boundary.type()
+                + ":" + boundary.score()
+                + ":" + boundary.createTime().getTime()
+                + ":" + boundary.postId();
     }
 
     private RankVersionResult safeRankVersion() {
@@ -340,6 +530,10 @@ public class FeedReadApplicationService {
         return Math.min(MAX_SIZE, Math.max(1, size <= 0 ? DEFAULT_SIZE : size));
     }
 
+    private static int nextPage(int page) {
+        return page >= Integer.MAX_VALUE ? Integer.MAX_VALUE : page + 1;
+    }
+
     private static HotPathSingleFlight loaderSingleFlight() {
         return new HotPathSingleFlight() {
             @Override
@@ -367,6 +561,14 @@ public class FeedReadApplicationService {
     private record RankVersionResult(String value, boolean degraded) {
     }
 
-    private record LoadedFeedPage(List<PostSummaryResult> items, boolean hasNext, String rankVersion) {
+    private record AuthoritativeCachePage(List<DiscussPost> posts, boolean hasNext) {
+    }
+
+    private record LoadedFeedPage(
+            List<PostSummaryResult> items,
+            boolean hasNext,
+            String rankVersion,
+            FeedCursorCodec.HotBoundary nextBoundary
+    ) {
     }
 }

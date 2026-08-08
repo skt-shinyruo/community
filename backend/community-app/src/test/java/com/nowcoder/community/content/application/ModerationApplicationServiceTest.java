@@ -15,6 +15,7 @@ import com.nowcoder.community.content.domain.repository.ReportRepository;
 import com.nowcoder.community.content.domain.service.ModerationDecisionDomainService;
 import com.nowcoder.community.content.exception.ContentErrorCode;
 import com.nowcoder.community.user.api.action.UserModerationActionApi;
+import com.nowcoder.community.user.api.action.UserModerationActionApi.ApplyModerationCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -29,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -93,8 +95,10 @@ class ModerationApplicationServiceTest {
                 moderationActionRepository,
                 moderationTargetRepository,
                 postModerationApplicationService,
-                moderationNoticePort
+                moderationNoticePort,
+                userModerationActionApi
         );
+        inOrder.verify(userModerationActionApi).assertActiveModerationActor(actorId);
         inOrder.verify(reportRepository).claimPending(REPORT_ID);
         inOrder.verify(reportRepository).getRequired(REPORT_ID);
         inOrder.verify(moderationTargetRepository).resolveTarget(report);
@@ -104,7 +108,6 @@ class ModerationApplicationServiceTest {
                 .transitionStatus(REPORT_ID, ReportStatuses.PROCESSING, ReportStatuses.PROCESSED);
         inOrder.verify(moderationNoticePort).publish(report, action, target, "to_target", targetUserId);
         inOrder.verify(moderationNoticePort).publish(report, action, target, "to_reporter", reporterId);
-        verifyNoInteractions(userModerationActionApi);
     }
 
     @Test
@@ -137,13 +140,13 @@ class ModerationApplicationServiceTest {
         ));
 
         assertThat(actionId).isEqualTo(existingAction.id());
+        verify(userModerationActionApi).assertActiveModerationActor(replayActorId);
         verify(moderationActionRepository).findByReportId(REPORT_ID);
         verifyNoInteractions(
                 moderationTargetRepository,
                 postModerationApplicationService,
                 commentApplicationService,
-                moderationNoticePort,
-                userModerationActionApi
+                moderationNoticePort
         );
     }
 
@@ -166,13 +169,13 @@ class ModerationApplicationServiceTest {
         assertDecisionConflict(new TakeModerationActionCommand(replayActorId, REPORT_ID, "ban", "abuse", 3600));
 
         assertThat(ContentErrorCode.MODERATION_DECISION_CONFLICT.getKind()).isEqualTo(ErrorKind.CONFLICT);
+        verify(userModerationActionApi, times(3)).assertActiveModerationActor(replayActorId);
         verify(moderationActionRepository, never()).writeAction(any(), any(), any(), any(), any());
         verifyNoInteractions(
                 moderationTargetRepository,
                 postModerationApplicationService,
                 commentApplicationService,
-                moderationNoticePort,
-                userModerationActionApi
+                moderationNoticePort
         );
     }
 
@@ -189,13 +192,13 @@ class ModerationApplicationServiceTest {
                 3600
         ));
 
+        verify(userModerationActionApi).assertActiveModerationActor(uuid(42));
         verify(moderationActionRepository, never()).writeAction(any(), any(), any(), any(), any());
         verifyNoInteractions(
                 moderationTargetRepository,
                 postModerationApplicationService,
                 commentApplicationService,
-                moderationNoticePort,
-                userModerationActionApi
+                moderationNoticePort
         );
     }
 
@@ -221,7 +224,10 @@ class ModerationApplicationServiceTest {
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(ContentErrorCode.INTERNAL_ERROR));
 
-        verify(userModerationActionApi).applyModeration(targetId, "ban", 3600);
+        verify(userModerationActionApi).assertActiveModerationActor(actorId);
+        verify(userModerationActionApi).applyModeration(
+                new ApplyModerationCommand(actorId, targetId, "ban", 3600)
+        );
         verify(moderationActionRepository).writeAction(actorId, REPORT_ID, "ban", "abuse", 3600);
         verifyNoInteractions(moderationNoticePort);
     }
@@ -245,7 +251,15 @@ class ModerationApplicationServiceTest {
         UUID actionId = service.takeAction(new TakeModerationActionCommand(actorId, REPORT_ID, "hide", "spam", null));
 
         assertThat(actionId).isEqualTo(action.id());
-        InOrder inOrder = inOrder(reportRepository, moderationActionRepository, moderationTargetRepository, commentApplicationService, moderationNoticePort);
+        InOrder inOrder = inOrder(
+                reportRepository,
+                moderationActionRepository,
+                moderationTargetRepository,
+                commentApplicationService,
+                moderationNoticePort,
+                userModerationActionApi
+        );
+        inOrder.verify(userModerationActionApi).assertActiveModerationActor(actorId);
         inOrder.verify(reportRepository).claimPending(REPORT_ID);
         inOrder.verify(reportRepository).getRequired(REPORT_ID);
         inOrder.verify(moderationTargetRepository).resolveTarget(report);
@@ -255,7 +269,6 @@ class ModerationApplicationServiceTest {
                 .transitionStatus(REPORT_ID, ReportStatuses.PROCESSING, ReportStatuses.PROCESSED);
         inOrder.verify(moderationNoticePort).publish(report, action, target, "to_target", targetUserId);
         inOrder.verify(moderationNoticePort).publish(report, action, target, "to_reporter", reporterId);
-        verifyNoInteractions(userModerationActionApi);
     }
 
     @Test
@@ -283,10 +296,13 @@ class ModerationApplicationServiceTest {
                 moderationActionRepository,
                 moderationNoticePort
         );
+        inOrder.verify(userModerationActionApi).assertActiveModerationActor(actorId);
         inOrder.verify(reportRepository).claimPending(REPORT_ID);
         inOrder.verify(reportRepository).getRequired(REPORT_ID);
         inOrder.verify(moderationTargetRepository).resolveTarget(report);
-        inOrder.verify(userModerationActionApi).applyModeration(targetId, "ban", 3600);
+        inOrder.verify(userModerationActionApi).applyModeration(
+                new ApplyModerationCommand(actorId, targetId, "ban", 3600)
+        );
         inOrder.verify(moderationActionRepository).writeAction(actorId, REPORT_ID, "ban", "abuse", 3600);
         inOrder.verify(reportRepository)
                 .transitionStatus(REPORT_ID, ReportStatuses.PROCESSING, ReportStatuses.PROCESSED);
@@ -313,9 +329,10 @@ class ModerationApplicationServiceTest {
         UUID actionId = service.takeAction(new TakeModerationActionCommand(actorId, REPORT_ID, "reject", "not spam", null));
 
         assertThat(actionId).isEqualTo(action.id());
+        verify(userModerationActionApi).assertActiveModerationActor(actorId);
         verify(reportRepository).transitionStatus(REPORT_ID, ReportStatuses.PROCESSING, ReportStatuses.REJECTED);
         verify(moderationNoticePort).publish(report, action, target, "to_reporter", reporterId);
-        verifyNoInteractions(postModerationApplicationService, commentApplicationService, userModerationActionApi);
+        verifyNoInteractions(postModerationApplicationService, commentApplicationService);
     }
 
     private ReportSnapshot pendingReport(UUID reportId, int targetType, UUID targetId, UUID reporterId) {

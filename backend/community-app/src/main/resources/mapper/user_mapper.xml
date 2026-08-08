@@ -20,11 +20,32 @@
         where id = #{id, jdbcType=BINARY}
     </select>
 
+    <select id="selectByIdForUpdate" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
+        select
+        <include refid="selectFields"></include>
+        from user
+        where id = #{id, jdbcType=BINARY}
+        for update
+    </select>
+
     <select id="selectByName" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
         select
         <include refid="selectFields"></include>
         from user
         where username = #{username}
+    </select>
+
+    <select id="selectUsernameAuthenticationSubjectDigest" resultType="string">
+        select sha2(
+            trim(
+                trailing weight_string(
+                    convert(' ' using utf8mb4) collate utf8mb4_unicode_ci
+                ) from weight_string(
+                    convert(#{username, jdbcType=VARCHAR} using utf8mb4) collate utf8mb4_unicode_ci
+                )
+            ),
+            256
+        )
     </select>
 
     <select id="selectByEmail" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
@@ -58,6 +79,14 @@
         where id = #{id, jdbcType=BINARY}
     </update>
 
+    <update id="updatePasswordIfSecurityVersion">
+        update user
+        set password = #{password},
+            security_version = #{securityVersion}
+        where id = #{id, jdbcType=BINARY}
+          and security_version = #{expectedSecurityVersion}
+    </update>
+
     <update id="updateType">
         update user
         set type = #{type},
@@ -77,18 +106,40 @@
           and policy_version = #{expectedPolicyVersion}
     </update>
 
-    <select id="selectModerationUsersAfterId" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
-        select id, mute_until, ban_until, policy_version
-        from user
-        where id &gt; #{afterId, jdbcType=BINARY}
-        order by id asc
+    <select id="selectModerationUsersAtVersionAfterId" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
+        select history.user_id as id,
+               history.mute_until,
+               history.ban_until,
+               history.version as policy_version
+        from user_policy_version_log history
+        where history.user_id &gt; #{afterId, jdbcType=BINARY}
+          and history.version = (
+              select max(candidate.version)
+              from user_policy_version_log candidate
+              where candidate.user_id = history.user_id
+                and candidate.version &lt;= #{snapshotVersion}
+          )
+          and history.user_exists = true
+        order by history.user_id asc
         limit #{limit}
     </select>
 
+    <insert id="insertPolicyVersionLog">
+        insert into user_policy_version_log(
+            version, user_id, user_exists, mute_until, ban_until, occurred_at
+        ) values(
+            #{version}, #{userId, jdbcType=BINARY}, #{userExists},
+            #{muteUntil}, #{banUntil}, current_timestamp
+        )
+    </insert>
+
     <select id="selectPolicyVersionCounterForUpdate" resultType="long">
-        select current_version
-        from user_policy_version_counter
-        where id = #{id}
+        select greatest(
+            counters.current_version,
+            coalesce((select max(history.version) from user_policy_version_log history), 0)
+        )
+        from user_policy_version_counter counters
+        where counters.id = #{id}
         for update
     </select>
 
@@ -99,9 +150,12 @@
     </update>
 
     <select id="selectPolicyVersionCounter" resultType="long">
-        select coalesce(max(current_version), 0)
-        from user_policy_version_counter
-        where id = #{id}
+        select greatest(
+            coalesce(max(counters.current_version), 0),
+            coalesce((select max(history.version) from user_policy_version_log history), 0)
+        )
+        from user_policy_version_counter counters
+        where counters.id = #{id}
     </select>
 
     <select id="selectSecurityVersionCounterForUpdate" resultType="long">
@@ -109,6 +163,12 @@
         from user_security_version_counter
         where id = #{id}
         for update
+    </select>
+
+    <select id="selectSecurityVersionById" resultType="long">
+        select security_version
+        from user
+        where id = #{id, jdbcType=BINARY}
     </select>
 
     <update id="updateSecurityVersionCounter">

@@ -7,6 +7,7 @@ import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.social.application.BlockApplicationService;
 import com.nowcoder.community.social.application.command.BlockCommand;
 import com.nowcoder.community.user.api.action.UserModerationActionApi;
+import com.nowcoder.community.user.api.action.UserModerationActionApi.ApplyModerationCommand;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject;
 import com.nowcoder.community.user.infrastructure.persistence.mapper.UserMapper;
@@ -22,6 +23,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -84,14 +86,17 @@ class ImPolicySnapshotControllerTest {
     void userMessagingPolicySnapshotShouldExposeMuteBanAndExistence() throws Exception {
         UUID mutedUserId = uuid(7);
         UUID bannedUserId = uuid(8);
+        UUID actorUserId = uuid(99);
         insertUser(mutedUserId, "u7");
         insertUser(bannedUserId, "u8");
-        userModerationActionApi.applyModeration(mutedUserId, "mute", 300);
-        userModerationActionApi.applyModeration(bannedUserId, "ban", 300);
+        insertUser(actorUserId, "moderation-admin", 1, 1);
+        userModerationActionApi.applyModeration(new ApplyModerationCommand(actorUserId, mutedUserId, "mute", 300));
+        userModerationActionApi.applyModeration(new ApplyModerationCommand(actorUserId, bannedUserId, "ban", 300));
 
         mockMvc.perform(get("/internal/im/realtime/projections/user-policies")
                         .header("Authorization", internalBearer(mutedUserId))
                         .param("afterUserId", uuid(2).toString())
+                        .param("snapshotVersion", Long.toString(userRepository.currentUserPolicyVersion()))
                         .param("limit", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.entries[0].userId").value(mutedUserId.toString()))
@@ -114,7 +119,7 @@ class ImPolicySnapshotControllerTest {
         blockApplicationService.block(new BlockCommand(uuid(1), uuid(3)));
         blockApplicationService.block(new BlockCommand(uuid(2), uuid(1)));
 
-        mockMvc.perform(get("/internal/im/realtime/projections/block-relations")
+        MvcResult firstPage = mockMvc.perform(get("/internal/im/realtime/projections/block-relations")
                         .header("Authorization", internalBearer(uuid(7)))
                         .param("limit", "2"))
                 .andExpect(status().isOk())
@@ -127,12 +132,17 @@ class ImPolicySnapshotControllerTest {
                 .andExpect(jsonPath("$.entries[1].active").value(true))
                 .andExpect(jsonPath("$.nextBlockerUserId").value(uuid(1).toString()))
                 .andExpect(jsonPath("$.nextBlockedUserId").value(uuid(3).toString()))
-                .andExpect(jsonPath("$.hasMore").value(true));
+                .andExpect(jsonPath("$.hasMore").value(true))
+                .andReturn();
+        long snapshotVersion = objectMapper.readTree(firstPage.getResponse().getContentAsByteArray())
+                .path("snapshotHighWatermark")
+                .asLong();
 
         mockMvc.perform(get("/internal/im/realtime/projections/block-relations")
                         .header("Authorization", internalBearer(uuid(7)))
                         .param("afterBlockerUserId", uuid(1).toString())
                         .param("afterBlockedUserId", uuid(3).toString())
+                        .param("snapshotVersion", Long.toString(snapshotVersion))
                         .param("limit", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.entries.length()").value(1))
@@ -170,18 +180,23 @@ class ImPolicySnapshotControllerTest {
     }
 
     private void insertUser(UUID userId, String username) {
+        insertUser(userId, username, 0, 0);
+    }
+
+    private void insertUser(UUID userId, String username, int type, int status) {
         UserDataObject user = new UserDataObject();
         user.setId(userId);
         user.setUsername(username);
         user.setPassword("encoded");
         user.setSalt("");
         user.setEmail(username + "@example.com");
-        user.setType(0);
-        user.setStatus(0);
+        user.setType(type);
+        user.setStatus(status);
         user.setHeaderUrl("/avatar.png");
         user.setCreateTime(new Date());
         user.setPolicyVersion(userRepository.nextUserPolicyVersion(userId));
         userMapper.insertUser(user);
+        userMapper.insertPolicyVersionLog(user.getPolicyVersion(), userId, true, null, null);
     }
 
     private String bearer(UUID userId) throws Exception {

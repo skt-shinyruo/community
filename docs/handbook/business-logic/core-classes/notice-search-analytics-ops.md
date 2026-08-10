@@ -7,7 +7,7 @@
 1. Notice：`NoticeApplicationService` -> `NoticeProjectionApplicationService`
 2. Search：`SearchApplicationService` -> `SearchPostProjectionApplicationService`
 3. Analytics：`AnalyticsRequestCaptureApplicationService` -> `AnalyticsIngestApplicationService`
-4. Ops：`ProjectionGovernanceApplicationService` / `OutboxGovernanceApplicationService`
+4. Ops：`ProjectionLagQuery` / `OutboxGovernanceApplicationService`
 
 ## Notice
 
@@ -53,7 +53,7 @@
 
 | 类 | 核心职责 |
 | --- | --- |
-| `ops.application.ProjectionGovernanceApplicationService` | 通过 application port 查询 projection outbox lag。 |
+| `ops.application.ProjectionLagQuery` | 通过纯读 query 查询 projection outbox lag。 |
 | `ops.controller.ProjectionOpsController` | `/api/ops/projections/lag` HTTP binding。 |
 | `ops.infrastructure.outbox.OutboxProjectionLagAdapter` | 聚合 projection topic 的 `PENDING/PROCESSING/DEAD` 数量与最老年龄。 |
 | `ops.application.OutboxGovernanceApplicationService` | outbox 状态、retry 与治理审计。 |

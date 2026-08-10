@@ -4,7 +4,7 @@
 
 ## 当前入口
 
-`RuntimeConfigController` 暴露 `GET /api/runtime-config`，并通过 `RuntimeSecurityRules` 允许未登录访问。Controller 只做 HTTP 适配：调用 `RuntimeConfigApplicationService.current()`，再把 `RuntimeConfigResult` 作为 200 响应返回。
+`RuntimeConfigController` 暴露 `GET /api/runtime-config`，并通过 `RuntimeSecurityRules` 允许未登录访问。Controller 只做 HTTP 适配：调用 `RuntimeConfigApplicationService.current()`，再直接返回 application service 的 nested snapshot result 作为 200 响应。
 
 这类 Controller 属于 `IndexOnly`：读者需要知道它是公开 runtime snapshot 的 HTTP 入口，但业务行为在 application service 和配置属性里。
 

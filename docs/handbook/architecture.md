@@ -70,7 +70,9 @@ com.nowcoder.community.<domain>
 
 允许有少量域特定 adapter 包，但职责必须能映射回上面的层次。例如 owner API adapter 可以位于 `infrastructure.api`，Spring event / outbox adapter 可以位于 `infrastructure.event`。
 
-简单查询可以止于 application query port，不必为了完整包形态构造 domain model。复杂写入仍由 ApplicationService 编排 domain 和 repository。`drive` 等涉及外部存储、恢复和事务切分的领域继续使用完整分层。
+简单查询可以止于 application query port，不必为了完整包形态构造 domain model。满足以下条件的同域纯读入口可以直接命名为 application 包中的 `*Query` interface，并由同域 infrastructure adapter 实现：不含业务规则或跨域编排、不建立写事务或幂等状态、不暴露 HTTP/broker/持久化类型，并直接返回 transport-free read model。Controller 可以依赖该 `*Query`，但 foreign domain 仍必须通过 owner `api.query` / `api.action`。复杂写入仍由 ApplicationService 编排 domain 和 repository。`drive` 等涉及外部存储、恢复和事务切分的领域继续使用完整分层。
+
+`community-common/common-json` 提供共享的 owner event envelope 校验、codec 解码和 dispatch support。它只收敛机械的元数据校验与异常包装；每个 owner 仍保留自己的 ApplicationService、事件类型、payload codec、outbox 和消费者策略。
 
 ## 非 business 代码边界
 

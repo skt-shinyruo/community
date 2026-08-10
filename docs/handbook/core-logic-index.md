@@ -125,7 +125,7 @@
 | `content.application.CommentApplicationService` | 评论创建、编辑、删除和事件 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.CommentReadApplicationService` | 评论列表和用户最近评论查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.BookmarkApplicationService` | 收藏关系 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
-| `content.application.SubscriptionApplicationService` | 分类订阅关系 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
+| `content.application.SubscriptionQuery` | 分类订阅纯读查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.CategoryApplicationService` | 分类列表 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.TagApplicationService` | 热门标签和标签建议 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.ReportApplicationService` | 举报创建和查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
@@ -236,7 +236,7 @@
 | `ops.application.OutboxGovernanceApplicationService` | outbox status、retry 与治理审计 | [可靠性机制](reliability.md#outbox-governance) | Covered |
 | `ops.application.CompensationGovernanceApplicationService` | allowlist、limit/reason 和 owner repair 协作 | [可靠性机制](reliability.md#compensation-governance) | Covered |
 | `ops.application.HotCacheGovernanceApplicationService` | ops 到 content hot-cache owner API 的治理编排 | [可靠性机制](reliability.md#hot-cache-governance) | Covered |
-| `ops.application.ProjectionGovernanceApplicationService` | projection outbox lag 只读查询 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#ops-投影治理) | Covered |
+| `ops.application.ProjectionLagQuery` | projection outbox lag 纯读查询 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#ops-投影治理) | Covered |
 | `content.application.HotFeedCacheGovernanceApplicationService` | content owner 的 status/prewarm/degradation 能力 | [可靠性机制](reliability.md#hot-cache-governance) | Covered |
 
 ## Growth

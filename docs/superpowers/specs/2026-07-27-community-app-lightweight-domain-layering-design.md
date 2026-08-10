@@ -22,14 +22,16 @@
 2. Application result、owner API model 与 HTTP response 的字段语义和生命周期一致、且不含 transport type 时，可以复用同一个值；same-domain controller 仍只调用 ApplicationService，不注入 owner API entry。
 3. Owner ApplicationService 可以直接实现本域同步 API。只有实质转换存在时才添加 API adapter。
 4. 简单查询可以使用 application query port，不强制创建 domain model。
-5. ApplicationService 可以直接把 integration event 写入 outbox port。Domain event 与 Spring bridge 只用于独立的本地订阅关系。
-6. Focused application helper 使用真实角色命名，例如 `Assembler`、`Scheduler`、`Publisher`，不伪装成 ApplicationService。
+5. 满足“无业务规则、无跨域编排、无写事务/幂等、无 transport 类型、直接返回 transport-free read model”五项条件的同域纯读入口可以使用 application `*Query` interface，由同域 infrastructure adapter 直接实现；controller 只依赖该 query，不把它作为 foreign domain entry。
+6. ApplicationService 可以直接把 integration event 写入 outbox port。Domain event 与 Spring bridge 只用于独立的本地订阅关系；owner envelope 校验、codec 和 dispatch 的机械部分可以由 `common-json` support 复用。
+7. Focused application helper 使用真实角色命名，例如 `Assembler`、`Scheduler`、`Publisher`，不伪装成 ApplicationService。
 
 ## 标准链路
 
 ```text
 simple query
   Controller -> ApplicationService -> QueryPort
+  or Controller -> pure application Query -> infrastructure adapter
 
 local write
   Controller -> ApplicationService -> Domain + Repository
@@ -50,7 +52,7 @@ ArchUnit 主要守卫越层、owner 泄漏、transport 泄漏和事务位置。�
 
 同步协作守卫只检查两件事：business / adapter domain application 的跨域依赖必须落在 published `api.query`、`api.action` 或 `api.model`，核心域同步依赖图必须无环。它不再用逐类、逐类型 edge baseline 冻结当前实现。已清零的迁移例外直接删除，不保留空 set、空 map、透传参数或“集合必须为空”的测试；未来真实例外必须以具体规则和理由重新评审。
 
-`infrastructure.api` 是一个有意保持狭窄的例外包。静态分析无法可靠判断方法体是否只是 identity forwarding，因此 `InfraBoundaryArchTest` 对当前 6 个实质 adapter 使用 reviewed set。新 adapter 不是被禁止，但必须连同转换/策略理由更新 reviewed set 和架构文档。
+`infrastructure.api` 是一个有意保持狭窄的例外包。静态分析无法可靠判断方法体是否只是 identity forwarding，因此 `InfraBoundaryArchTest` 对当前 4 个实质 adapter 使用 reviewed set。新 adapter 不是被禁止，但必须连同转换/策略理由更新 reviewed set 和架构文档。
 
 ## 全仓审计结果
 

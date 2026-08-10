@@ -90,9 +90,9 @@ refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`us
 | HTTP request | cookie `refresh_token` | refresh token 明文 | `refresh(...)` / `logout(...)` 读取 |
 | HTTP response | `LoginResponse` | `accessToken` | 登录、注册验证、refresh 返回给客户端 |
 | HTTP response | `Set-Cookie` | `refresh_token` | 登录、注册验证、refresh 成功写入；logout 清理；refresh 失败不写该响应头 |
-| application command | `LoginCommand` | 登录凭证、验证码、`clientIp`, `clientIpSource` | controller 组装后进入 auth application |
-| application command | `RefreshCommand`, `LogoutCommand` | `refreshToken` | 从 cookie 读取后传入 application |
-| application result | `LoginResult`, `RefreshResult` | `accessToken`, `RefreshCookieSpec` | application 返回 controller |
+| application command | `LoginApplicationService.LoginCommand` | 登录凭证、验证码、`clientIp`, `clientIpSource` | controller 组装后进入 auth application |
+| application command | `LoginApplicationService.RefreshCommand`, `LoginApplicationService.LogoutCommand` | `refreshToken` | 从 cookie 读取后传入 application |
+| application result | `LoginResult`, `LoginApplicationService.RefreshResult` | `accessToken`, `RefreshCookieSpec` | application 返回 controller |
 | owner API | `UserCredentialQueryApi.AuthenticationSubject` | `utf8mb4_unicode_ci:v1:<digest>` opaque 登录主体 | user owner 用 MySQL `utf8mb4_unicode_ci` 的 `WEIGHT_STRING` scalar 生成，不查询用户表，因此与账号是否存在无关 |
 | owner API | `UserCredentialQueryApi.AuthenticationChallenge` | 稳定 `userId`（未知账号为 null）和一次性密码校验入口 | user owner 按数据库身份等价规则查询账号；`userId` 只约束本次密码校验，不参与风控分桶 |
 | owner API | `UserAuthenticationResultView` | `authenticated`, `failure`, `user` | user owner 认证结果 |
@@ -118,7 +118,7 @@ controller 职责：
 
 1. 校验并解析 `LoginRequest`。
 2. 用 `ClientIpResolver` 解析客户端 IP 和来源。
-3. 创建 `LoginCommand`，调用 `LoginApplicationService.login(...)`。
+3. 创建 `LoginApplicationService.LoginCommand`，调用 `LoginApplicationService.login(...)`。
 4. 将 `LoginResult.refreshCookie()` 转为 `Set-Cookie`。
 5. 响应体只返回 `LoginResponse.accessToken`。
 

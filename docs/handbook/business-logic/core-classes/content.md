@@ -36,7 +36,7 @@
 | `content.application.CategoryApplicationService` | 分类列表。 |
 | `content.application.TagApplicationService` | 热门标签和标签建议。 |
 | `content.application.BookmarkApplicationService` | 收藏关系。 |
-| `content.application.SubscriptionApplicationService` | 分类订阅关系。 |
+| `content.application.SubscriptionQuery` | 分类订阅纯读查询契约；不承载写入规则。 |
 | `content.application.ContentPostPayloadAssembler` | 内容事件 payload 的装配。 |
 | `content.application.PostDetailAssembler` / `PostSummaryAssembler` / `RecentUserCommentAssembler` | 视图装配辅助。 |
 | `content.application.PostContentBlockTextProjector` | 正文 block 到可搜索/可展示文本的投影。 |

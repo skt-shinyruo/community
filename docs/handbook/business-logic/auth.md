@@ -57,7 +57,7 @@ auth 不直接写 user 表；refresh session 则通过 auth 自己的 `RefreshTo
 当前注册采用 Verify-First 流程，核心目标是高并发下避免先创建大量未激活用户行。
 
 1. `AuthController.register(...)` 解析请求和客户端 IP。
-2. controller 组装 `RegisterCommand`，调用 `RegistrationApplicationService.register(...)`。
+2. controller 组装 `RegistrationApplicationService.RegisterCommand`，调用 `RegistrationApplicationService.register(...)`。
 3. `RegistrationApplicationService.register(...)` 校验验证码、用户名、密码、邮箱和邮件配置，再按 IP、规范化用户名和规范化邮箱原子增加请求配额；Redis 失败时 fail-closed。
 4. auth 域通过 `UserRegistrationActionApi.prepareRegistrationUser(...)` 进入 user owner。配额位于 BCrypt 和 draft 创建之前。
 5. user owner 规范化用户名和邮箱，先检查用户名/邮箱是否已存在，再生成预备用户 ID、计算 BCrypt 密码、准备默认头像，但不插入 `user` row。

@@ -9,7 +9,7 @@
 1. Notice：content / social owner event 经 `content.events` / `social.events` 到 `NoticeProjectionKafkaListener`，再由 `NoticeProjectionApplicationService` 计算收件人、topic 和内容快照。读取列表、未读数和摘要时只读 notice 自己的读模型。
 2. Search：content owner event 经 `content.events` 到 `SearchPostProjectionKafkaListener`，listener 进入 `SearchPostProjectionApplicationService` 回源 content 当前状态后决定 ES upsert 还是 delete。重建索引使用 single-flight 和 alias 原子切换。
 3. Analytics：请求链成功完成后由 `AnalyticsRequestCaptureFilter` 采集，classifier 决定是否记录 UV / DAU；`AnalyticsRequestCaptureApplicationService` 按开关选择 Kafka 或同步 ingest，登录成功也可通过 action API 计入 DAU。
-4. Ops：`ProjectionOpsController` 只进入 `ProjectionGovernanceApplicationService`，通过 application-owned port 汇总 projection outbox backlog，不直接修改 owner 数据。
+4. Ops：`ProjectionOpsController` 只进入同域纯读 `ProjectionLagQuery`，通过 application-owned query 汇总 projection outbox backlog，不直接修改 owner 数据。
 
 ## Notice 通知
 
@@ -179,8 +179,8 @@ HTTP：
 ### 入口与语义
 
 - `GET /api/ops/projections/lag`
-- `ProjectionOpsController` 只负责 HTTP result 转换，进入 `ProjectionGovernanceApplicationService.listProjectionLag()`。
-- application 通过 `ProjectionLagPort` 读取 lag；当前 `OutboxProjectionLagAdapter` 从已注册的 outbox handler topic 中只选择名称包含 `projection` 的 topic。
+- `ProjectionOpsController` 只负责 HTTP binding，进入 `ProjectionLagQuery.listProjectionLag()`。
+- `ProjectionLagQuery` 由 `OutboxProjectionLagAdapter` 直接实现，从已注册的 outbox handler topic 中只选择名称包含 `projection` 的 topic。
 - 查询只统计 `outbox_event` 的 `PENDING`、`PROCESSING`、`DEAD`，按 topic/status 返回 `count` 和最老记录的 `oldestAge`；没有匹配 topic 时返回空列表。
 - 这是只读运行治理视图，不代表 Kafka consumer lag，也不修复 owner 主事实。处理方式仍按 [运行与排障](../operations.md#outbox-dead-triage) 和 [可靠性机制](../reliability.md#outbox-governance) 执行。
 
@@ -222,6 +222,5 @@ Analytics：
 Ops：
 
 - `ops.controller.ProjectionOpsController`
-- `ops.application.ProjectionGovernanceApplicationService`
-- `ops.application.ProjectionLagPort`
+- `ops.application.ProjectionLagQuery`
 - `ops.infrastructure.outbox.OutboxProjectionLagAdapter`

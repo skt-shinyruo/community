@@ -15,7 +15,7 @@
 ## 创建订单流程
 
 1. 买家提交下单请求，携带 `Idempotency-Key`。
-2. `MarketOrderApplicationService.createOrder(CreateMarketOrderCommand)` 计算 request fingerprint。
+2. `MarketOrderApplicationService.createOrder(CreateOrderCommand)` 计算 request fingerprint（命令为该入口的 nested record）。
 3. `IdempotencyGuard.executeRequired(...)` 包住下单动作。
 4. `MarketOrderApplicationService.createOrder(requestId, ...)` 先按 `(buyerUserId, requestId)` 查询已有订单。
 5. `MarketOrder.assertReplayMatches(...)` 校验 buyer、listing、quantity 和 address；语义一致时立即返回已有结果，即使 listing 已售罄或当前是并发重试。

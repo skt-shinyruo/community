@@ -606,7 +606,7 @@ Outbox 和 scheduler：
 - `OutboxOpsControllerTest`
 - `CompensationGovernanceApplicationServiceTest`
 - `CompensationOpsControllerTest`
-- `DefaultCompensationTriggerAdapterTest`
+- `CompensationGovernanceApplicationServiceTest`（补偿路由已内联）
 - `MyBatisGovernanceAuditRepositoryTest`
 - `ReliabilityGovernanceMetricsTest`
 

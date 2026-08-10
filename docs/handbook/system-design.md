@@ -26,7 +26,7 @@ Client
   -> owner service
   -> SecurityFilterChain / ApiSecurityRules
   -> controller
-  -> owner ApplicationService
+  -> owner ApplicationService / pure application Query
   -> domain / repository
   -> Result<T>
 ```
@@ -46,7 +46,7 @@ Client + Authorization + Idempotency-Key
   -> contract event outbox, or an internal domain event when local subscribers exist
 ```
 
-同域 controller 进入 `ApplicationService`；其他 inbound adapter 进入一个公开的同域 application entry，不为固定类名增加转发层。跨域同步协作发生在 application 层，通过 foreign owner-domain `api.query` / `api.action` 完成；inbound adapter 不在 application 边界之前直接调用 foreign owner `api.*`、foreign `application.*`、domain model/service/repository 或 persistence 实现。
+同域 controller 通常进入 `ApplicationService`。只有无业务规则、无跨域编排、无幂等或写事务，并且可以直接返回 transport-free read model 的读取，才可以进入同域 application `*Query`，由 infrastructure adapter 直接实现。其他 inbound adapter 进入一个公开的同域 application entry，不为固定类名增加转发层。跨域同步协作发生在 application 层，通过 foreign owner-domain `api.query` / `api.action` 完成；inbound adapter 不在 application 边界之前直接调用 foreign owner `api.*`、foreign `application.*`、domain model/service/repository 或 persistence 实现。
 
 ## 并发写入边界
 
@@ -101,7 +101,7 @@ caller ApplicationService
 
 - `api.model` 是同步协作模型，不复用 `contracts.event`。
 - API request/result 可以嵌套在 API 接口中；Owner ApplicationService 可以直接实现 API。
-- 当前多数 owner API 由 ApplicationService 直接实现；`infrastructure.api` 只保留 6 个负责错误翻译、协议投影或配置策略的 reviewed adapter，不为纯 delegate 增加一层。
+- 当前多数 owner API 由 ApplicationService 直接实现；`infrastructure.api` 只保留 4 个负责错误翻译、协议投影或配置策略的 reviewed adapter，不为纯 delegate 增加一层。
 - domain 不依赖 `api.*`。
 - same-domain 调用不绕回 same-domain `api.*`。
 - 架构守卫检查 business / adapter domain application 跨域只能依赖 published API，并检查核心域同步依赖图无环；不冻结具体类到具体 API model 的 edge 清单。
@@ -124,6 +124,8 @@ caller ApplicationService
 - `user.contracts.event.*`
 
 `common.event.EventEnvelope` 保留为通用 envelope 能力，但不是包级单体内部投影协作的默认入口。同步 `api.model` 和异步 `contracts.event` 是两套 public contract，即使字段相同也不复用类型。
+
+content、social、user 的 owner event dispatch 共用 `common-json` 提供的 envelope 校验、codec 调用和 handler dispatch 支撑；各 owner 仍保留自己的 application 入口、contract event、错误文本和 wire contract。IM policy 的异构事件翻译不复用这层支撑。
 
 ## 投影和最终一致
 

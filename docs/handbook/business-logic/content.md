@@ -254,7 +254,7 @@ Complete upload：
 分类：
 
 - `CategoryApplicationService.listCategories()` 返回分类列表。
-- application 只做 domain model 到 `CategoryResult` 的转换。
+- application 只做 domain model 到 `CategoryApplicationService.CategoryResult` 的转换。
 - 返回字段包括 id、name、description、position 和 postCount。
 - 分类排序、过滤和计数口径由 `CategoryContentRepository` 实现决定；controller 不直接访问 repository。
 - 发帖和改帖必须校验分类存在。
@@ -264,7 +264,7 @@ Complete upload：
 
 - `TagApplicationService.listHotTags(limit)` 返回热门标签。
 - `suggestTags(q, limit)` 按输入建议标签。
-- application 只做 `HotTag` 到 `HotTagResult(name, useCount)` 的转换。
+- application 只做 `HotTag` 到 `TagApplicationService.HotTagResult(name, useCount)` 的转换。
 - limit、关键词规范化和结果排序由 `TagContentRepository` 承担。
 - 发帖绑定标签，改帖替换标签。
 
@@ -369,7 +369,7 @@ contract events：
 - `content.application.CommentApplicationService`
 - `content.application.CommentReadApplicationService`
 - `content.application.BookmarkApplicationService`
-- `content.application.SubscriptionApplicationService`
+- `content.application.SubscriptionQuery`（纯读查询契约，由 persistence adapter 实现）
 - `content.application.ReportApplicationService`
 - `content.application.ModerationApplicationService`
 - `content.application.PostModerationApplicationService`

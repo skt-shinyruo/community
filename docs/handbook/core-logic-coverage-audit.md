@@ -133,7 +133,7 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 | `analytics.application.AnalyticsRequestCaptureApplicationService` | `Covered` | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#analytics-分析) |
 | `analytics.infrastructure.event.AnalyticsRequestKafkaListener` | `Covered` | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#analytics-分析) |
 | `ops.controller.ProjectionOpsController` | `IndexOnly` | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#ops-投影治理) |
-| `ops.application.ProjectionGovernanceApplicationService` | `Covered` | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#ops-投影治理) |
+| `ops.application.ProjectionLagQuery` | `Covered` | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#ops-投影治理) |
 | `ops.application.OutboxGovernanceApplicationService` | `Covered` | [可靠性机制](reliability.md#outbox-governance) |
 | `ops.application.CompensationGovernanceApplicationService` | `Covered` | [可靠性机制](reliability.md#compensation-governance) |
 | `ops.application.HotCacheGovernanceApplicationService` | `Covered` | [可靠性机制](reliability.md#hot-cache-governance) |
@@ -195,7 +195,7 @@ Frontend 收窄范围的 API service 和 `*State.js` 文件已经进入 [core-lo
 
 | 候选 | 排除理由 |
 | --- | --- |
-| `ops.application.OutboxHandlerCatalog` / `ops.infrastructure.outbox.SpringOutboxHandlerCatalog` | handler bean discovery 的技术目录；独立业务语义在 `ProjectionGovernanceApplicationService` 与 `OutboxProjectionLagAdapter`，目录本身不构成用例。 |
+| `ops.application.OutboxHandlerCatalog` / `ops.infrastructure.outbox.SpringOutboxHandlerCatalog` | handler bean discovery 的技术目录；独立业务语义在 `ProjectionLagQuery` 与 `OutboxProjectionLagAdapter`，目录本身不构成用例。 |
 | `content.application.ContentHotPathProperties` | 纯配置绑定；默认值和运行语义已由 content 文档覆盖，不是独立核心入口。 |
 | `analytics.application.AnalyticsRequestCapturePort` | application-owned 发布端口；行为由 capture application 与 Kafka adapter 覆盖。 |
 | `common.trace.TraceJobRunner` | 为 job 建 trace 的横切包装，没有 owner 业务规则。 |
